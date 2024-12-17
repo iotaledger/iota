@@ -111,6 +111,7 @@ fn genesis_builder_snapshot_generation(
         snapshot_parser.target_milestone_timestamp(),
         snapshot_parser.outputs(),
         object_snapshot_writer,
+        false, // with metrics
     )?;
 
     Ok(())

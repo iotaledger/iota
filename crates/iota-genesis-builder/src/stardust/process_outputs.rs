@@ -11,11 +11,13 @@ use iota_sdk::types::{
         address::Address,
         output::{
             AliasOutputBuilder, BasicOutputBuilder, FoundryOutputBuilder, NftOutputBuilder, Output,
+            OutputId,
             unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
         },
     },
 };
 use iota_types::timelock::timelock::is_vested_reward;
+use tracing::info;
 
 use super::types::output_header::OutputHeader;
 
@@ -51,10 +53,14 @@ pub fn is_voting_output(output: &Output) -> bool {
 pub fn process_outputs_for_iota<'a>(
     target_milestone_timestamp: u32,
     outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
+    with_metrics: bool,
 ) -> impl Iterator<Item = Result<(OutputHeader, Output), anyhow::Error>> + 'a {
-    let scale_amount_filter = Box::new(ScaleIotaAmountFilter::default());
-    let vesting_filter = Box::new(UnlockedVestingOutputFilter::new(target_milestone_timestamp));
-    let voting_filter = Box::new(VotingOutputFilter::default());
+    let scale_amount_filter = Box::new(ScaleIotaAmountFilter::new(with_metrics));
+    let vesting_filter = Box::new(UnlockedVestingOutputFilter::new(
+        target_milestone_timestamp,
+        with_metrics,
+    ));
+    let voting_filter = Box::new(VotingOutputFilter::new(with_metrics));
 
     // Create the iterator with the filters
     HornetFilterIterator::new(
@@ -82,6 +88,8 @@ trait HornetFilter<Item> {
     /// Pop an output processed during the filtering process that was not
     /// finalized.
     fn pop_processed(&mut self) -> Option<Item>;
+    /// Print the metrics of the filtering process.
+    fn print_metrics(&self);
 }
 
 /// An iterator that processes outputs based on some filters.
@@ -101,6 +109,12 @@ where
 {
     fn new(filters: Vec<Box<dyn HornetFilter<Item>>>, outputs: I) -> Self {
         Self { filters, outputs }
+    }
+
+    fn maybe_print_metrics(&self) {
+        for filter in &self.filters {
+            filter.print_metrics();
+        }
     }
 }
 
@@ -132,6 +146,9 @@ where
                 return Some(processed_output);
             }
         }
+
+        // Iteration has finished
+        self.maybe_print_metrics();
         None
     }
 }
@@ -139,7 +156,20 @@ where
 /// Filter that modifies the amount of IOTA tokens for any output, scaling the
 /// amount from micros to nanos. Operates in place during the iteration.
 #[derive(Default)]
-struct ScaleIotaAmountFilter {}
+struct ScaleIotaAmountFilter {
+    number_of_modified_outputs: u64,
+    /// Flag to enable metrics
+    with_metrics: bool,
+}
+
+impl ScaleIotaAmountFilter {
+    fn new(with_metrics: bool) -> Self {
+        Self {
+            number_of_modified_outputs: 0,
+            with_metrics,
+        }
+    }
+}
 
 impl HornetFilter<Result<(OutputHeader, Output)>> for ScaleIotaAmountFilter {
     fn process(
@@ -148,6 +178,9 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for ScaleIotaAmountFilter {
     ) -> Option<Result<(OutputHeader, Output)>> {
         // continue filtering
         Some(output.map(|(header, inner)| {
+            if self.with_metrics {
+                self.number_of_modified_outputs += 1;
+            }
             (header, match inner {
                 Output::Basic(ref basic_output) => {
                     // Update amount
@@ -227,23 +260,42 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for ScaleIotaAmountFilter {
     fn pop_processed(&mut self) -> Option<Result<(OutputHeader, Output)>> {
         None
     }
+
+    fn print_metrics(&self) {
+        if self.with_metrics {
+            info!(
+                "Number of ScaleIotaAmountFilter modified outputs: {}",
+                self.number_of_modified_outputs
+            );
+        }
+    }
 }
 
 /// Filter that looks for vesting outputs that can be unlocked and stores them
 /// durng the iteration. At the end of the iteration it merges all vesting
 /// outputs owned by a single address into a unique basic output.
+#[derive(Default)]
 struct UnlockedVestingOutputFilter {
     /// Stores aggregated balances for eligible addresses.
     unlocked_address_balances: BTreeMap<Address, OutputHeaderWithBalance>,
     /// Timestamp used to evaluate timelock conditions.
     snapshot_timestamp_s: u32,
+    /// Output picked to be merged
+    modified_outputs: Vec<OutputId>,
+    /// Number of modified outputs after merge
+    number_of_outcome_outputs: u64,
+    /// Flag to enable metrics
+    with_metrics: bool,
 }
 
 impl UnlockedVestingOutputFilter {
-    fn new(snapshot_timestamp_s: u32) -> Self {
+    fn new(snapshot_timestamp_s: u32, with_metrics: bool) -> Self {
         Self {
-            unlocked_address_balances: Default::default(),
+            unlocked_address_balances: BTreeMap::new(),
             snapshot_timestamp_s,
+            modified_outputs: vec![],
+            number_of_outcome_outputs: 0,
+            with_metrics,
         }
     }
 }
@@ -257,6 +309,9 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for UnlockedVestingOutputFilte
             if let Some(address) =
                 get_address_if_vesting_output(&header, &inner, self.snapshot_timestamp_s)
             {
+                if self.with_metrics {
+                    self.modified_outputs.push(header.output_id());
+                }
                 self.unlocked_address_balances
                     .entry(address)
                     .and_modify(|x| x.balance += inner.amount())
@@ -280,6 +335,9 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for UnlockedVestingOutputFilte
         self.unlocked_address_balances
             .pop_first()
             .map(|(address, output_header_with_balance)| {
+                if self.with_metrics {
+                    self.number_of_outcome_outputs += 1;
+                }
                 // create a new basic output which holds the aggregated balance from
                 // unlocked vesting outputs for this address
                 let basic = BasicOutputBuilder::new_with_amount(output_header_with_balance.balance)
@@ -290,13 +348,40 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for UnlockedVestingOutputFilte
                 Ok((output_header_with_balance.output_header, basic.into()))
             })
     }
+
+    fn print_metrics(&self) {
+        if self.with_metrics {
+            info!(
+                "Number of UnlockedVestingOutputFilter modified outputs: {}",
+                self.modified_outputs.len()
+            );
+            info!(
+                "Number of UnlockedVestingOutputFilter outcome outputs: {}",
+                self.number_of_outcome_outputs
+            );
+        }
+    }
 }
 
 /// Filter that looks for basic outputs having a tag being the Participation Tag
 /// and removes all features from the basic output. Operates in place during the
 /// iteration.
 #[derive(Default)]
-struct VotingOutputFilter {}
+struct VotingOutputFilter {
+    /// Outputs where features were removed
+    modified_outputs: Vec<OutputId>,
+    /// Flag to enable metrics
+    with_metrics: bool,
+}
+
+impl VotingOutputFilter {
+    fn new(with_metrics: bool) -> Self {
+        Self {
+            modified_outputs: vec![],
+            with_metrics,
+        }
+    }
+}
 
 impl HornetFilter<Result<(OutputHeader, Output)>> for VotingOutputFilter {
     fn process(
@@ -305,9 +390,13 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for VotingOutputFilter {
     ) -> Option<Result<(OutputHeader, Output)>> {
         // continue filtering
         Some(output.map(|(header, inner)| {
+            let output_id = header.output_id();
             (
                 header,
                 if is_voting_output(&inner) {
+                    if self.with_metrics {
+                        self.modified_outputs.push(output_id);
+                    }
                     // replace the inner output
                     BasicOutputBuilder::from(inner.as_basic())
                         .clear_features()
@@ -324,6 +413,19 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for VotingOutputFilter {
 
     fn pop_processed(&mut self) -> Option<Result<(OutputHeader, Output)>> {
         None
+    }
+
+    fn print_metrics(&self) {
+        if self.with_metrics {
+            info!(
+                "Number of VotingOutputFilter modified outputs: {}",
+                self.modified_outputs.len()
+            );
+            info!(
+                "VotingOutputFilter modified outputs ids: {:?}",
+                self.modified_outputs
+            );
+        }
     }
 }
 
