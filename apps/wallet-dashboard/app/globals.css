@@ -110,6 +110,7 @@ body {
 
     @screen md {
         .home-page-grid-container {
+            min-height: 700px;
             height: calc(100vh - 140px);
             @apply grid-cols-3;
             grid-template-areas:
