@@ -362,6 +362,7 @@ export default function VestingDashboardPage(): JSX.Element {
                                     <Button
                                         type={ButtonType.Primary}
                                         text="Stake"
+                                        disabled={vestingSchedule.availableStaking === 0n}
                                         onClick={() => {
                                             setStakeDialogView(StakeDialogView.SelectValidator);
                                         }}
