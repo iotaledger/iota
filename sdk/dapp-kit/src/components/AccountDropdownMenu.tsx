@@ -41,13 +41,15 @@ export function AccountDropdownMenu({ currentAccount, size = 'lg' }: AccountDrop
             <DropdownMenu.Portal>
                 <StyleMarker className={styles.menuContainer}>
                     <DropdownMenu.Content className={styles.menuContent}>
-                        {accounts.map((account) => (
-                            <AccountDropdownMenuItem
-                                key={account.address}
-                                account={account}
-                                active={currentAccount.address === account.address}
-                            />
-                        ))}
+                        <div className={styles.scrollableContent}>
+                            {accounts.map((account) => (
+                                <AccountDropdownMenuItem
+                                    key={account.address}
+                                    account={account}
+                                    active={currentAccount.address === account.address}
+                                />
+                            ))}
+                        </div>
                         <DropdownMenu.Separator className={styles.separator} />
                         <DropdownMenu.Item
                             className={clsx(styles.menuItem)}
