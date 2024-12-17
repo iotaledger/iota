@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import MigratePopup from '@/components/Popup/Popups/MigratePopup';
 import { useGetStardustMigratableObjects, usePopups } from '@/hooks';
-import { summarizeMigratableObjectValues, summarizeUnmigratableObjectValues } from '@/lib/utils';
+import { summarizeMigratableObjectValues, summarizeTimelockedObjectValues } from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -43,8 +43,8 @@ function MigrationDashboardPage(): JSX.Element {
     const {
         migratableBasicOutputs,
         migratableNftOutputs,
-        unmigratableBasicOutputs,
-        unmigratableNftOutputs,
+        timelockedBasicOutputs,
+        timelockedNftOutputs,
     } = stardustMigrationObjects || {};
 
     const {
@@ -56,9 +56,9 @@ function MigrationDashboardPage(): JSX.Element {
         nftOutputs: migratableNftOutputs,
         address,
     });
-    const { totalUnmigratableObjects } = summarizeUnmigratableObjectValues({
-        basicOutputs: unmigratableBasicOutputs,
-        nftOutputs: unmigratableNftOutputs,
+    const { totalTimelockedObjects } = summarizeTimelockedObjectValues({
+        basicOutputs: timelockedBasicOutputs,
+        nftOutputs: timelockedNftOutputs,
     });
 
     const hasMigratableObjects =
@@ -108,7 +108,7 @@ function MigrationDashboardPage(): JSX.Element {
 
     const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCardProps[] = [
         {
-            title: `${totalUnmigratableObjects}`,
+            title: `${totalTimelockedObjects}`,
             subtitle: 'Time-locked',
             icon: Clock,
         },
@@ -125,8 +125,8 @@ function MigrationDashboardPage(): JSX.Element {
                 selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
             ) {
                 return [
-                    ...stardustMigrationObjects.unmigratableBasicOutputs,
-                    ...stardustMigrationObjects.unmigratableNftOutputs,
+                    ...stardustMigrationObjects.timelockedBasicOutputs,
+                    ...stardustMigrationObjects.timelockedNftOutputs,
                 ];
             }
         }
@@ -212,7 +212,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 disabled={
                                     selectedStardustObjectsCategory ===
                                         StardustOutputMigrationStatus.TimeLocked ||
-                                    !totalUnmigratableObjects
+                                    !totalTimelockedObjects
                                 }
                                 onClick={() =>
                                     setSelectedStardustObjectsCategory(

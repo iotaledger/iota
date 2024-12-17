@@ -7,7 +7,7 @@ export const STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST: StardustOutputDetailsFilte
     StardustOutputDetailsFilter,
 );
 
-export const STARDUST_UNMIGRATABLE_OBJECTS_FILTER_LIST: StardustOutputDetailsFilter[] =
+export const STARDUST_TIMELOCKED_OBJECTS_FILTER_LIST: StardustOutputDetailsFilter[] =
     Object.values(StardustOutputDetailsFilter).filter(
         (element) => element !== StardustOutputDetailsFilter.WithExpiration,
     );
