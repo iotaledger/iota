@@ -14,10 +14,11 @@ export interface SupplyIncreaseVestingPayout {
 export type SupplyIncreaseVestingPortfolio = SupplyIncreaseVestingPayout[];
 
 export interface VestingOverview {
-    totalVested: number;
-    totalUnlocked: number;
-    totalLocked: number;
-    totalStaked: number;
-    availableClaiming: number;
-    availableStaking: number;
+    totalVested: bigint;
+    totalUnlocked: bigint;
+    totalLocked: bigint;
+    totalStaked: bigint;
+    totalEarned: bigint;
+    availableClaiming: bigint;
+    availableStaking: bigint;
 }

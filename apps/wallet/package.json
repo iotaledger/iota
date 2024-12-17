@@ -63,7 +63,7 @@
         "dotenv": "^16.4.5",
         "eslint-webpack-plugin": "^4.0.1",
         "git-rev-sync": "^3.0.2",
-        "happy-dom": "^10.5.1",
+        "happy-dom": "^15.11.7",
         "html-webpack-plugin": "^5.5.3",
         "mini-css-extract-plugin": "^2.7.6",
         "onchange": "^7.1.0",

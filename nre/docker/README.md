@@ -9,7 +9,7 @@ Tested using:
 
 1. Confirm you have either [Docker Engine](https://docs.docker.com/engine/install/) or [Docker Desktop](https://docs.docker.com/desktop/install/linux-install/) installed, as well as [Docker Compose](https://github.com/docker/compose#linux).
 
-2. Update [validator.yaml](../config/validator.yaml) and place it in the same directory as `docker-compose.yaml`.
+2. Update [validator.yaml](../config/validator.yaml) and place it in the same directory as [`docker-compose.yaml`](https://github.com/iotaledger/iota/blob/testnet/nre/docker/docker-compose.yaml).
 
 Add the paths to your private keys to validator.yaml. If you chose to put them in `/opt/iota/key-pairs`, you can use the following example:
 
@@ -22,7 +22,7 @@ network-key-pair:
   path: /opt/iota/key-pairs/network.key
 ```
 
-3. Place `genesis.blob` in the same directory as `docker-compose.yaml`. (available post genesis ceremony)
+3. Place `genesis.blob` in the same directory as [`docker-compose.yaml`](https://github.com/iotaledger/iota/blob/testnet/nre/docker/docker-compose.yaml). (available post genesis ceremony)
 
 ## Connectivity
 

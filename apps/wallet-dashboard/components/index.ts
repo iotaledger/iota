@@ -23,6 +23,8 @@ export * from './ExplorerLink';
 export * from './Dialogs';
 export * from './ValidatorStakingData';
 export * from './tiles';
+export * from './migration';
 export * from './Toaster';
 export * from './Banner';
 export * from './MigrationOverview';
+export * from './staked-timelock-object';

@@ -51,7 +51,7 @@ use crate::{
     },
 };
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 async fn wait_for_certs(
     stream: &mut UnboundedReceiver<VerifiedCertificate>,
     certs: &[VerifiedCertificate],
