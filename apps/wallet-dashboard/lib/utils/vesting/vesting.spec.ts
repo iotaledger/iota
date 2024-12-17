@@ -173,10 +173,12 @@ describe('vesting overview', () => {
         const lastPayout =
             extendedTimelockedStakedObjects[extendedTimelockedStakedObjects.length - 1];
         const lastPayoutValue = BigInt(lastPayout.principal);
-        const totalAmount = 
+        const totalAmount =
             (BigInt(SUPPLY_INCREASE_STAKER_VESTING_DURATION) *
                 BigInt(SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR) *
-                lastPayoutValue * 10n) / 9n
+                lastPayoutValue *
+                10n) /
+            9n;
 
         const vestingOverview = getVestingOverview(extendedTimelockedStakedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
