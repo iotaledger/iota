@@ -23,6 +23,10 @@ export interface ListItemProps {
      * The list item is disabled or not.
      */
     isDisabled?: boolean;
+    /**
+     * The list item is highlighted.
+     */
+    isHighlighted?: boolean;
 }
 
 export function ListItem({
@@ -31,6 +35,7 @@ export function ListItem({
     onClick,
     isDisabled,
     children,
+    isHighlighted,
 }: PropsWithChildren<ListItemProps>): React.JSX.Element {
     function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
         if ((event.key === 'Enter' || event.key === ' ') && !isDisabled && onClick) {
@@ -63,7 +68,10 @@ export function ListItem({
                 className={cx(
                     'relative flex flex-row items-center justify-between px-md py-sm text-neutral-10 dark:text-neutral-92',
                     !isDisabled && onClick ? 'cursor-pointer' : 'cursor-default',
-                    { 'state-layer': !isDisabled },
+                    {
+                        'bg-shader-primary-dark-16 dark:bg-shader-inverted-dark-16': isHighlighted,
+                        'state-layer': !isDisabled,
+                    },
                 )}
             >
                 {children}
