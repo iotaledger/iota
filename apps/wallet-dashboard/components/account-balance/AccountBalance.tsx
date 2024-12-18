@@ -22,11 +22,11 @@ export function AccountBalance() {
     const [isSendTokenDialogOpen, setIsSendTokenDialogOpen] = useState(false);
     const explorerLink = `${explorer}/address/${address}`;
 
-    function openSendTokenPopup(): void {
+    function openSendTokenDialog(): void {
         setIsSendTokenDialogOpen(true);
     }
 
-    function openReceiveTokenPopup(): void {
+    function openReceiveTokenDialog(): void {
         setIsReceiveDialogOpen(true);
     }
 
@@ -56,7 +56,7 @@ export function AccountBalance() {
                         </span>
                         <div className="flex w-full max-w-56 gap-xs">
                             <Button
-                                onClick={openSendTokenPopup}
+                                onClick={openSendTokenDialog}
                                 text="Send"
                                 size={ButtonSize.Small}
                                 disabled={!address}
@@ -64,7 +64,7 @@ export function AccountBalance() {
                                 fullWidth
                             />
                             <Button
-                                onClick={openReceiveTokenPopup}
+                                onClick={openReceiveTokenDialog}
                                 type={ButtonType.Secondary}
                                 text="Receive"
                                 size={ButtonSize.Small}

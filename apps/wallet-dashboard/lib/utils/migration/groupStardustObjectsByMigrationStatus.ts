@@ -52,6 +52,7 @@ interface MigratableObjectsData {
     totalNativeTokens: number;
     totalVisualAssets: number;
     totalIotaAmount: bigint;
+    totalNotOwnedStorageDepositReturnAmount: bigint;
 }
 
 interface SummarizeMigrationObjectParams {
@@ -67,6 +68,7 @@ export function summarizeMigratableObjectValues({
 }: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
     let totalIotaAmount: bigint = 0n;
+    let totalNotOwnedStorageDepositReturnAmount: bigint = 0n;
 
     const totalVisualAssets = nftOutputs.length;
     const outputObjects = [...basicOutputs, ...nftOutputs];
@@ -76,10 +78,18 @@ export function summarizeMigratableObjectValues({
 
         totalIotaAmount += BigInt(outputObjectFields.balance);
         totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
-        totalIotaAmount += extractStorageDepositReturnAmount(outputObjectFields, address) || 0n;
+        totalIotaAmount +=
+            extractOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
+        totalNotOwnedStorageDepositReturnAmount +=
+            extractNotOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
     }
 
-    return { totalNativeTokens, totalVisualAssets, totalIotaAmount };
+    return {
+        totalNativeTokens,
+        totalVisualAssets,
+        totalIotaAmount,
+        totalNotOwnedStorageDepositReturnAmount,
+    };
 }
 
 interface UnmmigratableObjectsData {
@@ -105,7 +115,7 @@ export function summarizeUnmigratableObjectValues({
     return { totalUnmigratableObjects };
 }
 
-export function extractStorageDepositReturnAmount(
+export function extractOwnedStorageDepositReturnAmount(
     { storage_deposit_return_uc }: CommonOutputObjectWithUc,
     address: string,
 ): bigint | null {
@@ -126,4 +136,17 @@ export function extractMigrationOutputFields(
             fields: CommonOutputObjectWithUc;
         }
     ).fields;
+}
+
+export function extractNotOwnedStorageDepositReturnAmount(
+    { storage_deposit_return_uc }: CommonOutputObjectWithUc,
+    address: string,
+): bigint | null {
+    if (
+        storage_deposit_return_uc?.fields &&
+        storage_deposit_return_uc?.fields.return_address !== address
+    ) {
+        return BigInt(storage_deposit_return_uc?.fields.return_amount);
+    }
+    return null;
 }

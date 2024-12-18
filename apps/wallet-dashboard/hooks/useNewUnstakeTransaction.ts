@@ -1,26 +1,23 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-    createStakeTransaction,
-    createTimelockedStakeTransaction,
-    GroupedTimelockObject,
-} from '@iota/core';
+import { createTimelockedUnstakeTransaction, createUnstakeTransaction } from '@iota/core';
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
-export function useNewStakeTransaction(validator: string, amount: bigint, senderAddress: string) {
+export function useNewUnstakeTransaction(senderAddress: string, unstakeIotaId: string) {
     const client = useIotaClient();
+
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: ['stake-transaction', validator, amount.toString(), senderAddress],
+        queryKey: ['unstake-transaction', unstakeIotaId, senderAddress],
         queryFn: async () => {
-            const transaction = createStakeTransaction(amount, validator);
+            const transaction = createUnstakeTransaction(unstakeIotaId);
             transaction.setSender(senderAddress);
             await transaction.build({ client });
             return transaction;
         },
-        enabled: !!amount && !!validator && !!senderAddress,
+        enabled: !!(senderAddress && unstakeIotaId),
         gcTime: 0,
         select: (transaction) => {
             return {
@@ -31,32 +28,22 @@ export function useNewStakeTransaction(validator: string, amount: bigint, sender
     });
 }
 
-export function useNewStakeTimelockedTransaction(
-    validator: string,
+export function useNewUnstakeTimelockedTransaction(
     senderAddress: string,
-    groupedTimelockObjects: GroupedTimelockObject[],
+    timelockedUnstakeIotaIds: string[],
 ) {
-    const amount = groupedTimelockObjects.reduce(
-        (acc, obj) => acc + (obj.totalLockedAmount - (obj.splitAmount ?? 0n)),
-        0n,
-    );
     const client = useIotaClient();
+
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: [
-            'stake-timelocked-transaction',
-            validator,
-            senderAddress,
-            amount.toString(),
-            groupedTimelockObjects.length,
-        ],
+        queryKey: ['timelocked-unstake-transaction', timelockedUnstakeIotaIds, senderAddress],
         queryFn: async () => {
-            const transaction = createTimelockedStakeTransaction(groupedTimelockObjects, validator);
+            const transaction = createTimelockedUnstakeTransaction(timelockedUnstakeIotaIds);
             transaction.setSender(senderAddress);
             await transaction.build({ client });
             return transaction;
         },
-        enabled: !!(validator && senderAddress && groupedTimelockObjects?.length),
+        enabled: !!(senderAddress && timelockedUnstakeIotaIds?.length),
         gcTime: 0,
         select: (transaction) => {
             return {
