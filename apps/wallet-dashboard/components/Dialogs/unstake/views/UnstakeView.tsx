@@ -24,9 +24,9 @@ import { Warning } from '@iota/ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Validator } from '../../Staking/views/Validator';
-import { useNewUnstakeTransaction, useNotifications } from '@/hooks';
+import { useNewUnstakeTransaction } from '@/hooks';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
-import { NotificationType } from '@/stores/notificationStore';
+import toast from 'react-hot-toast';
 
 interface UnstakeDialogProps {
     extendedStake: ExtendedDelegatedStake;
@@ -44,7 +44,6 @@ export function UnstakeView({
     showActiveStatus,
 }: UnstakeDialogProps): JSX.Element {
     const activeAddress = useCurrentAccount()?.address ?? '';
-    const { addNotification } = useNotifications();
     const { data: unstakeData, isPending: isUnstakeTxPending } = useNewUnstakeTransaction(
         activeAddress,
         extendedStake.stakedIotaId,
@@ -81,12 +80,12 @@ export function UnstakeView({
             },
             {
                 onSuccess: (tx) => {
-                    addNotification('Unstake transaction has been sent');
+                    toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
                 },
             },
         ).catch(() => {
-            addNotification('Unstake transaction was not sent', NotificationType.Error);
+            toast.error('Unstake transaction was not sent');
         });
     }
 
