@@ -26,6 +26,7 @@ overrides:
   ws: 8.18.0
   '@sentry/browser': 7.120.2
   nanoid@3.3.7: 3.3.8
+  nanoid@5.0.7: 5.0.9
 
 importers:
 
@@ -12302,8 +12303,8 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  nanoid@5.0.7:
-    resolution: {integrity: sha512-oLxFY2gd2IqnjcYyOXD8XGCftpGtZP2AbHbOkthDkvRywH5ayNtPVy9YlOPcHckXzbLTCHpkb7FB+yuxKV13pQ==}
+  nanoid@5.0.9:
+    resolution: {integrity: sha512-Aooyr6MXU6HpvvWXKoVoXwKMs/KyVakWwg7xQfv5/S/RIgJMy0Ifa45H9qqYy7pTCszrHzP21Uk4PZq2HpEM8Q==}
     engines: {node: ^18 || >=20}
     hasBin: true
 
@@ -21804,7 +21805,7 @@ snapshots:
   '@size-limit/esbuild@11.1.5(size-limit@11.1.5)':
     dependencies:
       esbuild: 0.23.1
-      nanoid: 5.0.7
+      nanoid: 5.0.9
       size-limit: 11.1.5
 
   '@size-limit/file@11.1.5(size-limit@11.1.5)':
@@ -30243,7 +30244,7 @@ snapshots:
 
   nanoid@3.3.8: {}
 
-  nanoid@5.0.7: {}
+  nanoid@5.0.9: {}
 
   nanospinner@1.1.0:
     dependencies:
