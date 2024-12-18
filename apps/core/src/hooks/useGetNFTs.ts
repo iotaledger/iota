@@ -41,6 +41,7 @@ export function useGetNFTs(
         hasNextPage,
         fetchNextPage,
         isLoading,
+        refetch,
     } = useGetOwnedObjects(address, filter, OBJECTS_PER_REQ);
 
     const assets = useMemo(() => {
@@ -80,5 +81,6 @@ export function useGetNFTs(
         isPending: isPending,
         isError: isError,
         error,
+        refetch,
     };
 }
