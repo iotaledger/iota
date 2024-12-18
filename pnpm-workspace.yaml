@@ -21,3 +21,7 @@ packages:
   - "!sdk/typescript/verify"
   - "!sdk/move-bytecode-template/pkg"
   - "!sdk/typescript/graphql/schemas/2024.11"
+  - '!sdk/typescript/zklogin'
+  - '!sdk/typescript/graphql/schemas/2024.4'
+  - '!sdk/signers/aws'
+  - '!sdk/enoki/react'

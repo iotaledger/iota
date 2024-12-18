@@ -1,76 +1,76 @@
 {
-    "name": "@iota/enoki",
-    "version": "0.4.14",
-    "description": "TODO: Description",
-    "license": "Apache-2.0",
-    "author": "IOTA Foundation <info@iota.org>",
-    "type": "commonjs",
-    "main": "./dist/cjs/index.js",
-    "module": "./dist/esm/index.js",
-    "types": "./dist/cjs/index.d.ts",
-    "exports": {
-        ".": {
-            "import": "./dist/esm/index.js",
-            "require": "./dist/cjs/index.js"
-        },
-        "./react": {
-            "import": "./dist/esm/react.js",
-            "require": "./dist/cjs/react.js"
-        }
-    },
-    "files": [
-        "CHANGELOG.md",
-        "dist",
-        "react"
-    ],
-    "scripts": {
-        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
-        "build": "build-package",
-        "demo": "vite ./demo",
-        "prepublishOnly": "pnpm build",
-        "prettier:check": "prettier -c --ignore-unknown .",
-        "prettier:fix": "prettier -w --ignore-unknown .",
-        "eslint:check": "eslint --max-warnings=0 .",
-        "eslint:fix": "pnpm run eslint:check --fix",
-        "lint": "pnpm run eslint:check && pnpm run prettier:check",
-        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/iotaledger/iota.git"
-    },
-    "bugs": {
-        "url": "https://github.com/iotaledger/iota/issues"
-    },
-    "homepage": "https://github.com/iotaledger/iota#readme",
-    "devDependencies": {
-        "@iota/build-scripts": "workspace:*",
-        "@types/node": "^20.14.10",
-        "@types/react": "^18.3.3",
-        "@types/react-dom": "^18.3.0",
-        "@vitejs/plugin-react-swc": "^3.7.0",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
-        "typescript": "^5.5.3",
-        "vite": "^5.3.3"
-    },
-    "dependencies": {
-        "@iota/iota-sdk": "workspace:*",
-        "@iota/zklogin": "workspace:*",
-        "@nanostores/react": "^0.7.2",
-        "jose": "^5.6.3",
-        "nanostores": "^0.10.3"
-    },
-    "peerDependencies": {
-        "@types/react": ">=17.0.0",
-        "react": ">=17.0.0"
-    },
-    "peerDependenciesMeta": {
-        "react": {
-            "optional": true
-        },
-        "@types/react": {
-            "optional": true
-        }
-    }
+	"name": "@iota/enoki",
+	"version": "0.4.14",
+	"description": "TODO: Description",
+	"license": "Apache-2.0",
+	"author": "IOTA Foundation <info@iota.org>",
+	"type": "commonjs",
+	"main": "./dist/cjs/index.js",
+	"module": "./dist/esm/index.js",
+	"types": "./dist/cjs/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/esm/index.js",
+			"require": "./dist/cjs/index.js"
+		},
+		"./react": {
+			"import": "./dist/esm/react.js",
+			"require": "./dist/cjs/react.js"
+		}
+	},
+	"files": [
+		"CHANGELOG.md",
+		"dist",
+		"react"
+	],
+	"scripts": {
+		"clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+		"build": "build-package",
+		"demo": "vite ./demo",
+		"prepublishOnly": "pnpm build",
+		"prettier:check": "prettier -c --ignore-unknown .",
+		"prettier:fix": "prettier -w --ignore-unknown .",
+		"eslint:check": "eslint --max-warnings=0 .",
+		"eslint:fix": "pnpm run eslint:check --fix",
+		"lint": "pnpm run eslint:check && pnpm run prettier:check",
+		"lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/iotaledger/iota.git"
+	},
+	"bugs": {
+		"url": "https://github.com/iotaledger/iota/issues"
+	},
+	"homepage": "https://github.com/iotaledger/iota#readme",
+	"devDependencies": {
+		"@iota/build-scripts": "workspace:*",
+		"@types/node": "^20.14.10",
+		"@types/react": "^18.3.3",
+		"@types/react-dom": "^18.3.0",
+		"@vitejs/plugin-react-swc": "^3.7.0",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1",
+		"typescript": "^5.5.3",
+		"vite": "^5.3.3"
+	},
+	"dependencies": {
+		"@iota/iota-sdk": "workspace:*",
+		"@iota/zklogin": "workspace:*",
+		"@nanostores/react": "^0.7.2",
+		"jose": "^5.6.3",
+		"nanostores": "^0.10.3"
+	},
+	"peerDependencies": {
+		"@types/react": ">=17.0.0",
+		"react": ">=17.0.0"
+	},
+	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		},
+		"@types/react": {
+			"optional": true
+		}
+	}
 }

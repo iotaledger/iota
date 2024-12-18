@@ -1,54 +1,54 @@
 {
-    "name": "@iota/zksend",
-    "version": "0.12.6",
-    "description": "TODO: Write Description",
-    "license": "Apache-2.0",
-    "author": "IOTA Foundation <info@iota.org>",
-    "type": "commonjs",
-    "main": "./dist/cjs/index.js",
-    "module": "./dist/esm/index.js",
-    "types": "./dist/cjs/index.d.ts",
-    "exports": {
-        ".": {
-            "import": "./dist/esm/index.js",
-            "require": "./dist/cjs/index.js"
-        }
-    },
-    "sideEffects": false,
-    "files": [
-        "CHANGELOG.md",
-        "dist"
-    ],
-    "scripts": {
-        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
-        "build": "build-package",
-        "prepublishOnly": "pnpm build",
-        "prettier:check": "prettier -c --ignore-unknown .",
-        "prettier:fix": "prettier -w --ignore-unknown .",
-        "eslint:check": "eslint --max-warnings=0 .",
-        "eslint:fix": "pnpm run eslint:check --fix",
-        "lint": "pnpm run eslint:check && pnpm run prettier:check",
-        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/iotaledger/iota.git"
-    },
-    "bugs": {
-        "url": "https://github.com/iotaledger/iota/issues"
-    },
-    "homepage": "https://github.com/iotaledger/iota#readme",
-    "devDependencies": {
-        "@iota/build-scripts": "workspace:*",
-        "@types/node": "^20.14.10",
-        "typescript": "^5.5.3",
-        "vitest": "^2.0.1"
-    },
-    "dependencies": {
-        "@iota/iota-sdk": "workspace:*",
-        "@iota/wallet-standard": "workspace:*",
-        "mitt": "^3.0.1",
-        "nanostores": "^0.10.3",
-        "valibot": "^0.36.0"
-    }
+	"name": "@iota/zksend",
+	"version": "0.12.6",
+	"description": "TODO: Write Description",
+	"license": "Apache-2.0",
+	"author": "IOTA Foundation <info@iota.org>",
+	"type": "commonjs",
+	"main": "./dist/cjs/index.js",
+	"module": "./dist/esm/index.js",
+	"types": "./dist/cjs/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/esm/index.js",
+			"require": "./dist/cjs/index.js"
+		}
+	},
+	"sideEffects": false,
+	"files": [
+		"CHANGELOG.md",
+		"dist"
+	],
+	"scripts": {
+		"clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+		"build": "build-package",
+		"prepublishOnly": "pnpm build",
+		"prettier:check": "prettier -c --ignore-unknown .",
+		"prettier:fix": "prettier -w --ignore-unknown .",
+		"eslint:check": "eslint --max-warnings=0 .",
+		"eslint:fix": "pnpm run eslint:check --fix",
+		"lint": "pnpm run eslint:check && pnpm run prettier:check",
+		"lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/iotaledger/iota.git"
+	},
+	"bugs": {
+		"url": "https://github.com/iotaledger/iota/issues"
+	},
+	"homepage": "https://github.com/iotaledger/iota#readme",
+	"devDependencies": {
+		"@iota/build-scripts": "workspace:*",
+		"@types/node": "^20.14.10",
+		"typescript": "^5.5.3",
+		"vitest": "^2.0.1"
+	},
+	"dependencies": {
+		"@iota/iota-sdk": "workspace:*",
+		"@iota/wallet-standard": "workspace:*",
+		"mitt": "^3.0.1",
+		"nanostores": "^0.10.3",
+		"valibot": "^0.36.0"
+	}
 }

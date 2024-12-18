@@ -1,47 +1,47 @@
 {
-    "name": "@iota/iotans-toolkit",
-    "author": "IOTA Foundation <info@iota.org>",
-    "description": "IotaNS TypeScript SDK",
-    "version": "0.5.30",
-    "license": "Apache-2.0",
-    "type": "commonjs",
-    "main": "./dist/cjs/index.js",
-    "module": "./dist/esm/index.js",
-    "types": "./dist/cjs/index.d.ts",
-    "exports": {
-        ".": {
-            "import": "./dist/esm/index.js",
-            "require": "./dist/cjs/index.js"
-        }
-    },
-    "files": [
-        "CHANGELOG.md",
-        "dist",
-        "src"
-    ],
-    "engines": {
-        "node": ">=18"
-    },
-    "scripts": {
-        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
-        "build": "build-package",
-        "prepublishOnly": "pnpm build",
-        "test:e2e": "vitest run",
-        "prettier:check": "prettier -c --ignore-unknown .",
-        "prettier:fix": "prettier -w --ignore-unknown .",
-        "eslint:check": "eslint --max-warnings=0 .",
-        "eslint:fix": "pnpm run eslint:check --fix",
-        "lint": "pnpm run eslint:check && pnpm run prettier:check",
-        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
-    },
-    "devDependencies": {
-        "@faker-js/faker": "^8.4.1",
-        "@iota/build-scripts": "workspace:*",
-        "ts-node": "^10.9.2",
-        "typescript": "^5.5.3",
-        "vitest": "^2.0.1"
-    },
-    "dependencies": {
-        "@iota/iota-sdk": "workspace:*"
-    }
+	"name": "@iota/iotans-toolkit",
+	"author": "IOTA Foundation <info@iota.org>",
+	"description": "IotaNS TypeScript SDK",
+	"version": "0.5.30",
+	"license": "Apache-2.0",
+	"type": "commonjs",
+	"main": "./dist/cjs/index.js",
+	"module": "./dist/esm/index.js",
+	"types": "./dist/cjs/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/esm/index.js",
+			"require": "./dist/cjs/index.js"
+		}
+	},
+	"files": [
+		"CHANGELOG.md",
+		"dist",
+		"src"
+	],
+	"engines": {
+		"node": ">=18"
+	},
+	"scripts": {
+		"clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+		"build": "build-package",
+		"prepublishOnly": "pnpm build",
+		"test:e2e": "vitest run",
+		"prettier:check": "prettier -c --ignore-unknown .",
+		"prettier:fix": "prettier -w --ignore-unknown .",
+		"eslint:check": "eslint --max-warnings=0 .",
+		"eslint:fix": "pnpm run eslint:check --fix",
+		"lint": "pnpm run eslint:check && pnpm run prettier:check",
+		"lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
+	},
+	"devDependencies": {
+		"@faker-js/faker": "^8.4.1",
+		"@iota/build-scripts": "workspace:*",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.5.3",
+		"vitest": "^2.0.1"
+	},
+	"dependencies": {
+		"@iota/iota-sdk": "workspace:*"
+	}
 }
