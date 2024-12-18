@@ -28,8 +28,7 @@
   ],
   "main": "./out/src/main.js",
   "activationEvents": [
-    "workspaceContains:Move.toml",
-    "onLanguage:move"
+    "workspaceContains:Move.toml"
   ],
   "contributes": {
     "commands": [
