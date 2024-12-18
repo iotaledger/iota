@@ -12,6 +12,8 @@ import {
     CardType,
     Badge,
     BadgeType,
+    ImageShape,
+    Skeleton,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 
@@ -50,7 +52,20 @@ export function Validator({
     });
 
     if (isPendingValidators) {
-        return <div className="flex items-center justify-center">...</div>;
+        return (
+            <Card>
+                <CardImage shape={ImageShape.Rounded}>
+                    <Skeleton widthClass="w-10" heightClass="h-10" />
+                </CardImage>
+                <div className="flex flex-col gap-y-xs">
+                    <Skeleton widthClass="w-40" heightClass="h-3.5" />
+                    <Skeleton widthClass="w-32" heightClass="h-3" hasSecondaryColors />
+                </div>
+                <div className="ml-auto flex flex-col gap-y-xs">
+                    <Skeleton widthClass="w-20" heightClass="h-3.5" />
+                </div>
+            </Card>
+        );
     }
     // for inactive validators, show the epoch number
     const fallBackText = activeEpoch
