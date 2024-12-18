@@ -68,6 +68,7 @@ jobs:
     secrets: inherit
     with:
       isProd: false
+      isStaging: false
 
   wallet-dashboard-staging:
     name: Vercel Wallet Dashboard Staging
