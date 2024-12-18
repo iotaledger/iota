@@ -73,7 +73,6 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let Some(mut output) = self.outputs.next() else {
-            debug!("Number of scaled outputs: {}", self.num_scaled_outputs);
             return None;
         };
         if let Ok((_, inner)) = &mut output {
@@ -160,6 +159,12 @@ where
     }
 }
 
+impl<I> Drop for ScaleIotaAmountIterator<I> {
+    fn drop(&mut self) {
+        debug!("Number of scaled outputs: {}", self.num_scaled_outputs);
+    }
+}
+
 /// Filtering iterator that looks for vesting outputs that can be unlocked and
 /// stores them during the iteration. At the end of the iteration it merges all
 /// vesting outputs owned by a single address into a unique basic output.
@@ -218,14 +223,6 @@ where
         let Some((address, output_header_with_balance)) =
             self.unlocked_address_balances.pop_first()
         else {
-            debug!(
-                "Number of vesting outputs before merge: {}",
-                self.vesting_outputs.len()
-            );
-            debug!(
-                "Number of vesting outputs after merging: {}",
-                self.num_vesting_outputs
-            );
             return None;
         };
         self.num_vesting_outputs += 1;
@@ -237,6 +234,19 @@ where
             .expect("should be able to create a basic output");
 
         Some(Ok((output_header_with_balance.output_header, basic.into())))
+    }
+}
+
+impl<I> Drop for UnlockedVestingIterator<I> {
+    fn drop(&mut self) {
+        debug!(
+            "Number of vesting outputs before merge: {}",
+            self.vesting_outputs.len()
+        );
+        debug!(
+            "Number of vesting outputs after merging: {}",
+            self.num_vesting_outputs
+        );
     }
 }
 
@@ -265,11 +275,6 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let Some(mut output) = self.outputs.next() else {
-            debug!(
-                "Number of participation outputs: {}",
-                self.participation_outputs.len()
-            );
-            debug!("Participation outputs: {:?}", self.participation_outputs);
             return None;
         };
         if let Ok((header, inner)) = &mut output {
@@ -284,6 +289,16 @@ where
             }
         }
         Some(output)
+    }
+}
+
+impl<I> Drop for ParticipationOutputIterator<I> {
+    fn drop(&mut self) {
+        debug!(
+            "Number of participation outputs: {}",
+            self.participation_outputs.len()
+        );
+        debug!("Participation outputs: {:?}", self.participation_outputs);
     }
 }
 
