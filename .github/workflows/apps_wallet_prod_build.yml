@@ -1,0 +1,88 @@
+name: Build Wallet App (Prod)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "wallet-v[0-9]+.[0-9]+.[0-9]+"
+
+env:
+  DEFAULT_NETWORK: ${{ secrets.WALLET_PROD_DEFAULT_NETWORK }}
+  IOTA_NETWORKS: ${{ secrets.WALLET_PROD_IOTA_NETWORKS }}
+  APPS_BACKEND: ${{ secrets.WALLET_PROD_APPS_BACKEND }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.TOOLING_SENTRY_AUTH_TOKEN }}
+
+jobs:
+  wallet-prod-build:
+    permissions:
+      contents: write
+    runs-on: [self-hosted]
+    steps:
+      - name: Checking out the repository
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+      - name: Install Nodejs
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: get-npm-version
+        id: package-version
+        uses: martinbeentjes/npm-get-version-action@3cf273023a0dda27efcd3164bdfb51908dd46a5b # v1.3.1
+        with:
+          path: apps/wallet
+      - name: Create artifact name
+        shell: bash
+        run: |
+          export artifact_name="iota-wallet-${{ steps.package-version.outputs.current-version }}"
+          echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
+      - name: Build Wallet
+        run: pnpm wallet build
+      - name: Get Previous Tag
+        id: prev_tag
+        run: |
+          tags=$(git tag --list 'wallet-v*.*.*' --sort=-creatordate)
+          current_tag=$(echo "$tags" | sed -n 1p)
+          prev_tag=$(echo "$tags" | sed -n 2p)
+          if [ -z "$prev_tag" ]; then
+            echo "No previous tag found. Skipping changelog generation."
+            echo "PREV_TAG=none" >> $GITHUB_ENV
+          else
+            echo "PREV_TAG=$prev_tag" >> $GITHUB_ENV
+          fi
+          echo "CURRENT_TAG=$current_tag" >> $GITHUB_ENV
+
+      - name: Generate Changelog
+        id: generate_changelog
+        run: |
+          if [ "${{ env.PREV_TAG }}" = "none" ]; then
+            echo "No previous tag found. Skipping changelog generation."
+            echo "changelog=No previous tag found. Changelog generation skipped." >> $GITHUB_OUTPUT
+          else
+            echo "## Changelog" >> CHANGELOG.md
+            git log ${{ env.PREV_TAG }}..${{ env.CURRENT_TAG }} --pretty=format:"- %s in #%h" -- ./apps/wallet > CHANGELOG.md
+          fi
+
+      - name: Get version from tag
+        id: version
+        run: echo "::set-output name=version::${GITHUB_REF#refs/tags/wallet-v}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.CURRENT_TAG }}
+          name: IOTA Wallet v${{ steps.version.outputs.version }}
+          draft: true
+          prerelease: false
+          body_path: CHANGELOG.md
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: ${{ env.artifact_name }}
+          path: |
+            ./apps/wallet/dist

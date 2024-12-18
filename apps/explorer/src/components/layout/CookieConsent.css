@@ -1,0 +1,32 @@
+.cookie-consent-theme {
+    --cc-font-family: theme(fontFamily.sans);
+    --cc-border-radius: theme(borderRadius.lg);
+    --cc-btn-primary-bg: theme(colors.primary.30);
+    --cc-btn-primary-hover-bg: theme(colors.primary.30);
+    --cc-btn-secondary-bg: theme(colors.neutral.90);
+    --cc-btn-secondary-text: theme(colors.neutral.10);
+    --cc-btn-secondary-hover-text: theme(colors.neutral.6);
+    --cc-btn-border-radius: theme(borderRadius.full);
+    --cc-consent-modal-box-shadow: theme(boxShadow.DEFAULT);
+}
+
+#cc--main #cm {
+    @apply max-w-[413px] p-4;
+}
+
+#cc--main #c-ttl {
+    @apply mb-2 text-body-lg font-semibold text-neutral-60;
+}
+
+#cc--main #c-txt {
+    @apply text-body-md font-medium text-neutral-40;
+}
+
+#cc--main #c-bns {
+    @apply mt-4;
+}
+
+#cc--main #c-p-bn,
+#cc--main #c-s-bn {
+    @apply text-body-md;
+}

@@ -28,7 +28,7 @@ const descriptionPlugin = (context, options) => {
           if (file.isDirectory()) {
             recurseFiles(fp, files);
           } else if (file.isFile() && path.extname(file.name) === ".mdx") {
-            if (!fp.match(/\/iota-api\/iota-graphql\//) && !fp.match(/snippets/))
+            if (!fp.match(/\/iota-api\/iota-graphql\//) && !fp.match(/_snippets/))
               files.push(fp);
           }
         });

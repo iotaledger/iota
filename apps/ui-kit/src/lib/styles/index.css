@@ -1,0 +1,136 @@
+/* Copyright (c) 2024 IOTA Stiftung
+ SPDX-License-Identifier: Apache-2.0 */
+
+@import './fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    .text-display-lg,
+    .text-display-md,
+    .text-display-sm,
+    .text-headline-lg,
+    .text-headline-md,
+    .text-headline-sm {
+        @apply font-alliance-no2;
+    }
+
+    .text-title-lg,
+    .text-title-md,
+    .text-title-sm,
+    .text-body-lg,
+    .text-body-md,
+    .text-body-sm,
+    .text-body-ds-lg,
+    .text-body-ds-md,
+    .text-body-ds-sm,
+    .text-label-lg,
+    .text-label-md,
+    .text-label-sm {
+        @apply font-inter;
+    }
+
+    .text-display-lg,
+    .text-display-md,
+    .text-display-sm,
+    .text-headline-lg,
+    .text-headline-md,
+    .text-headline-sm,
+    .text-body-ds-lg {
+        font-variant-alternates: 'ss02';
+    }
+
+    .text-label-md {
+        font-variant-alternates: 'ss01';
+    }
+
+    input:-webkit-autofill,
+    input:-webkit-autofill:enabled,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+        @apply appearance-none !bg-transparent !bg-none;
+        @apply !text-neutral-92 dark:!text-neutral-10;
+        transition: background-color 5000s ease-in-out 0s;
+        -webkit-text-fill-color: theme('colors.neutral.92') !important;
+    }
+
+    :root:not(.dark) {
+        input:-webkit-autofill,
+        input:-webkit-autofill:enabled,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-text-fill-color: theme('colors.neutral.10') !important;
+        }
+    }
+}
+
+@layer utilities {
+    .state-layer,
+    .state-layer-inverted,
+    .state-active {
+        &::after {
+            content: '';
+            border-radius: inherit;
+            @apply absolute;
+            @apply h-full w-full;
+            @apply left-0 top-0;
+            @apply transition-opacity duration-75;
+            @apply pointer-events-none;
+        }
+    }
+
+    .state-layer,
+    .state-layer-inverted {
+        &::after {
+            @apply opacity-0;
+        }
+
+        &:hover::after {
+            @apply opacity-8;
+        }
+
+        &:active::after {
+            @apply opacity-12;
+        }
+
+        &:disabled::after {
+            @apply opacity-0;
+        }
+    }
+
+    .state-active,
+    .state-layer {
+        &::after {
+            @apply bg-primary-60;
+        }
+    }
+
+    .state-layer-inverted {
+        &::after {
+            @apply bg-primary-80;
+        }
+    }
+
+    .state-active {
+        &::after {
+            @apply opacity-12;
+        }
+    }
+}
+
+@supports selector(::-webkit-scrollbar) {
+    *::-webkit-scrollbar {
+        @apply w-3.5;
+    }
+
+    *::-webkit-scrollbar-track {
+        @apply rounded-xl bg-transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+        @apply shadow-[inset_0_0_10px_10px] shadow-neutral-80 dark:shadow-neutral-30;
+        @apply rounded-xl border-4 border-solid border-transparent;
+    }
+}

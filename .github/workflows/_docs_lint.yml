@@ -1,0 +1,19 @@
+name: Docs spellcheck and linting
+
+on: workflow_call
+
+concurrency:
+  group: docs-lint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spelling:
+    name: Lint documentation
+    runs-on: [self-hosted]
+
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - name: Spell Check Docs
+        uses: crate-ci/typos@945d407a5fc9097f020969446a16f581612ab4df # v1.24.5
+        with:
+          files: ./docs/content

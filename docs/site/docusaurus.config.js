@@ -1,25 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { themes } from "prism-react-renderer";
 import path from "path";
 import math from "remark-math";
 import katex from "rehype-katex";
-
-const effortRemarkPlugin = require("./src/plugins/effort");
-const betaRemarkPlugin = require("./src/plugins/betatag");
+import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
+const jargonConfig = require('./config/jargon.js');
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: "Sui Documentation",
+  title: "IOTA Documentation",
   tagline:
-    "Sui is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
-  favicon: "/img/favicon.ico",
+    "IOTA is a next-generation smart contract platform with high throughput, low latency, and an asset-oriented programming model powered by Move",
+  favicon: "/icons/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://docs.sui.io",
+  url: "https://docs.iota.org",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: "/",
@@ -28,7 +29,8 @@ const config = {
   },
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "warn",
+  onBrokenMarkdownLinks: "throw",
+  onBrokenAnchors: "throw",
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -52,31 +54,16 @@ const config = {
   },
   plugins: [
     // ....
-    // path.resolve(__dirname, `./src/plugins/examples`),
-    [
-      "posthog-docusaurus",
-      {
-        apiKey: process.env.POSTHOG_API_KEY || "dev", // required
-        appUrl: "https://us.i.posthog.com", // optional, defaults to "https://us.i.posthog.com"
-        enableInDevelopment: false, // optional
-      },
-    ],
-    [path.resolve(__dirname, "src/plugins/inject-code"), {}],
     [
       "@graphql-markdown/docusaurus",
       {
-        schema: "../../crates/sui-graphql-rpc/schema.graphql",
+        schema:
+          "../../crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/sui-api/sui-graphql/reference",
+        baseURL: "references/iota-api/iota-graphql/reference",
         loaders: {
           GraphQLFileLoader: "@graphql-tools/graphql-file-loader",
         },
-      },
-    ],
-    [
-      "docusaurus-plugin-includes",
-      {
-        postBuildDeletedFolders: ["../snippets"],
       },
     ],
     async function myPlugin(context, options) {
@@ -91,8 +78,39 @@ const config = {
       };
     },
     path.resolve(__dirname, `./src/plugins/descriptions`),
-    path.resolve(__dirname, `./src/plugins/framework`),
-    path.resolve(__dirname, `./src/plugins/askcookbook`),
+    [
+      'docusaurus-plugin-typedoc',
+      // Options
+      {
+        tsconfig: '../../sdk/typescript/tsconfig.json',
+        entryPoints: [
+          "../../sdk/typescript/src/bcs",
+          "../../sdk/typescript/src/client",
+          "../../sdk/typescript/src/cryptography",
+          "../../sdk/typescript/src/faucet",
+          "../../sdk/typescript/src/graphql",
+          "../../sdk/typescript/src/keypairs/ed25519",
+          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/multisig",
+          "../../sdk/typescript/src/transactions",
+          "../../sdk/typescript/src/utils",
+          "../../sdk/typescript/src/verify"
+        ],
+        plugin: ["typedoc-plugin-markdown"],
+        out: "../../docs/content/references/ts-sdk/api/",
+        githubPages: false,
+        readme: "none",
+        hideGenerator: true,
+        sort: ["source-order"],
+        excludeInternal: true,
+        excludePrivate: true,
+        disableSources: true,
+        hideBreadcrumbs: true,
+        intentionallyNotExported: [],
+      },
+    ],
+    'plugin-image-zoom'
   ],
   presets: [
     [
@@ -103,8 +121,25 @@ const config = {
           path: "../content",
           routeBasePath: "/",
           sidebarPath: require.resolve("./sidebars.js"),
+          async sidebarItemsGenerator({
+            isCategoryIndex: defaultCategoryIndexMatcher, // The default matcher implementation, given below
+            defaultSidebarItemsGenerator,
+            ...args
+          }) {
+            return defaultSidebarItemsGenerator({
+              ...args,
+              isCategoryIndex(doc) {
+                if(doc.fileName === 'index' && doc.directories.includes('ts-sdk'))
+                  return true;
+                // No doc will be automatically picked as category index
+                return false;
+              },
+            });
+          },
           // the double docs below is a fix for having the path set to ../content
-          editUrl: "https://github.com/MystenLabs/sui/tree/main/docs/docs",
+          editUrl: "https://github.com/iotaledger/iota/tree/develop/docs/docs",
+          onInlineTags: "throw",
+          
           /*disableVersioning: true,
           lastVersion: "current",
           versions: {
@@ -117,20 +152,18 @@ const config = {
             "current",
             "1.0.0",
           ],*/
-          admonitions: {
-            keywords: ["checkpoint"],
-            extendDefaults: true,
-          },
           remarkPlugins: [
             math,
             [
               require("@docusaurus/remark-plugin-npm2yarn"),
               { sync: true, converters: ["yarn", "pnpm"] },
             ],
-            effortRemarkPlugin,
-            betaRemarkPlugin,
+            [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
-          rehypePlugins: [katex],
+          rehypePlugins: [
+            katex,
+            [require('rehype-jargon'), { jargon: jargonConfig}]
+          ],
         },
         theme: {
           customCss: [
@@ -158,96 +191,96 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-mermaid", "docusaurus-theme-frontmatter"],
+  themes: ["@docusaurus/theme-mermaid",
+    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       algolia: {
-        // The application ID provided by Algolia
-        appId: "ZF283DJAYX",
-
-        // Public API key: it is safe to commit it
-        apiKey: "7f24db6c4ec06d6905592deb228f4460",
-
-        indexName: "sui",
-
-        // Optional: see doc section below
-        contextualSearch: false,
-
-        // Optional: Specify domains where the navigation should occur through window.location instead on history.push. Useful when our Algolia config crawls multiple documentation sites and we want to navigate with window.location.href to them.
-        // externalUrlRegex: "external\\.com|domain\\.com",
-
-        // Optional: Replace parts of the item URLs from Algolia. Useful when using the same search index for multiple deployments using a different baseUrl. You can use regexp or string in the `from` param. For example: localhost:3000 vs myCompany.com/docs
-        //replaceSearchResultPathname: {
-        //from: "/docs/", // or as RegExp: /\/docs\//
-        //to: "/",
-        //},
-
-        // Optional: Algolia search parameters
-        //searchParameters: {},
-
-        // Optional: path for search page that enabled by default (`false` to disable it)
-        searchPagePath: "search",
-
-        //... other Algolia params
+        apiKey: '24b141ea7e65db2181463e44dbe564a5',
+        appId: '9PMBZGRP3B',
+        indexName: 'iota',
       },
-      image: "img/sui-doc-og.png",
+      image: "img/iota-doc-og.png",
       docs: {
         sidebar: {
           autoCollapseCategories: false,
         },
       },
+      colorMode: {
+        defaultMode: "dark",
+      },
+      announcementBar: {
+        id: "integrate_your_exchange",
+        content:
+          '<a target="_blank" rel="noopener noreferrer" href="/developer/exchange-integration/">Integrate your exchange</a>. If you supported Stardust, please make sure to also <a target="_blank" rel="noopener noreferrer" href="/developer/stardust/exchanges"> migrate from Stardust</a>.',
+        isCloseable: false,
+        backgroundColor: "#0101ff",
+        textColor: "#FFFFFF",
+      },
       navbar: {
-        title: "Sui Documentation",
+        title: "",
         logo: {
-          alt: "Sui Docs Logo",
-          src: "img/sui-logo.svg",
+          alt: "IOTA Docs Logo",
+          src: "/logo/iota-logo.svg",
         },
         items: [
           {
-            label: "Guides",
-            to: "guides",
+            label: "About IOTA",
+            to: "about-iota",
           },
           {
-            label: "Concepts",
-            to: "concepts",
+            label: "Developers",
+            to: "developer",
           },
           {
-            label: "Standards",
-            to: "standards",
+            label: "Node Operators",
+            to: "operator",
           },
           {
             label: "References",
             to: "references",
           },
-
-          /*
           {
-            type: "docsVersionDropdown",
-            position: "right",
-            dropdownActiveClassDisabled: true,
+            label: "TS SDK",
+            to: "references/ts-sdk/typescript/",
           },
           {
-            type: "localeDropdown",
-            position: "right",
+            label: "IOTA Identity",
+            to: "iota-identity",
           },
-          */
         ],
       },
       footer: {
         logo: {
-          alt: "Sui Logo",
-          src: "img/sui-logo-footer.svg",
-          href: "https://sui.io",
+          alt: "IOTA Wiki Logo",
+          src: "/logo/iota-logo.svg",
         },
-        style: "dark",
-        copyright: `© ${new Date().getFullYear()} Sui Foundation | Documentation distributed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>`,
+        copyright: `Copyright © ${new Date().getFullYear()} <a href='https://www.iota.org/'>IOTA Stiftung</a>, licensed under <a href="https://github.com/iotaledger/iota/blob/main/docs/site/LICENSE">CC BY 4.0</a>. 
+                    The documentation on this website is adapted from the <a href='https://docs.sui.io/'>SUI Documentation</a>, © 2024 by <a href='https://sui.io/'>SUI Foundation</a>, licensed under <a href="https://github.com/MystenLabs/sui/blob/main/docs/site/LICENSE">CC BY 4.0</a>.`,
       },
+      socials: [
+        'https://www.youtube.com/c/iotafoundation',
+        'https://www.github.com/iotaledger/',
+        'https://discord.iota.org/',
+        'https://www.twitter.com/iota/',
+        'https://www.reddit.com/r/iota/',
+        'https://www.linkedin.com/company/iotafoundation/',
+        'https://www.instagram.com/iotafoundation/',
+      ],
       prism: {
-        theme: themes.github,
-        darkTheme: themes.nightOwl,
-        additionalLanguages: ["rust", "typescript", "toml", "json"],
+        theme: themes.vsLight,
+        darkTheme: themes.vsDark,
+        additionalLanguages: ["rust", "typescript", "solidity"],
       },
+      imageZoom: {
+        selector: '.markdown img',
+        // Optional medium-zoom options
+        // see: https://www.npmjs.com/package/medium-zoom#options
+        options: {
+          background: 'rgba(0, 0, 0, 0.6)',
+        },
+      }
     }),
 };
 

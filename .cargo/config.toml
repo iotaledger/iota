@@ -1,32 +1,17 @@
 [alias]
-# Collection of project wide clippy lints. This is done via an alias because
-# clippy doesn't currently allow for specifiying project-wide lints in a
-# configuration file. This is a similar workaround to the ones presented here:
-# <https://github.com/EmbarkStudios/rust-ecosystem/issues/59>
-xclippy = [
-    "clippy", "--all-targets", "--all-features", "--",
-    "-Wclippy::all",
-    "-Wclippy::disallowed_methods",
-    "-Aclippy::unnecessary_get_then_check",
-]
-xlint = "run --package x --bin x -- lint"
-xtest = "run --package x --bin x -- external-crates-tests"
-
-# Configuration specifically for running clippy on `external-crates/move/`.
-# Some of these allows are to avoid code churn; others are filed as issues on the `iota` repo now.
-move-clippy = [
-    "clippy",
-    "--all-targets",
-    "--",
-    "-Wclippy::all",
-    "-Wclippy::disallowed_methods",
-    "-Aclippy::upper_case_acronyms",
-    "-Aclippy::type_complexity",
-    "-Aclippy::new_without_default",
-    "-Aclippy::question_mark",
-    "-Aclippy::unnecessary_get_then_check",
-    "-Aclippy::needless_borrows_for_generic_args",
-]
+ci-fmt = "fmt --check"
+ci-clippy = "clippy --all-targets --all-features -- -D warnings"
+ci-license = "license-template --template .license_template"
+ci-udeps = "udeps --all-targets --backend=depinfo"
+ci-udeps-external = "udeps --all-targets --manifest-path external-crates/move/Cargo.toml --backend=depinfo"
 
 [build]
 rustflags = ["-C", "force-frame-pointers=yes", "-C", "force-unwind-tables=yes"]
+
+# 64 bit MSVC, override default 1M stack with 8M stack
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/STACK:8000000"]
+
+[target.x86_64-pc-windows-msvc.pq]
+rustc-link-search = ["C:\\Program Files\\PostgreSQL\\16\\lib"]
+rustc-link-lib = ["libpq"]

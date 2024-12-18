@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "Why is it important to define randomness-related functions as private `entry` functions in Move?",
+        "answerOptions": [
+            { "answerText": "To prevent external modules from composing and exploiting the randomness logic", "isCorrect": true },
+            { "answerText": "To reduce the gas fees of transactions that involve random number generation", "isCorrect": false },
+            { "answerText": "To allow the use of external randomness sources for more secure results", "isCorrect": false },
+            { "answerText": "To increase the chances of winning in randomness-based games like dice", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is a potential risk of having an 'unhappy path' in a function that uses random number generation?",
+        "answerOptions": [
+            { "answerText": "An attacker can exploit the function by reverting the transaction without paying the fee", "isCorrect": true },
+            { "answerText": "The random values might become predictable", "isCorrect": false },
+            { "answerText": "The happy flow might end up costing more gas than the unhappy flow", "isCorrect": false },
+            { "answerText": "The function will fail to generate randomness if not enough gas is provided", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What does IOTA do to protect against Programmable Transaction Block (PTB) based attacks in functions using randomness?",
+        "answerOptions": [
+            { "answerText": "Reject PTBs that include commands other than `TransferObjects` or `MergeCoins` after a `MoveCall` command using `Random`", "isCorrect": true },
+            { "answerText": "Disable the use of PTBs for any transactions involving randomness", "isCorrect": false },
+            { "answerText": "Charge double the gas fee for PTBs that involve random number generation", "isCorrect": false },
+            { "answerText": "Automatically reject any PTBs with more than two commands", "isCorrect": false }
+        ]
+    }
+]

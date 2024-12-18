@@ -1,0 +1,86 @@
+[
+    {
+        "questionText": "What is the main difference between 'Table' and 'Bag' collections in IOTA?",
+        "answerOptions": [
+            {
+                "answerText": "'Table' is a homogeneous map with type parameters for keys and values, while 'Bag' is a heterogeneous map without type parameters.",
+                "isCorrect": true
+            },
+            {
+                "answerText": "'Table' allows heterogeneous key-value pairs, and 'Bag' requires homogeneous types.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "'Table' is used for off-chain storage, whereas 'Bag' is for on-chain collections.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "'Table' collections do not prevent accidental deletion when non-empty, but 'Bag' collections do.",
+                "isCorrect": false
+            }
+        ]
+    },
+    {
+        "questionText": "Why do 'Table' and 'Bag' collections in IOTA not have the 'drop' ability?",
+        "answerOptions": [
+            {
+                "answerText": "Because Move language does not support the 'drop' ability for any collections.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "To prevent accidental deletion when the collection is not empty.",
+                "isCorrect": true
+            },
+            {
+                "answerText": "Because they are built using dynamic fields that inherently lack the 'drop' ability.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "Because the 'drop' ability is only applicable to primitive data types.",
+                "isCorrect": false
+            }
+        ]
+    },
+    {
+        "questionText": "What happens if you attempt to overwrite an existing key in a 'Table' or 'Bag' in IOTA?",
+        "answerOptions": [
+            {
+                "answerText": "The old value is silently overwritten with the new value.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "A new key-value pair is added alongside the existing one.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "The collection automatically resizes to accommodate the new entry.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "The transaction results in an error.",
+                "isCorrect": true
+            }
+        ]
+    },
+    {
+        "questionText": "How is equality determined between two 'Table' collections in IOTA?",
+        "answerOptions": [
+            {
+                "answerText": "By identity; two collections are equal only if they are the exact same instance.",
+                "isCorrect": true
+            },
+            {
+                "answerText": "By comparing their contents; if they have identical entries, they are considered equal.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "By the number of entries they contain; equal lengths mean the collections are equal.",
+                "isCorrect": false
+            },
+            {
+                "answerText": "By the types of keys and values they store; matching types indicate equality.",
+                "isCorrect": false
+            }
+        ]
+    }
+]

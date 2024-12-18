@@ -1,0 +1,10 @@
+[package]
+name = "custom_nft"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }
+Stardust = { local = "../../../../crates/iota-framework/packages/stardust" }
+
+[addresses]
+custom_nft = "0x0"

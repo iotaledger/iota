@@ -1,33 +1,89 @@
-/crates/iota-types/src/crypto.rs @joyqvq @kchalkias @benr-ml
-/crates/iota-types/src/base_types.rs @joyqvq
-/crates/iota-keys/ @joyqvq @patrickkuo
-/crates/iota-protocol-config @iotamark
+# Default fallback, if no other path below this matches
+* @iotaledger/sc-platform @iotaledger/core-protocol
 
-*.md @randall-Iota @ronny-iota
-# Omit auto-generated changelogs and changesets from docs review:
-/.changeset/*.md
-CHANGELOG.md
+# Everything within the SDK folder
+/sdk/ @iotaledger/tooling
 
-# When snapshot changes, most likely we will need to recreate the genesis blob.
-/crates/iota-config/tests/snapshot_tests.rs @tharbert
+# Changes to the genesis builder should be approved by Konstantinos or Mirko at least
+/crates/iota-genesis-builder/ @kodemartin @miker83z
 
-# When native functions change, so we can evaluate cost impact
-/crates/iota-framework/src/natives/ @oxade
+# infrastructure team
+/docker/ @iotaledger/infrastructure @iotaledger/node @iotaledger/devops-admin
+/crates/iota-json-rpc*/ @iotaledger/infrastructure
+/crates/iota-graphql*/ @iotaledger/infrastructure
+/crates/iota-indexer*/ @iotaledger/infrastructure
+/crates/iota-data-ingestion*/ @iotaledger/infrastructure
+/crates/iota-analytics-indexer/ @iotaledger/infrastructure
 
-# GraphQL RPC working group
-/crates/iota-graphql-rpc/ @oxade @amnn @wlmyng @stefan-iota @emmazzz @suiwombat
-/crates/iota-graphql-e2e-tests/ @oxade @amnn @wlmyng @stefan-iota @emmazzz @suiwombat
+# node team
+/crates/iota-archival/ @iotaledger/node
+/crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
+/crates/iota-config/ @iotaledger/node
+/crates/iota-core/ @iotaledger/node @iotaledger/consensus
+/crates/iota-network/ @iotaledger/node
+/crates/iota-network-stack/ @iotaledger/node
+/crates/iota-node/ @iotaledger/node
+/crates/iota-types/ @iotaledger/node @iotaledger/sc-platform
+/crates/iota-protocol-config/ @iotaledger/node @iotaledger/sc-platform
+/crates/iota-protocol-config-macros/ @iotaledger/node @iotaledger/sc-platform
+/crates/iota-rest-api/ @iotaledger/node @iotaledger/infrastructure
+/crates/iota-snapshot/ @iotaledger/node
+/crates/iota-storage/ @iotaledger/node
 
+# consensus team
+/consensus/ @iotaledger/consensus
 
-# Notify Narwhal changes to interested folks.
-/narwhal/crypto/ @joyqvq @kchalkias
-/narwhal/executor/ @asonnino @akichidis @laura-makdah
-/narwhal/network/ @bmwill
-/narwhal/storage/ @akichidis
+# dev-tools team
+/crates/iota/ @iotaledger/dev-tools
+/crates/iota-open-rpc/ @iotaledger/dev-tools
+/crates/iota-open-rpc-macros/ @iotaledger/dev-tools
+/crates/iota-sdk/ @iotaledger/dev-tools
+/crates/iota-transaction-builder/ @iotaledger/dev-tools
 
-/crates/iota-core/src/consensus_adapter.rs @laura-makdah
+# Frontend apps to be looked after by Boxfish Studio or the tooling team
+/apps/ @iotaledger/tooling
+/dapps/ @iotaledger/tooling
+/linting/ @iotaledger/tooling
+/.husky/ @iotaledger/tooling
+/.changeset/ @iotaledger/tooling
+.eslintrc.js @iotaledger/tooling
+.lintstagedrc.json @iotaledger/tooling
+.npmrc @iotaledger/tooling
+.prettierignore @iotaledger/tooling
+graphql.config.ts @iotaledger/tooling
+package.json @iotaledger/tooling
+pnpm-workspace.yaml @iotaledger/tooling
+prettier.config.js @iotaledger/tooling
+turbo.json @iotaledger/tooling
+vercel.json @iotaledger/tooling
 
-apps/ @IF/fe-and-apps
-sdk/ @IF/sdk-reviewers
-sdk/kiosk @IF/kiosk-sdk-reviewers
-sdk/wallet-standard @IF/wallet-kit-reviewers
+# vm-language team
+# Needs to be after package.json ownership definition to override it
+/iota-execution/ @iotaledger/vm-language
+/external-crates/ @iotaledger/vm-language
+
+# Docs and examples are for DevEx to approve upon
+/docs/ @iotaledger/devx
+/examples/ @iotaledger/devx
+
+# Override ownership of Boxfish Studio and the tooling team for the following files
+/docs/**/package.json @iotaledger/devx
+/docs/**/vercel.json @iotaledger/devx
+
+# CI Taskforce
+/.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
+/.github/workflows/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
+
+# Protect this CODEOWNERS file, with some fallback in case of unavailability
+/.github/CODEOWNERS @luca-moser @lzpap @miker83z @alexsporn
+
+# Scripts
+/scripts/dependency_graphs/ @muXxer
+/scripts/cargo_sort/ @muXxer
+/scripts/generate_files/ @muXxer
+/scripts/codesearch/ @muXxer
+/scripts/slipstream/ @muXxer
+
+# Disable code ownership for these auto-generated files
+/Cargo.lock
+/pnpm-lock.yaml

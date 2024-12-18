@@ -7,19 +7,17 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+    - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       with:
         fetch-depth: 0
-    - uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # pin@v3.0.0
+    - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+    - uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
       with:
-        version: 9.1.1
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile
-      shell: bash
+        node-version: "20"
     - id: changes
       name: Detect changes
       shell: bash
-      run: echo "packages=$(pnpm --silent dlx turbo run build --filter="...[origin/main]" --dry=json | jq -c ".packages")" >> $GITHUB_OUTPUT
+      run: echo "packages=$(pnpm --silent dlx turbo@2 run build --filter="...[origin/develop]" --dry=json | jq -c ".packages")" >> $GITHUB_OUTPUT
     - name: Print changes for easy debugging
       shell: bash
       run: echo ${{ steps.changes.outputs.packages }}
