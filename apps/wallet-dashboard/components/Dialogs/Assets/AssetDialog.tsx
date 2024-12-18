@@ -78,28 +78,24 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     return (
         <Dialog open onOpenChange={onOpenChange}>
             <DialogLayout>
-                <FormikProvider value={formik}>
-                    <>
-                        {view === AssetsDialogView.Details && (
-                            <DetailsView
-                                asset={asset}
-                                onClose={onOpenChange}
-                                onSend={onDetailsSend}
-                            />
-                        )}
-                        {view === AssetsDialogView.Send && (
+                <>
+                    {view === AssetsDialogView.Details && (
+                        <DetailsView asset={asset} onClose={onOpenChange} onSend={onDetailsSend} />
+                    )}
+                    {view === AssetsDialogView.Send && (
+                        <FormikProvider value={formik}>
                             <SendView
                                 asset={asset}
                                 onClose={onOpenChange}
                                 onBack={onSendViewBack}
                             />
-                        )}
+                        </FormikProvider>
+                    )}
 
-                        {view === AssetsDialogView.TransactionDetails && !!digest ? (
-                            <TransactionDetailsView digest={digest} onClose={onOpenChange} />
-                        ) : null}
-                    </>
-                </FormikProvider>
+                    {view === AssetsDialogView.TransactionDetails && !!digest ? (
+                        <TransactionDetailsView digest={digest} onClose={onOpenChange} />
+                    ) : null}
+                </>
             </DialogLayout>
         </Dialog>
     );
