@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getCoinSymbol } from '@iota/core';
+import { getCoinSymbol, useRecognizedPackages } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type CoinBalance } from '@iota/iota-sdk/client';
+import { type CoinBalance, type Network } from '@iota/iota-sdk/client';
+import { useNetwork } from '~/hooks';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { FilterList, Warning } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
 import OwnedCoinView from './OwnedCoinView';
-import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
 import {
     Button,
     ButtonType,
@@ -47,7 +47,8 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     const { isPending, data, isError } = useIotaClientQuery('getAllBalances', {
         owner: normalizeIotaAddress(id),
     });
-    const recognizedPackages = useRecognizedPackages();
+    const [network] = useNetwork();
+    const recognizedPackages = useRecognizedPackages(network as Network);
 
     const balances: Record<CoinFilter, CoinBalanceVerified[]> = useMemo(() => {
         const balanceData = data?.reduce(

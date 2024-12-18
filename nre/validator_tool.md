@@ -106,22 +106,6 @@ Operation Cap allows a validator to authorizer another account to perform certai
 
 The Operation Cap holder (either the validator itself or the delegatee) updates its Gas Price and reports validator peers with the Operation Cap.
 
-#### Update Gas Price
-
-To update Gas Price, run
-
-```bash
-$IOTA_BINARY validator update-gas-price <gas-price>
-```
-
-if the account itself is a validator and holds the Operation Cap. Or
-
-```bash
-$IOTA_BINARY validator update-gas-price --operation-cap-id <operation-cap-id> <gas-price>
-```
-
-if the account is a delegatee.
-
 #### Report Validators
 
 To report validators peers, run

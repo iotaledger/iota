@@ -6,6 +6,9 @@ on:
       changedCrates:
         type: string
         required: false
+      runSimtest:
+        type: boolean
+        default: true
 
 concurrency:
   group: rust-tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -118,6 +121,7 @@ jobs:
 
   simtest:
     name: Simtest rust
+    if: inputs.runSimtest
     timeout-minutes: 45
     runs-on: [self-hosted]
     env:

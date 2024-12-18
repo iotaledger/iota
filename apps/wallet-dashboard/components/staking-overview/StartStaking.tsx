@@ -35,7 +35,6 @@ export function StartStaking() {
             {isDialogStakeOpen && stakeDialogView && (
                 <StakeDialog
                     stakedDetails={selectedStake}
-                    isOpen={isDialogStakeOpen}
                     handleClose={handleCloseStakeDialog}
                     view={stakeDialogView}
                     setView={setStakeDialogView}

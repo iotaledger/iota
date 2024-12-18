@@ -17,7 +17,6 @@ export * from './useInitialPageView';
 export * from './useMediaQuery';
 export * from './useNetwork';
 export * from './useNormalizedMoveModule';
-export * from './useRecognizedPackages';
 export * from './useResolveVideo';
 export * from './useSearch';
 export * from './useVerifiedSourceCode';
