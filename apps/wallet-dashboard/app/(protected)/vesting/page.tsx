@@ -240,7 +240,7 @@ export default function VestingDashboardPage(): JSX.Element {
         openUnstakeDialog(UnstakeDialogView.TimelockedUnstake);
     }
 
-    function openReceiveTokenPopup(): void {
+    function openReceiveTokenDialog(): void {
         setIsVestingScheduleDialogOpen(true);
     }
 
@@ -326,7 +326,7 @@ export default function VestingDashboardPage(): JSX.Element {
                                 />
                                 <CardAction
                                     type={CardActionType.Button}
-                                    onClick={openReceiveTokenPopup}
+                                    onClick={openReceiveTokenDialog}
                                     title="See All"
                                     buttonType={ButtonType.Secondary}
                                     buttonDisabled={!vestingPortfolio}
