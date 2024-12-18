@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { execSync } from 'child_process';
-const NEXT_PUBLIC_DASHBOARD_DEV = execSync('git rev-parse HEAD').toString().trim().toString();
+const NEXT_PUBLIC_DASHBOARD_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 
 
 /** @type {import('next').NextConfig} */
@@ -21,7 +21,7 @@ const nextConfig = {
         domains: ['d315pvdvxi2gex.cloudfront.net'],
     },
     env: {
-        NEXT_PUBLIC_DASHBOARD_DEV
+        NEXT_PUBLIC_DASHBOARD_REV
     }
 };
 

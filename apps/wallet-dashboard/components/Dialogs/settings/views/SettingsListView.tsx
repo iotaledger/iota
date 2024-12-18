@@ -55,7 +55,7 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
                             </Card>
                         ))}
                     </div>
-                    <p className="text-center">{process.env.NEXT_PUBLIC_DASHBOARD_DEV}</p>
+                    <p className="text-center">{process.env.NEXT_PUBLIC_DASHBOARD_REV}</p>
                 </div>
             </DialogLayoutBody>
         </DialogLayout>
