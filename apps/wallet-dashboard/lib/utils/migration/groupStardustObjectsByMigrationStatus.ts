@@ -6,7 +6,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 
 export type StardustMigrationGroupedObjects = {
     migratable: IotaObjectData[];
-    unmigratable: IotaObjectData[];
+    timelocked: IotaObjectData[];
 };
 
 export function groupStardustObjectsByMigrationStatus(
@@ -15,12 +15,20 @@ export function groupStardustObjectsByMigrationStatus(
     address: string,
 ): StardustMigrationGroupedObjects {
     const migratable: IotaObjectData[] = [];
-    const unmigratable: IotaObjectData[] = [];
+    const timelocked: IotaObjectData[] = [];
 
     const epochUnix = epochTimestampMs / MILLISECONDS_PER_SECOND;
 
     for (const outputObject of stardustOutputObjects) {
         const outputObjectFields = extractMigrationOutputFields(outputObject);
+
+        if (
+            outputObjectFields.timelock_uc &&
+            outputObjectFields.timelock_uc.fields.unix_time > epochUnix
+        ) {
+            timelocked.push(outputObject);
+            continue;
+        }
 
         if (outputObjectFields.expiration_uc) {
             const unlockableAddress =
@@ -29,23 +37,14 @@ export function groupStardustObjectsByMigrationStatus(
                     : outputObjectFields.expiration_uc.fields.owner;
 
             if (unlockableAddress !== address) {
-                unmigratable.push(outputObject);
                 continue;
             }
-        }
-
-        if (
-            outputObjectFields.timelock_uc &&
-            outputObjectFields.timelock_uc.fields.unix_time > epochUnix
-        ) {
-            unmigratable.push(outputObject);
-            continue;
         }
 
         migratable.push(outputObject);
     }
 
-    return { migratable, unmigratable };
+    return { migratable, timelocked };
 }
 
 interface MigratableObjectsData {
@@ -93,10 +92,10 @@ export function summarizeMigratableObjectValues({
 }
 
 interface UnmmigratableObjectsData {
-    totalUnmigratableObjects: number;
+    totalTimelockedObjects: number;
 }
 
-export function summarizeUnmigratableObjectValues({
+export function summarizeTimelockedObjectValues({
     basicOutputs = [],
     nftOutputs = [],
 }: Omit<SummarizeMigrationObjectParams, 'address'>): UnmmigratableObjectsData {
@@ -110,9 +109,9 @@ export function summarizeUnmigratableObjectValues({
         nativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
     }
 
-    const totalUnmigratableObjects = basicObjects + nativeTokens + nftObjects;
+    const totalTimelockedObjects = basicObjects + nativeTokens + nftObjects;
 
-    return { totalUnmigratableObjects };
+    return { totalTimelockedObjects };
 }
 
 export function extractOwnedStorageDepositReturnAmount(
