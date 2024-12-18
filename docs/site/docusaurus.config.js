@@ -60,7 +60,7 @@ const config = {
         schema:
           "../../crates/iota-graphql-rpc/schema.graphql",
         rootPath: "../content", // docs will be generated under rootPath/baseURL
-        baseURL: "references/iota-api/iota-graphql/reference",
+        baseURL: "../../generated-graphql-docs",
         loaders: {
           GraphQLFileLoader: "@graphql-tools/graphql-file-loader",
         },
@@ -91,14 +91,14 @@ const config = {
           "../../sdk/typescript/src/graphql",
           "../../sdk/typescript/src/keypairs/ed25519",
           "../../sdk/typescript/src/keypairs/secp256k1",
-          "../../sdk/typescript/src/keypairs/secp256k1",
+          "../../sdk/typescript/src/keypairs/secp256r1",
           "../../sdk/typescript/src/multisig",
           "../../sdk/typescript/src/transactions",
           "../../sdk/typescript/src/utils",
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../../docs/content/references/ts-sdk/api/",
+        out: "../../generated-ts-docs",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
