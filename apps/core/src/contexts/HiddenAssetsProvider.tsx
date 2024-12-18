@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 
 const HIDDEN_ASSET_IDS = 'hidden-asset-ids';
 
-type HiddenAssets =
+export type HiddenAssets =
     | {
           type: 'loading';
       }

@@ -7,7 +7,7 @@ import {
     isKioskOwnerToken,
     useGetOwnedObjects,
     useKioskClient,
-    useHiddenAssets,
+    HiddenAssets,
 } from '../../';
 import { type IotaObjectData, IotaObjectDataFilter } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
@@ -25,7 +25,11 @@ export enum AssetFilterTypes {
 
 const OBJECTS_PER_REQ = 50;
 
-export function useGetNFTs(address?: string | null, filter?: IotaObjectDataFilter) {
+export function useGetNFTs(
+    address?: string | null,
+    filter?: IotaObjectDataFilter,
+    hiddenAssets?: HiddenAssets,
+) {
     const kioskClient = useKioskClient();
     const {
         data,
@@ -38,7 +42,6 @@ export function useGetNFTs(address?: string | null, filter?: IotaObjectDataFilte
         fetchNextPage,
         isLoading,
     } = useGetOwnedObjects(address, filter, OBJECTS_PER_REQ);
-    const { hiddenAssets } = useHiddenAssets();
 
     const assets = useMemo(() => {
         const ownedAssets: OwnedAssets = {
@@ -47,13 +50,16 @@ export function useGetNFTs(address?: string | null, filter?: IotaObjectDataFilte
             hidden: [],
         };
 
-        if (hiddenAssets.type === 'loading') {
+        if (hiddenAssets?.type === 'loading') {
             return ownedAssets;
         } else {
             const groupedAssets = data?.pages
                 .flatMap((page) => page.data)
                 .reduce((acc, curr) => {
-                    if (curr.data?.objectId && hiddenAssets.assetIds.includes(curr.data?.objectId))
+                    if (
+                        curr.data?.objectId &&
+                        hiddenAssets?.assetIds?.includes(curr.data?.objectId)
+                    )
                         acc.hidden.push(curr.data as IotaObjectData);
                     else if (hasDisplayData(curr) || isKioskOwnerToken(kioskClient.network, curr))
                         acc.visual.push(curr.data as IotaObjectData);

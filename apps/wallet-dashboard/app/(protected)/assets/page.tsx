@@ -25,7 +25,7 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 
 export default function AssetsDashboardPage(): React.JSX.Element {
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
-    const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
+    const [selectedCategory, setSelectedCategory] = useState<AssetCategory | null>(null);
     const account = useCurrentAccount();
     const {
         data: ownedAssets,
@@ -34,37 +34,35 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         hasNextPage,
     } = useGetNFTs(account?.address);
 
-    const assets: IotaObjectData[] = (ownedAssets?.[selectedCategory] || []).filter((asset) => {
-        if (selectedCategory === AssetCategory.Visual) {
-            return hasDisplayData({ data: asset });
-        }
-        return true;
-    });
+    const assets: IotaObjectData[] = (() => {
+        if (selectedCategory === null) return [] as IotaObjectData[];
+
+        const assetsList = ownedAssets ? ownedAssets[selectedCategory] : [];
+        return assetsList.filter((asset) => {
+            if (selectedCategory === AssetCategory.Visual) {
+                return hasDisplayData({ data: asset });
+            }
+            return true;
+        });
+    })();
 
     function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
     }
 
     useEffect(() => {
-        let computeSelectedCategory = false;
+        if (!ownedAssets || selectedCategory !== null) {
+            return;
+        }
 
-        if (
-            (selectedCategory === AssetCategory.Visual && ownedAssets?.visual.length === 0) ||
-            (selectedCategory === AssetCategory.Other && ownedAssets?.other.length === 0) ||
-            !selectedCategory
-        ) {
-            computeSelectedCategory = true;
-        }
-        if (computeSelectedCategory && ownedAssets) {
-            const defaultCategory =
-                ownedAssets.visual.length > 0
-                    ? AssetCategory.Visual
-                    : ownedAssets.other.length > 0
-                      ? AssetCategory.Other
-                      : AssetCategory.Visual;
-            setSelectedCategory(defaultCategory);
-        }
-    }, [ownedAssets]);
+        const defaultCategory =
+            ownedAssets.visual.length > 0
+                ? AssetCategory.Visual
+                : ownedAssets.other.length > 0
+                  ? AssetCategory.Other
+                  : AssetCategory.Visual;
+        setSelectedCategory(defaultCategory);
+    }, [ownedAssets, selectedCategory]);
 
     return (
         <Panel>
@@ -80,15 +78,16 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                         />
                     ))}
                 </div>
-
-                <AssetList
-                    assets={assets}
-                    selectedCategory={selectedCategory}
-                    onClick={onAssetClick}
-                    hasNextPage={hasNextPage}
-                    isFetchingNextPage={isFetching}
-                    fetchNextPage={fetchNextPage}
-                />
+                {selectedCategory && (
+                    <AssetList
+                        assets={assets}
+                        selectedCategory={selectedCategory}
+                        onClick={onAssetClick}
+                        hasNextPage={hasNextPage}
+                        isFetchingNextPage={isFetching}
+                        fetchNextPage={fetchNextPage}
+                    />
+                )}
                 {selectedAsset && (
                     <AssetDialog onClose={() => setSelectedAsset(null)} asset={selectedAsset} />
                 )}

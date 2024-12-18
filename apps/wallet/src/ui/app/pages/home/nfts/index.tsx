@@ -18,7 +18,7 @@ import HiddenAssets from './HiddenAssets';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
 import { Warning } from '@iota/ui-icons';
-import { useOnScreen, useGetNFTs } from '@iota/core';
+import { useOnScreen, useGetNFTs, useHiddenAssets } from '@iota/core';
 
 enum AssetCategory {
     Visual = 'Visual',
@@ -47,6 +47,7 @@ function NftsPage() {
     const { isIntersecting } = useOnScreen(observerElem);
 
     const accountAddress = useActiveAddress();
+    const { hiddenAssets } = useHiddenAssets();
     const {
         data: ownedAssets,
         hasNextPage,
@@ -56,9 +57,13 @@ function NftsPage() {
         error,
         isPending,
         isError,
-    } = useGetNFTs(accountAddress, {
-        MatchNone: [{ StructType: '0x2::coin::Coin' }],
-    });
+    } = useGetNFTs(
+        accountAddress,
+        {
+            MatchNone: [{ StructType: '0x2::coin::Coin' }],
+        },
+        hiddenAssets,
+    );
 
     const isAssetsLoaded = !!ownedAssets;
 
