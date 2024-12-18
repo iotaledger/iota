@@ -139,6 +139,10 @@ function MigrationDashboardPage(): JSX.Element {
         setSelectedStardustObjectsCategory(undefined);
     }
 
+    function handleMigrationDialogClose() {
+        setIsMigrationDialogOpen(false);
+    }
+
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
             <div
@@ -159,6 +163,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 selectedStardustObjectsCategory ===
                                 StardustOutputMigrationStatus.TimeLocked
                             }
+                            handleClose={handleMigrationDialogClose}
                         />
                     )}
                     <Panel>
