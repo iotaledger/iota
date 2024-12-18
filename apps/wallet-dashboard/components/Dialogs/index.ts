@@ -6,3 +6,4 @@ export * from './ReceiveFundsDialog';
 export * from './Staking';
 export * from './unstake';
 export * from './vesting';
+export * from './MigrationDialog';
