@@ -32,7 +32,7 @@ pub fn scale_amount_for_iota(amount: u64) -> Result<u64> {
 
 // Check if the output is basic and has a feature Tag using the Participation
 // Tag: https://github.com/iota-community/treasury/blob/main/specifications/hornet-participation-plugin.md
-pub fn is_voting_output(output: &Output) -> bool {
+pub fn is_participation_output(output: &Output) -> bool {
     if let Some(feat) = output.features() {
         if output.is_basic() && !feat.is_empty() {
             if let Some(tag) = feat.tag() {
@@ -44,12 +44,12 @@ pub fn is_voting_output(output: &Output) -> bool {
 }
 
 /// Processes outputs from a Hornet snapshot considering 3 filters:
-/// - the `ScaleIotaAmountFilter` scales balances of IOTA Toksns from micro to
+/// - the `ScaleIotaAmountFilter` scales balances of IOTA Tokens from micro to
 ///   nano
 /// - the `UnlockedVestingOutputFilter` takes vesting outputs that can be
 ///   unlocked and merges them into a unique basic output.
-/// - the `VotingOutputFilter` removes all features from the basic outputs with
-///   a participation tag.
+/// - the `ParticipationOutputFilter` removes all features from the basic
+///   outputs with a participation tag.
 pub fn process_outputs_for_iota<'a>(
     target_milestone_timestamp: u32,
     outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
@@ -60,11 +60,11 @@ pub fn process_outputs_for_iota<'a>(
         target_milestone_timestamp,
         with_metrics,
     ));
-    let voting_filter = Box::new(VotingOutputFilter::new(with_metrics));
+    let participation_filter = Box::new(ParticipationOutputFilter::new(with_metrics));
 
     // Create the iterator with the filters
     HornetFilterIterator::new(
-        vec![scale_amount_filter, vesting_filter, voting_filter],
+        vec![scale_amount_filter, vesting_filter, participation_filter],
         outputs,
     )
     .map(|res| {
@@ -272,7 +272,7 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for ScaleIotaAmountFilter {
 }
 
 /// Filter that looks for vesting outputs that can be unlocked and stores them
-/// durng the iteration. At the end of the iteration it merges all vesting
+/// during the iteration. At the end of the iteration it merges all vesting
 /// outputs owned by a single address into a unique basic output.
 #[derive(Default)]
 struct UnlockedVestingOutputFilter {
@@ -367,14 +367,14 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for UnlockedVestingOutputFilte
 /// and removes all features from the basic output. Operates in place during the
 /// iteration.
 #[derive(Default)]
-struct VotingOutputFilter {
+struct ParticipationOutputFilter {
     /// Outputs where features were removed
     modified_outputs: Vec<OutputId>,
     /// Flag to enable metrics
     with_metrics: bool,
 }
 
-impl VotingOutputFilter {
+impl ParticipationOutputFilter {
     fn new(with_metrics: bool) -> Self {
         Self {
             modified_outputs: vec![],
@@ -383,7 +383,7 @@ impl VotingOutputFilter {
     }
 }
 
-impl HornetFilter<Result<(OutputHeader, Output)>> for VotingOutputFilter {
+impl HornetFilter<Result<(OutputHeader, Output)>> for ParticipationOutputFilter {
     fn process(
         &mut self,
         output: Result<(OutputHeader, Output)>,
@@ -393,7 +393,7 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for VotingOutputFilter {
             let output_id = header.output_id();
             (
                 header,
-                if is_voting_output(&inner) {
+                if is_participation_output(&inner) {
                     if self.with_metrics {
                         self.modified_outputs.push(output_id);
                     }
@@ -418,11 +418,11 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for VotingOutputFilter {
     fn print_metrics(&self) {
         if self.with_metrics {
             info!(
-                "Number of VotingOutputFilter modified outputs: {}",
+                "Number of ParticipationOutputFilter modified outputs: {}",
                 self.modified_outputs.len()
             );
             info!(
-                "VotingOutputFilter modified outputs ids: {:?}",
+                "ParticipationOutputFilter modified outputs ids: {:?}",
                 self.modified_outputs
             );
         }
