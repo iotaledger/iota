@@ -117,7 +117,7 @@
         "@reduxjs/toolkit": "^1.9.5",
         "@scure/bip32": "^1.4.0",
         "@scure/bip39": "^1.3.0",
-        "@sentry/browser": "^7.119.1",
+        "@sentry/browser": "^7.120.2",
         "@tanstack/react-query": "^5.50.1",
         "@tanstack/react-query-persist-client": "^5.40.1",
         "axios": "^1.7.4",
