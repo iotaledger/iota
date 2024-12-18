@@ -19,11 +19,17 @@ export function AppProviders({ children }: React.PropsWithChildren) {
     const [queryClient] = useState(() => new QueryClient());
     const allNetworks = getAllNetworks();
     const defaultNetwork = getDefaultNetwork();
-
+    function handleNetworkChange() {
+        queryClient.resetQueries();
+    }
     return (
         <GrowthBookProvider growthbook={growthbook}>
             <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={allNetworks} defaultNetwork={defaultNetwork}>
+                <IotaClientProvider
+                    networks={allNetworks}
+                    defaultNetwork={defaultNetwork}
+                    onNetworkChange={handleNetworkChange}
+                >
                     <KioskClientProvider>
                         <WalletProvider
                             autoConnect={true}
