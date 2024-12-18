@@ -15,4 +15,4 @@ tracing = { workspace = true, optional = true }
 move-vm-config.workspace = true
 
 [features]
-gas-profiler = ["move-vm-config/gas-profiler", "serde_json", "tracing"]
+tracing = ["move-vm-config/tracing", "serde_json", "dep:tracing"]

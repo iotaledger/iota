@@ -8,6 +8,7 @@ publish = false
 description = "Move bytecode verifier tests"
 
 [dev-dependencies]
+fail = { workspace = true, features = ["failpoints"] }
 hex.workspace = true
 petgraph.workspace = true
 

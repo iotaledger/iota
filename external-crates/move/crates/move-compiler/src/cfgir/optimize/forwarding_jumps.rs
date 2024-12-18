@@ -36,6 +36,7 @@ use crate::{
         ast::remap_labels,
         cfg::{MutForwardCFG, CFG},
     },
+    diagnostics::DiagnosticReporter,
     expansion::ast::Mutability,
     hlir::ast::{BasicBlocks, Command, Command_, FunctionSignature, Label, SingleType, Value, Var},
     parser::ast::ConstantName,
@@ -44,6 +45,7 @@ use crate::{
 
 /// returns true if anything changed
 pub fn optimize(
+    _reporter: &DiagnosticReporter,
     _signature: &FunctionSignature,
     _locals: &UniqueMap<Var, (Mutability, SingleType)>,
     _constants: &UniqueMap<ConstantName, Value>,

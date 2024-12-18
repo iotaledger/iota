@@ -8,7 +8,7 @@ use std::{collections::BTreeMap, path::Path};
 use anyhow::{anyhow, bail, *};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
-use vfs::{error::VfsErrorKind, VfsPath, VfsResult};
+use vfs::{VfsPath, VfsResult, error::VfsErrorKind};
 
 /// Result of sha256 hash of a file's contents.
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
