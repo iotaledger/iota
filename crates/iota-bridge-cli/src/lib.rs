@@ -388,7 +388,7 @@ pub struct BridgeCliConfig {
     /// - Base64 encoded `flag || privkey` for ECDSA key
     /// - Base64 encoded `privkey` for Raw key
     /// - Hex encoded `privkey` for Raw key
-    /// At leaset one of `iota_key_path` or `eth_key_path` must be provided.
+    /// At least one of `iota_key_path` or `eth_key_path` must be provided.
     /// If only one is provided, it will be used for both Iota and Eth.
     pub iota_key_path: Option<PathBuf>,
     /// See `iota_key_path`. Must be Secp256k1 key.

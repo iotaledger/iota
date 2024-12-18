@@ -70,7 +70,7 @@ struct Inner {
     gc_round: AtomicU64,
     // Highest round of certificate accepted into the certificate store.
     highest_processed_round: AtomicU64,
-    // Highest round of verfied certificate that has been received.
+    // Highest round of verified certificate that has been received.
     highest_received_round: AtomicU64,
     // Client for fetching payloads.
     client: NetworkClient,
@@ -799,7 +799,7 @@ impl Synchronizer {
         mut certificates: Vec<Certificate>,
     ) -> DagResult<Vec<Certificate>> {
         // Number of certificates to verify in a batch. Verifications in each batch run serially.
-        // Batch size is chosen so that verifying a batch takes non-trival
+        // Batch size is chosen so that verifying a batch takes non-trivial
         // time (verifying a batch of 50 certificates should take > 25ms).
         const VERIFY_CERTIFICATES_V2_BATCH_SIZE: usize = 50;
         // Number of rounds to force verfication of certificates by signature, to bound the maximum

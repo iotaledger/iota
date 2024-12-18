@@ -41,7 +41,7 @@ export class DeepBookClient {
 	/**
 	 *
 	 * @param iotaClient connection to fullnode
-	 * @param accountCap (optional) only required for wrting operations
+	 * @param accountCap (optional) only required for writing operations
 	 * @param currentAddress (optional) address of the current user (default: DUMMY_ADDRESS)
 	 */
 	constructor(
@@ -86,7 +86,7 @@ export class DeepBookClient {
 	 * @description: Create pool for trading pair
 	 * @param baseAssetType Full coin type of the base asset, eg: "0x3d0d0ce17dcd3b40c2d839d96ce66871ffb40e1154a8dd99af72292b3d10d7fc::wbtc::WBTC"
 	 * @param quoteAssetType Full coin type of quote asset, eg: "0x3d0d0ce17dcd3b40c2d839d96ce66871ffb40e1154a8dd99af72292b3d10d7fc::usdt::USDT"
-	 * @param tickSize Minimal Price Change Accuracy of this pool, eg: 10000000. The number must be an interger float scaled by `FLOAT_SCALING_FACTOR`.
+	 * @param tickSize Minimal Price Change Accuracy of this pool, eg: 10000000. The number must be an integer float scaled by `FLOAT_SCALING_FACTOR`.
 	 * @param lotSize Minimal Lot Change Accuracy of this pool, eg: 10000.
 	 * @param takerFeeRate Customized taker fee rate, float scaled by `FLOAT_SCALING_FACTOR`, Taker_fee_rate of 0.25% should be 2_500_000 for example
 	 * @param makerRebateRate Customized maker rebate rate, float scaled by `FLOAT_SCALING_FACTOR`,  should be less than or equal to the taker_rebate_rate
@@ -233,7 +233,7 @@ export class DeepBookClient {
 	/**
 	 * @description: place a limit order
 	 * @param poolId Object id of pool, created after invoking createPool, eg: "0xcaee8e1c046b58e55196105f1436a2337dcaa0c340a7a8c8baf65e4afb8823a4"
-	 * @param price: price of the limit order. The number must be an interger float scaled by `FLOAT_SCALING_FACTOR`.
+	 * @param price: price of the limit order. The number must be an integer float scaled by `FLOAT_SCALING_FACTOR`.
 	 * @param quantity: quantity of the limit order in BASE ASSET, eg: 100000000.
 	 * @param orderType: bid for buying base with quote, ask for selling base for quote
 	 * @param expirationTimestamp: expiration timestamp of the limit order in ms, eg: 1620000000000. If omitted, the order will expire in 1 day

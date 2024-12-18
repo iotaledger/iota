@@ -609,7 +609,7 @@ impl<'a> LayerBuilder<'a> {
             .map(|authority| {
                 authorities_to_shuffle.shuffle(&mut rng);
 
-                // TODO: handle quroum threshold properly with stake
+                // TODO: handle quorum threshold properly with stake
                 let min_ancestors: HashSet<AuthorityIndex> = authorities_to_shuffle
                     .iter()
                     .take(quorum_threshold)

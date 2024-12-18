@@ -1056,7 +1056,7 @@ impl CoreSignals {
 }
 
 /// Receivers of signals from Core.
-/// Intentionally un-clonable. Comonents should only subscribe to channels they need.
+/// Intentionally un-cloneable. Comonents should only subscribe to channels they need.
 pub(crate) struct CoreSignalsReceivers {
     rx_block_broadcast: broadcast::Receiver<VerifiedBlock>,
     new_round_receiver: watch::Receiver<Round>,

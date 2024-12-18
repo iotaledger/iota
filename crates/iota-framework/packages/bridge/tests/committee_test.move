@@ -332,7 +332,7 @@ module bridge::committee_test {
 
         let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
-        // create committee should not create a committe because of not enough stake.
+        // create committee should not create a committee because of not enough stake.
         let ctx = test_scenario::ctx(&mut scenario);
         let voting_powers = iota_system::validator_voting_powers_for_testing(&mut system_state);
         try_create_next_committee(&mut committee, voting_powers, 6000, ctx);

@@ -21,7 +21,7 @@ module deepbook::critbit_test {
 
     #[test] fun test_remove() { let _ = test_remove_(scenario());}
 
-    #[test] fun test_find_cloest_key() { let _ = test_find_closest_key_(scenario());}
+    #[test] fun test_find_closest_key() { let _ = test_find_closest_key_(scenario());}
 
 
     fun test_insert_(mut test: Scenario): TransactionEffects{

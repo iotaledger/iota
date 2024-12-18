@@ -17,7 +17,7 @@ import {
 import { getAllOwnedObjects, parseTransferPolicyCapObject } from '../utils.js';
 
 /**
- * Searches the `TransferPolicy`-s for the given type. The seach is performed via
+ * Searches the `TransferPolicy`-s for the given type. The search is performed via
  * the `TransferPolicyCreated` event. The policy can either be owned or shared,
  * and the caller needs to filter the results accordingly (ie single owner can not
  * be accessed by anyone but the owner).

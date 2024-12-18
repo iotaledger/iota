@@ -1652,7 +1652,7 @@ mod test {
         // Last commit index should be 5.
         assert_eq!(dag_state.last_commit_index(), 5);
 
-        // This is the last_commmit_rounds of the first 5 commits that were flushed
+        // This is the last_commit_rounds of the first 5 commits that were flushed
         let expected_last_committed_rounds = vec![4, 5, 4, 4];
         assert_eq!(
             dag_state.last_committed_rounds(),
@@ -1751,7 +1751,7 @@ mod test {
         // Last commit index should be 5.
         assert_eq!(dag_state.last_commit_index(), 5);
 
-        // This is the last_commmit_rounds of the first 5 commits that were flushed
+        // This is the last_commit_rounds of the first 5 commits that were flushed
         let expected_last_committed_rounds = vec![4, 5, 4, 4];
         assert_eq!(
             dag_state.last_committed_rounds(),
@@ -1867,7 +1867,7 @@ mod test {
         // Last commit index should be 7.
         assert_eq!(dag_state.last_commit_index(), 7);
 
-        // This is the last_commmit_rounds of the first 7 commits that were flushed
+        // This is the last_commit_rounds of the first 7 commits that were flushed
         let expected_last_committed_rounds = vec![5, 6, 6, 7];
         assert_eq!(
             dag_state.last_committed_rounds(),

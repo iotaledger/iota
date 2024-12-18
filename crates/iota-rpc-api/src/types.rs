@@ -100,7 +100,7 @@ pub struct GetObjectOptions {
     /// Defaults to `true` if not provided.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub object: Option<bool>,
-    /// Request that `Object` formated as BCS be included in the response
+    /// Request that `Object` formatted as BCS be included in the response
     ///
     /// Defaults to `false` if not provided.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -530,7 +530,7 @@ pub struct GetFullCheckpointOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub object: Option<bool>,
 
-    /// Request that `Object` formated as BCS be included in the response
+    /// Request that `Object` formatted as BCS be included in the response
     ///
     /// Defaults to `false` if not provided.
     #[serde(skip_serializing_if = "Option::is_none")]

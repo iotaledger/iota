@@ -33,7 +33,7 @@ use super::{Handler, SequentialConfig};
 /// single write), in a single transaction that includes all row updates and an update to the
 /// watermark table.
 ///
-/// The committer can be configured to lag behind the ingestion serice by a fixed number of
+/// The committer can be configured to lag behind the ingestion service by a fixed number of
 /// checkpoints (configured by `checkpoint_lag`). A value of `0` means no lag.
 ///
 /// Upon successful write, the task sends its new watermark back to the ingestion service, to

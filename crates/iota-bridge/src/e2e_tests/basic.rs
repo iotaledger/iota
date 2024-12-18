@@ -169,7 +169,7 @@ async fn test_bridge_from_eth_to_iota_to_eth() {
 }
 
 // Test add new coins on both Iota and Eth
-// Also test bridge ndoe handling `NewTokenEvent``
+// Also test bridge node handling `NewTokenEvent``
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn test_add_new_coins_on_iota_and_eth() {
     telemetry_subscribers::init_for_testing();

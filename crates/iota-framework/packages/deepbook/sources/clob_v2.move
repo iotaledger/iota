@@ -1288,7 +1288,7 @@ module deepbook::clob_v2 {
         // We first retrieve the PriceLevel with the lowest price by calling min_leaf on the asks Critbit Tree.
         // We then match the market order by iterating through open orders on that price level in ascending order of the order id.
         // Open orders that are being filled are removed from the order book.
-        // We stop the iteration untill all quantities are filled.
+        // We stop the iteration until all quantities are filled.
         // If the total quantity of open orders at the lowest price level is not large enough to fully fill the market order,
         // we move on to the next price level by calling next_leaf on the asks Critbit Tree and repeat the same procedure.
         // Continue iterating over the price levels in ascending order until the market order is completely filled.
@@ -2009,7 +2009,7 @@ module deepbook::clob_v2 {
         let (price_low_, _) = critbit::min_leaf(&pool.bids);
         let (price_high_, _) = critbit::max_leaf(&pool.bids);
 
-        // If price_low is greater than the higest element in the tree, we return empty
+        // If price_low is greater than the highest element in the tree, we return empty
         if (price_low > price_high_) {
             return (price_vec, depth_vec)
         };
@@ -2077,7 +2077,7 @@ module deepbook::clob_v2 {
         (price_vec, depth_vec)
     }
 
-    /// internal func to retrive single depth of a tick price
+    /// internal func to retrieve single depth of a tick price
     fun get_level2_book_status(
         open_orders: &CritbitTree<TickLevel>,
         price: u64,

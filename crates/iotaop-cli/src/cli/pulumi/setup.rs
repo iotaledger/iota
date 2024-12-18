@@ -101,7 +101,7 @@ fn ensure_gcloud_logged_in() -> Result<()> {
                     "Please select your @iota.org profile: {}",
                     "gcloud config set account `ACCOUNT`".bright_yellow()
                 );
-                return Err(anyhow!("Incorret account selected."));
+                return Err(anyhow!("Incorrect account selected."));
             }
         }
     }

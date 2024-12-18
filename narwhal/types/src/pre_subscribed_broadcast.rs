@@ -23,7 +23,7 @@ pub struct ConditionalBroadcastReceiver {
 
 /// ConditionalBroadcastReceiver has an additional method for convenience to be able to use
 /// to conditionally check for shutdown in all branches of a select statement. Using this method
-/// will allow for the shutdown signal to propagate faster, sice we will no longer be waiting
+/// will allow for the shutdown signal to propagate faster, since we will no longer be waiting
 /// until the branch that checks the receiver is randomly selected by the select macro.
 impl ConditionalBroadcastReceiver {
     pub async fn received_signal(&mut self) -> bool {

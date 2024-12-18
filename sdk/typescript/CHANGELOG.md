@@ -1111,7 +1111,7 @@
     public method and without the need of signer so a dapp can use it
   - fixes edge cases with pay txs
 - bb14ffdc5: Remove ImmediateReturn and WaitForTxCert from ExecuteTransactionRequestType
-- d2015f815: Rebuilt type-narrowing utilties (e.g. `isIotaObject`) on top of Superstruct, which
+- d2015f815: Rebuilt type-narrowing utilities (e.g. `isIotaObject`) on top of Superstruct, which
   should make them more reliable. The type-narrowing functions are no longer exported, instead a
   Superstruct schema is exported, in addition to an `is` and `assert` function, both of which can be
   used to replace the previous narrowing functions. For example, `isIotaObject(data)` becomes

@@ -201,7 +201,7 @@ export class KioskTransaction {
 
 	/**
 	 * A function to withdraw from kiosk
-	 * @param address Where to trasnfer the coin.
+	 * @param address Where to transfer the coin.
 	 * @param amount The amount we aim to withdraw.
 	 */
 	withdraw(address: string, amount?: string | bigint | number) {

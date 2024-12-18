@@ -105,7 +105,7 @@ pub enum ImageAction {
         /// Optional image name, default to "app", only used if multiple images are built within one repo
         #[arg(long)]
         image_name: Option<String>,
-        /// Optioanl reference type, default to "branch"
+        /// Optional reference type, default to "branch"
         #[arg(long)]
         ref_type: Option<RefType>,
         /// Optional reference value, default to "main"

@@ -55,7 +55,7 @@ export class TransferPolicyTransaction {
 	/**
 	 * A function to create a new transfer policy.
 	 * Checks if there's already an existing transfer policy to prevent
-	 * double transfer polciy mistakes.
+	 * double transfer policy mistakes.
 	 * There's an optional `skipCheck` flag that will just create the policy
 	 * without checking
 	 *

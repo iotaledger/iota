@@ -350,7 +350,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
         let mut errs = vec![];
 
         // Check that the transitive dependencies listed on chain match the dependencies listed in
-        // source code. Ignore 0x0 becaus this signifies an unpublished dependency.
+        // source code. Ignore 0x0 because this signifies an unpublished dependency.
         if let Some(on_chain_deps) = &mut chain.on_chain_dependencies {
             for dependency_id in dependency_addresses(package) {
                 if dependency_id != AccountAddress::ZERO && !on_chain_deps.remove(&dependency_id) {

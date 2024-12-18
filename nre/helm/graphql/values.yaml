@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 
-# DB_URL could conatin sensitive info so create a k8s secret outside of this helm chart. This helm chart will expect the secret to be loaded as an env var.
+# DB_URL could contain sensitive info so create a k8s secret outside of this helm chart. This helm chart will expect the secret to be loaded as an env var.
 # Example: kubectl create secret generic db_url --from-literal=password=<actual db url> --namespace graphql
 #
 # RPC_URL is also expected to be an env var so the command properly populates

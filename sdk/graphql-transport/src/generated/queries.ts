@@ -4184,7 +4184,7 @@ export type SharedInput = {
   mutable: Scalars['Boolean']['output'];
 };
 
-/** The transaction accpeted a shared object as input, but its execution was cancelled. */
+/** The transaction accepted a shared object as input, but its execution was cancelled. */
 export type SharedObjectCancelled = {
   __typename?: 'SharedObjectCancelled';
   /** ID of the shared object. */
@@ -4956,15 +4956,15 @@ export type TransactionBlockFilter = {
    * sender, sponsor, or recipient of the transaction.
    */
   affectedAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
-  /** Limit to transactions that occured strictly after the given checkpoint. */
+  /** Limit to transactions that occurred strictly after the given checkpoint. */
   afterCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
   /** Limit to transactions in the given checkpoint. */
   atCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
-  /** Limit to transaction that occured strictly before the given checkpoint. */
+  /** Limit to transaction that occurred strictly before the given checkpoint. */
   beforeCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
   /**
    * Limit to transactions that output a versioon of this object. NOTE: this input filter has
-   * been deprecated in favor of `affectedObject` which offers an easier to understand behavor.
+   * been deprecated in favor of `affectedObject` which offers an easier to understand behavior.
    *
    * This filter will be removed with 1.36.0 (2024-10-14), or at least one release after
    * `affectedObject` is introduced, whichever is later.

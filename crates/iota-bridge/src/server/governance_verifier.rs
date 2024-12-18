@@ -15,7 +15,7 @@ pub struct GovernanceVerifier {
 
 impl GovernanceVerifier {
     pub fn new(approved_actions: Vec<BridgeAction>) -> BridgeResult<Self> {
-        // TOOD(audit-blocking): verify chain ids
+        // TODO(audit-blocking): verify chain ids
         let mut approved_goverance_actions = HashMap::new();
         for action in approved_actions {
             if !action.is_governace_action() {

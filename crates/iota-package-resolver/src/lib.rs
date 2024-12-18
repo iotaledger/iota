@@ -100,7 +100,7 @@ type Linkage = BTreeMap<AccountAddress, AccountAddress>;
 
 /// A `CleverError` is a special kind of abort code that is used to encode more information than a
 /// normal abort code. These clever errors are used to encode the line number, error constant name,
-/// and error constant value as pool indicies packed into a format satisfying the `ErrorBitset`
+/// and error constant value as pool indices packed into a format satisfying the `ErrorBitset`
 /// format. This struct is the "inflated" view of that data, providing the module ID, line number,
 /// and error constant name and value (if available).
 #[derive(Clone, Debug)]
@@ -110,7 +110,7 @@ pub struct CleverError {
     /// Inner error information. This is either a complete error, just a line number, or bytes that
     /// should be treated opaquely.
     pub error_info: ErrorConstants,
-    /// The line number in the source file where the error occured.
+    /// The line number in the source file where the error occurred.
     pub source_line_number: u16,
 }
 

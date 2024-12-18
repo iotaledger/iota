@@ -103,7 +103,7 @@ export abstract class Account<
 
 	protected async onLocked(allowRead: boolean) {
 		// skip clearing last unlocked value to allow read access
-		// when possible (last unlocked withing time limits)
+		// when possible (last unlocked within time limits)
 		if (allowRead) {
 			return;
 		}

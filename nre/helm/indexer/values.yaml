@@ -25,7 +25,7 @@ env:
     value: "3600"
   DB_STATEMENT_TIMEOUT:
     value: "3600"
-  CHECKPOINT_COMIT_BATCH_SIZE:
+  CHECKPOINT_COMMIT_BATCH_SIZE:
     value: "300"
   RPC_CLIENT:
     value: "https://public-rpc.mainnet.iota.io"

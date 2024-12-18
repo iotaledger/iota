@@ -565,7 +565,7 @@ async fn spawn_workers_scheduler(
         // Set the total benchmark start time
         let total_benchmark_start_time = print_and_start_benchmark().await;
 
-        // Initially boostrap the first tasks
+        // Initially bootstrap the first tasks
         tx_workers_to_run
             .send(bench_workers.pop_front().unwrap())
             .await

@@ -280,7 +280,7 @@ impl AncestorStateManager {
     /// The authority high quorum round is the lowest round higher or equal to rounds  
     /// from a quorum of authorities. The network high quorum round is using the high
     /// quorum round of each authority as reported by the [`RoundProber`] and then
-    /// finding the high quroum round of those high quorum rounds.
+    /// finding the high quorum round of those high quorum rounds.
     fn calculate_network_high_quorum_round_internal(
         &self,
         mut high_quorum_rounds_with_stake: Vec<(u32, u64)>,

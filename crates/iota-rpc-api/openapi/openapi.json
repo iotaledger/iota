@@ -259,9 +259,9 @@
           {
             "in": "query",
             "name": "object_bcs",
-            "description": "Request that `Object` formated as BCS be included in the response\n\nDefaults to `false` if not provided.",
+            "description": "Request that `Object` formatted as BCS be included in the response\n\nDefaults to `false` if not provided.",
             "schema": {
-              "description": "Request that `Object` formated as BCS be included in the response\n\nDefaults to `false` if not provided.",
+              "description": "Request that `Object` formatted as BCS be included in the response\n\nDefaults to `false` if not provided.",
               "type": "boolean"
             },
             "style": "form"
@@ -326,9 +326,9 @@
           {
             "in": "query",
             "name": "object_bcs",
-            "description": "Request that `Object` formated as BCS be included in the response\n\nDefaults to `false` if not provided.",
+            "description": "Request that `Object` formatted as BCS be included in the response\n\nDefaults to `false` if not provided.",
             "schema": {
-              "description": "Request that `Object` formated as BCS be included in the response\n\nDefaults to `false` if not provided.",
+              "description": "Request that `Object` formatted as BCS be included in the response\n\nDefaults to `false` if not provided.",
               "type": "boolean"
             },
             "style": "form"

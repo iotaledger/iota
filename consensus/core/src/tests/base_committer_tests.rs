@@ -21,7 +21,7 @@ use crate::{
 #[tokio::test]
 async fn try_direct_commit() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -77,7 +77,7 @@ async fn try_direct_commit() {
 #[tokio::test]
 async fn idempotence() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -121,7 +121,7 @@ async fn idempotence() {
 #[tokio::test]
 async fn multiple_direct_commit() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -162,7 +162,7 @@ async fn multiple_direct_commit() {
 #[tokio::test]
 async fn direct_skip() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -214,7 +214,7 @@ async fn direct_skip() {
 #[tokio::test]
 async fn indirect_commit() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -332,7 +332,7 @@ async fn indirect_commit() {
     };
 
     // Quick Summary:
-    // Leader of wave 2 or C6 has the necessary votes/certs to be directly commited.
+    // Leader of wave 2 or C6 has the necessary votes/certs to be directly committed.
     // Then, when we get to the leader of wave 1 or D3, we see that we cannot direct commit
     // and it is marked as undecided. But this time we have a committed anchor so we
     // check if there is a certified link from the anchor (c6) to the undecided leader
@@ -356,7 +356,7 @@ async fn indirect_commit() {
 #[tokio::test]
 async fn indirect_skip() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -410,7 +410,7 @@ async fn indirect_skip() {
         dag_state.clone(),
     ));
 
-    // Add enough blocks to reach the decison round of wave 3.
+    // Add enough blocks to reach the decision round of wave 3.
     let decision_round_wave_3 = committer.decision_round(3);
     build_dag(
         context.clone(),
@@ -486,7 +486,7 @@ async fn indirect_skip() {
 #[tokio::test]
 async fn undecided() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -574,7 +574,7 @@ async fn undecided() {
 #[tokio::test]
 async fn test_byzantine_direct_commit() {
     telemetry_subscribers::init_for_testing();
-    // Commitee of 4 with even stake
+    // Committee of 4 with even stake
     let context = Arc::new(Context::new_for_test(4).0);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
@@ -654,19 +654,19 @@ async fn test_byzantine_direct_commit() {
     // Ancestors of decision blocks in round 14 should include multiple byzantine non-votes C13
     // but there are enough good votes to prevent a skip. Additionally only one of the non-votes
     // per authority should be counted so we should not skip leader A12.
-    let decison_block_a14 = VerifiedBlock::new_for_test(
+    let decision_block_a14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 0)
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
-    dag_state.write().accept_block(decison_block_a14.clone());
+    dag_state.write().accept_block(decision_block_a14.clone());
 
     let good_references_voting_round_wave_4_without_c13 = good_references_voting_round_wave_4
         .into_iter()
         .filter(|r| r.author != AuthorityIndex::new_for_test(2))
         .collect::<Vec<_>>();
 
-    let decison_block_b14 = VerifiedBlock::new_for_test(
+    let decision_block_b14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 1)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -677,9 +677,9 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_b14.clone());
+    dag_state.write().accept_block(decision_block_b14.clone());
 
-    let decison_block_c14 = VerifiedBlock::new_for_test(
+    let decision_block_c14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 2)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -690,9 +690,9 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_c14.clone());
+    dag_state.write().accept_block(decision_block_c14.clone());
 
-    let decison_block_d14 = VerifiedBlock::new_for_test(
+    let decision_block_d14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 3)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_c13
@@ -703,7 +703,7 @@ async fn test_byzantine_direct_commit() {
             )
             .build(),
     );
-    dag_state.write().accept_block(decison_block_d14.clone());
+    dag_state.write().accept_block(decision_block_d14.clone());
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4

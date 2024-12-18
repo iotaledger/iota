@@ -93,7 +93,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                         .entry(object.owner.to_string())
                         .or_default();
                     entry.insert(object_id_str, (STR_STAKED_IOTA, staked_iota.principal()));
-                    // Assert pool id is associated with a knonw validator.
+                    // Assert pool id is associated with a known validator.
                     let validator = validator_pool_id_map.get(&staked_iota.pool_id()).unwrap();
                     assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
 

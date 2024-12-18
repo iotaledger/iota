@@ -174,7 +174,7 @@ module bridge::bridge_env {
     }
 
     // HotPotato to access shared state
-    // TODO: if the bridge is the only shared state we could remvove this
+    // TODO: if the bridge is the only shared state we could remove this
     public struct BridgeWrapper {
         bridge: Bridge,
     }
@@ -637,7 +637,7 @@ module bridge::bridge_env {
         seq_num
     }
 
-    // Approves a token transer
+    // Approves a token transfer
     public fun approve_token_transfer(
         env: &mut BridgeEnv,
         message: BridgeMessage,

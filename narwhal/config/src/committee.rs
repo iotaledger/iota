@@ -43,7 +43,7 @@ impl Authority {
     /// The constructor is not public by design. Everyone who wants to create authorities should do
     /// it via Committee (more specifically can use CommitteeBuilder). As some internal properties of
     /// Authority are initialised via the Committee, to ensure that the user will not accidentally use
-    /// stale Authority data, should always derive them via the Commitee.
+    /// stale Authority data, should always derive them via the Committee.
     fn new(
         protocol_key: PublicKey,
         stake: Stake,

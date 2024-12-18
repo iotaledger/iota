@@ -370,7 +370,7 @@ impl IndexStoreTables {
 
                 // coin indexing
                 //
-                // coin indexing relys on the fact that CoinMetadata and TreasuryCap are created in
+                // coin indexing relies on the fact that CoinMetadata and TreasuryCap are created in
                 // the same transaction so we don't need to worry about overriding any older value
                 // that may exist in the database (because there necessarily cannot be).
                 for (key, value) in tx.created_objects().flat_map(try_create_coin_index_info) {

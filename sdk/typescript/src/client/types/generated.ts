@@ -721,7 +721,7 @@ export interface PaginatedTransactionResponse {
 	nextCursor?: string | null;
 }
 /**
- * An passkey authenticator with parsed fields. See field defition below. Can be initialized from
+ * An passkey authenticator with parsed fields. See field definition below. Can be initialized from
  * [struct RawPasskeyAuthenticator].
  */
 export interface PasskeyAuthenticator {

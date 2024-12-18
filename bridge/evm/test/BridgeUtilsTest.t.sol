@@ -143,7 +143,7 @@ contract BridgeUtilsTest is BridgeBaseTest {
         // 20: sender length 1 bytes
         // 80ab1ee086210a3a37355300ca24672e81062fcdb5ced6618dab203f6a3b291c: sender 32 bytes
         // 0b: target chain 1 bytes
-        // 14: target adress length 1 bytes
+        // 14: target address length 1 bytes
         // b18f79fe671db47393315ffdb377da4ea1b7af96: target address 20 bytes
         // 02: token id 1 byte
         // 000000c70432b1dd: amount 8 bytes

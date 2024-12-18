@@ -601,7 +601,7 @@ fn create_execution_plan(
         .map(|c| (c.digest(), c))
         .collect();
 
-    // To model the DAG in form of edges and vertexes build an adjacency matrix.
+    // To model the DAG in form of edges and vertices build an adjacency matrix.
     // The matrix will capture the dependencies between the parent certificates --> children certificates.
     // This is important because the algorithm ensures that no children will be added to the final list
     // unless all their dependencies (parent certificates) have first been added earlier - so we

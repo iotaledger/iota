@@ -231,7 +231,7 @@ pub fn get_test_log_and_action(
     let source_address = EthAddress::random();
     let iota_address: IotaAddress = IotaAddress::random_for_testing_only();
     let target_address = Hex::decode(&iota_address.to_string()).unwrap();
-    // Note: must use `encode` rather than `encode_packged`
+    // Note: must use `encode` rather than `encode_packaged`
     let encoded = ethers::abi::encode(&[
         // u8/u64 is encoded as u256 in abi standard
         ethers::abi::Token::Uint(ethers::types::U256::from(token_id)),
@@ -394,7 +394,7 @@ pub async fn approve_action_with_validator_secrets(
         }
     }
     panic!(
-        "Didn't find the creted object owned by {}",
+        "Didn't find the created object owned by {}",
         expected_token_receiver
     );
 }

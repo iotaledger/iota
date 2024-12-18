@@ -45,7 +45,7 @@ const PARALLEL_FETCH_REQUEST_INTERVAL_SECS: Duration = Duration::from_secs(5);
 // num peers * PARALLEL_FETCH_REQUEST_INTERVAL_SECS + PARALLEL_FETCH_REQUEST_ADDITIONAL_TIMEOUT
 const PARALLEL_FETCH_REQUEST_ADDITIONAL_TIMEOUT: Duration = Duration::from_secs(15);
 // Number of certificates to verify in a batch. Verifications in each batch run serially.
-// Batch size is chosen so that verifying a batch takes non-trival
+// Batch size is chosen so that verifying a batch takes non-trivial
 // time (verifying a batch of 200 certificates should take > 100ms).
 const VERIFY_CERTIFICATES_BATCH_SIZE: usize = 200;
 
