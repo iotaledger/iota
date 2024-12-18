@@ -5,7 +5,7 @@
 # verify that git repo is clean
 if [[ -n $(git status -s) ]]; then
   echo "Working directory is not clean. Please commit all changes before running this script."
-  echo $(git status -s)
+  git status -s
   exit 1
 fi
 
