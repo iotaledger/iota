@@ -79,6 +79,8 @@ function EnterTimelockedAmountView({
     );
 
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
+    const infoMessage =
+        'It is not possible to combine timelocked objects to stake the entered amount. Please try a different amount.';
 
     function handleStake(): void {
         if (groupedTimelockObjects.length === 0) {
@@ -113,7 +115,7 @@ function EnterTimelockedAmountView({
             senderAddress={senderAddress}
             caption={caption}
             showInfo={!hasGroupedTimelockObjects}
-            infoMessage="It is not possible to combine timelocked objects to stake the entered amount.  Please try a different amount."
+            infoMessage={infoMessage}
             isLoading={isTransactionLoading}
             isStakeDisabled={!hasGroupedTimelockObjects}
             onBack={onBack}

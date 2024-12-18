@@ -58,7 +58,8 @@ function EnterAmountView({
     );
 
     const caption = `${maxTokenFormatted} ${maxTokenFormattedSymbol} Available`;
-
+    const infoMessage =
+        'You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions.';
     const hasEnoughRemaingBalance =
         maxTokenBalance > parseAmount(values.amount, decimals) + BigInt(2) * gasBudgetBigInt;
 
@@ -91,7 +92,7 @@ function EnterAmountView({
             senderAddress={senderAddress}
             caption={caption}
             showInfo={!hasEnoughRemaingBalance}
-            infoMessage="You have selected an amount that will leave you with insufficient funds to pay for gas fees for unstaking or any other transactions."
+            infoMessage={infoMessage}
             isLoading={isTransactionLoading}
             onBack={onBack}
             handleClose={handleClose}
