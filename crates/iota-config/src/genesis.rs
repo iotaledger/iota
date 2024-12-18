@@ -591,7 +591,7 @@ pub struct TokenDistributionScheduleBuilder {
 }
 
 impl TokenDistributionScheduleBuilder {
-    #[allow(clippy::new_without_default)]
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             pre_minted_supply: 0,
