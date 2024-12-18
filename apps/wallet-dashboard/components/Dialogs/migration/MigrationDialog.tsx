@@ -52,7 +52,6 @@ export function MigrationDialog({
             {
                 onSuccess: (tx) => {
                     onSuccess(tx.digest);
-                    onSuccess?.(tx.digest);
                     setTxDigest(tx.digest);
                     setView(MigrationDialogView.TransactionDetails);
                 },

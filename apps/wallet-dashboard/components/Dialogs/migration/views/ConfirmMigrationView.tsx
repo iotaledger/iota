@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { VirtualList } from '@/components';
+import { MigrationObjectLoading, VirtualList } from '@/components';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import {
@@ -12,8 +12,8 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     KeyValueInfo,
-    LoadingIndicator,
     Panel,
+    Skeleton,
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
@@ -90,7 +90,20 @@ export function ConfirmMigrationView({
                         />
                     )}
                     {isLoading ? (
-                        <LoadingIndicator text="Loading migration objects" />
+                        <>
+                            <Panel hasBorder>
+                                <div className="flex flex-col gap-y-sm p-md">
+                                    <Skeleton widthClass="w-40" heightClass="h-3.5" />
+                                    <MigrationObjectLoading />
+                                </div>
+                            </Panel>
+                            <Panel hasBorder>
+                                <div className="flex flex-col gap-y-md p-md">
+                                    <Skeleton widthClass="w-full" heightClass="h-3.5" />
+                                    <Skeleton widthClass="w-full" heightClass="h-3.5" />
+                                </div>
+                            </Panel>
+                        </>
                     ) : (
                         <>
                             <Collapsible
