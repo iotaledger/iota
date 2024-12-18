@@ -21,6 +21,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
     const defaultNetwork = getDefaultNetwork();
     function handleNetworkChange() {
         queryClient.resetQueries();
+        queryClient.clear();
     }
     return (
         <GrowthBookProvider growthbook={growthbook}>
