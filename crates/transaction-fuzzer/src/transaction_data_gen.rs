@@ -1,20 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::account_address::AccountAddress;
-use proptest::arbitrary::*;
-use proptest::prelude::*;
-
-use crate::type_arg_fuzzer::{gen_type_tag, pt_for_tags};
-use proptest::collection::vec;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-
-use sui_types::digests::ObjectDigest;
-use sui_types::transaction::{
-    GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    digests::ObjectDigest,
+    transaction::{
+        GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
+    },
 };
+use move_core_types::account_address::AccountAddress;
+use proptest::{arbitrary::*, collection::vec, prelude::*};
 
-use crate::account_universe::{gas_budget_selection_strategy, gas_price_selection_strategy};
+use crate::{
+    account_universe::{gas_budget_selection_strategy, gas_price_selection_strategy},
+    type_arg_fuzzer::{gen_type_tag, pt_for_tags},
+};
 
 const MAX_NUM_GAS_OBJS: usize = 1024_usize;
 
@@ -45,7 +46,7 @@ pub fn gen_object_ref() -> impl Strategy<Value = ObjectRef> {
         })
 }
 
-pub fn gen_gas_data(sender: SuiAddress) -> impl Strategy<Value = GasData> {
+pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
     (
         vec(gen_object_ref(), 0..MAX_NUM_GAS_OBJS),
         gas_price_selection_strategy(),
@@ -65,7 +66,7 @@ pub fn gen_transaction_kind() -> impl Strategy<Value = TransactionKind> {
         .prop_map(TransactionKind::ProgrammableTransaction)
 }
 
-pub fn transaction_data_gen(sender: SuiAddress) -> impl Strategy<Value = TransactionData> {
+pub fn transaction_data_gen(sender: IotaAddress) -> impl Strategy<Value = TransactionData> {
     TransactionDataGenBuilder::new(sender)
         .kind(gen_transaction_kind())
         .gas_data(gen_gas_data(sender))
@@ -79,18 +80,18 @@ pub struct TransactionDataGenBuilder<
     E: Strategy<Value = TransactionExpiration>,
 > {
     pub kind: Option<K>,
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub gas_data: Option<G>,
     pub expiration: Option<E>,
 }
 
 impl<
-        K: Strategy<Value = TransactionKind>,
-        G: Strategy<Value = GasData>,
-        E: Strategy<Value = TransactionExpiration>,
-    > TransactionDataGenBuilder<K, G, E>
+    K: Strategy<Value = TransactionKind>,
+    G: Strategy<Value = GasData>,
+    E: Strategy<Value = TransactionExpiration>,
+> TransactionDataGenBuilder<K, G, E>
 {
-    pub fn new(sender: SuiAddress) -> Self {
+    pub fn new(sender: IotaAddress) -> Self {
         Self {
             kind: None,
             sender,

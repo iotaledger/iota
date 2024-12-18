@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from "react";
 import { Tabs } from "@radix-ui/themes";
-import { LockOwnedObjects } from "../components/locked/LockOwnedObjects";
+import { LockOwnedObjects } from "@/components/locked/LockOwnedObjects";
 import { OwnedLockedList } from "@/components/locked/OwnedLockedList";
 
 export function LockedDashboard() {

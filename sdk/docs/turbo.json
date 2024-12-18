@@ -1,9 +1,9 @@
 {
-	"extends": ["//"],
-	"tasks": {
-		"build": {
-			"dependsOn": ["^build"],
-			"outputs": [".next/**", "!.next/cache/**", "public/**"]
-		}
-	}
+    "extends": ["//"],
+    "tasks": {
+        "build": {
+            "dependsOn": ["^build"],
+            "outputs": [".next/**", "!.next/cache/**", "public/**"]
+        }
+    }
 }

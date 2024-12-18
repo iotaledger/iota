@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -8,17 +9,17 @@ use std::{
     time::Instant,
 };
 
+use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
-use mysten_metrics::monitored_scope;
 use parking_lot::RwLock;
 use tracing::{debug, trace, warn};
 
 use crate::{
-    block::{BlockAPI, BlockRef, VerifiedBlock},
+    Round,
+    block::{BlockAPI, BlockRef, GENESIS_ROUND, VerifiedBlock},
     block_verifier::BlockVerifier,
     context::Context,
     dag_state::DagState,
-    Round,
 };
 
 struct SuspendedBlock {
@@ -37,29 +38,35 @@ impl SuspendedBlock {
     }
 }
 
-/// Block manager suspends incoming blocks until they are connected to the existing graph,
-/// returning newly connected blocks.
-/// TODO: As it is possible to have Byzantine validators who produce Blocks without valid causal
-/// history we need to make sure that BlockManager takes care of that and avoid OOM (Out Of Memory)
-/// situations.
+/// Block manager suspends incoming blocks until they are connected to the
+/// existing graph, returning newly connected blocks.
+/// TODO: As it is possible to have Byzantine validators who produce Blocks
+/// without valid causal history we need to make sure that BlockManager takes
+/// care of that and avoid OOM (Out Of Memory) situations.
 pub(crate) struct BlockManager {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
     block_verifier: Arc<dyn BlockVerifier>,
 
-    /// Keeps all the suspended blocks. A suspended block is a block that is missing part of its causal history and thus
-    /// can't be immediately processed. A block will remain in this map until all its causal history has been successfully
-    /// processed.
+    /// Keeps all the suspended blocks. A suspended block is a block that is
+    /// missing part of its causal history and thus can't be immediately
+    /// processed. A block will remain in this map until all its causal history
+    /// has been successfully processed.
     suspended_blocks: BTreeMap<BlockRef, SuspendedBlock>,
-    /// A map that keeps all the blocks that we are missing (keys) and the corresponding blocks that reference the missing blocks
-    /// as ancestors and need them to get unsuspended. It is possible for a missing dependency (key) to be a suspended block, so
-    /// the block has been already fetched but it self is still missing some of its ancestors to be processed.
+    /// A map that keeps all the blocks that we are missing (keys) and the
+    /// corresponding blocks that reference the missing blocks as ancestors
+    /// and need them to get unsuspended. It is possible for a missing
+    /// dependency (key) to be a suspended block, so the block has been
+    /// already fetched but it self is still missing some of its ancestors to be
+    /// processed.
     missing_ancestors: BTreeMap<BlockRef, BTreeSet<BlockRef>>,
-    /// Keeps all the blocks that we actually miss and haven't fetched them yet. That set will basically contain all the
-    /// keys from the `missing_ancestors` minus any keys that exist in `suspended_blocks`.
+    /// Keeps all the blocks that we actually miss and haven't fetched them yet.
+    /// That set will basically contain all the keys from the
+    /// `missing_ancestors` minus any keys that exist in `suspended_blocks`.
     missing_blocks: BTreeSet<BlockRef>,
-    /// A vector that holds a tuple of (lowest_round, highest_round) of received blocks per authority.
-    /// This is used for metrics reporting purposes and resets during restarts.
+    /// A vector that holds a tuple of (lowest_round, highest_round) of received
+    /// blocks per authority. This is used for metrics reporting purposes
+    /// and resets during restarts.
     received_block_rounds: Vec<Option<(Round, Round)>>,
 }
 
@@ -81,9 +88,11 @@ impl BlockManager {
         }
     }
 
-    /// Tries to accept the provided blocks assuming that all their causal history exists. The method
-    /// returns all the blocks that have been successfully processed in round ascending order, that includes also previously
-    /// suspended blocks that have now been able to get accepted. Method also returns a set with the missing ancestor blocks.
+    /// Tries to accept the provided blocks assuming that all their causal
+    /// history exists. The method returns all the blocks that have been
+    /// successfully processed in round ascending order, that includes also
+    /// previously suspended blocks that have now been able to get accepted.
+    /// Method also returns a set with the missing ancestor blocks.
     pub(crate) fn try_accept_blocks(
         &mut self,
         mut blocks: Vec<VerifiedBlock>,
@@ -114,69 +123,15 @@ impl BlockManager {
                     missing_blocks.extend(ancestors_to_fetch);
                     continue;
                 }
-                TryAcceptResult::Processed => continue,
+                TryAcceptResult::Processed | TryAcceptResult::Skipped => continue,
             };
 
             // If the block is accepted, try to unsuspend its children blocks if any.
-            let unsuspended_blocks = self.try_unsuspend_children_blocks(&block);
+            let unsuspended_blocks = self.try_unsuspend_children_blocks(block.reference());
 
-            // Try to verify the block and its children for timestamp, with ancestor blocks.
-            let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
-            let mut blocks_to_reject: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
-            {
-                'block: for b in iter::once(block).chain(unsuspended_blocks) {
-                    let ancestors = self.dag_state.read().get_blocks(b.ancestors());
-                    assert_eq!(b.ancestors().len(), ancestors.len());
-                    let mut ancestor_blocks = vec![];
-                    'ancestor: for (ancestor_ref, found) in
-                        b.ancestors().iter().zip(ancestors.into_iter())
-                    {
-                        if let Some(found_block) = found {
-                            // This invariant should be guaranteed by DagState.
-                            assert_eq!(ancestor_ref, &found_block.reference());
-                            ancestor_blocks.push(found_block);
-                            continue 'ancestor;
-                        }
-                        // blocks_to_accept have not been added to DagState yet, but they
-                        // can appear in ancestors.
-                        if blocks_to_accept.contains_key(ancestor_ref) {
-                            ancestor_blocks.push(blocks_to_accept[ancestor_ref].clone());
-                            continue 'ancestor;
-                        }
-                        // If an ancestor is already rejected, reject this block as well.
-                        if blocks_to_reject.contains_key(ancestor_ref) {
-                            blocks_to_reject.insert(b.reference(), b);
-                            continue 'block;
-                        }
-                        panic!("Unsuspended block {:?} has a missing ancestor! Ancestor not found in DagState: {:?}", b, ancestor_ref);
-                    }
-                    if let Err(e) = self.block_verifier.check_ancestors(&b, &ancestor_blocks) {
-                        warn!("Block {:?} failed to verify ancestors: {}", b, e);
-                        blocks_to_reject.insert(b.reference(), b);
-                    } else {
-                        blocks_to_accept.insert(b.reference(), b);
-                    }
-                }
-            }
-            for (block_ref, block) in blocks_to_reject {
-                self.context
-                    .metrics
-                    .node_metrics
-                    .invalid_blocks
-                    .with_label_values(&[&block_ref.author.to_string(), "accept_block"])
-                    .inc();
-                warn!("Invalid block {:?} is rejected", block);
-            }
-
-            // TODO: report blocks_to_reject to peers.
-
-            // Insert the accepted blocks into DAG state so future blocks including them as
-            // ancestors do not get suspended.
-            let blocks_to_accept: Vec<_> = blocks_to_accept.into_values().collect();
-            self.dag_state
-                .write()
-                .accept_blocks(blocks_to_accept.clone());
-
+            // Verify block timestamps
+            let blocks_to_accept = self
+                .verify_block_timestamps_and_accept(iter::once(block).chain(unsuspended_blocks));
             accepted_blocks.extend(blocks_to_accept);
         }
 
@@ -198,25 +153,163 @@ impl BlockManager {
         (accepted_blocks, missing_blocks)
     }
 
-    /// Tries to accept the provided block. To accept a block its ancestors must have been already successfully accepted. If
-    /// block is accepted then Some result is returned. None is returned when either the block is suspended or the block
-    /// has been already accepted before.
+    // TODO: remove once timestamping is refactored to the new approach.
+    // Verifies each block's timestamp based on its ancestors, and persists in store
+    // all the valid blocks that should be accepted. Method returns the accepted
+    // and persisted blocks.
+    fn verify_block_timestamps_and_accept(
+        &mut self,
+        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlock>,
+    ) -> Vec<VerifiedBlock> {
+        let (gc_enabled, gc_round) = {
+            let dag_state = self.dag_state.read();
+            (dag_state.gc_enabled(), dag_state.gc_round())
+        };
+        // Try to verify the block and its children for timestamp, with ancestor blocks.
+        let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
+        let mut blocks_to_reject: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
+        {
+            'block: for b in unsuspended_blocks {
+                let ancestors = self.dag_state.read().get_blocks(b.ancestors());
+                assert_eq!(b.ancestors().len(), ancestors.len());
+                let mut ancestor_blocks = vec![];
+                'ancestor: for (ancestor_ref, found) in
+                    b.ancestors().iter().zip(ancestors.into_iter())
+                {
+                    if let Some(found_block) = found {
+                        // This invariant should be guaranteed by DagState.
+                        assert_eq!(ancestor_ref, &found_block.reference());
+                        ancestor_blocks.push(Some(found_block));
+                        continue 'ancestor;
+                    }
+                    // blocks_to_accept have not been added to DagState yet, but they
+                    // can appear in ancestors.
+                    if blocks_to_accept.contains_key(ancestor_ref) {
+                        ancestor_blocks.push(Some(blocks_to_accept[ancestor_ref].clone()));
+                        continue 'ancestor;
+                    }
+                    // If an ancestor is already rejected, reject this block as well.
+                    if blocks_to_reject.contains_key(ancestor_ref) {
+                        blocks_to_reject.insert(b.reference(), b);
+                        continue 'block;
+                    }
+
+                    // When gc is enabled it's possible that we indeed won't find any ancestors that
+                    // are passed gc_round. That's ok. We don't need to panic here.
+                    // We do want to panic if gc_enabled we and have an ancestor that is > gc_round,
+                    // or gc is disabled.
+                    if gc_enabled
+                        && ancestor_ref.round > GENESIS_ROUND
+                        && ancestor_ref.round <= gc_round
+                    {
+                        debug!(
+                            "Block {:?} has a missing ancestor: {:?} passed GC round {}",
+                            b.reference(),
+                            ancestor_ref,
+                            gc_round
+                        );
+                        ancestor_blocks.push(None);
+                    } else {
+                        panic!(
+                            "Unsuspended block {:?} has a missing ancestor! Ancestor not found in DagState: {:?}",
+                            b, ancestor_ref
+                        );
+                    }
+                }
+                if let Err(e) =
+                    self.block_verifier
+                        .check_ancestors(&b, &ancestor_blocks, gc_enabled, gc_round)
+                {
+                    warn!("Block {:?} failed to verify ancestors: {}", b, e);
+                    blocks_to_reject.insert(b.reference(), b);
+                } else {
+                    blocks_to_accept.insert(b.reference(), b);
+                }
+            }
+        }
+
+        // TODO: report blocks_to_reject to peers.
+        for (block_ref, block) in blocks_to_reject {
+            let hostname = self
+                .context
+                .committee
+                .authority(block_ref.author)
+                .hostname
+                .clone();
+
+            self.context
+                .metrics
+                .node_metrics
+                .invalid_blocks
+                .with_label_values(&[&hostname, "accept_block", "InvalidAncestors"])
+                .inc();
+            warn!("Invalid block {:?} is rejected", block);
+        }
+
+        let blocks_to_accept = blocks_to_accept.values().cloned().collect::<Vec<_>>();
+
+        // Insert the accepted blocks into DAG state so future blocks including them as
+        // ancestors do not get suspended.
+        self.dag_state
+            .write()
+            .accept_blocks(blocks_to_accept.clone());
+
+        blocks_to_accept
+    }
+
+    /// Tries to accept the provided block. To accept a block its ancestors must
+    /// have been already successfully accepted. If block is accepted then
+    /// Some result is returned. None is returned when either the block is
+    /// suspended or the block has been already accepted before.
     fn try_accept_one_block(&mut self, block: VerifiedBlock) -> TryAcceptResult {
         let block_ref = block.reference();
         let mut missing_ancestors = BTreeSet::new();
         let mut ancestors_to_fetch = BTreeSet::new();
         let dag_state = self.dag_state.read();
+        let gc_round = dag_state.gc_round();
+        let gc_enabled = dag_state.gc_enabled();
 
-        // If block has been already received and suspended, or already processed and stored, or is a genesis block, then skip it.
+        // If block has been already received and suspended, or already processed and
+        // stored, or is a genesis block, then skip it.
         if self.suspended_blocks.contains_key(&block_ref) || dag_state.contains_block(&block_ref) {
             return TryAcceptResult::Processed;
         }
 
-        let ancestors = block.ancestors();
+        // If the block is <= gc_round, then we simply skip its processing as there is
+        // no meaning do any action on it or even store it.
+        if gc_enabled && block.round() <= gc_round {
+            let hostname = self
+                .context
+                .committee
+                .authority(block.author())
+                .hostname
+                .as_str();
+            self.context
+                .metrics
+                .node_metrics
+                .block_manager_skipped_blocks
+                .with_label_values(&[hostname])
+                .inc();
+            return TryAcceptResult::Skipped;
+        }
+
+        // Keep only the ancestors that are greater than the GC round to check for their
+        // existence. Keep in mind that if GC is disabled then gc_round will be
+        // 0 and all ancestors will be considered.
+        let ancestors = if gc_enabled {
+            block
+                .ancestors()
+                .iter()
+                .filter(|ancestor| ancestor.round == GENESIS_ROUND || ancestor.round > gc_round)
+                .cloned()
+                .collect::<Vec<_>>()
+        } else {
+            block.ancestors().to_vec()
+        };
 
         // make sure that we have all the required ancestors in store
         for (found, ancestor) in dag_state
-            .contains_blocks(ancestors.to_vec())
+            .contains_blocks(ancestors.clone())
             .into_iter()
             .zip(ancestors.iter())
         {
@@ -229,17 +322,34 @@ impl BlockManager {
                     .or_default()
                     .insert(block_ref);
 
-                // Add the ancestor to the missing blocks set only if it doesn't already exist in the suspended blocks - meaning
-                // that we already have its payload.
+                let ancestor_hostname = &self.context.committee.authority(ancestor.author).hostname;
+                self.context
+                    .metrics
+                    .node_metrics
+                    .block_manager_missing_ancestors_by_authority
+                    .with_label_values(&[ancestor_hostname])
+                    .inc();
+
+                // Add the ancestor to the missing blocks set only if it doesn't already exist
+                // in the suspended blocks - meaning that we already have its
+                // payload.
                 if !self.suspended_blocks.contains_key(ancestor) {
-                    self.missing_blocks.insert(*ancestor);
                     ancestors_to_fetch.insert(*ancestor);
+                    if self.missing_blocks.insert(*ancestor) {
+                        self.context
+                            .metrics
+                            .node_metrics
+                            .block_manager_missing_blocks_by_authority
+                            .with_label_values(&[ancestor_hostname])
+                            .inc();
+                    }
                 }
             }
         }
 
-        // Remove the block ref from the `missing_blocks` - if exists - since we now have received the block. The block
-        // might still get suspended, but we won't report it as missing in order to not re-fetch.
+        // Remove the block ref from the `missing_blocks` - if exists - since we now
+        // have received the block. The block might still get suspended, but we
+        // won't report it as missing in order to not re-fetch.
         self.missing_blocks.remove(&block.reference());
 
         if !missing_ancestors.is_empty() {
@@ -263,25 +373,22 @@ impl BlockManager {
         TryAcceptResult::Accepted(block)
     }
 
-    /// Given an accepted block `accepted_block` it attempts to accept all the suspended children blocks assuming such exist.
-    /// All the unsuspended / accepted blocks are returned as a vector in causal order.
-    fn try_unsuspend_children_blocks(
-        &mut self,
-        accepted_block: &VerifiedBlock,
-    ) -> Vec<VerifiedBlock> {
+    /// Given an accepted block `accepted_block` it attempts to accept all the
+    /// suspended children blocks assuming such exist. All the unsuspended /
+    /// accepted blocks are returned as a vector in causal order.
+    fn try_unsuspend_children_blocks(&mut self, accepted_block: BlockRef) -> Vec<VerifiedBlock> {
         let mut unsuspended_blocks = vec![];
-        let mut to_process_blocks = vec![accepted_block.clone()];
+        let mut to_process_blocks = vec![accepted_block];
 
-        while let Some(block) = to_process_blocks.pop() {
+        while let Some(block_ref) = to_process_blocks.pop() {
             // And try to check if its direct children can be unsuspended
-            if let Some(block_refs_with_missing_deps) =
-                self.missing_ancestors.remove(&block.reference())
-            {
+            if let Some(block_refs_with_missing_deps) = self.missing_ancestors.remove(&block_ref) {
                 for r in block_refs_with_missing_deps {
-                    // For each dependency try to unsuspend it. If that's successful then we add it to the queue so
-                    // we can recursively try to unsuspend its children.
-                    if let Some(block) = self.try_unsuspend_block(&r, &block.reference()) {
-                        to_process_blocks.push(block.block.clone());
+                    // For each dependency try to unsuspend it. If that's successful then we add it
+                    // to the queue so we can recursively try to unsuspend its
+                    // children.
+                    if let Some(block) = self.try_unsuspend_block(&r, &block_ref) {
+                        to_process_blocks.push(block.block.reference());
                         unsuspended_blocks.push(block);
                     }
                 }
@@ -318,8 +425,10 @@ impl BlockManager {
             .collect()
     }
 
-    /// Attempts to unsuspend a block by checking its ancestors and removing the `accepted_dependency` by its local set.
-    /// If there is no missing dependency then this block can be unsuspended immediately and is removed from the `suspended_blocks` map.
+    /// Attempts to unsuspend a block by checking its ancestors and removing the
+    /// `accepted_dependency` by its local set. If there is no missing
+    /// dependency then this block can be unsuspended immediately and is removed
+    /// from the `suspended_blocks` map.
     fn try_unsuspend_block(
         &mut self,
         block_ref: &BlockRef,
@@ -344,8 +453,78 @@ impl BlockManager {
         None
     }
 
-    /// Returns all the blocks that are currently missing and needed in order to accept suspended
-    /// blocks.
+    /// Tries to unsuspend any blocks for the latest gc round. If gc round
+    /// hasn't changed then no blocks will be unsuspended due to
+    /// this action.
+    pub(crate) fn try_unsuspend_blocks_for_latest_gc_round(&mut self) {
+        let _s = monitored_scope("BlockManager::try_unsuspend_blocks_for_latest_gc_round");
+        let (gc_enabled, gc_round) = {
+            let dag_state = self.dag_state.read();
+            (dag_state.gc_enabled(), dag_state.gc_round())
+        };
+        let mut blocks_unsuspended_below_gc_round = 0;
+        let mut blocks_gc_ed = 0;
+
+        if !gc_enabled {
+            trace!("GC is disabled, no blocks will attempt to get unsuspended.");
+            return;
+        }
+
+        while let Some((block_ref, _children_refs)) = self.missing_ancestors.first_key_value() {
+            // If the first block in the missing ancestors is higher than the gc_round, then
+            // we can't unsuspend it yet. So we just put it back
+            // and we terminate the iteration as any next entry will be of equal or higher
+            // round anyways.
+            if block_ref.round > gc_round {
+                return;
+            }
+
+            blocks_gc_ed += 1;
+
+            assert!(
+                !self.suspended_blocks.contains_key(block_ref),
+                "Block should not be suspended, as we are causally GC'ing and no suspended block should exist for a missing ancestor."
+            );
+
+            // Also remove it from the missing list - we don't want to keep looking for it.
+            self.missing_blocks.remove(block_ref);
+
+            // Find all the children blocks that have a dependency on this one and try to
+            // unsuspend them
+            let unsuspended_blocks = self.try_unsuspend_children_blocks(*block_ref);
+
+            unsuspended_blocks.iter().for_each(|block| {
+                if block.round() <= gc_round {
+                    blocks_unsuspended_below_gc_round += 1;
+                }
+            });
+
+            // Now validate their timestamps and accept them
+            let accepted_blocks = self.verify_block_timestamps_and_accept(unsuspended_blocks);
+            for block in accepted_blocks {
+                let hostname = self
+                    .context
+                    .committee
+                    .authority(block.author())
+                    .hostname
+                    .as_str();
+                self.context
+                    .metrics
+                    .node_metrics
+                    .block_manager_gc_unsuspended_blocks
+                    .with_label_values(&[hostname])
+                    .inc();
+            }
+        }
+
+        debug!(
+            "Total {} blocks unsuspended and total blocks {} gc'ed <= gc_round {}",
+            blocks_unsuspended_below_gc_round, blocks_gc_ed, gc_round
+        );
+    }
+
+    /// Returns all the blocks that are currently missing and needed in order to
+    /// accept suspended blocks.
     pub(crate) fn missing_blocks(&self) -> BTreeSet<BlockRef> {
         self.missing_blocks.clone()
     }
@@ -382,7 +561,8 @@ impl BlockManager {
             && self.missing_blocks.is_empty()
     }
 
-    /// Returns all the suspended blocks whose causal history we miss hence we can't accept them yet.
+    /// Returns all the suspended blocks whose causal history we miss hence we
+    /// can't accept them yet.
     #[cfg(test)]
     fn suspended_blocks(&self) -> Vec<BlockRef> {
         self.suspended_blocks.keys().cloned().collect()
@@ -395,9 +575,13 @@ enum TryAcceptResult {
     Accepted(VerifiedBlock),
     // The block is suspended. Wraps ancestors to be fetched.
     Suspended(BTreeSet<BlockRef>),
-    // The block has been processed before and already exists in BlockManager (and is suspended) or
-    // in DagState (so has been already accepted). No further processing has been done at this point.
+    // The block has been processed before and already exists in BlockManager (and is suspended)
+    // or in DagState (so has been already accepted). No further processing has been done at
+    // this point.
     Processed,
+    // When a received block is <= gc_round, then we simply skip its processing as there is no
+    // meaning do any action on it or even store it.
+    Skipped,
 }
 
 #[cfg(test)]
@@ -406,17 +590,21 @@ mod tests {
 
     use consensus_config::AuthorityIndex;
     use parking_lot::RwLock;
-    use rand::{prelude::StdRng, seq::SliceRandom, SeedableRng};
+    use rand::{SeedableRng, prelude::StdRng, seq::SliceRandom};
+    use rstest::rstest;
 
     use crate::{
-        block::{BlockAPI, BlockRef, SignedBlock, VerifiedBlock},
+        CommitDigest, Round,
+        block::{BlockAPI, BlockDigest, BlockRef, SignedBlock, VerifiedBlock},
         block_manager::BlockManager,
         block_verifier::{BlockVerifier, NoopBlockVerifier},
+        commit::TrustedCommit,
         context::Context,
         dag_state::DagState,
         error::{ConsensusError, ConsensusResult},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
+        test_dag_parser::parse_dag,
     };
 
     #[tokio::test]
@@ -454,13 +642,15 @@ mod tests {
         // THEN
         assert!(accepted_blocks.is_empty());
 
-        // AND the returned missing ancestors should be the same as the provided block ancestors
+        // AND the returned missing ancestors should be the same as the provided block
+        // ancestors
         let missing_block_refs = round_2_blocks.first().unwrap().ancestors();
         let missing_block_refs = missing_block_refs.iter().cloned().collect::<BTreeSet<_>>();
         assert_eq!(missing, missing_block_refs);
 
-        // AND the missing blocks are the parents of the round 2 blocks. Since this is a fully connected DAG taking the
-        // ancestors of the first element suffices.
+        // AND the missing blocks are the parents of the round 2 blocks. Since this is a
+        // fully connected DAG taking the ancestors of the first element
+        // suffices.
         assert_eq!(block_manager.missing_blocks(), missing_block_refs);
 
         // AND suspended blocks should return the round_2_blocks
@@ -494,8 +684,8 @@ mod tests {
             .equivocate(3) // Use 3 equivocations blocks per authority
             .build();
 
-        // Take the blocks from round 4 up to 2 (included). Only the first block of each round should return missing
-        // ancestors when try to accept
+        // Take the blocks from round 4 up to 2 (included). Only the first block of each
+        // round should return missing ancestors when try to accept
         for (_, block) in dag_builder
             .blocks
             .into_iter()
@@ -534,7 +724,7 @@ mod tests {
         let (accepted_blocks, missing) = block_manager.try_accept_blocks(all_blocks.clone());
 
         // THEN
-        assert!(accepted_blocks.len() == 8);
+        assert_eq!(accepted_blocks.len(), 8);
         assert_eq!(
             accepted_blocks,
             all_blocks
@@ -546,15 +736,172 @@ mod tests {
         assert!(missing.is_empty());
         assert!(block_manager.is_empty());
 
-        // WHEN trying to accept same blocks again, then none will be returned as those have been already accepted
+        // WHEN trying to accept same blocks again, then none will be returned as those
+        // have been already accepted
         let (accepted_blocks, _) = block_manager.try_accept_blocks(all_blocks);
         assert!(accepted_blocks.is_empty());
     }
 
+    /// Tests that the block manager accepts blocks when some or all of their
+    /// causal history is below or equal to the GC round.
     #[tokio::test]
-    async fn accept_blocks_unsuspend_children_blocks() {
+    async fn accept_blocks_with_causal_history_below_gc_round() {
         // GIVEN
-        let (context, _key_pairs) = Context::new_for_test(4);
+        let (mut context, _key_pairs) = Context::new_for_test(4);
+
+        // We set the gc depth to 4
+        context
+            .protocol_config
+            .set_consensus_gc_depth_for_testing(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        // We "fake" the commit for round 10, so we can test the GC round 6
+        // (commit_round - gc_depth = 10 - 4 = 6)
+        let last_commit = TrustedCommit::new_for_test(
+            10,
+            CommitDigest::MIN,
+            context.clock.timestamp_utc_ms(),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+            vec![],
+        );
+        dag_state.write().set_last_commit(last_commit);
+        assert_eq!(
+            dag_state.read().gc_round(),
+            6,
+            "GC round should have moved to round 6"
+        );
+
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+
+        // create a DAG of 10 rounds with some weak links for the blocks of round 9
+        let dag_str = "DAG {
+            Round 0 : { 4 },
+            Round 1 : { * },
+            Round 2 : { * },
+            Round 3 : { * },
+            Round 4 : { * },
+            Round 5 : { * },
+            Round 6 : { * },
+            Round 7 : {
+                A -> [*],
+                B -> [*],
+                C -> [*],
+            }
+            Round 8 : {
+                A -> [*],
+                B -> [*],
+                C -> [*],
+            },
+            Round 9 : {
+                A -> [A8, B8, C8, D6],
+                B -> [A8, B8, C8, D6],
+                C -> [A8, B8, C8, D6],
+                D -> [A8, B8, C8, D6],
+            },
+            Round 10 : { * },
+        }";
+
+        let (_, dag_builder) = parse_dag(dag_str).expect("Invalid dag");
+
+        // Now take all the blocks for round 7 & 8 , which are above the gc_round = 6.
+        // All those blocks should eventually be returned as accepted. Pay attention
+        // that without GC none of those blocks should get accepted.
+        let blocks_ranges = vec![7..=8 as Round, 9..=10 as Round];
+
+        for rounds_range in blocks_ranges {
+            let all_blocks = dag_builder
+                .blocks
+                .values()
+                .filter(|block| rounds_range.contains(&block.round()))
+                .cloned()
+                .collect::<Vec<_>>();
+
+            // WHEN
+            let mut reversed_blocks = all_blocks.clone();
+            reversed_blocks.sort_by_key(|b| std::cmp::Reverse(b.reference()));
+            let (mut accepted_blocks, missing) = block_manager.try_accept_blocks(reversed_blocks);
+            accepted_blocks.sort_by_key(|a| a.reference());
+
+            // THEN
+            assert_eq!(accepted_blocks, all_blocks.to_vec());
+            assert!(missing.is_empty());
+            assert!(block_manager.is_empty());
+
+            let (accepted_blocks, _) = block_manager.try_accept_blocks(all_blocks);
+            assert!(accepted_blocks.is_empty());
+        }
+    }
+
+    /// Blocks that are attempted to be accepted but are <= gc_round they will
+    /// be skipped for processing. Nothing should be stored or trigger any
+    /// unsuspension etc.
+    #[tokio::test]
+    async fn skip_accepting_blocks_below_gc_round() {
+        // GIVEN
+        let (mut context, _key_pairs) = Context::new_for_test(4);
+        // We set the gc depth to 4
+        context
+            .protocol_config
+            .set_consensus_gc_depth_for_testing(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        // We "fake" the commit for round 10, so we can test the GC round 6
+        // (commit_round - gc_depth = 10 - 4 = 6)
+        let last_commit = TrustedCommit::new_for_test(
+            10,
+            CommitDigest::MIN,
+            context.clock.timestamp_utc_ms(),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+            vec![],
+        );
+        dag_state.write().set_last_commit(last_commit);
+        assert_eq!(
+            dag_state.read().gc_round(),
+            6,
+            "GC round should have moved to round 6"
+        );
+
+        let mut block_manager =
+            BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
+
+        // create a DAG of 6 rounds
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=6).build();
+
+        let all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
+
+        // WHEN
+        let (accepted_blocks, missing) = block_manager.try_accept_blocks(all_blocks.clone());
+
+        // THEN
+        assert!(accepted_blocks.is_empty());
+        assert!(missing.is_empty());
+        assert!(block_manager.is_empty());
+    }
+
+    /// The test generate blocks for a well connected DAG and feed them to block
+    /// manager in random order. In the end all the blocks should be
+    /// uniquely suspended and no missing blocks should exist. The test will run
+    /// for both gc_enabled/disabled. When gc is enabeld we set a high
+    /// gc_depth value so in practice gc_round will be 0, but we'll be able to
+    /// test in the common case that this work exactly the same way as when
+    /// gc is disabled.
+    #[rstest]
+    #[tokio::test]
+    async fn accept_blocks_unsuspend_children_blocks(#[values(false, true)] gc_enabled: bool) {
+        // GIVEN
+        let (mut context, _key_pairs) = Context::new_for_test(4);
+
+        if gc_enabled {
+            context
+                .protocol_config
+                .set_consensus_gc_depth_for_testing(10);
+        }
         let context = Arc::new(context);
 
         // create a DAG of rounds 1 ~ 3
@@ -563,8 +910,9 @@ mod tests {
 
         let mut all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
 
-        // Now randomize the sequence of sending the blocks to block manager. In the end all the blocks should be uniquely
-        // suspended and no missing blocks should exist.
+        // Now randomize the sequence of sending the blocks to block manager. In the end
+        // all the blocks should be uniquely suspended and no missing blocks
+        // should exist.
         for seed in 0..100u8 {
             all_blocks.shuffle(&mut StdRng::from_seed([seed; 32]));
 
@@ -595,6 +943,84 @@ mod tests {
         }
     }
 
+    #[rstest]
+    #[tokio::test]
+    async fn unsuspend_blocks_for_latest_gc_round(#[values(5, 10, 14)] gc_depth: u32) {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let (mut context, _key_pairs) = Context::new_for_test(4);
+
+        if gc_depth > 0 {
+            context
+                .protocol_config
+                .set_consensus_gc_depth_for_testing(gc_depth);
+        }
+        let context = Arc::new(context);
+
+        // create a DAG of rounds 1 ~ gc_depth * 2
+        let mut dag_builder = DagBuilder::new(context.clone());
+        dag_builder.layers(1..=gc_depth * 2).build();
+
+        // Pay attention that we start from round 2. Round 1 will always be missing so
+        // no matter what we do we can't unsuspend it unless gc_round has
+        // advanced to round >= 1.
+        let mut all_blocks = dag_builder
+            .blocks
+            .values()
+            .filter(|block| block.round() > 1)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        // Now randomize the sequence of sending the blocks to block manager. In the end
+        // all the blocks should be uniquely suspended and no missing blocks
+        // should exist.
+        for seed in 0..100u8 {
+            all_blocks.shuffle(&mut StdRng::from_seed([seed; 32]));
+
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+            let mut block_manager = BlockManager::new(
+                context.clone(),
+                dag_state.clone(),
+                Arc::new(NoopBlockVerifier),
+            );
+
+            // WHEN
+            for block in &all_blocks {
+                let (accepted_blocks, _) = block_manager.try_accept_blocks(vec![block.clone()]);
+                assert!(accepted_blocks.is_empty());
+            }
+            assert!(!block_manager.is_empty());
+
+            // AND
+            // Trigger a commit which will advance GC round
+            let last_commit = TrustedCommit::new_for_test(
+                gc_depth * 2,
+                CommitDigest::MIN,
+                context.clock.timestamp_utc_ms(),
+                BlockRef::new(
+                    gc_depth * 2,
+                    AuthorityIndex::new_for_test(0),
+                    BlockDigest::MIN,
+                ),
+                vec![],
+            );
+            dag_state.write().set_last_commit(last_commit);
+
+            // AND
+            block_manager.try_unsuspend_blocks_for_latest_gc_round();
+
+            // THEN
+            assert!(block_manager.is_empty());
+
+            // AND ensure that all have been accepted to the DAG
+            for block in &all_blocks {
+                assert!(dag_state.read().contains_block(&block.reference()));
+            }
+        }
+    }
+
     struct TestBlockVerifier {
         fail: BTreeSet<BlockRef>,
     }
@@ -613,7 +1039,9 @@ mod tests {
         fn check_ancestors(
             &self,
             block: &VerifiedBlock,
-            _ancestors: &[VerifiedBlock],
+            _ancestors: &[Option<VerifiedBlock>],
+            _gc_enabled: bool,
+            _gc_round: Round,
         ) -> ConsensusResult<()> {
             if self.fail.contains(&block.reference()) {
                 Err(ConsensusError::InvalidBlockTimestamp {
@@ -652,7 +1080,8 @@ mod tests {
         let mut block_manager =
             BlockManager::new(context.clone(), dag_state, Arc::new(test_verifier));
 
-        // Try to accept blocks from round 2 ~ 5 into block manager. All of them should be suspended.
+        // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
+        // be suspended.
         let (accepted_blocks, missing_refs) = block_manager.try_accept_blocks(
             all_blocks
                 .iter()
@@ -684,7 +1113,8 @@ mod tests {
         });
         assert!(missing_refs.is_empty());
 
-        // Other blocks should be rejected and there should be no remaining suspended block.
+        // Other blocks should be rejected and there should be no remaining suspended
+        // block.
         assert!(block_manager.suspended_blocks().is_empty());
     }
 }

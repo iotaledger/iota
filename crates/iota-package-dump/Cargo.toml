@@ -1,0 +1,22 @@
+[package]
+name = "iota-package-dump"
+version.workspace = true
+authors = ["IOTA Foundation <build@iota.org"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+bcs.workspace = true
+cynic.workspace = true
+fastcrypto.workspace = true
+iota-types.workspace = true
+move-core-types.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+cynic-codegen.workspace = true

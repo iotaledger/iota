@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
 use consensus_config::AuthorityIndex;
 use parking_lot::RwLock;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::{
-    block::{genesis_blocks, BlockRef, BlockTimestampMs, Round, TestBlock, VerifiedBlock},
+    block::{BlockRef, BlockTimestampMs, Round, TestBlock, VerifiedBlock, genesis_blocks},
     context::Context,
     dag_state::DagState,
     test_dag_builder::DagBuilder,
@@ -18,8 +19,8 @@ use crate::{
 
 /// Build a fully interconnected dag up to the specified round. This function
 /// starts building the dag from the specified [`start`] parameter or from
-/// genesis if none are specified up to and including the specified round [`stop`]
-/// parameter.
+/// genesis if none are specified up to and including the specified round
+/// [`stop`] parameter.
 pub(crate) fn build_dag(
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
@@ -49,7 +50,8 @@ pub(crate) fn build_dag(
             .authorities()
             .map(|authority| {
                 let author_idx = authority.0.value() as u32;
-                // Test the case where a block from round R+1 has smaller timestamp than a block from round R.
+                // Test the case where a block from round R+1 has smaller timestamp than a block
+                // from round R.
                 let ts = round as BlockTimestampMs / 2 * num_authorities as BlockTimestampMs
                     + author_idx as BlockTimestampMs;
                 let block = VerifiedBlock::new_for_test(

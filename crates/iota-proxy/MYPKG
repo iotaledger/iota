@@ -1,0 +1,16 @@
+rust_binary(
+    name="iota-proxy",
+    command="cargo build",
+    profile="release",
+)
+mypkg(
+    name="iota-proxy",
+    version="77007d47482d76f49ed5326807b6f2a0",
+)
+podman_build(
+    name="iota-proxy-image",
+    registry="docker//us-central1-docker.pkg.dev/cryptic-bolt-398315/iota-proxy",
+    dockerfile="iota_proxy_dockerfile",
+    resources=[":iota-proxy"],
+    tag="testnet"
+)

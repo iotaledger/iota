@@ -1,37 +1,38 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IdentifierString } from '@wallet-standard/core';
 
-/** Sui Devnet */
-export const SUI_DEVNET_CHAIN = 'sui:devnet';
+/** Iota Devnet */
+export const IOTA_DEVNET_CHAIN = 'iota:devnet';
 
-/** Sui Testnet */
-export const SUI_TESTNET_CHAIN = 'sui:testnet';
+/** Iota Testnet */
+export const IOTA_TESTNET_CHAIN = 'iota:testnet';
 
-/** Sui Localnet */
-export const SUI_LOCALNET_CHAIN = 'sui:localnet';
+/** Iota Localnet */
+export const IOTA_LOCALNET_CHAIN = 'iota:localnet';
 
-/** Sui Mainnet */
-export const SUI_MAINNET_CHAIN = 'sui:mainnet';
+/** Iota Mainnet */
+export const IOTA_MAINNET_CHAIN = 'iota:mainnet';
 
-export const SUI_CHAINS = [
-	SUI_DEVNET_CHAIN,
-	SUI_TESTNET_CHAIN,
-	SUI_LOCALNET_CHAIN,
-	SUI_MAINNET_CHAIN,
+export const IOTA_CHAINS = [
+    IOTA_DEVNET_CHAIN,
+    IOTA_TESTNET_CHAIN,
+    IOTA_LOCALNET_CHAIN,
+    IOTA_MAINNET_CHAIN,
 ] as const;
 
-export type SuiChain =
-	| typeof SUI_DEVNET_CHAIN
-	| typeof SUI_TESTNET_CHAIN
-	| typeof SUI_LOCALNET_CHAIN
-	| typeof SUI_MAINNET_CHAIN;
+export type IotaChain =
+    | typeof IOTA_DEVNET_CHAIN
+    | typeof IOTA_TESTNET_CHAIN
+    | typeof IOTA_LOCALNET_CHAIN
+    | typeof IOTA_MAINNET_CHAIN;
 
 /**
- * Utility that returns whether or not a chain identifier is a valid Sui chain.
+ * Utility that returns whether or not a chain identifier is a valid Iota chain.
  * @param chain a chain identifier in the form of `${string}:{$string}`
  */
-export function isSuiChain(chain: IdentifierString): chain is SuiChain {
-	return SUI_CHAINS.includes(chain as SuiChain);
+export function isIotaChain(chain: IdentifierString): chain is IotaChain {
+    return IOTA_CHAINS.includes(chain as IotaChain);
 }

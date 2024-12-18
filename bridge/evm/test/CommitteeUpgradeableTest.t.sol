@@ -1,17 +1,15 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
-import "openzeppelin-foundry-upgrades/Options.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
-import "./mocks/MockSuiBridgeV2.sol";
+import "./mocks/MockIotaBridgeV2.sol";
 import "../contracts/BridgeCommittee.sol";
-import "../contracts/SuiBridge.sol";
+import "../contracts/IotaBridge.sol";
 import "./BridgeBaseTest.t.sol";
-import "forge-std/Test.sol";
 
 contract CommitteeUpgradeableTest is BridgeBaseTest {
-    MockSuiBridgeV2 bridgeV2;
+    MockIotaBridgeV2 bridgeV2;
     uint8 _chainID = 12;
 
     // This function is called before each unit test
@@ -33,9 +31,6 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
         uint8[] memory _supportedDestinationChains = new uint8[](1);
         _supportedDestinationChains[0] = 0;
 
-        Options memory opts;
-        opts.unsafeSkipAllChecks = true;
-
         // deploy bridge committee
         address _committee = Upgrades.deployUUPSProxy(
             "BridgeCommittee.sol",
@@ -52,26 +47,26 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
             "BridgeConfig.sol",
             abi.encodeCall(
                 BridgeConfig.initialize,
-                (_committee, _chainID, supportedTokens, tokenPrices, _supportedDestinationChains)
+                (_committee, _chainID, supportedTokens, tokenPrices, tokenIds, iotaDecimals, _supportedDestinationChains)
             ),
             opts
         );
 
         committee.initializeConfig(_config);
 
-        // deploy sui bridge
+        // deploy iota bridge
         address _bridge = Upgrades.deployUUPSProxy(
-            "SuiBridge.sol",
-            abi.encodeCall(SuiBridge.initialize, (_committee, address(0), address(0))),
+            "IotaBridge.sol",
+            abi.encodeCall(IotaBridge.initialize, (_committee, address(0), address(0))),
             opts
         );
 
-        bridge = SuiBridge(_bridge);
-        bridgeV2 = new MockSuiBridgeV2();
+        bridge = IotaBridge(_bridge);
+        bridgeV2 = new MockIotaBridgeV2();
     }
 
     function testUpgradeWithSignaturesSuccess() public {
-        bytes memory initializer = abi.encodeCall(MockSuiBridgeV2.initializeV2, ());
+        bytes memory initializer = abi.encodeCall(MockIotaBridgeV2.initializeV2, ());
         bytes memory payload = abi.encode(address(bridge), address(bridgeV2), initializer);
 
         // Create upgrade message
@@ -97,7 +92,7 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
 
     function testUpgradeWithSignaturesInsufficientStakeAmount() public {
         // Create message
-        bytes memory initializer = abi.encodeCall(MockSuiBridgeV2.initializeV2, ());
+        bytes memory initializer = abi.encodeCall(MockIotaBridgeV2.initializeV2, ());
         bytes memory payload = abi.encode(address(bridge), address(bridgeV2), initializer);
 
         // Create upgrade message
@@ -156,7 +151,7 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
     }
 
     function testUpgradeWithSignaturesERC1967UpgradeNewImplementationIsNotUUPS() public {
-        bytes memory initializer = abi.encodeCall(MockSuiBridgeV2.initializeV2, ());
+        bytes memory initializer = abi.encodeCall(MockIotaBridgeV2.initializeV2, ());
         bytes memory payload = abi.encode(address(bridge), address(this), initializer);
 
         BridgeUtils.Message memory message = BridgeUtils.Message({
@@ -183,7 +178,7 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
     }
 
     function testUpgradeWithSignaturesInvalidProxyAddress() public {
-        bytes memory initializer = abi.encodeCall(MockSuiBridgeV2.initializeV2, ());
+        bytes memory initializer = abi.encodeCall(MockIotaBridgeV2.initializeV2, ());
         bytes memory payload = abi.encode(address(this), address(bridgeV2), initializer);
 
         BridgeUtils.Message memory message = BridgeUtils.Message({
@@ -202,6 +197,30 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
         signatures[3] = getSignature(messageHash, committeeMemberPkD);
         vm.expectRevert(bytes("CommitteeUpgradeable: Invalid proxy address"));
         bridge.upgradeWithSignatures(signatures, message);
+    }
+
+    function testInitializeImplementationDisabled() public {
+        // Deploy the implementation contract without proxy
+        address implementation = address(new BridgeCommittee());
+
+        // Prepare initialization data
+        address[] memory _committeeMembers = new address[](5);
+        _committeeMembers[0] = committeeMemberA;
+        _committeeMembers[1] = committeeMemberB;
+        _committeeMembers[2] = committeeMemberC;
+        _committeeMembers[3] = committeeMemberD;
+        _committeeMembers[4] = committeeMemberE;
+        uint16[] memory _stake = new uint16[](5);
+        _stake[0] = 1000;
+        _stake[1] = 1000;
+        _stake[2] = 1000;
+        _stake[3] = 2002;
+        _stake[4] = 4998;
+
+        // Try to call the initializer directly on the implementation contract
+        // Expect it to revert because initializers should be disabled
+        vm.expectRevert();
+        BridgeCommittee(implementation).initialize(_committeeMembers, _stake, 100);
     }
 
     // An e2e upgrade regression test covering message ser/de and signature verification
@@ -271,7 +290,7 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
 
         bridge.upgradeWithSignatures(signatures, message);
 
-        MockSuiBridgeV2 newBridgeV2 = MockSuiBridgeV2(address(bridge));
+        MockIotaBridgeV2 newBridgeV2 = MockIotaBridgeV2(address(bridge));
         assertTrue(newBridgeV2.isPausing());
         assertEq(Upgrades.getImplementationAddress(address(bridge)), address(bridgeV2));
     }
@@ -307,7 +326,7 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
 
         bridge.upgradeWithSignatures(signatures, message);
 
-        MockSuiBridgeV2 newBridgeV2 = MockSuiBridgeV2(address(bridge));
+        MockIotaBridgeV2 newBridgeV2 = MockIotaBridgeV2(address(bridge));
         assertTrue(newBridgeV2.isPausing());
         assertEq(newBridgeV2.mock(), 42);
         assertEq(Upgrades.getImplementationAddress(address(bridge)), address(bridgeV2));
@@ -344,7 +363,7 @@ contract CommitteeUpgradeableTest is BridgeBaseTest {
 
         bridge.upgradeWithSignatures(signatures, message);
 
-        MockSuiBridgeV2(address(bridge));
+        MockIotaBridgeV2(address(bridge));
         assertEq(Upgrades.getImplementationAddress(address(bridge)), address(bridgeV2));
     }
 }

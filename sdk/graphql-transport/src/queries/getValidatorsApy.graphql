@@ -1,22 +1,23 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 query getValidatorsApy {
-	epoch {
-		epochId
-		validatorSet {
-			activeValidators {
-				pageInfo {
-					hasNextPage
-					endCursor
-				}
-				nodes {
-					address {
-						address
-					}
-					apy
-				}
-			}
-		}
-	}
+    epoch {
+        epochId
+        validatorSet {
+            activeValidators {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    address {
+                        address
+                    }
+                    apy
+                }
+            }
+        }
+    }
 }

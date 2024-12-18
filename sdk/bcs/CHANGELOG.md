@@ -1,5 +1,27 @@
 # Change Log
 
+## 1.1.1
+
+### Patch Changes
+
+- 1dd7713: Accept arrays of numbers when serializing bcs.bytes()
+
+## 1.1.0
+
+### Minor Changes
+
+- 489f421: Updated hex, base64, and base58 utility names for better consistency
+
+  All existing methods will continue to work, but the following methods have been deprecated and
+  replaced with methods with improved names:
+
+  - `toHEX` -> `toHEX`
+  - `fromHEX` -> `fromHex`
+  - `toB64` -> `toBase64`
+  - `fromB64` -> `fromBase64`
+  - `toB58` -> `toBase58`
+  - `fromB58` -> `fromBase58`
+
 ## 1.0.4
 
 ### Patch Changes
@@ -30,9 +52,9 @@
 
 ### Major Changes
 
-- a92b03de42: The Typescript SDK has been renamed to `@mysten/sui` and includes many new features
+- a92b03de42: The Typescript SDK has been renamed to `@iota/iota-sdk` and includes many new features
   and breaking changes. See the
-  [full migration guide](https://sdk.mystenlabs.com/typescript/migrations/sui-1.0) for details on
+  [full migration guide](https://docs.iota.org/references/ts-sdk/typescript/migrations/iota-1.0) for details on
   how to upgrade.
 
 ## 0.11.1
@@ -63,7 +85,7 @@
 
 ### Patch Changes
 
-- dd362ec1d6: Update docs url to sdk.mystenlabs.com
+- dd362ec1d6: Update docs url to docs.iota.org/references/ts-sdk/typescript
 
 ## 0.9.0
 
@@ -82,7 +104,7 @@
 
 ### Minor Changes
 
-- 1bc430161: Add new type-safe schema builder. See https://sdk.mystenlabs.com/bcs for updated
+- 1bc430161: Add new type-safe schema builder. See https://docs.iota.org/references/ts-sdk/bcs for updated
   documentation
 - e4484852b: Add isSerializedBcs helper
 
@@ -119,7 +141,7 @@
   (`stake_amount`, `pending_stake`, and `pending_withdraw`) and renamed `delegation_staking_pool` to
   `staking_pool`. Additionally removed the `validator_stake` and `delegated_stake` fields in the
   `ValidatorSet` type and replaced them with a `total_stake` field.
-- 5c3b00cde: Add object id to staking pool and pool id to staked sui.
+- 5c3b00cde: Add object id to staking pool and pool id to staked iota.
 - 3d9a04648: Adds `deactivation_epoch` to staking pool object, and adds `inactive_pools` to the
   validator set object.
 - a8049d159: Fixes the issue with deep nested generics by introducing array type names
@@ -250,4 +272,4 @@ Version history from v0.1.0 to this day.
 
 ## v0.1.0
 
-First version of libary published.
+First version of library published.

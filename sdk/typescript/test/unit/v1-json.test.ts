@@ -1,48 +1,49 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB58 } from '@mysten/bcs';
+import { toBase58 } from '@iota/bcs';
 import { describe, expect, it } from 'vitest';
 
 import { Inputs, Transaction } from '../../src/transactions';
 
 describe('V1 JSON serialization', () => {
-	it('can serialize and deserialize transactions', async () => {
-		const tx = new Transaction();
+    it('can serialize and deserialize transactions', async () => {
+        const tx = new Transaction();
 
-		tx.moveCall({
-			target: '0x2::foo::bar',
-			arguments: [
-				tx.object('0x123'),
-				tx.object(
-					Inputs.ReceivingRef({
-						objectId: '1',
-						version: '123',
-						digest: toB58(new Uint8Array(32).fill(0x1)),
-					}),
-				),
-				tx.object(
-					Inputs.SharedObjectRef({
-						objectId: '2',
-						mutable: true,
-						initialSharedVersion: '123',
-					}),
-				),
-				tx.object(
-					Inputs.ObjectRef({
-						objectId: '3',
-						version: '123',
-						digest: toB58(new Uint8Array(32).fill(0x1)),
-					}),
-				),
-				tx.pure.address('0x2'),
-			],
-		});
+        tx.moveCall({
+            target: '0x2::foo::bar',
+            arguments: [
+                tx.object('0x123'),
+                tx.object(
+                    Inputs.ReceivingRef({
+                        objectId: '1',
+                        version: '123',
+                        digest: toBase58(new Uint8Array(32).fill(0x1)),
+                    }),
+                ),
+                tx.object(
+                    Inputs.SharedObjectRef({
+                        objectId: '2',
+                        mutable: true,
+                        initialSharedVersion: '123',
+                    }),
+                ),
+                tx.object(
+                    Inputs.ObjectRef({
+                        objectId: '3',
+                        version: '123',
+                        digest: toBase58(new Uint8Array(32).fill(0x1)),
+                    }),
+                ),
+                tx.pure.address('0x2'),
+            ],
+        });
 
-		const jsonv2 = await tx.toJSON();
-		const jsonv1 = JSON.parse(tx.serialize());
+        const jsonv2 = await tx.toJSON();
+        const jsonv1 = JSON.parse(tx.serialize());
 
-		expect(jsonv1).toMatchInlineSnapshot(`
+        expect(jsonv1).toMatchInlineSnapshot(`
 			{
 			  "expiration": null,
 			  "gasConfig": {},
@@ -239,11 +240,11 @@ describe('V1 JSON serialization', () => {
 			}
 		`);
 
-		const tx2 = Transaction.from(JSON.stringify(jsonv1));
+        const tx2 = Transaction.from(JSON.stringify(jsonv1));
 
-		expect(await tx2.toJSON()).toEqual(jsonv2);
+        expect(await tx2.toJSON()).toEqual(jsonv2);
 
-		expect(jsonv2).toMatchInlineSnapshot(`
+        expect(jsonv2).toMatchInlineSnapshot(`
 			"{
 			  "version": 2,
 			  "sender": null,
@@ -322,5 +323,5 @@ describe('V1 JSON serialization', () => {
 			  ]
 			}"
 		`);
-	});
+    });
 });

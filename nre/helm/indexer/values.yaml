@@ -2,17 +2,16 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-command: ["/usr/local/bin/sui-indexer"]
+command: ["/usr/local/bin/iota-indexer"]
 
 replicaCount: 1
 
 image:
-  repository: "mysten/sui-indexer"
+  repository: "iotaledger/iota-indexer"
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  # Ensure this is set to most recent sui indexer version. See github.com/MystenLabs/sui for latest releases.
+  # Ensure this is set to most recent iota indexer version. See github.com/iotaledger/iota for latest releases.
   tag: "testnet-v1.27.2"
-
 
 env:
   RUST_BACKTRACE:
@@ -25,12 +24,12 @@ env:
     value: "3600"
   DB_STATEMENT_TIMEOUT:
     value: "3600"
-  CHECKPOINT_COMIT_BATCH_SIZE:
+  CHECKPOINT_COMMIT_BATCH_SIZE:
     value: "300"
   RPC_CLIENT:
-    value: "https://public-rpc.mainnet.sui.io"
+    value: "https://public-rpc.mainnet.iota.io"
   REMOTE_STORE:
-    value: "https://checkpoints.mainnet.sui.io"
+    value: "https://checkpoints.mainnet.iota.io"
   DB_URL:
     valueFrom:
       secretKeyRef:
@@ -38,18 +37,18 @@ env:
         key: "db-url"
 
 podAnnotations:
-    app: sui-indexer
+  app: iota-indexer
 
-resources: 
+resources:
   limits:
-     cpu: 4
-     memory: 12Gi
+    cpu: 4
+    memory: 12Gi
   requests:
-     cpu: 2
-     memory: 8Gi
+    cpu: 2
+    memory: 8Gi
 
 service:
-  name: sui-indexer
+  name: iota-indexer
   type: ClusterIP
   port: 9000
   targetPort: 9000
@@ -87,10 +86,10 @@ ingress:
   enabled: false
   className: ""
   annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
+  # kubernetes.io/ingress.class: nginx
+  # kubernetes.io/tls-acme: "true"
   hosts:
-    - host: sui-indexer.local
+    - host: iota-indexer.local
       paths:
         - path: /
           pathType: ImplementationSpecific
@@ -99,15 +98,14 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
-    #livenessProbe:
-    #httpGet:
-    #path: /json-rpc
-    #port: 9000
-    #readinessProbe:
-    #httpGet:
-    #path: /json-rpc
-    #port: 9000
-
+#livenessProbe:
+#httpGet:
+#path: /json-rpc
+#port: 9000
+#readinessProbe:
+#httpGet:
+#path: /json-rpc
+#port: 9000
 
 # Additional volumes on the output Deployment definition.
 volumes: []
@@ -122,8 +120,8 @@ volumeMounts: []
 #   mountPath: "/etc/foo"
 #   readOnly: true
 
-  #nodeSelector:
-  #node.kubernetes.io/instance-type: n2d-standard-16
+#nodeSelector:
+#node.kubernetes.io/instance-type: n2d-standard-16
 
 tolerations: []
 

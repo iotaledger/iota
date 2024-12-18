@@ -1,10 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { InferOutput } from 'valibot';
 import { parse, safeParse } from 'valibot';
 
 import { withResolvers } from '../../utils/withResolvers.js';
+import type { StashedSupportedNetwork } from '../types.js';
 import type { StashedRequestData, StashedResponsePayload, StashedResponseTypes } from './events.js';
 import { StashedRequest, StashedResponse } from './events.js';
 
@@ -13,152 +15,158 @@ export const DEFAULT_STASHED_ORIGIN = 'https://getstashed.com';
 export { StashedRequest, StashedResponse };
 
 export class StashedPopup {
-	#popup: Window;
+    #popup: Window;
 
-	#id: string;
-	#origin: string;
-	#name: string;
+    #id: string;
+    #origin: string;
+    #name: string;
+    #network: StashedSupportedNetwork;
 
-	#promise: Promise<unknown>;
-	#resolve: (data: unknown) => void;
-	#reject: (error: Error) => void;
+    #promise: Promise<unknown>;
+    #resolve: (data: unknown) => void;
+    #reject: (error: Error) => void;
 
-	#interval: ReturnType<typeof setInterval> | null = null;
+    #interval: ReturnType<typeof setInterval> | null = null;
 
-	constructor({ name, origin = DEFAULT_STASHED_ORIGIN }: { name: string; origin?: string }) {
-		const popup = window.open('about:blank', '_blank');
+    constructor({
+        name,
+        network,
+        origin = DEFAULT_STASHED_ORIGIN,
+    }: {
+        name: string;
+        network: StashedSupportedNetwork;
+        origin?: string;
+    }) {
+        const popup = window.open('about:blank', '_blank');
 
-		if (!popup) {
-			throw new Error('Failed to open new window');
-		}
-		this.#popup = popup;
+        if (!popup) {
+            throw new Error('Failed to open new window');
+        }
+        this.#popup = popup;
 
-		this.#id = crypto.randomUUID();
-		this.#origin = origin;
-		this.#name = name;
+        this.#id = crypto.randomUUID();
+        this.#origin = origin;
+        this.#name = name;
+        this.#network = network;
 
-		const { promise, resolve, reject } = withResolvers();
-		this.#promise = promise;
-		this.#resolve = resolve;
-		this.#reject = reject;
+        const { promise, resolve, reject } = withResolvers();
+        this.#promise = promise;
+        this.#resolve = resolve;
+        this.#reject = reject;
 
-		this.#interval = setInterval(() => {
-			try {
-				if (this.#popup.closed) {
-					this.#cleanup();
-					reject(new Error('User closed the Stashed window'));
-				}
-			} catch {
-				// This can error during the login flow, but that's fine.
-			}
-		}, 1000);
-	}
+        this.#interval = setInterval(() => {
+            try {
+                if (this.#popup.closed) {
+                    this.#cleanup();
+                    reject(new Error('User closed the Stashed window'));
+                }
+            } catch {
+                // This can error during the login flow, but that's fine.
+            }
+        }, 1000);
+    }
 
-	send<T extends StashedRequestData['type']>({
-		type,
-		...data
-	}: {
-		type: T;
-	} & Extract<StashedRequestData, { type: T }>): Promise<StashedResponseTypes[T]> {
-		window.addEventListener('message', this.#listener);
-		this.#popup.location.assign(
-			`${this.#origin}/dapp/${type}?${new URLSearchParams({
-				id: this.#id,
-				origin: window.origin,
-				name: this.#name,
-			})}${data ? `#${new URLSearchParams(data as never)}` : ''}`,
-		);
+    send<T extends StashedRequestData['type']>({
+        type,
+        ...data
+    }: {
+        type: T;
+    } & Extract<StashedRequestData, { type: T }>): Promise<StashedResponseTypes[T]> {
+        window.addEventListener('message', this.#listener);
+        this.#popup.location.assign(
+            `${this.#origin}/dapp/${type}?${new URLSearchParams({
+                id: this.#id,
+                origin: window.origin,
+                network: this.#network,
+                name: this.#name,
+            })}${data ? `#${new URLSearchParams(data as never)}` : ''}`,
+        );
 
-		return this.#promise as Promise<StashedResponseTypes[T]>;
-	}
+        return this.#promise as Promise<StashedResponseTypes[T]>;
+    }
 
-	close() {
-		this.#cleanup();
-		this.#popup.close();
-	}
+    close() {
+        this.#cleanup();
+        this.#popup.close();
+    }
 
-	#listener = (event: MessageEvent) => {
-		if (event.origin !== this.#origin) {
-			return;
-		}
-		const { success, output } = safeParse(StashedResponse, event.data);
-		if (!success || output.id !== this.#id) return;
+    #listener = (event: MessageEvent) => {
+        if (event.origin !== this.#origin) {
+            return;
+        }
+        const { success, output } = safeParse(StashedResponse, event.data);
+        if (!success || output.id !== this.#id) return;
 
-		this.#cleanup();
+        this.#cleanup();
 
-		if (output.payload.type === 'reject') {
-			this.#reject(new Error('User rejected the request'));
-		} else if (output.payload.type === 'resolve') {
-			this.#resolve(output.payload.data);
-		}
-	};
+        if (output.payload.type === 'reject') {
+            this.#reject(new Error('User rejected the request'));
+        } else if (output.payload.type === 'resolve') {
+            this.#resolve(output.payload.data);
+        }
+    };
 
-	#cleanup() {
-		if (this.#interval) {
-			clearInterval(this.#interval);
-			this.#interval = null;
-		}
-		window.removeEventListener('message', this.#listener);
-	}
+    #cleanup() {
+        if (this.#interval) {
+            clearInterval(this.#interval);
+            this.#interval = null;
+        }
+        window.removeEventListener('message', this.#listener);
+    }
 }
 
 export class StashedHost {
-	#request: InferOutput<typeof StashedRequest>;
+    #request: InferOutput<typeof StashedRequest>;
 
-	constructor(request: InferOutput<typeof StashedRequest>) {
-		if (typeof window === 'undefined' || !window.opener) {
-			throw new Error(
-				'StashedHost can only be used in a window opened through `window.open`. `window.opener` is not available.',
-			);
-		}
+    constructor(request: InferOutput<typeof StashedRequest>) {
+        if (typeof window === 'undefined' || !window.opener) {
+            throw new Error(
+                'StashedHost can only be used in a window opened through `window.open`. `window.opener` is not available.',
+            );
+        }
 
-		this.#request = request;
-	}
+        this.#request = request;
+    }
 
-	static fromUrl(url: string = window.location.href) {
-		const parsed = new URL(url);
+    static fromUrl(url: string = window.location.href) {
+        const parsed = new URL(url);
 
-		const urlHashData = parsed.hash
-			? Object.fromEntries(
-					[...new URLSearchParams(parsed.hash.slice(1))].map(([key, value]) => [
-						key,
-						value.replace(/ /g, '+'),
-					]),
-				)
-			: {};
+        const urlHashData = parsed.hash
+            ? Object.fromEntries([...new URLSearchParams(parsed.hash.slice(1))])
+            : {};
 
-		const request = parse(StashedRequest, {
-			id: parsed.searchParams.get('id'),
-			origin: parsed.searchParams.get('origin'),
-			name: parsed.searchParams.get('name'),
-			payload: {
-				type: parsed.pathname.split('/').pop(),
-				...urlHashData,
-			},
-		});
+        const request = parse(StashedRequest, {
+            id: parsed.searchParams.get('id'),
+            origin: parsed.searchParams.get('origin'),
+            name: parsed.searchParams.get('name'),
+            payload: {
+                type: parsed.pathname.split('/').pop(),
+                ...urlHashData,
+            },
+        });
 
-		return new StashedHost(request);
-	}
+        return new StashedHost(request);
+    }
 
-	getRequestData() {
-		return this.#request;
-	}
+    getRequestData() {
+        return this.#request;
+    }
 
-	sendMessage(payload: StashedResponsePayload) {
-		window.opener.postMessage(
-			{
-				id: this.#request.id,
-				source: 'zksend-channel',
-				payload,
-			} satisfies StashedResponse,
-			this.#request.origin,
-		);
-	}
+    sendMessage(payload: StashedResponsePayload) {
+        window.opener.postMessage(
+            {
+                id: this.#request.id,
+                source: 'zksend-channel',
+                payload,
+            } satisfies StashedResponse,
+            this.#request.origin,
+        );
+    }
 
-	close(payload?: StashedResponsePayload) {
-		if (payload) {
-			this.sendMessage(payload);
-		}
-		window.close();
-	}
+    close(payload?: StashedResponsePayload) {
+        if (payload) {
+            this.sendMessage(payload);
+        }
+        window.close();
+    }
 }

@@ -1,22 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use proptest::collection::vec;
-use proptest::prelude::*;
-
-use proptest::strategy::ValueTree;
-use transaction_fuzzer::account_universe::AccountCurrent;
-use transaction_fuzzer::account_universe::AccountData;
-use transaction_fuzzer::type_arg_fuzzer::generate_valid_and_invalid_type_factory_tags;
-use transaction_fuzzer::type_arg_fuzzer::generate_valid_type_factory_tags;
-use transaction_fuzzer::type_arg_fuzzer::pt_for_tags;
-use transaction_fuzzer::type_arg_fuzzer::run_pt;
-use transaction_fuzzer::type_arg_fuzzer::type_factory_pt_for_tags;
-use transaction_fuzzer::{executor::Executor, type_arg_fuzzer::gen_type_tag};
-
-use sui_types::base_types::ObjectRef;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::object::Owner;
+use iota_types::{base_types::ObjectRef, effects::TransactionEffectsAPI, object::Owner};
+use proptest::{collection::vec, prelude::*, strategy::ValueTree};
+use transaction_fuzzer::{
+    account_universe::{AccountCurrent, AccountData},
+    executor::Executor,
+    type_arg_fuzzer::{
+        gen_type_tag, generate_valid_and_invalid_type_factory_tags,
+        generate_valid_type_factory_tags, pt_for_tags, run_pt, type_factory_pt_for_tags,
+    },
+};
 
 fn publish_type_factory(exec: &mut Executor, account: &mut AccountCurrent) -> ObjectRef {
     let effects = exec.publish("type_factory", vec![], account);

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Meta, type StoryObj } from '@storybook/react';
@@ -6,39 +7,39 @@ import { type Meta, type StoryObj } from '@storybook/react';
 import PageTitle from './PageTitle';
 
 export default {
-	component: PageTitle,
+    component: PageTitle,
 } as Meta<typeof PageTitle>;
 
 export const Default: StoryObj<typeof PageTitle> = {
-	args: {
-		title: 'Title',
-	},
+    args: {
+        title: 'Title',
+    },
 };
 
 export const BackUrl: StoryObj<typeof PageTitle> = {
-	args: {
-		title: 'Title',
-		back: '/',
-	},
+    args: {
+        title: 'Title',
+        back: '/',
+    },
 };
 
 export const BackCallback: StoryObj<typeof PageTitle> = {
-	args: {
-		title: 'Title',
-		back: () => alert('Back clicked'),
-	},
+    args: {
+        title: 'Title',
+        back: () => alert('Back clicked'),
+    },
 };
 
 export const BackTrue: StoryObj<typeof PageTitle> = {
-	args: {
-		title: 'Title',
-		back: true,
-	},
+    args: {
+        title: 'Title',
+        back: true,
+    },
 };
 
 export const BackLongTitle: StoryObj<typeof PageTitle> = {
-	args: {
-		title: 'AVeryVeryVeeeeeeeeryLoooooongTitle',
-		back: true,
-	},
+    args: {
+        title: 'AVeryVeryVeeeeeeeeryLoooooongTitle',
+        back: true,
+    },
 };

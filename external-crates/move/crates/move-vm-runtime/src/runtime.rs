@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -9,6 +10,7 @@ use crate::{
     native_extensions::NativeContextExtensions,
     native_functions::{NativeFunction, NativeFunctions},
     session::{LoadedFunctionInstantiation, SerializedReturnValues, Session},
+    tracing2::tracer::VMTracer,
 };
 use move_binary_format::{
     errors::{verification_error, Location, PartialVMError, PartialVMResult, VMResult},
@@ -25,6 +27,7 @@ use move_core_types::{
     runtime_value::MoveTypeLayout,
     vm_status::StatusCode,
 };
+use move_trace_format::format::MoveTraceBuilder;
 use move_vm_config::runtime::VMConfig;
 use move_vm_types::{
     data_store::DataStore,
@@ -320,6 +323,7 @@ impl VMRuntime {
         data_store: &mut impl DataStore,
         gas_meter: &mut impl GasMeter,
         extensions: &mut NativeContextExtensions,
+        tracer: &mut Option<VMTracer<'_>>,
     ) -> VMResult<SerializedReturnValues> {
         let arg_types = param_types
             .into_iter()
@@ -351,6 +355,7 @@ impl VMRuntime {
             gas_meter,
             extensions,
             &self.loader,
+            tracer,
         )?;
 
         let serialized_return_values = self
@@ -391,6 +396,7 @@ impl VMRuntime {
         gas_meter: &mut impl GasMeter,
         extensions: &mut NativeContextExtensions,
         bypass_declared_entry_check: bool,
+        tracer: Option<&mut MoveTraceBuilder>,
     ) -> VMResult<SerializedReturnValues> {
         use move_binary_format::file_format::SignatureIndex;
         fn check_is_entry(
@@ -442,6 +448,7 @@ impl VMRuntime {
             data_store,
             gas_meter,
             extensions,
+            &mut tracer.map(VMTracer::new),
         )
     }
 
@@ -491,7 +498,7 @@ impl VMRuntime {
         gas_meter: &mut impl GasMeter,
         extensions: &mut NativeContextExtensions,
     ) -> VMResult<SerializedReturnValues> {
-        move_vm_profiler::gas_profiler_feature_enabled! {
+        move_vm_profiler::tracing_feature_enabled! {
             use move_vm_profiler::GasProfiler;
             if gas_meter.get_profiler_mut().is_none() {
                 gas_meter.set_profiler(GasProfiler::init_default_cfg(
@@ -511,6 +518,7 @@ impl VMRuntime {
             gas_meter,
             extensions,
             bypass_declared_entry_check,
+            None,
         )
     }
 

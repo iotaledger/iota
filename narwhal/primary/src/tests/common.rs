@@ -1,30 +1,28 @@
 use std::num::NonZeroUsize;
+
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use config::{AuthorityIdentifier, WorkerId};
-use storage::PayloadToken;
-use storage::{CertificateStore, CertificateStoreCache, PayloadStore};
-use store::rocks::MetricConf;
-use store::{reopen, rocks, rocks::DBMap, rocks::ReadWriteOptions};
+use storage::{CertificateStore, CertificateStoreCache, PayloadStore, PayloadToken};
+use store::{
+    reopen, rocks,
+    rocks::{DBMap, MetricConf, ReadWriteOptions},
+};
 use test_utils::{
-    temp_dir, CERTIFICATES_CF, CERTIFICATE_DIGEST_BY_ORIGIN_CF, CERTIFICATE_DIGEST_BY_ROUND_CF,
-    PAYLOAD_CF,
+    CERTIFICATE_DIGEST_BY_ORIGIN_CF, CERTIFICATE_DIGEST_BY_ROUND_CF, CERTIFICATES_CF, PAYLOAD_CF,
+    temp_dir,
 };
 use types::{BatchDigest, Certificate, CertificateDigest, Round};
 
 pub fn create_db_stores() -> (CertificateStore, PayloadStore) {
     // Create a new test store.
-    let rocksdb = rocks::open_cf(
-        temp_dir(),
-        None,
-        MetricConf::default(),
-        &[
-            CERTIFICATES_CF,
-            CERTIFICATE_DIGEST_BY_ROUND_CF,
-            CERTIFICATE_DIGEST_BY_ORIGIN_CF,
-            PAYLOAD_CF,
-        ],
-    )
+    let rocksdb = rocks::open_cf(temp_dir(), None, MetricConf::default(), &[
+        CERTIFICATES_CF,
+        CERTIFICATE_DIGEST_BY_ROUND_CF,
+        CERTIFICATE_DIGEST_BY_ORIGIN_CF,
+        PAYLOAD_CF,
+    ])
     .expect("Failed creating database");
 
     let (

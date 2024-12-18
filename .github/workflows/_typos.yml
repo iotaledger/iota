@@ -1,0 +1,20 @@
+name: Typos
+
+on: workflow_call
+
+concurrency:
+  group: typos-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run:
+    name: Spell Check with Typos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Actions Repository
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - name: Check spelling
+        uses: crate-ci/typos@945d407a5fc9097f020969446a16f581612ab4df # v1.24.5
+        with:
+          config: ./.typos.toml

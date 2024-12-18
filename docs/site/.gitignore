@@ -1,6 +1,6 @@
 # build spec
 
-open-spec
+# open-spec # TODO: Re-enable after repo is public again
 
 # Dependencies
 /node_modules
@@ -11,6 +11,7 @@ open-spec
 # Generated files
 .docusaurus
 .cache-loader
+/tmp
 
 # Misc
 .DS_Store

@@ -1,17 +1,20 @@
-name: Attach Sui binaries to a release
+name: Attach IOTA binaries to a release
+run-name: Attach IOTA binaries to a ${{ inputs.iota_tag }} release
 
 on:
   release:
-    types: [ published ]
+    types: [created]
   workflow_dispatch:
     inputs:
-      sui_tag:
-        description: 'Sui repo tag to build from'
+      iota_tag:
+        description: "IOTA repo tag to build from"
         type: string
         required: true
 
+concurrency: ${{ github.workflow }}-${{ inputs.iota_tag || github.ref }}
+
 env:
-  TAG_NAME: "${{ github.event.inputs.sui_tag || github.ref }}"
+  TAG_NAME: "${{ github.event.inputs.iota_tag || github.ref }}"
   BINARY_LIST_FILE: "./binary-build-list.json"
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
@@ -33,47 +36,40 @@ env:
   RUSTUP_MAX_RETRIES: 10
   # Don't emit giant backtraces in the CI logs.
   RUST_BACKTRACE: short
-  TMP_BUILD_DIR: './tmp/release'
+  TMP_BUILD_DIR: "./tmp/release"
 
 jobs:
   release-build:
     name: Build & Publish Binaries
-    timeout-minutes: 80
+    timeout-minutes: 120
     strategy:
       matrix:
-        os:
-          [
-            ubuntu-ghcloud, # ubuntu-x86_64
-            windows-ghcloud, # windows-x86_64
-            macos-latest-xl, # macos-x86_64
-            macos-latest-xlarge # macos-arm64
-          ]
+        os: [
+          self-hosted, # ubuntu-x86_64
+          # TODO: uncomment when runners are public available https://github.com/iotaledger/iota/issues/4421
+          # ubuntu-arm64, # ubuntu-arm64
+          macos-latest, # macos-arm64
+          windows-latest, # windows-x86_64
+        ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
       - name: Clean up and validate ${{ env.TAG_NAME }} tag name
         shell: bash
         run: |
-          export sui_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'//)
-          [[ "${sui_tag}" == "main" ]] && echo "tag cannot be equals to 'main'" && exit 1
-          echo "sui_tag=${sui_tag}" >> $GITHUB_ENV
-          export sui_version=$(echo ${sui_tag} | sed -e 's/mainnet-v//' -e 's/testnet-v//')
-          echo "sui_version=${sui_version}" >> $GITHUB_ENV
+          export iota_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'// )
+          [[ "${iota_tag}" == "develop" ]] && echo "tag cannot be equal to 'develop'" && exit 1
+          echo "iota_tag=${iota_tag}" >> $GITHUB_ENV
+          export iota_version=$(echo ${iota_tag} | sed -e 's/mainnet-v//' -e 's/testnet-v//')
+          echo "iota_version=${iota_version}" >> $GITHUB_ENV
 
-      - name: Check out ${{ env.sui_tag }}
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
+      - name: Check out ${{ env.iota_tag }}
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
-          ref: ${{ env.sui_tag }}          
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # pin v4.0.2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-west-2
+          ref: ${{ env.iota_tag }}
 
       - name: Set os/arch variables (Windows)
-        if: ${{ matrix.os == 'windows-ghcloud' }}
+        if: ${{ matrix.os == 'windows-latest' }}
         shell: bash
         run: |
           export arch=$(uname -m)
@@ -81,50 +77,46 @@ jobs:
           echo "os_type=${os_type}" >> $GITHUB_ENV
           echo "extention=$(echo ".exe")" >> $GITHUB_ENV
 
+      - name: Set os/arch variables (self hosted ubuntu)
+        if: ${{ matrix.os == 'self-hosted' }}
+        shell: bash
+        run: |
+          export arch=$(uname -m)
+          export os_type="linux-${arch}"
+          echo "os_type=${os_type}" >> $GITHUB_ENV
+
       - name: Set os/arch variables
-        if: ${{ matrix.os != 'windows-ghcloud' }}
+        if: ${{ matrix.os == 'macos-latest' }}
         shell: bash
         run: |
           export arch=$(uname -m)
           export system_os=$(echo ${{ matrix.os }} | cut -d- -f1)
           export os_type="${system_os}-${arch}"
-          echo "os_type=${system_os}-${arch}" >> $GITHUB_ENV     
-
-      - name: Check if archive have already been published
-        continue-on-error: true
-        shell: bash
-        run: |
-          echo "s3_archive_exist=$(curl -Is https://sui-releases.s3.us-east-1.amazonaws.com/releases/sui-${{ env.sui_tag }}-${{ env.os_type }}.tgz | head -n 1 | grep '200 OK')" >> $GITHUB_ENV
-
-      - name: Download archive, if it exists
-        if: ${{ env.s3_archive_exist != '' }}
-        shell: bash
-        run: |
-          mkdir -p ${{ env.TMP_BUILD_DIR }}
-          aws s3 cp s3://sui-releases/releases/sui-${{ env.sui_tag }}-${os_type}.tgz ./tmp/sui-${{ env.sui_tag }}-${os_type}.tgz
-          tar -xf ./tmp/sui-${{ env.sui_tag }}-${os_type}.tgz -C ${{ env.TMP_BUILD_DIR }}
+          echo "os_type=${system_os}-${arch}" >> $GITHUB_ENV
 
       - name: Setup caching
-        if: ${{ env.s3_archive_exist == '' }}
-        uses: bmwill/rust-cache@v1 # Fork of 'Swatinem/rust-cache' which allows caching additional paths          
+        # Fork of 'Swatinem/rust-cache' which allows caching additional paths
+        uses: bmwill/rust-cache@cb2cf0cc7c5198d3364b9630e2c3d457f160790c # v1.4.0
 
       - name: Install nexttest (Windows)
-        if: ${{ matrix.os == 'windows-ghcloud' && env.s3_archive_exist == '' }}
-        uses: taiki-e/install-action@33022ba120c3f523d134bbbee12278fc11a3df1a # pin@nextest
+        if: ${{ matrix.os == 'windows-latest' }}
+        uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
+        with:
+          tool: nextest
 
       - name: Install postgres (Windows)
-        if: ${{ matrix.os == 'windows-ghcloud' && env.s3_archive_exist == '' }}
+        if: ${{ matrix.os == 'windows-latest' }}
         shell: bash
         run: |
-          choco install postgresql12 --force --params '/Password:root'
-          echo "C:\Program Files\PostgreSQL\12\bin" >> $GITHUB_PATH
-          echo "C:\Program Files\PostgreSQL\12\lib" >> $GITHUB_PATH
-          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\12\lib" >> $GITHUB_ENV
+          choco install postgresql16 --force --params '/Password:root'
+          echo "C:\Program Files\PostgreSQL\16\bin" >> $GITHUB_PATH
+          echo "C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_PATH
+          echo "PQ_LIB_DIR=C:\Program Files\PostgreSQL\16\lib" >> $GITHUB_ENV
           echo "PG_DATABASE_URL=postgres://postgres:root@localhost/" >> $GITHUB_ENV
           echo "PG_EXAMPLE_DATABASE_URL=postgres://postgres:root@localhost/diesel_example" >> $GITHUB_ENV
 
-      - name: Install postgres (Mac arm64)
-        if: ${{ matrix.os == 'macos-latest-xlarge' && env.gcloud_archive_exist == '' }}
+      - name: Install postgres (MacOS arm64)
+        if: ${{ matrix.os == 'macos-latest' }}
         shell: bash
         env:
           PQ_LIB_DIR: "$(brew --prefix libpq)/lib"
@@ -134,15 +126,34 @@ jobs:
         run: |
           brew install postgresql
 
-      - name: Cargo build for ${{ matrix.os }} platform
-        if: ${{ env.s3_archive_exist == '' }}
+      # TODO: uncomment when runners are public available https://github.com/iotaledger/iota/issues/4421
+      #  NOTE: Self-hosted runners should already have postgres installed
+      #      - name: Install postgres (Ubuntu arm64)
+      #        if: ${{ matrix.os == 'ubuntu-arm64' }}
+      #        shell: bash
+      #        run: |
+      #          sudo apt install libpq-dev
+
+      - name: Remove unused apps (MacOS arm64)
+        if: ${{ matrix.os == 'macos-latest' }}
+        continue-on-error: true
         shell: bash
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --bin sui --release --features indexer && mv target/release/sui target/release/sui-pg
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release && cargo build --profile=dev --bin sui
+          # MacOS arm64 runner only has 14GB avaialble, which is too small for our builds, so removing unused softwared.
+          df -h /
+          sudo rm -rf /Applications/Xcode*.app
+          sudo rm -rf ~/Library/Developer/Xcode/DerivedData
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+          sudo rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/*
+          df -h /
+
+      - name: Cargo build for ${{ matrix.os }} platform
+        shell: bash
+        # Currently building in release mode, but we could also have debug builds for testing
+        run: |
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --release
 
       - name: Rename binaries for ${{ matrix.os }}
-        if: ${{ env.s3_archive_exist == '' }}
         shell: bash
         run: |
           mkdir -p ${{ env.TMP_BUILD_DIR }}
@@ -153,160 +164,67 @@ jobs:
             mv ./target/release/${binary}${{ env.extention }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extention }}
           done
 
-          # sui-pg is a special binary that is built with the indexer feature for sui start cmd
-          export binary=$(echo "sui-pg" | tr -d $'\r')
-          mv ./target/release/${binary}${{ env.extention }} ${{ env.TMP_BUILD_DIR }}/${binary}${{ env.extention }}
+          tar -cvzf ./tmp/iota-${{ env.iota_tag }}-${{ env.os_type }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
-          mv ./target/debug/sui${{ env.extention }} ${{ env.TMP_BUILD_DIR }}/sui-debug${{ env.extention }}
-          tar -cvzf ./tmp/sui-${{ env.sui_tag }}-${{ env.os_type }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
-          [[ ${{ env.sui_tag }} == *"testnet"* ]] && aws s3 cp ./tmp/sui-${{ env.sui_tag }}-${{ env.os_type }}.tgz s3://sui-releases/releases/sui-${{ env.sui_tag }}-${{ env.os_type }}.tgz || true
-
-      - name: Publish Windows sui binary to Chocolatey
-        if: ${{ matrix.os == 'windows-ghcloud' && contains(env.sui_tag, 'testnet') }}
-        shell: bash
-        run: |
-          choco install checksum
-          export sui_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/sui.exe)
-          cd chocolatey
-
-          cat <<EOF >>VERIFICATION.txt
-          Sui Binary verification steps
-          1. Download https://github.com/MystenLabs/sui/releases/download/${{ env.sui_tag }}/sui-${{ env.sui_tag }}-windows-x86_64.tgz
-          2. Extract sui.exe
-          3. Verify binary: checksum.exe -t sha256 sui.exe: ${sui_sha}
-
-          File 'LICENSE.txt' is obtained from: https://github.com/MystenLabs/sui/blob/main/LICENSE
-          EOF
-
-          choco pack --version ${{ env.sui_version }} configuration=release
-          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
-          choco push sui.${{ env.sui_version }}.nupkg --source https://push.chocolatey.org/
+      #      - name: Publish Windows iota binary to Chocolatey
+      #        if: ${{ matrix.os == 'windows-latest' && contains(env.iota_tag, 'testnet') }}
+      #        shell: bash
+      #        run: |
+      #          choco install checksum
+      #          export iota_sha=$(checksum -t sha256 ${{ env.TMP_BUILD_DIR }}/iota.exe)
+      #          cd chocolatey
+      #
+      #          cat <<EOF >>VERIFICATION.txt
+      #          IOTA Binary verification steps
+      #          1. Download https://github.com/iotaledger/iota/releases/download/${{ env.iota_tag }}/iota-${{ env.iota_tag }}-windows-x86_64.tgz
+      #          2. Extract iota.exe
+      #          3. Verify binary: checksum.exe -t sha256 iota.exe: ${iota_sha}
+      #
+      #          File 'LICENSE.txt' is obtained from: https://github.com/iotaledger/iota/blob/develop/LICENSE
+      #          EOF
+      #
+      #          choco pack --version ${{ env.iota_version }} configuration=release
+      #          choco apikey --api-key ${{ secrets.CHOCO_API_KEY }} --source https://push.chocolatey.org/
+      #          choco push iota.${{ env.iota_version }}.nupkg --source https://push.chocolatey.org/
 
       - name: Upload release artifacts for ${{ matrix.os }} platform
-        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # pin@v3
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: sui-binaries-${{ matrix.os }}
+          name: iota-binaries-${{ matrix.os }}
           if-no-files-found: error
           path: |
-            ./tmp/sui-${{ env.sui_tag }}-${{ env.os_type }}.tgz
+            ./tmp/iota-${{ env.iota_tag }}-${{ env.os_type }}.tgz
 
-      - name: Attach artifacts to ${{ env.sui_tag }} release in GH
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # pin@v1
+      - name: Attach artifacts to ${{ env.iota_tag }} release in GH
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
         with:
-          tag_name: ${{ env.sui_tag }}
+          tag_name: ${{ env.iota_tag }}
           files: |
-            ./tmp/sui-${{ env.sui_tag }}-${{ env.os_type }}.tgz
+            ./tmp/iota-${{ env.iota_tag }}-${{ env.os_type }}.tgz
 
-  update-homebrew-formula:
-    name: Run brew bump-formula-pr for sui on testnet releases
-    needs: release-build
-    runs-on: ubuntu-latest
-    # releasing sui cli on testnet releases because it lags `main` less than mainnet, but is more likely to be stable than devnet
-    if: ${{ contains( inputs.sui_tag, 'testnet') || contains( github.ref, 'testnet') }}
-    steps:
-      - name: Clean up tag name ${{ env.TAG_NAME }}
-        shell: bash
-        run: |
-          echo "sui_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
-          echo "versionless_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'// | sed s/'testnet\-v'//)" >> $GITHUB_ENV
-      - uses: mislav/bump-homebrew-formula-action@b3327118b2153c82da63fd9cbf58942146ee99f0 # pin@v3
-        with:
-          formula-name: sui
-          create-pullrequest: true
-          tag-name: "${{ env.sui_tag }}"
-          commit-message: |
-            {{formulaName}} ${{ env.versionless_tag }}
-
-            Created by https://github.com/mislav/bump-homebrew-formula-action
-
-            From release: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        env:
-          # https://github.com/settings/tokens/new?scopes=public_repo,workflow
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}
-
-  update-homebrew-tap:
-    name: Update mysten-tap sui.rb file
-    needs: release-build
-    runs-on: ubuntu-latest
-    if: ${{ contains( inputs.sui_tag, 'testnet') || contains( github.ref, 'testnet') }}
-    steps:
-      - name: Clean up tag name ${{ env.TAG_NAME }}
-        shell: bash
-        run: |
-          echo "sui_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
-
-      # Checkout MystenLabs/homebrew-tap
-      - name: Checkout Target Repository
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # pin@v3
-        with:
-          repository: MystenLabs/homebrew-tap
-          # @john's PAT, needs to be rotated jan 5 2025
-          token: ${{ secrets.HOMEBREW_TAP_REPO_READ_WRITE }}
-          ref: main
-          fetch-depth: 0
-
-      # Download all artifacts from the previous job
-      - name: Download all artifacts
-        uses: actions/download-artifact@cbed621e49e4c01b044d60f6c80ea4ed6328b281 # pin@v2
-
-      - name: Fetch Ubuntu x86_64 Binary and Compute SHA256
-        shell: bash
-        run: |
-          echo "sha256_ubuntu_release=$(sha256sum sui-binaries-ubuntu-ghcloud/sui-${{ env.sui_tag }}-ubuntu-x86_64.tgz | awk '{print $1}')" >> $GITHUB_ENV
-          echo "sha256_macos_x86_release=$(sha256sum sui-binaries-macos-latest-xl/sui-${{ env.sui_tag }}-macos-x86_64.tgz  | awk '{print $1}')" >> $GITHUB_ENV
-          echo "sha256_macos_arm_release=$(sha256sum sui-binaries-macos-latest-xlarge/sui-${{ env.sui_tag }}-macos-arm64.tgz | awk '{print $1}' )" >> $GITHUB_ENV
-
-      # Install Jinja2 for templating
-      - name: Install Jinja2
-        run: pip install jinja2
-
-      - name: Apply Jinja2 Template and Update Formula
-        run: |
-          python3 - <<EOF
-          import jinja2
-          import os
-
-          # Load the template
-          template_loader = jinja2.FileSystemLoader(searchpath="./template")
-          template_env = jinja2.Environment(loader=template_loader)
-          template = template_env.get_template("sui.rb.j2")
-
-          version = "${{ env.sui_tag }}".removeprefix("testnet-v")
-
-          # Render the template with variables
-          output = template.render(
-              version=version,
-              linux_sha256="${sha256_ubuntu_release}",
-              macos_intel_sha256="${sha256_macos_x86_release}",
-              macos_arm_sha256="${sha256_macos_arm_release}"
-          )
-
-          # Write the output to the formula file
-          with open("Formula/sui.rb", "w") as file:
-            file.write(output)
-          EOF
-
-      # Commit and Push to Target Repository
-      - name: Commit and Push to Target Repository
-        uses: github-actions-x/commit@722d56b8968bf00ced78407bbe2ead81062d8baa # pin@v2.9
-        with:
-          github-token: ${{ secrets.HOMEBREW_TAP_REPO_READ_WRITE }}
-          commit-message: "Update Homebrew formula for release ${{ env.sui_tag }}"
-          files: Formula/sui.rb
-          push-branch: main
-          rebase: 'true'
-          force-add: 'true'
-          name: ${{ github.triggering_actor }}
-          email: ${{ github.triggering_actor }}@users.noreply.github.com
-
-  # Tag all sui images with release tag, so that they can be easily found
-  tag-docker-hub-images:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Dispatch Tagging of images in DockerHub, in MystenLabs/sui-operations
-        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # pin@v3.0.0
-        with:
-          repository: MystenLabs/sui-operations
-          token: ${{ secrets.DOCKER_BINARY_BUILDS_DISPATCH }}
-          event-type: tag-docker-images
-          client-payload: '{"sui_commit": "${{ github.sha }}", "repo_name": "all", "tag": "${{ env.TAG_NAME }}"}'
+#  update-homebrew-formula:
+#    name: Run brew bump-formula-pr for iota on testnet releases
+#    needs: release-build
+#    runs-on: ubuntu-latest
+#    # releasing iota cli on testnet releases because it lags `main` less than mainnet, but is more likely to be stable than devnet
+#    if: ${{ contains( inputs.iota_tag, 'testnet') || contains( github.ref, 'testnet') }}
+#    steps:
+#      - name: Clean up tag name ${{ env.TAG_NAME }}
+#        shell: bash
+#        run: |
+#          echo "iota_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'//)" >> $GITHUB_ENV
+#          echo "versionless_tag=$(echo ${{ env.TAG_NAME }} | sed s/'refs\/tags\/'// | sed s/'testnet\-v'//)" >> $GITHUB_ENV
+#      - uses: mislav/bump-homebrew-formula-action@b3327118b2153c82da63fd9cbf58942146ee99f0 # v3.1.0
+#        with:
+#          formula-name: iota
+#          create-pullrequest: true
+#          tag-name: "${{ env.iota_tag }}"
+#          commit-message: |
+#            {{formulaName}} ${{ env.versionless_tag }}
+#
+#            Created by https://github.com/mislav/bump-homebrew-formula-action
+#
+#            From release: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+#        env:
+#          # https://github.com/settings/tokens/new?scopes=public_repo,workflow
+#          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_GH_FORMULA_BUMP }}

@@ -12,15 +12,15 @@ import {
 	ConnectButton,
 	useCurrentAccount,
 	useReportTransactionEffects,
-	useSuiClient,
-} from '@mysten/dapp-kit';
-import { toB64 } from '@mysten/sui/utils';
+	useIotaClient,
+} from '@iota/dapp-kit';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 function MyComponent() {
 	const { mutateAsync: reportTransactionEffects } = useReportTransactionEffects();
 	const [signature, setSignature] = useState('');
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const currentAccount = useCurrentAccount();
 
 	return (
@@ -48,9 +48,9 @@ function MyComponent() {
 
 ## Arguments
 
-- `effects`: The effects of an executed transaction. This can either be the `rawEffects` returned
-  from the JSON-RPC `executeTransactionBlock` method (returned when showRawEffects is set to true),
-  or the `effects.bcs` when executing with the GraphQL API.
-- `chain`: (optional) The chain identifier the transaction was executed on.
-- `account` (optional) the account that signed the transaction, defaults to the currently connected
-  account
+-   `effects`: The effects of an executed transaction. This can either be the `rawEffects` returned
+    from the JSON-RPC `executeTransactionBlock` method (returned when showRawEffects is set to
+    true), or the `effects.bcs` when executing with the GraphQL API.
+-   `chain`: (optional) The chain identifier the transaction was executed on.
+-   `account` (optional) the account that signed the transaction, defaults to the currently
+    connected account

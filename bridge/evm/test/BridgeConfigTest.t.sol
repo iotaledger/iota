@@ -1,3 +1,4 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -14,12 +15,12 @@ contract BridgeConfigTest is BridgeBaseTest {
         assertTrue(config.tokenAddressOf(2) == wETH);
         assertTrue(config.tokenAddressOf(3) == USDC);
         assertTrue(config.tokenAddressOf(4) == USDT);
-        assertEq(config.tokenSuiDecimalOf(0), 9);
-        assertEq(config.tokenSuiDecimalOf(1), 8);
-        assertEq(config.tokenSuiDecimalOf(2), 8);
-        assertEq(config.tokenSuiDecimalOf(3), 6);
-        assertEq(config.tokenSuiDecimalOf(4), 6);
-        assertEq(config.tokenPriceOf(0), SUI_PRICE);
+        assertEq(config.tokenIotaDecimalOf(0), 9);
+        assertEq(config.tokenIotaDecimalOf(1), 8);
+        assertEq(config.tokenIotaDecimalOf(2), 8);
+        assertEq(config.tokenIotaDecimalOf(3), 6);
+        assertEq(config.tokenIotaDecimalOf(4), 6);
+        assertEq(config.tokenPriceOf(0), IOTA_PRICE);
         assertEq(config.tokenPriceOf(1), BTC_PRICE);
         assertEq(config.tokenPriceOf(2), ETH_PRICE);
         assertEq(config.tokenPriceOf(3), USDC_PRICE);
@@ -37,8 +38,8 @@ contract BridgeConfigTest is BridgeBaseTest {
         assertTrue(!config.isTokenSupported(0));
     }
 
-    function testTokenSuiDecimalOf() public {
-        assertEq(config.tokenSuiDecimalOf(1), 8);
+    function testTokenIotaDecimalOf() public {
+        assertEq(config.tokenIotaDecimalOf(1), 8);
     }
 
     function testAddTokensWithSignatures() public {
@@ -50,8 +51,8 @@ contract BridgeConfigTest is BridgeBaseTest {
         uint8 tokenID1 = 10;
         uint8 _numAddresses = 1;
         address address1 = address(_newToken);
-        uint8 _numSuiDecimals = 1;
-        uint8 suiDecimal1 = 6;
+        uint8 _numIotaDecimals = 1;
+        uint8 iotaDecimal1 = 6;
         uint8 _numPrices = 1;
         uint64 price1 = 100_000 * USD_VALUE_MULTIPLIER;
 
@@ -61,8 +62,8 @@ contract BridgeConfigTest is BridgeBaseTest {
             tokenID1,
             _numAddresses,
             address1,
-            _numSuiDecimals,
-            suiDecimal1,
+            _numIotaDecimals,
+            iotaDecimal1,
             _numPrices,
             price1
         );
@@ -92,7 +93,7 @@ contract BridgeConfigTest is BridgeBaseTest {
         config.addTokensWithSignatures(signatures, message);
         assertTrue(config.isTokenSupported(10));
         assertEq(config.tokenAddressOf(10), address1);
-        assertEq(config.tokenSuiDecimalOf(10), 6);
+        assertEq(config.tokenIotaDecimalOf(10), 6);
         assertEq(config.tokenPriceOf(10), 100_000 * USD_VALUE_MULTIPLIER);
     }
 
@@ -105,8 +106,8 @@ contract BridgeConfigTest is BridgeBaseTest {
         uint8 tokenID1 = 10;
         uint8 _numAddresses = 1;
         address address1 = address(0);
-        uint8 _numSuiDecimals = 1;
-        uint8 suiDecimal1 = 6;
+        uint8 _numIotaDecimals = 1;
+        uint8 iotaDecimal1 = 6;
         uint8 _numPrices = 1;
         uint64 price1 = 100_000 * USD_VALUE_MULTIPLIER;
 
@@ -116,8 +117,8 @@ contract BridgeConfigTest is BridgeBaseTest {
             tokenID1,
             _numAddresses,
             address1,
-            _numSuiDecimals,
-            suiDecimal1,
+            _numIotaDecimals,
+            iotaDecimal1,
             _numPrices,
             price1
         );
@@ -147,7 +148,7 @@ contract BridgeConfigTest is BridgeBaseTest {
         config.addTokensWithSignatures(signatures, message);
     }
 
-    function testAddTokensSuiDecimalFailure() public {
+    function testAddTokensIotaDecimalFailure() public {
         MockUSDC _newToken = new MockUSDC();
 
         // Create add tokens payload
@@ -156,8 +157,8 @@ contract BridgeConfigTest is BridgeBaseTest {
         uint8 tokenID1 = 10;
         uint8 _numAddresses = 1;
         address address1 = address(_newToken);
-        uint8 _numSuiDecimals = 1;
-        uint8 suiDecimal1 = 10;
+        uint8 _numIotaDecimals = 1;
+        uint8 iotaDecimal1 = 10;
         uint8 _numPrices = 1;
         uint64 price1 = 100_000 * USD_VALUE_MULTIPLIER;
 
@@ -167,8 +168,8 @@ contract BridgeConfigTest is BridgeBaseTest {
             tokenID1,
             _numAddresses,
             address1,
-            _numSuiDecimals,
-            suiDecimal1,
+            _numIotaDecimals,
+            iotaDecimal1,
             _numPrices,
             price1
         );
@@ -193,8 +194,8 @@ contract BridgeConfigTest is BridgeBaseTest {
         signatures[2] = getSignature(messageHash, committeeMemberPkC);
         signatures[3] = getSignature(messageHash, committeeMemberPkD);
 
-        // add token shoudl fail because the sui decimal is greater than the eth decimal
-        vm.expectRevert(bytes("BridgeConfig: Invalid Sui decimal"));
+        // add token should fail because the iota decimal is greater than the eth decimal
+        vm.expectRevert(bytes("BridgeConfig: Invalid Iota decimal"));
         config.addTokensWithSignatures(signatures, message);
     }
 
@@ -207,8 +208,8 @@ contract BridgeConfigTest is BridgeBaseTest {
         uint8 tokenID1 = 10;
         uint8 _numAddresses = 1;
         address address1 = address(_newToken);
-        uint8 _numSuiDecimals = 1;
-        uint8 suiDecimal1 = 10;
+        uint8 _numIotaDecimals = 1;
+        uint8 iotaDecimal1 = 10;
         uint8 _numPrices = 1;
         uint64 price1 = 0;
 
@@ -218,8 +219,8 @@ contract BridgeConfigTest is BridgeBaseTest {
             tokenID1,
             _numAddresses,
             address1,
-            _numSuiDecimals,
-            suiDecimal1,
+            _numIotaDecimals,
+            iotaDecimal1,
             _numPrices,
             price1
         );
@@ -283,18 +284,23 @@ contract BridgeConfigTest is BridgeBaseTest {
 
     // An e2e update token price regression test covering message ser/de
     function testUpdateTokenPricesRegressionTest() public {
-        address[] memory _committee = new address[](4);
+        address[] memory _committeeList = new address[](4);
         uint16[] memory _stake = new uint16[](4);
-        _committee[0] = 0x68B43fD906C0B8F024a18C56e06744F7c6157c65;
-        _committee[1] = 0xaCAEf39832CB995c4E049437A3E2eC6a7bad1Ab5;
-        _committee[2] = 0x8061f127910e8eF56F16a2C411220BaD25D61444;
-        _committee[3] = 0x508F3F1ff45F4ca3D8e86CDCC91445F00aCC59fC;
+        _committeeList[0] = 0x68B43fD906C0B8F024a18C56e06744F7c6157c65;
+        _committeeList[1] = 0xaCAEf39832CB995c4E049437A3E2eC6a7bad1Ab5;
+        _committeeList[2] = 0x8061f127910e8eF56F16a2C411220BaD25D61444;
+        _committeeList[3] = 0x508F3F1ff45F4ca3D8e86CDCC91445F00aCC59fC;
         _stake[0] = 2500;
         _stake[1] = 2500;
         _stake[2] = 2500;
         _stake[3] = 2500;
-        committee = new BridgeCommittee();
-        committee.initialize(_committee, _stake, minStakeRequired);
+
+        address _committee = Upgrades.deployUUPSProxy(
+            "BridgeCommittee.sol",
+            abi.encodeCall(BridgeCommittee.initialize, (_committeeList, _stake, minStakeRequired)),
+            opts
+        );
+        committee = BridgeCommittee(_committee);
         committee.initializeConfig(address(config));
         vault = new BridgeVault(wETH);
 
@@ -303,10 +309,23 @@ contract BridgeConfigTest is BridgeBaseTest {
         uint8[] memory _supportedDestinationChains = new uint8[](1);
         _supportedDestinationChains[0] = 0;
         skip(2 days);
-        limiter = new BridgeLimiter();
-        limiter.initialize(address(committee), _supportedDestinationChains, totalLimits);
-        bridge = new SuiBridge();
-        bridge.initialize(address(committee), address(vault), address(limiter));
+        address _limiter = Upgrades.deployUUPSProxy(
+            "BridgeLimiter.sol",
+            abi.encodeCall(
+                BridgeLimiter.initialize,
+                (address(committee), _supportedDestinationChains, totalLimits)
+            ),
+            opts
+        );
+        limiter = BridgeLimiter(_limiter);
+        address _iotaBridge = Upgrades.deployUUPSProxy(
+            "IotaBridge.sol",
+            abi.encodeCall(
+                IotaBridge.initialize, (address(committee), address(vault), address(limiter))
+            ),
+            opts
+        );
+        bridge = IotaBridge(_iotaBridge);
         vault.transferOwnership(address(bridge));
         limiter.transferOwnership(address(bridge));
 
@@ -329,11 +348,11 @@ contract BridgeConfigTest is BridgeBaseTest {
 
     // An e2e update token price regression test covering message ser/de and signature verification
     function testUpdateTokenPriceRegressionTestWithSigVerficiation() public {
-        address[] memory _committee = new address[](4);
-        _committee[0] = 0x68B43fD906C0B8F024a18C56e06744F7c6157c65;
-        _committee[1] = 0xaCAEf39832CB995c4E049437A3E2eC6a7bad1Ab5;
-        _committee[2] = 0x8061f127910e8eF56F16a2C411220BaD25D61444;
-        _committee[3] = 0x508F3F1ff45F4ca3D8e86CDCC91445F00aCC59fC;
+        address[] memory _committeeList = new address[](4);
+        _committeeList[0] = 0x68B43fD906C0B8F024a18C56e06744F7c6157c65;
+        _committeeList[1] = 0xaCAEf39832CB995c4E049437A3E2eC6a7bad1Ab5;
+        _committeeList[2] = 0x8061f127910e8eF56F16a2C411220BaD25D61444;
+        _committeeList[3] = 0x508F3F1ff45F4ca3D8e86CDCC91445F00aCC59fC;
         uint8 sendingChainID = 1;
         uint8[] memory _supportedChains = new uint8[](1);
         _supportedChains[0] = sendingChainID;
@@ -343,17 +362,26 @@ contract BridgeConfigTest is BridgeBaseTest {
         _stake[1] = 2500;
         _stake[2] = 2500;
         _stake[3] = 2500;
-        committee = new BridgeCommittee();
-        committee.initialize(_committee, _stake, minStakeRequired);
+        address _committee = Upgrades.deployUUPSProxy(
+            "BridgeCommittee.sol",
+            abi.encodeCall(BridgeCommittee.initialize, (_committeeList, _stake, minStakeRequired)),
+            opts
+        );
+        committee = BridgeCommittee(_committee);
         uint8[] memory _supportedDestinationChains = new uint8[](1);
         _supportedDestinationChains[0] = sendingChainID;
 
-        config = new BridgeConfig();
-        config.initialize(
-            address(committee), chainID, supportedTokens, tokenPrices, _supportedChains
+        address _config = Upgrades.deployUUPSProxy(
+            "BridgeConfig.sol",
+            abi.encodeCall(
+                BridgeConfig.initialize,
+                (address(committee), chainID, supportedTokens, tokenPrices, tokenIds, iotaDecimals, _supportedDestinationChains)
+            ),
+            opts
         );
+        config = BridgeConfig(_config);
 
-        committee.initializeConfig(address(config));
+        committee.initializeConfig(_config);
 
         vault = new BridgeVault(wETH);
         skip(2 days);
@@ -361,10 +389,23 @@ contract BridgeConfigTest is BridgeBaseTest {
         uint64[] memory totalLimits = new uint64[](1);
         totalLimits[0] = 1000000;
 
-        limiter = new BridgeLimiter();
-        limiter.initialize(address(committee), _supportedDestinationChains, totalLimits);
-        bridge = new SuiBridge();
-        bridge.initialize(address(committee), address(vault), address(limiter));
+        address _limiter = Upgrades.deployUUPSProxy(
+            "BridgeLimiter.sol",
+            abi.encodeCall(
+                BridgeLimiter.initialize,
+                (address(committee), _supportedDestinationChains, totalLimits)
+            ),
+            opts
+        );
+        limiter = BridgeLimiter(_limiter);
+        address _iotaBridge = Upgrades.deployUUPSProxy(
+            "IotaBridge.sol",
+            abi.encodeCall(
+                IotaBridge.initialize, (address(committee), address(vault), address(limiter))
+            ),
+            opts
+        );
+        bridge = IotaBridge(_iotaBridge);
         vault.transferOwnership(address(bridge));
         limiter.transferOwnership(address(bridge));
 
@@ -401,24 +442,34 @@ contract BridgeConfigTest is BridgeBaseTest {
     }
 
     function testAddTokensRegressionTest() public {
-        address[] memory _committee = new address[](4);
+        address[] memory _committeeList = new address[](4);
         uint16[] memory _stake = new uint16[](4);
-        _committee[0] = 0x68B43fD906C0B8F024a18C56e06744F7c6157c65;
-        _committee[1] = 0xaCAEf39832CB995c4E049437A3E2eC6a7bad1Ab5;
-        _committee[2] = 0x8061f127910e8eF56F16a2C411220BaD25D61444;
-        _committee[3] = 0x508F3F1ff45F4ca3D8e86CDCC91445F00aCC59fC;
+        _committeeList[0] = 0x68B43fD906C0B8F024a18C56e06744F7c6157c65;
+        _committeeList[1] = 0xaCAEf39832CB995c4E049437A3E2eC6a7bad1Ab5;
+        _committeeList[2] = 0x8061f127910e8eF56F16a2C411220BaD25D61444;
+        _committeeList[3] = 0x508F3F1ff45F4ca3D8e86CDCC91445F00aCC59fC;
         _stake[0] = 2500;
         _stake[1] = 2500;
         _stake[2] = 2500;
         _stake[3] = 2500;
-        committee = new BridgeCommittee();
-        committee.initialize(_committee, _stake, minStakeRequired);
+        address _committee = Upgrades.deployUUPSProxy(
+            "BridgeCommittee.sol",
+            abi.encodeCall(BridgeCommittee.initialize, (_committeeList, _stake, minStakeRequired)),
+            opts
+        );
+        committee = BridgeCommittee(_committee);
         uint8[] memory _supportedDestinationChains = new uint8[](1);
         _supportedDestinationChains[0] = 0;
-        config = new BridgeConfig();
-        config.initialize(
-            address(committee), 12, supportedTokens, tokenPrices, _supportedDestinationChains
+        address _config = Upgrades.deployUUPSProxy(
+            "BridgeConfig.sol",
+            abi.encodeCall(
+                BridgeConfig.initialize,
+                (address(committee), 12, supportedTokens, tokenPrices, tokenIds, iotaDecimals, _supportedDestinationChains)
+            ),
+            opts
         );
+        config = BridgeConfig(_config);
+
         committee.initializeConfig(address(config));
         vault = new BridgeVault(wETH);
 
@@ -426,10 +477,23 @@ contract BridgeConfigTest is BridgeBaseTest {
         totalLimits[0] = 1000000;
 
         skip(2 days);
-        limiter = new BridgeLimiter();
-        limiter.initialize(address(committee), _supportedDestinationChains, totalLimits);
-        bridge = new SuiBridge();
-        bridge.initialize(address(committee), address(vault), address(limiter));
+        address _limiter = Upgrades.deployUUPSProxy(
+            "BridgeLimiter.sol",
+            abi.encodeCall(
+                BridgeLimiter.initialize,
+                (address(committee), _supportedDestinationChains, totalLimits)
+            ),
+            opts
+        );
+        limiter = BridgeLimiter(_limiter);
+        address _iotaBridge = Upgrades.deployUUPSProxy(
+            "IotaBridge.sol",
+            abi.encodeCall(
+                IotaBridge.initialize, (address(committee), address(vault), address(limiter))
+            ),
+            opts
+        );
+        bridge = IotaBridge(_iotaBridge);
         vault.transferOwnership(address(bridge));
         limiter.transferOwnership(address(bridge));
 
@@ -440,7 +504,7 @@ contract BridgeConfigTest is BridgeBaseTest {
             bool native,
             uint8[] memory tokenIDs,
             address[] memory tokenAddresses,
-            uint8[] memory suiDecimals,
+            uint8[] memory iotaDecimals,
             uint64[] memory tokenPrices
         ) = BridgeUtils.decodeAddTokensPayload(payload);
 
@@ -455,10 +519,10 @@ contract BridgeConfigTest is BridgeBaseTest {
         assertEq(tokenAddresses[1], 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84); // lido
         assertEq(tokenAddresses[2], 0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72); // ENS
 
-        assertEq(suiDecimals.length, 3);
-        assertEq(suiDecimals[0], 5);
-        assertEq(suiDecimals[1], 6);
-        assertEq(suiDecimals[2], 7);
+        assertEq(iotaDecimals.length, 3);
+        assertEq(iotaDecimals[0], 5);
+        assertEq(iotaDecimals[1], 6);
+        assertEq(iotaDecimals[2], 7);
 
         assertEq(tokenPrices.length, 3);
         assertEq(tokenPrices[0], 1_000_000_000);
@@ -492,9 +556,9 @@ contract BridgeConfigTest is BridgeBaseTest {
         assertEq(config.tokenPriceOf(99), 1_000_000_000);
         assertEq(config.tokenPriceOf(100), 2_000_000_000);
         assertEq(config.tokenPriceOf(101), 3_000_000_000);
-        assertEq(config.tokenSuiDecimalOf(99), 5);
-        assertEq(config.tokenSuiDecimalOf(100), 6);
-        assertEq(config.tokenSuiDecimalOf(101), 7);
+        assertEq(config.tokenIotaDecimalOf(99), 5);
+        assertEq(config.tokenIotaDecimalOf(100), 6);
+        assertEq(config.tokenIotaDecimalOf(101), 7);
         assertEq(config.tokenAddressOf(99), 0x6B175474E89094C44Da98b954EedeAC495271d0F);
         assertEq(config.tokenAddressOf(100), 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84);
         assertEq(config.tokenAddressOf(101), 0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72);

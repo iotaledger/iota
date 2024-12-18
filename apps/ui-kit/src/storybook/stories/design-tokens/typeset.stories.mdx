@@ -1,0 +1,15 @@
+import { Meta, Typeset, Unstyled } from '@storybook/blocks';
+import { TYPESETS } from '../../constants';
+import { TypeSet, TypeSetItem } from '../../blocks';
+
+<Meta title="Design Tokens/Typesets" />
+
+# Typesets
+
+<Unstyled>
+    <div className="flex flex-col gap-y-12">
+        {TYPESETS.map((typeset, typeSetIndex) => (
+            <TypeSet key={typeSetIndex} {...typeset} />
+        ))}
+    </div>
+</Unstyled>

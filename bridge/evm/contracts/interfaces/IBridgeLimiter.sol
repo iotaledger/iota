@@ -1,3 +1,4 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -5,7 +6,7 @@ pragma solidity ^0.8.20;
 /// @notice Interface for the BridgeLimiter contract.
 interface IBridgeLimiter {
     /// @notice Updates the bridge transfers for a specific token ID and amount. Only the contract
-    /// owner can call this function (intended to be the SuiBridge contract).
+    /// owner can call this function (intended to be the IotaBridge contract).
     /// @dev The amount must be greater than 0 and must not exceed the rolling window limit.
     /// @param chainID The ID of the chain to record the transfer for.
     /// @param tokenID The ID of the token.
@@ -30,7 +31,11 @@ interface IBridgeLimiter {
     event HourlyTransferAmountUpdated(uint32 hourUpdated, uint256 amount);
 
     /// @dev Emitted when the total limit is updated.
+    /// @param nonce The governance action nonce.
     /// @param sourceChainID The ID of the source chain.
     /// @param newLimit The new limit in USD with 4 decimal places (e.g. 10000 -> $1)
+    event LimitUpdatedV2(uint64 nonce, uint8 sourceChainID, uint64 newLimit);
+
+    /// @dev (deprecated in favor of LimitUpdatedV2)
     event LimitUpdated(uint8 sourceChainID, uint64 newLimit);
 }

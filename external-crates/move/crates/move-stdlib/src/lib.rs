@@ -1,12 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use log::LevelFilter;
-use move_command_line_common::{
-    address::NumericalAddress,
-    files::{extension_equals, find_filenames, MOVE_EXTENSION},
-};
+use move_command_line_common::files::{extension_equals, find_filenames, MOVE_EXTENSION};
+use move_core_types::parsing::address::NumericalAddress;
 use std::{collections::BTreeMap, path::PathBuf};
 
 #[cfg(test)]

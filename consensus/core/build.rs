@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -75,6 +76,15 @@ fn build_tonic_services(out_dir: &Path) {
                 .server_streaming()
                 .build(),
         )
+        .method(
+            tonic_build::manual::Method::builder()
+                .name("get_latest_rounds")
+                .route_name("GetLatestRounds")
+                .input_type("crate::network::tonic_network::GetLatestRoundsRequest")
+                .output_type("crate::network::tonic_network::GetLatestRoundsResponse")
+                .codec_path(codec_path)
+                .build(),
+        )
         .build();
 
     tonic_build::manual::Builder::new()
@@ -86,7 +96,7 @@ fn build_anemo_services(out_dir: &Path) {
     let mut automock_attribute = anemo_build::Attributes::default();
     automock_attribute.push_trait(".", r#"#[mockall::automock]"#);
 
-    let codec_path = "mysten_network::codec::anemo::BcsSnappyCodec";
+    let codec_path = "iota_network_stack::codec::anemo::BcsSnappyCodec";
 
     let service = anemo_build::manual::Service::builder()
         .name("ConsensusRpc")
@@ -125,6 +135,15 @@ fn build_anemo_services(out_dir: &Path) {
                 .route_name("FetchLatestBlocks")
                 .request_type("crate::network::anemo_network::FetchLatestBlocksRequest")
                 .response_type("crate::network::anemo_network::FetchLatestBlocksResponse")
+                .codec_path(codec_path)
+                .build(),
+        )
+        .method(
+            anemo_build::manual::Method::builder()
+                .name("get_latest_rounds")
+                .route_name("GetLatestRounds")
+                .request_type("crate::network::anemo_network::GetLatestRoundsRequest")
+                .response_type("crate::network::anemo_network::GetLatestRoundsResponse")
                 .codec_path(codec_path)
                 .build(),
         )

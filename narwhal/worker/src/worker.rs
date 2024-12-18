@@ -1,37 +1,33 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{
-    batch_fetcher::BatchFetcher,
-    batch_maker::BatchMaker,
-    handlers::{PrimaryReceiverHandler, WorkerReceiverHandler},
-    metrics::WorkerChannelMetrics,
-    quorum_waiter::QuorumWaiter,
-    TransactionValidator, NUM_SHUTDOWN_RECEIVERS,
+use std::{collections::HashMap, net::Ipv4Addr, sync::Arc, thread::sleep, time::Duration};
+
+use anemo::{
+    Network, PeerId,
+    codegen::InboundRequestLayer,
+    types::{Address, PeerInfo},
 };
-use anemo::{codegen::InboundRequestLayer, types::Address};
-use anemo::{types::PeerInfo, Network, PeerId};
 use anemo_tower::{
     auth::{AllowedPeers, RequireAuthorizationLayer},
     callback::CallbackLayer,
-    set_header::SetRequestHeaderLayer,
+    rate_limit,
+    set_header::{SetRequestHeaderLayer, SetResponseHeaderLayer},
     trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
 };
-use anemo_tower::{rate_limit, set_header::SetResponseHeaderLayer};
 use config::{Authority, AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
-use crypto::{traits::KeyPair as _, NetworkKeyPair, NetworkPublicKey};
-use mysten_metrics::metered_channel::channel_with_total;
-use mysten_metrics::spawn_logged_monitored_task;
-use mysten_network::{multiaddr::Protocol, Multiaddr};
-use network::client::NetworkClient;
-use network::epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY};
-use network::failpoints::FailpointsMakeCallbackHandler;
-use network::metrics::MetricsMakeCallbackHandler;
-use std::collections::HashMap;
-use std::time::Duration;
-use std::{net::Ipv4Addr, sync::Arc, thread::sleep};
+use crypto::{NetworkKeyPair, NetworkPublicKey, traits::KeyPair as _};
+use iota_metrics::{metered_channel::channel_with_total, spawn_logged_monitored_task};
+use iota_network_stack::{Multiaddr, multiaddr::Protocol};
+use iota_protocol_config::ProtocolConfig;
+use network::{
+    client::NetworkClient,
+    epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
+    failpoints::FailpointsMakeCallbackHandler,
+    metrics::MetricsMakeCallbackHandler,
+};
 use store::rocks::DBMap;
-use sui_protocol_config::ProtocolConfig;
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
@@ -41,15 +37,19 @@ use types::{
     PrimaryToWorkerServer, WorkerToWorkerServer,
 };
 
-#[cfg(test)]
-#[path = "tests/worker_tests.rs"]
-pub mod worker_tests;
+use crate::{
+    NUM_SHUTDOWN_RECEIVERS, TransactionValidator,
+    batch_fetcher::BatchFetcher,
+    batch_maker::BatchMaker,
+    handlers::{PrimaryReceiverHandler, WorkerReceiverHandler},
+    metrics::WorkerChannelMetrics,
+    quorum_waiter::QuorumWaiter,
+};
 
 /// The default channel capacity for each channel of the worker.
 pub const CHANNEL_CAPACITY: usize = 1_000;
 
 use crate::metrics::{Metrics, WorkerEndpointMetrics, WorkerMetrics};
-use crate::transactions_server::TxServer;
 
 pub struct Worker {
     /// This authority.
@@ -106,7 +106,6 @@ impl Worker {
         let channel_metrics: Arc<WorkerChannelMetrics> = Arc::new(metrics.channel_metrics.unwrap());
         let inbound_network_metrics = Arc::new(metrics.inbound_network_metrics.unwrap());
         let outbound_network_metrics = Arc::new(metrics.outbound_network_metrics.unwrap());
-        let network_connection_metrics = metrics.network_connection_metrics.unwrap();
 
         let mut shutdown_receivers = tx_shutdown.subscribe_n(NUM_SHUTDOWN_RECEIVERS);
 
@@ -242,8 +241,8 @@ impl Worker {
             quic_config.keep_alive_interval_ms = Some(5_000);
             let mut config = anemo::Config::default();
             config.quic = Some(quic_config);
-            // Set the max_frame_size to be 1 GB to work around the issue of there being too many
-            // delegation events in the epoch change txn.
+            // Set the max_frame_size to be 1 GB to work around the issue of there being too
+            // many delegation events in the epoch change txn.
             config.max_frame_size = Some(1 << 30);
             // Set a default timeout of 300s for all RPC requests
             config.inbound_request_timeout_ms = Some(300_000);
@@ -340,8 +339,9 @@ impl Worker {
             peer_id, address
         );
 
-        // update the peer_types with the "other_primary". We do not add them in the Network
-        // struct, otherwise the networking library will try to connect to it
+        // update the peer_types with the "other_primary". We do not add them in the
+        // Network struct, otherwise the networking library will try to connect
+        // to it
         let other_primaries: Vec<(AuthorityIdentifier, Multiaddr, NetworkPublicKey)> =
             committee.others_primaries_by_id(authority.id());
         for (_, _, network_key) in other_primaries {
@@ -350,13 +350,6 @@ impl Worker {
                 "other_primary".to_string(),
             );
         }
-
-        let (connection_monitor_handle, _) = network::connectivity::ConnectionMonitor::spawn(
-            network.downgrade(),
-            network_connection_metrics,
-            peer_types,
-            Some(shutdown_receivers.pop().unwrap()),
-        );
 
         let network_admin_server_base_port = parameters
             .network_admin_server
@@ -402,7 +395,7 @@ impl Worker {
                 .transactions
         );
 
-        let mut handles = vec![connection_monitor_handle, network_shutdown_handle];
+        let mut handles = vec![network_shutdown_handle];
         handles.extend(admin_handles);
         handles.extend(client_flow_handles);
         handles
@@ -448,19 +441,21 @@ impl Worker {
     }
 
     /// Spawn all tasks responsible to handle clients transactions.
+    // TODO: finish deleting this. It's partially deleted already and may not work
+    // right.
     fn handle_clients_transactions(
         &self,
         mut shutdown_receivers: Vec<ConditionalBroadcastReceiver>,
         node_metrics: Arc<WorkerMetrics>,
         channel_metrics: Arc<WorkerChannelMetrics>,
-        endpoint_metrics: WorkerEndpointMetrics,
-        validator: impl TransactionValidator,
+        _endpoint_metrics: WorkerEndpointMetrics,
+        _validator: impl TransactionValidator,
         client: NetworkClient,
         network: anemo::Network,
     ) -> Vec<JoinHandle<()>> {
         info!("Starting handler for transactions");
 
-        let (tx_batch_maker, rx_batch_maker) = channel_with_total(
+        let (_tx_batch_maker, rx_batch_maker) = channel_with_total(
             CHANNEL_CAPACITY,
             &channel_metrics.tx_batch_maker,
             &channel_metrics.tx_batch_maker_total,
@@ -484,17 +479,10 @@ impl Worker {
             })
             .unwrap_or(address);
 
-        let tx_server_handle = TxServer::spawn(
-            address.clone(),
-            shutdown_receivers.pop().unwrap(),
-            endpoint_metrics,
-            tx_batch_maker,
-            validator,
-        );
-
-        // The transactions are sent to the `BatchMaker` that assembles them into batches. It then broadcasts
-        // (in a reliable manner) the batches to all other workers that share the same `id` as us. Finally, it
-        // gathers the 'cancel handlers' of the messages and send them to the `QuorumWaiter`.
+        // The transactions are sent to the `BatchMaker` that assembles them into
+        // batches. It then broadcasts (in a reliable manner) the batches to all
+        // other workers that share the same `id` as us. Finally, it gathers the
+        // 'cancel handlers' of the messages and send them to the `QuorumWaiter`.
         let batch_maker_handle = BatchMaker::spawn(
             self.id,
             self.parameters.batch_size,
@@ -508,8 +496,8 @@ impl Worker {
             self.protocol_config.clone(),
         );
 
-        // The `QuorumWaiter` waits for 2f authorities to acknowledge reception of the batch. It then forwards
-        // the batch to the `Processor`.
+        // The `QuorumWaiter` waits for 2f authorities to acknowledge reception of the
+        // batch. It then forwards the batch to the `Processor`.
         let quorum_waiter_handle = QuorumWaiter::spawn(
             self.authority.clone(),
             self.id,
@@ -526,6 +514,6 @@ impl Worker {
             self.id, address
         );
 
-        vec![batch_maker_handle, quorum_waiter_handle, tx_server_handle]
+        vec![batch_maker_handle, quorum_waiter_handle]
     }
 }

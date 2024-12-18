@@ -1,15 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::{collections::BTreeSet, num::NonZeroUsize};
+
 use config::{AuthorityIdentifier, Committee, Stake};
 use crypto::{PublicKey, Signature};
 use fastcrypto::traits::KeyPair;
 use indexmap::IndexMap;
 use narwhal_types::{Certificate, Header, HeaderV1, Vote, VoteAPI};
-use rand::rngs::OsRng;
-use rand::seq::SliceRandom;
-use std::collections::BTreeSet;
-use std::num::NonZeroUsize;
-use test_utils::{latest_protocol_version, AuthorityFixture, CommitteeFixture};
+use rand::{rngs::OsRng, seq::SliceRandom};
+use test_utils::{AuthorityFixture, CommitteeFixture, latest_protocol_version};
 
 #[tokio::test]
 async fn test_certificate_signers_are_ordered() {

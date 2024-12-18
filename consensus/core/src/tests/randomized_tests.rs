@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{env, sync::Arc};
 
 use consensus_config::AuthorityIndex;
 use parking_lot::RwLock;
-use rand::{prelude::SliceRandom, rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
 
 use crate::{
     block::{BlockAPI, Slot},
@@ -18,7 +19,7 @@ use crate::{
     storage::mem_store::MemStore,
     test_dag::create_random_dag,
     universal_committer::{
-        universal_committer_builder::UniversalCommitterBuilder, UniversalCommitter,
+        UniversalCommitter, universal_committer_builder::UniversalCommitterBuilder,
     },
 };
 
@@ -79,12 +80,13 @@ async fn test_randomized_dag_all_direct_commit() {
 /// - Links to leader of previous round 50% of the time.
 ///
 /// Blocks will randomly be fed through BlockManager and after each accepted
-/// block we will try_decide() and if there is a committed sequence we will update
-/// last_decided and continue. We do this from the perspective of two different
-/// authorities who receive the blocks in different orders and ensure the resulting
-/// sequence is the same for both authorities. The resulting sequence will include
-/// Commit & Skip decisions and potentially will stop before coming to a decision
-/// on all waves as we may have an Undecided leader somewhere early in the sequence.
+/// block we will try_decide() and if there is a committed sequence we will
+/// update last_decided and continue. We do this from the perspective of two
+/// different authorities who receive the blocks in different orders and ensure
+/// the resulting sequence is the same for both authorities. The resulting
+/// sequence will include Commit & Skip decisions and potentially will stop
+/// before coming to a decision on all waves as we may have an Undecided leader
+/// somewhere early in the sequence.
 #[tokio::test]
 async fn test_randomized_dag_and_decision_sequence() {
     let mut random_test_setup = random_test_setup();
@@ -105,7 +107,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         );
 
         tracing::info!(
-        "Running test with committee size {num_authorities} & {NUM_ROUNDS} rounds in the DAG..."
+            "Running test with committee size {num_authorities} & {NUM_ROUNDS} rounds in the DAG..."
         );
 
         let mut all_blocks = dag_builder.blocks.values().cloned().collect::<Vec<_>>();
@@ -164,7 +166,8 @@ async fn test_randomized_dag_and_decision_sequence() {
         assert!(authority_2.block_manager.is_empty());
 
         // Ensure despite the difference in when blocks were received eventually after
-        // receiving all blocks both authorities should return the same sequence of blocks.
+        // receiving all blocks both authorities should return the same sequence of
+        // blocks.
         assert_eq!(sequenced_leaders_1, sequenced_leaders_2);
     }
 }

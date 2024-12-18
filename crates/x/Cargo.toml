@@ -1,13 +1,13 @@
 [package]
 name = "x"
 version.workspace = true
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
+camino.workspace = true
+clap.workspace = true
 nexlint.workspace = true
 nexlint-lints.workspace = true
-clap.workspace = true
-camino.workspace = true

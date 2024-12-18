@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { normalizeSuiAddress } from '@mysten/sui/utils';
+import { useIotaClient } from '@iota/dapp-kit';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { useQuery, useQueryClient, UseQueryResult } from '@tanstack/react-query';
 import { Game } from 'hooks/useGameQuery';
 import { useTransactions } from 'hooks/useTransactions';
@@ -29,7 +30,7 @@ const REFETCH_INTERVAL = 5000;
  * is available).
  */
 export function useTrophyQuery(game?: Game): [UseTrophyQueryResponse, InvalidateTrophyQuery] {
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const queryClient = useQueryClient();
 	const tx = useTransactions()!!;
 
@@ -41,7 +42,7 @@ export function useTrophyQuery(game?: Game): [UseTrophyQueryResponse, Invalidate
 		queryFn: async () => {
 			const { results } = await client.devInspectTransactionBlock({
 				// It doesn't matter who's sending this query.
-				sender: normalizeSuiAddress('0x0'),
+				sender: normalizeIotaAddress('0x0'),
 				transactionBlock: tx.ended(game!!),
 			});
 

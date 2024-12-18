@@ -1,5 +1,5 @@
 # ignore everything by default
-# /*
+/*
 # Enable prettier for apps, dapps and sdk
 !/apps
 !/sdk
@@ -7,11 +7,18 @@
 !/.config
 !/*.js
 
+# ignore markdown and yml files because they are covered by dprint
+**/*.md
+**/*.mdx
+**/*.yml
+**/*.yaml
+
 # ignore generated files
 /apps/icons/src
 npm-debug.log*
 package-lock.json
 yarn-debug.log*
+yarn-error.log*
 .next/
 .swc/
 build/
@@ -21,5 +28,3 @@ out/
 generated/
 playwright-report/
 storybook-static/
-CHANGELOG.md
-

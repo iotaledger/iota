@@ -1,27 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use anemo::{Network, PeerId, Request};
 use async_trait::async_trait;
-use crypto::{traits::KeyPair, NetworkKeyPair, NetworkPublicKey};
-use mysten_common::sync::notify_once::NotifyOnce;
+use crypto::{NetworkKeyPair, NetworkPublicKey, traits::KeyPair};
+use iota_common::sync::notify_once::NotifyOnce;
 use parking_lot::RwLock;
 use tokio::{select, time::sleep};
 use tracing::error;
 use types::{
-    error::LocalClientError, FetchBatchesRequest, FetchBatchesResponse, PrimaryToWorker,
-    WorkerOthersBatchMessage, WorkerOwnBatchMessage, WorkerSynchronizeMessage, WorkerToPrimary,
+    FetchBatchesRequest, FetchBatchesResponse, PrimaryToWorker, WorkerOthersBatchMessage,
+    WorkerOwnBatchMessage, WorkerSynchronizeMessage, WorkerToPrimary, error::LocalClientError,
 };
 
 use crate::traits::{PrimaryToWorkerClient, WorkerToPrimaryClient};
 
-/// NetworkClient provides the interface to send requests to other nodes, and call other components
-/// directly if they live in the same process. It is used by both primary and worker(s).
+/// NetworkClient provides the interface to send requests to other nodes, and
+/// call other components directly if they live in the same process. It is used
+/// by both primary and worker(s).
 ///
-/// Currently this only supports local direct calls, and it will be extended to support remote
-/// network calls.
+/// Currently this only supports local direct calls, and it will be extended to
+/// support remote network calls.
 ///
 /// TODO: investigate splitting this into Primary and Worker specific clients.
 #[derive(Clone)]

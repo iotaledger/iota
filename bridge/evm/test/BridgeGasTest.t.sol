@@ -1,3 +1,4 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -36,14 +37,14 @@ contract BridgeGasTest is BridgeBaseTest {
     //     committee.initialize(_committee, _stake, minStakeRequired);
     //     committee.initializeConfig(address(config));
     //     uint256[] memory tokenPrices = new uint256[](4);
-    //     tokenPrices[0] = 10000; // SUI PRICE
+    //     tokenPrices[0] = 10000; // IOTA PRICE
     //     tokenPrices[1] = 10000; // BTC PRICE
     //     tokenPrices[2] = 10000; // ETH PRICE
     //     tokenPrices[3] = 10000; // USDC PRICE
     //     uint64[] memory totalLimits = new uint64[](1);
     //     totalLimits[0] = 1000000;
     //     skip(2 days);
-    //     SuiBridge _bridge = new SuiBridge();
+    //     IotaBridge _bridge = new IotaBridge();
     //     _bridge.initialize(address(committee), address(vault), address(limiter), wETH);
     //     changePrank(address(bridge));
     //     limiter.transferOwnership(address(_bridge));
@@ -63,7 +64,7 @@ contract BridgeGasTest is BridgeBaseTest {
     //     uint8 recipientAddressLength = 20;
     //     address recipientAddress = bridgerA;
     //     uint8 tokenID = BridgeUtils.ETH;
-    //     uint64 amount = 100000000; // 1 ether in sui decimals
+    //     uint64 amount = 100000000; // 1 ether in iota decimals
     //     bytes memory payload = abi.encodePacked(
     //         senderAddressLength,
     //         senderAddress,
@@ -124,14 +125,14 @@ contract BridgeGasTest is BridgeBaseTest {
     //     committee.initialize(_committee, _stake, minStakeRequired);
     //     committee.initializeConfig(address(config));
     //     uint256[] memory tokenPrices = new uint256[](4);
-    //     tokenPrices[0] = 10000; // SUI PRICE
+    //     tokenPrices[0] = 10000; // IOTA PRICE
     //     tokenPrices[1] = 10000; // BTC PRICE
     //     tokenPrices[2] = 10000; // ETH PRICE
     //     tokenPrices[3] = 10000; // USDC PRICE
     //     uint64[] memory totalLimits = new uint64[](1);
     //     totalLimits[0] = 1000000;
     //     skip(2 days);
-    //     SuiBridge _bridge = new SuiBridge();
+    //     IotaBridge _bridge = new IotaBridge();
     //     _bridge.initialize(address(committee), address(vault), address(limiter), wETH);
     //     changePrank(address(bridge));
     //     limiter.transferOwnership(address(_bridge));
@@ -152,7 +153,7 @@ contract BridgeGasTest is BridgeBaseTest {
     //     uint8 recipientAddressLength = 20;
     //     address recipientAddress = bridgerA;
     //     uint8 tokenID = BridgeUtils.ETH;
-    //     uint64 amount = 100000000; // 1 ether in sui decimals
+    //     uint64 amount = 100000000; // 1 ether in iota decimals
     //     bytes memory payload = abi.encodePacked(
     //         senderAddressLength,
     //         senderAddress,
@@ -219,14 +220,14 @@ contract BridgeGasTest is BridgeBaseTest {
     //     committee.initialize(_committee, _stake, minStakeRequired);
     //     committee.initializeConfig(address(config));
     //     uint256[] memory tokenPrices = new uint256[](4);
-    //     tokenPrices[0] = 10000; // SUI PRICE
+    //     tokenPrices[0] = 10000; // IOTA PRICE
     //     tokenPrices[1] = 10000; // BTC PRICE
     //     tokenPrices[2] = 10000; // ETH PRICE
     //     tokenPrices[3] = 10000; // USDC PRICE
     //     uint64[] memory totalLimits = new uint64[](1);
     //     totalLimits[0] = 1000000;
     //     skip(2 days);
-    //     SuiBridge _bridge = new SuiBridge();
+    //     IotaBridge _bridge = new IotaBridge();
     //     _bridge.initialize(address(committee), address(vault), address(limiter), wETH);
     //     changePrank(address(bridge));
     //     limiter.transferOwnership(address(_bridge));
@@ -247,7 +248,7 @@ contract BridgeGasTest is BridgeBaseTest {
     //     uint8 recipientAddressLength = 20;
     //     address recipientAddress = bridgerA;
     //     uint8 tokenID = BridgeUtils.ETH;
-    //     uint64 amount = 100000000; // 1 ether in sui decimals
+    //     uint64 amount = 100000000; // 1 ether in iota decimals
     //     bytes memory payload = abi.encodePacked(
     //         senderAddressLength,
     //         senderAddress,

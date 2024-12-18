@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Note that there isn't any cash register for this and while the code is
@@ -15,19 +16,17 @@
 /// Overall, while it may seem simple it has pretty significant shortcomings
 /// that can be overcome with a transfer-to-object  based approach using a
 /// shared-object register for tracking authorization.
-module owned_no_tto::cash_register {
-    use common::identified_payment::{Self, IdentifiedPayment};
-    use sui::sui::SUI;
-    use sui::coin::{Self, Coin};
-    use sui::event;
+module owned_no_tto::cash_register;
 
-    public struct PaymentProcessed has copy, drop { payment_id: u64, amount: u64 }
+use common::identified_payment::{Self, IdentifiedPayment};
+use iota::{coin::{Self, Coin}, event, iota::IOTA};
 
-    public fun process_payment(payment: IdentifiedPayment): Coin<SUI> {
-        let (payment_id, coin) = identified_payment::unpack(payment);
-        event::emit(PaymentProcessed { payment_id, amount: coin::value(&coin)});
-        coin
-    }
+public struct PaymentProcessed has copy, drop { payment_id: u64, amount: u64 }
 
-    // NB: Payments are performed with the `identified_payment::make_payment` function.
+public fun process_payment(payment: IdentifiedPayment): Coin<IOTA> {
+    let (payment_id, coin) = identified_payment::unpack(payment);
+    event::emit(PaymentProcessed { payment_id, amount: coin::value(&coin) });
+    coin
 }
+
+// NB: Payments are performed with the `identified_payment::make_payment` function.

@@ -1,0 +1,9 @@
+[package]
+name = "move_registry"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+move_registry = "0x0"

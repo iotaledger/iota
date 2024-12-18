@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![warn(
     future_incompatible,
@@ -11,7 +12,6 @@
 
 pub mod admin;
 pub mod client;
-pub mod connectivity;
 pub mod epoch_filter;
 pub mod failpoints;
 pub mod metrics;
@@ -27,7 +27,8 @@ pub use crate::{
     },
 };
 
-/// This adapter will make a [`tokio::task::JoinHandle`] abort its handled task when the handle is dropped.
+/// This adapter will make a [`tokio::task::JoinHandle`] abort its handled task
+/// when the handle is dropped.
 #[derive(Debug)]
 #[must_use]
 pub struct CancelOnDropHandler<T>(tokio::task::JoinHandle<T>);

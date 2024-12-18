@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import Loading from '_components/loading';
@@ -8,25 +9,25 @@ import { PageMainLayout } from '_src/ui/app/shared/page-main-layout/PageMainLayo
 import { Outlet } from 'react-router-dom';
 
 interface Props {
-	disableNavigation?: boolean;
+    disableNavigation?: boolean;
 }
 
 const HomePage = ({ disableNavigation }: Props) => {
-	const initChecking = useInitializedGuard(true);
-	const guardChecking = initChecking;
+    const initChecking = useInitializedGuard(true);
+    const guardChecking = initChecking;
 
-	useSetGrowthbookAttributes();
-	return (
-		<Loading loading={guardChecking}>
-			<PageMainLayout
-				bottomNavEnabled={!disableNavigation}
-				dappStatusEnabled={!disableNavigation}
-				topNavMenuEnabled={!disableNavigation}
-			>
-				<Outlet />
-			</PageMainLayout>
-		</Loading>
-	);
+    useSetGrowthbookAttributes();
+    return (
+        <Loading loading={guardChecking}>
+            <PageMainLayout
+                bottomNavEnabled={!disableNavigation}
+                dappStatusEnabled={!disableNavigation}
+                topNavMenuEnabled={!disableNavigation}
+            >
+                <Outlet />
+            </PageMainLayout>
+        </Loading>
+    );
 };
 
 export default HomePage;

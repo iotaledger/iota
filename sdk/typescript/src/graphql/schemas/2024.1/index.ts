@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { initGraphQLTada } from 'gql.tada';
@@ -12,6 +13,6 @@ export type { FragmentOf, ResultOf, VariablesOf, TadaDocumentNode } from 'gql.ta
 export { readFragment, maskFragments } from 'gql.tada';
 
 export const graphql = initGraphQLTada<{
-	introspection: introspection;
-	scalars: CustomScalars;
+    introspection: introspection;
+    scalars: CustomScalars;
 }>();

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type GetWalletsParams } from '_src/shared/qredo-api';
@@ -8,31 +9,31 @@ import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { useQredoAPI } from '../../hooks/useQredoAPI';
 
 export function useQredoUIPendingRequest(requestID?: string) {
-	const backgroundClient = useBackgroundClient();
-	return useQuery({
-		queryKey: ['qredo-connect', 'pending-request', requestID],
-		queryFn: async () => await backgroundClient.fetchPendingQredoConnectRequest(requestID!),
-		staleTime: 0,
-		refetchInterval: 1000,
-		enabled: !!requestID,
-		meta: { skipPersistedCache: true },
-	});
+    const backgroundClient = useBackgroundClient();
+    return useQuery({
+        queryKey: ['qredo-connect', 'pending-request', requestID],
+        queryFn: async () => await backgroundClient.fetchPendingQredoConnectRequest(requestID!),
+        staleTime: 0,
+        refetchInterval: 1000,
+        enabled: !!requestID,
+        meta: { skipPersistedCache: true },
+    });
 }
 
 export function useFetchQredoAccounts(
-	qredoID: string,
-	enabled?: boolean,
-	params?: GetWalletsParams,
+    qredoID: string,
+    enabled?: boolean,
+    params?: GetWalletsParams,
 ) {
-	const [api, isAPILoading, apiInitError] = useQredoAPI(qredoID);
-	return useQuery({
-		queryKey: ['qredo', 'fetch', 'accounts', qredoID, api, apiInitError],
-		queryFn: async () => {
-			if (api) {
-				return (await api.getWallets(params)).wallets;
-			}
-			throw apiInitError ? apiInitError : new Error('Qredo API initialization failed');
-		},
-		enabled: !!qredoID && (enabled ?? true) && !isAPILoading && !!(api || apiInitError),
-	});
+    const [api, isAPILoading, apiInitError] = useQredoAPI(qredoID);
+    return useQuery({
+        queryKey: ['qredo', 'fetch', 'accounts', qredoID, api, apiInitError],
+        queryFn: async () => {
+            if (api) {
+                return (await api.getWallets(params)).wallets;
+            }
+            throw apiInitError ? apiInitError : new Error('Qredo API initialization failed');
+        },
+        enabled: !!qredoID && (enabled ?? true) && !isAPILoading && !!(api || apiInitError),
+    });
 }

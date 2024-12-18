@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
@@ -7,19 +8,19 @@ use anyhow::{bail, Context, Result};
 use clap::Parser;
 use move_core_types::language_storage::StructTag;
 use shared_crypto::intent::Intent;
-use sui_keys::keystore::AccountKeystore;
-use sui_sdk::{
+use iota_keys::keystore::AccountKeystore;
+use iota_sdk::{
     rpc_types::{
-        DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, ObjectChange, SuiData,
-        SuiExecutionStatus, SuiObjectData, SuiObjectDataFilter, SuiObjectDataOptions,
-        SuiObjectResponse, SuiObjectResponseQuery, SuiProtocolConfigValue,
-        SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse,
+        DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, ObjectChange, IotaData,
+        IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
+        IotaObjectResponse, IotaObjectResponseQuery, IotaProtocolConfigValue,
+        IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     },
     wallet_context::WalletContext,
-    SuiClient,
+    IotaClient,
 };
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, IotaAddress},
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     object::Owner,
@@ -40,7 +41,7 @@ use crate::{
 
 #[derive(Parser, Debug)]
 pub struct Connection {
-    /// The Sui CLI config file, (default: ~/.sui/sui_config/client.yaml)
+    /// The Iota CLI config file, (default: ~/.iota/iota_config/client.yaml)
     #[clap(long)]
     config: Option<PathBuf>,
 
@@ -61,12 +62,12 @@ impl Client {
     pub(crate) fn new(conn: Connection) -> Result<Self> {
         let Some(config) = conn.config.or_else(|| {
             let mut default = dirs::home_dir()?;
-            default.extend([".sui", "sui_config", "client.yaml"]);
+            default.extend([".iota", "iota_config", "client.yaml"]);
             Some(default)
         }) else {
             bail!(
                 "Cannot find wallet config. No config was supplied, and the default path \
-                 (~/.sui/sui_config/client.yaml) does not exist.",
+                 (~/.iota/iota_config/client.yaml) does not exist.",
             );
         };
 
@@ -86,7 +87,7 @@ impl Client {
             .read_api()
             .get_object_with_options(
                 id,
-                SuiObjectDataOptions {
+                IotaObjectDataOptions {
                     show_owner: true,
                     show_bcs: true,
                     ..Default::default()
@@ -100,7 +101,7 @@ impl Client {
         }
 
         // (2) Perform validation checks
-        let Some(SuiObjectData {
+        let Some(IotaObjectData {
             object_id,
             version,
             digest,
@@ -168,7 +169,7 @@ impl Client {
         let results = client
             .read_api()
             .dev_inspect_transaction_block(
-                SuiAddress::ZERO,
+                IotaAddress::ZERO,
                 TransactionKind::ProgrammableTransaction(builder.finish()),
                 None,
                 None,
@@ -224,9 +225,9 @@ impl Client {
             type_params: vec![],
         };
 
-        let query = Some(SuiObjectResponseQuery::new(
-            Some(SuiObjectDataFilter::StructType(turn_cap_type.clone())),
-            Some(SuiObjectDataOptions::new().with_bcs()),
+        let query = Some(IotaObjectResponseQuery::new(
+            Some(IotaObjectDataFilter::StructType(turn_cap_type.clone())),
+            Some(IotaObjectDataOptions::new().with_bcs()),
         ));
 
         let mut cursor = None;
@@ -237,12 +238,12 @@ impl Client {
                 .await
                 .context("Error fetching TurnCaps from RPC.")?;
 
-            for SuiObjectResponse { data, error } in response.data {
+            for IotaObjectResponse { data, error } in response.data {
                 if let Some(err) = error {
                     bail!(err);
                 }
 
-                let Some(SuiObjectData {
+                let Some(IotaObjectData {
                     object_id,
                     version,
                     digest,
@@ -278,7 +279,7 @@ impl Client {
 
     /// Create a new shared game, between the wallet's active address and the given `opponent`.
     /// Returns the ID of the Game that was created on success.
-    pub(crate) async fn new_shared_game(&mut self, opponent: SuiAddress) -> Result<ObjectID> {
+    pub(crate) async fn new_shared_game(&mut self, opponent: IotaAddress) -> Result<ObjectID> {
         let player = self.wallet.active_address()?;
 
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -307,12 +308,12 @@ impl Client {
         let player_key = self.wallet.config.keystore.get_key(&player)?.public();
 
         // The opponent's address can be derived from their public key, but not vice versa.
-        let opponent = SuiAddress::from(&opponent_key);
+        let opponent = IotaAddress::from(&opponent_key);
 
         // A 1-of-2 multisig acts as the admin of the game. The Game object will be transferred to
         // this address once it is created.
         let admin_key = combine_keys(vec![player_key, opponent_key])?;
-        let admin = SuiAddress::from(&admin_key);
+        let admin = IotaAddress::from(&admin_key);
         let admin_bytes =
             bcs::to_bytes(&admin_key).context("INTERNAL ERROR: Failed to encode admin key.")?;
 
@@ -392,7 +393,7 @@ impl Client {
 
         let admin_key: MultiSigPublicKey =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
-        let admin = SuiAddress::from(&admin_key);
+        let admin = IotaAddress::from(&admin_key);
 
         let data = self
             .build_tx_data_with_sponsor(admin, Some(player), builder.finish())
@@ -480,7 +481,7 @@ impl Client {
 
         let data = self.build_tx_data(player, builder.finish()).await?;
         let tx = self.wallet.sign_transaction(&data);
-        let SuiTransactionBlockResponse {
+        let IotaTransactionBlockResponse {
             object_changes: Some(object_changes),
             ..
         } = self
@@ -532,7 +533,7 @@ impl Client {
 
         let admin_key: MultiSigPublicKey =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
-        let admin = SuiAddress::from(&admin_key);
+        let admin = IotaAddress::from(&admin_key);
 
         let data = self
             .build_tx_data_with_sponsor(admin, Some(player), builder.finish())
@@ -553,7 +554,7 @@ impl Client {
     /// Execute a PTB, expecting it to create a shared or owned Game, and return its ObjectID.
     async fn execute_for_game(&self, data: TransactionData) -> Result<ObjectID> {
         let tx = self.wallet.sign_transaction(&data);
-        let SuiTransactionBlockResponse {
+        let IotaTransactionBlockResponse {
             object_changes: Some(object_changes),
             ..
         } = self.execute_transaction(tx).await?
@@ -590,7 +591,7 @@ impl Client {
     /// Like `build_tx_data_with_sponsor`, but without a sponsor.
     async fn build_tx_data(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         tx: ProgrammableTransaction,
     ) -> Result<TransactionData> {
         self.build_tx_data_with_sponsor(sender, None, tx).await
@@ -602,8 +603,8 @@ impl Client {
     /// the `sender`'s owned objects.
     async fn build_tx_data_with_sponsor(
         &self,
-        sender: SuiAddress,
-        sponsor: Option<SuiAddress>,
+        sender: IotaAddress,
+        sponsor: Option<IotaAddress>,
         tx: ProgrammableTransaction,
     ) -> Result<TransactionData> {
         let client = self.client().await?;
@@ -663,7 +664,7 @@ impl Client {
         let client = self.client().await?;
 
         let cfg = client.read_api().get_protocol_config(None).await?;
-        let Some(Some(SuiProtocolConfigValue::U64(max))) = cfg.attributes.get("max_tx_gas") else {
+        let Some(Some(IotaProtocolConfigValue::U64(max))) = cfg.attributes.get("max_tx_gas") else {
             bail!("Couldn't find max gas budget");
         };
 
@@ -674,7 +675,7 @@ impl Client {
     /// transaction, `tx`.
     async fn select_coins(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         balance: u64,
         tx: &TransactionKind,
     ) -> Result<ObjectRef> {
@@ -700,7 +701,7 @@ impl Client {
     /// `admin_key` (the transaction sender), and execute it.
     async fn multi_sig_transaction(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         admin_key: MultiSigPublicKey,
         data: TransactionData,
     ) -> Result<Transaction> {
@@ -708,7 +709,7 @@ impl Client {
             .wallet
             .config
             .keystore
-            .sign_secure(&sender, &data, Intent::sui_transaction())
+            .sign_secure(&sender, &data, Intent::iota_transaction())
             .context("Signing transaction")?
             .into();
 
@@ -724,7 +725,7 @@ impl Client {
 
     /// Execute the transaction, and check whether it succeeded or failed. Transaction execution
     /// failure is treated as an error.
-    async fn execute_transaction(&self, tx: Transaction) -> Result<SuiTransactionBlockResponse> {
+    async fn execute_transaction(&self, tx: Transaction) -> Result<IotaTransactionBlockResponse> {
         let response = self
             .wallet
             .execute_transaction_may_fail(tx)
@@ -735,14 +736,14 @@ impl Client {
             bail!("Failed to find effects for transaction");
         };
 
-        if let SuiExecutionStatus::Failure { error } = effects.status() {
+        if let IotaExecutionStatus::Failure { error } = effects.status() {
             bail!(error.to_owned());
         }
 
         Ok(response)
     }
 
-    async fn client(&self) -> Result<SuiClient> {
+    async fn client(&self) -> Result<IotaClient> {
         self.wallet
             .get_client()
             .await

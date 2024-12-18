@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
@@ -8,11 +9,11 @@ use futures::stream;
 use parking_lot::Mutex;
 
 use crate::{
+    Round,
     block::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::ConsensusResult,
     network::{BlockStream, NetworkService},
-    Round,
 };
 
 pub(crate) struct TestService {
@@ -89,6 +90,13 @@ impl NetworkService for Mutex<TestService> {
         _peer: AuthorityIndex,
         _authorities: Vec<AuthorityIndex>,
     ) -> ConsensusResult<Vec<Bytes>> {
+        unimplemented!("Unimplemented")
+    }
+
+    async fn handle_get_latest_rounds(
+        &self,
+        _peer: AuthorityIndex,
+    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
         unimplemented!("Unimplemented")
     }
 }

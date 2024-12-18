@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export function toShortTypeString<T extends string | null | undefined>(type?: T): T {
-	return type?.replace(/0x0{31,}(\d)/g, '0x$1').replace(/,\b/g, ', ') as T;
+    return type?.replace(/0x0{31,}(\d)/g, '0x$1').replace(/,\b/g, ', ') as T;
 }
 
 export function isNumericString(value: string) {
-	return /^-?\d+$/.test(value);
+    return /^-?\d+$/.test(value);
 }

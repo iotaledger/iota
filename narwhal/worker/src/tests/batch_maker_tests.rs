@@ -1,13 +1,13 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use super::*;
-
-use crate::NUM_SHUTDOWN_RECEIVERS;
 use prometheus::Registry;
 use test_utils::{create_batch_store, latest_protocol_version, transaction};
-use types::MockWorkerToPrimary;
-use types::PreSubscribedBroadcastSender;
+use types::{MockWorkerToPrimary, PreSubscribedBroadcastSender};
+
+use super::*;
+use crate::NUM_SHUTDOWN_RECEIVERS;
 
 fn create_network_client() -> NetworkClient {
     NetworkClient::new_with_empty_id()
@@ -33,8 +33,9 @@ async fn make_batch() {
     let id = 0;
     let _batch_maker_handle = BatchMaker::spawn(
         id,
-        /* max_batch_size */ 500,
-        /* max_batch_delay */
+        // max_batch_size
+        500,
+        // max_batch_delay
         Duration::from_millis(1_000_000), // Ensure the timer is not triggered.
         tx_shutdown.subscribe(),
         rx_batch_maker,
@@ -102,8 +103,9 @@ async fn batch_timeout() {
     let id = 0;
     let _batch_maker_handle = BatchMaker::spawn(
         id,
-        /* max_batch_size */ 200,
-        /* max_batch_delay */
+        // max_batch_size
+        200,
+        // max_batch_delay
         Duration::from_millis(50), // Ensure the timer is triggered.
         tx_shutdown.subscribe(),
         rx_batch_maker,

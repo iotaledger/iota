@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the main difference between publishing a coin and publishing a new type on IOTA?",
+        "answerOptions": [
+            { "answerText": "Coins need to be approved by the network.", "isCorrect": false },
+            { "answerText": "Coins require more gas fees.", "isCorrect": false },
+            { "answerText": "The requirement of a one-time witness when creating a coin.", "isCorrect": true },
+            { "answerText": "Coins cannot be published as modules.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the code example, which object provides control over minting and burning of coins?",
+        "answerOptions": [
+            { "answerText": "CoinMetadata", "isCorrect": false },
+            { "answerText": "TreasuryCap", "isCorrect": true },
+            { "answerText": "Witness", "isCorrect": false },
+            { "answerText": "TxContext", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which module function is used to mint a token in IOTA?",
+        "answerOptions": [
+            { "answerText": "token::mint", "isCorrect": true },
+            { "answerText": "coin::mint", "isCorrect": false },
+            { "answerText": "treasury_cap::mint", "isCorrect": false },
+            { "answerText": "transfer::public_transfer", "isCorrect": false }
+        ]
+    }
+]

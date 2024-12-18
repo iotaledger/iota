@@ -11,7 +11,7 @@ Duplicate rename the `.env.example` file to `.env`. You'll need accounts and api
 
 #### Dependencies
 
-To install the project dependencies, run: 
+To install the project dependencies, run:
 
 ```bash
 forge soldeer update

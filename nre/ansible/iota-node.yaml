@@ -1,0 +1,10 @@
+---
+- hosts: "{{ host }}"
+  become: yes
+  roles:
+    - iota-node
+  vars:
+    skip_iptables: false
+    skip_monitoring: false
+    reset_db: false
+    start_iota: true

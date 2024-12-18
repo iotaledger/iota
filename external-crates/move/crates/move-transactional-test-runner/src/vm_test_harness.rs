@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, path::Path};
@@ -15,10 +16,9 @@ use move_binary_format::{
     errors::{Location, VMError, VMResult},
     CompiledModule,
 };
-use move_command_line_common::{
-    address::ParsedAddress, files::verify_and_create_named_address_mapping,
-};
+use move_command_line_common::files::verify_and_create_named_address_mapping;
 use move_compiler::{editions::Edition, shared::PackagePaths, FullyCompiledProgram};
+use move_core_types::parsing::address::ParsedAddress;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::IdentStr,
@@ -300,7 +300,7 @@ impl SimpleVMTestAdapter {
     }
 }
 
-static PRECOMPILED_MOVE_STDLIB: Lazy<FullyCompiledProgram> = Lazy::new(|| {
+pub static PRECOMPILED_MOVE_STDLIB: Lazy<FullyCompiledProgram> = Lazy::new(|| {
     let program_res = move_compiler::construct_pre_compiled_lib(
         vec![PackagePaths {
             name: None,

@@ -1,5 +1,6 @@
 #!/bin/zsh
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # This script is meant to be executed on MacOS (hence zsh use - to get associative arrays otherwise
@@ -8,7 +9,8 @@
 set -e
 
 usage() {
-    >&2 echo "Usage: $0 -pkg|-pub [-h]"
+    SCRIPT_NAME=$(basename "$1")
+    >&2 echo "Usage: $SCRIPT_NAME -pkg|-pub [-h]"
     >&2 echo ""
     >&2 echo "Options:"
     >&2 echo " -pub          Publish extensions for all targets"
@@ -21,14 +23,14 @@ clean_tmp_dir() {
 }
 
 if [[ "$@" == "" ]]; then
-    usage
+    usage $0
     exit 1
 fi
 
 for cmd in "$@"
 do
     if [[ "$cmd" == "-h" ]]; then
-        usage
+        usage $0
         exit 0
     elif [[ "$cmd" == "-pkg" ]]; then
         OP="package"
@@ -37,7 +39,7 @@ do
         OP="publish"
         OPTS=""
     else
-        usage
+        usage $0
         exit 1
     fi
 done
@@ -46,7 +48,7 @@ done
 NETWORK="testnet"
 VERSION="1.13.0"
 
-# a map from os version identifiers in Sui's binary distribution to os version identifiers
+# a map from os version identifiers in Iota's binary distribution to os version identifiers
 # representing VSCode's target platforms used for creating platform-specific plugin distributions
 declare -A SUPPORTED_OS
 SUPPORTED_OS[macos-arm64]=darwin-arm64
@@ -57,25 +59,20 @@ SUPPORTED_OS[windows-x86_64]=win32-x64
 TMP_DIR=$( mktemp -d -t vscode-create )
 trap "clean_tmp_dir $TMP_DIR" EXIT
 
-LANG_SERVER_DIR="language-server"
-
-rm -rf $LANG_SERVER_DIR
-mkdir $LANG_SERVER_DIR
-
 for DIST_OS VSCODE_OS in "${(@kv)SUPPORTED_OS}"; do
-    # Sui distribution identifier
-    SUI_DISTRO=$NETWORK"-v"$VERSION
-    # name of the Sui distribution archive file, for example sui-testnet-v1.13.0-macos-arm64.tgz
-    SUI_ARCHIVE="sui-"$SUI_DISTRO"-"$DIST_OS".tgz"
-    # a path to downloaded Sui archive
-    SUI_ARCHIVE_PATH=$TMP_DIR"/"$SUI_ARCHIVE
+    # Iota distribution identifier
+    IOTA_DISTRO=$NETWORK"-v"$VERSION
+    # name of the Iota distribution archive file, for example iota-testnet-v1.13.0-macos-arm64.tgz
+    IOTA_ARCHIVE="iota-"$IOTA_DISTRO"-"$DIST_OS".tgz"
+    # a path to downloaded Iota archive
+    IOTA_ARCHIVE_PATH=$TMP_DIR"/"$IOTA_ARCHIVE
 
-    # download Sui archive file to a given location and uncompress it
-    curl https://github.com/MystenLabs/sui/releases/download/"$SUI_DISTRO"/"$SUI_ARCHIVE" -L -o $SUI_ARCHIVE_PATH
-    tar -xf $SUI_ARCHIVE_PATH --directory $TMP_DIR
+    # download Iota archive file to a given location and uncompress it
+    curl https://github.com/iotaledger/iota/releases/download/"$IOTA_DISTRO"/"$IOTA_ARCHIVE" -L -o $IOTA_ARCHIVE_PATH
+    tar -xf $IOTA_ARCHIVE_PATH --directory $TMP_DIR
 
     # names of the move-analyzer binary, both the one becoming part of the extension ($SERVER_BIN)
-    # and the one in the Sui archive ($ARCHIVE_SERVER_BIN)
+    # and the one in the Iota archive ($ARCHIVE_SERVER_BIN)
     SERVER_BIN="move-analyzer"
     ARCHIVE_SERVER_BIN=$SERVER_BIN"-"$DIST_OS
     if [[ "$DIST_OS" == *"windows"* ]]; then
@@ -85,14 +82,20 @@ for DIST_OS VSCODE_OS in "${(@kv)SUPPORTED_OS}"; do
 
     # copy move-analyzer binary to the appropriate location where it's picked up when bundling the
     # extension
+    LANG_SERVER_DIR="language-server"
+    rm -rf $LANG_SERVER_DIR
+    mkdir $LANG_SERVER_DIR
+
     SRC_SERVER_BIN_LOC=$TMP_DIR"/external-crates/move/target/release/"$ARCHIVE_SERVER_BIN
     DST_SERVER_BIN_LOC=$LANG_SERVER_DIR"/"$SERVER_BIN
     cp $SRC_SERVER_BIN_LOC $DST_SERVER_BIN_LOC
 
     vsce "$OP" ${OPTS//VSCODE_OS/$VSCODE_OS} --target "$VSCODE_OS"
+
+    rm -rf $LANG_SERVER_DIR
+
 done
 
-rm -rf $LANG_SERVER_DIR
 
 # build a "generic" version of the extension that does not bundle the move-analyzer binary
 vsce "$OP" ${OPTS//VSCODE_OS/generic}

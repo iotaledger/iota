@@ -1,92 +1,97 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { toB64 } from '@mysten/bcs';
+import { toBase64 } from '@iota/bcs';
 
 import type { SignatureScheme } from '../cryptography/index.js';
 import { Signer } from '../cryptography/index.js';
 import type { MultiSigPublicKey } from './publickey.js';
 
 export class MultiSigSigner extends Signer {
-	#pubkey: MultiSigPublicKey;
-	#signers: Signer[];
+    #pubkey: MultiSigPublicKey;
+    #signers: Signer[];
 
-	constructor(pubkey: MultiSigPublicKey, signers: Signer[] = []) {
-		super();
-		this.#pubkey = pubkey;
-		this.#signers = signers;
+    constructor(pubkey: MultiSigPublicKey, signers: Signer[] = []) {
+        super();
+        this.#pubkey = pubkey;
+        this.#signers = signers;
 
-		let uniqueKeys = new Set();
-		let combinedWeight = 0;
+        let uniqueKeys = new Set();
+        let combinedWeight = 0;
 
-		const weights = pubkey.getPublicKeys().map(({ weight, publicKey }) => ({
-			weight,
-			address: publicKey.toSuiAddress(),
-		}));
+        const weights = pubkey.getPublicKeys().map(({ weight, publicKey }) => ({
+            weight,
+            address: publicKey.toIotaAddress(),
+        }));
 
-		for (let signer of signers) {
-			const address = signer.toSuiAddress();
-			if (uniqueKeys.has(address)) {
-				throw new Error(`Can't create MultiSigSigner with duplicate signers`);
-			}
-			uniqueKeys.add(address);
+        for (let signer of signers) {
+            const address = signer.toIotaAddress();
+            if (uniqueKeys.has(address)) {
+                throw new Error(`Can't create MultiSigSigner with duplicate signers`);
+            }
+            uniqueKeys.add(address);
 
-			const weight = weights.find((w) => w.address === address)?.weight;
+            const weight = weights.find((w) => w.address === address)?.weight;
 
-			if (!weight) {
-				throw new Error(`Signer ${address} is not part of the MultiSig public key`);
-			}
+            if (!weight) {
+                throw new Error(`Signer ${address} is not part of the MultiSig public key`);
+            }
 
-			combinedWeight += weight;
-		}
+            combinedWeight += weight;
+        }
 
-		if (combinedWeight < pubkey.getThreshold()) {
-			throw new Error(`Combined weight of signers is less than threshold`);
-		}
-	}
+        if (combinedWeight < pubkey.getThreshold()) {
+            throw new Error(`Combined weight of signers is less than threshold`);
+        }
+    }
 
-	getKeyScheme(): SignatureScheme {
-		return 'MultiSig';
-	}
+    getKeyScheme(): SignatureScheme {
+        return 'MultiSig';
+    }
 
-	getPublicKey(): MultiSigPublicKey {
-		return this.#pubkey;
-	}
+    getPublicKey(): MultiSigPublicKey {
+        return this.#pubkey;
+    }
 
-	sign(_data: Uint8Array): never {
-		throw new Error(
-			'MultiSigSigner does not support signing directly. Use signTransaction or signPersonalMessage instead',
-		);
-	}
+    sign(_data: Uint8Array): never {
+        throw new Error(
+            'MultiSigSigner does not support signing directly. Use signTransaction or signPersonalMessage instead',
+        );
+    }
 
-	signData(_data: Uint8Array): never {
-		throw new Error(
-			'MultiSigSigner does not support signing directly. Use signTransaction or signPersonalMessage instead',
-		);
-	}
+    signData(_data: Uint8Array): never {
+        throw new Error(
+            'MultiSigSigner does not support signing directly. Use signTransaction or signPersonalMessage instead',
+        );
+    }
 
-	async signTransaction(bytes: Uint8Array) {
-		const signature = this.#pubkey.combinePartialSignatures(
-			await Promise.all(
-				this.#signers.map(async (signer) => (await signer.signTransaction(bytes)).signature),
-			),
-		);
+    async signTransaction(bytes: Uint8Array) {
+        const signature = this.#pubkey.combinePartialSignatures(
+            await Promise.all(
+                this.#signers.map(
+                    async (signer) => (await signer.signTransaction(bytes)).signature,
+                ),
+            ),
+        );
 
-		return {
-			signature,
-			bytes: toB64(bytes),
-		};
-	}
+        return {
+            signature,
+            bytes: toBase64(bytes),
+        };
+    }
 
-	async signPersonalMessage(bytes: Uint8Array) {
-		const signature = this.#pubkey.combinePartialSignatures(
-			await Promise.all(
-				this.#signers.map(async (signer) => (await signer.signPersonalMessage(bytes)).signature),
-			),
-		);
+    async signPersonalMessage(bytes: Uint8Array) {
+        const signature = this.#pubkey.combinePartialSignatures(
+            await Promise.all(
+                this.#signers.map(
+                    async (signer) => (await signer.signPersonalMessage(bytes)).signature,
+                ),
+            ),
+        );
 
-		return {
-			signature,
-			bytes: toB64(bytes),
-		};
-	}
+        return {
+            signature,
+            bytes: toBase64(bytes),
+        };
+    }
 }

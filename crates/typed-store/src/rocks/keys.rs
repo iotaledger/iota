@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use bincode::Options;
-
-use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
-use super::{be_fix_int_ser, RocksDBRawIter, TypedStoreError};
+use bincode::Options;
+use serde::{Serialize, de::DeserializeOwned};
+
+use super::{RocksDBRawIter, TypedStoreError, be_fix_int_ser};
 
 /// An iterator over the keys of a prefix.
 pub struct Keys<'a, K> {
@@ -60,7 +61,6 @@ impl<'a, K: Serialize> Keys<'a, K> {
     }
 
     /// Seeks to the last key in the database (at this column family).
-    ///
     pub fn skip_to_last(mut self) -> Self {
         self.db_iter.seek_to_last();
         self

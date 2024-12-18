@@ -1,61 +1,65 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import { CheckFill16 } from '@mysten/icons';
+import { CheckFill16 } from '@iota/icons';
 import { cx } from 'class-variance-authority';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { ValidatorLogo } from './ValidatorLogo';
 
 type ValidatorListItemProp = {
-	selected?: boolean;
-	value: string | number;
-	validatorAddress: string;
+    selected?: boolean;
+    value: string | number;
+    validatorAddress: string;
 };
 export function ValidatorListItem({ selected, value, validatorAddress }: ValidatorListItemProp) {
-	return (
-		<AnimatePresence>
-			<motion.div whileHover={{ scale: 0.98 }} animate={selected ? { scale: 0.98 } : { scale: 1 }}>
-				<div
-					className={cx(
-						selected ? 'bg-sui/10' : '',
-						'flex justify-between w-full hover:bg-sui/10 py-3.5 px-2 rounded-lg group items-center gap-1',
-					)}
-					role="button"
-				>
-					<div className="flex gap-2.5 items-center justify-start">
-						<div className="relative flex gap-0.5 w-full">
-							{selected && (
-								<CheckFill16
-									fill="fillCurrent"
-									className="text-success text-heading6 absolute translate-x-4 -translate-y-1 rounded-full bg-white"
-								/>
-							)}
-							<ValidatorLogo
-								validatorAddress={validatorAddress}
-								showAddress
-								iconSize="md"
-								size="body"
-								showActiveStatus
-							/>
-						</div>
-					</div>
-					<div className="flex gap-0.5 items-center">
-						<div className="flex gap-0.5 leading-none">
-							<Text variant="body" weight="semibold" color="steel-darker">
-								{value}
-							</Text>
-							<div
-								className={cx(
-									selected ? '!opacity-100' : '',
-									'text-steel items-baseline text-subtitle h-3 flex opacity-0 group-hover:opacity-100',
-								)}
-							></div>
-						</div>
-					</div>
-				</div>
-			</motion.div>
-		</AnimatePresence>
-	);
+    return (
+        <AnimatePresence>
+            <motion.div
+                whileHover={{ scale: 0.98 }}
+                animate={selected ? { scale: 0.98 } : { scale: 1 }}
+            >
+                <div
+                    className={cx(
+                        selected ? 'bg-iota/10' : '',
+                        'group flex w-full items-center justify-between gap-1 rounded-lg px-2 py-3.5 hover:bg-iota/10',
+                    )}
+                    role="button"
+                >
+                    <div className="flex items-center justify-start gap-2.5">
+                        <div className="relative flex w-full gap-0.5">
+                            {selected && (
+                                <CheckFill16
+                                    fill="fillCurrent"
+                                    className="absolute -translate-y-1 translate-x-4 rounded-full bg-white text-heading6 text-success"
+                                />
+                            )}
+                            <ValidatorLogo
+                                validatorAddress={validatorAddress}
+                                showAddress
+                                iconSize="md"
+                                size="body"
+                                showActiveStatus
+                            />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                        <div className="flex gap-0.5 leading-none">
+                            <Text variant="body" weight="semibold" color="steel-darker">
+                                {value}
+                            </Text>
+                            <div
+                                className={cx(
+                                    selected ? '!opacity-100' : '',
+                                    'flex h-3 items-baseline text-subtitle text-steel opacity-0 group-hover:opacity-100',
+                                )}
+                            ></div>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+        </AnimatePresence>
+    );
 }

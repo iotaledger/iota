@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -15,7 +16,7 @@ use anyhow::{ensure, Result};
 use colored::Colorize;
 use itertools::{Either, Itertools};
 use move_binary_format::file_format::CompiledModule;
-use move_bytecode_source_map::utils::source_map_from_file;
+use move_bytecode_source_map::utils::{serialize_to_json, source_map_from_file};
 use move_bytecode_utils::Modules;
 use move_command_line_common::files::{
     extension_equals, find_filenames, try_exists, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
@@ -26,7 +27,7 @@ use move_compiler::{
     editions::Flavor,
     linters,
     shared::{files::MappedFiles, NamedAddressMap, NumericalAddress, PackageConfig, PackagePaths},
-    sui_mode::{self},
+    iota_mode::{self},
     Compiler,
 };
 use move_docgen::{Docgen, DocgenOptions};
@@ -322,6 +323,13 @@ impl OnDiskCompiledPackage {
             compiled_unit.unit.serialize_source_map().as_slice(),
         )?;
         self.save_under(
+            CompiledPackageLayout::SourceMaps
+                .path()
+                .join(&file_path)
+                .with_extension("json"),
+            &serialize_to_json(&compiled_unit.unit.source_map)?,
+        )?;
+        self.save_under(
             CompiledPackageLayout::Sources
                 .path()
                 .join(&file_path)
@@ -478,19 +486,19 @@ impl CompiledPackage {
         paths.push(sources_package_paths.clone());
 
         let lint_level = resolution_graph.build_options.lint_flag.get();
-        let sui_mode = resolution_graph
+        let iota_mode = resolution_graph
             .build_options
             .default_flavor
-            .map_or(false, |f| f == Flavor::Sui);
+            .map_or(false, |f| f == Flavor::Iota);
 
         let mut compiler = Compiler::from_package_paths(vfs_root, paths, bytecode_deps)
             .unwrap()
             .set_flags(flags);
-        if sui_mode {
-            let (filter_attr_name, filters) = sui_mode::linters::known_filters();
+        if iota_mode {
+            let (filter_attr_name, filters) = iota_mode::linters::known_filters();
             compiler = compiler
                 .add_custom_known_filters(filter_attr_name, filters)
-                .add_visitors(sui_mode::linters::linter_visitors(lint_level))
+                .add_visitors(iota_mode::linters::linter_visitors(lint_level))
         }
         let (filter_attr_name, filters) = linters::known_filters();
         compiler = compiler

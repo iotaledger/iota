@@ -1,32 +1,33 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-query getNormalizedMoveStruct($packageId: SuiAddress!, $module: String!, $struct: String!) {
-	object(address: $packageId) {
-		asMovePackage {
-			address
+query getNormalizedMoveStruct($packageId: IotaAddress!, $module: String!, $struct: String!) {
+    object(address: $packageId) {
+        asMovePackage {
+            address
 
-			module(name: $module) {
-				fileFormatVersion
-				struct(name: $struct) {
-					...RPC_MOVE_STRUCT_FIELDS
-				}
-			}
-		}
-	}
+            module(name: $module) {
+                fileFormatVersion
+                struct(name: $struct) {
+                    ...RPC_MOVE_STRUCT_FIELDS
+                }
+            }
+        }
+    }
 }
 
 fragment RPC_MOVE_STRUCT_FIELDS on MoveStruct {
-	name
-	abilities
-	fields {
-		name
-		type {
-			signature
-		}
-	}
-	typeParameters {
-		isPhantom
-		constraints
-	}
+    name
+    abilities
+    fields {
+        name
+        type {
+            signature
+        }
+    }
+    typeParameters {
+        isPhantom
+        constraints
+    }
 }

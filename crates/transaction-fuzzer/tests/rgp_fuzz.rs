@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use proptest::collection::vec;
-use proptest::prelude::*;
-use proptest::proptest;
-use transaction_fuzzer::account_universe::default_num_accounts;
-use transaction_fuzzer::account_universe::default_num_transactions;
-use transaction_fuzzer::account_universe::AccountUniverseGen;
-use transaction_fuzzer::account_universe::P2PTransferGenGasPriceInRange;
-use transaction_fuzzer::config_fuzzer::run_rgp;
+use proptest::{collection::vec, prelude::*, proptest};
+use transaction_fuzzer::{
+    account_universe::{
+        AccountUniverseGen, P2PTransferGenGasPriceInRange, default_num_accounts,
+        default_num_transactions,
+    },
+    config_fuzzer::run_rgp,
+};
 
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(20))]

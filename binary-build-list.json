@@ -1,22 +1,22 @@
 {
     "release_binaries": [
-        "sui",
-        "sui-node",
-        "sui-tool",
-        "sui-faucet",
-        "sui-data-ingestion",
-        "sui-bridge",
-        "sui-bridge-cli",
-        "sui-graphql-rpc",
-        "sui-test-validator",
+        "iota",
+        "iota-node",
+        "iota-tool",
+        "iota-faucet",
+        "iota-data-ingestion",
+        "iota-bridge",
+        "iota-bridge-cli",
+        "iota-graphql-rpc",
+        "iota-test-validator",
         "move-analyzer"
     ],
     "internal_binaries": [
         "stress",
-        "sui-proxy",
-        "sui-metric-checker",
-        "sui-analytics-indexer",
-        "sui-security-watchdog",
-		"suiop"
+        "iota-proxy",
+        "iota-metric-checker",
+        "iota-analytics-indexer",
+        "iota-security-watchdog",
+		"iotaop"
 	]
 }

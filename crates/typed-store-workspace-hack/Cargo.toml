@@ -8,19 +8,20 @@
 [package]
 name = "typed-store-workspace-hack"
 version = "0.0.0"
+edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
-libc = { version = "0.2", features = ["extra_traits"] }
-zstd-sys = { version = "2", features = ["std"] }
-nom = { version = "7" }
-memchr = { version = "2" }
 lazy_static = { version = "1", default-features = false, features = ["spin_no_std"] }
+libc = { version = "0.2", features = ["extra_traits"] }
+memchr = { version = "2" }
+nom = { version = "7" }
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = { version = "1" }
 regex = { version = "1" }
 regex-syntax = { version = "0.7" }
+zstd-sys = { version = "2", features = ["std"] }
 
 [build-dependencies]
 memchr = { version = "2" }

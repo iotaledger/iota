@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -9,18 +10,19 @@ use std::{
 
 use consensus_config::AuthorityIndex;
 use parking_lot::RwLock;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 
 use crate::{
+    CommittedSubDag,
     block::{
-        genesis_blocks, BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, Round, Slot, TestBlock,
-        VerifiedBlock,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, Round, Slot, TestBlock, VerifiedBlock,
+        genesis_blocks,
     },
-    commit::{sort_sub_dag_blocks, CommitDigest, TrustedCommit, DEFAULT_WAVE_LENGTH},
+    commit::{CommitDigest, DEFAULT_WAVE_LENGTH, TrustedCommit},
     context::Context,
     dag_state::DagState,
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
-    CommittedSubDag,
+    linearizer::{BlockStoreAPI, Linearizer},
 };
 
 /// DagBuilder API
@@ -44,19 +46,22 @@ use crate::{
 /// Persisting to DagState by Layer
 /// ```
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
-///    dag_builder.context.clone(),
-///    Arc::new(MemStore::new()),
+///     dag_builder.context.clone(),
+///     Arc::new(MemStore::new()),
 /// )));
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let dag_builder = DagBuilder::new(context);
-/// dag_builder.layer(1).build().persist_layers(dag_state.clone()); // persist the layer
+/// dag_builder
+///     .layer(1)
+///     .build()
+///     .persist_layers(dag_state.clone()); // persist the layer
 /// ```
 ///
 /// Persisting entire DAG to DagState
 /// ```
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
-///    dag_builder.context.clone(),
-///    Arc::new(MemStore::new()),
+///     dag_builder.context.clone(),
+///     Arc::new(MemStore::new()),
 /// )));
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let dag_builder = DagBuilder::new(context);
@@ -83,6 +88,9 @@ pub(crate) struct DagBuilder {
     // All blocks created by dag builder. Will be used to pretty print or to be
     // retrieved for testing/persiting to dag state.
     pub(crate) blocks: BTreeMap<BlockRef, VerifiedBlock>,
+    // All the committed sub dags created by the dag builder.
+    pub(crate) committed_sub_dags: Vec<(CommittedSubDag, TrustedCommit)>,
+    pub(crate) last_committed_rounds: Vec<Round>,
 
     wave_length: Round,
     number_of_leaders: u32,
@@ -100,6 +108,7 @@ impl DagBuilder {
             .collect();
         let last_ancestors = genesis.keys().cloned().collect();
         Self {
+            last_committed_rounds: vec![0; context.committee.size()],
             context,
             leader_schedule,
             wave_length: DEFAULT_WAVE_LENGTH,
@@ -108,6 +117,7 @@ impl DagBuilder {
             genesis,
             last_ancestors,
             blocks: BTreeMap::new(),
+            committed_sub_dags: vec![],
         }
     }
 
@@ -123,64 +133,108 @@ impl DagBuilder {
             .collect::<Vec<VerifiedBlock>>()
     }
 
-    // TODO: reuse logic from Linearizer.
-    pub(crate) fn get_sub_dag_and_commit(
-        &self,
-        leader_block: VerifiedBlock,
-        last_committed_rounds: Vec<Round>,
-        commit_index: u32,
-    ) -> (CommittedSubDag, TrustedCommit) {
-        let mut to_commit = Vec::new();
-        let mut committed = HashSet::new();
+    pub(crate) fn all_blocks(&self) -> Vec<VerifiedBlock> {
+        assert!(
+            !self.blocks.is_empty(),
+            "No blocks have been created, please make sure that you have called build method"
+        );
+        self.blocks.values().cloned().collect()
+    }
 
-        let timestamp_ms = leader_block.timestamp_ms();
-        let leader_block_ref = leader_block.reference();
-        let mut buffer = vec![leader_block];
-        assert!(committed.insert(leader_block_ref));
-        while let Some(x) = buffer.pop() {
-            to_commit.push(x.clone());
+    pub(crate) fn get_sub_dag_and_commits(
+        &mut self,
+        leader_rounds: RangeInclusive<Round>,
+    ) -> Vec<(CommittedSubDag, TrustedCommit)> {
+        let (last_leader_round, mut last_commit_index, mut last_timestamp_ms) =
+            if let Some((sub_dag, _)) = self.committed_sub_dags.last() {
+                (
+                    sub_dag.leader.round,
+                    sub_dag.commit_ref.index,
+                    sub_dag.timestamp_ms,
+                )
+            } else {
+                (0, 0, 0)
+            };
 
-            let ancestors = self.get_blocks(
-                &x.ancestors()
+        // Create any remaining committed sub dags
+        for leader_block in self
+            .leader_blocks(last_leader_round + 1..=*leader_rounds.end())
+            .into_iter()
+            .flatten()
+        {
+            let leader_block_ref = leader_block.reference();
+            last_commit_index += 1;
+            last_timestamp_ms = leader_block.timestamp_ms().max(last_timestamp_ms);
+
+            struct FooStorage {
+                gc_round: Round,
+                context: Arc<Context>,
+                blocks: BTreeMap<BlockRef, VerifiedBlock>,
+            }
+            impl BlockStoreAPI for FooStorage {
+                fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
+                    refs.iter()
+                        .map(|block_ref| self.blocks.get(block_ref).cloned())
+                        .collect()
+                }
+
+                fn gc_round(&self) -> Round {
+                    self.gc_round
+                }
+
+                fn gc_enabled(&self) -> bool {
+                    self.context.protocol_config.gc_depth() > 0
+                }
+            }
+            let storage = FooStorage {
+                context: self.context.clone(),
+                blocks: self.blocks.clone(),
+                gc_round: leader_block
+                    .round()
+                    .saturating_sub(1)
+                    .saturating_sub(self.context.protocol_config.gc_depth()),
+            };
+
+            let (to_commit, rejected_transactions) = Linearizer::linearize_sub_dag(
+                leader_block,
+                self.last_committed_rounds.clone(),
+                storage,
+            );
+
+            // Update the last committed rounds
+            for block in &to_commit {
+                self.last_committed_rounds[block.author()] =
+                    self.last_committed_rounds[block.author()].max(block.round());
+            }
+
+            let commit = TrustedCommit::new_for_test(
+                last_commit_index,
+                CommitDigest::MIN,
+                last_timestamp_ms,
+                leader_block_ref,
+                to_commit
                     .iter()
-                    .copied()
-                    .filter(|ancestor| {
-                        // We skip the block if we already committed it or we reached a
-                        // round that we already committed.
-                        !committed.contains(ancestor)
-                            && last_committed_rounds[ancestor.author] < ancestor.round
-                    })
+                    .map(|block| block.reference())
                     .collect::<Vec<_>>(),
             );
 
-            for ancestor in ancestors {
-                buffer.push(ancestor.clone());
-                assert!(committed.insert(ancestor.reference()));
-            }
+            let sub_dag = CommittedSubDag::new(
+                leader_block_ref,
+                to_commit,
+                rejected_transactions,
+                last_timestamp_ms,
+                commit.reference(),
+                vec![],
+            );
+
+            self.committed_sub_dags.push((sub_dag, commit));
         }
 
-        sort_sub_dag_blocks(&mut to_commit);
-
-        let commit = TrustedCommit::new_for_test(
-            commit_index,
-            CommitDigest::MIN,
-            timestamp_ms,
-            leader_block_ref,
-            to_commit
-                .iter()
-                .map(|block| block.reference())
-                .collect::<Vec<_>>(),
-        );
-
-        let sub_dag = CommittedSubDag::new(
-            leader_block_ref,
-            to_commit,
-            timestamp_ms,
-            commit.reference(),
-            vec![],
-        );
-
-        (sub_dag, commit)
+        self.committed_sub_dags
+            .clone()
+            .into_iter()
+            .filter(|(sub_dag, _)| leader_rounds.contains(&sub_dag.leader.round))
+            .collect()
     }
 
     pub(crate) fn leader_blocks(
@@ -423,9 +477,10 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
-    // Should be called when building a leader round. Will ensure leader block is missing.
-    // A list of specified leader offsets can be provided to skip those leaders.
-    // If none are provided all potential leaders for the round will be skipped.
+    // Should be called when building a leader round. Will ensure leader block is
+    // missing. A list of specified leader offsets can be provided to skip those
+    // leaders. If none are provided all potential leaders for the round will be
+    // skipped.
     pub fn no_leader_block(mut self, specified_leader_offsets: Vec<u32>) -> Self {
         self.no_leader_block = true;
         self.specified_leader_block_offsets = Some(specified_leader_offsets);
@@ -433,9 +488,10 @@ impl<'a> LayerBuilder<'a> {
     }
 
     // Should be called when building a voting round. Will ensure vote is missing.
-    // A list of specified leader offsets can be provided to skip those leader links.
-    // If none are provided all potential leaders for the round will be skipped.
-    // note: configuration is terminal and layer will be built after this call.
+    // A list of specified leader offsets can be provided to skip those leader
+    // links. If none are provided all potential leaders for the round will be
+    // skipped. note: configuration is terminal and layer will be built after
+    // this call.
     pub fn no_leader_link(
         mut self,
         leader_round: Round,
@@ -457,7 +513,8 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
-    // Multiple blocks will be created for the specified authorities at the layer round.
+    // Multiple blocks will be created for the specified authorities at the layer
+    // round.
     pub fn equivocate(mut self, equivocations: usize) -> Self {
         // authorities must be specified for this to apply
         assert!(self.specified_authorities.is_some());
@@ -518,7 +575,10 @@ impl<'a> LayerBuilder<'a> {
     }
 
     pub fn persist_layers(&self, dag_state: Arc<RwLock<DagState>>) {
-        assert!(!self.blocks.is_empty(), "Called to persist layers although no blocks have been created. Make sure you have called build before.");
+        assert!(
+            !self.blocks.is_empty(),
+            "Called to persist layers although no blocks have been created. Make sure you have called build before."
+        );
         dag_state.write().accept_blocks(self.blocks.clone());
     }
 
@@ -558,7 +618,7 @@ impl<'a> LayerBuilder<'a> {
             .map(|authority| {
                 authorities_to_shuffle.shuffle(&mut rng);
 
-                // TODO: handle quroum threshold properly with stake
+                // TODO: handle quorum threshold properly with stake
                 let min_ancestors: HashSet<AuthorityIndex> = authorities_to_shuffle
                     .iter()
                     .take(quorum_threshold)
@@ -584,7 +644,8 @@ impl<'a> LayerBuilder<'a> {
         unimplemented!("configure_random_weak_links");
     }
 
-    // Layer round misses link to leader, but other blocks are fully connected with ancestors.
+    // Layer round misses link to leader, but other blocks are fully connected with
+    // ancestors.
     fn configure_no_leader_links(
         &mut self,
         authorities: Vec<AuthorityIndex>,

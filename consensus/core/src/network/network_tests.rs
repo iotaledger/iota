@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::Duration};
@@ -11,13 +12,13 @@ use rstest::rstest;
 use tokio::time::sleep;
 
 use super::{
-    anemo_network::AnemoManager, test_network::TestService, tonic_network::TonicManager,
-    NetworkClient, NetworkManager,
+    NetworkClient, NetworkManager, anemo_network::AnemoManager, test_network::TestService,
+    tonic_network::TonicManager,
 };
 use crate::{
+    Round,
     block::{TestBlock, VerifiedBlock},
     context::Context,
-    Round,
 };
 
 trait ManagerBuilder {
@@ -31,7 +32,11 @@ trait ManagerBuilder {
 struct AnemoManagerBuilder {}
 
 impl ManagerBuilder for AnemoManagerBuilder {
-    fn build(&self, context: Arc<Context>, network_keypair: NetworkKeyPair) -> AnemoManager {
+    fn build(
+        &self,
+        context: Arc<Context>,
+        network_keypair: NetworkKeyPair,
+    ) -> impl NetworkManager<Mutex<TestService>> {
         AnemoManager::new(context, network_keypair)
     }
 }
@@ -39,7 +44,11 @@ impl ManagerBuilder for AnemoManagerBuilder {
 struct TonicManagerBuilder {}
 
 impl ManagerBuilder for TonicManagerBuilder {
-    fn build(&self, context: Arc<Context>, network_keypair: NetworkKeyPair) -> TonicManager {
+    fn build(
+        &self,
+        context: Arc<Context>,
+        network_keypair: NetworkKeyPair,
+    ) -> impl NetworkManager<Mutex<TestService>> {
         TonicManager::new(context, network_keypair)
     }
 }
@@ -61,8 +70,8 @@ fn service_with_own_blocks() -> Arc<Mutex<TestService>> {
 }
 
 // TODO: figure out the issue with using simulated time with tonic in this test.
-// When waiting for the server to become ready, it may need to use std::thread::sleep()
-// instead of tokio::time::sleep().
+// When waiting for the server to become ready, it may need to use
+// std::thread::sleep() instead of tokio::time::sleep().
 #[rstest]
 #[tokio::test]
 async fn send_and_receive_blocks_with_auth(
@@ -126,8 +135,8 @@ async fn send_and_receive_blocks_with_auth(
         test_block_0.serialized(),
     );
 
-    // `Committee` is generated with the same random seed in Context::new_for_test(),
-    // so the first 4 authorities are the same.
+    // `Committee` is generated with the same random seed in
+    // Context::new_for_test(), so the first 4 authorities are the same.
     let (context_4, keys_4) = Context::new_for_test(5);
     let context_4 = Arc::new(
         context_4
@@ -142,23 +151,27 @@ async fn send_and_receive_blocks_with_auth(
     // client_4 should not be able to reach service_0 or service_1, because of the
     // AllowedPeers filter.
     let test_block_2 = VerifiedBlock::new_for_test(TestBlock::new(9, 2).build());
-    assert!(client_4
-        .send_block(
-            context.committee.to_authority_index(0).unwrap(),
-            &test_block_2,
-            Duration::from_secs(5),
-        )
-        .await
-        .is_err());
+    assert!(
+        client_4
+            .send_block(
+                context.committee.to_authority_index(0).unwrap(),
+                &test_block_2,
+                Duration::from_secs(5),
+            )
+            .await
+            .is_err()
+    );
     let test_block_3 = VerifiedBlock::new_for_test(TestBlock::new(9, 3).build());
-    assert!(client_4
-        .send_block(
-            context.committee.to_authority_index(1).unwrap(),
-            &test_block_3,
-            Duration::from_secs(5),
-        )
-        .await
-        .is_err());
+    assert!(
+        client_4
+            .send_block(
+                context.committee.to_authority_index(1).unwrap(),
+                &test_block_3,
+                Duration::from_secs(5),
+            )
+            .await
+            .is_err()
+    );
 }
 
 #[rstest]

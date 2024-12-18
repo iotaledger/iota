@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod account_universe;
@@ -8,20 +9,20 @@ pub mod programmable_transaction_gen;
 pub mod transaction_data_gen;
 pub mod type_arg_fuzzer;
 
-use executor::Executor;
-use proptest::collection::vec;
-use proptest::test_runner::TestRunner;
 use std::fmt::Debug;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::crypto::get_key_pair;
-use sui_types::crypto::AccountKeyPair;
-use sui_types::digests::TransactionDigest;
-use sui_types::object::{MoveObject, Object, Owner, OBJECT_START_VERSION};
-use sui_types::{gas_coin::TOTAL_SUPPLY_MIST, transaction::GasData};
 
-use proptest::prelude::*;
-use rand::{rngs::StdRng, SeedableRng};
+use executor::Executor;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    crypto::{AccountKeyPair, get_key_pair},
+    digests::TransactionDigest,
+    gas_coin::TOTAL_SUPPLY_NANOS,
+    object::{MoveObject, OBJECT_START_VERSION, Object, Owner},
+    transaction::GasData,
+};
+use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
+use rand::{SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
@@ -35,15 +36,16 @@ fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
 /// with the given owners.
 fn generate_random_gas_data(
     seed: [u8; 32],
-    gas_coin_owners: Vec<Owner>, // arbitrarily generated owners, can be shared or immutable or obj-owned too
-    owned_by_sender: bool,       // whether to set owned gas coins to be owned by the sender
+    gas_coin_owners: Vec<Owner>, /* arbitrarily generated owners, can be shared or immutable or
+                                  * obj-owned too */
+    owned_by_sender: bool, // whether to set owned gas coins to be owned by the sender
 ) -> GasDataWithObjects {
-    let (sender, sender_key): (SuiAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
     let mut rng = StdRng::from_seed(seed);
     let mut gas_objects = vec![];
     let mut object_refs = vec![];
 
-    let max_gas_balance = TOTAL_SUPPLY_MIST;
+    let max_gas_balance = TOTAL_SUPPLY_NANOS;
 
     let total_gas_balance = rng.gen_range(0..=max_gas_balance);
     let mut remaining_gas_balance = total_gas_balance;
@@ -54,12 +56,12 @@ fn generate_random_gas_data(
             Owner::ObjectOwner(_) | Owner::AddressOwner(_) if owned_by_sender => {
                 Owner::AddressOwner(sender)
             }
-            _ => *o,
+            _ => o.clone(),
         })
         .collect::<Vec<_>>();
     for owner in gas_coin_owners.iter().take(num_gas_objects - 1) {
         let gas_balance = rng.gen_range(0..=remaining_gas_balance);
-        let gas_object = new_gas_coin_with_balance_and_owner(gas_balance, *owner);
+        let gas_object = new_gas_coin_with_balance_and_owner(gas_balance, owner.clone());
         remaining_gas_balance -= gas_balance;
         object_refs.push(gas_object.compute_object_reference());
         gas_objects.push(gas_object);
@@ -67,7 +69,7 @@ fn generate_random_gas_data(
     // Put the remaining balance in the last gas object.
     let last_gas_object = new_gas_coin_with_balance_and_owner(
         remaining_gas_balance,
-        gas_coin_owners[num_gas_objects - 1],
+        gas_coin_owners[num_gas_objects - 1].clone(),
     );
     object_refs.push(last_gas_object.compute_object_reference());
     gas_objects.push(last_gas_object);
@@ -147,8 +149,8 @@ pub struct TestData<D> {
     pub executor: Executor,
 }
 
-/// Run a proptest test with give number of test cases, a strategy for something and a test function testing that something
-/// with an `Arc<AuthorityState>`.
+/// Run a proptest test with give number of test cases, a strategy for something
+/// and a test function testing that something with an `Arc<AuthorityState>`.
 pub fn run_proptest<D>(
     num_test_cases: u32,
     strategy: impl Strategy<Value = D>,

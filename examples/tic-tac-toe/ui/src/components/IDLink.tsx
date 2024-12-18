@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { formatAddress } from '@mysten/sui/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { CheckIcon, CopyIcon } from '@radix-ui/react-icons';
 import { Button, Flex, Link, Tooltip } from '@radix-ui/themes';
 import { useNetworkVariable } from 'config';

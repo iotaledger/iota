@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Toaster } from 'react-hot-toast';
@@ -8,14 +9,14 @@ import { Header } from '@/components/header';
 import { Warning } from '@/components/warning';
 
 export function Root() {
-	return (
-		<div>
-			<Toaster position="bottom-center" />
-			<Header />
-			<div className="container py-8">
-				<Outlet />
-			</div>
-			<Warning />
-		</div>
-	);
+    return (
+        <div>
+            <Toaster position="bottom-center" />
+            <Header />
+            <div className="container py-8">
+                <Outlet />
+            </div>
+            <Warning />
+        </div>
+    );
 }

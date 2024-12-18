@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs, BcsType } from '@mysten/sui/bcs';
-import { SuiClient } from '@mysten/sui/client';
-import { TransactionBlock } from '@mysten/sui/transactions';
+import { bcs, BcsType } from '@iota/iota-sdk/bcs';
+import { IotaClient } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import pLimit from 'p-limit';
 
 const limit = pLimit(5);
@@ -91,8 +92,8 @@ const PoolCreated = bcs.struct('PoolCreated', {
 	// We don't need other fields for the mev bot
 });
 
-// Create a client connected to the Sui network
-const client = new SuiClient({ url: 'https://sui-mainnet.mystenlabs.com/json-rpc' });
+// Create a client connected to the Iota network
+const client = new IotaClient({ url: 'https://iota-mainnet.iota.org/json-rpc' });
 
 // Retrieve all DeepBook pools using the PoolCreated events
 let allPools = await retrieveAllPools();
@@ -111,7 +112,7 @@ let allExpiredOrders = (await Promise.all(allExpiredOrdersPromises)).flat();
 // Create a transaction to clean up all expired orders and get the estimated storage fee rebate using devInspectTransactionBlock
 let { rebate } = await createCleanUpTransaction(allExpiredOrders);
 
-console.log(`Total estimated storage fee rebate: ${rebate / 1e9} SUI`);
+console.log(`Total estimated storage fee rebate: ${rebate / 1e9} IOTA`);
 
 // Implementer Todo : sign and execute the transaction
 
@@ -127,9 +128,15 @@ async function retrieveAllPools() {
 		});
 		data.push(...page.data);
 	}
+
 	return data.map((event) => {
-		return PoolCreated.fromBase64(event.bcs);
-	});
+		try {
+			return PoolCreated.fromBase64(event.bcs);
+		} catch (err) {
+			console.error("Failed to parse event:", err, "Event:", event);
+			return null;
+		}
+	}).filter((pool) => pool !== null);
 }
 
 async function retrieveExpiredOrders(poolId: string) {
@@ -194,7 +201,7 @@ async function retrieveExpiredOrders(poolId: string) {
 }
 
 async function createCleanUpTransaction(poolOrders: { pool: any; expiredOrders: any[] }[]) {
-	let tx = new TransactionBlock();
+	let tx = new Transaction();
 
 	for (let poolOrder of poolOrders) {
 		let orderIds = poolOrder.expiredOrders.map((order) => tx.object(order.order_id));

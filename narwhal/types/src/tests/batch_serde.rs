@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::worker::batch_serde::Token::NewtypeVariant;
-use crate::{Batch, BatchV1, Metadata};
-use serde_test::{assert_tokens, Token};
+use serde_test::{Token, assert_tokens};
+
+use crate::{Batch, BatchV1, Metadata, worker::batch_serde::Token::NewtypeVariant};
 #[test]
 fn test_serde_batch() {
     let tx = || vec![1; 5];
@@ -15,43 +16,40 @@ fn test_serde_batch() {
         },
     });
 
-    assert_tokens(
-        &batch,
-        &[
-            NewtypeVariant {
-                name: "Batch",
-                variant: "V1",
-            },
-            Token::Struct {
-                name: "BatchV1",
-                len: 2,
-            },
-            Token::Str("transactions"),
-            Token::Seq { len: Some(2) },
-            Token::Seq { len: Some(5) },
-            Token::U8(1),
-            Token::U8(1),
-            Token::U8(1),
-            Token::U8(1),
-            Token::U8(1),
-            Token::SeqEnd,
-            Token::Seq { len: Some(5) },
-            Token::U8(1),
-            Token::U8(1),
-            Token::U8(1),
-            Token::U8(1),
-            Token::U8(1),
-            Token::SeqEnd,
-            Token::SeqEnd,
-            Token::Str("metadata"),
-            Token::Struct {
-                name: "Metadata",
-                len: 1,
-            },
-            Token::Str("created_at"),
-            Token::U64(1666205365890),
-            Token::StructEnd,
-            Token::StructEnd,
-        ],
-    );
+    assert_tokens(&batch, &[
+        NewtypeVariant {
+            name: "Batch",
+            variant: "V1",
+        },
+        Token::Struct {
+            name: "BatchV1",
+            len: 2,
+        },
+        Token::Str("transactions"),
+        Token::Seq { len: Some(2) },
+        Token::Seq { len: Some(5) },
+        Token::U8(1),
+        Token::U8(1),
+        Token::U8(1),
+        Token::U8(1),
+        Token::U8(1),
+        Token::SeqEnd,
+        Token::Seq { len: Some(5) },
+        Token::U8(1),
+        Token::U8(1),
+        Token::U8(1),
+        Token::U8(1),
+        Token::U8(1),
+        Token::SeqEnd,
+        Token::SeqEnd,
+        Token::Str("metadata"),
+        Token::Struct {
+            name: "Metadata",
+            len: 1,
+        },
+        Token::Str("created_at"),
+        Token::U64(1666205365890),
+        Token::StructEnd,
+        Token::StructEnd,
+    ]);
 }

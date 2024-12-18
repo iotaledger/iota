@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import useAppSelector from '_app/hooks/useAppSelector';
@@ -7,8 +8,8 @@ import { FEATURES } from '_shared/experimentation/features';
 import { useFeature } from '@growthbook/growthbook-react';
 
 export function useIsWalletDefiEnabled() {
-	const isDefiWalletEnabled = useFeature<boolean>(FEATURES.WALLET_DEFI).value;
-	const { apiEnv } = useAppSelector((state) => state.app);
+    const isDefiWalletEnabled = useFeature<boolean>(FEATURES.WALLET_DEFI).value;
+    const { apiEnv } = useAppSelector((state) => state.app);
 
-	return apiEnv === API_ENV.mainnet && isDefiWalletEnabled;
+    return apiEnv === API_ENV.mainnet && isDefiWalletEnabled;
 }

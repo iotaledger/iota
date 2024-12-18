@@ -1,16 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::block::Round;
-use crate::context::Context;
-use crate::core::CoreSignalsReceivers;
-use crate::core_thread::CoreThreadDispatcher;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::oneshot::{Receiver, Sender};
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
-use tokio::time::{sleep_until, Instant};
+use std::{sync::Arc, time::Duration};
+
+use tokio::{
+    sync::{
+        oneshot::{Receiver, Sender},
+        watch,
+    },
+    task::JoinHandle,
+    time::{Instant, sleep_until},
+};
 use tracing::{debug, warn};
+
+use crate::{
+    block::Round, context::Context, core::CoreSignalsReceivers, core_thread::CoreThreadDispatcher,
+};
 
 pub(crate) struct LeaderTimeoutTaskHandle {
     handle: JoinHandle<()>,
@@ -119,20 +124,21 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
     use async_trait::async_trait;
     use consensus_config::Parameters;
     use parking_lot::Mutex;
-    use tokio::time::{sleep, Instant};
+    use tokio::time::{Instant, sleep};
 
-    use crate::block::{BlockRef, Round, VerifiedBlock};
-    use crate::context::Context;
-    use crate::core::CoreSignals;
-    use crate::core_thread::{CoreError, CoreThreadDispatcher};
-    use crate::leader_timeout::LeaderTimeoutTask;
+    use crate::{
+        block::{BlockRef, Round, VerifiedBlock},
+        context::Context,
+        core::CoreSignals,
+        core_thread::{CoreError, CoreThreadDispatcher},
+        leader_timeout::LeaderTimeoutTask,
+        round_prober::QuorumRound,
+    };
 
     #[derive(Clone, Default)]
     struct MockCoreThreadDispatcher {
@@ -167,10 +173,24 @@ mod tests {
             todo!()
         }
 
-        fn set_consumer_availability(&self, _available: bool) -> Result<(), CoreError> {
+        fn set_subscriber_exists(&self, _exists: bool) -> Result<(), CoreError> {
             todo!()
         }
+
+        fn set_propagation_delay_and_quorum_rounds(
+            &self,
+            _delay: Round,
+            _received_quorum_rounds: Vec<QuorumRound>,
+            _accepted_quorum_rounds: Vec<QuorumRound>,
+        ) -> Result<(), CoreError> {
+            todo!()
+        }
+
         fn set_last_known_proposed_round(&self, _round: Round) -> Result<(), CoreError> {
+            todo!()
+        }
+
+        fn highest_received_rounds(&self) -> Vec<Round> {
             todo!()
         }
     }
@@ -197,7 +217,8 @@ mod tests {
         // send a signal that a new round has been produced.
         signals.new_round(10);
 
-        // wait enough until the min round delay has passed and a new_block call is triggered
+        // wait enough until the min round delay has passed and a new_block call is
+        // triggered
         sleep(2 * min_round_delay).await;
         let all_calls = dispatcher.get_new_block_calls().await;
         assert_eq!(all_calls.len(), 1);
@@ -253,8 +274,8 @@ mod tests {
         // spawn the task
         let _handle = LeaderTimeoutTask::start(dispatcher.clone(), &signal_receivers, context);
 
-        // now send some signals with some small delay between them, but not enough so every round
-        // manages to timeout and call the force new block method.
+        // now send some signals with some small delay between them, but not enough so
+        // every round manages to timeout and call the force new block method.
         signals.new_round(13);
         sleep(min_round_delay / 2).await;
         signals.new_round(14);

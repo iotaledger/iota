@@ -9,11 +9,13 @@
 1. Install bpf-linker: `cargo install --no-default-features bpf-linker`
 
 ## Template Generation
+
 You can optionally use templates to generate a new project. (Recommended)
 
 `cargo install cargo-generate`
 
 ## Starting A New Project
+
 Although nodefw is already here, if you want to switch to a new directory and make
 another filter...
 
@@ -38,8 +40,9 @@ cargo build
 ```
 
 ## Run
-NB the RUST_LOG env var. if you wish to run the binary outside of a cargo run, you'll need linux capabilites.  xtask does `sudo -E` for you automatically, but if you don't you'll need to set
-capabilites on the built binary.  Some or all of these, depending on the program.
+
+NB the RUST_LOG env var. if you wish to run the binary outside of a cargo run, you'll need linux capabilites. xtask does `sudo -E` for you automatically, but if you don't you'll need to set
+capabilites on the built binary. Some or all of these, depending on the program.
 
 `CAP_SYS_ADMIN`
 `CAP_NET_ADMIN`

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module implements a checker for verifying that a script or entry function a valid
@@ -9,6 +10,7 @@
 //! - (DEPRECATED) Has an empty return type
 //! - All return types are not references
 //! - Satisfies the additional checks provided as an argument via `check_signature`
+//!
 //! `check_signature` should be used by adapters to quickly and easily verify custom signature
 //! rules for entrypoints
 

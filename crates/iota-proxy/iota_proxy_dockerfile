@@ -1,0 +1,3 @@
+FROM gcr.io/distroless/cc-debian12
+
+COPY --chmod=755 iota-proxy /opt/iota/bin/iota-proxy

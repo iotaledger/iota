@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::SystemTime};
@@ -6,7 +7,7 @@ use std::{sync::Arc, time::SystemTime};
 use consensus_config::{AuthorityIndex, Committee, Parameters};
 #[cfg(test)]
 use consensus_config::{NetworkKeyPair, ProtocolKeyPair};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 #[cfg(test)]
 use tempfile::TempDir;
 use tokio::time::Instant;
@@ -15,8 +16,8 @@ use tokio::time::Instant;
 use crate::metrics::test_metrics;
 use crate::{block::BlockTimestampMs, metrics::Metrics};
 
-/// Context contains per-epoch configuration and metrics shared by all components
-/// of this authority.
+/// Context contains per-epoch configuration and metrics shared by all
+/// components of this authority.
 #[derive(Clone)]
 pub(crate) struct Context {
     /// Index of this authority in the committee.
@@ -96,11 +97,12 @@ impl Context {
     }
 }
 
-/// A clock that allows to derive the current UNIX system timestamp while guaranteeing that timestamp
-/// will be monotonically incremented, tolerating ntp and system clock changes and corrections.
-/// Explicitly avoid to make `[Clock]` cloneable to ensure that a single instance is shared behind an `[Arc]`
-/// wherever is needed in order to make sure that consecutive calls to receive the system timestamp
-/// will remain monotonically increasing.
+/// A clock that allows to derive the current UNIX system timestamp while
+/// guaranteeing that timestamp will be monotonically incremented, tolerating
+/// ntp and system clock changes and corrections. Explicitly avoid to make
+/// `[Clock]` cloneable to ensure that a single instance is shared behind an
+/// `[Arc]` wherever is needed in order to make sure that consecutive calls to
+/// receive the system timestamp will remain monotonically increasing.
 pub(crate) struct Clock {
     initial_instant: Instant,
     initial_system_time: SystemTime,

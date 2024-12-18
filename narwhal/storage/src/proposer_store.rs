@@ -1,11 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::StoreResult;
-use store::rocks::{open_cf, MetricConf};
-use store::{reopen, rocks::DBMap, rocks::ReadWriteOptions, Map};
-use sui_macros::fail_point;
+use iota_macros::fail_point;
+use store::{
+    Map, reopen,
+    rocks::{DBMap, MetricConf, ReadWriteOptions, open_cf},
+};
 use types::Header;
+
+use crate::StoreResult;
 
 pub type ProposerKey = u32;
 
@@ -55,10 +59,11 @@ impl ProposerStore {
 
 #[cfg(test)]
 mod test {
-    use crate::{ProposerStore, LAST_PROPOSAL_KEY};
     use store::Map;
-    use test_utils::{fixture_batch_with_transactions, latest_protocol_version, CommitteeFixture};
+    use test_utils::{CommitteeFixture, fixture_batch_with_transactions, latest_protocol_version};
     use types::{CertificateDigest, Header, Round};
+
+    use crate::{LAST_PROPOSAL_KEY, ProposerStore};
 
     pub fn create_header_for_round(round: Round) -> Header {
         let builder = types::HeaderV1Builder::default();

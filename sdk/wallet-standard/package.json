@@ -1,9 +1,9 @@
 {
-	"name": "@mysten/wallet-standard",
-	"version": "0.13.2",
+	"name": "@iota/wallet-standard",
+	"version": "0.13.16",
 	"description": "A suite of standard utilities for implementing wallets based on the Wallet Standard.",
 	"license": "Apache-2.0",
-	"author": "Mysten Labs <build@mystenlabs.com>",
+	"author": "IOTA Foundation <info@iota.org>",
 	"type": "commonjs",
 	"main": "./dist/cjs/index.js",
 	"module": "./dist/esm/index.js",
@@ -33,11 +33,11 @@
 		"json-schema": "typescript-json-schema src/types.ts SerializedTransactionDataV2 --required --strictNullChecks > serialized-transaction-data-v2.schema.json && prettier -w serialized-transaction-data-v2.schema.json"
 	},
 	"dependencies": {
-		"@mysten/sui": "workspace:*",
+		"@iota/iota-sdk": "workspace:*",
 		"@wallet-standard/core": "1.0.3"
 	},
 	"devDependencies": {
-		"@mysten/build-scripts": "workspace:*",
+		"@iota/build-scripts": "workspace:*",
 		"typescript": "^5.5.3",
 		"typescript-json-schema": "^0.64.0"
 	}

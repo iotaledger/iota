@@ -1,11 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
     interpreter::Interpreter, loader::Resolver, native_extensions::NativeContextExtensions,
 };
-use move_binary_format::errors::{ExecutionState, PartialVMError, PartialVMResult};
+use move_binary_format::{
+    errors::{ExecutionState, PartialVMError, PartialVMResult},
+    file_format::AbilitySet,
+};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A,
@@ -153,6 +157,10 @@ impl<'a, 'b> NativeContext<'a, 'b> {
             Err(e) if e.major_status().status_type() == StatusType::InvariantViolation => Err(e),
             Err(_) => Ok(None),
         }
+    }
+
+    pub fn type_to_abilities(&self, ty: &Type) -> PartialVMResult<AbilitySet> {
+        self.resolver.loader().abilities(ty)
     }
 
     pub fn extensions(&self) -> &NativeContextExtensions<'b> {

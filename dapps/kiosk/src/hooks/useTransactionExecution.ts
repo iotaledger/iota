@@ -1,40 +1,41 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSignTransaction, useSuiClient } from '@mysten/dapp-kit';
-import { SuiTransactionBlockResponseOptions } from '@mysten/sui/client';
-import { Transaction } from '@mysten/sui/transactions';
+import { useSignTransaction, useIotaClient } from '@iota/dapp-kit';
+import { IotaTransactionBlockResponseOptions } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 // A helper to execute transactions by:
 // 1. Signing them using the wallet
 // 2. Executing them using the rpc provider
 export function useTransactionExecution() {
-	const provider = useSuiClient();
+    const provider = useIotaClient();
 
-	// sign transaction from the wallet
-	const { mutateAsync: signTransaction } = useSignTransaction();
+    // sign transaction from the wallet
+    const { mutateAsync: signTransaction } = useSignTransaction();
 
-	// tx: Transaction
-	const signAndExecute = async ({
-		tx,
-		options = { showEffects: true },
-	}: {
-		tx: Transaction;
-		options?: SuiTransactionBlockResponseOptions | undefined;
-	}) => {
-		const signedTx = await signTransaction({ transaction: tx });
+    // tx: Transaction
+    const signAndExecute = async ({
+        tx,
+        options = { showEffects: true },
+    }: {
+        tx: Transaction;
+        options?: IotaTransactionBlockResponseOptions | undefined;
+    }) => {
+        const signedTx = await signTransaction({ transaction: tx });
 
-		const res = await provider.executeTransactionBlock({
-			transactionBlock: signedTx.bytes,
-			signature: signedTx.signature,
-			options,
-		});
+        const res = await provider.executeTransactionBlock({
+            transactionBlock: signedTx.bytes,
+            signature: signedTx.signature,
+            options,
+        });
 
-		const status = res.effects?.status?.status === 'success';
+        const status = res.effects?.status?.status === 'success';
 
-		if (status) return true;
-		else throw new Error('Transaction execution failed.');
-	};
+        if (status) return true;
+        else throw new Error('Transaction execution failed.');
+    };
 
-	return { signAndExecute };
+    return { signAndExecute };
 }

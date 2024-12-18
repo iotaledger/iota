@@ -5,7 +5,7 @@ import { UseSwitchAccountExample } from '../../../examples/wallet-hooks';
 The `useSwitchAccount` hook is a mutation hook for establishing a connection to a specific wallet.
 
 ```ts
-import { ConnectButton, useAccounts, useSwitchAccount } from '@mysten/dapp-kit';
+import { ConnectButton, useAccounts, useSwitchAccount } from '@iota/dapp-kit';
 
 function MyComponent() {
 	const { mutate: switchAccount } = useSwitchAccount();
@@ -43,9 +43,9 @@ function MyComponent() {
 
 ## Arguments
 
-- `args` - Arguments passed to the `connect` function of the wallet.
+-   `args` - Arguments passed to the `connect` function of the wallet.
 
-  - `account` - The account to switch to.
+    -   `account` - The account to switch to.
 
-- `options` - Options passed the `useMutation` hook from
-  [@tanstack/react-query](https://tanstack.com/query/latest/docs/react/guides/mutations).
+-   `options` - Options passed the `useMutation` hook from
+    [@tanstack/react-query](https://tanstack.com/query/latest/docs/react/guides/mutations).

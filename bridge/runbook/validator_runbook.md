@@ -1,0 +1,1 @@
+The runbook is now located at iota/docs/content/guides/operator/bridge-node-configuration.mdx. You can view it online at https://docs.iota.org/guides/operator/bridge-node-configuration

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -47,13 +48,11 @@ export function EscrowList({
   return (
     <div>
       {enableSearch && (
-        <TextField.Root>
-          <TextField.Input
-            placeholder="Search by escrow id"
-            value={escrowId}
-            onChange={(e) => setEscrowId(e.target.value)}
-          />
-        </TextField.Root>
+        <TextField.Root
+          placeholder="Search by escrow id"
+          value={escrowId}
+          onChange={(e) => setEscrowId(e.target.value)}
+        />
       )}
       <InfiniteScrollArea
         loadMore={() => fetchNextPage()}

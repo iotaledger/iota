@@ -1,29 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::Duration};
 
 use consensus_config::AuthorityIndex;
 use futures::StreamExt;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use parking_lot::{Mutex, RwLock};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info};
 
 use crate::{
+    Round,
     block::BlockAPI as _,
     context::Context,
     dag_state::DagState,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
-    Round,
 };
 
-/// Subscriber manages the block stream subscriptions to other peers, taking care of retrying
-/// when subscription streams break. Blocks returned from the peer are sent to the authority
-/// service for processing.
-/// Currently subscription management for individual peer is not exposed, but it could become
-/// useful in future.
+/// Subscriber manages the block stream subscriptions to other peers, taking
+/// care of retrying when subscription streams break. Blocks returned from the
+/// peer are sent to the authority service for processing.
+/// Currently subscription management for individual peer is not exposed, but it
+/// could become useful in future.
 pub(crate) struct Subscriber<C: NetworkClient, S: NetworkService> {
     context: Arc<Context>,
     network_client: Arc<C>,
@@ -59,11 +60,25 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let context = self.context.clone();
         let network_client = self.network_client.clone();
         let authority_service = self.authority_service.clone();
-        let last_received = self
-            .dag_state
-            .read()
-            .get_last_block_for_authority(peer)
-            .round();
+        let (mut last_received, gc_round, gc_enabled) = {
+            let dag_state = self.dag_state.read();
+            (
+                dag_state.get_last_block_for_authority(peer).round(),
+                dag_state.gc_round(),
+                dag_state.gc_enabled(),
+            )
+        };
+
+        // If the latest block we have accepted by an authority is older than the
+        // current gc round, then do not attempt to fetch any blocks from that
+        // point as they will simply be skipped. Instead do attempt to fetch
+        // from the gc round.
+        if gc_enabled && last_received < gc_round {
+            info!(
+                "Last received block for peer {peer} is older than GC round, {last_received} < {gc_round}, fetching from GC round"
+            );
+            last_received = gc_round;
+        }
 
         let mut subscriptions = self.subscriptions.lock();
         self.unsubscribe_locked(peer, &mut subscriptions[peer.value()]);
@@ -88,12 +103,13 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         if let Some(subscription) = subscription.take() {
             subscription.abort();
         }
-        // There is a race between shutting down the subscription task and clearing the metric here.
-        // TODO: fix the race when unsubscribe_locked() gets called outside of stop().
+        // There is a race between shutting down the subscription task and clearing the
+        // metric here. TODO: fix the race when unsubscribe_locked() gets called
+        // outside of stop().
         self.context
             .metrics
             .node_metrics
-            .subscriber_connections
+            .subscribed_to
             .with_label_values(&[peer_hostname])
             .set(0);
     }
@@ -117,7 +133,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             context
                 .metrics
                 .node_metrics
-                .subscriber_connections
+                .subscribed_to
                 .with_label_values(&[peer_hostname])
                 .set(0);
 
@@ -152,7 +168,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                         .metrics
                         .node_metrics
                         .subscriber_connection_attempts
-                        .with_label_values(&[&peer_hostname, "success"])
+                        .with_label_values(&[peer_hostname, "success"])
                         .inc();
                     blocks
                 }
@@ -162,7 +178,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                         .metrics
                         .node_metrics
                         .subscriber_connection_attempts
-                        .with_label_values(&[&peer_hostname, "failure"])
+                        .with_label_values(&[peer_hostname, "failure"])
                         .inc();
                     continue 'subscription;
                 }
@@ -173,7 +189,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             context
                 .metrics
                 .node_metrics
-                .subscriber_connections
+                .subscribed_to
                 .with_label_values(&[peer_hostname])
                 .set(1);
 
@@ -184,7 +200,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .metrics
                             .node_metrics
                             .subscribed_blocks
-                            .with_label_values(&[&peer_hostname])
+                            .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
                             .handle_send_block(peer, block.clone())
@@ -227,7 +243,7 @@ mod test {
         block::{BlockRef, VerifiedBlock},
         commit::CommitRange,
         error::ConsensusResult,
-        network::{test_network::TestService, BlockStream},
+        network::{BlockStream, test_network::TestService},
         storage::mem_store::MemStore,
     };
 
@@ -293,6 +309,14 @@ mod test {
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
         }
+
+        async fn get_latest_rounds(
+            &self,
+            _peer: AuthorityIndex,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+            unimplemented!("Unimplemented")
+        }
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -322,8 +346,8 @@ mod test {
             }
         }
 
-        // Even if the stream ends after 10 blocks, the subscriber should retry and get enough
-        // blocks eventually.
+        // Even if the stream ends after 10 blocks, the subscriber should retry and get
+        // enough blocks eventually.
         let service = authority_service.lock();
         assert!(service.handle_send_block.len() >= 100);
         for (p, block) in service.handle_send_block.iter() {

@@ -1,16 +1,19 @@
 [package]
 name = "anemo-benchmark"
 version = "0.0.0"
-authors = ["Andrew Schran <aschran@mystenlabs.com>", "Mysten Labs <build@mystenlabs.com>"]
+authors = [
+  "Andrew Schran <aschran@iota.org>",
+  "IOTA Foundation <build@iota.org>",
+]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anemo.workspace = true
 clap = { version = "4.1.4", features = ["derive"] }
-mysten-network.workspace = true
-rand.workspace= true
+iota-network-stack.workspace = true
+rand.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 

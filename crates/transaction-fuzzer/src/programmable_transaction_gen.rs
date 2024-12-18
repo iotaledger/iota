@@ -1,16 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{cmp, str::FromStr};
 
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{Argument, CallArg, Command, ProgrammableTransaction},
+};
 use move_core_types::identifier::Identifier;
 use once_cell::sync::Lazy;
-use proptest::collection::vec;
-use proptest::prelude::*;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{Argument, CallArg, Command, ProgrammableTransaction};
+use proptest::{collection::vec, prelude::*};
 
 static PROTOCOL_CONFIG: Lazy<ProtocolConfig> =
     Lazy::new(ProtocolConfig::get_for_max_version_UNSAFE);
@@ -96,30 +98,32 @@ pub fn arg_len_strategy() -> impl Strategy<Value = usize> {
 
 pub fn command_len_strategy() -> impl Strategy<Value = usize> {
     let max_commands = PROTOCOL_CONFIG.max_programmable_tx_commands() as usize;
-    // Favor smaller transactions to make things faster. But generate a big one every once in a while
+    // Favor smaller transactions to make things faster. But generate a big one
+    // every once in a while
     prop_oneof![
         10 => 1usize..10,
         1 => 10..=max_commands,
     ]
 }
 
-// these constants have been chosen to deliver a reasonable runtime overhead and can be played with
+// these constants have been chosen to deliver a reasonable runtime overhead and
+// can be played with
 
-/// this also reflects the fact that we have coin-generating functions that can generate between 1
-/// and MAX_ARG_LEN_INPUT_MATCH coins
+/// this also reflects the fact that we have coin-generating functions that can
+/// generate between 1 and MAX_ARG_LEN_INPUT_MATCH coins
 pub const MAX_ARG_LEN_INPUT_MATCH: usize = 64;
 pub const MAX_COMMANDS_INPUT_MATCH: usize = 24;
 pub const MAX_ITERATIONS_INPUT_MATCH: u32 = 10;
 pub const MAX_SPLIT_AMOUNT: u64 = 1000;
-/// the merge command takes must take no more than MAX_ARG_LEN_INPUT_MATCH total to make sure that
-/// we have enough coins to pass as input
+/// the merge command takes must take no more than MAX_ARG_LEN_INPUT_MATCH total
+/// to make sure that we have enough coins to pass as input
 pub const MAX_COINS_TO_MERGE: u64 = (MAX_ARG_LEN_INPUT_MATCH - 1) as u64;
-/// the max number of coins that the vector can be made out of cannot exceed the number of coins we
-/// can generate as input
+/// the max number of coins that the vector can be made out of cannot exceed the
+/// number of coins we can generate as input
 pub const MAX_VECTOR_COINS: usize = MAX_ARG_LEN_INPUT_MATCH;
 
-/// Stand-ins for programmable transaction Commands used to randomly generate values used when
-/// creating the actual command instances
+/// Stand-ins for programmable transaction Commands used to randomly generate
+/// values used when creating the actual command instances
 #[derive(Debug)]
 pub enum CommandSketch {
     // Command::TransferObjects sketch - argument describes number of objects to transfer
@@ -182,7 +186,7 @@ pub fn arg_len_strategy_input_match() -> impl Strategy<Value = usize> {
 }
 
 prop_compose! {
-    pub fn gen_many_input_match(recipient: SuiAddress, package: ObjectID, cap: ObjectRef)
+    pub fn gen_many_input_match(recipient: IotaAddress, package: ObjectID, cap: ObjectRef)
         (mut command_sketches in vec(gen_command_input_match(), 1..=MAX_COMMANDS_INPUT_MATCH)) -> ProgrammableTransaction {
             let mut builder = ProgrammableTransactionBuilder::new();
             let mut prev_cmd_num = -1;
@@ -207,7 +211,7 @@ fn gen_input(
     prev_command: Option<&CommandSketch>,
     cmd: &CommandSketch,
     prev_cmd_num: i64,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
     package: ObjectID,
     cap: ObjectRef,
 ) -> (Command, i64) {
@@ -238,7 +242,7 @@ pub fn gen_transfer_input(
     prev_command: Option<&CommandSketch>,
     cmd: &CommandSketch,
     prev_cmd_num: i64,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
     package: ObjectID,
     cap: ObjectRef,
 ) -> (Command, i64) {
@@ -277,9 +281,11 @@ pub fn gen_split_coins_input(
     let mut cmd_inc = 0;
     let mut split_args = vec![];
 
-    // the tradeoff here is that we either generate output for each split command that will make it
-    // succeed or we will very quickly hit the insufficient coin error only after a few (often just
-    // 2) split coin transactions are executed making the whole batch testing into a rather narrow
+    // the tradeoff here is that we either generate output for each split command
+    // that will make it succeed or we will very quickly hit the insufficient
+    // coin error only after a few (often just
+    // 2) split coin transactions are executed making the whole batch testing into a
+    //    rather narrow
     // error case
     create_input_calls(
         builder,
@@ -313,7 +319,8 @@ pub fn gen_merge_coins_input(
     };
     let mut cmd_inc = 0;
     let mut coins = vec![];
-    // we need all coins that are going to be merged plus on that they are going to be merged into
+    // we need all coins that are going to be merged plus on that they are going to
+    // be merged into
     let coins_needed = *coins_to_merge as usize + 1;
 
     let output_coin = if let Some(prev_cmd) = prev_command {
@@ -331,14 +338,15 @@ pub fn gen_merge_coins_input(
                 Argument::NestedResult((prev_cmd_num + cmd_inc) as u16, *coins_to_merge as u16)
             }
             CommandSketch::SplitCoins(output) | CommandSketch::MakeMoveVec(output) => {
-                // how many coins we have a available as output from previous command that we can
-                // immediately use as input to the next command
+                // how many coins we have a available as output from previous command that we
+                // can immediately use as input to the next command
                 let usable_coins = cmp::min(output.len(), coins_needed);
                 if let CommandSketch::MakeMoveVec(_) = prev_cmd {
                     create_unpack_call(builder, package, prev_cmd_num, output.len() as u64);
                     cmd_inc += 1; // unpack call
                 };
-                // there is at least one coin in the output - use it as the coin others are merged into
+                // there is at least one coin in the output - use it as the coin others are
+                // merged into
                 let res_coin = Argument::NestedResult((prev_cmd_num + cmd_inc) as u16, 0);
 
                 cmd_inc = gen_enough_arguments(
@@ -348,7 +356,7 @@ pub fn gen_merge_coins_input(
                     cap,
                     coins_needed,
                     usable_coins,
-                    1, /* one available coin already used */
+                    1, // one available coin already used
                     output.len(),
                     &mut coins,
                     cmd_inc,
@@ -402,9 +410,10 @@ pub fn gen_move_vec_input(
     (next_cmd, cmd_inc)
 }
 
-/// A helper function to generate enough input coins for a command (transfer, merge, or create vector)
-/// - either collect them all from previous command or generate additional ones if the previous
-/// command does not deliver enough.
+/// A helper function to generate enough input coins for a command (transfer,
+/// merge, or create vector)
+/// - either collect them all from previous command or generate additional ones
+///   if the previous command does not deliver enough.
 fn gen_enough_arguments(
     builder: &mut ProgrammableTransactionBuilder,
     prev_cmd_num: i64,
@@ -445,8 +454,8 @@ fn gen_enough_arguments(
     cmd_inc
 }
 
-/// A helper function to generate arguments fro transfer or create vector commands as they are
-/// exactly the same.
+/// A helper function to generate arguments fro transfer or create vector
+/// commands as they are exactly the same.
 fn gen_transfer_or_move_vec_input_internal(
     builder: &mut ProgrammableTransactionBuilder,
     prev_cmd_num: i64,
@@ -471,8 +480,8 @@ fn gen_transfer_or_move_vec_input_internal(
                 }
             }
             CommandSketch::SplitCoins(output) | CommandSketch::MakeMoveVec(output) => {
-                // how many coins we have a available as output from previous command that we can
-                // immediately use as input to the next command
+                // how many coins we have a available as output from previous command that we
+                // can immediately use as input to the next command
                 let usable_coins = cmp::min(output.len(), coins_needed);
                 if let CommandSketch::MakeMoveVec(_) = prev_cmd {
                     create_unpack_call(builder, package, prev_cmd_num, output.len() as u64);
@@ -486,7 +495,7 @@ fn gen_transfer_or_move_vec_input_internal(
                     cap,
                     coins_needed,
                     usable_coins,
-                    0, /* no available coins used */
+                    0, // no available coins used
                     output.len(),
                     coins,
                     cmd_inc,

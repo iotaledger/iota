@@ -1,0 +1,38 @@
+[
+  {
+    "questionText": "Which command in the IOTA CLI is used to request test tokens?",
+    "answerOptions": [
+      { "answerText": "iota client faucet", "isCorrect": true },
+      { "answerText": "iota client get-tokens", "isCorrect": false },
+      { "answerText": "iota client request-tokens", "isCorrect": false },
+      { "answerText": "iota faucet request", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which argument allows you to specify a custom address when using 'iota client faucet'?",
+    "answerOptions": [
+      { "answerText": "--address", "isCorrect": true },
+      { "answerText": "--recipient", "isCorrect": false },
+      { "answerText": "--account", "isCorrect": false },
+      { "answerText": "--target", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "What is the main purpose of test tokens in IOTA?",
+    "answerOptions": [
+      { "answerText": "To pay for gas on the Devnet and Testnet networks", "isCorrect": true },
+      { "answerText": "To invest and trade on exchanges", "isCorrect": false },
+      { "answerText": "To purchase real-world goods", "isCorrect": false },
+      { "answerText": "To store value in a secure wallet", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "Which of the following is NOT a method mentioned for obtaining test tokens in IOTA?",
+    "answerOptions": [
+      { "answerText": "Using the IOTA CLI", "isCorrect": false },
+      { "answerText": "Using the IOTA Wallet", "isCorrect": false },
+      { "answerText": "Using cURL", "isCorrect": false },
+      { "answerText": "Using the IOTA Explorer", "isCorrect": true }
+    ]
+  }
+]

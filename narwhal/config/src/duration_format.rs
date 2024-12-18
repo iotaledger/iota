@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Allow us to deserialize Duration values in a more human friendly format
@@ -11,8 +12,9 @@
 //!
 //! To identify seconds, then the following format should be used:
 //! Ns, for example "20s", or "10_000s".
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::time::Duration;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub fn deserialize<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where
@@ -48,9 +50,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::duration_format;
-    use serde::{Deserialize, Serialize};
     use std::time::Duration;
+
+    use serde::{Deserialize, Serialize};
+
+    use crate::duration_format;
 
     #[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
     struct MockProperties {

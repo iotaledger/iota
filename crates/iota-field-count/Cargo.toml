@@ -1,0 +1,10 @@
+[package]
+name = "iota-field-count"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+iota-field-count-derive.workspace = true

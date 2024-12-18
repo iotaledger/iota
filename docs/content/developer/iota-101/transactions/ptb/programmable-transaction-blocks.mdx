@@ -1,0 +1,485 @@
+---
+description: Learn how to execute multiple commands in a single IOTA transaction using programmable transaction blocks.
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/transactions/ptb/programmable-transaction-blocks.json';
+
+# Use Programmable Transaction Blocks
+
+Programmable transaction blocks (PTBs) let you execute multiple commands within a single IOTA transaction.
+They enable you to call multiple Move functions, manage your objects,
+and handle your coins—all without needing to publish a new Move package.
+While PTBs are ideal for automation and transaction builders,
+they don't support complex programming patterns like loops. 
+For such cases, you'll need to [publish a new Move package](../../../getting-started/publish.mdx).
+
+Each PTB is made up of individual transaction commands (also known as transactions or commands).
+These commands execute sequentially, and you can use the results from one command in any subsequent command.
+The effects of all commands—specifically object modifications or transfers—are applied atomically at the end of the transaction.
+**If any command fails, the entire PTB fails, and none of the effects are applied.**
+
+Using PTBs, you can perform up to 1,024 unique operations in a single execution.
+In contrast, traditional blockchains would require 1,024 individual executions to achieve the same result.
+This structure not only enhances efficiency but also reduces gas fees,
+as grouping transactions in a PTB is more cost-effective than processing them individually.
+
+This guide explains how PTBs work and how to use them effectively.
+It assumes you're familiar with the IOTA [object model](../../objects/object-model.mdx) and the [Move programming language]](../../move-overview/move-overview.mdx).
+
+## Understanding PTB Components
+
+A PTB consists of two main components:
+
+```rust
+{
+    inputs: [Input],
+    commands: [Command],
+}
+```
+
+- **Inputs**: A list of arguments `[Input]`, which are either objects or pure values used in the commands.
+- Objects can be owned by you or be shared/immutable. Pure values are simple Move values like `u64` or `String`.
+
+- **Commands**: A list of commands `[Command]` that specify the actions to execute. Possible commands include:
+
+  - [`TransferObjects`](#transferobjects): Send one or more objects to a specified address.
+  - [`SplitCoins`](#splitcoins): Split a single coin into multiple coins.
+  - [`MergeCoins`](#mergecoins): Combine multiple coins into one coin.
+  - [`MakeMoveVec`](#makemovevec): Create a vector of Move values, primarily used as arguments for `MoveCall`.
+  - [`MoveCall`](#movecall): Invoke an `entry` or `public` Move function in a published package.
+  - [`Publish`](#publish): Create a new package and call the `init` function of each module.
+  - [`Upgrade`](#upgrade): Upgrade an existing package, gated by [`iota::package::UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap).
+
+### Inputs and Results
+
+**Inputs** are the values you provide to the PTB, either as objects or pure values. **Results** are the values produced by the commands within the PTB. You can access these values by borrowing, copying (if allowed), or moving them.
+
+#### Inputs
+
+Inputs are categorized as objects or pure values:
+
+- **Object Inputs**: Include the necessary metadata to specify the object being used. Depending on the object's ownership type, the metadata differs:
+
+  - **Owned or Immutable Objects**: Use `ObjectArg::ImmOrOwnedObject(ObjectID, SequenceNumber, ObjectDigest)`.
+  - **Shared Objects**: Use `ObjectArg::SharedObject { id: ObjectID, initial_shared_version: SequenceNumber, mutable: bool }`. A shared objects version and digest are determined by the network's consensus protocol. The `mutable` flag indicates whether the object is to be used mutably in this transaction
+  - **Objects Owned by Other Objects**: Use `ObjectArg::Receiving(ObjectID, SequenceNumber, ObjectDigest)`.
+
+- **Pure Inputs**: Provide [BCS](../../../../references/framework/iota-framework/bcs.mdx) bytes deserialized into Move values. Only certain types are allowed, such as primitive types, strings, object IDs, vectors, and options. The following types are allowed to be used with pure values:
+  - All primitive types:
+    - `u8`
+    - `u16`
+    - `u32`
+    - `u64`
+    - `u128`
+    - `u256`
+    - `bool`
+    - `address`
+  - A string, either an ASCII string (`std::ascii::String`) or UTF8 string (`std::string::String`). In either case, the bytes are validated to be a valid string with the respective encoding.
+  - An object ID `iota::object::ID`.
+  - A vector, `vector<T>`, where `T` is a valid type for a pure input, checked recursively.
+  - An option, `std::option::Option<T>`, where `T` is a valid type for a pure input, checked recursively.
+
+#### Results
+
+Each command may produce a (possibly empty) array of results. The number and types of results depend on the command:
+
+- `MoveCall`: Returns results based on the Move function called.
+- `SplitCoins`: Produces coins from a single [coin](../../../../references/framework/iota-framework/coin.mdx).
+- `Publish`: Returns the [upgrade capability](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap) for the new package.
+- `Upgrade`: Returns the [upgrade receipt](../../../../references/framework/iota-framework/package.mdx#struct-upgradereceipt) for the upgraded package.
+- `TransferObjects` and `MergeCoins`: Do not produce results.
+
+### Using Arguments in Commands
+
+Commands accept `Argument`s to specify inputs or results:
+
+- `Input(u16)`: Refers to an input by its index in the input list,  where the `u16` is the index of the input in the input vector.
+  - `GasCoin`: Represents the [IOTA coin](../../../../references/framework/iota-framework/coin.mdx) used for gas payment. It cannot be taken by-value except with `TransferObjects`. To get an owned version, use `SplitCoins` to create a new coin.
+
+    This limitation ensures that any remaining gas is returned to the gas coin at the end of execution.
+    If the gas coin were wrapped or deleted, there would be no place to return the excess gas.
+
+- `NestedResult(u16, u16)`: Uses a value from a previous command's results. The first `u16` is the command index, and the second is the result index within that command.
+- `Result(u16)`: Equivalent to `NestedResult(i, 0)`, but errors if the result array is empty or has more than one value.
+
+## Executing Programmable Transaction Blocks
+
+When you execute a PTB, the process involves three main steps:
+
+1. **[Initializing Inputs](#1-initializing-inputs)**: The runtime loads input objects and pure value bytes into the input array.
+2. **Executing Commands**: Transaction commands are executed sequentially, and results are stored.
+3. **Applying Effects**: The transaction's effects are applied atomically at the end.
+
+Let's explore each of these steps in detail.
+
+### 1. Initializing Inputs
+
+At the start, the PTB runtime loads the input objects into the input array.
+The network has already verified these objects for existence and valid ownership.
+Pure value bytes are also loaded but are not validated until they are used.
+
+:::note Gas
+
+The gas coin is important at this stage.
+The maximum gas budget (in IOTA tokens) is withdrawn from the gas coin at the beginning.
+Any unused gas is returned to the gas coin at the end of execution, even if the coin's ownership has changed.
+
+:::
+
+### 2. Executing Commands
+
+Each transaction command is executed in order.
+Before diving into specific commands, it's crucial to understand how arguments are used.
+
+#### Using Arguments
+
+Arguments can be used by-reference or by-value, depending on their type and the command's requirements.
+
+- **Mutable Reference (`&mut T`)**: The argument must be of type `T` and is mutably borrowed.
+- **Immutable Reference (`&T`)**: The argument must be of type `T` and is immutably borrowed.
+- **By-Value (`T`)**: The argument must be of type `T`. If `T` has the `copy` trait, it's copied; otherwise, it's moved.
+
+:::note 
+
+Once you move an argument, you cannot use it again.
+If you try to use an argument after it's been moved, the transaction will fail.
+
+:::
+
+When borrowing arguments:
+
+- **Mutable Borrow**: No other borrows (mutable or immutable) can exist to avoid references that point to invalid memory.
+- **Immutable Borrow**: No mutable borrows can exist; multiple immutable borrows are allowed.
+- **Moving or Copying**: There can be outstanding borrows, mutable or immutable. While it might lead to some unexpected results in some cases, there is no safety concern
+
+#### Special Considerations
+
+- **Object Inputs**: For `ObjectArg::Receiving` inputs, the object type `T` is wrapped as [`iota::transfer::Receiving<T>`](../../../../references/framework/iota-framework/transfer.mdx#struct-receiving). You need to call [`iota::transfer::receive`](../../../../references/framework/iota-framework/transfer.mdx#function-receive) to prove ownership.
+- **Gas Coin**: You can only use the gas coin by-value with the [`TransferObjects`](#transferobjects) command. This ensures that any remaining gas can be returned to it.
+  - **Shared Objects**: Shared objects have restrictions to ensure they remain shared or are deleted by the end of the transaction. They cannot be unshared or wrapped.
+   A shared object:
+    - Marked as not `mutable` (being used read-only) cannot be used by value.
+    - Cannot be transferred or frozen. These checks are done at the end of the transaction only. For example, `TransferObjects` succeeds if passed a shared object, but at the end of execution the transaction fails.
+    - Can be wrapped and can become a dynamic field transiently, but by the end of the transaction it must be re-shared or deleted.
+
+
+#### Pure Values
+
+Pure values are not type-checked until used.
+They can be used with multiple types as long as the bytes are valid for each type.
+Once you mutably borrow a pure value, its type becomes fixed for subsequent uses.
+For example, you can use a [string](../../../../references/framework/move-stdlib/string.mdx) as an ASCII string `std::ascii::String` and as a UTF8 string `std::string::String`.
+However, after you mutably borrow the pure value, the type becomes fixed, and all future usages must be with that type.
+
+#### Command Execution Details
+
+Let's look at how specific commands are executed.
+
+##### `TransferObjects`
+
+- **Syntax**: `TransferObjects(ObjectArgs, AddressArg)`
+- **Usage**:
+  - `ObjectArgs`: A list of objects to transfer (by-value).
+  - `AddressArg`: The recipient's address (by-value) from a `Pure` input or a result.
+- **Notes**:
+  - Objects can be of different types.
+  - The command does not produce any results.
+
+##### `SplitCoins`
+
+- **Syntax**: `SplitCoins(CoinArg, AmountArgs)`
+- **Usage**:
+  - `CoinArg`: The coin to split (mutable reference). Must be a coin of type [`iota::coin::Coin`](../../../../references/framework/iota-framework/coin.mdx).
+  - `AmountArgs`: Amounts to split off (by-value). Must be `u64` values, which could come from a `Pure` input or a result.
+- **Notes**:
+  - Produces a list of new coins.
+  - Coin types must match.
+
+##### `MergeCoins`
+
+- **Syntax**: `MergeCoins(CoinArg, ToMergeArgs)`
+- **Usage**:
+  - `CoinArg`: The target coin (mutable reference). Must be a coin of type [`iota::coin::Coin`](../../../../references/framework/iota-framework/coin.mdx).
+  - `ToMergeArgs`: Coins to merge into the target (by-value).
+- **Notes**:
+  - Coin types must match.
+  - Does not produce any results.
+
+##### `MakeMoveVec`
+
+- **Syntax**: `MakeMoveVec(VecTypeOption, Args)`
+- **Usage**:
+  - `VecTypeOption`: Optional type of the vector elements.
+  - `Args`: Elements to include in the vector (by-value). Copied if `T: copy` and moved otherwise.
+- **Notes**:
+  - Produces a single vector result.
+  - Useful for constructing arguments for `MoveCall`.
+
+##### `MoveCall`
+
+- **Syntax**: `MoveCall(Package, Module, Function, TypeArgs, Args)`
+- **Usage**:
+  - `Package`: Object ID of the package.
+  - `Module`: Name of the module.
+  - `Function`: Name of the function.
+  - `TypeArgs`: Type arguments for the function.
+  - `Args`: Arguments for the function.
+- **Notes**:
+  - The number of results and argument usage depend on the function's signature.
+
+##### `Publish`
+
+- **Syntax**: `Publish(ModuleBytes, TransitiveDependencies)`
+- **Usage**:
+  - `ModuleBytes`: Bytes of the modules to publish.
+  - `TransitiveDependencies`: Package IDs to link against.
+- **Notes**:
+  - Calls the `init` function of each module.
+  - Produces an [`iota::package::UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap).
+
+##### `Upgrade`
+
+- **Syntax**: `Upgrade(ModuleBytes, TransitiveDependencies, Package, UpgradeTicket)`
+- **Usage**:
+  - Similar to `Publish`, but upgrades an existing package.
+  - `Package`: Object ID of the package to upgrade.
+  - `UpgradeTicket`: Obtained from [`iota::package::UpgradeCap`](../../../../references/framework/iota-framework/package.mdx#resource-upgradecap).
+- **Notes**:
+  - Does not call the `init` function of each module.
+  - Produces an [`iota::package::UpgradeReceipt`](../../../../references/framework/iota-framework/package.mdx#struct-upgradereceipt).
+   
+### 3. Applying Effects
+
+After all the commands have executed:
+
+- **Input Checks**:
+  - Immutable or read-only inputs remain unchanged.
+  - Mutable inputs return to their original owners.
+  - Pure inputs are dropped. Note that pure input values must have `copy` and `drop` since all permissible types for those values have `copy` and `drop`.
+
+- **Shared Objects**:
+  - Must be either deleted or remain shared.
+  - Cannot be unshared or wrapped by the end of the transaction.
+
+- **Result Handling**:
+  - Remaining results with the `drop` trait are dropped.
+  - Values with `copy` but not `drop` must have been moved in their last usage.
+  - Unused values without `drop` cause the transaction to fail.
+
+**Gas Refund**: Any unused gas is returned to the gas coin, regardless of ownership changes.
+
+Finally, the transaction's effects (created, mutated, and deleted objects) are applied atomically by the IOTA network.
+
+
+## Usage Example
+
+Let's explore a practical example to understand how a programmable transaction block (PTB) executes.
+While this won't cover every rule, it will illustrate the general execution flow.
+
+Suppose you want to purchase two items from a marketplace, each costing `100 NANOS`. You plan to keep one item and send the other item, along with the remaining coin balance, to a friend at address `0x808`. You can achieve all of this within a single PTB:
+
+```rust 
+{
+  inputs: [
+    Pure(/* @0x808 BCS bytes */ ...),
+    Object(SharedObject { /* Marketplace shared object */ id: market_id, ... }),
+    Pure(/* 100u64 BCS bytes */ ...),
+  ]
+  commands: [
+    SplitCoins(GasCoin, [Input(2)]),
+    MoveCall("some_package", "some_marketplace", "buy_two", [], [Input(1), NestedResult(0, 0)]),
+    TransferObjects([GasCoin, NestedResult(1, 0)], Input(0)),
+    MoveCall("iota", "tx_context", "sender", [], []),
+    TransferObjects([NestedResult(1, 1)], NestedResult(3, 0)),
+  ]
+}
+```
+
+In this PTB:
+
+- **Inputs**:
+  - `Input(0)`: Your friend's address as a pure input.
+  - `Input(1)`: The shared marketplace object.
+  - `Input(2)`: The amount (`100u64`) to split from the gas coin.
+
+- **Commands**:
+  1. **SplitCoins**: Splits `100u64` from the gas coin.
+  2. **MoveCall**: Calls the marketplace's `buy_two` function with the marketplace object and the split coin.
+  3. **TransferObjects**: Sends the gas coin and one item to your friend's address.
+  4. **MoveCall**: Retrieves your own address using `iota::tx_context::sender`.
+  5. **TransferObjects**: Sends the remaining item to your address.
+
+### Initial State
+
+Before executing the commands, the gas coin and marketplace object are loaded:
+
+```rust
+Gas Coin: iota::coin::Coin<IOTA> { id: gas_coin, balance: iota::balance::Balance<IOTA> { value: 1_000_000u64 } }
+Inputs: [
+  Pure(/* @0x808 BCS bytes */ ...),
+  some_package::some_marketplace::Marketplace { id: market_id, ... },
+  Pure(/* 100u64 BCS bytes */ ...),
+]
+Results: []
+```
+
+The gas coin has an initial balance of `1_000,000u64`. The maximum gas budget (e.g., `500,000`) is deducted upfront, leaving the gas coin with `500,000u64`.
+
+### Command Execution
+
+#### Command 0: SplitCoins
+
+```rust
+SplitCoins(GasCoin, [Input(2)])
+```
+
+- **Action**: Splits off `100u64` from the gas coin.
+- **Result**: A new coin (`new_coin`) with a balance of `100u64`.
+
+Updated memory:
+
+```rust
+Gas Coin: Coin<IOTA> { id: gas_coin, balance: 499,900u64 }
+Results: [
+[Coin<IOTA> { id: new_coin, value: 100u64 }],
+]
+```
+
+#### Command 1: MoveCall (`buy_two` function)
+
+```rust
+MoveCall("some_package", "some_marketplace", "buy_two", [], [Input(1), NestedResult(0, 0)])
+```
+
+- **Action**: Calls `buy_two` with the marketplace object and the split coin.
+- **Assumed Signature**:
+
+  ```rust
+  entry fun buy_two(
+  marketplace: &mut Marketplace,
+  coin: Coin<IOTA>,
+  ctx: &mut TxContext,
+  ): (Item, Item)
+  ```
+
+- **Result**: Two items (`Item { id: id1 }` and `Item { id: id2 }`) are returned.
+
+Updated memory:
+
+```rust
+Gas Coin: Coin<IOTA> { id: gas_coin, ... value: 499_900u64 ... }
+Inputs: [
+  Pure(/* @0x808 BCS bytes */ ...),
+  Marketplace { id: market_id, ...  }, // Any mutations are applied
+  Pure(/* 100u64 BCS bytes */ ...),
+]
+Results: [
+  [ _ ], // The coin was moved
+  [Item { id: id1 }, Item { id: id2 }], // The results from the Move call
+],
+```
+
+#### Command 2: TransferObjects (to friend)
+
+```rust
+Gas Coin: _ // The gas coin is moved
+Inputs: [
+  Pure(/* @0x808 BCS bytes */ ...),
+  Marketplace { id: market_id, ... },
+  Pure(/* 100u64 BCS bytes */ ...),
+]
+Results: [
+  [ _ ],
+  [ _ , Item { id: id2 }], // One item was moved
+  [], // No results from TransferObjects
+],
+```
+
+#### Command 3: MoveCall (`sender` function)
+
+```rust
+MoveCall("iota", "tx_context", "sender", [], [])
+```
+
+```rust
+public fun sender(ctx: &TxContext): address
+```
+
+- **Action**: Retrieves your own address.
+- **Result**: Your address is returned.
+
+Updated memory:
+
+```rust
+Gas Coin: _
+Inputs: [
+  Pure(/* @0x808 BCS bytes */ ...),
+  Marketplace { id: market_id, ... },
+  Pure(/* 100u64 BCS bytes */ ...),
+]
+Results: [
+  [ _ ],
+  [ _ , Item { id: id2 }],
+  [],
+  [/* senders address */ ...], // The result of the Move call
+],
+```
+
+#### Command 4: TransferObjects (to self)
+
+```rust
+TransferObjects([NestedResult(1, 1)], NestedResult(3, 0))
+```
+
+- **Action**: Transfers the second item to your address.
+- **Result**: Ownership of `Item { id: id2 }` is transferred to you.
+
+Updated memory:
+
+```rust
+Gas Coin: _
+Inputs: [
+  Pure(/* @0x808 BCS bytes */ ...),
+  Marketplace { id: market_id, ... },
+  Pure(/* 100u64 BCS bytes */ ...),
+]
+Results: [
+  [ _ ],
+  [ _ , _ ],
+  [],
+  [/* senders address */ ...],
+  [], // No results from TransferObjects
+],
+```
+
+### Final State and Validation
+
+At the end of execution, the runtime performs checks:
+
+- **Inputs**:
+  - Pure inputs are dropped (have `drop` ability).
+  - The marketplace object remains shared and is returned.
+
+- **Results**:
+  - All moved objects are accounted for.
+  - The sender's address is dropped (has `drop` ability).
+
+- **Gas Refund**:
+  - Unused gas is returned to the gas coin, even though it has changed ownership.
+
+### Transaction Effects
+
+The transaction produces the following effects:
+
+- **Created Objects**:
+  - `Item { id: id1 }` and `Item { id: id2 }` are new items.
+
+- **Transferred Objects**:
+  - Gas coin and `Item { id: id1 }` are transferred to `0x808`.
+  - `Item { id: id2 }` is transferred to your address.
+
+- **Mutated Objects**:
+  - The gas coin's balance is updated.
+  - The marketplace object is mutated but remains shared.
+
+<Quiz questions={questions} />

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { UseQueryResult } from '@tanstack/react-query';
@@ -8,7 +9,7 @@ import { useObjectQuery, UseObjectQueryResponse } from 'hooks/useObjectQuery';
 /** Variants of the tic-tac-toe protocol */
 export type Kind = 'shared' | 'owned';
 
-/** Marks on the game baord */
+/** Marks on the game board */
 export enum Mark {
 	/** No mark */
 	_ = 0,

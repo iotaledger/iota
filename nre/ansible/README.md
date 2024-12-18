@@ -1,6 +1,6 @@
-# Configure a Linux system as a Sui Node using Ansible
+# Configure a Linux system as a Iota Node using Ansible
 
-This is a self contained Ansible role for configuring a Linux system as a Sui Node.
+This is a self contained Ansible role for configuring a Linux system as a Iota Node.
 
 Tested with `ansible [core 2.13.4]` and:
 
@@ -13,19 +13,19 @@ Tested with `ansible [core 2.13.4]` and:
 
 2. Add the target host to the [Ansible Inventory](./inventory.yaml)
 
-3. Update the `sui_release` var in the [Ansible Inventory](./inventory.yaml)
+3. Update the `iota_release` var in the [Ansible Inventory](./inventory.yaml)
 
 4. Update [validator.yaml](../config/validator.yaml) and copy it to this directory.
 
 5. Copy the genesis.blob to this directory (should be available after the Genesis ceremony).
 
-6. Udate the `keypair_path` var in the [Ansible Inventory](./inventory.yaml)
+6. Update the `keypair_path` var in the [Ansible Inventory](./inventory.yaml)
 
 ## Example use:
 
 - Configure everything:
 
-`ansible-playbook -i inventory.yaml sui-node.yaml -e host=$inventory_name`
+`ansible-playbook -i inventory.yaml iota-node.yaml -e host=$inventory_name`
 
 - Software update:
 

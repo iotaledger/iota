@@ -1,0 +1,156 @@
+@import '@iota/apps-ui-kit/styles';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+    height: 100%;
+    width: 100%;
+    position: relative;
+}
+
+:root {
+    @apply bg-neutral-98;
+}
+
+:root.dark {
+    @apply bg-neutral-4;
+}
+
+@layer base {
+    body {
+        @apply antialiased;
+    }
+}
+
+@layer components {
+    .home-page-grid-container-top {
+        @apply grid grid-cols-1 gap-4;
+        grid-template-areas:
+            'network'
+            'epoch'
+            'transactions'
+            'addresses';
+    }
+    .home-page-grid-container-top.with-token {
+        grid-template-areas:
+            'network'
+            'epoch'
+            'token'
+            'transactions'
+            'addresses';
+    }
+
+    @screen sm {
+        .home-page-grid-container-top {
+            @apply grid-cols-2;
+            grid-template-areas:
+                'network epoch'
+                'transactions transactions'
+                'addresses addresses';
+        }
+
+        .home-page-grid-container-top.with-token {
+            grid-template-areas:
+                'network epoch'
+                'network token'
+                'transactions transactions'
+                'addresses addresses';
+        }
+    }
+
+    @screen md {
+        .home-page-grid-container-top {
+            @apply grid-cols-2;
+            grid-template-areas:
+                'network epoch'
+                'transactions addresses';
+        }
+
+        .home-page-grid-container-top.with-token {
+            grid-template-areas:
+                'network epoch'
+                'network token'
+                'transactions addresses';
+        }
+    }
+
+    @screen lg {
+        .home-page-grid-container-top {
+            @apply grid-cols-[315px,1fr,1fr];
+            grid-template-areas:
+                'network transactions addresses'
+                'epoch transactions addresses';
+        }
+
+        .home-page-grid-container-top.with-token {
+            grid-template-areas:
+                'network transactions addresses'
+                'epoch   transactions addresses'
+                'token   transactions addresses';
+        }
+    }
+
+    .home-page-grid-container-bottom {
+        @apply grid grid-cols-1 gap-8;
+        grid-template-areas:
+            'activity'
+            'packages'
+            'validators'
+            'node-map';
+    }
+
+    @screen md {
+        .home-page-grid-container-bottom {
+            @apply gap-10;
+        }
+    }
+
+    @screen lg {
+        .home-page-grid-container-bottom {
+            @apply grid grid-cols-2 gap-x-20 gap-y-10;
+            grid-template-areas:
+                'activity activity'
+                'packages validators'
+                'node-map node-map';
+        }
+    }
+
+    .address-grid-container-top {
+        @apply grid grid-cols-2 gap-4;
+        grid-template-areas:
+            'heroImage name'
+            'heroImage description'
+            'heroImage objectId'
+            'heroImage type'
+            'owner storageRebate'
+            'version lastTxBlock';
+    }
+
+    @screen md {
+        .address-grid-container-top {
+            @apply grid-cols-[300px,1fr,1fr] grid-rows-2 gap-md;
+            grid-template-areas:
+                'heroImage name owner'
+                'heroImage description storageRebate'
+                'heroImage objectId version'
+                'heroImage type lastTxBlock';
+        }
+        .address-grid-container-top.no-description.no-image {
+            @apply grid grid-cols-3 grid-rows-2;
+            grid-template-areas:
+                'objectId version owner'
+                'type lastTxBlock storageRebate';
+        }
+        .address-grid-container-top.no-image {
+            @apply grid grid-cols-3 grid-rows-3;
+            grid-template-areas:
+                'name description type'
+                'objectId version type'
+                'owner lastTxBlock storageRebate';
+        }
+    }
+}

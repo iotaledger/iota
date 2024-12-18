@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import './App.css';
 
-import { ConnectButton, useCurrentAccount, useSuiClientContext } from '@mysten/dapp-kit';
-import { isValidSuiObjectId, normalizeSuiObjectId } from '@mysten/sui/utils';
+import { ConnectButton, useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
+import { isValidIotaObjectId, normalizeIotaObjectId } from '@iota/iota-sdk/utils';
 import { FrameIcon } from '@radix-ui/react-icons';
 import { Box, Container, Flex, Heading, Link } from '@radix-ui/themes';
 import { Error } from 'components/Error';
@@ -15,9 +16,9 @@ import Root from 'pages/Root';
 function App() {
 	// Ensure the app's network config matches the wallet's available networks, if the wallet is connected.
 	const account = useCurrentAccount();
-	const ctx = useSuiClientContext();
+	const ctx = useIotaClientContext();
 
-	const chain = account?.chains?.find((c) => c.startsWith('sui:'))?.replace(/^sui:/, '');
+	const chain = account?.chains?.find((c) => c.startsWith('iota:'))?.replace(/^iota:/, '');
 	if (chain) {
 		console.debug('Configuring app for', chain);
 		ctx.selectNetwork(chain);
@@ -50,7 +51,7 @@ function Content() {
 	const packageId = useNetworkVariable('packageId');
 
 	const path = location.pathname.slice(1);
-	const addr = normalizeSuiObjectId(path);
+	const addr = normalizeIotaObjectId(path);
 
 	if (packageId === null) {
 		const availableNetworks = Object.keys(networkConfig).filter(
@@ -65,12 +66,12 @@ function Content() {
 		);
 	} else if (path === '') {
 		return <Root />;
-	} else if (isValidSuiObjectId(addr)) {
+	} else if (isValidIotaObjectId(addr)) {
 		return <Game id={addr} />;
 	} else {
 		return (
 			<Error title="Invalid Game ID">
-				<code>"{path}"</code> is not a valid SUI object ID.
+				<code>"{path}"</code> is not a valid IOTA object ID.
 			</Error>
 		);
 	}

@@ -1,0 +1,9 @@
+[package]
+name = "demo"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+demo = "0x0"

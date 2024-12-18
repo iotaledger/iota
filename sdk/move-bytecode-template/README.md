@@ -1,7 +1,7 @@
 # Move Bytecode Template
 
 Move Bytecode Template allows updating a pre-compiled bytecode, so that a standard template could be
-customized and used to publish new modules on Sui directly in the browser. Hence, removing the need
+customized and used to publish new modules on Iota directly in the browser. Hence, removing the need
 for a backend to compile new modules.
 
 This crate builds a WASM binary for the `move-language/move-binary-format` allowing bytecode
@@ -19,14 +19,14 @@ This package is a perfect fit for the following applications:
 ## Example of a Template Module
 
 The following code is a close-copy of the `Coin` example from the
-[Move by Example](https://examples.sui.io/samples/coin.html) book.
+[Coins and Tokens](https://docs.iota.org/guides/developer/coin).
 
 ```move
 module 0x0::template {
     use std::option;
-    use sui::coin;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::coin;
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
 
     /// The OTW for the Coin
     struct TEMPLATE has drop {}
@@ -51,7 +51,7 @@ module 0x0::template {
 To update the identifiers, you can use the `update_identifiers` function.
 
 ```ts
-import { fromHEX, update_identifiers } from '@mysten/move-bytecode-template';
+import { fromHex, update_identifiers } from '@iota/move-bytecode-template';
 
 let bytecode = /* ... */;
 let updated = update_identifiers(bytecode, {
@@ -67,8 +67,8 @@ you need to supply new value as BCS bytes, existing value as BCS, and the type o
 string: `U8`, `U16` ... `U256`, `Address`, `Vector(U8)` and so on).
 
 ```ts
-import { bcs } from '@mysten/bcs';
-import * as template from '@mysten/move-bytecode-template';
+import { bcs } from '@iota/bcs';
+import * as template from '@iota/move-bytecode-template';
 
 // please, manually scan the existing values, this operation is very sensitive
 console.log(template.get_constants(bytecode));
@@ -86,19 +86,23 @@ updated = update_constants(
 // Update SYMBOL
 updated = update_constants(
 	updated,
-	bcs.vector(bcs.string()).serialize('MYC').toBytes(), // new value
-	bcs.vector(bcs.string()).serialize('TMPL').toBytes(), // current value
+	bcs.string().serialize('MYC').toBytes(), // new value
+	bcs.string().serialize('TMPL').toBytes(), // current value
 	'Vector(U8)', // type of the constant
 );
 
 // Update NAME
 updated = update_constants(
 	updated,
-	bcs.vector(bcs.string()).serialize('My Coin').toBytes(), // new value
-	bcs.vector(bcs.string()).serialize('Template Coin').toBytes(), // current value
+	bcs.string().serialize('My Coin').toBytes(), // new value
+	bcs.string().serialize('Template Coin').toBytes(), // current value
 	'Vector(U8)', // type of the constant
 );
 ```
+
+After updating the bytecode, refer to the
+[Asset Tokenization](https://docs.iota.org/guides/developer/nft/asset-tokenization#closer-view-of-the-template-module)
+guide to deploy the contract.
 
 ## Usage in Web applications
 
@@ -107,13 +111,13 @@ latter should be made available in static / public assets as a Web application. 
 to be performed via a URL, and once completed, other functions become available.
 
 ```ts
-import init, initSync, * as template from '@mysten/move-bytecode-template';
+import init, initSync, * as template from '@iota/move-bytecode-template';
 
 await init('path/to/move_binary_format_bg.wasm');
 // alternatively initSync(...);
 
 let version = template.version();
-let json = template.deserialize(fromHEX('a11ceb0b06....'));
+let json = template.deserialize(fromHex('a11ceb0b06....'));
 let bytes = template.serialize(json);
 
 console.assert(json == bytes, '(de)serialization failed!');
@@ -124,8 +128,8 @@ console.assert(json == bytes, '(de)serialization failed!');
 To use this package with Vite, you need to import the source file and the wasm binary.
 
 ```ts
-import init, * as template from '@mysten/move-bytecode-template';
-import url from '@mysten/move-bytecode-template/move_bytecode_template_bg.wasm?url';
+import init, * as template from '@iota/move-bytecode-template';
+import url from '@iota/move-bytecode-template/move_bytecode_template_bg.wasm?url';
 ```
 
 Later, you can initialize the package with the URL.
@@ -138,7 +142,7 @@ Lastly, once the package is initialized, you can use the functions as described 
 section.
 
 ```ts
-const templateBytecode = fromHEX('a11ceb0b06....');
+const templateBytecode = fromHex('a11ceb0b06....');
 
 template.deserialize(templateBytecode);
 template.version();

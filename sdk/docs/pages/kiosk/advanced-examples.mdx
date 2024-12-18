@@ -4,54 +4,54 @@ For these examples, assume you have the following data and functions available:
 
 ```typescript
 // a constant for bullshark's type.
-const bullsharkType = `${packageId}::suifrens::SuiFren<${packageId}::bullshark::Bullshark>`;
+const bullsharkType = `${packageId}::iotafrens::IotaFren<${packageId}::bullshark::Bullshark>`;
 // a constant for capy's type.
-const capyType = `${packageId}::suifrens::SuiFren<${packageId}::capy::Capy>`;
+const capyType = `${packageId}::iotafrens::IotaFren<${packageId}::capy::Capy>`;
 
 // initialize a kioskClient.
 const kioskClient = new KioskClient({
-	client: new SuiClient({
-		url: getFullnodeUrl('mainnet'),
-	}),
-	network: Network.MAINNET,
+    client: new IotaClient({
+        url: getFullnodeUrl('mainnet'),
+    }),
+    network: Network.MAINNET,
 });
 ```
 
-## Minting a SuiFren
+## Minting a IotaFren
 
-This example demonstrates how to mint a SuiFren.
+This example demonstrates how to mint a IotaFren.
 
 ```typescript
 async function mintFren(address: string) {
-	const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address });
+    const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address });
 
-	// Choose the first kiosk for simplicity. We could have extra logic here (e.g. let the user choose, pick a personal one, etc).
-	const cap = kioskOwnerCaps[0];
+    // Choose the first kiosk for simplicity. We could have extra logic here (e.g. let the user choose, pick a personal one, etc).
+    const cap = kioskOwnerCaps[0];
 
-	const tx = new Transaction();
-	const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
+    const tx = new Transaction();
+    const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
-	// We're mixing the logic here. If the cap is undefined, we create a new kiosk.
-	if (!cap) kioskTx.create();
+    // We're mixing the logic here. If the cap is undefined, we create a new kiosk.
+    if (!cap) kioskTx.create();
 
-	// Let's mint a capy here into the kiosk (either a new or an existing one).
-	tx.moveCall({
-		target: `${packageId}::suifrens::mint_app::mint`,
-		arguments: [kioskTx.getKiosk(), kioskTx.getKioskCap()],
-		typeArguments: [capyType],
-	});
+    // Let's mint a capy here into the kiosk (either a new or an existing one).
+    tx.moveCall({
+        target: `${packageId}::iotafrens::mint_app::mint`,
+        arguments: [kioskTx.getKiosk(), kioskTx.getKioskCap()],
+        typeArguments: [capyType],
+    });
 
-	// If we don't have a cap, that means we create a new kiosk for the user in this flow.
-	if (!cap) kioskTx.shareAndTransferCap(address);
+    // If we don't have a cap, that means we create a new kiosk for the user in this flow.
+    if (!cap) kioskTx.shareAndTransferCap(address);
 
-	kioskTx.finalize();
+    kioskTx.finalize();
 
-	// sign and execute transaction.
-	await signAndExecuteTransaction({ tx: tx });
+    // sign and execute transaction.
+    await signAndExecuteTransaction({ tx: tx });
 }
 ```
 
-## Mixing two Suifrens
+## Mixing two Iotafrens
 
 This example demonstrates how to use the Kiosk SDK to mix two `bullsharks`.
 

@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::error::SendError;
+use tokio::sync::{broadcast, broadcast::error::SendError};
 
 /// PreSubscribedBroadcastSender is a wrapped Broadcast channel that limits
-/// subscription to initialization time. This is designed to be used for cancellation
-/// signal to all the components, and the limitation is intended to prevent a component missing
-/// the shutdown signal due to a subscription that happens after the shutdown signal was sent.
-/// The receivers have a special peek method which can be used to conditionally check for
-/// shutdown signal on the channel.
+/// subscription to initialization time. This is designed to be used for
+/// cancellation signal to all the components, and the limitation is intended to
+/// prevent a component missing the shutdown signal due to a subscription that
+/// happens after the shutdown signal was sent. The receivers have a special
+/// peek method which can be used to conditionally check for shutdown signal on
+/// the channel.
 pub struct PreSubscribedBroadcastSender {
     sender: broadcast::Sender<()>,
     receivers: Vec<ConditionalBroadcastReceiver>,
@@ -20,10 +21,11 @@ pub struct ConditionalBroadcastReceiver {
     pub receiver: broadcast::Receiver<()>,
 }
 
-/// ConditionalBroadcastReceiver has an additional method for convenience to be able to use
-/// to conditionally check for shutdown in all branches of a select statement. Using this method
-/// will allow for the shutdown signal to propagate faster, sice we will no longer be waiting
-/// until the branch that checks the receiver is randomly selected by the select macro.
+/// ConditionalBroadcastReceiver has an additional method for convenience to be
+/// able to use to conditionally check for shutdown in all branches of a select
+/// statement. Using this method will allow for the shutdown signal to propagate
+/// faster, since we will no longer be waiting until the branch that checks the
+/// receiver is randomly selected by the select macro.
 impl ConditionalBroadcastReceiver {
     pub async fn received_signal(&mut self) -> bool {
         futures::future::poll_immediate(&mut Box::pin(self.receiver.recv()))
@@ -95,7 +97,8 @@ async fn test_pre_subscribed_broadcast() {
 
     assert!(rx_shutdown_c.is_none());
 
-    // send the shutdown signal before we start component b and started listening for shutdown there
+    // send the shutdown signal before we start component b and started listening
+    // for shutdown there
     assert!(tx_shutdown.send().is_ok());
 
     let b = tokio::spawn(async move {
@@ -114,7 +117,8 @@ async fn test_pre_subscribed_broadcast() {
         }
     });
 
-    // assert that both component a and b loops have exited, effectively shutting down
+    // assert that both component a and b loops have exited, effectively shutting
+    // down
     assert_eq!(a.await.unwrap() + b.await.unwrap(), 3);
 }
 

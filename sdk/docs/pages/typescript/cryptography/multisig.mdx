@@ -1,7 +1,7 @@
 # Multi-Signature Transactions
 
-The Sui TypeScript SDK provides a `MultiSigPublicKey` class to support
-[Multi-Signature](https://docs.sui.io/concepts/cryptography/transaction-auth/multisig) (MultiSig)
+The Iota TypeScript SDK provides a `MultiSigPublicKey` class to support
+[Multi-Signature](https://docs.iota.org/concepts/cryptography/transaction-auth/multisig) (MultiSig)
 transaction and personal message signing.
 
 This class implements the same interface as the `PublicKey` classes that [Keypairs](./keypairs) uses
@@ -11,36 +11,36 @@ and you call the same methods to verify signatures for `PersonalMessages` and `T
 
 To create a `MultiSigPublicKey`, you provide a `threshold`(u16) value and an array of objects that
 contain `publicKey` and `weight`(u8) values. If the combined weight of valid signatures for a
-transaction is equal to or greater than the threshold value, then the Sui network considers the
+transaction is equal to or greater than the threshold value, then the Iota network considers the
 transdaction valid.
 
 ```typescript
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { MultiSigPublicKey } from '@mysten/sui/multisig';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { MultiSigPublicKey } from '@iota/iota-sdk/multisig';
 
 const kp1 = new Ed25519Keypair();
 const kp2 = new Ed25519Keypair();
 const kp3 = new Ed25519Keypair();
 
 const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-	threshold: 2,
-	publicKeys: [
-		{
-			publicKey: kp1.getPublicKey(),
-			weight: 1,
-		},
-		{
-			publicKey: kp2.getPublicKey(),
-			weight: 1,
-		},
-		{
-			publicKey: kp3.getPublicKey(),
-			weight: 2,
-		},
-	],
+    threshold: 2,
+    publicKeys: [
+        {
+            publicKey: kp1.getPublicKey(),
+            weight: 1,
+        },
+        {
+            publicKey: kp2.getPublicKey(),
+            weight: 1,
+        },
+        {
+            publicKey: kp3.getPublicKey(),
+            weight: 2,
+        },
+    ],
 });
 
-const multisigAddress = multiSigPublicKey.toSuiAddress();
+const multisigAddress = multiSigPublicKey.toIotaAddress();
 ```
 
 The `multiSigPublicKey` in the preceding code enables you to verify that signatures have a combined
@@ -76,24 +76,24 @@ A `MultiSigSigner` is created by providing the underlying Signers to the `getSig
 their combined weight is equal to or greater than the threshold.
 
 ```typescript
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { MultiSigPublicKey } from '@mysten/sui/multisig';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { MultiSigPublicKey } from '@iota/iota-sdk/multisig';
 
 const kp1 = new Ed25519Keypair();
 const kp2 = new Ed25519Keypair();
 
 const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-	threshold: 1,
-	publicKeys: [
-		{
-			publicKey: kp1.getPublicKey(),
-			weight: 1,
-		},
-		{
-			publicKey: kp2.getPublicKey(),
-			weight: 1,
-		},
-	],
+    threshold: 1,
+    publicKeys: [
+        {
+            publicKey: kp1.getPublicKey(),
+            weight: 1,
+        },
+        {
+            publicKey: kp2.getPublicKey(),
+            weight: 1,
+        },
+    ],
 });
 
 const signer = multiSigPublicKey.getSigner(kp1);
@@ -127,22 +127,22 @@ let pkZklogin = toZkLoginPublicIdentifier(addressSeed, decodedJwt.iss);
 // derive multisig address from multisig public key defined by the single key and zkLogin public
 // identifier with weight and threshold.
 const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-	threshold: 1,
-	publicKeys: [
-		{ publicKey: pkSingle, weight: 1 },
-		{ publicKey: pkZklogin, weight: 1 },
-	],
+    threshold: 1,
+    publicKeys: [
+        { publicKey: pkSingle, weight: 1 },
+        { publicKey: pkZklogin, weight: 1 },
+    ],
 });
 
 // this is the sender of any transactions from this multisig account.
-const multisigAddress = multiSigPublicKey.toSuiAddress();
+const multisigAddress = multiSigPublicKey.toIotaAddress();
 
 // create a regular zklogin signature from the zkproof and ephemeral signature for zkLogin.
 // see zklogin-integration.mdx for more details.
 const zkLoginSig = getZkLoginSignature({
-	inputs: zkLoginInputs,
-	maxEpoch: '2',
-	userSignature: fromB64(ephemeralSig),
+    inputs: zkLoginInputs,
+    maxEpoch: '2',
+    userSignature: fromBase64(ephemeralSig),
 });
 
 // a valid multisig with just the zklogin signature.

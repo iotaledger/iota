@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::VecDeque, sync::Arc};
@@ -8,7 +9,7 @@ use parking_lot::RwLock;
 
 use crate::{
     base_committer::BaseCommitter,
-    block::{Round, Slot, GENESIS_ROUND},
+    block::{GENESIS_ROUND, Round, Slot},
     commit::{DecidedLeader, Decision},
     context::Context,
     dag_state::DagState,
@@ -22,9 +23,9 @@ mod universal_committer_tests;
 #[path = "tests/pipelined_committer_tests.rs"]
 mod pipelined_committer_tests;
 
-/// A universal committer uses a collection of committers to commit a sequence of leaders.
-/// It can be configured to use a combination of different commit strategies, including
-/// multi-leaders, backup leaders, and pipelines.
+/// A universal committer uses a collection of committers to commit a sequence
+/// of leaders. It can be configured to use a combination of different commit
+/// strategies, including multi-leaders, backup leaders, and pipelines.
 pub(crate) struct UniversalCommitter {
     /// The per-epoch configuration of this authority.
     context: Arc<Context>,
@@ -35,8 +36,8 @@ pub(crate) struct UniversalCommitter {
 }
 
 impl UniversalCommitter {
-    /// Try to decide part of the dag. This function is idempotent and returns an ordered list of
-    /// decided leaders.
+    /// Try to decide part of the dag. This function is idempotent and returns
+    /// an ordered list of decided leaders.
     #[tracing::instrument(skip_all, fields(last_decided = %last_decided))]
     pub(crate) fn try_decide(&self, last_decided: Slot) -> Vec<DecidedLeader> {
         let highest_accepted_round = self.dag_state.read().highest_accepted_round();
@@ -144,8 +145,8 @@ impl UniversalCommitter {
     }
 }
 
-/// A builder for a universal committer. By default, the builder creates a single
-/// base committer, that is, a single leader and no pipeline.
+/// A builder for a universal committer. By default, the builder creates a
+/// single base committer, that is, a single leader and no pipeline.
 pub(crate) mod universal_committer_builder {
     use super::*;
     use crate::{

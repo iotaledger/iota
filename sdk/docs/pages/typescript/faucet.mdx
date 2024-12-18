@@ -2,26 +2,26 @@
 
 import { Callout } from 'nextra/components';
 
-Devnet, Testnet, and local networks include faucets that mint SUI. You can use the Sui TypeScript
-SDK to call a network's faucet and provide SUI to the address you provide.
+Devnet, Testnet, and local networks include faucets that mint IOTA. You can use the Iota TypeScript
+SDK to call a network's faucet and provide IOTA to the address you provide.
 
-To request SUI from a faucet, import the `requestSuiFromFaucetV0` function from the
-`@mysten/sui/faucet` package to your project.
+To request IOTA from a faucet, import the `requestIotaFromFaucetV0` function from the
+`@iota/iota-sdk/faucet` package to your project.
 
 ```typescript
-import { getFaucetHost, requestSuiFromFaucetV0 } from '@mysten/sui/faucet';
+import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
 ```
 
-Use `requestSuiFromFaucetV0` in your TypeScript code to request SUI from the network's faucet.
+Use `requestIotaFromFaucetV0` in your TypeScript code to request IOTA from the network's faucet.
 
 ```typescript
-await requestSuiFromFaucetV0({
+await requestIotaFromFaucetV0({
 	host: getFaucetHost('testnet'),
 	recipient: <RECIPIENT_ADDRESS>,
 });
 ```
 
 <Callout type="info">
-	Faucets on Devnet and Testnet are rate limited. If you run the script too many times, you surpass
-	the limit and must wait to successfully run it again.
+    Faucets on Devnet and Testnet are rate limited. If you run the script too many times, you
+    surpass the limit and must wait to successfully run it again.
 </Callout>

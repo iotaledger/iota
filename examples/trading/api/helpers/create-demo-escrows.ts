@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { TransactionBlock } from '@mysten/sui/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 import { CONFIG } from '../config';
-import { getActiveAddress, getClient, signAndExecute } from '../sui-utils';
+import { getActiveAddress, getClient, signAndExecute } from '../iota-utils';
 
 /// A sample on how we could fetch our owned bears that we created.
 /// We're formatting them in an easy to use way for next steps of our demo.
@@ -77,7 +78,7 @@ const createEscrows = async (total: number) => {
 		});
 	}
 
-	const txb = new TransactionBlock();
+	const txb = new Transaction();
 
 	for (const tuple of tuples) {
 		if (!tuple.bear) break;

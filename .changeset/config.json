@@ -5,19 +5,19 @@
 	"fixed": [],
 	"linked": [],
 	"access": "public",
-	"baseBranch": "main",
+	"baseBranch": "develop",
 	"updateInternalDependencies": "minor",
 	"privatePackages": false,
 	"ignore": [
-		"sui-wallet",
-		"@mysten/core",
+		"iota-wallet",
+		"iota-explorer",
+		"wallet-dashboard",
+		"apps-backend",
+		"@iota/core",
+		"@iota/apps-ui-kit",
 		"sponsored-transactions",
 		"kiosk-demo",
-		"kiosk-cli",
-		"@mysten/sdk-docs",
-		"mev-bot",
-		"escrow-api-demo",
-		"trading-frontend-demo"
+		"kiosk-cli"
 	],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true

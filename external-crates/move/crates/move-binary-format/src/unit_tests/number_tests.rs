@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::file_format_common::*;
@@ -42,8 +43,8 @@ fn uleb128_test() {
         uleb128_test_u64(2u64.pow(exp), n + 1);
         n += 1;
     }
-    uleb128_test_u64(u64::max_value() - 1, 10);
-    uleb128_test_u64(u64::max_value(), 10);
+    uleb128_test_u64(u64::MAX - 1, 10);
+    uleb128_test_u64(u64::MAX, 10);
 }
 
 #[test]

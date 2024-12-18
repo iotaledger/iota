@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// This is a simple example of a permissionless module for an imaginary game
 /// that sells swords for Gems. Gems are an in-game currency that can be bought
-/// with SUI.
+/// with IOTA.
 module examples::sword {
-    use sui::token::{Self, Token, ActionRequest};
     use examples::gem::GEM;
+    use iota::token::{Self, Token, ActionRequest};
 
     /// Trying to purchase a sword with an incorrect amount.
     const EWrongAmount: u64 = 0;
@@ -18,41 +19,36 @@ module examples::sword {
     public struct Sword has key, store { id: UID }
 
     /// Purchase a sword with Gems.
-    public fun buy_sword(
-        gems: Token<GEM>, ctx: &mut TxContext
-    ): (Sword, ActionRequest<GEM>) {
+    public fun buy_sword(gems: Token<GEM>, ctx: &mut TxContext): (Sword, ActionRequest<GEM>) {
         assert!(SWORD_PRICE == token::value(&gems), EWrongAmount);
-        (
-            Sword { id: object::new(ctx) },
-            token::spend(gems, ctx)
-        )
+        (Sword { id: object::new(ctx) }, token::spend(gems, ctx))
     }
 }
 
 /// Module that defines the in-game currency: GEMs which can be purchased with
-/// SUI and used to buy swords (in the `sword` module).
+/// IOTA and used to buy swords (in the `sword` module).
 module examples::gem {
-    use std::option::none;
-    use std::string::{Self, String};
-    use sui::sui::SUI;
-    use sui::balance::{Self, Balance};
-    use sui::tx_context::{sender};
-    use sui::coin::{Self, Coin, TreasuryCap};
-
-    use sui::token::{Self, Token, ActionRequest};
+    use std::{option::none, string::{Self, String}};
+    use iota::{
+        balance::{Self, Balance},
+        coin::{Self, Coin, TreasuryCap},
+        iota::IOTA,
+        token::{Self, Token, ActionRequest},
+        tx_context::sender
+    };
 
     /// Trying to purchase Gems with an unexpected amount.
     const EUnknownAmount: u64 = 0;
 
-    /// 10 SUI is the price of a small bundle of Gems.
+    /// 10 IOTA is the price of a small bundle of Gems.
     const SMALL_BUNDLE: u64 = 10_000_000_000;
     const SMALL_AMOUNT: u64 = 100;
 
-    /// 100 SUI is the price of a medium bundle of Gems.
+    /// 100 IOTA is the price of a medium bundle of Gems.
     const MEDIUM_BUNDLE: u64 = 100_000_000_000;
     const MEDIUM_AMOUNT: u64 = 5_000;
 
-    /// 1000 SUI is the price of a large bundle of Gems.
+    /// 1000 IOTA is the price of a large bundle of Gems.
     /// This is the best deal.
     const LARGE_BUNDLE: u64 = 1_000_000_000_000;
     const LARGE_AMOUNT: u64 = 100_000;
@@ -62,7 +58,7 @@ module examples::gem {
     public struct GemStore has key {
         id: UID,
         /// Profits from selling Gems.
-        profits: Balance<SUI>,
+        profits: Balance<IOTA>,
         /// The Treasury Cap for the in-game currency.
         gem_treasury: TreasuryCap<GEM>,
     }
@@ -74,9 +70,13 @@ module examples::gem {
     // rules for different types of actions.
     fun init(otw: GEM, ctx: &mut TxContext) {
         let (treasury_cap, coin_metadata) = coin::create_currency(
-            otw, 0, b"GEM", b"Capy Gems", // otw, decimal, symbol, name
-            b"In-game currency for Capy Miners", none(), // description, url
-            ctx
+            otw,
+            0,
+            b"GEM",
+            b"Capy Gems", // otw, decimal, symbol, name
+            b"In-game currency for Capy Miners",
+            none(), // description, url
+            ctx,
         );
 
         // create a `TokenPolicy` for GEMs
@@ -89,7 +89,7 @@ module examples::gem {
         transfer::share_object(GemStore {
             id: object::new(ctx),
             gem_treasury: treasury_cap,
-            profits: balance::zero()
+            profits: balance::zero(),
         });
 
         // deal with `TokenPolicy`, `CoinMetadata` and `TokenPolicyCap`
@@ -101,7 +101,9 @@ module examples::gem {
     /// Purchase Gems from the GemStore. Very silly value matching against module
     /// constants...
     public fun buy_gems(
-        self: &mut GemStore, payment: Coin<SUI>, ctx: &mut TxContext
+        self: &mut GemStore,
+        payment: Coin<IOTA>,
+        ctx: &mut TxContext,
     ): (Token<GEM>, ActionRequest<GEM>) {
         let amount = coin::value(&payment);
         let purchased = if (amount == SMALL_BUNDLE) {

@@ -1,47 +1,108 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB58 } from '@mysten/bcs';
+import { toBase58 } from '@iota/bcs';
 import { describe, expect, it } from 'vitest';
 
 import { Arguments, Transaction } from '../../src/transactions';
 
 describe('Arguments helpers', () => {
-	it('can use Arguments for building a transaction', async () => {
-		const args = [
-			Arguments.object('0x123'),
-			Arguments.receivingRef({
-				objectId: '1',
-				version: '123',
-				digest: toB58(new Uint8Array(32).fill(0x1)),
-			}),
-			Arguments.sharedObjectRef({
-				objectId: '2',
-				mutable: true,
-				initialSharedVersion: '123',
-			}),
-			Arguments.objectRef({
-				objectId: '3',
-				version: '123',
-				digest: toB58(new Uint8Array(32).fill(0x1)),
-			}),
-			Arguments.pure.address('0x2'),
-			Arguments.object.system(),
-			Arguments.object.clock(),
-			Arguments.object.random(),
-			Arguments.object.denyList(),
-		];
+    it('can use Arguments for building a transaction', async () => {
+        const args = [
+            Arguments.object('0x123'),
+            Arguments.receivingRef({
+                objectId: '1',
+                version: '123',
+                digest: toBase58(new Uint8Array(32).fill(0x1)),
+            }),
+            Arguments.sharedObjectRef({
+                objectId: '2',
+                mutable: true,
+                initialSharedVersion: '123',
+            }),
+            Arguments.objectRef({
+                objectId: '3',
+                version: '123',
+                digest: toBase58(new Uint8Array(32).fill(0x1)),
+            }),
+            Arguments.pure.address('0x2'),
+            Arguments.object.system(),
+            Arguments.object.clock(),
+            Arguments.object.random(),
+            Arguments.object.denyList(),
+            Arguments.object.option({
+                type: '0x123::example::Thing',
+                value: '0x456',
+            }),
+            Arguments.object.option({
+                type: '0x123::example::Thing',
+                value: Arguments.object('0x456'),
+            }),
+            Arguments.object.option({
+                type: '0x123::example::Thing',
+                value: null,
+            }),
+        ];
 
-		const tx = new Transaction();
+        const tx = new Transaction();
 
-		tx.moveCall({
-			target: '0x2::foo::bar',
-			arguments: args,
-		});
+        tx.moveCall({
+            target: '0x2::foo::bar',
+            arguments: args,
+        });
 
-		expect(tx.getData()).toMatchInlineSnapshot(`
+        expect(tx.getData()).toMatchInlineSnapshot(`
 			{
 			  "commands": [
+			    {
+			      "$kind": "MoveCall",
+			      "MoveCall": {
+			        "arguments": [
+			          {
+			            "$kind": "Input",
+			            "Input": 9,
+			            "type": "object",
+			          },
+			        ],
+			        "function": "some",
+			        "module": "option",
+			        "package": "0x0000000000000000000000000000000000000000000000000000000000000001",
+			        "typeArguments": [
+			          "0x123::example::Thing",
+			        ],
+			      },
+			    },
+			    {
+			      "$kind": "MoveCall",
+			      "MoveCall": {
+			        "arguments": [
+			          {
+			            "$kind": "Input",
+			            "Input": 9,
+			            "type": "object",
+			          },
+			        ],
+			        "function": "some",
+			        "module": "option",
+			        "package": "0x0000000000000000000000000000000000000000000000000000000000000001",
+			        "typeArguments": [
+			          "0x123::example::Thing",
+			        ],
+			      },
+			    },
+			    {
+			      "$kind": "MoveCall",
+			      "MoveCall": {
+			        "arguments": [],
+			        "function": "none",
+			        "module": "option",
+			        "package": "0x0000000000000000000000000000000000000000000000000000000000000001",
+			        "typeArguments": [
+			          "0x123::example::Thing",
+			        ],
+			      },
+			    },
 			    {
 			      "$kind": "MoveCall",
 			      "MoveCall": {
@@ -90,6 +151,18 @@ describe('Arguments helpers', () => {
 			            "$kind": "Input",
 			            "Input": 8,
 			            "type": "object",
+			          },
+			          {
+			            "$kind": "Result",
+			            "Result": 0,
+			          },
+			          {
+			            "$kind": "Result",
+			            "Result": 1,
+			          },
+			          {
+			            "$kind": "Result",
+			            "Result": 2,
 			          },
 			        ],
 			        "function": "bar",
@@ -176,10 +249,16 @@ describe('Arguments helpers', () => {
 			        "objectId": "0x0000000000000000000000000000000000000000000000000000000000000403",
 			      },
 			    },
+			    {
+			      "$kind": "UnresolvedObject",
+			      "UnresolvedObject": {
+			        "objectId": "0x0000000000000000000000000000000000000000000000000000000000000456",
+			      },
+			    },
 			  ],
 			  "sender": null,
 			  "version": 2,
 			}
 		`);
-	});
+    });
 });

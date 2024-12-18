@@ -1,11 +1,14 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
+import "openzeppelin-foundry-upgrades/Options.sol";
 import "../contracts/BridgeCommittee.sol";
 import "../contracts/BridgeVault.sol";
 import "../contracts/BridgeLimiter.sol";
-import "../contracts/SuiBridge.sol";
+import "../contracts/IotaBridge.sol";
 import "../contracts/BridgeConfig.sol";
 
 contract BridgeBaseTest is Test {
@@ -39,11 +42,13 @@ contract BridgeBaseTest is Test {
 
     uint64 USD_VALUE_MULTIPLIER = 100000000; // 8 DP accuracy
 
-    uint64 SUI_PRICE = 1_28000000;
+    uint64 IOTA_PRICE = 1_28000000;
     uint64 BTC_PRICE = 43251_89000000;
     uint64 ETH_PRICE = 2596_96000000;
     uint64 USDC_PRICE = 1_00000000;
     uint64[] tokenPrices;
+    uint8[] iotaDecimals;
+    uint8[] tokenIds;
     address[] supportedTokens;
     uint8[] supportedChains;
 
@@ -52,10 +57,12 @@ contract BridgeBaseTest is Test {
     uint16 minStakeRequired = 10000;
 
     BridgeCommittee public committee;
-    SuiBridge public bridge;
+    IotaBridge public bridge;
     BridgeVault public vault;
     BridgeLimiter public limiter;
     BridgeConfig public config;
+
+    Options opts;
 
     function setUpBridgeTest() public {
         vm.createSelectFork(
@@ -80,24 +87,30 @@ contract BridgeBaseTest is Test {
         vm.startPrank(deployer);
 
         // deploy committee =====================================================================
-        committee = new BridgeCommittee();
-        address[] memory _committee = new address[](5);
+        address[] memory _committeeList = new address[](5);
         uint16[] memory _stake = new uint16[](5);
-        _committee[0] = committeeMemberA;
-        _committee[1] = committeeMemberB;
-        _committee[2] = committeeMemberC;
-        _committee[3] = committeeMemberD;
-        _committee[4] = committeeMemberE;
+        _committeeList[0] = committeeMemberA;
+        _committeeList[1] = committeeMemberB;
+        _committeeList[2] = committeeMemberC;
+        _committeeList[3] = committeeMemberD;
+        _committeeList[4] = committeeMemberE;
         _stake[0] = 1000;
         _stake[1] = 1000;
         _stake[2] = 1000;
         _stake[3] = 2002;
         _stake[4] = 4998;
 
-        committee.initialize(_committee, _stake, minStakeRequired);
+        opts.unsafeSkipAllChecks = true;
+
+        address _committee = Upgrades.deployUUPSProxy(
+            "BridgeCommittee.sol",
+            abi.encodeCall(BridgeCommittee.initialize, (_committeeList, _stake, minStakeRequired)),
+            opts
+        );
+
+        committee = BridgeCommittee(_committee);
 
         // deploy config =====================================================================
-        config = new BridgeConfig();
         supportedTokens = new address[](5);
         supportedTokens[0] = address(0);
         supportedTokens[1] = wBTC;
@@ -107,15 +120,34 @@ contract BridgeBaseTest is Test {
         supportedChains = new uint8[](1);
         supportedChains[0] = 0;
         tokenPrices = new uint64[](5);
-        tokenPrices[0] = SUI_PRICE;
+        iotaDecimals = new uint8[](5);
+        tokenIds = new uint8[](5);
+        iotaDecimals[0] = 9;
+        iotaDecimals[1] = 8;
+        iotaDecimals[2] = 8;
+        iotaDecimals[3] = 6;
+        iotaDecimals[4] = 6;
+        tokenPrices[0] = IOTA_PRICE;
         tokenPrices[1] = BTC_PRICE;
         tokenPrices[2] = ETH_PRICE;
         tokenPrices[3] = USDC_PRICE;
         tokenPrices[4] = USDC_PRICE;
+        tokenIds[0] = 0;
+        tokenIds[1] = 1;
+        tokenIds[2] = 2;
+        tokenIds[3] = 3;
+        tokenIds[4] = 4;
 
-        config.initialize(
-            address(committee), chainID, supportedTokens, tokenPrices, supportedChains
+        address _config = Upgrades.deployUUPSProxy(
+            "BridgeConfig.sol",
+            abi.encodeCall(
+                BridgeConfig.initialize,
+                (address(committee), chainID, supportedTokens, tokenPrices, tokenIds, iotaDecimals, supportedChains)
+            ),
+            opts
         );
+
+        config = BridgeConfig(_config);
 
         // initialize config in the bridge committee
         committee.initializeConfig(address(config));
@@ -126,15 +158,31 @@ contract BridgeBaseTest is Test {
 
         // deploy limiter =====================================================================
 
-        limiter = new BridgeLimiter();
         uint64[] memory chainLimits = new uint64[](1);
         chainLimits[0] = totalLimit;
-        limiter.initialize(address(committee), supportedChains, chainLimits);
+
+        address _limiter = Upgrades.deployUUPSProxy(
+            "BridgeLimiter.sol",
+            abi.encodeCall(
+                BridgeLimiter.initialize, (address(committee), supportedChains, chainLimits)
+            ),
+            opts
+        );
+
+        limiter = BridgeLimiter(_limiter);
 
         // deploy bridge =====================================================================
 
-        bridge = new SuiBridge();
-        bridge.initialize(address(committee), address(vault), address(limiter));
+        address _iotaBridge = Upgrades.deployUUPSProxy(
+            "IotaBridge.sol",
+            abi.encodeCall(
+                IotaBridge.initialize, (address(committee), address(vault), address(limiter))
+            ),
+            opts
+        );
+
+        bridge = IotaBridge(_iotaBridge);
+
         vault.transferOwnership(address(bridge));
         limiter.transferOwnership(address(bridge));
     }

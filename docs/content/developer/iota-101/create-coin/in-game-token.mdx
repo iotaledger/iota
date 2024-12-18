@@ -1,0 +1,71 @@
+---
+description: Learn how to create in-game currency on IOTA using the Closed-Loop Token standard.
+---
+import Quiz from '@site/src/components/Quiz';
+import questions from '/json/developer/iota-101/create-coin/in-game-token.json';
+
+# Creating In-Game Currency
+
+You can use the IOTA [Closed-Loop Token](../../standards/closed-loop-token.mdx) standard
+to develop in-game currencies like gems or diamonds commonly found in mobile games.
+These tokens can be awarded to players for their actions or made available for purchase.
+While minted on the IOTA network, players can only use these tokens within the game's ecosystem.
+Typically, such tokens are non-transferable and are minted in predefined quantities to maintain scarcity and balance within the game.
+
+## Setting Up the GEM Currency
+
+In the following example creates an in-game currency called `GEM`, representing a specific amount of IOTA.
+Players can purchase fungible `GEMs` using IOTA, which they can then spend within the game.
+
+### Example Overview
+
+The IOTA repository includes a [basic example of creating an in-game currency]https://github.com/iotaledger/iota/tree/develop/examples/move/token.
+The Move modules responsible for establishing the game's economy are located in the [`gems.move`](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/gems.move) source file.
+
+### The `examples::sword` Module
+
+The [`examples::sword` module](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/gems.move#L8) defines an in-game object, a `sword`,
+which holds value within the game.
+This module assigns a `GEM` value to the sword and includes the logic for trading `GEMs` to acquire a sword.
+
+```move file=<rootDir>/examples/move/token/sources/gems.move#L8-L32
+```
+
+### The `examples::gem` Module
+
+The [`examples::gem` module](https://github.com/iotaledger/iota/blob/develop/examples/move/token/sources/gems.move#L36) is responsible
+for creating the `GEM` in-game currency.
+Players spend IOTA to purchase `GEMs`, which they can trade for swords or other in-game items.
+The module defines three tiers of `GEM` packages—small, medium, and large—each representing different in-game values.
+Constants within the module specify both the value and the quantity of GEMs in each package.
+
+```move file=<rootDir>/examples/move/token/sources/gems.move#L73-L69
+```
+
+#### Initializing the GEM Currency
+
+The `init` function in the module uses `coin::create_currency` to create the GEM currency. This function runs only once upon module publication. It sets the policies for the in-game currency, freezes the coin's metadata, and transfers the policy capability to the package publisher.
+
+```move file=<rootDir>/examples/move/token/sources/gems.move#L76-L100
+```
+
+#### Purchasing GEMs
+
+The module handles the purchase of `GEMs` through the `buy_gems` function.
+
+```move file=<rootDir>/examples/move/token/sources/gems.move#L104-L125
+```
+
+## Viewing the Complete Module Code
+
+For a comprehensive understanding, you can view the complete code of the `gems.move` module below.
+
+<details>
+<summary>Click to expand the full module code</summary>
+
+```move file=<rootDir>/examples/move/token/sources/gems.move
+```
+
+</details>
+
+<Quiz questions={questions} />

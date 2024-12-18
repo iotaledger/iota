@@ -1,11 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
 };
+
+use anyhow::anyhow;
 
 pub fn run() -> crate::Result<()> {
     // change into the external-crates/move directory

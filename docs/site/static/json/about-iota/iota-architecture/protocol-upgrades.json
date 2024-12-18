@@ -1,0 +1,41 @@
+{
+    "questions": [
+      {
+        "questionText": "What is the main challenge addressed by IOTA’s protocol upgrade process?",
+        "answerOptions": [
+          { "answerText": "Ensuring all validators upgrade their software simultaneously.", "isCorrect": true },
+          { "answerText": "Allowing users to stake more tokens.", "isCorrect": false },
+          { "answerText": "Improving validator voting power.", "isCorrect": false },
+          { "answerText": "Increasing transaction speed.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "How is access to a new feature controlled during a protocol upgrade?",
+        "answerOptions": [
+          { "answerText": "By a timestamp.", "isCorrect": false },
+          { "answerText": "Through a feature flag.", "isCorrect": true },
+          { "answerText": "Using a new consensus algorithm.", "isCorrect": false },
+          { "answerText": "By increasing validator commission rates.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "When does a new protocol version take effect?",
+        "answerOptions": [
+          { "answerText": "Immediately after the release.", "isCorrect": false },
+          { "answerText": "After 24 hours.", "isCorrect": false },
+          { "answerText": "At the beginning of the next epoch.", "isCorrect": true },
+          { "answerText": "After a validator upgrade vote is held.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "How do full nodes handle protocol upgrades?",
+        "answerOptions": [
+          { "answerText": "They follow the validators' recorded actions.", "isCorrect": true },
+          { "answerText": "They vote on protocol changes.", "isCorrect": false },
+          { "answerText": "They upgrade automatically.", "isCorrect": false },
+          { "answerText": "They ignore protocol upgrades.", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  

@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -22,9 +23,6 @@ use proptest::{
     std_facade::hash_set::HashSet,
 };
 use std::collections::BTreeSet;
-
-#[derive(Debug)]
-struct TypeSignatureIndex(u16);
 
 #[derive(Debug)]
 pub struct StDefnMaterializeState {

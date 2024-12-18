@@ -1,0 +1,53 @@
+---
+title: Move.toml File
+description: Get the details for a Move package manifest.
+---
+
+Every Move package has a `Move.toml` file as a manifest for the package. The IOTA Move compiler creates the `Move.toml` file for you when you create a new package, but you might need to update the file throughout the lifespan of your package.
+
+The manifest contains information divided into three sections:
+* `[package]`: Your package metadata, such as name and version.
+* `[dependencies]`: List of packages that your package depends on. Initially, the IOTA Framework is the only dependency, but you add third-party dependencies to this section as needed.
+* `[addresses]`: A list of *named addresses*. You can use the names listed as convenient aliases for the given addresses in the source code.
+
+## [package] section
+
+The `[package]` section contains the following information:
+
+* `name`: The name of your package. Created by IOTA Move compiler.
+* `version`: The current version of your package. The IOTA Move compiler creates the first value.
+
+## [dependencies] section
+
+The IOTA Move compiler creates the `[dependencies]` section for you with a single entry for the GitHub address of the IOTA network. If you need to use a local version of the network, you can edit the address to point to the local version. For example,
+
+```toml
+IOTA = { local = "../crates/iota-framework" }
+```
+
+You place each additional dependency your package has on a new line directly below the previous one.
+
+## [addresses] section
+
+The IOTA Move compiler creates the `[addresses]` section for you with an entry for your package and one for the IOTA network.
+
+```toml
+[addresses]
+your_package_name =  "0x0"
+iota =  "0000000000000000000000000000000000000000000000000000000000000002"
+```
+
+The aliases defined in `[addresses]` enable you to reference the shortened name instead of the actual address. For example, when you import from IOTA in a module, you can write:
+
+```move
+use iota::transfer
+```
+
+Without the alias, you have to write:
+
+```move
+// You could also use 0x2
+use 0000000000000000000000000000000000000000000000000000000000000002::transfer
+```
+
+Dependency address values can change at different stages of development, also, so using the alias means the change only needs to occur in the manifest.

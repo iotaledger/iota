@@ -1,8 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::Benchmark;
 use rand::Rng;
+
+use crate::Benchmark;
 
 pub struct Server;
 

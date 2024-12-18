@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -28,6 +29,12 @@ pub struct ResolvingTable {
 enum Assignment {
     Assign(Option<AccountAddress>),
     Linked(usize),
+}
+
+impl Default for ResolvingTable {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ResolvingTable {

@@ -1,0 +1,38 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use std::ops::RangeInclusive;
+
+use async_trait::async_trait;
+use diesel_async::RunQueryDsl;
+
+use crate::{backfill::backfill_task::BackfillTask, database::ConnectionPool};
+
+pub struct SqlBackFill {
+    sql: String,
+    key_column: String,
+}
+
+impl SqlBackFill {
+    pub fn new(sql: String, key_column: String) -> Self {
+        Self { sql, key_column }
+    }
+}
+
+#[async_trait]
+impl BackfillTask for SqlBackFill {
+    async fn backfill_range(&self, pool: ConnectionPool, range: &RangeInclusive<usize>) {
+        let mut conn = pool.get().await.unwrap();
+
+        let query = format!(
+            "{} WHERE {} BETWEEN {} AND {} ON CONFLICT DO NOTHING",
+            self.sql,
+            self.key_column,
+            *range.start(),
+            *range.end()
+        );
+
+        diesel::sql_query(query).execute(&mut conn).await.unwrap();
+    }
+}

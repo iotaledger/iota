@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use bincode::ErrorKind as BincodeErrorKind;
+use std::{fmt, fmt::Display};
 
+use bincode::ErrorKind as BincodeErrorKind;
 use rocksdb::Error as RocksError;
 use serde::{Deserialize, Serialize};
-use std::{fmt, fmt::Display};
 use thiserror::Error;
 use typed_store_error::TypedStoreError;
 

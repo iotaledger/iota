@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Constants for the binary format.
@@ -26,7 +27,7 @@ const _: () = {
     // It should always be `0x05XX_XXXX` where `XX_XXXX` is the version digits.
     assert!(x == 0x0500_0000u32);
     // Make sure that the flavoring is extracted correctly.
-    assert!(BinaryFlavor::mask_and_shift_to_unflavor(x) == BinaryFlavor::SUI_FLAVOR);
+    assert!(BinaryFlavor::mask_and_shift_to_unflavor(x) == BinaryFlavor::IOTA_FLAVOR);
 };
 
 /// Encoding of a the flavor into the version of the binary format for versions >= 7.
@@ -34,8 +35,8 @@ pub struct BinaryFlavor;
 impl BinaryFlavor {
     pub const FLAVOR_MASK: u32 = 0xFF00_0000;
     pub const VERSION_MASK: u32 = 0x00FF_FFFF;
-    // The Sui flavor is 0x05
-    pub const SUI_FLAVOR: u8 = 0x05;
+    // The Iota flavor is 0x05
+    pub const IOTA_FLAVOR: u8 = 0x05;
     const SHIFT_AMOUNT: u8 = 24;
 
     pub fn encode_version(unflavored_version: u32) -> u32 {
@@ -66,7 +67,7 @@ impl BinaryFlavor {
     }
 
     const fn shift_and_flavor(unflavored: u32) -> u32 {
-        (Self::SUI_FLAVOR as u32) << Self::SHIFT_AMOUNT | unflavored
+        (Self::IOTA_FLAVOR as u32) << Self::SHIFT_AMOUNT | unflavored
     }
 }
 
@@ -334,7 +335,7 @@ pub enum Opcodes {
 }
 
 /// Upper limit on the binary size
-pub const BINARY_SIZE_LIMIT: usize = usize::max_value();
+pub const BINARY_SIZE_LIMIT: usize = usize::MAX;
 
 /// A wrapper for the binary vector
 #[derive(Default, Debug)]
@@ -529,11 +530,10 @@ pub const VERSION_MAX: u32 = VERSION_7;
 // TODO(#145): finish v4 compatibility; as of now, only metadata is implemented
 pub const VERSION_MIN: u32 = VERSION_5;
 
-/// The encoding of the instruction is the serialized form of it, but disregarding the
-/// serialization of the instruction's argument(s).
-pub fn instruction_key(instruction: &Bytecode) -> u8 {
+/// The corresponding opcode for each bytecode (disregards the argument).
+pub fn instruction_opcode(instruction: &Bytecode) -> Opcodes {
     use Bytecode::*;
-    let opcode = match instruction {
+    match instruction {
         Pop => Opcodes::POP,
         Ret => Opcodes::RET,
         BrTrue(_) => Opcodes::BR_TRUE,
@@ -621,6 +621,11 @@ pub fn instruction_key(instruction: &Bytecode) -> u8 {
         MutBorrowGlobalGenericDeprecated(_) => Opcodes::MUT_BORROW_GLOBAL_GENERIC_DEPRECATED,
         ImmBorrowGlobalDeprecated(_) => Opcodes::IMM_BORROW_GLOBAL_DEPRECATED,
         ImmBorrowGlobalGenericDeprecated(_) => Opcodes::IMM_BORROW_GLOBAL_GENERIC_DEPRECATED,
-    };
-    opcode as u8
+    }
+}
+
+/// The encoding of the instruction is the serialized form of it, but disregarding the
+/// serialization of the instruction's argument(s).
+pub fn instruction_key(instruction: &Bytecode) -> u8 {
+    instruction_opcode(instruction) as u8
 }

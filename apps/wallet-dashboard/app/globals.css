@@ -1,0 +1,139 @@
+@import '@iota/apps-ui-kit/styles';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+    min-height: 100%;
+    @apply bg-gray-100 dark:bg-gray-900;
+    @apply text-gray-900 dark:text-gray-100;
+}
+
+@layer utilities {
+    .text-balance {
+        text-wrap: balance;
+    }
+}
+
+@layer components {
+    .home-page-grid-container {
+        @apply grid grid-cols-1 gap-lg;
+        grid-template-areas:
+            'balance'
+            'staking'
+            'coins'
+            'activity';
+
+        &
+            > *:where(
+                [style*='grid-area: balance'],
+                [style*='grid-area: staking'],
+                [style*='grid-area: migration']
+            ) {
+            height: 200px;
+        }
+    }
+    .home-page-grid-container:has(.with-vesting):not(:has(.with-migration)) {
+        grid-template-areas:
+            'balance'
+            'staking'
+            'vesting'
+            'coins'
+            'activity';
+    }
+    .home-page-grid-container:has(.with-migration):not(:has(.with-vesting)) {
+        grid-template-areas:
+            'balance'
+            'staking'
+            'migration'
+            'coins'
+            'activity';
+    }
+    .home-page-grid-container:has(.with-migration):has(.with-vesting) {
+        grid-template-areas:
+            'balance'
+            'staking'
+            'migration'
+            'vesting'
+            'coins'
+            'activity';
+    }
+
+    @screen sm {
+        .home-page-grid-container {
+            @apply grid-cols-2;
+            grid-template-areas:
+                'balance balance'
+                'staking staking'
+                'coins coins'
+                'activity activity';
+        }
+        .home-page-grid-container:has(.with-vesting):not(:has(.with-migration)) {
+            grid-template-areas:
+                'balance balance'
+                'staking staking'
+                'vesting vesting'
+                'coins coins'
+                'activity activity';
+        }
+        .home-page-grid-container:has(.with-migration):not(:has(.with-vesting)) {
+            grid-template-areas:
+                'balance balance'
+                'staking migration'
+                'coins coins'
+                'activity activity';
+        }
+        .home-page-grid-container:has(.with-migration):has(.with-vesting) {
+            grid-template-areas:
+                'balance balance'
+                'staking migration'
+                'vesting vesting'
+                'coins coins'
+                'activity activity';
+        }
+    }
+
+    @screen md {
+        .home-page-grid-container {
+            min-height: 700px;
+            height: calc(100vh - 140px);
+            @apply grid-cols-3;
+            grid-template-areas:
+                'balance staking staking'
+                'coins activity activity';
+        }
+        .home-page-grid-container:has(.with-vesting):not(:has(.with-migration)) {
+            grid-template-areas:
+                'balance staking staking'
+                'coins vesting vesting'
+                'coins activity activity';
+        }
+
+        .home-page-grid-container:has(.with-migration):not(:has(.with-vesting)) {
+            grid-template-areas:
+                'balance staking migration'
+                'coins activity activity';
+        }
+
+        .home-page-grid-container:has(.with-migration):has(.with-vesting) {
+            grid-template-areas:
+                'balance staking migration'
+                'coins vesting vesting'
+                'coins activity activity';
+        }
+    }
+
+    .grid-template-visual-assets {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+
+    a {
+        @apply text-primary-30 dark:text-primary-80;
+        @apply transition-colors;
+        &:hover {
+            @apply text-opacity-80;
+        }
+    }
+}

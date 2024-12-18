@@ -1,10 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{future::Future, time::Duration};
 
 /// Retry configurations for establishing connections and sending messages.
-/// Determines the retry behaviour of requests, by setting the back off strategy used.
+/// Determines the retry behaviour of requests, by setting the back off strategy
+/// used.
 #[derive(Clone, Debug, Copy)]
 pub struct RetryConfig {
     /// The initial retry interval.
@@ -12,29 +14,32 @@ pub struct RetryConfig {
     /// The subsequent delay will be decided by the `retry_delay_multiplier`.
     pub initial_retry_interval: Duration,
 
-    /// The maximum value of the back off period. Once the retry interval reaches this
-    /// value it stops increasing.
+    /// The maximum value of the back off period. Once the retry interval
+    /// reaches this value it stops increasing.
     ///
     /// This is the longest duration we will have,
     /// for establishing connections and sending messages.
-    /// Retrying continues even after the duration times have reached this duration.
-    /// The number of retries before that happens, will be decided by the `retry_delay_multiplier`.
-    /// The number of retries after that, will be decided by the `retrying_max_elapsed_time`.
+    /// Retrying continues even after the duration times have reached this
+    /// duration. The number of retries before that happens, will be decided
+    /// by the `retry_delay_multiplier`. The number of retries after that,
+    /// will be decided by the `retrying_max_elapsed_time`.
     pub max_retry_interval: Duration,
 
     /// The value to multiply the current interval with for each retry attempt.
     pub retry_delay_multiplier: f64,
 
-    /// The randomization factor to use for creating a range around the retry interval.
+    /// The randomization factor to use for creating a range around the retry
+    /// interval.
     ///
-    /// A randomization factor of 0.5 results in a random period ranging between 50% below and 50%
-    /// above the retry interval.
+    /// A randomization factor of 0.5 results in a random period ranging between
+    /// 50% below and 50% above the retry interval.
     pub retry_delay_rand_factor: f64,
 
     /// The maximum elapsed time after instantiating
     ///
     /// Retrying continues until this time has elapsed.
-    /// The number of retries before that happens, will be decided by the other retry config options.
+    /// The number of retries before that happens, will be decided by the other
+    /// retry config options.
     pub retrying_max_elapsed_time: Option<Duration>,
 }
 
@@ -60,8 +65,8 @@ impl RetryConfig {
     // Perform `op` and retry on errors as specified by this configuration.
     //
     // Note that `backoff::Error<E>` implements `From<E>` for any `E` by creating a
-    // `backoff::Error::Transient`, meaning that errors will be retried unless explicitly returning
-    // `backoff::Error::Permanent`.
+    // `backoff::Error::Transient`, meaning that errors will be retried unless
+    // explicitly returning `backoff::Error::Permanent`.
     pub fn retry<R, E, Fn, Fut>(self, op: Fn) -> impl Future<Output = Result<R, E>>
     where
         Fn: FnMut() -> Fut,

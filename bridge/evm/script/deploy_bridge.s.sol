@@ -1,3 +1,4 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -10,10 +11,29 @@ import "../contracts/BridgeCommittee.sol";
 import "../contracts/BridgeVault.sol";
 import "../contracts/BridgeConfig.sol";
 import "../contracts/BridgeLimiter.sol";
-import "../contracts/SuiBridge.sol";
+import "../contracts/IotaBridge.sol";
 import "../test/mocks/MockTokens.sol";
 
 contract DeployBridge is Script {
+    function parseDeployConfig(string memory path) public returns (DeployConfig memory) {
+        string memory json = vm.readFile(path);
+        DeployConfig memory config;
+
+        config.committeeMemberStake = abi.decode(vm.parseJson(json, ".committeeMemberStake"), (uint256[]));
+        config.committeeMembers = abi.decode(vm.parseJson(json, ".committeeMembers"), (address[]));
+        config.minCommitteeStakeRequired = abi.decode(vm.parseJson(json, ".minCommitteeStakeRequired"), (uint256));
+        config.sourceChainId = abi.decode(vm.parseJson(json, ".sourceChainId"), (uint256));
+        config.supportedChainIds = abi.decode(vm.parseJson(json, ".supportedChainIds"), (uint256[]));
+        config.supportedChainLimitsInDollars = abi.decode(vm.parseJson(json, ".supportedChainLimitsInDollars"), (uint256[]));
+        config.tokenPrices = abi.decode(vm.parseJson(json, ".tokenPrices"), (uint256[]));
+        config.supportedTokens = abi.decode(vm.parseJson(json, ".supportedTokens"), (address[]));
+        config.tokenIds = abi.decode(vm.parseJson(json, ".tokenIds"), (uint256[]));
+        config.iotaDecimals = abi.decode(vm.parseJson(json, ".iotaDecimals"), (uint256[]));
+        config.weth = abi.decode(vm.parseJson(json, ".weth"), (address));
+
+        return config;
+    }
+
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
@@ -30,15 +50,13 @@ contract DeployBridge is Script {
         }
 
         console.log("config path: ", path);
-        string memory json = vm.readFile(path);
-        bytes memory bytesJson = vm.parseJson(json);
-        DeployConfig memory deployConfig = abi.decode(bytesJson, (DeployConfig));
+        DeployConfig memory deployConfig = parseDeployConfig(path);
 
         // if deploying to local network, deploy mock tokens
         if (isLocal) {
             console.log("Deploying mock tokens for local network");
             // deploy WETH
-            deployConfig.WETH = address(new WETH());
+            deployConfig.weth = address(new WETH());
 
             // deploy mock tokens
             MockWBTC wBTC = new MockWBTC();
@@ -47,35 +65,51 @@ contract DeployBridge is Script {
             MockKA KA = new MockKA();
             console.log("[Deployed] KA:", address(KA));
 
-            // update deployConfig with mock addresses
+            // update deployConfig with test values
             deployConfig.supportedTokens = new address[](5);
-            // In BridgeConfig.sol `supportedTokens is shifted by one
-            // and the first token is SUI.
             deployConfig.supportedTokens[0] = address(0);
             deployConfig.supportedTokens[1] = address(wBTC);
-            deployConfig.supportedTokens[2] = deployConfig.WETH;
+            deployConfig.supportedTokens[2] = deployConfig.weth;
             deployConfig.supportedTokens[3] = address(USDC);
             deployConfig.supportedTokens[4] = address(USDT);
+
+            deployConfig.tokenIds = new uint256[](5);
+            deployConfig.tokenIds[0] = 0;
+            deployConfig.tokenIds[1] = 1;
+            deployConfig.tokenIds[2] = 2;
+            deployConfig.tokenIds[3] = 3;
+            deployConfig.tokenIds[4] = 4;
+
+            deployConfig.iotaDecimals = new uint256[](5);
+            deployConfig.iotaDecimals[0] = 9;
+            deployConfig.iotaDecimals[1] = 8;
+            deployConfig.iotaDecimals[2] = 8;
+            deployConfig.iotaDecimals[3] = 6;
+            deployConfig.iotaDecimals[4] = 6;
         }
 
-        // TODO: validate config values before deploying
-
-        // convert supported chains from uint256 to uint8[]
-        uint8[] memory supportedChainIDs = new uint8[](deployConfig.supportedChainIDs.length);
-        for (uint256 i; i < deployConfig.supportedChainIDs.length; i++) {
-            supportedChainIDs[i] = uint8(deployConfig.supportedChainIDs[i]);
+        // convert supported chains from uint256 to uint8
+        uint8[] memory supportedChainIds = new uint8[](deployConfig.supportedChainIds.length);
+        for (uint256 i; i < deployConfig.supportedChainIds.length; i++) {
+            supportedChainIds[i] = uint8(deployConfig.supportedChainIds[i]);
         }
 
-        // deploy bridge config
-        // price of Sui (id = 0) should not be included in tokenPrices
         require(
             deployConfig.supportedTokens.length == deployConfig.tokenPrices.length,
-            "supportedTokens.length + 1 != tokenPrices.length"
+            "supportedTokens.length != tokenPrices.length"
+        );
+        require(
+            deployConfig.supportedTokens.length == deployConfig.tokenIds.length,
+            "supportedTokens.length != tokenIds.length"
+        );
+        require(
+            deployConfig.supportedTokens.length == deployConfig.iotaDecimals.length,
+            "supportedTokens.length != iotaDecimals.length"
         );
 
         // deploy Bridge Committee ===================================================================
 
-        // convert committeeMembers stake from uint256 to uint16[]
+        // convert committeeMembers stake from uint256 to uint16
         uint16[] memory committeeMemberStake =
             new uint16[](deployConfig.committeeMemberStake.length);
         for (uint256 i; i < deployConfig.committeeMemberStake.length; i++) {
@@ -106,6 +140,18 @@ contract DeployBridge is Script {
             tokenPrices[i] = uint64(deployConfig.tokenPrices[i]);
         }
 
+        // convert Iota Decimals from uint256 to uint8
+        uint8[] memory iotaDecimals = new uint8[](deployConfig.iotaDecimals.length);
+        for (uint256 i; i < deployConfig.iotaDecimals.length; i++) {
+            iotaDecimals[i] = uint8(deployConfig.iotaDecimals[i]);
+        }
+
+        // convert Token Id from uint256 to uint8
+        uint8[] memory tokenIds = new uint8[](deployConfig.tokenIds.length);
+        for (uint256 i; i < deployConfig.tokenIds.length; i++) {
+            tokenIds[i] = uint8(deployConfig.tokenIds[i]);
+        }
+
         address bridgeConfig = Upgrades.deployUUPSProxy(
             "BridgeConfig.sol",
             abi.encodeCall(
@@ -115,7 +161,9 @@ contract DeployBridge is Script {
                     uint8(deployConfig.sourceChainId),
                     deployConfig.supportedTokens,
                     tokenPrices,
-                    supportedChainIDs
+                    tokenIds,
+                    iotaDecimals,
+                    supportedChainIds
                 )
             ),
             opts
@@ -123,10 +171,13 @@ contract DeployBridge is Script {
 
         // initialize config in the bridge committee
         BridgeCommittee(bridgeCommittee).initializeConfig(address(bridgeConfig));
+        BridgeCommittee committeeImplementation =
+            BridgeCommittee(Upgrades.getImplementationAddress(bridgeCommittee));
+        committeeImplementation.initializeConfig(address(bridgeConfig));
 
         // deploy vault =============================================================================
 
-        BridgeVault vault = new BridgeVault(deployConfig.WETH);
+        BridgeVault vault = new BridgeVault(deployConfig.weth);
 
         // deploy limiter ===========================================================================
 
@@ -140,7 +191,7 @@ contract DeployBridge is Script {
         address limiter = Upgrades.deployUUPSProxy(
             "BridgeLimiter.sol",
             abi.encodeCall(
-                BridgeLimiter.initialize, (bridgeCommittee, supportedChainIDs, chainLimits)
+                BridgeLimiter.initialize, (bridgeCommittee, supportedChainIds, chainLimits)
             ),
             opts
         );
@@ -148,23 +199,23 @@ contract DeployBridge is Script {
         uint8[] memory _destinationChains = new uint8[](1);
         _destinationChains[0] = 1;
 
-        // deploy Sui Bridge ========================================================================
+        // deploy Iota Bridge ========================================================================
 
-        address suiBridge = Upgrades.deployUUPSProxy(
-            "SuiBridge.sol",
-            abi.encodeCall(SuiBridge.initialize, (bridgeCommittee, address(vault), limiter)),
+        address iotaBridge = Upgrades.deployUUPSProxy(
+            "IotaBridge.sol",
+            abi.encodeCall(IotaBridge.initialize, (bridgeCommittee, address(vault), limiter)),
             opts
         );
 
         // transfer vault ownership to bridge
-        vault.transferOwnership(suiBridge);
+        vault.transferOwnership(iotaBridge);
         // transfer limiter ownership to bridge
         BridgeLimiter instance = BridgeLimiter(limiter);
-        instance.transferOwnership(suiBridge);
+        instance.transferOwnership(iotaBridge);
 
         // print deployed addresses for post deployment setup
         console.log("[Deployed] BridgeConfig:", bridgeConfig);
-        console.log("[Deployed] SuiBridge:", suiBridge);
+        console.log("[Deployed] IotaBridge:", iotaBridge);
         console.log("[Deployed] BridgeLimiter:", limiter);
         console.log("[Deployed] BridgeCommittee:", bridgeCommittee);
         console.log("[Deployed] BridgeVault:", address(vault));
@@ -187,9 +238,11 @@ struct DeployConfig {
     address[] committeeMembers;
     uint256 minCommitteeStakeRequired;
     uint256 sourceChainId;
-    uint256[] supportedChainIDs;
+    uint256[] supportedChainIds;
     uint256[] supportedChainLimitsInDollars;
     address[] supportedTokens;
     uint256[] tokenPrices;
-    address WETH;
+    uint256[] tokenIds;
+    uint256[] iotaDecimals;
+    address weth;
 }

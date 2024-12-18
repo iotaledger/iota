@@ -20,22 +20,22 @@ The following example is from the original Kiosk SDK V1 documentation.
 ### Before
 
 ```typescript
-import { placeAndList } from '@mysten/kiosk';
-import { Transaction } from '@mysten/sui/transactions';
+import { placeAndList } from '@iota/kiosk';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 const placeAndListToKiosk = async () => {
-	const kiosk = 'SomeKioskId';
-	const kioskCap = 'KioskCapObjectId';
-	const itemType = '0xItemAddr::some:ItemType';
-	const item = 'SomeItemId';
-	const price = '100000';
+    const kiosk = 'SomeKioskId';
+    const kioskCap = 'KioskCapObjectId';
+    const itemType = '0xItemAddr::some:ItemType';
+    const item = 'SomeItemId';
+    const price = '100000';
 
-	const tx = new Transaction();
+    const tx = new Transaction();
 
-	placeAndList(tx, itemType, kiosk, kioskCap, item, price);
+    placeAndList(tx, itemType, kiosk, kioskCap, item, price);
 
-	// ... continue to sign and execute the transaction
-	// ...
+    // ... continue to sign and execute the transaction
+    // ...
 };
 ```
 
@@ -46,28 +46,28 @@ Using the new SDK, you can build the same transaction as follows:
 ```typescript
 /// You need to do this only once and re-use it in the application.
 const kioskClient = new KioskClient({
-	client: new SuiClient({
-		url: getFullnodeUrl('mainnet'),
-	}),
-	network: Network.MAINNET,
+    client: new IotaClient({
+        url: getFullnodeUrl('mainnet'),
+    }),
+    network: Network.MAINNET,
 });
 
 const placeAndListToKiosk = async () => {
-	// Assume you have saved the user's preferred kiosk Cap somewhere in your app's state.
-	const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address: '0xSomeAddress' });
+    // Assume you have saved the user's preferred kiosk Cap somewhere in your app's state.
+    const { kioskOwnerCaps } = await kioskClient.getOwnedKiosks({ address: '0xSomeAddress' });
 
-	const tx = new Transaction();
+    const tx = new Transaction();
 
-	// Assume you use the first owned kiosk.
-	new KioskTransaction({ transaction: tx, kioskClient, cap: kioskOwnerCaps[0] })
-		.placeAndList({
-			itemType: '0xItemAddr::some:ItemType',
-			item: 'SomeItemId',
-			price: '100000',
-		})
-		.finalize();
+    // Assume you use the first owned kiosk.
+    new KioskTransaction({ transaction: tx, kioskClient, cap: kioskOwnerCaps[0] })
+        .placeAndList({
+            itemType: '0xItemAddr::some:ItemType',
+            item: 'SomeItemId',
+            price: '100000',
+        })
+        .finalize();
 
-	// ... continue to sign and execute the transaction
+    // ... continue to sign and execute the transaction
 };
 ```
 
@@ -78,19 +78,19 @@ The following example is from the original Kiosk SDK V1 documentation.
 ### Before
 
 ```typescript
-import { createKioskAndShare } from '@mysten/kiosk';
-import { Transaction } from '@mysten/sui/transactions';
+import { createKioskAndShare } from '@iota/kiosk';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 const createKiosk = async () => {
-	const accountAddress = '0xSomeSuiAddress';
+    const accountAddress = '0xSomeIotaAddress';
 
-	const tx = new Transaction();
-	const kiosk_cap = createKioskAndShare(tx);
+    const tx = new Transaction();
+    const kiosk_cap = createKioskAndShare(tx);
 
-	tx.transferObjects([kiosk_cap], accountAddress);
+    tx.transferObjects([kiosk_cap], accountAddress);
 
-	// ... continue to sign and execute the transaction
-	// ...
+    // ... continue to sign and execute the transaction
+    // ...
 };
 ```
 
@@ -101,20 +101,20 @@ Using the new SDK, you can build the same transaction as follows:
 ```typescript
 /// You need to do this only once and re-use it in the application.
 const kioskClient = new KioskClient({
-	client: new SuiClient({
-		url: getFullnodeUrl('mainnet'),
-	}),
-	network: Network.MAINNET,
+    client: new IotaClient({
+        url: getFullnodeUrl('mainnet'),
+    }),
+    network: Network.MAINNET,
 });
 
 const placeAndListToKiosk = async () => {
-	const tx = new Transaction();
+    const tx = new Transaction();
 
-	const kioskTx = new KioskTransaction({ transaction: tx, kioskClient });
+    const kioskTx = new KioskTransaction({ transaction: tx, kioskClient });
 
-	kioskTx.shareAndTransferCap('0xSomeSuiAddress').finalize();
+    kioskTx.shareAndTransferCap('0xSomeIotaAddress').finalize();
 
-	// ... continue to sign and execute the transaction
+    // ... continue to sign and execute the transaction
 };
 ```
 
@@ -125,11 +125,11 @@ The following example is from the original Kiosk SDK V1 documentation.
 ### Before
 
 ```typescript
-import { queryTransferPolicy, purchaseAndResolvePolicies, place, testnetEnvironment } from '@mysten/kiosk';
-import { SuiClient } from '@mysten/sui/client';
+import { queryTransferPolicy, purchaseAndResolvePolicies, place, testnetEnvironment } from '@iota/kiosk';
+import { IotaClient } from '@iota/iota-sdk/client';
 
-const client = new SuiClient(
-  url: 'https://fullnode.testnet.sui.io:443',
+const client = new IotaClient(
+  url: 'https://fullnode.testnet.iota.io:443',
 );
 
 // The kiosk we're purchasing from.
@@ -142,7 +142,7 @@ const item = {
   listing: {
     isExclusive: false,
     listingId: "0x368b512ff2514dbea814f26ec9a3d41198c00e8ed778099961e9ed22a9f0032b",
-    price: "20000000000" // in MIST
+    price: "20000000000" // in NANOS
   }
 }
 const ownedKiosk = `0xMyKioskAddress`;
@@ -157,7 +157,7 @@ const purchaseItem = async (item, kioskId) => {
   // Initialize transaction.
   const tx = new Transaction();
 
-  // Both are required if you there is a `kiosk_lock_rule`.
+  // Both are required if there is a `kiosk_lock_rule`.
   // Optional otherwise. Function throws an error if there's a kiosk_lock_rule and these are missing.
   const extraParams = {
     ownedKiosk,
@@ -191,7 +191,7 @@ Using the new SDK, you can build the same transaction as follows:
 ```typescript
 /// You need to do this only once and re-use it in the application.
 const kioskClient = new KioskClient({
-    client: new SuiClient({
+    client: new IotaClient({
         url: getFullnodeUrl('mainnet'),
     }),
     network: Network.MAINNET,
@@ -206,7 +206,7 @@ const item = {
   listing: {
     isExclusive: false,
     listingId: "0x368b512ff2514dbea814f26ec9a3d41198c00e8ed778099961e9ed22a9f0032b",
-    price: "20000000000" // in MIST
+    price: "20000000000" // in NANOS
   }
 }
 
@@ -239,44 +239,44 @@ The following example was taken from the original Kiosk SDK V1 documentation.
 
 ```typescript
 import {
-	attachKioskLockRule,
-	attachRoyaltyRule,
-	createTransferPolicy,
-	percentageToBasisPoints,
-	testnetEnvironment,
-} from '@mysten/kiosk';
-import { Transaction } from '@mysten/sui/transactions';
+    attachKioskLockRule,
+    attachRoyaltyRule,
+    createTransferPolicy,
+    percentageToBasisPoints,
+    testnetEnvironment,
+} from '@iota/kiosk';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
-// Attaches a royalty rule of 1% or 0.1 SUI (whichever is bigger)
-// as well as a kiosk lock, making the objects trade-able only from/to a kiosk.
+// Attaches a royalty rule of 1% or 0.1 IOTA (whichever is bigger)
+// as well as a kiosk lock, making the objects tradeable only from/to a kiosk.
 const attachStrongRoyalties = async () => {
-	const type = 'SomePackageId::type::MyType'; // the Type for which we're attaching rules.
-	const policyId = 'policyObjectId'; // the transfer Policy ID that was created for that Type.
-	const transferPolicyCap = 'transferPolicyCapId'; // the transferPolicyCap for that policy.
+    const type = 'SomePackageId::type::MyType'; // the Type for which we're attaching rules.
+    const policyId = 'policyObjectId'; // the transfer Policy ID that was created for that Type.
+    const transferPolicyCap = 'transferPolicyCapId'; // the transferPolicyCap for that policy.
 
-	// Royalties configuration.
-	const percentage = 2.55; // 2.55%
-	const minAmount = 100_000_000; // 0.1 SUI.
+    // Royalties configuration.
+    const percentage = 2.55; // 2.55%
+    const minAmount = 100_000_000; // 0.1 IOTA.
 
-	// The environment on which we're referecing the rules package.
-	// Use `mainnetEnvironment` for mainnet.
-	const environment = testnetEnvironment;
+    // The environment on which we're referencing the rules package.
+    // Use `mainnetEnvironment` for mainnet.
+    const environment = testnetEnvironment;
 
-	const tx = new Transaction();
+    const tx = new Transaction();
 
-	attachKioskLockRule(tx, type, policyId, policyCapId, environment);
-	attachRoyaltyRule(
-		tx,
-		type,
-		policyId,
-		policyCapId,
-		percentageToBasisPoints(percentage),
-		minAmount,
-		environment,
-	);
+    attachKioskLockRule(tx, type, policyId, policyCapId, environment);
+    attachRoyaltyRule(
+        tx,
+        type,
+        policyId,
+        policyCapId,
+        percentageToBasisPoints(percentage),
+        minAmount,
+        environment,
+    );
 
-	// ... continue to sign and execute the transaction
-	// ...
+    // ... continue to sign and execute the transaction
+    // ...
 };
 ```
 
@@ -287,26 +287,26 @@ On the new SDK, the same transaction can be built as follows:
 ```typescript
 /// You need to do this only once and re-use it in the application.
 const kioskClient = new KioskClient({
-	client: new SuiClient({
-		url: getFullnodeUrl('mainnet'),
-	}),
-	network: Network.MAINNET,
+    client: new IotaClient({
+        url: getFullnodeUrl('mainnet'),
+    }),
+    network: Network.MAINNET,
 });
 
 const adjustPolicy = async () => {
-	const tx = new Transaction();
+    const tx = new Transaction();
 
-	// You could have more than one cap, since you can create more than one transfer policy.
-	const policyCaps = await kioskClient.getOwnedTransferPoliciesByType({
-		type: `SomePackageId::type::MyType`,
-		address: '0xOwnerAddress',
-	});
+    // You could have more than one cap, since you can create more than one transfer policy.
+    const policyCaps = await kioskClient.getOwnedTransferPoliciesByType({
+        type: `SomePackageId::type::MyType`,
+        address: '0xOwnerAddress',
+    });
 
-	new TransferPolicyTransaction({ transaction: tx, kioskClient, cap: policyCaps[0] })
-		.addRoyaltyRule(percentageToBasisPoints(2.55), 100_000_000)
-		.addLockRule();
+    new TransferPolicyTransaction({ transaction: tx, kioskClient, cap: policyCaps[0] })
+        .addRoyaltyRule(percentageToBasisPoints(2.55), 100_000_000)
+        .addLockRule();
 
-	// ... continue to sign and execute the transaction
-	// ...
+    // ... continue to sign and execute the transaction
+    // ...
 };
 ```

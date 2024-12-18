@@ -1,3 +1,4 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -12,7 +13,7 @@ import "./utils/CommitteeUpgradeable.sol";
 /// a rolling 24-hour window. This is accomplished by storing the amount bridged from a given chain in USD
 /// within a given hourly timestamp. It also provides functions to update the token prices and the total
 /// limit of the given chainID measured in USD with 8 decimal precision.
-/// The contract is intended to be used and owned by the SuiBridge contract.
+/// The contract is intended to be used and owned by the IotaBridge contract.
 contract BridgeLimiter is IBridgeLimiter, CommitteeUpgradeable, OwnableUpgradeable {
     /* ========== STATE VARIABLES ========== */
 
@@ -124,7 +125,7 @@ contract BridgeLimiter is IBridgeLimiter, CommitteeUpgradeable, OwnableUpgradeab
     /* ========== EXTERNAL FUNCTIONS ========== */
 
     /// @notice Updates the bridge transfers for a specific token ID and amount. Only the contract
-    /// owner can call this function (intended to be the SuiBridge contract).
+    /// owner can call this function (intended to be the IotaBridge contract).
     /// @dev The amount must be greater than 0 and must not exceed the rolling window limit.
     /// @param chainID The ID of the chain to record the transfer for.
     /// @param tokenID The ID of the token.
@@ -178,6 +179,6 @@ contract BridgeLimiter is IBridgeLimiter, CommitteeUpgradeable, OwnableUpgradeab
         // update the chain limit
         chainLimits[sourceChainID] = newLimit;
 
-        emit LimitUpdated(sourceChainID, newLimit);
+        emit LimitUpdatedV2(message.nonce, sourceChainID, newLimit);
     }
 }

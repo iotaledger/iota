@@ -1,12 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use super::*;
-use crate::rocks::iter::{Iter, RevIter};
-use crate::rocks::safe_iter::{SafeIter, SafeRevIter};
-use crate::rocks::util::{is_ref_count_value, reference_count_merge_operator};
-use crate::{reopen, retry_transaction, retry_transaction_forever};
 use rstest::rstest;
 use serde::Deserialize;
+
+use super::*;
+use crate::{
+    reopen, retry_transaction, retry_transaction_forever,
+    rocks::{
+        iter::{Iter, RevIter},
+        safe_iter::{SafeIter, SafeRevIter},
+        util::{is_ref_count_value, reference_count_merge_operator},
+    },
+};
 
 fn temp_dir() -> std::path::PathBuf {
     tempfile::tempdir()
@@ -14,9 +20,9 @@ fn temp_dir() -> std::path::PathBuf {
         .into_path()
 }
 
-// A wrapper that holds different type of iterators for testing purpose. We use it to get same
-// typed key value paris from the database in parameterized tests, while varying different types
-// of underlying Iterator.
+// A wrapper that holds different type of iterators for testing purpose. We use
+// it to get same typed key value paris from the database in parameterized
+// tests, while varying different types of underlying Iterator.
 enum TestIteratorWrapper<'a, K, V> {
     Iter(Iter<'a, K, V>),
     RevIter(RevIter<'a, K, V>),
@@ -24,9 +30,10 @@ enum TestIteratorWrapper<'a, K, V> {
     SafeRevIter(SafeRevIter<'a, K, V>),
 }
 
-// Implement Iterator for TestIteratorWrapper that returns the same type result for different types of Iterator.
-// For non-safe Iterator, it returns the key value pair. For SafeIterator, it consumes the result (assuming no error),
-// and return they key value pairs.
+// Implement Iterator for TestIteratorWrapper that returns the same type result
+// for different types of Iterator. For non-safe Iterator, it returns the key
+// value pair. For SafeIterator, it consumes the result (assuming no error), and
+// return they key value pairs.
 impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for TestIteratorWrapper<'a, K, V> {
     type Item = (K, V);
     fn next(&mut self) -> Option<Self::Item> {
@@ -140,9 +147,10 @@ async fn test_reopen(#[values(true, false)] is_transactional: bool) {
     };
     let db = DBMap::<u32, String>::reopen(&arc.rocksdb, None, &ReadWriteOptions::default(), false)
         .expect("Failed to re-open storage");
-    assert!(db
-        .contains_key(&123456789)
-        .expect("Failed to retrieve item in storage"));
+    assert!(
+        db.contains_key(&123456789)
+            .expect("Failed to retrieve item in storage")
+    );
 }
 
 #[tokio::test]
@@ -150,12 +158,9 @@ async fn test_reopen_macro() {
     const FIRST_CF: &str = "First_CF";
     const SECOND_CF: &str = "Second_CF";
 
-    let rocks = open_cf(
-        temp_dir(),
-        None,
-        MetricConf::default(),
-        &[FIRST_CF, SECOND_CF],
-    )
+    let rocks = open_cf(temp_dir(), None, MetricConf::default(), &[
+        FIRST_CF, SECOND_CF,
+    ])
     .unwrap();
 
     let (db_map_1, db_map_2) = reopen!(&rocks, FIRST_CF;<i32, String>, SECOND_CF;<i32, String>);
@@ -185,12 +190,14 @@ async fn test_contains_key(#[values(true, false)] is_transactional: bool) {
 
     db.insert(&123456789, &"123456789".to_string())
         .expect("Failed to insert");
-    assert!(db
-        .contains_key(&123456789)
-        .expect("Failed to call contains key"));
-    assert!(!db
-        .contains_key(&000000000)
-        .expect("Failed to call contains key"));
+    assert!(
+        db.contains_key(&123456789)
+            .expect("Failed to call contains key")
+    );
+    assert!(
+        !db.contains_key(&000000000)
+            .expect("Failed to call contains key")
+    );
 }
 
 #[rstest]
@@ -417,7 +424,8 @@ async fn test_iter_skip_to_previous_gap(
         }
     }
 
-    // Skip prior to will return an iterator starting with an "unexpected" key if the sought one is not in the table
+    // Skip prior to will return an iterator starting with an "unexpected" key if
+    // the sought one is not in the table
     let db_iter = get_iter(&db, use_safe_iter).skip_prior_to(&50).unwrap();
 
     assert_eq!(
@@ -628,12 +636,14 @@ async fn test_insert_batch_across_different_db(#[values(true, false)] is_transac
     .expect("Failed to open storage");
     let keys_vals_2 = (1000..1100).map(|i| (i, i.to_string()));
 
-    assert!(db_cf_1
-        .batch()
-        .insert_batch(&db_cf_1, keys_vals_1)
-        .expect("Failed to batch insert")
-        .insert_batch(&db_cf_2, keys_vals_2)
-        .is_err());
+    assert!(
+        db_cf_1
+            .batch()
+            .insert_batch(&db_cf_1, keys_vals_1)
+            .expect("Failed to batch insert")
+            .insert_batch(&db_cf_2, keys_vals_2)
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -796,7 +806,8 @@ async fn test_iter_with_bounds(
     assert!(db_iter.collect::<Vec<_>>().is_empty());
 
     // Tests bounded scan with skip operation.
-    // Skip prior to will return an iterator starting with an "unexpected" key if the sought one is not in the table
+    // Skip prior to will return an iterator starting with an "unexpected" key if
+    // the sought one is not in the table
     let db_iter = get_iter_with_bounds(&db, Some(1), Some(100), use_safe_iter)
         .skip_prior_to(&50)
         .unwrap();
@@ -896,7 +907,8 @@ async fn test_range_iter(
     );
 
     // Tests range with seek to the middle of the range.
-    // Skip prior to will return an iterator starting with an "unexpected" key if the sought one is not in the table
+    // Skip prior to will return an iterator starting with an "unexpected" key if
+    // the sought one is not in the table
     let db_iter = get_range_iter(&db, 1..=99, use_safe_iter)
         .skip_prior_to(&50)
         .unwrap();
@@ -959,7 +971,8 @@ async fn test_range_iter(
         db_iter.collect::<Vec<_>>()
     );
 
-    // Skip to a key which is not within the bounds (bound is [1, 50], but 50 doesn't exist in DB)
+    // Skip to a key which is not within the bounds (bound is [1, 50], but 50
+    // doesn't exist in DB)
     let db_iter = get_range_iter(&db, 1..=50, use_safe_iter)
         .skip_to(&50)
         .unwrap();
@@ -1054,14 +1067,16 @@ async fn test_checkpoint(#[values(true, false)] is_transactional: bool) {
     // Verify checkpoint
     let checkpointed_db: DBMap<i32, String> =
         open_map(checkpointed_path, Some("table"), is_transactional);
-    // Ensure keys inserted before checkpoint are present in original and checkpointed db
+    // Ensure keys inserted before checkpoint are present in original and
+    // checkpointed db
     for (k, v) in keys_vals {
         let val = db.get(&k).expect("Failed to get inserted key");
         assert_eq!(Some(v.clone()), val);
         let val = checkpointed_db.get(&k).expect("Failed to get inserted key");
         assert_eq!(Some(v), val);
     }
-    // Ensure keys inserted after checkpoint are only present in original db but not in checkpointed db
+    // Ensure keys inserted after checkpoint are only present in original db but not
+    // in checkpointed db
     for (k, v) in new_keys_vals {
         let val = db.get(&k).expect("Failed to get inserted key");
         assert_eq!(Some(v.clone()), val);
@@ -1134,8 +1149,8 @@ async fn test_transaction_snapshot() {
     let db = DBMap::<String, String>::reopen(&rocksdb, None, &ReadWriteOptions::default(), false)
         .expect("Failed to re-open storage");
 
-    // transaction without set_snapshot succeeds when extraneous write occurs before transaction
-    // write.
+    // transaction without set_snapshot succeeds when extraneous write occurs before
+    // transaction write.
     let mut tx1 = db
         .transaction_without_snapshot()
         .expect("failed to initiate transaction");
@@ -1146,8 +1161,8 @@ async fn test_transaction_snapshot() {
     tx1.commit().expect("failed to commit first transaction");
     assert_eq!(db.get(&key).unwrap().unwrap(), "2".to_string());
 
-    // transaction without set_snapshot fails when extraneous write occurs after transaction
-    // write.
+    // transaction without set_snapshot fails when extraneous write occurs after
+    // transaction write.
     let mut tx1 = db
         .transaction_without_snapshot()
         .expect("failed to initiate transaction");
@@ -1177,8 +1192,8 @@ async fn test_transaction_snapshot() {
     // no conflicting writes, should succeed this time.
     tx1.commit().unwrap();
 
-    // when to transactions race, one will fail provided that neither commits before the other
-    // writes.
+    // when to transactions race, one will fail provided that neither commits before
+    // the other writes.
     let mut tx1 = db
         .transaction_without_snapshot()
         .expect("failed to initiate transaction");
@@ -1196,7 +1211,8 @@ async fn test_transaction_snapshot() {
         Err(TypedStoreError::RetryableTransactionError)
     ));
 
-    // IMPORTANT: a race is still possible if one tx commits before the other writes.
+    // IMPORTANT: a race is still possible if one tx commits before the other
+    // writes.
     let mut tx1 = db
         .transaction_without_snapshot()
         .expect("failed to initiate transaction");
@@ -1249,8 +1265,8 @@ async fn test_retry_transaction() {
     // fails after hitting maximum number of retries
     .unwrap_err();
 
-    // obviously we cannot verify that this never times out, this is more just a test to make sure
-    // the macro compiles as expected.
+    // obviously we cannot verify that this never times out, this is more just a
+    // test to make sure the macro compiles as expected.
     tokio::time::timeout(Duration::from_secs(1), async move {
         retry_transaction_forever!({
             let mut tx1 = db
@@ -1282,13 +1298,10 @@ async fn test_transaction_read_your_write() {
         .expect("Failed to re-open storage");
     db.insert(&key1.to_string(), &"1".to_string()).unwrap();
     let mut tx = db.transaction().expect("failed to initiate transaction");
-    tx.insert_batch(
-        &db,
-        vec![
-            (key1.to_string(), "11".to_string()),
-            (key2.to_string(), "2".to_string()),
-        ],
-    )
+    tx.insert_batch(&db, vec![
+        (key1.to_string(), "11".to_string()),
+        (key2.to_string(), "2".to_string()),
+    ])
     .unwrap();
     assert_eq!(db.get(&key1.to_string()).unwrap(), Some("1".to_string()));
     assert_eq!(db.get(&key2.to_string()).unwrap(), None);
@@ -1337,14 +1350,11 @@ async fn open_as_secondary_test() {
         .expect("Failed to multi-insert");
 
     let opt = rocksdb::Options::default();
-    let secondary_store = open_cf_opts_secondary(
-        primary_path,
-        None,
-        None,
-        MetricConf::default(),
-        &[("table", opt)],
-    )
-    .unwrap();
+    let secondary_store =
+        open_cf_opts_secondary(primary_path, None, None, MetricConf::default(), &[(
+            "table", opt,
+        )])
+        .unwrap();
     let secondary_db = DBMap::<i32, String>::reopen(
         &secondary_store,
         Some("table"),
@@ -1474,13 +1484,10 @@ async fn refcount_with_compaction_test() {
     assert_eq!(value.value, object.value);
 
     increment_counter(&db, &key, -1);
-    db.compact_range(
-        &object,
-        &ObjectWithRefCount {
-            value: 100,
-            ref_count: 1,
-        },
-    )
+    db.compact_range(&object, &ObjectWithRefCount {
+        value: 100,
+        ref_count: 1,
+    })
     .unwrap();
 
     increment_counter(&db, &key, 1);
@@ -1495,12 +1502,10 @@ fn open_map<P: AsRef<Path>, K, V>(
 ) -> DBMap<K, V> {
     if is_transactional {
         let cf = opt_cf.unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME);
-        open_cf_opts_transactional(
-            path,
-            None,
-            MetricConf::default(),
-            &[(cf, default_db_options().options)],
-        )
+        open_cf_opts_transactional(path, None, MetricConf::default(), &[(
+            cf,
+            default_db_options().options,
+        )])
         .map(|db| DBMap::new(db, &ReadWriteOptions::default(), cf, false))
         .expect("failed to open rocksdb")
     } else {

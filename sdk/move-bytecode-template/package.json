@@ -5,16 +5,16 @@
 	"type": "module",
 	"private": true,
 	"scripts": {
-		"build": "wasm-pack build --target nodejs --scope mysten",
-		"build:dev": "wasm-pack build --target nodejs --debug --scope mysten",
-		"build:release": "wasm-pack build --target web --release --scope mysten",
+		"build": "wasm-pack build --target nodejs --scope iota",
+		"build:dev": "wasm-pack build --target nodejs --debug --scope iota",
+		"build:release": "wasm-pack build --target web --release --scope iota",
 		"test": "vitest run"
 	},
-	"author": "Mysten Labs <build@mystenlabs.com>",
+	"author": "IOTA Foundation <info@iota.org>",
 	"license": "Apache-2.0",
 	"devDependencies": {
-		"@mysten/bcs": "workspace:*",
-		"@mysten/build-scripts": "workspace:*",
+		"@iota/bcs": "workspace:*",
+		"@iota/build-scripts": "workspace:*",
 		"typescript": "^5.5.3",
 		"vitest": "^2.0.1",
 		"wasm-pack": "^0.13.0"

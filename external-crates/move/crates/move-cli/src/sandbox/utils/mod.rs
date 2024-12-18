@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(hidden_glob_reexports)]
 use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
@@ -163,13 +164,9 @@ pub(crate) fn explain_publish_error(
             let new_api = normalized::Module::new(module);
 
             if (Compatibility {
-                check_datatype_and_pub_function_linking: false,
                 check_datatype_layout: true,
-                check_friend_linking: false,
                 check_private_entry_linking: true,
                 disallowed_new_abilities: AbilitySet::EMPTY,
-                disallow_change_datatype_type_params: false,
-                disallow_new_variants: false,
             })
             .check(&old_api, &new_api)
             .is_err()
@@ -178,13 +175,9 @@ pub(crate) fn explain_publish_error(
                 // structs of this type. but probably a bad idea
                 println!("Layout API for structs of module {} has changed. Need to do a data migration of published structs", module_id)
             } else if (Compatibility {
-                check_datatype_and_pub_function_linking: true,
                 check_datatype_layout: false,
-                check_friend_linking: false,
                 check_private_entry_linking: true,
                 disallowed_new_abilities: AbilitySet::EMPTY,
-                disallow_change_datatype_type_params: false,
-                disallow_new_variants: false,
             })
             .check(&old_api, &new_api)
             .is_err()

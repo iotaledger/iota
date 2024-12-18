@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useInfiniteQuery } from "@tanstack/react-query";
@@ -6,7 +7,7 @@ import { CONSTANTS, QueryKey } from "@/constants";
 import { InfiniteScrollArea } from "@/components/InfiniteScrollArea";
 import { ApiLockedObject, LockedListingQuery } from "@/types/types";
 import { constructUrlSearchParams, getNextPageParam } from "@/utils/helpers";
-import { useSuiClient } from "@mysten/dapp-kit";
+import { useIotaClient } from "@iota/dapp-kit";
 import { TextField } from "@radix-ui/themes";
 import { useState } from "react";
 import { LockedObject } from "./LockedObject";
@@ -29,7 +30,7 @@ export function LockedList({
   params: LockedListingQuery;
 }) {
   const [lockedId, setLockedId] = useState("");
-  const suiClient = useSuiClient();
+  const iotaClient = useIotaClient();
 
   const { data: searchData } = useGetLockedObject({
     lockedId,
@@ -40,6 +41,9 @@ export function LockedList({
       initialPageParam: null,
       queryKey: [QueryKey.Locked, params, lockedId],
       queryFn: async ({ pageParam }) => {
+        /*
+         * Fetch the locked objects from the API.
+         */
         const data = await (
           await fetch(
             CONSTANTS.apiEndpoint +
@@ -52,7 +56,11 @@ export function LockedList({
           )
         ).json();
 
-        const objects = await suiClient.multiGetObjects({
+        /*
+         * Use the objectIds from the API to fetch the on-chain state. This is done to ensure that
+         * the ownership of each object is up-to-date.
+         */
+        const objects = await iotaClient.multiGetObjects({
           ids: data.data.map((x: ApiLockedObject) => x.objectId),
           options: {
             showOwner: true,
@@ -61,7 +69,7 @@ export function LockedList({
         });
 
         return {
-          suiObjects: objects.map((x) => x.data),
+          iotaObjects: objects.map((x) => x.data),
           api: data,
         };
       },
@@ -70,7 +78,10 @@ export function LockedList({
       enabled: !lockedId,
     });
 
-  const suiObjects = () => {
+  /**
+   * Returns all `Locked` objects or the one that matches the search query if it exists.
+   */
+  const iotaObjects = () => {
     if (lockedId) {
       if (
         !searchData?.data?.type?.startsWith(CONSTANTS.escrowContract.lockedType)
@@ -78,7 +89,7 @@ export function LockedList({
         return [];
       return [searchData?.data!];
     }
-    return data?.flatMap((x) => x.suiObjects) || [];
+    return data?.flatMap((x) => x.iotaObjects) || [];
   };
 
   const apiData = () => {
@@ -94,20 +105,19 @@ export function LockedList({
   return (
     <>
       {enableSearch && (
-        <TextField.Root className="mt-3">
-          <TextField.Input
-            placeholder="Search by locked id"
-            value={lockedId}
-            onChange={(e) => setLockedId(e.target.value)}
-          />
-        </TextField.Root>
+        <TextField.Root
+          className="mt-3"
+          placeholder="Search by locked id"
+          value={lockedId}
+          onChange={(e) => setLockedId(e.target.value)}
+        ></TextField.Root>
       )}
       <InfiniteScrollArea
         loadMore={() => fetchNextPage()}
         hasNextPage={hasNextPage}
         loading={isFetchingNextPage || isLoading}
       >
-        {suiObjects().map((object) => (
+        {iotaObjects().map((object) => (
           <LockedObject
             key={object?.objectId!}
             object={object!}

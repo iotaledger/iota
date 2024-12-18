@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module verifies the usage of the "fake native" functions. These functions are declared
@@ -9,17 +10,18 @@ use std::convert::TryInto;
 
 use crate::{
     diag,
+    diagnostics::DiagnosticReporter,
     expansion::ast::{Address, ModuleIdent, ModuleIdent_},
     naming::ast as N,
     parser::ast::FunctionName,
-    shared::{known_attributes::NativeAttribute, CompilationEnv, Identifier},
+    shared::{known_attributes::NativeAttribute, Identifier},
 };
 use move_ir_types::ast as IR;
 use move_symbol_pool::symbol;
 
 /// verify fake native attribute usage usage
 pub fn function(
-    env: &mut CompilationEnv,
+    reporter: &DiagnosticReporter,
     module: ModuleIdent,
     function_name: FunctionName,
     function: &N::Function,
@@ -45,7 +47,7 @@ pub fn function(
             (loc, attr_msg),
             (function_name.loc(), name_msg),
         );
-        env.add_diag(diag);
+        reporter.add_diag(diag);
     }
     match &function.body.value {
         N::FunctionBody_::Native => (),
@@ -55,7 +57,7 @@ pub fn function(
                 NativeAttribute::BYTECODE_INSTRUCTION
             );
             let diag = diag!(Attributes::InvalidBytecodeInst, (loc, attr_msg));
-            env.add_diag(diag);
+            reporter.add_diag(diag);
         }
     }
 }

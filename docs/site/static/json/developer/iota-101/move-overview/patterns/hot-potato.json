@@ -1,0 +1,20 @@
+[
+  {
+    "questionText": "What does the 'hot potato' pattern in Move refer to?",
+    "answerOptions": [
+      { "answerText": "A struct that lacks capabilities and must be used immediately within its defining module.", "isCorrect": true },
+      { "answerText": "A struct that can be passed freely between modules.", "isCorrect": false },
+      { "answerText": "A function that delays execution.", "isCorrect": false },
+      { "answerText": "A module that handles data storage.", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "In which scenario is the 'hot potato' pattern particularly useful?",
+    "answerOptions": [
+      { "answerText": "Managing user authentication.", "isCorrect": false },
+      { "answerText": "Implementing flash loans.", "isCorrect": true },
+      { "answerText": "Data encryption.", "isCorrect": false },
+      { "answerText": "Blockchain consensus algorithms.", "isCorrect": false }
+    ]
+  }
+]

@@ -5,19 +5,20 @@ import { UseSignTransactionExample } from '../../../examples/wallet-hooks';
 Use the `useSignTransaction` hook to prompt the user to sign a transaction with their wallet.
 
 ```ts
+import { Transaction } from '@iota/iota-sdk/transactions';
 import {
 	ConnectButton,
 	useCurrentAccount,
 	useSignTransaction,
-	useSuiClient,
-} from '@mysten/dapp-kit';
-import { toB64 } from '@mysten/sui/utils';
+	useIotaClient,
+} from '@iota/dapp-kit';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 function MyComponent() {
 	const { mutateAsync: signTransaction } = useSignTransaction();
 	const [signature, setSignature] = useState('');
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const currentAccount = useCurrentAccount();
 
 	return (
@@ -30,7 +31,7 @@ function MyComponent() {
 							onClick={async () => {
 								const { bytes, signature, reportTransactionEffects } = await signTransaction({
 									transaction: new Transaction(),
-									chain: 'sui:devnet',
+									chain: 'iota:devnet',
 								});
 
 								const executeResult = await client.executeTransactionBlock({
@@ -42,7 +43,7 @@ function MyComponent() {
 								});
 
 								// Always report transaction effects to the wallet after execution
-								reportTransactionEffects(result.rawEffects!);
+								reportTransactionEffects(executeResult.rawEffects!);
 
 								console.log(executeResult);
 							}}
@@ -64,14 +65,14 @@ function MyComponent() {
 
 ## Arguments
 
-- `transactionBlock`: The transaction to sign.
-- `chain`: (optional) The chain identifier the transaction should be signed for.
+-   `transactionBlock`: The transaction to sign.
+-   `chain`: (optional) The chain identifier the transaction should be signed for.
 
 ## Result
 
-- `signature`: The signature of the message, as a Base64-encoded `string`.
-- `bytes`: The serialized transaction bytes, as a a Base64-encoded `string`.
-- `reportTransactionEffects`: A function to report the transaction effects to the wallet. This
-  callback should always be invoked after executing the signed transaction. This function accepts
-  the `rawEffects` returned from JSON-RPC `executeTransactionBlock` method, or the `effects.bcs`
-  when executing with the GraphQL API.
+-   `signature`: The signature of the message, as a Base64-encoded `string`.
+-   `bytes`: The serialized transaction bytes, as a a Base64-encoded `string`.
+-   `reportTransactionEffects`: A function to report the transaction effects to the wallet. This
+    callback should always be invoked after executing the signed transaction. This function accepts
+    the `rawEffects` returned from JSON-RPC `executeTransactionBlock` method, or the `effects.bcs`
+    when executing with the GraphQL API.

@@ -13,5 +13,5 @@ version: 0.1.1
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version ion is using.
 # It is recommended to use it with quotes.
-# our Graphql verion follows the date of release and release are quarterly
+# our Graphql version follows the date of release and release are quarterly
 appVersion: "1.0"

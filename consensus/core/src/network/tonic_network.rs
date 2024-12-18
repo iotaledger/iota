@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -13,65 +14,68 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use cfg_if::cfg_if;
 use consensus_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
-use futures::{stream, Stream, StreamExt as _};
-use hyper_util::rt::tokio::TokioIo;
-use hyper_util::service::TowerToHyperService;
-use mysten_common::sync::notify_once::NotifyOnce;
-use mysten_metrics::monitored_future;
-use mysten_network::{
+use futures::{Stream, StreamExt as _, stream};
+use hyper_util::{
+    rt::{TokioTimer, tokio::TokioIo},
+    service::TowerToHyperService,
+};
+use iota_common::sync::notify_once::NotifyOnce;
+use iota_metrics::monitored_future;
+use iota_network_stack::{
+    Multiaddr,
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
-    Multiaddr,
 };
+use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use tokio::{
     pin,
     task::JoinSet,
-    time::{timeout, Instant},
+    time::{Instant, timeout},
 };
 use tokio_rustls::TlsAcceptor;
-use tokio_stream::{iter, Iter};
-use tonic::{transport::Server, Request, Response, Streaming};
+use tokio_stream::{Iter, iter};
+use tonic::{Request, Response, Streaming};
 use tower_http::{
-    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
     ServiceBuilderExt,
+    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
 };
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
+    BlockStream, NetworkClient, NetworkManager, NetworkService,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
     },
-    tonic_tls::create_rustls_client_config,
-    BlockStream, NetworkClient, NetworkManager, NetworkService,
 };
 use crate::{
+    CommitIndex, Round,
     block::{BlockRef, VerifiedBlock},
     commit::CommitRange,
     context::Context,
     error::{ConsensusError, ConsensusResult},
     network::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
-        tonic_tls::create_rustls_server_config,
+        tonic_tls::certificate_server_name,
     },
-    CommitIndex, Round,
 };
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
 const MAX_FETCH_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
-// Maximum total bytes fetched in a single fetch_blocks() call, after combining the responses.
+// Maximum total bytes fetched in a single fetch_blocks() call, after combining
+// the responses.
 const MAX_TOTAL_FETCHED_BYTES: usize = 128 * 1024 * 1024;
 
 // Maximum number of connections in backlog.
 #[cfg(not(msim))]
 const MAX_CONNECTIONS_BACKLOG: u32 = 1024;
 
-// The time we are willing to wait for a connection to get gracefully shutdown before we attempt to
-// forcefully shutdown its task.
+// The time we are willing to wait for a connection to get gracefully shutdown
+// before we attempt to forcefully shutdown its task.
 const CONNECTION_SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
 // Implements Tonic RPC client for Consensus.
@@ -106,7 +110,8 @@ impl TonicClient {
     }
 }
 
-// TODO: make sure callsites do not send request to own index, and return error otherwise.
+// TODO: make sure callsites do not send request to own index, and return error
+// otherwise.
 #[async_trait]
 impl NetworkClient for TonicClient {
     const SUPPORT_STREAMING: bool = true;
@@ -320,12 +325,27 @@ impl NetworkClient for TonicClient {
         }
         Ok(blocks)
     }
+
+    async fn get_latest_rounds(
+        &self,
+        peer: AuthorityIndex,
+        timeout: Duration,
+    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+        let mut client = self.get_client(peer, timeout).await?;
+        let mut request = Request::new(GetLatestRoundsRequest {});
+        request.set_timeout(timeout);
+        let response = client.get_latest_rounds(request).await.map_err(|e| {
+            ConsensusError::NetworkRequest(format!("get_latest_rounds failed: {e:?}"))
+        })?;
+        let response = response.into_inner();
+        Ok((response.highest_received, response.highest_accepted))
+    }
 }
 
 // Tonic channel wrapped with layers.
-type Channel = mysten_network::callback::Callback<
+type Channel = iota_network_stack::callback::Callback<
     tower_http::trace::Trace<
-        tonic::transport::Channel,
+        tonic_rustls::Channel,
         tower_http::classify::SharedClassifier<tower_http::classify::GrpcErrorsAsFailures>,
     >,
     MetricsCallbackMaker,
@@ -367,7 +387,17 @@ impl ChannelPool {
         let address = format!("https://{address}");
         let config = &self.context.parameters.tonic;
         let buffer_size = config.connection_buffer_size;
-        let endpoint = tonic::transport::Channel::from_shared(address.clone())
+        let client_tls_config = iota_tls::create_rustls_client_config(
+            self.context
+                .committee
+                .authority(peer)
+                .network_key
+                .clone()
+                .into_inner(),
+            certificate_server_name(&self.context),
+            Some(network_keypair.private_key().into_inner()),
+        );
+        let endpoint = tonic_rustls::Channel::from_shared(address.clone())
             .unwrap()
             .connect_timeout(timeout)
             .initial_connection_window_size(Some(buffer_size as u32))
@@ -377,22 +407,14 @@ impl ChannelPool {
             .http2_keep_alive_interval(config.keepalive_interval)
             // tcp keepalive is probably unnecessary and is unsupported by msim.
             .user_agent("mysticeti")
+            .unwrap()
+            .tls_config(client_tls_config)
             .unwrap();
-
-        let client_tls_config = create_rustls_client_config(&self.context, network_keypair, peer);
-        let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
-            .with_tls_config(client_tls_config)
-            .https_only()
-            .enable_http2()
-            .build();
 
         let deadline = tokio::time::Instant::now() + timeout;
         let channel = loop {
             trace!("Connecting to endpoint at {address}");
-            match endpoint
-                .connect_with_connector(https_connector.clone())
-                .await
-            {
+            match endpoint.connect().await {
                 Ok(channel) => break channel,
                 Err(e) => {
                     warn!("Failed to connect to endpoint at {address}: {e:?}");
@@ -616,14 +638,38 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let stream = iter(responses);
         Ok(Response::new(stream))
     }
+
+    async fn get_latest_rounds(
+        &self,
+        request: Request<GetLatestRoundsRequest>,
+    ) -> Result<Response<GetLatestRoundsResponse>, tonic::Status> {
+        let Some(peer_index) = request
+            .extensions()
+            .get::<PeerInfo>()
+            .map(|p| p.authority_index)
+        else {
+            return Err(tonic::Status::internal("PeerInfo not found"));
+        };
+        let (highest_received, highest_accepted) = self
+            .service
+            .handle_get_latest_rounds(peer_index)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("{e:?}")))?;
+        Ok(Response::new(GetLatestRoundsResponse {
+            highest_received,
+            highest_accepted,
+        }))
+    }
 }
 
-/// Manages the lifecycle of Tonic network client and service. Typical usage during initialization:
+/// Manages the lifecycle of Tonic network client and service. Typical usage
+/// during initialization:
 /// 1. Create a new `TonicManager`.
 /// 2. Take `TonicClient` from `TonicManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `TonicService` for consensus service handler.
-/// 5. Install `TonicService` to `TonicManager` with `TonicManager::install_service()`.
+/// 5. Install `TonicService` to `TonicManager` with
+///    `TonicManager::install_service()`.
 pub(crate) struct TonicManager {
     context: Arc<Context>,
     network_keypair: NetworkKeyPair,
@@ -666,8 +712,8 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
         info!("Starting tonic service");
 
         let authority = self.context.committee.authority(self.context.own_index);
-        // By default, bind to the unspecified address to allow the actual address to be assigned.
-        // But bind to localhost if it is requested.
+        // By default, bind to the unspecified address to allow the actual address to be
+        // assigned. But bind to localhost if it is requested.
         let own_address = if authority.address.is_localhost_ip() {
             authority.address.clone()
         } else {
@@ -677,34 +723,42 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
         let service = TonicServiceProxy::new(self.context.clone(), service);
         let config = &self.context.parameters.tonic;
 
-        let consensus_service = Server::builder()
-            .layer(
-                TraceLayer::new_for_grpc()
-                    .make_span_with(DefaultMakeSpan::new().level(tracing::Level::TRACE))
-                    .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
-            )
-            .initial_connection_window_size(64 << 20)
-            .initial_stream_window_size(32 << 20)
-            .http2_keepalive_interval(Some(config.keepalive_interval))
-            .http2_keepalive_timeout(Some(config.keepalive_interval))
-            // tcp keepalive is unsupported by msim
-            .add_service(
-                ConsensusServiceServer::new(service)
-                    .max_encoding_message_size(config.message_size_limit)
-                    .max_decoding_message_size(config.message_size_limit),
-            )
-            .into_router();
+        let consensus_service = tonic::service::Routes::new(
+            ConsensusServiceServer::new(service)
+                .max_encoding_message_size(config.message_size_limit)
+                .max_decoding_message_size(config.message_size_limit),
+        )
+        .into_axum_router();
 
         let inbound_metrics = self.context.metrics.network_metrics.inbound.clone();
         let excessive_message_size = self.context.parameters.tonic.excessive_message_size;
 
-        let http =
-            hyper_util::server::conn::auto::Builder::new(hyper_util::rt::TokioExecutor::new())
-                .http2_only();
-        let http = Arc::new(http);
+        let http = {
+            let mut builder =
+                hyper_util::server::conn::auto::Builder::new(hyper_util::rt::TokioExecutor::new())
+                    .http2_only();
+            builder
+                .http2()
+                .timer(TokioTimer::new())
+                .initial_connection_window_size(64 << 20)
+                .initial_stream_window_size(32 << 20)
+                .keep_alive_interval(Some(config.keepalive_interval))
+                .keep_alive_timeout(config.keepalive_interval);
 
-        let tls_server_config =
-            create_rustls_server_config(&self.context, self.network_keypair.clone());
+            Arc::new(builder)
+        };
+
+        let tls_server_config = iota_tls::create_rustls_server_config(
+            self.network_keypair.clone().private_key().into_inner(),
+            certificate_server_name(&self.context),
+            AllowPublicKeys::new(
+                self.context
+                    .committee
+                    .authorities()
+                    .map(|(_i, a)| a.network_key.clone().into_inner())
+                    .collect(),
+            ),
+        );
         let tls_acceptor = TlsAcceptor::from(Arc::new(tls_server_config));
 
         // Create listener to incoming connections.
@@ -797,7 +851,7 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
                         match result {
                             Ok(Ok(())) => {},
                             Ok(Err(e)) => {
-                                warn!("Error serving connection: {e:?}");
+                                debug!("Error serving connection: {e:?}");
                             },
                             Err(e) => {
                                 debug!("Connection task error, likely shutting down: {e:?}");
@@ -844,7 +898,7 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
                                 return Err(ConsensusError::NetworkServerConnection(msg));
                             }
                             trace!("Received {} certificates", certs.len());
-                            sui_tls::public_key_from_certificate(&certs[0]).map_err(|e| {
+                            iota_tls::public_key_from_certificate(&certs[0]).map_err(|e| {
                                 trace!("Failed to extract public key from certificate: {e:?}");
                                 ConsensusError::NetworkServerConnection(format!(
                                     "Failed to extract public key from certificate: {e:?}"
@@ -874,7 +928,12 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
                             inbound_metrics,
                             excessive_message_size,
                         )))
-                        .service(consensus_service.clone());
+                        .layer(
+                            TraceLayer::new_for_grpc()
+                                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::TRACE))
+                                .on_failure(DefaultOnFailure::new().level(tracing::Level::DEBUG)),
+                        )
+                        .service(consensus_service);
 
                     pin! {
                         let connection = http.serve_connection(TokioIo::new(tls_stream), TowerToHyperService::new(svc));
@@ -926,8 +985,8 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}` into
-/// a host:port string.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
+/// into a host:port string.
 fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     let mut iter = addr.iter();
 
@@ -949,8 +1008,8 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}` into
-/// a SocketAddr value.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}`
+/// into a SocketAddr value.
 fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
     let mut iter = addr.iter();
 
@@ -1141,6 +1200,19 @@ pub(crate) struct FetchLatestBlocksResponse {
     // The response of the requested blocks as Serialized SignedBlock.
     #[prost(bytes = "bytes", repeated, tag = "1")]
     blocks: Vec<Bytes>,
+}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct GetLatestRoundsRequest {}
+
+#[derive(Clone, prost::Message)]
+pub(crate) struct GetLatestRoundsResponse {
+    // Highest received round per authority.
+    #[prost(uint32, repeated, tag = "1")]
+    highest_received: Vec<u32>,
+    // Highest accepted round per authority.
+    #[prost(uint32, repeated, tag = "2")]
+    highest_accepted: Vec<u32>,
 }
 
 fn chunk_blocks(blocks: Vec<Bytes>, chunk_limit: usize) -> Vec<Vec<Bytes>> {
