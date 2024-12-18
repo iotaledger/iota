@@ -25,7 +25,7 @@ function HomeDashboardPage(): JSX.Element {
         <main className="flex flex-1 flex-col items-center space-y-8 py-md">
             {connectionStatus === 'connected' && account && (
                 <>
-                    <div className="home-page-grid-container h-full w-full">
+                    <div className="home-page-grid-container w-full content-start">
                         <div style={{ gridArea: 'balance' }} className="flex grow overflow-hidden">
                             <AccountBalance />
                         </div>
@@ -33,7 +33,7 @@ function HomeDashboardPage(): JSX.Element {
                             <StakingOverview />
                         </div>
                         {stardustMigrationEnabled && <MigrationOverview />}
-                        <div style={{ gridArea: 'coins' }}>
+                        <div style={{ gridArea: 'coins' }} className="flex grow overflow-hidden">
                             <MyCoins />
                         </div>
                         {supplyIncreaseVestingEnabled && <SupplyIncreaseVestingOverview />}
