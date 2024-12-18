@@ -28,6 +28,7 @@ pub trait WriteApi {
     ///     However if the node fails to execute the transaction locally in a timely manner,
     ///     a bool type in the response is set to false to indicated the case.
     /// request_type is default to be `WaitForEffectsCert` unless options.show_events or options.show_effects is true
+    #[rustfmt::skip]
     #[method(name = "executeTransactionBlock")]
     async fn execute_transaction_block(
         &self,
@@ -44,6 +45,7 @@ pub trait WriteApi {
     /// Runs the transaction in dev-inspect mode. Which allows for nearly any
     /// transaction (or Move call) with any arguments. Detailed results are
     /// provided, including both the transaction effects and any return values.
+    #[rustfmt::skip]
     #[method(name = "devInspectTransactionBlock")]
     async fn dev_inspect_transaction_block(
         &self,

@@ -13,6 +13,7 @@ use iota_types::base_types::{ObjectID, IotaAddress};
 #[rpc(server, client, namespace = "iotax")]
 pub trait CoinReadApi {
     /// Return all Coin<`coin_type`> objects owned by an address.
+    #[rustfmt::skip]
     #[method(name = "getCoins")]
     async fn get_coins(
         &self,
@@ -39,6 +40,7 @@ pub trait CoinReadApi {
     ) -> RpcResult<CoinPage>;
 
     /// Return the total coin balance for one coin type, owned by the address owner.
+    #[rustfmt::skip]
     #[method(name = "getBalance")]
     async fn get_balance(
         &self,
@@ -59,6 +61,7 @@ pub trait CoinReadApi {
     /// Return metadata (e.g., symbol, decimals) for a coin. Note that if the coin's metadata was
     /// wrapped in the transaction that published its marker type, or the latest version of the
     /// metadata object is wrapped or deleted, it will not be found.
+    #[rustfmt::skip]
     #[method(name = "getCoinMetadata")]
     async fn get_coin_metadata(
         &self,
@@ -67,6 +70,7 @@ pub trait CoinReadApi {
     ) -> RpcResult<Option<IotaCoinMetadata>>;
 
     /// Return total supply for a coin
+    #[rustfmt::skip]
     #[method(name = "getTotalSupply")]
     async fn get_total_supply(
         &self,

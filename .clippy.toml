@@ -1,4 +1,8 @@
+# big constructors
 too-many-arguments-threshold = 20
+# we want to fix the enum suffixes, so we need to disable that
+avoid-breaking-exported-api = false
+
 disallowed-methods = [
   # we use tracing with the log feature instead of the log crate.
   { path = "log::info", reason = "use tracing::info instead" },

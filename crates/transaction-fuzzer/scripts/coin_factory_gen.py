@@ -13,6 +13,7 @@ factory_file = os.path.join(os.path.dirname(__file__), os.pardir, "data", "coin_
 
 with open(factory_file, 'w') as f:
     f.write("// Copyright (c) Mysten Labs, Inc.\n")
+    f.write("// Modifications Copyright (c) 2024 IOTA Stiftung\n")
     f.write("// SPDX-License-Identifier: Apache-2.0\n")
 
     f.write("module coiner::coin_factory {\n")

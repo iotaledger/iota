@@ -64,6 +64,7 @@ pub trait ReadApi {
     /// can be retrieved by this API, even if the object and version exists/existed.
     /// The result may vary across nodes depending on their pruning policies.
     /// Return the object information for a specified version
+    #[rustfmt::skip]
     #[method(name = "tryGetPastObject")]
     async fn try_get_past_object(
         &self,
@@ -102,6 +103,7 @@ pub trait ReadApi {
     ) -> RpcResult<Vec<IotaPastObjectResponse>>;
 
     /// Return a checkpoint
+    #[rustfmt::skip]
     #[method(name = "getCheckpoint")]
     async fn get_checkpoint(
         &self,
@@ -110,6 +112,7 @@ pub trait ReadApi {
     ) -> RpcResult<Checkpoint>;
 
     /// Return paginated list of checkpoints
+    #[rustfmt::skip]
     #[method(name = "getCheckpoints")]
     async fn get_checkpoints(
         &self,
@@ -121,6 +124,7 @@ pub trait ReadApi {
         descending_order: bool,
     ) -> RpcResult<CheckpointPage>;
 
+    #[rustfmt::skip]
     #[method(name = "getCheckpoints", version <= "0.31")]
     async fn get_checkpoints_deprecated_limit(
         &self,
@@ -150,6 +154,7 @@ pub trait ReadApi {
 
     /// Return the protocol config table for the given version number.
     /// If the version number is not specified, If none is specified, the node uses the version of the latest epoch it has processed.
+    #[rustfmt::skip]
     #[method(name = "getProtocolConfig")]
     async fn get_protocol_config(
         &self,

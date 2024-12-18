@@ -31,6 +31,7 @@ pub trait ExtendedApi {
     async fn get_current_epoch(&self) -> RpcResult<EpochInfo>;
 
     /// Return the list of queried objects. Note that this is an enhanced full node only api.
+    #[rustfmt::skip]
     #[method(name = "queryObjects")]
     async fn query_objects(
         &self,
