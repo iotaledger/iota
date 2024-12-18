@@ -8,7 +8,7 @@
     "build": "docusaurus build",
     "generate-ts-docs": "docusaurus generate-typedoc",
     "generate-graphql-docs" : "docusaurus graphql-to-doc; rm '../../generated-graphql-docs/generated.md';",
-    "download-references": "git clean -Xdf ../content/references/iota-evm/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/references/iota-identity/; ./scripts/get-iota-identity-references.sh",
+    "download-references": "git clean -Xdf ../content/references/; ./scripts/get-iota-references.sh;  git clean -Xdf ../content/references/iota-evm/; ./scripts/get-iota-evm-references.sh; git clean -Xdf ../content/references/iota-identity/; ./scripts/get-iota-identity-references.sh",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",
