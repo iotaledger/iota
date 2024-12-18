@@ -6,6 +6,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     fmt::{self, Debug, Display, Formatter, Write},
     fs,
+    net::{Ipv4Addr, Ipv6Addr},
     path::PathBuf,
 };
 
@@ -330,6 +331,13 @@ impl IotaValidatorCommand {
                     &authority_keypair,
                     (&account_keypair.public()).into(),
                 );
+                let transport_str = if host_name.parse::<Ipv4Addr>().is_ok() {
+                    "ip4"
+                } else if host_name.parse::<Ipv6Addr>().is_ok() {
+                    "ip6"
+                } else {
+                    "dns"
+                };
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
@@ -340,13 +348,16 @@ impl IotaValidatorCommand {
                         gas_price,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(
-                            "/dns/{}/tcp/8080/http",
-                            host_name
+                            "/{}/{}/tcp/8080/http",
+                            transport_str, host_name
                         ))?,
-                        p2p_address: Multiaddr::try_from(format!("/dns/{}/udp/8084", host_name))?,
+                        p2p_address: Multiaddr::try_from(format!(
+                            "/{}/{}/udp/8084",
+                            transport_str, host_name
+                        ))?,
                         primary_address: Multiaddr::try_from(format!(
-                            "/dns/{}/udp/8081",
-                            host_name
+                            "/{}/{}/tcp/8081",
+                            transport_str, host_name
                         ))?,
                         description,
                         image_url,
