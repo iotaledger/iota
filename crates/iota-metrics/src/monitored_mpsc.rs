@@ -188,7 +188,7 @@ impl<'a, T> Permit<'a, T> {
     }
 }
 
-impl<'a, T> Drop for Permit<'a, T> {
+impl<T> Drop for Permit<'_, T> {
     fn drop(&mut self) {
         // In the case the permit is dropped without sending, we still want to decrease
         // the occupancy of the channel. Otherwise, receiver should be
@@ -563,7 +563,7 @@ impl<T> Unpin for UnboundedReceiver<T> {}
 /// and `UnboundedReceiver`
 pub fn unbounded_channel<T>(name: &str) -> (UnboundedSender<T>, UnboundedReceiver<T>) {
     let metrics = get_metrics();
-    #[allow(clippy::disallowed_methods)]
+    #[expect(clippy::disallowed_methods)]
     let (sender, receiver) = mpsc::unbounded_channel();
     (
         UnboundedSender {

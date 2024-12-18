@@ -669,7 +669,7 @@ async fn test_quorum_once_with_timeout() {
     );
 }
 
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 fn get_authorities(
     count: Arc<Mutex<u32>>,
     committee_size: u64,
@@ -2251,7 +2251,7 @@ async fn test_process_transaction_again() {
     }
 }
 
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 fn make_fake_authorities() -> (
     BTreeMap<AuthorityName, StakeUnit>,
     BTreeMap<AuthorityName, HandleTransactionTestAuthorityClient>,

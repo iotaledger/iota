@@ -173,7 +173,6 @@ impl Command {
 }
 
 #[derive(Clone)]
-#[allow(dead_code)]
 pub enum CommandData {
     DryRun(DryRun),
     GetCheckpoints(GetCheckpoints),
