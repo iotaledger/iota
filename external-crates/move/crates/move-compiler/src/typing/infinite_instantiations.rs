@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::core::{self, Subst, TParamSubst};
@@ -140,7 +141,7 @@ impl<'a> Context<'a> {
 //**************************************************************************************************
 
 pub fn modules(
-    compilation_env: &mut CompilationEnv,
+    compilation_env: &CompilationEnv,
     modules: &UniqueMap<ModuleIdent, T::ModuleDefinition>,
 ) {
     let tparams = modules
@@ -171,11 +172,12 @@ macro_rules! scc_edges {
 }
 
 fn module<'a>(
-    compilation_env: &mut CompilationEnv,
+    compilation_env: &CompilationEnv,
     tparams: &'a BTreeMap<ModuleIdent, BTreeMap<FunctionName, &'a Vec<TParam>>>,
     mname: ModuleIdent,
     module: &T::ModuleDefinition,
 ) {
+    let reporter = compilation_env.diagnostic_reporter_at_top_level();
     let context = &mut Context::new(tparams, mname);
     module
         .functions
@@ -188,7 +190,7 @@ fn module<'a>(
     petgraph_scc(&graph)
         .into_iter()
         .filter(|scc| scc_edges!(&graph, scc).any(|(_, e, _)| e == Edge::Nested))
-        .for_each(|scc| compilation_env.add_diag(cycle_error(context, &graph, scc)))
+        .for_each(|scc| reporter.add_diag(cycle_error(context, &graph, scc)))
 }
 
 //**************************************************************************************************
@@ -239,10 +241,12 @@ fn exp(context: &mut Context, e: &T::Exp) {
             exp(context, &call.arguments)
         }
 
-        E::IfElse(eb, et, ef) => {
+        E::IfElse(eb, et, ef_opt) => {
             exp(context, eb);
             exp(context, et);
-            exp(context, ef);
+            if let Some(ef) = ef_opt {
+                exp(context, ef)
+            }
         }
         E::Match(esubject, arms) => {
             exp(context, esubject);

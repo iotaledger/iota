@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -2139,8 +2140,8 @@ impl<'a, 'b> VersionedBinary<'a, 'b> {
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION));
         }
 
-        // Bad flavor to the version: for version 7 and above, only SUI_FLAVOR is supported
-        if version >= VERSION_7 && flavor != Some(BinaryFlavor::SUI_FLAVOR) {
+        // Bad flavor to the version: for version 7 and above, only IOTA_FLAVOR is supported
+        if version >= VERSION_7 && flavor != Some(BinaryFlavor::IOTA_FLAVOR) {
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION));
         }
 

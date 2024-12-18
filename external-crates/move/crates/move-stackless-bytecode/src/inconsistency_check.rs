@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Instrument `assert false;` in strategic locations in the program such that if proved, signals
@@ -11,6 +12,7 @@
 //! an `assert false` before
 //! - every `return` and
 //! - every `abort` (if the `unconditional-abort-as-inconsistency` option is set).
+//!
 //! In this way, if the instrumented `assert false` can be proved, it means we have an inconsistency
 //! in the specifications.
 //!

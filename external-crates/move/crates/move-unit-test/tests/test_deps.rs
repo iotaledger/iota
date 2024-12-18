@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{
@@ -27,7 +28,7 @@ fn test_deps_arent_tested() {
     let mut iter = test_plan.module_tests.into_iter();
     let (mod_id, _) = iter.next().unwrap();
     let expected_mod_id = ModuleId::new(
-        AccountAddress::from_hex_literal("0x1").unwrap(),
+        AccountAddress::from_hex_literal("0x6").unwrap(),
         Identifier::new("B").unwrap(),
     );
     assert!(mod_id == expected_mod_id);

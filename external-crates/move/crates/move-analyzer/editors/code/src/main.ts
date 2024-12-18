@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Context } from './context';
@@ -65,25 +66,27 @@ async function findPkgRoot(): Promise<string | undefined> {
     return undefined;
 }
 
-async function suiMoveCmd(context: Readonly<Context>, cmd: string): Promise<void> {
+async function iotaMoveCmd(context: Readonly<Context>, cmd: string): Promise<void> {
     const version = childProcess.spawnSync(
-        context.configuration.suiPath, ['--version'], { encoding: 'utf8' },
+        context.configuration.iotaPath, ['--version'], { encoding: 'utf8' },
     );
     if (version.stdout) {
         const pkgRoot = await findPkgRoot();
         if (pkgRoot !== undefined) {
-            const terminalName = 'sui move';
+            const terminalName = 'iota move';
             let terminal = vscode.window.terminals.find(t => t.name === terminalName);
             if (!terminal) {
                 terminal = vscode.window.createTerminal(terminalName);
             }
             terminal.show(true);
             terminal.sendText('cd ' + pkgRoot, true);
-            terminal.sendText(`sui move ${cmd}`, true);
+            terminal.sendText(`${context.configuration.iotaPath} move ${cmd}`, true);
         }
     } else {
         await vscode.window.showErrorMessage(
-            `A problem occurred when executing the Sui command: '${context.configuration.suiPath}'`,
+            `A problem occurred when executing the Iota command: '${context.configuration.iotaPath}'`
+            + 'Make sure that Iota CLI is installed and available, either in your global PATH, '
+            + 'or on a path set via `move.iota.path` configuration option.',
         );
     }
 }
@@ -92,14 +95,41 @@ async function suiMoveCmd(context: Readonly<Context>, cmd: string): Promise<void
  * An extension command that that builds the current Move project.
  */
 async function buildProject(context: Readonly<Context>): Promise<void> {
-    return suiMoveCmd(context, 'build');
+    return iotaMoveCmd(context, 'build');
 }
 
 /**
- * An extension command that that builds the current Move project.
+ * An extension command that that tests the current Move project.
  */
 async function testProject(context: Readonly<Context>): Promise<void> {
-    return suiMoveCmd(context, 'test');
+    const filter = await vscode.window.showInputBox({
+        title: 'Testing Move package',
+        prompt: 'Enter filter string to only run tests whose names contain the string'
+            + '(leave empty to run all tests)',
+        ignoreFocusOut: true, // Keeps the input box open when it loses focus
+    });
+    if (filter !== undefined) {
+        const cmd = filter.length > 0 ? `test ${filter}` : 'test';
+        return iotaMoveCmd(context, cmd);
+    }
+    return Promise.resolve();
+}
+
+/**
+ * An extension command that that traces the current Move project.
+ */
+async function traceProject(context: Readonly<Context>): Promise<void> {
+    const filter = await vscode.window.showInputBox({
+        title: 'Tracing Move package',
+        prompt: 'Enter filter string to only trace tests whose names contain the string'
+            + '(leave empty to trace all tests)',
+        ignoreFocusOut: true, // Keeps the input box open when it loses focus
+    });
+    if (filter !== undefined) {
+        const cmd = filter.length > 0 ? `test ${filter} --trace-execution` : 'test --trace-execution';
+        return iotaMoveCmd(context, cmd);
+    }
+    return Promise.resolve();
 }
 
 /**
@@ -132,6 +162,7 @@ export async function activate(extensionContext: Readonly<vscode.ExtensionContex
     context.registerCommand('serverVersion', serverVersion);
     context.registerCommand('build', buildProject);
     context.registerCommand('test', testProject);
+    context.registerCommand('trace', traceProject);
 
     // Configure other language features.
     context.configureLanguage();

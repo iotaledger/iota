@@ -1,18 +1,18 @@
 {
   "name": "move",
   "displayName": "Move",
-  "description": "A Move language integrated development environment for Sui.",
-  "publisher": "mysten",
+  "description": "A Move language integrated development environment for Iota.",
+  "publisher": "IOTA Foundation",
   "icon": "images/move.png",
   "license": "Apache-2.0",
-  "version": "1.0.11",
+  "version": "1.0.14",
   "preview": true,
   "repository": {
-    "url": "https://github.com/MystenLabs/sui.git",
+    "url": "https://github.com/iotaledger/iota.git",
     "type": "git"
   },
   "bugs": {
-    "url": "https://github.com/MystenLabs/sui/issues"
+    "url": "https://github.com/iotaledger/iota/issues"
   },
   "engines": {
     "vscode": "^1.61.0"
@@ -22,8 +22,8 @@
   ],
   "keywords": [
     "move",
-    "Sui",
-    "Mysten"
+    "Iota",
+    "IOTA Foundation"
   ],
   "main": "./out/src/main.js",
   "activationEvents": [
@@ -44,7 +44,12 @@
       },
       {
         "command": "move.test",
-        "title": "Test a Move package",
+        "title": "Run Move package test",
+        "category": "Move"
+      },
+      {
+        "command": "move.trace",
+        "title": "Trace Move test execution",
         "category": "Move"
       }
     ],
@@ -79,16 +84,16 @@
           ],
           "scope": "machine-overridable",
           "default": null,
-          "markdownDescription": "Path to rust-analyzer executable (points to `~/.sui/bin/move-analyzer` by default)."
+          "markdownDescription": "Path to rust-analyzer executable (points to `~/.iota/bin/move-analyzer` by default)."
         },
-        "move.sui.path": {
+        "move.iota.path": {
           "type": [
             "null",
             "string"
           ],
           "scope": "machine-overridable",
           "default": null,
-          "markdownDescription": "Path to Sui executable (by default assumes that `sui` is on the systems path)."
+          "markdownDescription": "Path to Iota executable (by default assumes that `iota` is on the systems path)."
         },
         "move.trace.server": {
           "type": "string",
@@ -124,15 +129,18 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "sui.serverVersion"
+          "command": "move.serverVersion"
         },
         {
-          "command": "sui.build"
+          "command": "move.build"
         },
         {
-          "command": "sui.test"
+          "command": "move.test"
+        },
+        {
+          "command": "move.trace"
         }
-      ]
+        ]
     }
   },
   "scripts": {
@@ -149,8 +157,9 @@
     "publish": "npm run pretest && npm run test && vsce publish"
   },
   "extensionDependencies": [
-    "damirka.move-syntax"
-  ],
+    "damirka.move-syntax",
+    "iota.move-trace-debug"
+],
   "dependencies": {
     "command-exists": "^1.2.9",
     "lru-cache": "^4.1.3",

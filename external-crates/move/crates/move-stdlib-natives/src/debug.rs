@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::helpers::make_module_natives;
@@ -286,7 +287,7 @@ mod testing {
         Ok(())
     }
 
-    fn is_non_empty_vector_u8(vec: &Vec<A::MoveValue>) -> bool {
+    fn is_non_empty_vector_u8(vec: &[A::MoveValue]) -> bool {
         if vec.is_empty() {
             false
         } else {

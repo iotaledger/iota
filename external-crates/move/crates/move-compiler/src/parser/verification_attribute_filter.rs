@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_ir_types::location::Loc;
@@ -7,6 +8,7 @@ use move_symbol_pool::Symbol;
 
 use crate::{
     diag,
+    diagnostics::DiagnosticReporter,
     parser::{
         ast as P,
         filter::{filter_program, FilterContext},
@@ -15,15 +17,18 @@ use crate::{
 };
 
 struct Context<'env> {
-    env: &'env mut CompilationEnv,
+    env: &'env CompilationEnv,
+    reporter: DiagnosticReporter<'env>,
     is_source_def: bool,
     current_package: Option<Symbol>,
 }
 
 impl<'env> Context<'env> {
-    fn new(env: &'env mut CompilationEnv) -> Self {
+    fn new(env: &'env CompilationEnv) -> Self {
+        let reporter = env.diagnostic_reporter_at_top_level();
         Self {
             env,
+            reporter,
             is_source_def: false,
             current_package: None,
         }
@@ -64,7 +69,7 @@ impl FilterContext for Context<'_> {
                     "The '{}' attribute has been deprecated along with specification blocks",
                     VerificationAttribute::VERIFY_ONLY
                 );
-                self.env
+                self.reporter
                     .add_diag(diag!(Uncategorized::DeprecatedWillBeRemoved, (*loc, msg)));
             }
         }
@@ -79,7 +84,7 @@ impl FilterContext for Context<'_> {
 // This filters out all AST elements annotated with verify-only annotated from `prog`
 // if the `verify` flag in `compilation_env` is not set. If the `verify` flag is set,
 // no filtering is performed.
-pub fn program(compilation_env: &mut CompilationEnv, prog: P::Program) -> P::Program {
+pub fn program(compilation_env: &CompilationEnv, prog: P::Program) -> P::Program {
     let mut context = Context::new(compilation_env);
     filter_program(&mut context, prog)
 }

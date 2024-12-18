@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module lays out the basic abstract costing schedule for bytecode instructions.
@@ -33,10 +34,7 @@ use move_vm_types::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{
-    ops::{Add, Mul},
-    u64,
-};
+use std::ops::{Add, Mul};
 pub enum GasUnit {}
 
 pub type Gas = GasQuantity<GasUnit>;

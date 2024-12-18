@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -21,9 +22,10 @@ pub mod runtime;
 pub mod session;
 #[macro_use]
 mod tracing;
+mod tracing2;
 
 // Only include debugging functionality in debug builds
-#[cfg(any(debug_assertions, feature = "debugging"))]
+#[cfg(any(debug_assertions, feature = "tracing"))]
 mod debug;
 
 #[cfg(test)]

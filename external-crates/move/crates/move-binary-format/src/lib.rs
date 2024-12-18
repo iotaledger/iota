@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -9,6 +10,7 @@ use std::fmt;
 pub mod binary_config;
 pub mod check_bounds;
 pub mod compatibility;
+pub mod compatibility_mode;
 #[macro_use]
 pub mod errors;
 pub mod constant;

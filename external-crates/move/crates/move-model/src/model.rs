@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Provides a model for a set of Move modules (and scripts, which
@@ -47,7 +48,8 @@ use move_binary_format::{
     CompiledModule,
 };
 use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
-use move_command_line_common::{address::NumericalAddress, files::FileHash};
+use move_command_line_common::files::FileHash;
+use move_core_types::parsing::address::NumericalAddress;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
@@ -74,7 +76,7 @@ pub const SCRIPT_BYTECODE_FUN_NAME: &str = "<SELF>";
 /// A prefix used for structs which are backing specification ("ghost") memory.
 pub const GHOST_MEMORY_PREFIX: &str = "Ghost$";
 
-const SUI_FRAMEWORK_ADDRESS: AccountAddress = address_from_single_byte(2);
+const IOTA_FRAMEWORK_ADDRESS: AccountAddress = address_from_single_byte(2);
 
 const fn address_from_single_byte(b: u8) -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];
@@ -155,9 +157,9 @@ impl Default for Loc {
     }
 }
 
-/// Return true if `f` is a Sui framework function declared in `module` with a name in `names`
+/// Return true if `f` is a Iota framework function declared in `module` with a name in `names`
 fn is_framework_function(f: &FunctionRef, module: &str, names: Vec<&str>) -> bool {
-    *f.module_id.address() == SUI_FRAMEWORK_ADDRESS
+    *f.module_id.address() == IOTA_FRAMEWORK_ADDRESS
         && f.module_id.name().to_string() == module
         && names.contains(&f.function_ident.as_str())
 }
@@ -944,12 +946,14 @@ impl GlobalEnv {
         loc: Loc,
         typ: Type,
         value: Value,
+        attributes: Vec<Attribute>,
     ) -> NamedConstantData {
         NamedConstantData {
             name,
             loc,
             typ,
             value,
+            attributes,
         }
     }
 
@@ -2124,6 +2128,7 @@ impl<'env> ModuleEnv<'env> {
                 print_code: true,
                 print_basic_blocks: true,
                 print_locals: true,
+                max_output_size: None,
             },
         );
         disas
@@ -2997,6 +3002,9 @@ pub struct NamedConstantData {
 
     /// The value of this constant
     value: Value,
+
+    /// Attributes attached to this constant
+    attributes: Vec<Attribute>,
 }
 
 #[derive(Debug)]
@@ -3036,6 +3044,11 @@ impl<'env> NamedConstantEnv<'env> {
     /// Returns the value of this constant
     pub fn get_value(&self) -> Value {
         self.data.value.clone()
+    }
+
+    /// Returns the attributes attached to this constant
+    pub fn get_attributes(&self) -> &[Attribute] {
+        &self.data.attributes
     }
 }
 

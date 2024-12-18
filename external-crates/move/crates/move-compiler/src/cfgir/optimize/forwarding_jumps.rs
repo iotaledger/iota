@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //**************************************************************************************************
@@ -33,6 +34,7 @@ use crate::{
         ast::remap_labels,
         cfg::{MutForwardCFG, CFG},
     },
+    diagnostics::DiagnosticReporter,
     expansion::ast::Mutability,
     hlir::ast::{BasicBlocks, Command, Command_, FunctionSignature, Label, SingleType, Value, Var},
     parser::ast::ConstantName,
@@ -43,6 +45,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// returns true if anything changed
 pub fn optimize(
+    _reporter: &DiagnosticReporter,
     _signature: &FunctionSignature,
     _locals: &UniqueMap<Var, (Mutability, SingleType)>,
     _constants: &UniqueMap<ConstantName, Value>,

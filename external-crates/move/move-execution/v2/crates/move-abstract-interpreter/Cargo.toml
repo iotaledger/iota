@@ -2,10 +2,10 @@
 name = "move-abstract-interpreter-v2"
 version = "0.1.0"
 authors = ["The Move Contributors"]
-description = "Move abstract interpreter"
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+description = "Move abstract interpreter"
 
 [dependencies]
 move-binary-format.workspace = true

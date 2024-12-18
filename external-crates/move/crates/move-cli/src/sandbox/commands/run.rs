@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -83,7 +84,7 @@ pub fn run(
         // script fun. parse module, extract script ID to pass to VM
         let module = CompiledModule::deserialize_with_defaults(&bytecode)
             .map_err(|e| anyhow!("Error deserializing module: {:?}", e))?;
-        move_vm_profiler::gas_profiler_feature_enabled! {
+        move_vm_profiler::tracing_feature_enabled! {
             use move_vm_profiler::GasProfiler;
             use move_vm_types::gas::GasMeter;
 

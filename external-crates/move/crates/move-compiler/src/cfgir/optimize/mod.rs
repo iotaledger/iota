@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod constant_fold;
@@ -12,6 +13,7 @@ use move_symbol_pool::Symbol;
 
 use crate::{
     cfgir::cfg::MutForwardCFG,
+    diagnostics::DiagnosticReporter,
     editions::FeatureGate,
     expansion::ast::Mutability,
     hlir::ast::*,
@@ -20,6 +22,7 @@ use crate::{
 };
 
 pub type Optimization = fn(
+    &DiagnosticReporter,
     &FunctionSignature,
     &UniqueMap<Var, (Mutability, SingleType)>,
     &UniqueMap<ConstantName, Value>,
@@ -43,7 +46,8 @@ const MOVE_2024_OPTIMIZATIONS: &[Optimization] = &[
 
 #[growing_stack]
 pub fn optimize(
-    env: &mut CompilationEnv,
+    env: &CompilationEnv,
+    reporter: &DiagnosticReporter,
     package: Option<Symbol>,
     signature: &FunctionSignature,
     locals: &UniqueMap<Var, (Mutability, SingleType)>,
@@ -66,7 +70,7 @@ pub fn optimize(
         }
 
         // reset the count if something has changed
-        if optimization(signature, locals, constants, cfg) {
+        if optimization(reporter, signature, locals, constants, cfg) {
             count = 0
         } else {
             count += 1

@@ -92,7 +92,7 @@ If a `ResolvedGraph` can be created, it guarantees that:
   in package `P` is equivalent to address `B` in package `Q`, then `A`
   and `B` are assigned the same numerical address. Informally, two
   named addresses (across packages) are equivalent if they are related
-  by scope or renamings.  Formally, for packages `P`, `Q` and named
+  by scope or renamings. Formally, for packages `P`, `Q` and named
   addresses `x`, `y`, this equivalence is the transitive reflexive
   closure of the relation that corresponds `x` in `P` to `y` in `Q`
   when,
@@ -113,7 +113,7 @@ This results in a complete and consistent named address assignment where,
 - `QA = 0x42` in `Q`'s resolution table,
 - `RA = 0x42` in `R`'s resolution table,
 
-even though only one concrete name was assigned.  Similarly, if:
+even though only one concrete name was assigned. Similarly, if:
 
 - `P` depends on `Q`, and assigns `0x42` to `QA`,
 - `P` depends on `R`, and assigns `0x43` to `RA`,
