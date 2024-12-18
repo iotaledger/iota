@@ -4,8 +4,4 @@
 export enum SettingsDialogView {
     SelectSetting = 'SelectSetting',
     NetworkSettings = 'NetworkSettings',
-    AutoLockProfile = 'AutoLockProfile',
-    FAQ = 'FAQ',
-    Themes = 'Themes',
-    Logout = 'Logout',
 }

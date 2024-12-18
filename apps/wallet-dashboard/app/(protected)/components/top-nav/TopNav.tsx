@@ -26,11 +26,6 @@ export function TopNav() {
                 type={network === Network.Mainnet ? BadgeType.PrimarySoft : BadgeType.Neutral}
             />
             <ConnectButton size="md" />
-            <Button
-                icon={<Settings />}
-                type={ButtonType.Ghost}
-                onClick={onOpenSettingsDialogClick}
-            />
             <SettingsDialog
                 isOpen={isSettingsDialogOpen}
                 handleClose={onCloseSettingsDialogClick}
@@ -38,6 +33,11 @@ export function TopNav() {
                 setView={setSettingsDialogView}
             />
             <ThemeSwitcher />
+            <Button
+                icon={<Settings />}
+                type={ButtonType.Ghost}
+                onClick={onOpenSettingsDialogClick}
+            />
         </div>
     );
 }
