@@ -72,9 +72,7 @@ where
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(mut output) = self.outputs.next() else {
-            return None;
-        };
+        let mut output = self.outputs.next()?;
         if let Ok((_, inner)) = &mut output {
             self.num_scaled_outputs += 1;
             match inner {
@@ -220,11 +218,7 @@ where
         }
         // Now that we are out of the loop we collect the processed outputs from the
         // filters
-        let Some((address, output_header_with_balance)) =
-            self.unlocked_address_balances.pop_first()
-        else {
-            return None;
-        };
+        let (address, output_header_with_balance) = self.unlocked_address_balances.pop_first()?;
         self.num_vesting_outputs += 1;
         // create a new basic output which holds the aggregated balance from
         // unlocked vesting outputs for this address
@@ -274,9 +268,7 @@ where
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(mut output) = self.outputs.next() else {
-            return None;
-        };
+        let mut output = self.outputs.next()?;
         if let Ok((header, inner)) = &mut output {
             if is_participation_output(inner) {
                 self.participation_outputs.push(header.output_id());
