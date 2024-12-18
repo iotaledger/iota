@@ -25,7 +25,7 @@ export function SettingsDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={() => handleClose()}>
-           {view === SettingsDialogView.SelectSetting && (
+            {view === SettingsDialogView.SelectSetting && (
                 <SettingsListView handleClose={handleClose} setView={setView} />
             )}
             {view === SettingsDialogView.NetworkSettings && (

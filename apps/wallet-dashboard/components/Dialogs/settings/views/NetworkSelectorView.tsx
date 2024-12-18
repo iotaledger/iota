@@ -20,7 +20,7 @@ export function NetworkSelectorView({
     const clientContext = useIotaClientContext();
     const activeNetwork = clientContext.network;
     // Dashboard doesn't support RPCs yet
-    const networks = clientContext.networks as Record<string, NetworkConfiguration>
+    const networks = clientContext.networks as Record<string, NetworkConfiguration>;
 
     async function handleNetworkChange(network: NetworkConfiguration) {
         if (activeNetwork === network.id) {
@@ -29,7 +29,7 @@ export function NetworkSelectorView({
         clientContext.selectNetwork(network.id);
         toast.success(`Switched to ${network.name}`);
     }
-    
+
     return (
         <DialogLayout>
             <Header title="Network" onClose={handleClose} onBack={onBack} titleCentered />
