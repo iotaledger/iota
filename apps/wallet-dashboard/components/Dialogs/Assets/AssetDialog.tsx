@@ -17,6 +17,7 @@ import { DialogLayout } from '../layout';
 interface AssetsDialogProps {
     onClose: () => void;
     asset: IotaObjectData;
+    refetchAssets: () => void;
 }
 
 interface FormValues {
@@ -27,7 +28,7 @@ const INITIAL_VALUES: FormValues = {
     to: '',
 };
 
-export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element {
+export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps): JSX.Element {
     const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
     const account = useCurrentAccount();
     const [digest, setDigest] = useState<string>('');
@@ -55,6 +56,7 @@ export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element 
             });
 
             setDigest(tx.digest);
+            refetchAssets();
             addNotification('Transfer transaction successful', NotificationType.Success);
             setView(AssetsDialogView.TransactionDetails);
         } catch {
