@@ -3,16 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query getMoveFunctionArgTypes($packageId: IotaAddress!, $module: String!, $function: String!) {
-	object(address: $packageId) {
-		asMovePackage {
-			module(name: $module) {
-				fileFormatVersion
-				function(name: $function) {
-					parameters {
-						signature
-					}
-				}
-			}
-		}
-	}
+    object(address: $packageId) {
+        asMovePackage {
+            module(name: $module) {
+                fileFormatVersion
+                function(name: $function) {
+                    parameters {
+                        signature
+                    }
+                }
+            }
+        }
+    }
 }

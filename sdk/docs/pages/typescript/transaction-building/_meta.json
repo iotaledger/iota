@@ -1,7 +1,7 @@
 {
-	"basics": "Iota Programmable Transaction Basics",
-	"gas": "Paying for Iota Transactions with Gas Coins",
-	"sponsored-transactions": "Sponsored Transactions",
-	"offline": "Building Offline",
-	"intents": "Transaction Intents"
+    "basics": "Iota Programmable Transaction Basics",
+    "gas": "Paying for Iota Transactions with Gas Coins",
+    "sponsored-transactions": "Sponsored Transactions",
+    "offline": "Building Offline",
+    "intents": "Transaction Intents"
 }

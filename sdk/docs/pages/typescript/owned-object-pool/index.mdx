@@ -26,10 +26,7 @@ At a high level, this is how you implement the library:
 
 ```ts
 // Initialize the ExecutorServiceHandler.
-const eshandler = await ExecutorServiceHandler.initialize(
-adminKeypair,
-iotaClient,
-);
+const eshandler = await ExecutorServiceHandler.initialize(adminKeypair, iotaClient);
 
 /// And then for each incoming request...
 /// ...get the incoming transaction

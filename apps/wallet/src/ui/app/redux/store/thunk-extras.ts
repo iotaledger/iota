@@ -8,14 +8,14 @@ import type { RootState } from '_redux/RootReducer';
 import type { AppDispatch } from '_store';
 
 export const thunkExtras = {
-	growthbook,
-	background: new BackgroundClient(),
+    growthbook,
+    background: new BackgroundClient(),
 };
 
 type ThunkExtras = typeof thunkExtras;
 
 export interface AppThunkConfig {
-	extra: ThunkExtras;
-	state: RootState;
-	dispatch: AppDispatch;
+    extra: ThunkExtras;
+    state: RootState;
+    dispatch: AppDispatch;
 }

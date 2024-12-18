@@ -12,105 +12,105 @@ import { formatAddress } from './utils';
 type OwnerDisplay = string | { address: string } | { object: string };
 
 const getOwnerDisplay = (owner: ObjectOwner): OwnerDisplay => {
-	if (owner === 'Immutable') return 'Immutable';
-	if ('Shared' in owner) return 'Shared';
-	if ('AddressOwner' in owner) return { address: owner.AddressOwner };
-	return { object: owner.ObjectOwner };
+    if (owner === 'Immutable') return 'Immutable';
+    if ('Shared' in owner) return 'Shared';
+    if ('AddressOwner' in owner) return { address: owner.AddressOwner };
+    return { object: owner.ObjectOwner };
 };
 
 export function ObjectLink({
-	owner,
-	type,
-	object,
-	inputObject,
-	...tags
+    owner,
+    type,
+    object,
+    inputObject,
+    ...tags
 }: {
-	inputObject?: string;
-	type?: string;
-	owner?: ObjectOwner;
-	object?: IotaObjectChange;
+    inputObject?: string;
+    type?: string;
+    owner?: ObjectOwner;
+    object?: IotaObjectChange;
 } & React.HTMLAttributes<HTMLAnchorElement> &
-	React.ComponentPropsWithoutRef<'a'>) {
-	const [copied, setCopied] = useState(false);
+    React.ComponentPropsWithoutRef<'a'>) {
+    const [copied, setCopied] = useState(false);
 
-	const { network } = useIotaClientContext();
+    const { network } = useIotaClientContext();
 
-	let objectId: string | undefined;
-	let display: string | undefined;
+    let objectId: string | undefined;
+    let display: string | undefined;
 
-	const ownerDisplay = owner ? getOwnerDisplay(owner) : undefined;
+    const ownerDisplay = owner ? getOwnerDisplay(owner) : undefined;
 
-	if (ownerDisplay) {
-		if (typeof ownerDisplay !== 'string') {
-			objectId = 'address' in ownerDisplay ? ownerDisplay.address : ownerDisplay.object;
-			display = formatAddress(objectId);
-		} else {
-			display = ownerDisplay;
-		}
-	}
+    if (ownerDisplay) {
+        if (typeof ownerDisplay !== 'string') {
+            objectId = 'address' in ownerDisplay ? ownerDisplay.address : ownerDisplay.object;
+            display = formatAddress(objectId);
+        } else {
+            display = ownerDisplay;
+        }
+    }
 
-	if (type) {
-		display = type;
-	}
+    if (type) {
+        display = type;
+    }
 
-	if (inputObject) {
-		objectId = inputObject;
-		display = formatAddress(inputObject);
-	}
+    if (inputObject) {
+        objectId = inputObject;
+        display = formatAddress(inputObject);
+    }
 
-	if (object) {
-		if ('objectId' in object) {
-			objectId = object.objectId;
-			display = formatAddress(objectId);
-		}
+    if (object) {
+        if ('objectId' in object) {
+            objectId = object.objectId;
+            display = formatAddress(objectId);
+        }
 
-		if ('packageId' in object) {
-			objectId = object.packageId;
-			display = formatAddress(objectId);
-		}
-	}
+        if ('packageId' in object) {
+            objectId = object.packageId;
+            display = formatAddress(objectId);
+        }
+    }
 
-	const link = objectId
-		? `https://explorer.iota.org/${ownerDisplay ? 'address' : 'object'}/${objectId}?network=${
-				network.split(':')[1]
-			}`
-		: undefined;
+    const link = objectId
+        ? `https://explorer.iota.org/${ownerDisplay ? 'address' : 'object'}/${objectId}?network=${
+              network.split(':')[1]
+          }`
+        : undefined;
 
-	const copy = () => {
-		if (!objectId && !display) return;
+    const copy = () => {
+        if (!objectId && !display) return;
 
-		navigator.clipboard.writeText(objectId || display || '');
-		setCopied(true);
-		toast.success('Copied to clipboard!');
+        navigator.clipboard.writeText(objectId || display || '');
+        setCopied(true);
+        toast.success('Copied to clipboard!');
 
-		setTimeout(() => {
-			setCopied(false);
-		}, 1_000);
-	};
+        setTimeout(() => {
+            setCopied(false);
+        }, 1_000);
+    };
 
-	return (
-		<>
-			{copied ? (
-				<CheckIcon width={10} height={10} className="" />
-			) : display ? (
-				<CopyIcon width={10} height={10} className="cursor-pointer" onClick={copy} />
-			) : null}
+    return (
+        <>
+            {copied ? (
+                <CheckIcon width={10} height={10} className="" />
+            ) : display ? (
+                <CopyIcon width={10} height={10} className="cursor-pointer" onClick={copy} />
+            ) : null}
 
-			{link ? (
-				<>
-					<a
-						href={link}
-						target="_blank"
-						className="underline break-words pl-2"
-						{...tags}
-						rel="noreferrer"
-					>
-						{display}
-					</a>
-				</>
-			) : (
-				<span>{display || '-'}</span>
-			)}
-		</>
-	);
+            {link ? (
+                <>
+                    <a
+                        href={link}
+                        target="_blank"
+                        className="underline break-words pl-2"
+                        {...tags}
+                        rel="noreferrer"
+                    >
+                        {display}
+                    </a>
+                </>
+            ) : (
+                <span>{display || '-'}</span>
+            )}
+        </>
+    );
 }

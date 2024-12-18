@@ -23,8 +23,8 @@ const client = new IotaClient({ url: getFullnodeUrl('testnet') });
 
 // Now we can use it to create a kiosk Client.
 const kioskClient = new KioskClient({
-	client,
-	network: Network.TESTNET,
+    client,
+    network: Network.TESTNET,
 });
 ```
 
@@ -36,13 +36,13 @@ as the network, and pass the `packageIds` for the rules and extensions you want 
 ```typescript
 // constructing it for custom network use.
 const kioskClient = new KioskClient({
-	client,
-	network: Network.CUSTOM,
-	packageIds: {
-		kioskLockRulePackageId: '0x...',
-		royaltyRulePackageId: '0x...',
-		personalKioskRulePackageId: '0x...',
-		floorPriceRulePackageId: '0x...',
-	},
+    client,
+    network: Network.CUSTOM,
+    packageIds: {
+        kioskLockRulePackageId: '0x...',
+        royaltyRulePackageId: '0x...',
+        personalKioskRulePackageId: '0x...',
+        floorPriceRulePackageId: '0x...',
+    },
 });
 ```

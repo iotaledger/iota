@@ -16,24 +16,24 @@ const Transport = require('@ledgerhq/hw-transport').default;
 const Iota = require('@iota/ledgerjs-hw-app-iota').default;
 
 const getPublicKey = async () => {
-	const iota = new Iota(await Transport.create());
-	return await iota.getPublicKey("44'/784'/0'/0'/0'");
+    const iota = new Iota(await Transport.create());
+    return await iota.getPublicKey("44'/784'/0'/0'/0'");
 };
 
 const signTransaction = async () => {
-	const iota = new Iota(await Transport.create());
-	return await iota.signTransaction("44'/784'/0'/0'/0'", '<transaction contents>');
+    const iota = new Iota(await Transport.create());
+    return await iota.signTransaction("44'/784'/0'/0'/0'", '<transaction contents>');
 };
 
 const getVersion = async () => {
-	const iota = new Iota(await Transport.create());
-	return await iota.getVersion();
+    const iota = new Iota(await Transport.create());
+    return await iota.getVersion();
 };
 
 const doAll = async () => {
-	console.log(await getPublicKey());
-	console.log(await signTransaction());
-	console.log(await getVersion());
+    console.log(await getPublicKey());
+    console.log(await signTransaction());
+    console.log(await getVersion());
 };
 
 doAll().catch((err) => console.log(err));
@@ -43,25 +43,25 @@ doAll().catch((err) => console.log(err));
 
 ### Table of Contents
 
-- [Iota](#iota)
-  - [Parameters](#parameters)
-  - [Examples](#examples)
-  - [getPublicKey](#getpublickey)
-    - [Parameters](#parameters-1)
-    - [Examples](#examples-1)
-  - [signTransaction](#signtransaction)
-    - [Parameters](#parameters-2)
-    - [Examples](#examples-2)
-  - [getVersion](#signtransaction)
-    - [Parameters](#parameters-3)
-    - [Examples](#examples-3)
+-   [Iota](#iota)
+    -   [Parameters](#parameters)
+    -   [Examples](#examples)
+    -   [getPublicKey](#getpublickey)
+        -   [Parameters](#parameters-1)
+        -   [Examples](#examples-1)
+    -   [signTransaction](#signtransaction)
+        -   [Parameters](#parameters-2)
+        -   [Examples](#examples-2)
+    -   [getVersion](#signtransaction)
+        -   [Parameters](#parameters-3)
+        -   [Examples](#examples-3)
 
 ### Parameters
 
-- `transport` **`Transport<any>`**
-- `scrambleKey`
-  **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)**
-  (optional, default `"Iota"`)
+-   `transport` **`Transport<any>`**
+-   `scrambleKey`
+    **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)**
+    (optional, default `"Iota"`)
 
 ### Examples
 
@@ -78,12 +78,12 @@ Gets the Iota address for a given BIP-32 path.
 
 #### Parameters
 
-- `path`
-  **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** a
-  path in BIP-32 format
-- `displayOnDevice`
-  **[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)**
-  whether or not to display the address on the Ledger device.
+-   `path`
+    **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)**
+    a path in BIP-32 format
+-   `displayOnDevice`
+    **[boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)**
+    whether or not to display the address on the Ledger device.
 
 #### Examples
 
@@ -101,9 +101,9 @@ Sign a transaction with a given BIP-32 path.
 
 #### Parameters
 
-- `path`
-  **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)** a
-  path in BIP-32 format
+-   `path`
+    **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)**
+    a path in BIP-32 format
 
 #### Examples
 

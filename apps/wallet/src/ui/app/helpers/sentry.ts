@@ -8,12 +8,12 @@ import * as Sentry from '@sentry/react';
 import { getSentryConfig } from '../../../shared/sentry-config';
 
 export default function initSentry() {
-	Sentry.init(
-		getSentryConfig({
-			integrations: [new Sentry.BrowserTracing()],
-			tracesSampler: () => {
-				return growthbook.getFeatureValue('wallet-sentry-tracing', 0);
-			},
-		}),
-	);
+    Sentry.init(
+        getSentryConfig({
+            integrations: [new Sentry.BrowserTracing()],
+            tracesSampler: () => {
+                return growthbook.getFeatureValue('wallet-sentry-tracing', 0);
+            },
+        }),
+    );
 }

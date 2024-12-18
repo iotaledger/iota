@@ -12,7 +12,7 @@ const meta: Meta<typeof Panel> = {
             <Panel {...props}>
                 <div className="flex flex-col items-start gap-2">
                     <Title title="Title" subtitle="subtitle" />
-                    <div className=" px-md--rs pb-sm--rs">
+                    <div className="px-md--rs pb-sm--rs">
                         <Address text="0x0d7...3f34" isCopyable />
                         <Address text="0x0d7...3f35" isCopyable />
                         <Address text="0x0d7...3f36" isCopyable />

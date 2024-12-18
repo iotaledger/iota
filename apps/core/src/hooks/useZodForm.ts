@@ -8,14 +8,14 @@ import type { UseFormProps } from 'react-hook-form';
 import type { TypeOf, ZodSchema } from 'zod';
 
 interface UseZodFormProps<T extends ZodSchema<any>> extends UseFormProps<TypeOf<T>> {
-	schema: T;
+    schema: T;
 }
 
 export const useZodForm = <T extends ZodSchema<any>>({
-	schema,
-	...formConfig
+    schema,
+    ...formConfig
 }: UseZodFormProps<T>) =>
-	useForm({
-		...formConfig,
-		resolver: zodResolver(schema),
-	});
+    useForm({
+        ...formConfig,
+        resolver: zodResolver(schema),
+    });

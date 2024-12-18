@@ -31,13 +31,13 @@ Choose network type:
 
 ```typescript
 export const iotansClient = new IotaNSClient(client, {
-	networkType: 'testnet',
+    networkType: 'testnet',
 });
 ```
 
 > **Note:** To ensure best performance, please make sure to create only one instance of the
-> IotaNSClient class in your application. Then, import the created `iotansClient` instance to use its
-> functions.
+> IotaNSClient class in your application. Then, import the created `iotansClient` instance to use
+> its functions.
 
 Fetch an address linked to a name:
 
@@ -49,7 +49,7 @@ Fetch the default name of an address:
 
 ```typescript
 const defaultName = await iotansClient.getName(
-	'0xc2f08b6490b87610629673e76bab7e821fe8589c7ea6e752ea5dac2a4d371b41',
+    '0xc2f08b6490b87610629673e76bab7e821fe8589c7ea6e752ea5dac2a4d371b41',
 );
 ```
 
@@ -63,7 +63,7 @@ Fetch a name object including the owner:
 
 ```typescript
 const nameObject = await iotansClient.getNameObject('iotans.iota', {
-	showOwner: true,
+    showOwner: true,
 });
 ```
 
@@ -71,8 +71,8 @@ Fetch a name object including the Avatar the owner has set (it automatically inc
 
 ```typescript
 const nameObject = await iotansClient.getNameObject('iotans.iota', {
-	showOwner: true, // this can be skipped as showAvatar includes it by default
-	showAvatar: true,
+    showOwner: true, // this can be skipped as showAvatar includes it by default
+    showAvatar: true,
 });
 ```
 

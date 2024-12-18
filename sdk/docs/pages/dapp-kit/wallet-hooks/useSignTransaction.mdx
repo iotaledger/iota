@@ -65,14 +65,14 @@ function MyComponent() {
 
 ## Arguments
 
-- `transactionBlock`: The transaction to sign.
-- `chain`: (optional) The chain identifier the transaction should be signed for.
+-   `transactionBlock`: The transaction to sign.
+-   `chain`: (optional) The chain identifier the transaction should be signed for.
 
 ## Result
 
-- `signature`: The signature of the message, as a Base64-encoded `string`.
-- `bytes`: The serialized transaction bytes, as a a Base64-encoded `string`.
-- `reportTransactionEffects`: A function to report the transaction effects to the wallet. This
-  callback should always be invoked after executing the signed transaction. This function accepts
-  the `rawEffects` returned from JSON-RPC `executeTransactionBlock` method, or the `effects.bcs`
-  when executing with the GraphQL API.
+-   `signature`: The signature of the message, as a Base64-encoded `string`.
+-   `bytes`: The serialized transaction bytes, as a a Base64-encoded `string`.
+-   `reportTransactionEffects`: A function to report the transaction effects to the wallet. This
+    callback should always be invoked after executing the signed transaction. This function accepts
+    the `rawEffects` returned from JSON-RPC `executeTransactionBlock` method, or the `effects.bcs`
+    when executing with the GraphQL API.

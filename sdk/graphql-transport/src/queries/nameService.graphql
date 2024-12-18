@@ -3,21 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query resolveNameServiceAddress($domain: String!) {
-	resolveIotaNSAddress(domain: $domain) {
-		address
-	}
+    resolveIotaNSAddress(domain: $domain) {
+        address
+    }
 }
 
 query resolveNameServiceNames($address: IotaAddress!, $limit: Int, $cursor: String) {
-	address(address: $address) {
-		iotansRegistrations(first: $limit, after: $cursor) {
-			pageInfo {
-				hasNextPage
-				endCursor
-			}
-			nodes {
-				domain
-			}
-		}
-	}
+    address(address: $address) {
+        iotansRegistrations(first: $limit, after: $cursor) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            nodes {
+                domain
+            }
+        }
+    }
 }

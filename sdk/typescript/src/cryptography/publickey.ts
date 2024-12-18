@@ -17,118 +17,121 @@ import { messageWithIntent } from './intent.js';
 export type PublicKeyInitData = string | Uint8Array | Iterable<number>;
 
 export function bytesEqual(a: Uint8Array, b: Uint8Array) {
-	if (a === b) return true;
+    if (a === b) return true;
 
-	if (a.length !== b.length) {
-		return false;
-	}
+    if (a.length !== b.length) {
+        return false;
+    }
 
-	for (let i = 0; i < a.length; i++) {
-		if (a[i] !== b[i]) {
-			return false;
-		}
-	}
-	return true;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
  * A public key
  */
 export abstract class PublicKey {
-	/**
-	 * Checks if two public keys are equal
-	 */
-	equals(publicKey: PublicKey) {
-		return bytesEqual(this.toRawBytes(), publicKey.toRawBytes());
-	}
+    /**
+     * Checks if two public keys are equal
+     */
+    equals(publicKey: PublicKey) {
+        return bytesEqual(this.toRawBytes(), publicKey.toRawBytes());
+    }
 
-	/**
-	 * Return the base-64 representation of the public key
-	 */
-	toBase64() {
-		return toBase64(this.toRawBytes());
-	}
+    /**
+     * Return the base-64 representation of the public key
+     */
+    toBase64() {
+        return toBase64(this.toRawBytes());
+    }
 
-	toString(): never {
-		throw new Error(
-			'`toString` is not implemented on public keys. Use `toBase64()` or `toRawBytes()` instead.',
-		);
-	}
+    toString(): never {
+        throw new Error(
+            '`toString` is not implemented on public keys. Use `toBase64()` or `toRawBytes()` instead.',
+        );
+    }
 
-	/**
-	 * Return the Iota representation of the public key encoded in
-	 * base-64. A Iota public key is formed by the concatenation
-	 * of the scheme flag with the raw bytes of the public key
-	 */
-	toIotaPublicKey(): string {
-		const bytes = this.toIotaBytes();
-		return toBase64(bytes);
-	}
+    /**
+     * Return the Iota representation of the public key encoded in
+     * base-64. A Iota public key is formed by the concatenation
+     * of the scheme flag with the raw bytes of the public key
+     */
+    toIotaPublicKey(): string {
+        const bytes = this.toIotaBytes();
+        return toBase64(bytes);
+    }
 
-	verifyWithIntent(
-		bytes: Uint8Array,
-		signature: Uint8Array | string,
-		intent: IntentScope,
-	): Promise<boolean> {
-		const intentMessage = messageWithIntent(intent, bytes);
-		const digest = blake2b(intentMessage, { dkLen: 32 });
+    verifyWithIntent(
+        bytes: Uint8Array,
+        signature: Uint8Array | string,
+        intent: IntentScope,
+    ): Promise<boolean> {
+        const intentMessage = messageWithIntent(intent, bytes);
+        const digest = blake2b(intentMessage, { dkLen: 32 });
 
-		return this.verify(digest, signature);
-	}
+        return this.verify(digest, signature);
+    }
 
-	/**
-	 * Verifies that the signature is valid for for the provided PersonalMessage
-	 */
-	verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
-		return this.verifyWithIntent(
-			bcs.vector(bcs.u8()).serialize(message).toBytes(),
-			signature,
-			'PersonalMessage',
-		);
-	}
+    /**
+     * Verifies that the signature is valid for for the provided PersonalMessage
+     */
+    verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
+        return this.verifyWithIntent(
+            bcs.vector(bcs.u8()).serialize(message).toBytes(),
+            signature,
+            'PersonalMessage',
+        );
+    }
 
-	/**
-	 * Verifies that the signature is valid for for the provided Transaction
-	 */
-	verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
-		return this.verifyWithIntent(transaction, signature, 'TransactionData');
-	}
+    /**
+     * Verifies that the signature is valid for for the provided Transaction
+     */
+    verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
+        return this.verifyWithIntent(transaction, signature, 'TransactionData');
+    }
 
-	/**
-	 * Returns the bytes representation of the public key
-	 * prefixed with the signature scheme flag
-	 */
-	toIotaBytes(): Uint8Array {
-		const rawBytes = this.toRawBytes();
-		const iotaBytes = new Uint8Array(rawBytes.length + 1);
-		iotaBytes.set([this.flag()]);
-		iotaBytes.set(rawBytes, 1);
+    /**
+     * Returns the bytes representation of the public key
+     * prefixed with the signature scheme flag
+     */
+    toIotaBytes(): Uint8Array {
+        const rawBytes = this.toRawBytes();
+        const iotaBytes = new Uint8Array(rawBytes.length + 1);
+        iotaBytes.set([this.flag()]);
+        iotaBytes.set(rawBytes, 1);
 
-		return iotaBytes;
-	}
+        return iotaBytes;
+    }
 
-	/**
-	 * Return the Iota address associated with this Ed25519 public key
-	 */
-	toIotaAddress(): string {
-		// Each hex char represents half a byte, hence hex address doubles the length
-		return normalizeIotaAddress(
-			bytesToHex(blake2b(this.toIotaBytes(), { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
-		);
-	}
+    /**
+     * Return the Iota address associated with this Ed25519 public key
+     */
+    toIotaAddress(): string {
+        // Each hex char represents half a byte, hence hex address doubles the length
+        return normalizeIotaAddress(
+            bytesToHex(blake2b(this.toIotaBytes(), { dkLen: 32 })).slice(
+                0,
+                IOTA_ADDRESS_LENGTH * 2,
+            ),
+        );
+    }
 
-	/**
-	 * Return the byte array representation of the public key
-	 */
-	abstract toRawBytes(): Uint8Array;
+    /**
+     * Return the byte array representation of the public key
+     */
+    abstract toRawBytes(): Uint8Array;
 
-	/**
-	 * Return signature scheme flag of the public key
-	 */
-	abstract flag(): number;
+    /**
+     * Return signature scheme flag of the public key
+     */
+    abstract flag(): number;
 
-	/**
-	 * Verifies that the signature is valid for for the provided message
-	 */
-	abstract verify(data: Uint8Array, signature: Uint8Array | string): Promise<boolean>;
+    /**
+     * Verifies that the signature is valid for for the provided message
+     */
+    abstract verify(data: Uint8Array, signature: Uint8Array | string): Promise<boolean>;
 }

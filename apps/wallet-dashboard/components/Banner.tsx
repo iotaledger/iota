@@ -14,7 +14,7 @@ interface BannerProps {
 export function Banner({ videoSrc, title, subtitle, onButtonClick, buttonText }: BannerProps) {
     return (
         <Panel bgColor="bg-secondary-90 dark:bg-secondary-10">
-            <div className="flex h-full w-full justify-between ">
+            <div className="flex h-full w-full justify-between">
                 <div className="flex h-full min-h-[200px] w-full flex-col justify-between p-lg">
                     <div className="flex flex-col gap-xxs">
                         <span className="text-headline-sm text-neutral-10 dark:text-neutral-92">

@@ -25,7 +25,7 @@ export function CardImage({
             className={cx(
                 IMAGE_VARIANT_CLASSES[shape],
                 IMAGE_BG_CLASSES[type],
-                'flex shrink-0 items-center justify-center  overflow-hidden',
+                'flex shrink-0 items-center justify-center overflow-hidden',
             )}
         >
             {type === ImageType.Placeholder && !children && (

@@ -22,8 +22,8 @@ const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 // Take item from kiosk.
 const item = kioskTx.take({
-	itemId: item,
-	itemType,
+    itemId: item,
+    itemType,
 });
 
 // Do something with `item`, like transfer it to someone else.
@@ -50,12 +50,12 @@ const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 // Take item from kiosk.
 kioskTx
-	.transfer({
-		itemId: item,
-		itemType,
-		address: 'address_to_transfer_the_object',
-	})
-	.finalize();
+    .transfer({
+        itemId: item,
+        itemType,
+        address: 'address_to_transfer_the_object',
+    })
+    .finalize();
 
 // Sign and execute transaction.
 await signAndExecuteTransaction({ tx: tx });
@@ -74,11 +74,11 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 kioskTx
-	.place({
-		item,
-		itemType,
-	})
-	.finalize();
+    .place({
+        item,
+        itemType,
+    })
+    .finalize();
 
 // Sign and execute transaction.
 await signAndExecuteTransaction({ tx: tx });
@@ -97,12 +97,12 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 kioskTx
-	.list({
-		itemId,
-		itemType,
-		price: 100000n,
-	})
-	.finalize();
+    .list({
+        itemId,
+        itemType,
+        price: 100000n,
+    })
+    .finalize();
 
 // Sign and execute transaction.
 await signAndExecuteTransaction({ tx: tx });
@@ -122,12 +122,12 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 kioskTx
-	.placeAndList({
-		itemId,
-		itemType,
-		price: 100000n,
-	})
-	.finalize();
+    .placeAndList({
+        itemId,
+        itemType,
+        price: 100000n,
+    })
+    .finalize();
 
 // Sign and execute transaction.
 await signAndExecuteTransaction({ tx: tx });
@@ -146,11 +146,11 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 kioskTx
-	.delist({
-		itemId,
-		itemType,
-	})
-	.finalize();
+    .delist({
+        itemId,
+        itemType,
+    })
+    .finalize();
 
 // sign and execute transaction.
 await signAndExecuteTransaction({ tx: tx });
@@ -168,11 +168,11 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 kioskTx
-	.withdraw({
-		address: 'address_to_transfer_funds',
-		amount: 100000n,
-	})
-	.finalize();
+    .withdraw({
+        address: 'address_to_transfer_funds',
+        amount: 100000n,
+    })
+    .finalize();
 
 // Sign and execute transaction.
 await signAndExecuteTransaction({ tx: tx });
@@ -192,19 +192,19 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 kioskTx
-	.borrowTx(
-		{
-			itemId,
-			itemType,
-		},
-		(item) => {
-			tx.moveCall({
-				target: '0xMyGame::hero::level_up',
-				arguments: [item],
-			});
-		},
-	)
-	.finalize();
+    .borrowTx(
+        {
+            itemId,
+            itemType,
+        },
+        (item) => {
+            tx.moveCall({
+                target: '0xMyGame::hero::level_up',
+                arguments: [item],
+            });
+        },
+    )
+    .finalize();
 
 // Sign and execute transaction.
 await signAndExecuteTransaction({ tx: tx });
@@ -225,22 +225,22 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 const [item, promise] = kioskTx.borrow({
-	itemId,
-	itemType,
+    itemId,
+    itemType,
 });
 
 tx.moveCall({
-	target: '0xMyGame::hero::level_up',
-	arguments: [item],
+    target: '0xMyGame::hero::level_up',
+    arguments: [item],
 });
 
 kioskClient
-	.return({
-		itemType,
-		item,
-		promise,
-	})
-	.finalize();
+    .return({
+        itemType,
+        item,
+        promise,
+    })
+    .finalize();
 
 // Sign and execute transaction.
 await signAndExecuteTransaction({ tx: tx });

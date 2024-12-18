@@ -9,13 +9,13 @@ import { accountsQueryKey } from '../helpers/query-client-keys';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useAccounts() {
-	const backgroundClient = useBackgroundClient();
-	return useQuery({
-		queryKey: accountsQueryKey,
-		queryFn: () => backgroundClient.getStoredEntities<SerializedUIAccount>('accounts'),
-		gcTime: 30 * 1000,
-		staleTime: 15 * 1000,
-		refetchInterval: 30 * 1000,
-		meta: { skipPersistedCache: true },
-	});
+    const backgroundClient = useBackgroundClient();
+    return useQuery({
+        queryKey: accountsQueryKey,
+        queryFn: () => backgroundClient.getStoredEntities<SerializedUIAccount>('accounts'),
+        gcTime: 30 * 1000,
+        staleTime: 15 * 1000,
+        refetchInterval: 30 * 1000,
+        meta: { skipPersistedCache: true },
+    });
 }

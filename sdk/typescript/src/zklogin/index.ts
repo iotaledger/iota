@@ -4,11 +4,11 @@
 
 export { getZkLoginSignature, parseZkLoginSignature } from './signature.js';
 export {
-	toBigEndianBytes,
-	toPaddedBigEndianBytes,
-	hashASCIIStrToField,
-	genAddressSeed,
-	getExtendedEphemeralPublicKey,
+    toBigEndianBytes,
+    toPaddedBigEndianBytes,
+    hashASCIIStrToField,
+    genAddressSeed,
+    getExtendedEphemeralPublicKey,
 } from './utils.js';
 export { computeZkLoginAddressFromSeed, computeZkLoginAddress, jwtToAddress } from './address.js';
 export type { ComputeZkLoginAddressOptions } from './address.js';

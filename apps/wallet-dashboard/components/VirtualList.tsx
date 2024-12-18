@@ -75,7 +75,7 @@ function VirtualList<T>({
                     return (
                         <div
                             key={virtualItem.key}
-                            className={`absolute w-full  ${onClick ? 'cursor-pointer' : ''}`}
+                            className={`absolute w-full ${onClick ? 'cursor-pointer' : ''}`}
                             style={{
                                 position: 'absolute',
                                 top: 0,

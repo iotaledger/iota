@@ -20,211 +20,211 @@ import { toBigEndianBytes, toPaddedBigEndianBytes } from './utils.js';
  * A zkLogin public identifier
  */
 export class ZkLoginPublicIdentifier extends PublicKey {
-	#data: Uint8Array;
-	#client?: IotaGraphQLClient;
-	#legacyAddress: boolean;
+    #data: Uint8Array;
+    #client?: IotaGraphQLClient;
+    #legacyAddress: boolean;
 
-	/**
-	 * Create a new ZkLoginPublicIdentifier object
-	 * @param value zkLogin public identifier as buffer or base-64 encoded string
-	 */
-	constructor(value: PublicKeyInitData, { client }: { client?: IotaGraphQLClient } = {}) {
-		super();
+    /**
+     * Create a new ZkLoginPublicIdentifier object
+     * @param value zkLogin public identifier as buffer or base-64 encoded string
+     */
+    constructor(value: PublicKeyInitData, { client }: { client?: IotaGraphQLClient } = {}) {
+        super();
 
-		this.#client = client;
+        this.#client = client;
 
-		if (typeof value === 'string') {
-			this.#data = fromBase64(value);
-		} else if (value instanceof Uint8Array) {
-			this.#data = value;
-		} else {
-			this.#data = Uint8Array.from(value);
-		}
-		this.#legacyAddress = this.#data.length !== this.#data[0] + 1 + 32;
+        if (typeof value === 'string') {
+            this.#data = fromBase64(value);
+        } else if (value instanceof Uint8Array) {
+            this.#data = value;
+        } else {
+            this.#data = Uint8Array.from(value);
+        }
+        this.#legacyAddress = this.#data.length !== this.#data[0] + 1 + 32;
 
-		if (this.#legacyAddress) {
-			this.#data = normalizeZkLoginPublicKeyBytes(this.#data);
-		}
-	}
+        if (this.#legacyAddress) {
+            this.#data = normalizeZkLoginPublicKeyBytes(this.#data);
+        }
+    }
 
-	/**
-	 * Checks if two zkLogin public identifiers are equal
-	 */
-	override equals(publicKey: ZkLoginPublicIdentifier): boolean {
-		return super.equals(publicKey);
-	}
+    /**
+     * Checks if two zkLogin public identifiers are equal
+     */
+    override equals(publicKey: ZkLoginPublicIdentifier): boolean {
+        return super.equals(publicKey);
+    }
 
-	override toIotaAddress(): string {
-		if (this.#legacyAddress) {
-			const legacyBytes = normalizeZkLoginPublicKeyBytes(this.#data, true);
-			const addressBytes = new Uint8Array(legacyBytes.length + 1);
-			addressBytes[0] = this.flag();
-			addressBytes.set(legacyBytes, 1);
-			return normalizeIotaAddress(
-				bytesToHex(blake2b(addressBytes, { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
-			);
-		}
+    override toIotaAddress(): string {
+        if (this.#legacyAddress) {
+            const legacyBytes = normalizeZkLoginPublicKeyBytes(this.#data, true);
+            const addressBytes = new Uint8Array(legacyBytes.length + 1);
+            addressBytes[0] = this.flag();
+            addressBytes.set(legacyBytes, 1);
+            return normalizeIotaAddress(
+                bytesToHex(blake2b(addressBytes, { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
+            );
+        }
 
-		return super.toIotaAddress();
-	}
+        return super.toIotaAddress();
+    }
 
-	/**
-	 * Return the byte array representation of the zkLogin public identifier
-	 */
-	toRawBytes(): Uint8Array {
-		return this.#data;
-	}
+    /**
+     * Return the byte array representation of the zkLogin public identifier
+     */
+    toRawBytes(): Uint8Array {
+        return this.#data;
+    }
 
-	/**
-	 * Return the Iota address associated with this ZkLogin public identifier
-	 */
-	flag(): number {
-		return SIGNATURE_SCHEME_TO_FLAG['ZkLogin'];
-	}
+    /**
+     * Return the Iota address associated with this ZkLogin public identifier
+     */
+    flag(): number {
+        return SIGNATURE_SCHEME_TO_FLAG['ZkLogin'];
+    }
 
-	/**
-	 * Verifies that the signature is valid for for the provided message
-	 */
-	async verify(_message: Uint8Array, _signature: Uint8Array | string): Promise<boolean> {
-		throw Error('does not support');
-	}
+    /**
+     * Verifies that the signature is valid for for the provided message
+     */
+    async verify(_message: Uint8Array, _signature: Uint8Array | string): Promise<boolean> {
+        throw Error('does not support');
+    }
 
-	/**
-	 * Verifies that the signature is valid for for the provided PersonalMessage
-	 */
-	verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
-		const parsedSignature = parseSerializedZkLoginSignature(signature);
-		const address = new ZkLoginPublicIdentifier(parsedSignature.publicKey).toIotaAddress();
+    /**
+     * Verifies that the signature is valid for for the provided PersonalMessage
+     */
+    verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
+        const parsedSignature = parseSerializedZkLoginSignature(signature);
+        const address = new ZkLoginPublicIdentifier(parsedSignature.publicKey).toIotaAddress();
 
-		return graphqlVerifyZkLoginSignature({
-			address: address,
-			bytes: toBase64(message),
-			signature: parsedSignature.serializedSignature,
-			intentScope: 'PERSONAL_MESSAGE',
-			client: this.#client,
-		});
-	}
+        return graphqlVerifyZkLoginSignature({
+            address: address,
+            bytes: toBase64(message),
+            signature: parsedSignature.serializedSignature,
+            intentScope: 'PERSONAL_MESSAGE',
+            client: this.#client,
+        });
+    }
 
-	/**
-	 * Verifies that the signature is valid for for the provided Transaction
-	 */
-	verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
-		const parsedSignature = parseSerializedZkLoginSignature(signature);
-		const address = new ZkLoginPublicIdentifier(parsedSignature.publicKey).toIotaAddress();
-		return graphqlVerifyZkLoginSignature({
-			address: address,
-			bytes: toBase64(transaction),
-			signature: parsedSignature.serializedSignature,
-			intentScope: 'TRANSACTION_DATA',
-			client: this.#client,
-		});
-	}
+    /**
+     * Verifies that the signature is valid for for the provided Transaction
+     */
+    verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
+        const parsedSignature = parseSerializedZkLoginSignature(signature);
+        const address = new ZkLoginPublicIdentifier(parsedSignature.publicKey).toIotaAddress();
+        return graphqlVerifyZkLoginSignature({
+            address: address,
+            bytes: toBase64(transaction),
+            signature: parsedSignature.serializedSignature,
+            intentScope: 'TRANSACTION_DATA',
+            client: this.#client,
+        });
+    }
 }
 
 // Derive the public identifier for zklogin based on address seed and iss.
 export function toZkLoginPublicIdentifier(
-	addressSeed: bigint,
-	iss: string,
-	options?: { client?: IotaGraphQLClient; legacyAddress?: boolean },
+    addressSeed: bigint,
+    iss: string,
+    options?: { client?: IotaGraphQLClient; legacyAddress?: boolean },
 ): ZkLoginPublicIdentifier {
-	// Consists of iss_bytes_len || iss_bytes || padded_32_byte_address_seed.
-	const addressSeedBytesBigEndian = options?.legacyAddress
-		? toBigEndianBytes(addressSeed, 32)
-		: toPaddedBigEndianBytes(addressSeed, 32);
+    // Consists of iss_bytes_len || iss_bytes || padded_32_byte_address_seed.
+    const addressSeedBytesBigEndian = options?.legacyAddress
+        ? toBigEndianBytes(addressSeed, 32)
+        : toPaddedBigEndianBytes(addressSeed, 32);
 
-	const issBytes = new TextEncoder().encode(iss);
-	const tmp = new Uint8Array(1 + issBytes.length + addressSeedBytesBigEndian.length);
-	tmp.set([issBytes.length], 0);
-	tmp.set(issBytes, 1);
-	tmp.set(addressSeedBytesBigEndian, 1 + issBytes.length);
-	return new ZkLoginPublicIdentifier(tmp, options);
+    const issBytes = new TextEncoder().encode(iss);
+    const tmp = new Uint8Array(1 + issBytes.length + addressSeedBytesBigEndian.length);
+    tmp.set([issBytes.length], 0);
+    tmp.set(issBytes, 1);
+    tmp.set(addressSeedBytesBigEndian, 1 + issBytes.length);
+    return new ZkLoginPublicIdentifier(tmp, options);
 }
 
 const VerifyZkLoginSignatureQuery = graphql(`
-	query Zklogin(
-		$bytes: Base64!
-		$signature: Base64!
-		$intentScope: ZkLoginIntentScope!
-		$author: IotaAddress!
-	) {
-		verifyZkloginSignature(
-			bytes: $bytes
-			signature: $signature
-			intentScope: $intentScope
-			author: $author
-		) {
-			success
-			errors
-		}
-	}
+    query Zklogin(
+        $bytes: Base64!
+        $signature: Base64!
+        $intentScope: ZkLoginIntentScope!
+        $author: IotaAddress!
+    ) {
+        verifyZkloginSignature(
+            bytes: $bytes
+            signature: $signature
+            intentScope: $intentScope
+            author: $author
+        ) {
+            success
+            errors
+        }
+    }
 `);
 
 function normalizeZkLoginPublicKeyBytes(bytes: Uint8Array, legacyAddress = false) {
-	const issByteLength = bytes[0] + 1;
-	const addressSeed = BigInt(`0x${toHex(bytes.slice(issByteLength))}`);
-	const seedBytes = legacyAddress
-		? toBigEndianBytes(addressSeed, 32)
-		: toPaddedBigEndianBytes(addressSeed, 32);
-	const data = new Uint8Array(issByteLength + seedBytes.length);
-	data.set(bytes.slice(0, issByteLength), 0);
-	data.set(seedBytes, issByteLength);
-	return data;
+    const issByteLength = bytes[0] + 1;
+    const addressSeed = BigInt(`0x${toHex(bytes.slice(issByteLength))}`);
+    const seedBytes = legacyAddress
+        ? toBigEndianBytes(addressSeed, 32)
+        : toPaddedBigEndianBytes(addressSeed, 32);
+    const data = new Uint8Array(issByteLength + seedBytes.length);
+    data.set(bytes.slice(0, issByteLength), 0);
+    data.set(seedBytes, issByteLength);
+    return data;
 }
 
 async function graphqlVerifyZkLoginSignature({
-	address,
-	bytes,
-	signature,
-	intentScope,
-	client = new IotaGraphQLClient({
-		url: 'https://iota-mainnet.iota.org/graphql',
-	}),
+    address,
+    bytes,
+    signature,
+    intentScope,
+    client = new IotaGraphQLClient({
+        url: 'https://iota-mainnet.iota.org/graphql',
+    }),
 }: {
-	address: string;
-	bytes: string;
-	signature: string;
-	intentScope: 'PERSONAL_MESSAGE' | 'TRANSACTION_DATA';
-	client?: IotaGraphQLClient;
+    address: string;
+    bytes: string;
+    signature: string;
+    intentScope: 'PERSONAL_MESSAGE' | 'TRANSACTION_DATA';
+    client?: IotaGraphQLClient;
 }) {
-	const resp = await client.query({
-		query: VerifyZkLoginSignatureQuery,
-		variables: {
-			bytes,
-			signature,
-			intentScope,
-			author: address,
-		},
-	});
+    const resp = await client.query({
+        query: VerifyZkLoginSignatureQuery,
+        variables: {
+            bytes,
+            signature,
+            intentScope,
+            author: address,
+        },
+    });
 
-	return (
-		resp.data?.verifyZkloginSignature.success === true &&
-		resp.data?.verifyZkloginSignature.errors.length === 0
-	);
+    return (
+        resp.data?.verifyZkloginSignature.success === true &&
+        resp.data?.verifyZkloginSignature.errors.length === 0
+    );
 }
 
 export function parseSerializedZkLoginSignature(signature: Uint8Array | string) {
-	const bytes = typeof signature === 'string' ? fromBase64(signature) : signature;
+    const bytes = typeof signature === 'string' ? fromBase64(signature) : signature;
 
-	if (bytes[0] !== SIGNATURE_SCHEME_TO_FLAG.ZkLogin) {
-		throw new Error('Invalid signature scheme');
-	}
+    if (bytes[0] !== SIGNATURE_SCHEME_TO_FLAG.ZkLogin) {
+        throw new Error('Invalid signature scheme');
+    }
 
-	const signatureBytes = bytes.slice(1);
-	const { inputs, maxEpoch, userSignature } = parseZkLoginSignature(signatureBytes);
-	const { issBase64Details, addressSeed } = inputs;
-	const iss = extractClaimValue<string>(issBase64Details, 'iss');
-	const publicIdentifer = toZkLoginPublicIdentifier(BigInt(addressSeed), iss);
-	return {
-		serializedSignature: toBase64(bytes),
-		signatureScheme: 'ZkLogin' as const,
-		zkLogin: {
-			inputs,
-			maxEpoch,
-			userSignature,
-			iss,
-			addressSeed: BigInt(addressSeed),
-		},
-		signature: bytes,
-		publicKey: publicIdentifer.toRawBytes(),
-	};
+    const signatureBytes = bytes.slice(1);
+    const { inputs, maxEpoch, userSignature } = parseZkLoginSignature(signatureBytes);
+    const { issBase64Details, addressSeed } = inputs;
+    const iss = extractClaimValue<string>(issBase64Details, 'iss');
+    const publicIdentifer = toZkLoginPublicIdentifier(BigInt(addressSeed), iss);
+    return {
+        serializedSignature: toBase64(bytes),
+        signatureScheme: 'ZkLogin' as const,
+        zkLogin: {
+            inputs,
+            maxEpoch,
+            userSignature,
+            iss,
+            addressSeed: BigInt(addressSeed),
+        },
+        signature: bytes,
+        publicKey: publicIdentifer.toRawBytes(),
+    };
 }

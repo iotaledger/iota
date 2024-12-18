@@ -10,32 +10,32 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 // 1. Signing them using the wallet
 // 2. Executing them using the rpc provider
 export function useTransactionExecution() {
-	const provider = useIotaClient();
+    const provider = useIotaClient();
 
-	// sign transaction from the wallet
-	const { mutateAsync: signTransaction } = useSignTransaction();
+    // sign transaction from the wallet
+    const { mutateAsync: signTransaction } = useSignTransaction();
 
-	// tx: Transaction
-	const signAndExecute = async ({
-		tx,
-		options = { showEffects: true },
-	}: {
-		tx: Transaction;
-		options?: IotaTransactionBlockResponseOptions | undefined;
-	}) => {
-		const signedTx = await signTransaction({ transaction: tx });
+    // tx: Transaction
+    const signAndExecute = async ({
+        tx,
+        options = { showEffects: true },
+    }: {
+        tx: Transaction;
+        options?: IotaTransactionBlockResponseOptions | undefined;
+    }) => {
+        const signedTx = await signTransaction({ transaction: tx });
 
-		const res = await provider.executeTransactionBlock({
-			transactionBlock: signedTx.bytes,
-			signature: signedTx.signature,
-			options,
-		});
+        const res = await provider.executeTransactionBlock({
+            transactionBlock: signedTx.bytes,
+            signature: signedTx.signature,
+            options,
+        });
 
-		const status = res.effects?.status?.status === 'success';
+        const status = res.effects?.status?.status === 'success';
 
-		if (status) return true;
-		else throw new Error('Transaction execution failed.');
-	};
+        if (status) return true;
+        else throw new Error('Transaction execution failed.');
+    };
 
-	return { signAndExecute };
+    return { signAndExecute };
 }

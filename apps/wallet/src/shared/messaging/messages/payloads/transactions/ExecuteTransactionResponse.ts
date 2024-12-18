@@ -8,21 +8,21 @@ import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { type IotaSignTransactionBlockOutput } from '@iota/wallet-standard';
 
 export interface ExecuteTransactionResponse extends BasePayload {
-	type: 'execute-transaction-response';
-	result: IotaTransactionBlockResponse;
+    type: 'execute-transaction-response';
+    result: IotaTransactionBlockResponse;
 }
 
 export function isExecuteTransactionResponse(
-	payload: Payload,
+    payload: Payload,
 ): payload is ExecuteTransactionResponse {
-	return isBasePayload(payload) && payload.type === 'execute-transaction-response';
+    return isBasePayload(payload) && payload.type === 'execute-transaction-response';
 }
 
 export interface SignTransactionResponse extends BasePayload {
-	type: 'sign-transaction-response';
-	result: IotaSignTransactionBlockOutput;
+    type: 'sign-transaction-response';
+    result: IotaSignTransactionBlockOutput;
 }
 
 export function isSignTransactionResponse(payload: Payload): payload is SignTransactionResponse {
-	return isBasePayload(payload) && payload.type === 'sign-transaction-response';
+    return isBasePayload(payload) && payload.type === 'sign-transaction-response';
 }

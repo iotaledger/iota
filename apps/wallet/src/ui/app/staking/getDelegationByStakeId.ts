@@ -6,14 +6,14 @@ import type { DelegatedStake } from '@iota/iota-sdk/client';
 
 // Helper function to get the delegation by stakedIotaId
 export const getDelegationDataByStakeId = (
-	delegationsStake: DelegatedStake[],
-	stakeIotaId: string,
+    delegationsStake: DelegatedStake[],
+    stakeIotaId: string,
 ) => {
-	let stake = null;
-	for (const { stakes } of delegationsStake) {
-		stake = stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId) || null;
-		if (stake) return stake;
-	}
+    let stake = null;
+    for (const { stakes } of delegationsStake) {
+        stake = stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId) || null;
+        if (stake) return stake;
+    }
 
-	return stake;
+    return stake;
 };

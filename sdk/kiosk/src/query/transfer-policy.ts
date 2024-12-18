@@ -10,9 +10,9 @@ import '../bcs.js';
 import { TransferPolicyType } from '../bcs.js';
 import type { TransferPolicy, TransferPolicyCap } from '../types/index.js';
 import {
-	TRANSFER_POLICY_CAP_TYPE,
-	TRANSFER_POLICY_CREATED_EVENT,
-	TRANSFER_POLICY_TYPE,
+    TRANSFER_POLICY_CAP_TYPE,
+    TRANSFER_POLICY_CREATED_EVENT,
+    TRANSFER_POLICY_TYPE,
 } from '../types/index.js';
 import { getAllOwnedObjects, parseTransferPolicyCapObject } from '../utils.js';
 
@@ -26,41 +26,43 @@ import { getAllOwnedObjects, parseTransferPolicyCapObject } from '../utils.js';
  * @param type
  */
 export async function queryTransferPolicy(
-	client: IotaClient,
-	type: string,
+    client: IotaClient,
+    type: string,
 ): Promise<TransferPolicy[]> {
-	// console.log('event type: %s', `${TRANSFER_POLICY_CREATED_EVENT}<${type}>`);
-	const { data } = await client.queryEvents({
-		query: {
-			MoveEventType: `${TRANSFER_POLICY_CREATED_EVENT}<${type}>`,
-		},
-	});
+    // console.log('event type: %s', `${TRANSFER_POLICY_CREATED_EVENT}<${type}>`);
+    const { data } = await client.queryEvents({
+        query: {
+            MoveEventType: `${TRANSFER_POLICY_CREATED_EVENT}<${type}>`,
+        },
+    });
 
-	const search = data.map((event) => event.parsedJson as { id: string });
-	const policies = await client.multiGetObjects({
-		ids: search.map((policy) => policy.id),
-		options: { showBcs: true, showOwner: true },
-	});
+    const search = data.map((event) => event.parsedJson as { id: string });
+    const policies = await client.multiGetObjects({
+        ids: search.map((policy) => policy.id),
+        options: { showBcs: true, showOwner: true },
+    });
 
-	return policies
-		.filter((policy) => !!policy && 'data' in policy)
-		.map(({ data: policy }) => {
-			// should never happen; policies are objects and fetched via an event.
-			// policies are filtered for null and undefined above.
-			if (!policy || !policy.bcs || !('bcsBytes' in policy.bcs)) {
-				throw new Error(`Invalid policy: ${policy?.objectId}, expected object, got package`);
-			}
+    return policies
+        .filter((policy) => !!policy && 'data' in policy)
+        .map(({ data: policy }) => {
+            // should never happen; policies are objects and fetched via an event.
+            // policies are filtered for null and undefined above.
+            if (!policy || !policy.bcs || !('bcsBytes' in policy.bcs)) {
+                throw new Error(
+                    `Invalid policy: ${policy?.objectId}, expected object, got package`,
+                );
+            }
 
-			const parsed = TransferPolicyType.parse(fromBase64(policy.bcs.bcsBytes));
+            const parsed = TransferPolicyType.parse(fromBase64(policy.bcs.bcsBytes));
 
-			return {
-				id: policy?.objectId,
-				type: `${TRANSFER_POLICY_TYPE}<${type}>`,
-				owner: policy?.owner!,
-				rules: parsed.rules,
-				balance: parsed.balance,
-			} as TransferPolicy;
-		});
+            return {
+                id: policy?.objectId,
+                type: `${TRANSFER_POLICY_TYPE}<${type}>`,
+                owner: policy?.owner!,
+                rules: parsed.rules,
+                balance: parsed.balance,
+            } as TransferPolicy;
+        });
 }
 
 /**
@@ -71,30 +73,30 @@ export async function queryTransferPolicy(
  * @returns TransferPolicyCap Object ID | undefined if not found.
  */
 export async function queryTransferPolicyCapsByType(
-	client: IotaClient,
-	address: string,
-	type: string,
+    client: IotaClient,
+    address: string,
+    type: string,
 ): Promise<TransferPolicyCap[]> {
-	if (!isValidIotaAddress(address)) return [];
+    if (!isValidIotaAddress(address)) return [];
 
-	const filter = {
-		MatchAll: [
-			{
-				StructType: `${TRANSFER_POLICY_CAP_TYPE}<${type}>`,
-			},
-		],
-	};
+    const filter = {
+        MatchAll: [
+            {
+                StructType: `${TRANSFER_POLICY_CAP_TYPE}<${type}>`,
+            },
+        ],
+    };
 
-	// fetch owned kiosk caps, paginated.
-	const data = await getAllOwnedObjects({
-		client,
-		filter,
-		owner: address,
-	});
+    // fetch owned kiosk caps, paginated.
+    const data = await getAllOwnedObjects({
+        client,
+        filter,
+        owner: address,
+    });
 
-	return data
-		.map((item) => parseTransferPolicyCapObject(item))
-		.filter((item) => !!item) as TransferPolicyCap[];
+    return data
+        .map((item) => parseTransferPolicyCapObject(item))
+        .filter((item) => !!item) as TransferPolicyCap[];
 }
 
 /**
@@ -105,31 +107,31 @@ export async function queryTransferPolicyCapsByType(
  * @returns TransferPolicyCap Object ID | undefined if not found.
  */
 export async function queryOwnedTransferPolicies(
-	client: IotaClient,
-	address: string,
+    client: IotaClient,
+    address: string,
 ): Promise<TransferPolicyCap[] | undefined> {
-	if (!isValidIotaAddress(address)) return;
+    if (!isValidIotaAddress(address)) return;
 
-	const filter = {
-		MatchAll: [
-			{
-				MoveModule: {
-					module: 'transfer_policy',
-					package: '0x2',
-				},
-			},
-		],
-	};
+    const filter = {
+        MatchAll: [
+            {
+                MoveModule: {
+                    module: 'transfer_policy',
+                    package: '0x2',
+                },
+            },
+        ],
+    };
 
-	// fetch all owned kiosk caps, paginated.
-	const data = await getAllOwnedObjects({ client, owner: address, filter });
+    // fetch all owned kiosk caps, paginated.
+    const data = await getAllOwnedObjects({ client, owner: address, filter });
 
-	const policies: TransferPolicyCap[] = [];
+    const policies: TransferPolicyCap[] = [];
 
-	for (const item of data) {
-		const data = parseTransferPolicyCapObject(item);
-		if (data) policies.push(data);
-	}
+    for (const item of data) {
+        const data = parseTransferPolicyCapObject(item);
+        if (data) policies.push(data);
+    }
 
-	return policies;
+    return policies;
 }

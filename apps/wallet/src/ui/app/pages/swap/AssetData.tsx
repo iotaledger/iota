@@ -12,51 +12,51 @@ import { useCoinMetadata } from '@iota/core';
 import { ChevronDown16 } from '@iota/icons';
 
 export function AssetData({
-	coinType,
-	to,
-	onClick,
-	disabled,
+    coinType,
+    to,
+    onClick,
+    disabled,
 }: {
-	coinType: string;
-	to?: string;
-	onClick?: () => void;
-	disabled?: boolean;
+    coinType: string;
+    to?: string;
+    onClick?: () => void;
+    disabled?: boolean;
 }) {
-	const activeAccount = useActiveAccount();
-	const currentAddress = activeAccount?.address;
+    const activeAccount = useActiveAccount();
+    const currentAddress = activeAccount?.address;
 
-	const { data: balance } = useGetBalance({
-		coinType,
-		owner: currentAddress,
-	});
+    const { data: balance } = useGetBalance({
+        coinType,
+        owner: currentAddress,
+    });
 
-	const { data: coinMetadata } = useCoinMetadata(coinType);
+    const { data: coinMetadata } = useCoinMetadata(coinType);
 
-	return (
-		<DescriptionItem
-			title={
-				<ButtonOrLink
-					disabled={disabled}
-					onClick={onClick}
-					to={to}
-					className="flex gap-1 items-center no-underline outline-none border-transparent bg-transparent p-0"
-				>
-					{!!coinType && <CoinIcon coinType={coinType} size="md" />}
-					<Heading variant="heading6" weight="semibold" color="hero-dark">
-						{coinMetadata?.symbol || 'Select coin'}
-					</Heading>
-					{!disabled && <ChevronDown16 className="h-4 w-4 text-hero-dark" />}
-				</ButtonOrLink>
-			}
-		>
-			{!!balance && (
-				<div className="flex flex-wrap gap-1 justify-end">
-					<div className="text-bodySmall font-medium text-hero-darkest/40">Balance</div>{' '}
-					<Text variant="bodySmall" weight="medium" color="steel-darker">
-						{balance?.formatted} {coinMetadata?.symbol}
-					</Text>
-				</div>
-			)}
-		</DescriptionItem>
-	);
+    return (
+        <DescriptionItem
+            title={
+                <ButtonOrLink
+                    disabled={disabled}
+                    onClick={onClick}
+                    to={to}
+                    className="flex items-center gap-1 border-transparent bg-transparent p-0 no-underline outline-none"
+                >
+                    {!!coinType && <CoinIcon coinType={coinType} size="md" />}
+                    <Heading variant="heading6" weight="semibold" color="hero-dark">
+                        {coinMetadata?.symbol || 'Select coin'}
+                    </Heading>
+                    {!disabled && <ChevronDown16 className="h-4 w-4 text-hero-dark" />}
+                </ButtonOrLink>
+            }
+        >
+            {!!balance && (
+                <div className="flex flex-wrap justify-end gap-1">
+                    <div className="text-bodySmall font-medium text-hero-darkest/40">Balance</div>{' '}
+                    <Text variant="bodySmall" weight="medium" color="steel-darker">
+                        {balance?.formatted} {coinMetadata?.symbol}
+                    </Text>
+                </div>
+            )}
+        </DescriptionItem>
+    );
 }

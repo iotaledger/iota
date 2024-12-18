@@ -17,12 +17,12 @@ export type IotaSignMessageVersion = '1.0.0';
  * @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `iota:signPersonalMessage` feature
  */
 export type IotaSignMessageFeature = {
-	/** Namespace for the feature. */
-	'iota:signMessage': {
-		/** Version of the feature API. */
-		version: IotaSignMessageVersion;
-		signMessage: IotaSignMessageMethod;
-	};
+    /** Namespace for the feature. */
+    'iota:signMessage': {
+        /** Version of the feature API. */
+        version: IotaSignMessageVersion;
+        signMessage: IotaSignMessageMethod;
+    };
 };
 
 /** @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `iota:signPersonalMessage` feature */
@@ -33,8 +33,8 @@ export type IotaSignMessageMethod = (input: IotaSignMessageInput) => Promise<Iot
  * @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `iota:signPersonalMessage` feature
  */
 export interface IotaSignMessageInput {
-	message: Uint8Array;
-	account: WalletAccount;
+    message: Uint8Array;
+    account: WalletAccount;
 }
 
 /**
@@ -42,8 +42,8 @@ export interface IotaSignMessageInput {
  * @deprecated Wallets can still implement this method for compatibility, but this has been replaced by the `iota:signPersonalMessage` feature
  */
 export interface IotaSignMessageOutput {
-	/** Base64 message bytes. */
-	messageBytes: string;
-	/** Base64 encoded signature */
-	signature: string;
+    /** Base64 message bytes. */
+    messageBytes: string;
+    /** Base64 encoded signature */
+    signature: string;
 }

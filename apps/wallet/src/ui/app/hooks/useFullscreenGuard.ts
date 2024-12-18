@@ -9,13 +9,13 @@ import { useEffect, useRef } from 'react';
 import useAppSelector from './useAppSelector';
 
 export default function useFullscreenGuard(enabled: boolean) {
-	const appType = useAppSelector((state) => state.app.appType);
-	const isOpenTabInProgressRef = useRef(false);
-	useEffect(() => {
-		if (enabled && appType === AppType.popup && !isOpenTabInProgressRef.current) {
-			isOpenTabInProgressRef.current = true;
-			openInNewTab().finally(() => window.close());
-		}
-	}, [appType, enabled]);
-	return !enabled && appType === AppType.unknown;
+    const appType = useAppSelector((state) => state.app.appType);
+    const isOpenTabInProgressRef = useRef(false);
+    useEffect(() => {
+        if (enabled && appType === AppType.popup && !isOpenTabInProgressRef.current) {
+            isOpenTabInProgressRef.current = true;
+            openInNewTab().finally(() => window.close());
+        }
+    }, [appType, enabled]);
+    return !enabled && appType === AppType.unknown;
 }

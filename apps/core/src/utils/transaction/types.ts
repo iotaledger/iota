@@ -7,18 +7,18 @@ import { GasSummaryType } from './getGasSummary';
 import { ObjectChangeSummary } from './getObjectChangeSummary';
 
 export type TransactionSummary = {
-	digest?: string;
-	sender?: string;
-	timestamp?: string | null;
-	balanceChanges: BalanceChangeSummary;
-	gas?: GasSummaryType;
-	objectSummary: ObjectChangeSummary | null;
+    digest?: string;
+    sender?: string;
+    timestamp?: string | null;
+    balanceChanges: BalanceChangeSummary;
+    gas?: GasSummaryType;
+    objectSummary: ObjectChangeSummary | null;
 } | null;
 
 export type IotaObjectChangeTypes =
-	| 'published'
-	| 'transferred'
-	| 'mutated'
-	| 'deleted'
-	| 'wrapped'
-	| 'created';
+    | 'published'
+    | 'transferred'
+    | 'mutated'
+    | 'deleted'
+    | 'wrapped'
+    | 'created';

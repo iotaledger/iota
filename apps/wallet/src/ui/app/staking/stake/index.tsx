@@ -9,22 +9,22 @@ import { SelectValidatorCard } from '../validators/SelectValidatorCard';
 import StakingCard from './StakingCard';
 
 function StakePage() {
-	const [searchParams] = useSearchParams();
-	const validatorAddress = searchParams.get('address');
-	const unstake = searchParams.get('unstake') === 'true';
+    const [searchParams] = useSearchParams();
+    const validatorAddress = searchParams.get('address');
+    const unstake = searchParams.get('unstake') === 'true';
 
-	const navigate = useNavigate();
-	const stakingTitle = unstake ? 'Unstake IOTA' : 'Stake IOTA';
+    const navigate = useNavigate();
+    const stakingTitle = unstake ? 'Unstake IOTA' : 'Stake IOTA';
 
-	return (
-		<Overlay
-			showModal={true}
-			title={validatorAddress ? stakingTitle : 'Select a Validator'}
-			closeOverlay={() => navigate('/')}
-		>
-			{validatorAddress ? <StakingCard /> : <SelectValidatorCard />}
-		</Overlay>
-	);
+    return (
+        <Overlay
+            showModal={true}
+            title={validatorAddress ? stakingTitle : 'Select a Validator'}
+            closeOverlay={() => navigate('/')}
+        >
+            {validatorAddress ? <StakingCard /> : <SelectValidatorCard />}
+        </Overlay>
+    );
 }
 
 export default StakePage;

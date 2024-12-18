@@ -12,31 +12,31 @@ export type IotaSignTransactionVersion = '2.0.0';
  * serialized transaction and transaction signature.
  */
 export type IotaSignTransactionFeature = {
-	/** Namespace for the feature. */
-	'iota:signTransaction': {
-		/** Version of the feature API. */
-		version: IotaSignTransactionVersion;
-		signTransaction: IotaSignTransactionMethod;
-	};
+    /** Namespace for the feature. */
+    'iota:signTransaction': {
+        /** Version of the feature API. */
+        version: IotaSignTransactionVersion;
+        signTransaction: IotaSignTransactionMethod;
+    };
 };
 
 export type IotaSignTransactionMethod = (
-	input: IotaSignTransactionInput,
+    input: IotaSignTransactionInput,
 ) => Promise<SignedTransaction>;
 
 /** Input for signing transactions. */
 export interface IotaSignTransactionInput {
-	transaction: { toJSON: () => Promise<string> };
-	account: WalletAccount;
-	chain: IdentifierString;
-	signal?: AbortSignal;
+    transaction: { toJSON: () => Promise<string> };
+    account: WalletAccount;
+    chain: IdentifierString;
+    signal?: AbortSignal;
 }
 
 /** Output of signing transactions. */
 
 export interface SignedTransaction {
-	/** Transaction as base64 encoded bcs. */
-	bytes: string;
-	/** Base64 encoded signature */
-	signature: string;
+    /** Transaction as base64 encoded bcs. */
+    bytes: string;
+    /** Base64 encoded signature */
+    signature: string;
 }

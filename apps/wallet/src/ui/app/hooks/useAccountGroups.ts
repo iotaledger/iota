@@ -8,18 +8,18 @@ import { defaultSortOrder, groupByType } from '../helpers/accounts';
 import { useAccounts } from './useAccounts';
 
 export function useAccountGroups() {
-	const { data: accounts } = useAccounts();
+    const { data: accounts } = useAccounts();
 
-	const sortedAndGroupedAccounts = useMemo(() => {
-		return groupByType(accounts ?? []);
-	}, [accounts]);
+    const sortedAndGroupedAccounts = useMemo(() => {
+        return groupByType(accounts ?? []);
+    }, [accounts]);
 
-	const list = () => {
-		return defaultSortOrder.flatMap((type) => {
-			const group = sortedAndGroupedAccounts[type];
-			return Object.values(group).flat();
-		});
-	};
+    const list = () => {
+        return defaultSortOrder.flatMap((type) => {
+            const group = sortedAndGroupedAccounts[type];
+            return Object.values(group).flat();
+        });
+    };
 
-	return { ...sortedAndGroupedAccounts, list };
+    return { ...sortedAndGroupedAccounts, list };
 }

@@ -8,11 +8,11 @@ import { type BackgroundClient } from '../background-client';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useResetPasswordMutation() {
-	const backgroundClient = useBackgroundClient();
-	return useMutation({
-		mutationKey: ['reset wallet password'],
-		mutationFn: async (...args: Parameters<BackgroundClient['resetPassword']>) => {
-			return await backgroundClient.resetPassword(...args);
-		},
-	});
+    const backgroundClient = useBackgroundClient();
+    return useMutation({
+        mutationKey: ['reset wallet password'],
+        mutationFn: async (...args: Parameters<BackgroundClient['resetPassword']>) => {
+            return await backgroundClient.resetPassword(...args);
+        },
+    });
 }

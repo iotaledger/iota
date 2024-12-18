@@ -8,49 +8,49 @@ import { describe, expect, it } from 'vitest';
 import { Transaction } from '../../src/transactions';
 
 describe('Transaction inputs', () => {
-	it('can use tx methods for creating inputs', async () => {
-		const tx = new Transaction();
+    it('can use tx methods for creating inputs', async () => {
+        const tx = new Transaction();
 
-		tx.moveCall({
-			target: '0x2::foo::bar',
-			arguments: [
-				tx.object('0x123'),
-				tx.receivingRef({
-					objectId: '1',
-					version: '123',
-					digest: toBase58(new Uint8Array(32).fill(0x1)),
-				}),
-				tx.sharedObjectRef({
-					objectId: '2',
-					mutable: true,
-					initialSharedVersion: '123',
-				}),
-				tx.objectRef({
-					objectId: '3',
-					version: '123',
-					digest: toBase58(new Uint8Array(32).fill(0x1)),
-				}),
-				tx.pure.address('0x2'),
-				tx.object.system(),
-				tx.object.clock(),
-				tx.object.random(),
-				tx.object.denyList(),
-				tx.object.option({
-					type: '0x123::example::Thing',
-					value: '0x456',
-				}),
-				tx.object.option({
-					type: '0x123::example::Thing',
-					value: tx.object('0x456'),
-				}),
-				tx.object.option({
-					type: '0x123::example::Thing',
-					value: null,
-				}),
-			],
-		});
+        tx.moveCall({
+            target: '0x2::foo::bar',
+            arguments: [
+                tx.object('0x123'),
+                tx.receivingRef({
+                    objectId: '1',
+                    version: '123',
+                    digest: toBase58(new Uint8Array(32).fill(0x1)),
+                }),
+                tx.sharedObjectRef({
+                    objectId: '2',
+                    mutable: true,
+                    initialSharedVersion: '123',
+                }),
+                tx.objectRef({
+                    objectId: '3',
+                    version: '123',
+                    digest: toBase58(new Uint8Array(32).fill(0x1)),
+                }),
+                tx.pure.address('0x2'),
+                tx.object.system(),
+                tx.object.clock(),
+                tx.object.random(),
+                tx.object.denyList(),
+                tx.object.option({
+                    type: '0x123::example::Thing',
+                    value: '0x456',
+                }),
+                tx.object.option({
+                    type: '0x123::example::Thing',
+                    value: tx.object('0x456'),
+                }),
+                tx.object.option({
+                    type: '0x123::example::Thing',
+                    value: null,
+                }),
+            ],
+        });
 
-		expect(tx.getData()).toMatchInlineSnapshot(`
+        expect(tx.getData()).toMatchInlineSnapshot(`
 			{
 			  "commands": [
 			    {
@@ -258,5 +258,5 @@ describe('Transaction inputs', () => {
 			  "version": 2,
 			}
 		`);
-	});
+    });
 });

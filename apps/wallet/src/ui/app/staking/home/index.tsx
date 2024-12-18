@@ -10,14 +10,14 @@ import StakePage from '../stake';
 import { Validators } from '../validators';
 
 export function Staking() {
-	if (useUnlockedGuard()) {
-		return null;
-	}
-	return (
-		<Routes>
-			<Route path="/*" element={<Validators />} />
-			<Route path="/delegation-detail" element={<DelegationDetail />} />
-			<Route path="/new" element={<StakePage />} />
-		</Routes>
-	);
+    if (useUnlockedGuard()) {
+        return null;
+    }
+    return (
+        <Routes>
+            <Route path="/*" element={<Validators />} />
+            <Route path="/delegation-detail" element={<DelegationDetail />} />
+            <Route path="/new" element={<StakePage />} />
+        </Routes>
+    );
 }

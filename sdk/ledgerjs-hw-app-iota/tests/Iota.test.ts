@@ -8,7 +8,7 @@ import { expect, test } from 'vitest';
 import Iota from '../src/Iota';
 
 test('Iota init', async () => {
-	const transport = await openTransportReplayer(RecordStore.fromString(''));
-	const pkt = new Iota(transport);
-	expect(pkt).not.toBe(undefined);
+    const transport = await openTransportReplayer(RecordStore.fromString(''));
+    const pkt = new Iota(transport);
+    expect(pkt).not.toBe(undefined);
 });

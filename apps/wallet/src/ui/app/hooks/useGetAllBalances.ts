@@ -5,15 +5,15 @@ import { useCoinsReFetchingConfig } from '_app/hooks/useCoinsReFetchingConfig';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
 export function useGetAllBalances(owner: string) {
-	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
+    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 
-	return useIotaClientQuery(
-		'getAllBalances',
-		{ owner: owner! },
-		{
-			enabled: !!owner,
-			refetchInterval,
-			staleTime,
-		},
-	);
+    return useIotaClientQuery(
+        'getAllBalances',
+        { owner: owner! },
+        {
+            enabled: !!owner,
+            refetchInterval,
+            staleTime,
+        },
+    );
 }

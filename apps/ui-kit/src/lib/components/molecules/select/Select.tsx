@@ -138,7 +138,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                         onClick={onSelectorClick}
                         disabled={disabled}
                         className={cx(
-                            'flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed  group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5',
+                            'flex flex-row items-center gap-x-3 rounded-lg border border-neutral-80 py-sm hover:enabled:border-neutral-50 focus-visible:enabled:border-primary-30 active:enabled:border-primary-30 disabled:cursor-not-allowed group-[.errored]:border-error-30 group-[.opened]:border-primary-30 dark:border-neutral-20 dark:hover:enabled:border-neutral-60 dark:group-[.errored]:border-error-80 dark:group-[.opened]:border-primary-80 [&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-30 dark:[&:is(:focus,_:focus-visible,_:active)]:enabled:border-primary-80 [&_svg]:h-5 [&_svg]:w-5',
                             selectPadding,
                         )}
                     >
@@ -171,7 +171,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                             className={cx(
                                 'text-neutral-10 transition-transform dark:text-neutral-92',
                                 {
-                                    ' rotate-180': isOpen,
+                                    'rotate-180': isOpen,
                                 },
                             )}
                         />

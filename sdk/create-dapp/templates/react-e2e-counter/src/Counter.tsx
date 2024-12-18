@@ -49,10 +49,12 @@ export function Counter({ id }: { id: string }) {
       },
       {
         onSuccess: (tx) => {
-          iotaClient.waitForTransaction({ digest: tx.digest }).then(async () => {
-            await refetch();
-            setWaitingForTxn("");
-          });
+          iotaClient
+            .waitForTransaction({ digest: tx.digest })
+            .then(async () => {
+              await refetch();
+              setWaitingForTxn("");
+            });
         },
       },
     );

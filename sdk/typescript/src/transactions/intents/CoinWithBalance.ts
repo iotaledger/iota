@@ -20,195 +20,199 @@ const COIN_WITH_BALANCE = 'CoinWithBalance';
 const IOTA_TYPE = normalizeStructTag('0x2::iota::IOTA');
 
 export function coinWithBalance({
-	type = IOTA_TYPE,
-	balance,
-	useGasCoin = true,
+    type = IOTA_TYPE,
+    balance,
+    useGasCoin = true,
 }: {
-	balance: bigint | number;
-	type?: string;
-	useGasCoin?: boolean;
+    balance: bigint | number;
+    type?: string;
+    useGasCoin?: boolean;
 }) {
-	return (tx: Transaction) => {
-		tx.addIntentResolver(COIN_WITH_BALANCE, resolveCoinBalance);
-		const coinType = type === 'gas' ? type : normalizeStructTag(type);
+    return (tx: Transaction) => {
+        tx.addIntentResolver(COIN_WITH_BALANCE, resolveCoinBalance);
+        const coinType = type === 'gas' ? type : normalizeStructTag(type);
 
-		return tx.add(
-			Commands.Intent({
-				name: COIN_WITH_BALANCE,
-				inputs: {},
-				data: {
-					type: coinType === IOTA_TYPE && useGasCoin ? 'gas' : coinType,
-					balance: BigInt(balance),
-				} satisfies InferInput<typeof CoinWithBalanceData>,
-			}),
-		);
-	};
+        return tx.add(
+            Commands.Intent({
+                name: COIN_WITH_BALANCE,
+                inputs: {},
+                data: {
+                    type: coinType === IOTA_TYPE && useGasCoin ? 'gas' : coinType,
+                    balance: BigInt(balance),
+                } satisfies InferInput<typeof CoinWithBalanceData>,
+            }),
+        );
+    };
 }
 
 const CoinWithBalanceData = object({
-	type: string(),
-	balance: bigint(),
+    type: string(),
+    balance: bigint(),
 });
 
 async function resolveCoinBalance(
-	transactionData: TransactionDataBuilder,
-	buildOptions: BuildTransactionOptions,
-	next: () => Promise<void>,
+    transactionData: TransactionDataBuilder,
+    buildOptions: BuildTransactionOptions,
+    next: () => Promise<void>,
 ) {
-	const coinTypes = new Set<string>();
-	const totalByType = new Map<string, bigint>();
+    const coinTypes = new Set<string>();
+    const totalByType = new Map<string, bigint>();
 
-	if (!transactionData.sender) {
-		throw new Error('Sender must be set to resolve CoinWithBalance');
-	}
+    if (!transactionData.sender) {
+        throw new Error('Sender must be set to resolve CoinWithBalance');
+    }
 
-	for (const command of transactionData.commands) {
-		if (command.$kind === '$Intent' && command.$Intent.name === COIN_WITH_BALANCE) {
-			const { type, balance } = parse(CoinWithBalanceData, command.$Intent.data);
+    for (const command of transactionData.commands) {
+        if (command.$kind === '$Intent' && command.$Intent.name === COIN_WITH_BALANCE) {
+            const { type, balance } = parse(CoinWithBalanceData, command.$Intent.data);
 
-			if (type !== 'gas' && balance > 0n) {
-				coinTypes.add(type);
-			}
+            if (type !== 'gas' && balance > 0n) {
+                coinTypes.add(type);
+            }
 
-			totalByType.set(type, (totalByType.get(type) ?? 0n) + balance);
-		}
-	}
-	const usedIds = new Set<string>();
+            totalByType.set(type, (totalByType.get(type) ?? 0n) + balance);
+        }
+    }
+    const usedIds = new Set<string>();
 
-	for (const input of transactionData.inputs) {
-		if (input.Object?.ImmOrOwnedObject) {
-			usedIds.add(input.Object.ImmOrOwnedObject.objectId);
-		}
-		if (input.UnresolvedObject?.objectId) {
-			usedIds.add(input.UnresolvedObject.objectId);
-		}
-	}
+    for (const input of transactionData.inputs) {
+        if (input.Object?.ImmOrOwnedObject) {
+            usedIds.add(input.Object.ImmOrOwnedObject.objectId);
+        }
+        if (input.UnresolvedObject?.objectId) {
+            usedIds.add(input.UnresolvedObject.objectId);
+        }
+    }
 
-	const coinsByType = new Map<string, CoinStruct[]>();
-	const client = getClient(buildOptions);
-	await Promise.all(
-		[...coinTypes].map(async (coinType) => {
-			coinsByType.set(
-				coinType,
-				await getCoinsOfType({
-					coinType,
-					balance: totalByType.get(coinType)!,
-					client,
-					owner: transactionData.sender!,
-					usedIds,
-				}),
-			);
-		}),
-	);
+    const coinsByType = new Map<string, CoinStruct[]>();
+    const client = getClient(buildOptions);
+    await Promise.all(
+        [...coinTypes].map(async (coinType) => {
+            coinsByType.set(
+                coinType,
+                await getCoinsOfType({
+                    coinType,
+                    balance: totalByType.get(coinType)!,
+                    client,
+                    owner: transactionData.sender!,
+                    usedIds,
+                }),
+            );
+        }),
+    );
 
-	const mergedCoins = new Map<string, Argument>();
+    const mergedCoins = new Map<string, Argument>();
 
-	mergedCoins.set('gas', { $kind: 'GasCoin', GasCoin: true });
+    mergedCoins.set('gas', { $kind: 'GasCoin', GasCoin: true });
 
-	for (const [index, transaction] of transactionData.commands.entries()) {
-		if (transaction.$kind !== '$Intent' || transaction.$Intent.name !== COIN_WITH_BALANCE) {
-			continue;
-		}
+    for (const [index, transaction] of transactionData.commands.entries()) {
+        if (transaction.$kind !== '$Intent' || transaction.$Intent.name !== COIN_WITH_BALANCE) {
+            continue;
+        }
 
-		const { type, balance } = transaction.$Intent.data as {
-			type: string;
-			balance: bigint;
-		};
+        const { type, balance } = transaction.$Intent.data as {
+            type: string;
+            balance: bigint;
+        };
 
-		if (balance === 0n) {
-			transactionData.replaceCommand(
-				index,
-				Commands.MoveCall({ target: '0x2::coin::zero', typeArguments: [type] }),
-			);
-			continue;
-		}
+        if (balance === 0n) {
+            transactionData.replaceCommand(
+                index,
+                Commands.MoveCall({ target: '0x2::coin::zero', typeArguments: [type] }),
+            );
+            continue;
+        }
 
-		const commands = [];
+        const commands = [];
 
-		if (!mergedCoins.has(type)) {
-			const [first, ...rest] = coinsByType.get(type)!.map((coin) =>
-				transactionData.addInput(
-					'object',
-					Inputs.ObjectRef({
-						objectId: coin.coinObjectId,
-						digest: coin.digest,
-						version: coin.version,
-					}),
-				),
-			);
+        if (!mergedCoins.has(type)) {
+            const [first, ...rest] = coinsByType.get(type)!.map((coin) =>
+                transactionData.addInput(
+                    'object',
+                    Inputs.ObjectRef({
+                        objectId: coin.coinObjectId,
+                        digest: coin.digest,
+                        version: coin.version,
+                    }),
+                ),
+            );
 
-			if (rest.length > 0) {
-				commands.push(Commands.MergeCoins(first, rest));
-			}
+            if (rest.length > 0) {
+                commands.push(Commands.MergeCoins(first, rest));
+            }
 
-			mergedCoins.set(type, first);
-		}
+            mergedCoins.set(type, first);
+        }
 
-		commands.push(
-			Commands.SplitCoins(mergedCoins.get(type)!, [
-				transactionData.addInput('pure', Inputs.Pure(bcs.u64().serialize(balance))),
-			]),
-		);
+        commands.push(
+            Commands.SplitCoins(mergedCoins.get(type)!, [
+                transactionData.addInput('pure', Inputs.Pure(bcs.u64().serialize(balance))),
+            ]),
+        );
 
-		transactionData.replaceCommand(index, commands);
+        transactionData.replaceCommand(index, commands);
 
-		transactionData.mapArguments((arg) => {
-			if (arg.$kind === 'Result' && arg.Result === index) {
-				return {
-					$kind: 'NestedResult',
-					NestedResult: [index + commands.length - 1, 0],
-				};
-			}
+        transactionData.mapArguments((arg) => {
+            if (arg.$kind === 'Result' && arg.Result === index) {
+                return {
+                    $kind: 'NestedResult',
+                    NestedResult: [index + commands.length - 1, 0],
+                };
+            }
 
-			return arg;
-		});
-	}
+            return arg;
+        });
+    }
 
-	return next();
+    return next();
 }
 
 async function getCoinsOfType({
-	coinType,
-	balance,
-	client,
-	owner,
-	usedIds,
+    coinType,
+    balance,
+    client,
+    owner,
+    usedIds,
 }: {
-	coinType: string;
-	balance: bigint;
-	client: IotaClient;
-	owner: string;
-	usedIds: Set<string>;
+    coinType: string;
+    balance: bigint;
+    client: IotaClient;
+    owner: string;
+    usedIds: Set<string>;
 }): Promise<CoinStruct[]> {
-	let remainingBalance = balance;
-	const coins: CoinStruct[] = [];
+    let remainingBalance = balance;
+    const coins: CoinStruct[] = [];
 
-	return loadMoreCoins();
+    return loadMoreCoins();
 
-	async function loadMoreCoins(cursor: string | null = null): Promise<CoinStruct[]> {
-		const { data, hasNextPage, nextCursor } = await client.getCoins({ owner, coinType, cursor });
+    async function loadMoreCoins(cursor: string | null = null): Promise<CoinStruct[]> {
+        const { data, hasNextPage, nextCursor } = await client.getCoins({
+            owner,
+            coinType,
+            cursor,
+        });
 
-		const sortedCoins = data.sort((a, b) => Number(BigInt(b.balance) - BigInt(a.balance)));
+        const sortedCoins = data.sort((a, b) => Number(BigInt(b.balance) - BigInt(a.balance)));
 
-		for (const coin of sortedCoins) {
-			if (usedIds.has(coin.coinObjectId)) {
-				continue;
-			}
+        for (const coin of sortedCoins) {
+            if (usedIds.has(coin.coinObjectId)) {
+                continue;
+            }
 
-			const coinBalance = BigInt(coin.balance);
+            const coinBalance = BigInt(coin.balance);
 
-			coins.push(coin);
-			remainingBalance -= coinBalance;
+            coins.push(coin);
+            remainingBalance -= coinBalance;
 
-			if (remainingBalance <= 0) {
-				return coins;
-			}
-		}
+            if (remainingBalance <= 0) {
+                return coins;
+            }
+        }
 
-		if (hasNextPage) {
-			return loadMoreCoins(nextCursor);
-		}
+        if (hasNextPage) {
+            return loadMoreCoins(nextCursor);
+        }
 
-		throw new Error(`Not enough coins of type ${coinType} to satisfy requested balance`);
-	}
+        throw new Error(`Not enough coins of type ${coinType} to satisfy requested balance`);
+    }
 }

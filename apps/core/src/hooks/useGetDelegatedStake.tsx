@@ -7,16 +7,16 @@ import type { DelegatedStake } from '@iota/iota-sdk/client';
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 
 type UseGetDelegatedStakesOptions = {
-	address: string;
+    address: string;
 } & Omit<UseQueryOptions<DelegatedStake[], Error>, 'queryKey' | 'queryFn'>;
 
 export function useGetDelegatedStake(options: UseGetDelegatedStakesOptions) {
-	const client = useIotaClient();
-	const { address, ...queryOptions } = options;
+    const client = useIotaClient();
+    const { address, ...queryOptions } = options;
 
-	return useQuery({
-		queryKey: ['delegated-stakes', address],
-		queryFn: () => client.getStakes({ owner: address }),
-		...queryOptions,
-	});
+    return useQuery({
+        queryKey: ['delegated-stakes', address],
+        queryFn: () => client.getStakes({ owner: address }),
+        ...queryOptions,
+    });
 }

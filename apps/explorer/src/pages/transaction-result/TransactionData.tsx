@@ -33,7 +33,7 @@ export function TransactionData({ transaction }: TransactionDataProps): JSX.Elem
 
     return (
         <div className="flex w-full flex-col gap-3 pl-1 pr-2 md:gap-6">
-            <section className="flex w-full flex-1 flex-col gap-3  md:gap-6">
+            <section className="flex w-full flex-1 flex-col gap-3 md:gap-6">
                 {isProgrammableTransaction && (
                     <div data-testid="inputs-card">
                         <InputsCard inputs={programmableTxn.inputs} />

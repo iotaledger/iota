@@ -8,94 +8,95 @@ import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 import type { WalletWithFeatures } from '@wallet-standard/core';
 
 import type {
-	IotaSignAndExecuteTransactionInput,
-	IotaSignTransactionInput,
-	IotaWalletFeatures,
+    IotaSignAndExecuteTransactionInput,
+    IotaSignTransactionInput,
+    IotaWalletFeatures,
 } from './features/index.js';
 
 declare module '@wallet-standard/core' {
-	export interface Wallet {
-		/**
-		 * Unique identifier of the Wallet.
-		 *
-		 * If not provided, the wallet name will be used as the identifier.
-		 */
-		readonly id?: string;
-	}
+    export interface Wallet {
+        /**
+         * Unique identifier of the Wallet.
+         *
+         * If not provided, the wallet name will be used as the identifier.
+         */
+        readonly id?: string;
+    }
 
-	export interface StandardConnectOutput {
-		supportedIntents?: string[];
-	}
+    export interface StandardConnectOutput {
+        supportedIntents?: string[];
+    }
 }
 
 export type { Wallet } from '@wallet-standard/core';
 
 export async function signAndExecuteTransaction(
-	wallet: WalletWithFeatures<Partial<IotaWalletFeatures>>,
-	input: IotaSignAndExecuteTransactionInput,
+    wallet: WalletWithFeatures<Partial<IotaWalletFeatures>>,
+    input: IotaSignAndExecuteTransactionInput,
 ) {
-	if (wallet.features['iota:signAndExecuteTransaction']) {
-		return wallet.features['iota:signAndExecuteTransaction'].signAndExecuteTransaction(input);
-	}
+    if (wallet.features['iota:signAndExecuteTransaction']) {
+        return wallet.features['iota:signAndExecuteTransaction'].signAndExecuteTransaction(input);
+    }
 
-	if (!wallet.features['iota:signAndExecuteTransactionBlock']) {
-		throw new Error(
-			`Provided wallet (${wallet.name}) does not support the signAndExecuteTransaction feature.`,
-		);
-	}
+    if (!wallet.features['iota:signAndExecuteTransactionBlock']) {
+        throw new Error(
+            `Provided wallet (${wallet.name}) does not support the signAndExecuteTransaction feature.`,
+        );
+    }
 
-	const { signAndExecuteTransactionBlock } = wallet.features['iota:signAndExecuteTransactionBlock'];
+    const { signAndExecuteTransactionBlock } =
+        wallet.features['iota:signAndExecuteTransactionBlock'];
 
-	const transactionBlock = Transaction.from(await input.transaction.toJSON());
-	const { digest, rawEffects, rawTransaction } = await signAndExecuteTransactionBlock({
-		account: input.account,
-		chain: input.chain,
-		transactionBlock,
-		options: {
-			showRawEffects: true,
-			showRawInput: true,
-		},
-	});
+    const transactionBlock = Transaction.from(await input.transaction.toJSON());
+    const { digest, rawEffects, rawTransaction } = await signAndExecuteTransactionBlock({
+        account: input.account,
+        chain: input.chain,
+        transactionBlock,
+        options: {
+            showRawEffects: true,
+            showRawInput: true,
+        },
+    });
 
-	const [
-		{
-			txSignatures: [signature],
-			intentMessage: { value: bcsTransaction },
-		},
-	] = bcs.SenderSignedData.parse(fromBase64(rawTransaction!));
+    const [
+        {
+            txSignatures: [signature],
+            intentMessage: { value: bcsTransaction },
+        },
+    ] = bcs.SenderSignedData.parse(fromBase64(rawTransaction!));
 
-	const bytes = bcs.TransactionData.serialize(bcsTransaction).toBase64();
+    const bytes = bcs.TransactionData.serialize(bcsTransaction).toBase64();
 
-	return {
-		digest,
-		signature,
-		bytes,
-		effects: toBase64(new Uint8Array(rawEffects!)),
-	};
+    return {
+        digest,
+        signature,
+        bytes,
+        effects: toBase64(new Uint8Array(rawEffects!)),
+    };
 }
 
 export async function signTransaction(
-	wallet: WalletWithFeatures<Partial<IotaWalletFeatures>>,
-	input: IotaSignTransactionInput,
+    wallet: WalletWithFeatures<Partial<IotaWalletFeatures>>,
+    input: IotaSignTransactionInput,
 ) {
-	if (wallet.features['iota:signTransaction']) {
-		return wallet.features['iota:signTransaction'].signTransaction(input);
-	}
+    if (wallet.features['iota:signTransaction']) {
+        return wallet.features['iota:signTransaction'].signTransaction(input);
+    }
 
-	if (!wallet.features['iota:signTransactionBlock']) {
-		throw new Error(
-			`Provided wallet (${wallet.name}) does not support the signTransaction feature.`,
-		);
-	}
+    if (!wallet.features['iota:signTransactionBlock']) {
+        throw new Error(
+            `Provided wallet (${wallet.name}) does not support the signTransaction feature.`,
+        );
+    }
 
-	const { signTransactionBlock } = wallet.features['iota:signTransactionBlock'];
+    const { signTransactionBlock } = wallet.features['iota:signTransactionBlock'];
 
-	const transaction = Transaction.from(await input.transaction.toJSON());
-	const { transactionBlockBytes, signature } = await signTransactionBlock({
-		transactionBlock: transaction,
-		account: input.account,
-		chain: input.chain,
-	});
+    const transaction = Transaction.from(await input.transaction.toJSON());
+    const { transactionBlockBytes, signature } = await signTransactionBlock({
+        transactionBlock: transaction,
+        account: input.account,
+        chain: input.chain,
+    });
 
-	return { bytes: transactionBlockBytes, signature };
+    return { bytes: transactionBlockBytes, signature };
 }

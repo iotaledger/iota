@@ -10,55 +10,55 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 
 interface GasFeesSummaryProps {
-	transaction?: DryRunTransactionBlockResponse;
-	feePercentage?: number;
-	accessFees?: string;
-	accessFeeType?: string;
+    transaction?: DryRunTransactionBlockResponse;
+    feePercentage?: number;
+    accessFees?: string;
+    accessFeeType?: string;
 }
 
 export function GasFeesSummary({
-	transaction,
-	feePercentage,
-	accessFees,
-	accessFeeType,
+    transaction,
+    feePercentage,
+    accessFees,
+    accessFeeType,
 }: GasFeesSummaryProps) {
-	const gasSummary = useMemo(() => {
-		if (!transaction) return null;
-		return getGasSummary(transaction);
-	}, [transaction]);
-	const totalGas = gasSummary?.totalGas;
-	const [gasAmount, gasSymbol] = useFormatCoin(totalGas, IOTA_TYPE_ARG);
+    const gasSummary = useMemo(() => {
+        if (!transaction) return null;
+        return getGasSummary(transaction);
+    }, [transaction]);
+    const totalGas = gasSummary?.totalGas;
+    const [gasAmount, gasSymbol] = useFormatCoin(totalGas, IOTA_TYPE_ARG);
 
-	const { data: accessFeeMetadata } = useCoinMetadata(accessFeeType);
+    const { data: accessFeeMetadata } = useCoinMetadata(accessFeeType);
 
-	return (
-		<div className="flex flex-col border border-hero-darkest/20 rounded-xl px-5 py-3 gap-2 border-solid">
-			<DescriptionItem
-				title={
-					<Text variant="bodySmall" weight="medium" color="steel-dark">
-						Access Fees ({feePercentage ? `${feePercentage * 100}%` : '--'})
-					</Text>
-				}
-			>
-				<Text variant="bodySmall" weight="medium" color="steel-darker">
-					{accessFees ?? '--'}
-					{accessFeeMetadata?.symbol ? ` ${accessFeeMetadata.symbol}` : ''}
-				</Text>
-			</DescriptionItem>
+    return (
+        <div className="flex flex-col gap-2 rounded-xl border border-solid border-hero-darkest/20 px-5 py-3">
+            <DescriptionItem
+                title={
+                    <Text variant="bodySmall" weight="medium" color="steel-dark">
+                        Access Fees ({feePercentage ? `${feePercentage * 100}%` : '--'})
+                    </Text>
+                }
+            >
+                <Text variant="bodySmall" weight="medium" color="steel-darker">
+                    {accessFees ?? '--'}
+                    {accessFeeMetadata?.symbol ? ` ${accessFeeMetadata.symbol}` : ''}
+                </Text>
+            </DescriptionItem>
 
-			<div className="bg-gray-40 h-px w-full" />
+            <div className="h-px w-full bg-gray-40" />
 
-			<DescriptionItem
-				title={
-					<Text variant="bodySmall" weight="medium" color="steel-dark">
-						Estimated Gas Fee
-					</Text>
-				}
-			>
-				<Text variant="bodySmall" weight="medium" color="steel-darker">
-					{gasAmount ? `${gasAmount} ${gasSymbol}` : '--'}
-				</Text>
-			</DescriptionItem>
-		</div>
-	);
+            <DescriptionItem
+                title={
+                    <Text variant="bodySmall" weight="medium" color="steel-dark">
+                        Estimated Gas Fee
+                    </Text>
+                }
+            >
+                <Text variant="bodySmall" weight="medium" color="steel-darker">
+                    {gasAmount ? `${gasAmount} ${gasSymbol}` : '--'}
+                </Text>
+            </DescriptionItem>
+        </div>
+    );
 }

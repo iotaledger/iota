@@ -11,15 +11,15 @@ import { styleDataAttribute } from '../../constants/styleDataAttribute.js';
 import './StyleMarker.css.js';
 
 type StyleMarker = {
-	children: ReactNode;
+    children: ReactNode;
 };
 
 export const StyleMarker = forwardRef<
-	ElementRef<typeof Slot>,
-	ComponentPropsWithoutRef<typeof Slot>
+    ElementRef<typeof Slot>,
+    ComponentPropsWithoutRef<typeof Slot>
 >(({ children, ...props }, forwardedRef) => (
-	<Slot ref={forwardedRef} {...props} {...styleDataAttribute}>
-		{children}
-	</Slot>
+    <Slot ref={forwardedRef} {...props} {...styleDataAttribute}>
+        {children}
+    </Slot>
 ));
 StyleMarker.displayName = 'StyleMarker';

@@ -3,38 +3,39 @@ import { Callout } from 'nextra/components';
 # Creating zkSend Links
 
 <Callout type="warning">
-	Products and services that incorporate zkSend links may be subject to financial regulations,
-	including obtaining money transmitter licenses in jurisdictions where you provide your services.
-	It is the developer's responsibility to ensure compliance with all relevant laws and obtain any
-	necessary licenses. The information provided by IOTA Foundation is not legal advice, and developers
-	should consult with a qualified legal professional to address their specific circumstances.
+    Products and services that incorporate zkSend links may be subject to financial regulations,
+    including obtaining money transmitter licenses in jurisdictions where you provide your services.
+    It is the developer's responsibility to ensure compliance with all relevant laws and obtain any
+    necessary licenses. The information provided by IOTA Foundation is not legal advice, and
+    developers should consult with a qualified legal professional to address their specific
+    circumstances.
 </Callout>
 
 ## Limitations
 
-- zkSend only supports Mainnet and Testnet at this time.
-- Objects within links must be publicly transferrable.
+-   zkSend only supports Mainnet and Testnet at this time.
+-   Objects within links must be publicly transferrable.
 
 ## Create a link
 
 You can start creating your own zkSend link using the `ZkSendLinkBuilder` class. This class
 constructor takes an object with the following options:
 
-- **`sender`** (required) - Required. The address of the sender / creator of the link.
-- **`redirect`** (optional) - The redirect configuration for the link. See "Claim redirect" below
-  for more information.
-  - **`url`** - The url to redirect to after the link have been claimed.
-  - **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
-- **`client`** (optional) - The `@iota/iota-sdk` client used to fetch data to construct the link. If
-  not provided, a default client will be used.
-- **`network`** (optional) - The Iota network that the link will be created for. Defaults to
-  `mainnet`.
+-   **`sender`** (required) - Required. The address of the sender / creator of the link.
+-   **`redirect`** (optional) - The redirect configuration for the link. See "Claim redirect" below
+    for more information.
+    -   **`url`** - The url to redirect to after the link have been claimed.
+    -   **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
+-   **`client`** (optional) - The `@iota/iota-sdk` client used to fetch data to construct the link.
+    If not provided, a default client will be used.
+-   **`network`** (optional) - The Iota network that the link will be created for. Defaults to
+    `mainnet`.
 
 ```ts
 import { ZkSendLinkBuilder } from '@iota/zksend';
 
 const link = new ZkSendLinkBuilder({
-	sender: '0x...',
+    sender: '0x...',
 });
 ```
 
@@ -43,16 +44,17 @@ const link = new ZkSendLinkBuilder({
 You can add IOTA to the link by calling `link.addClaimableNanos()`. This method takes the following
 params:
 
-- **`amount`** (required) - The amount of NANOS (the base unit of IOTA) to add to the link.
+-   **`amount`** (required) - The amount of NANOS (the base unit of IOTA) to add to the link.
 
 #### Adding non-IOTA coins to the link
 
-You can add non-IOTA coins to the link by calling `link.addClaimableBalance()`. This method takes the
-following params:
+You can add non-IOTA coins to the link by calling `link.addClaimableBalance()`. This method takes
+the following params:
 
-- **`coinType`** (required) - The coin type of the coin to add to the link (e.g. `0x2::iota::IOTA`).
-- **`amount`** (required) - The amount of the coin to add to the link. Represented in the base unit
-  of the coin.
+-   **`coinType`** (required) - The coin type of the coin to add to the link (e.g.
+    `0x2::iota::IOTA`).
+-   **`amount`** (required) - The amount of the coin to add to the link. Represented in the base
+    unit of the coin.
 
 The SDK will automatically perform the necessary coin management logic to transfer the defined
 amount, such as merging and splitting coin objects.
@@ -62,36 +64,36 @@ amount, such as merging and splitting coin objects.
 You can add a publicly-transferrable object to the link by calling `link.addClaimableObject()`. This
 method takes the following params:
 
-- **`id`** (required) - The ID of the object. This must be owned by the `sender` you configured when
-  creating the link.
+-   **`id`** (required) - The ID of the object. This must be owned by the `sender` you configured
+    when creating the link.
 
 #### Adding objects created in the same transaction
 
 You can create objects to add to links in the same transaction the link is created in by using
 `link.addClaimableObjectRef()`
 
-- **`ref`** (required) - The reference to the object you want to add to the link.
-- **`type`** (required) - The move type of the object you are adding
+-   **`ref`** (required) - The reference to the object you want to add to the link.
+-   **`type`** (required) - The move type of the object you are adding
 
 ```ts
 const tx = new Transaction();
 
 const link = new ZkSendLinkBuilder({
-	sender: '0x...',
+    sender: '0x...',
 });
 
 const newObject = tx.moveCall({
-	target: `${PACKAGE_ID}::your_module::mint`,
+    target: `${PACKAGE_ID}::your_module::mint`,
 });
 
 link.addClaimableObjectRef({
-	ref: newObject,
-	type: `${PACKAGE_ID}::your_module::YourType`,
+    ref: newObject,
+    type: `${PACKAGE_ID}::your_module::YourType`,
 });
 
 // Adds the link creation transactions to the transaction
 link.createSendTransaction({
-	transaction: tx,
+    transaction: tx,
 });
 ```
 
@@ -113,8 +115,8 @@ const tx = await link.createSendTransaction();
 const { bytes, signature } = tx.sign({ client, signer: keypair });
 
 const result = await client.executeTransactionBlock({
-	transactionBlock: bytes,
-	signature,
+    transactionBlock: bytes,
+    signature,
 });
 ```
 
@@ -123,9 +125,9 @@ as shorthand for creating the send transaction, signing it, and submitting it to
 
 ```ts
 await link.create({
-	signer: yourKeypair,
-	// Wait until the new link is ready to be indexed so it is claimable
-	waitForTransaction: true,
+    signer: yourKeypair,
+    // Wait until the new link is ready to be indexed so it is claimable
+    waitForTransaction: true,
 });
 ```
 
@@ -138,8 +140,8 @@ onboarding tool, and have the user redirected to their dApp after claiming the l
 To configure a redirect, you need to provide a `redirect` object when creating the link. This object
 takes the following params:
 
-- **`url`** - The URL to redirect to after the link has been claimed.
-- **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
+-   **`url`** - The URL to redirect to after the link has been claimed.
+-   **`name`** - The name of your dApp. This will be shown to the user when claiming the link.
 
 When redirecting to the URL, if the user claims with zkLogin, then Stashed will automatically add a
 `stashed_address` query parameter to the URL, containing the Iota address of the user that claimed
@@ -150,11 +152,11 @@ consider itself connected as a result of a claim redirect.
 import { ZkSendLinkBuilder } from '@iota/zksend';
 
 const link = new ZkSendLinkBuilder({
-	sender: '0x...',
-	redirect: {
-		url: 'https://your-dapp.com',
-		name: 'Your dApp',
-	},
+    sender: '0x...',
+    redirect: {
+        url: 'https://your-dapp.com',
+        name: 'Your dApp',
+    },
 });
 ```
 
@@ -183,7 +185,7 @@ To list the links created by a specific address, you can use the `listCreatedLin
 import { listCreatedLinks } from '@iota/zksend';
 
 const { links, hasNextPage, cursor } = await listCreatedLinks({
-	address: addressOfCreator,
+    address: addressOfCreator,
 });
 
 // get the claimable assets for this link (will be empty if the link has been claimed)
@@ -200,19 +202,19 @@ were created or regenerated by that transaction.
 import { getSentTransactionsWithLinks } from '@iota/zksend';
 
 const { data, hasNextPage, nextCursor } = await getSentTransactionsWithLinks({
-	address: addressOfCreator,
+    address: addressOfCreator,
 });
 
 for (const { transaction, links } of data) {
-	// get the claimable assets for this link (will be empty if the link has been claimed)
-	const firstLink = links[0];
+    // get the claimable assets for this link (will be empty if the link has been claimed)
+    const firstLink = links[0];
 
-	// link is claimed
-	firstLink.claimed;
-	const { nfts, balances } = firstLink.assets;
+    // link is claimed
+    firstLink.claimed;
+    const { nfts, balances } = firstLink.assets;
 
-	// claim link
-	await firstLink.link.claimAssets(addressOfClaimer);
+    // claim link
+    await firstLink.link.claimAssets(addressOfClaimer);
 }
 ```
 
@@ -223,8 +225,8 @@ changed by passing `loadClaimedAssets: true` to the function.
 import { getSentTransactionsWithLinks } from '@iota/zksend';
 
 const { data, hasNextPage, nextCursor } = await getSentTransactionsWithLinks({
-	address: addressOfCreator,
-	loadClaimedAssets: true,
+    address: addressOfCreator,
+    loadClaimedAssets: true,
 });
 ```
 
@@ -237,7 +239,7 @@ that originally created the link):
 import { listCreatedLinks } from '@iota/zksend';
 
 const { links, hasNextPage, cursor } = await listCreatedLinks({
-	address: addressOfCreator,
+    address: addressOfCreator,
 });
 
 // url will be the new link url
@@ -245,8 +247,8 @@ const { url, transaction } = await links[0].link.createRegenerateTransaction(add
 
 // Execute the transaction to regenerate the link
 await client.signAndExecuteTransaction({
-	transaction,
-	signer: keypair,
+    transaction,
+    signer: keypair,
 });
 ```
 
@@ -258,23 +260,23 @@ To create multiple links in a single transaction, you can use `ZkSendLinkBuilder
 const links = [];
 
 for (let i = 0; i < 10; i++) {
-	const link = new ZkSendLinkBuilder({
-		client,
-		sender: keypair.toIotaAddress(),
-	});
+    const link = new ZkSendLinkBuilder({
+        client,
+        sender: keypair.toIotaAddress(),
+    });
 
-	link.addClaimableNanos(100n);
-	links.push(link);
+    link.addClaimableNanos(100n);
+    links.push(link);
 }
 
 const urls = links.map((link) => link.getLink());
 
 const tx = await ZkSendLinkBuilder.createLinks({
-	links,
+    links,
 });
 
 await client.signAndExecuteTransaction({
-	transaction: tx,
-	signer: keypair,
+    transaction: tx,
+    signer: keypair,
 });
 ```

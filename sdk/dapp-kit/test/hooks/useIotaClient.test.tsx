@@ -8,17 +8,17 @@ import { useIotaClient } from '../../src/index.js';
 import { createIotaClientContextWrapper } from '../test-utils.js';
 
 describe('useIotaClient', () => {
-	test('throws without a IotaClientContext', () => {
-		expect(() => renderHook(() => useIotaClient())).toThrowError(
-			'Could not find IotaClientContext. Ensure that you have set up the IotaClientProvider',
-		);
-	});
+    test('throws without a IotaClientContext', () => {
+        expect(() => renderHook(() => useIotaClient())).toThrowError(
+            'Could not find IotaClientContext. Ensure that you have set up the IotaClientProvider',
+        );
+    });
 
-	test('returns a IotaClient', () => {
-		const iotaClient = new IotaClient({ url: getFullnodeUrl('localnet') });
-		const wrapper = createIotaClientContextWrapper(iotaClient);
-		const { result } = renderHook(() => useIotaClient(), { wrapper });
+    test('returns a IotaClient', () => {
+        const iotaClient = new IotaClient({ url: getFullnodeUrl('localnet') });
+        const wrapper = createIotaClientContextWrapper(iotaClient);
+        const { result } = renderHook(() => useIotaClient(), { wrapper });
 
-		expect(result.current).toBe(iotaClient);
-	});
+        expect(result.current).toBe(iotaClient);
+    });
 });

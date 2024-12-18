@@ -6,18 +6,18 @@ import { Spinner16 } from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 const styles = cva('', {
-	variants: {
-		color: {
-			inherit: 'text-inherit',
-			iota: 'text-iota',
-		},
-	},
+    variants: {
+        color: {
+            inherit: 'text-inherit',
+            iota: 'text-iota',
+        },
+    },
 });
 
 export type LoadingIndicatorProps = VariantProps<typeof styles>;
 
 const LoadingIndicator = ({ color = 'iota' }: LoadingIndicatorProps) => {
-	return <Spinner16 className={styles({ className: 'animate-spin', color })} />;
+    return <Spinner16 className={styles({ className: 'animate-spin', color })} />;
 };
 
 export default LoadingIndicator;

@@ -8,12 +8,12 @@ const TX_DIGEST_LENGTH = 32;
 
 /** Returns whether the tx digest is valid based on the serialization format */
 export function isValidTransactionDigest(value: string): value is string {
-	try {
-		const buffer = fromBase58(value);
-		return buffer.length === TX_DIGEST_LENGTH;
-	} catch (e) {
-		return false;
-	}
+    try {
+        const buffer = fromBase58(value);
+        return buffer.length === TX_DIGEST_LENGTH;
+    } catch (e) {
+        return false;
+    }
 }
 
 // TODO - can we automatically sync this with rust length definition?
@@ -24,59 +24,59 @@ export function isValidTransactionDigest(value: string): value is string {
 
 export const IOTA_ADDRESS_LENGTH = 32;
 export function isValidIotaAddress(value: string): value is string {
-	return isHex(value) && getHexByteLength(value) === IOTA_ADDRESS_LENGTH;
+    return isHex(value) && getHexByteLength(value) === IOTA_ADDRESS_LENGTH;
 }
 
 export function isValidIotaObjectId(value: string): boolean {
-	return isValidIotaAddress(value);
+    return isValidIotaAddress(value);
 }
 
 type StructTag = {
-	address: string;
-	module: string;
-	name: string;
-	typeParams: (string | StructTag)[];
+    address: string;
+    module: string;
+    name: string;
+    typeParams: (string | StructTag)[];
 };
 
 function parseTypeTag(type: string): string | StructTag {
-	if (!type.includes('::')) return type;
+    if (!type.includes('::')) return type;
 
-	return parseStructTag(type);
+    return parseStructTag(type);
 }
 
 export function parseStructTag(type: string): StructTag {
-	const [address, module] = type.split('::');
+    const [address, module] = type.split('::');
 
-	const rest = type.slice(address.length + module.length + 4);
-	const name = rest.includes('<') ? rest.slice(0, rest.indexOf('<')) : rest;
-	const typeParams = rest.includes('<')
-		? splitGenericParameters(rest.slice(rest.indexOf('<') + 1, rest.lastIndexOf('>'))).map(
-				(typeParam) => parseTypeTag(typeParam.trim()),
-			)
-		: [];
+    const rest = type.slice(address.length + module.length + 4);
+    const name = rest.includes('<') ? rest.slice(0, rest.indexOf('<')) : rest;
+    const typeParams = rest.includes('<')
+        ? splitGenericParameters(rest.slice(rest.indexOf('<') + 1, rest.lastIndexOf('>'))).map(
+              (typeParam) => parseTypeTag(typeParam.trim()),
+          )
+        : [];
 
-	return {
-		address: normalizeIotaAddress(address),
-		module,
-		name,
-		typeParams,
-	};
+    return {
+        address: normalizeIotaAddress(address),
+        module,
+        name,
+        typeParams,
+    };
 }
 
 export function normalizeStructTag(type: string | StructTag): string {
-	const { address, module, name, typeParams } =
-		typeof type === 'string' ? parseStructTag(type) : type;
+    const { address, module, name, typeParams } =
+        typeof type === 'string' ? parseStructTag(type) : type;
 
-	const formattedTypeParams =
-		typeParams?.length > 0
-			? `<${typeParams
-					.map((typeParam) =>
-						typeof typeParam === 'string' ? typeParam : normalizeStructTag(typeParam),
-					)
-					.join(',')}>`
-			: '';
+    const formattedTypeParams =
+        typeParams?.length > 0
+            ? `<${typeParams
+                  .map((typeParam) =>
+                      typeof typeParam === 'string' ? typeParam : normalizeStructTag(typeParam),
+                  )
+                  .join(',')}>`
+            : '';
 
-	return `${address}::${module}::${name}${formattedTypeParams}`;
+    return `${address}::${module}::${name}${formattedTypeParams}`;
 }
 
 /**
@@ -91,21 +91,21 @@ export function normalizeStructTag(type: string | StructTag): string {
  *
  */
 export function normalizeIotaAddress(value: string, forceAdd0x: boolean = false): string {
-	let address = value.toLowerCase();
-	if (!forceAdd0x && address.startsWith('0x')) {
-		address = address.slice(2);
-	}
-	return `0x${address.padStart(IOTA_ADDRESS_LENGTH * 2, '0')}`;
+    let address = value.toLowerCase();
+    if (!forceAdd0x && address.startsWith('0x')) {
+        address = address.slice(2);
+    }
+    return `0x${address.padStart(IOTA_ADDRESS_LENGTH * 2, '0')}`;
 }
 
 export function normalizeIotaObjectId(value: string, forceAdd0x: boolean = false): string {
-	return normalizeIotaAddress(value, forceAdd0x);
+    return normalizeIotaAddress(value, forceAdd0x);
 }
 
 function isHex(value: string): boolean {
-	return /^(0x|0X)?[a-fA-F0-9]+$/.test(value) && value.length % 2 === 0;
+    return /^(0x|0X)?[a-fA-F0-9]+$/.test(value) && value.length % 2 === 0;
 }
 
 function getHexByteLength(value: string): number {
-	return /^(0x|0X)/.test(value) ? (value.length - 2) / 2 : value.length / 2;
+    return /^(0x|0X)/.test(value) ? (value.length - 2) / 2 : value.length / 2;
 }

@@ -15,102 +15,102 @@ import { MultiSigPublicKey } from '../multisig/publickey.js';
 import { ZkLoginPublicIdentifier } from '../zklogin/publickey.js';
 
 export async function verifySignature(bytes: Uint8Array, signature: string): Promise<PublicKey> {
-	const parsedSignature = parseSignature(signature);
+    const parsedSignature = parseSignature(signature);
 
-	if (!(await parsedSignature.publicKey.verify(bytes, parsedSignature.serializedSignature))) {
-		throw new Error(`Signature is not valid for the provided data`);
-	}
+    if (!(await parsedSignature.publicKey.verify(bytes, parsedSignature.serializedSignature))) {
+        throw new Error(`Signature is not valid for the provided data`);
+    }
 
-	return parsedSignature.publicKey;
+    return parsedSignature.publicKey;
 }
 
 export async function verifyPersonalMessageSignature(
-	message: Uint8Array,
-	signature: string,
-	options: { client?: IotaGraphQLClient } = {},
+    message: Uint8Array,
+    signature: string,
+    options: { client?: IotaGraphQLClient } = {},
 ): Promise<PublicKey> {
-	const parsedSignature = parseSignature(signature, options);
+    const parsedSignature = parseSignature(signature, options);
 
-	if (
-		!(await parsedSignature.publicKey.verifyPersonalMessage(
-			message,
-			parsedSignature.serializedSignature,
-		))
-	) {
-		throw new Error(`Signature is not valid for the provided message`);
-	}
+    if (
+        !(await parsedSignature.publicKey.verifyPersonalMessage(
+            message,
+            parsedSignature.serializedSignature,
+        ))
+    ) {
+        throw new Error(`Signature is not valid for the provided message`);
+    }
 
-	return parsedSignature.publicKey;
+    return parsedSignature.publicKey;
 }
 
 export async function verifyTransactionSignature(
-	transaction: Uint8Array,
-	signature: string,
-	options: { client?: IotaGraphQLClient } = {},
+    transaction: Uint8Array,
+    signature: string,
+    options: { client?: IotaGraphQLClient } = {},
 ): Promise<PublicKey> {
-	const parsedSignature = parseSignature(signature, options);
+    const parsedSignature = parseSignature(signature, options);
 
-	if (
-		!(await parsedSignature.publicKey.verifyTransaction(
-			transaction,
-			parsedSignature.serializedSignature,
-		))
-	) {
-		throw new Error(`Signature is not valid for the provided Transaction`);
-	}
+    if (
+        !(await parsedSignature.publicKey.verifyTransaction(
+            transaction,
+            parsedSignature.serializedSignature,
+        ))
+    ) {
+        throw new Error(`Signature is not valid for the provided Transaction`);
+    }
 
-	return parsedSignature.publicKey;
+    return parsedSignature.publicKey;
 }
 
 function parseSignature(signature: string, options: { client?: IotaGraphQLClient } = {}) {
-	const parsedSignature = parseSerializedSignature(signature);
+    const parsedSignature = parseSerializedSignature(signature);
 
-	if (parsedSignature.signatureScheme === 'MultiSig') {
-		return {
-			...parsedSignature,
-			publicKey: new MultiSigPublicKey(parsedSignature.multisig.multisig_pk),
-		};
-	}
+    if (parsedSignature.signatureScheme === 'MultiSig') {
+        return {
+            ...parsedSignature,
+            publicKey: new MultiSigPublicKey(parsedSignature.multisig.multisig_pk),
+        };
+    }
 
-	const publicKey = publicKeyFromRawBytes(
-		parsedSignature.signatureScheme,
-		parsedSignature.publicKey,
-		options,
-	);
-	return {
-		...parsedSignature,
-		publicKey,
-	};
+    const publicKey = publicKeyFromRawBytes(
+        parsedSignature.signatureScheme,
+        parsedSignature.publicKey,
+        options,
+    );
+    return {
+        ...parsedSignature,
+        publicKey,
+    };
 }
 
 export function publicKeyFromRawBytes(
-	signatureScheme: SignatureScheme,
-	bytes: Uint8Array,
-	options: { client?: IotaGraphQLClient } = {},
+    signatureScheme: SignatureScheme,
+    bytes: Uint8Array,
+    options: { client?: IotaGraphQLClient } = {},
 ): PublicKey {
-	switch (signatureScheme) {
-		case 'ED25519':
-			return new Ed25519PublicKey(bytes);
-		case 'Secp256k1':
-			return new Secp256k1PublicKey(bytes);
-		case 'Secp256r1':
-			return new Secp256r1PublicKey(bytes);
-		case 'MultiSig':
-			return new MultiSigPublicKey(bytes);
-		case 'ZkLogin':
-			return new ZkLoginPublicIdentifier(bytes, options);
-		default:
-			throw new Error(`Unsupported signature scheme ${signatureScheme}`);
-	}
+    switch (signatureScheme) {
+        case 'ED25519':
+            return new Ed25519PublicKey(bytes);
+        case 'Secp256k1':
+            return new Secp256k1PublicKey(bytes);
+        case 'Secp256r1':
+            return new Secp256r1PublicKey(bytes);
+        case 'MultiSig':
+            return new MultiSigPublicKey(bytes);
+        case 'ZkLogin':
+            return new ZkLoginPublicIdentifier(bytes, options);
+        default:
+            throw new Error(`Unsupported signature scheme ${signatureScheme}`);
+    }
 }
 
 export function publicKeyFromIotaBytes(
-	publicKey: string | Uint8Array,
-	options: { client?: IotaGraphQLClient } = {},
+    publicKey: string | Uint8Array,
+    options: { client?: IotaGraphQLClient } = {},
 ) {
-	const bytes = typeof publicKey === 'string' ? fromBase64(publicKey) : publicKey;
+    const bytes = typeof publicKey === 'string' ? fromBase64(publicKey) : publicKey;
 
-	const signatureScheme = SIGNATURE_FLAG_TO_SCHEME[bytes[0] as SignatureFlag];
+    const signatureScheme = SIGNATURE_FLAG_TO_SCHEME[bytes[0] as SignatureFlag];
 
-	return publicKeyFromRawBytes(signatureScheme, bytes.slice(1), options);
+    return publicKeyFromRawBytes(signatureScheme, bytes.slice(1), options);
 }

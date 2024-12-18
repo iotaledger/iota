@@ -8,41 +8,47 @@ import { useSwapData } from '_pages/swap/utils';
 import BigNumber from 'bignumber.js';
 
 interface AverageSectionProps {
-	averages: {
-		averageBaseToQuote: string;
-		averageQuoteToBase: string;
-	};
-	isAsk: boolean;
-	baseCoinType: string;
-	quoteCoinType: string;
+    averages: {
+        averageBaseToQuote: string;
+        averageQuoteToBase: string;
+    };
+    isAsk: boolean;
+    baseCoinType: string;
+    quoteCoinType: string;
 }
 
 export function AverageSection({
-	averages,
-	baseCoinType,
-	quoteCoinType,
-	isAsk,
+    averages,
+    baseCoinType,
+    quoteCoinType,
+    isAsk,
 }: AverageSectionProps) {
-	const { baseCoinMetadata, quoteCoinMetadata } = useSwapData({
-		baseCoinType,
-		quoteCoinType,
-	});
+    const { baseCoinMetadata, quoteCoinMetadata } = useSwapData({
+        baseCoinType,
+        quoteCoinType,
+    });
 
-	const baseCoinSymbol = baseCoinMetadata.data?.symbol;
-	const quoteCoinSymbol = quoteCoinMetadata.data?.symbol;
+    const baseCoinSymbol = baseCoinMetadata.data?.symbol;
+    const quoteCoinSymbol = quoteCoinMetadata.data?.symbol;
 
-	return (
-		<div className="flex flex-col border border-hero-darkest/20 rounded-xl px-5 py-3 gap-4 border-solid">
-			<DescriptionItem title={<Text variant="bodySmall">Estimated Rate</Text>}>
-				<Text variant="bodySmall" weight="medium" color="steel-darker">
-					1 {isAsk ? baseCoinSymbol : quoteCoinSymbol} &#x2248;{' '}
-					{new BigNumber(isAsk ? averages.averageBaseToQuote : averages.averageQuoteToBase)
-						.shiftedBy(isAsk ? IOTA_USDC_AVERAGE_CONVERSION_RATE : -IOTA_USDC_AVERAGE_CONVERSION_RATE)
-						.decimalPlaces(MAX_FLOAT)
-						.toString()}{' '}
-					{isAsk ? quoteCoinSymbol : baseCoinSymbol}
-				</Text>
-			</DescriptionItem>
-		</div>
-	);
+    return (
+        <div className="flex flex-col gap-4 rounded-xl border border-solid border-hero-darkest/20 px-5 py-3">
+            <DescriptionItem title={<Text variant="bodySmall">Estimated Rate</Text>}>
+                <Text variant="bodySmall" weight="medium" color="steel-darker">
+                    1 {isAsk ? baseCoinSymbol : quoteCoinSymbol} &#x2248;{' '}
+                    {new BigNumber(
+                        isAsk ? averages.averageBaseToQuote : averages.averageQuoteToBase,
+                    )
+                        .shiftedBy(
+                            isAsk
+                                ? IOTA_USDC_AVERAGE_CONVERSION_RATE
+                                : -IOTA_USDC_AVERAGE_CONVERSION_RATE,
+                        )
+                        .decimalPlaces(MAX_FLOAT)
+                        .toString()}{' '}
+                    {isAsk ? quoteCoinSymbol : baseCoinSymbol}
+                </Text>
+            </DescriptionItem>
+        </div>
+    );
 }

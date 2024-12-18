@@ -5,8 +5,8 @@ using the cryptographic key pairs associated with a Iota address.
 
 The Iota TypeScript SDK supports three signing schemes:
 
-| Sign scheme     | Class name         | Import folder                    |
-| --------------- | ------------------ | -------------------------------- |
+| Sign scheme     | Class name         | Import folder                       |
+| --------------- | ------------------ | ----------------------------------- |
 | Ed25519         | `Ed25519Keypair`   | `@iota/iota-sdk/keypairs/ed25519`   |
 | ECDSA Secp256k1 | `Secp256k1Keypair` | `@iota/iota-sdk/keypairs/secp256k1` |
 | ECDSA Secp256r1 | `Secp256r1Keypair` | `@iota/iota-sdk/keypairs/secp256r1` |
@@ -47,8 +47,8 @@ const isValid = await publicKey.verifyPersonalMessage(message, signature);
 ## Public keys
 
 Each `Keypair` has an associated `PublicKey` class. You use the public key to verify signatures or
-to retrieve its associated Iota address. You can access a `Keypair` from its `PublicKey` or construct
-it from the bytes (as a `Uint8Array`) of the `PublicKey`, as in the following code:
+to retrieve its associated Iota address. You can access a `Keypair` from its `PublicKey` or
+construct it from the bytes (as a `Uint8Array`) of the `PublicKey`, as in the following code:
 
 ```typescript
 import { Ed25519Keypair, Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
@@ -84,7 +84,7 @@ const { signature } = await keypair.signPersonalMessage(message);
 const publicKey = await verifyPersonalMessageSignature(message, signature);
 
 if (publicKey.toIotaAddress() !== keypair.getPublicKey().toIotaAddress()) {
-	throw new Error('Signature was valid, but was signed by a different key pair');
+    throw new Error('Signature was valid, but was signed by a different key pair');
 }
 ```
 
@@ -114,7 +114,7 @@ const { signature } = await keypair.signTransaction(bytes);
 const publicKey = await verifyTransactionSignature(bytes, signature);
 
 if (publicKey.toIotaAddress() !== keypair.getPublicKey().toIotaAddress()) {
-	throw new Error('Signature was valid, but was signed by a different keyPair');
+    throw new Error('Signature was valid, but was signed by a different keyPair');
 }
 ```
 
@@ -131,9 +131,9 @@ import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
 import { verifyPersonalMessageSignature } from '@iota/iota-sdk/verify';
 
 const publicKey = await verifyPersonalMessageSignature(message, zkSignature, {
-	client: new IotaGraphQLClient({
-		url: 'https://iota-testnet.iota.org/graphql',
-	}),
+    client: new IotaGraphQLClient({
+        url: 'https://iota-testnet.iota.org/graphql',
+    }),
 });
 ```
 
@@ -158,11 +158,11 @@ import { decodeIotaPrivateKey, encodeIotaPrivateKey } from '@iota/iota-sdk/crypt
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 
 const encoded = encodeIotaPrivateKey(
-	[
-		59, 148, 11, 85, 134, 130, 61, 253, 2, 174, 59, 70, 27, 180, 51, 107, 94, 203, 174, 253, 102,
-		39, 170, 146, 46, 252, 4, 143, 236, 12, 136, 28,
-	],
-	'ED25519',
+    [
+        59, 148, 11, 85, 134, 130, 61, 253, 2, 174, 59, 70, 27, 180, 51, 107, 94, 203, 174, 253,
+        102, 39, 170, 146, 46, 252, 4, 143, 236, 12, 136, 28,
+    ],
+    'ED25519',
 );
 const { schema, secretKey } = decodeIotaPrivateKey(encoded);
 // use schema to choose the correct key pair

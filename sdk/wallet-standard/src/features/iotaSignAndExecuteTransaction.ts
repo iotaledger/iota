@@ -13,16 +13,16 @@ export type IotaSignAndExecuteTransactionVersion = '2.0.0';
  * and return the transaction response.
  */
 export type IotaSignAndExecuteTransactionFeature = {
-	/** Namespace for the feature. */
-	'iota:signAndExecuteTransaction': {
-		/** Version of the feature API. */
-		version: IotaSignAndExecuteTransactionVersion;
-		signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod;
-	};
+    /** Namespace for the feature. */
+    'iota:signAndExecuteTransaction': {
+        /** Version of the feature API. */
+        version: IotaSignAndExecuteTransactionVersion;
+        signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod;
+    };
 };
 
 export type IotaSignAndExecuteTransactionMethod = (
-	input: IotaSignAndExecuteTransactionInput,
+    input: IotaSignAndExecuteTransactionInput,
 ) => Promise<IotaSignAndExecuteTransactionOutput>;
 
 /** Input for signing and sending transactions. */
@@ -30,7 +30,7 @@ export interface IotaSignAndExecuteTransactionInput extends IotaSignTransactionI
 
 /** Output of signing and sending transactions. */
 export interface IotaSignAndExecuteTransactionOutput extends SignedTransaction {
-	digest: string;
-	/** Transaction effects as base64 encoded bcs. */
-	effects: string;
+    digest: string;
+    /** Transaction effects as base64 encoded bcs. */
+    effects: string;
 }

@@ -14,10 +14,10 @@ Them following is an example of a purchase call.
 
 ```typescript
 const item = {
-	itemType: '0x..::hero::Hero',
-	itemId: '0x..',
-	price: 100000n,
-	sellerKiosk: '0xSellerKiosk',
+    itemType: '0x..::hero::Hero',
+    itemId: '0x..',
+    price: 100000n,
+    sellerKiosk: '0xSellerKiosk',
 };
 
 // Assume `kioskClient` and `cap` are supplied to the function as explained in the previous section.
@@ -25,10 +25,10 @@ const tx = new Transaction();
 const kioskTx = new KioskTransaction({ transaction: tx, kioskClient, cap });
 
 await kioskTx.purchaseAndResolve({
-	itemType: item.itemType,
-	itemId: item.itemId,
-	price: item.price,
-	sellerKiosk: item.sellerKiosk,
+    itemType: item.itemType,
+    itemId: item.itemId,
+    price: item.price,
+    sellerKiosk: item.sellerKiosk,
 });
 
 kioskTx.finalize();
@@ -93,17 +93,17 @@ await signAndExecuteTransaction({ tx: tx });
 ```typescript
 // For reference, here's the RuleResolvingParams contents.
 type RuleResolvingParams = {
-	transaction: Transaction;
-	itemType: string;
-	itemId: string;
-	price: string;
-	policyId: ObjectArgument;
-	kiosk: ObjectArgument;
-	ownedKiosk: ObjectArgument;
-	ownedKioskCap: ObjectArgument;
-	transferRequest: TransactionArgument;
-	purchasedItem: TransactionArgument;
-	packageId: string;
-	extraArgs: Record<string, any>; // extraParams contains more possible {key, values} to pass for custom rules.
+    transaction: Transaction;
+    itemType: string;
+    itemId: string;
+    price: string;
+    policyId: ObjectArgument;
+    kiosk: ObjectArgument;
+    ownedKiosk: ObjectArgument;
+    ownedKioskCap: ObjectArgument;
+    transferRequest: TransactionArgument;
+    purchasedItem: TransactionArgument;
+    packageId: string;
+    extraArgs: Record<string, any>; // extraParams contains more possible {key, values} to pass for custom rules.
 };
 ```

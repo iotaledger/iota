@@ -12,7 +12,7 @@ import { useCurrentWallet } from './useCurrentWallet.js';
 import { useWalletStore } from './useWalletStore.js';
 
 type SwitchAccountArgs = {
-	account: WalletAccount;
+    account: WalletAccount;
 };
 
 type SwitchAccountResult = void;
@@ -20,42 +20,42 @@ type SwitchAccountResult = void;
 type UseSwitchAccountError = WalletNotConnectedError | WalletAccountNotFoundError | Error;
 
 type UseSwitchAccountMutationOptions = Omit<
-	UseMutationOptions<SwitchAccountResult, UseSwitchAccountError, SwitchAccountArgs, unknown>,
-	'mutationFn'
+    UseMutationOptions<SwitchAccountResult, UseSwitchAccountError, SwitchAccountArgs, unknown>,
+    'mutationFn'
 >;
 
 /**
  * Mutation hook for switching to a specific wallet account.
  */
 export function useSwitchAccount({
-	mutationKey,
-	...mutationOptions
+    mutationKey,
+    ...mutationOptions
 }: UseSwitchAccountMutationOptions = {}): UseMutationResult<
-	SwitchAccountResult,
-	UseSwitchAccountError,
-	SwitchAccountArgs
+    SwitchAccountResult,
+    UseSwitchAccountError,
+    SwitchAccountArgs
 > {
-	const { currentWallet } = useCurrentWallet();
-	const setAccountSwitched = useWalletStore((state) => state.setAccountSwitched);
+    const { currentWallet } = useCurrentWallet();
+    const setAccountSwitched = useWalletStore((state) => state.setAccountSwitched);
 
-	return useMutation({
-		mutationKey: walletMutationKeys.switchAccount(mutationKey),
-		mutationFn: async ({ account }) => {
-			if (!currentWallet) {
-				throw new WalletNotConnectedError('No wallet is connected.');
-			}
+    return useMutation({
+        mutationKey: walletMutationKeys.switchAccount(mutationKey),
+        mutationFn: async ({ account }) => {
+            if (!currentWallet) {
+                throw new WalletNotConnectedError('No wallet is connected.');
+            }
 
-			const accountToSelect = currentWallet.accounts.find(
-				(walletAccount) => walletAccount.address === account.address,
-			);
-			if (!accountToSelect) {
-				throw new WalletAccountNotFoundError(
-					`No account with address ${account.address} is connected to ${currentWallet.name}.`,
-				);
-			}
+            const accountToSelect = currentWallet.accounts.find(
+                (walletAccount) => walletAccount.address === account.address,
+            );
+            if (!accountToSelect) {
+                throw new WalletAccountNotFoundError(
+                    `No account with address ${account.address} is connected to ${currentWallet.name}.`,
+                );
+            }
 
-			setAccountSwitched(accountToSelect);
-		},
-		...mutationOptions,
-	});
+            setAccountSwitched(accountToSelect);
+        },
+        ...mutationOptions,
+    });
 }

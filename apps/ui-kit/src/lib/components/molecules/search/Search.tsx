@@ -168,7 +168,7 @@ export function Search({
                 >
                     <Divider width="w-11/12" />
                     {isLoading ? (
-                        <div className=" px-md py-sm">
+                        <div className="px-md py-sm">
                             <Loader className="animate-spin" />
                         </div>
                     ) : (

@@ -7,29 +7,29 @@ import type { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/tran
 import type { ObjectArgument } from '../types/index.js';
 
 export function convertToPersonalTx(
-	tx: Transaction,
-	kiosk: ObjectArgument,
-	kioskOwnerCap: ObjectArgument,
-	packageId: string,
+    tx: Transaction,
+    kiosk: ObjectArgument,
+    kioskOwnerCap: ObjectArgument,
+    packageId: string,
 ): TransactionObjectArgument {
-	const personalKioskCap = tx.moveCall({
-		target: `${packageId}::personal_kiosk::new`,
-		arguments: [tx.object(kiosk), tx.object(kioskOwnerCap)],
-	});
+    const personalKioskCap = tx.moveCall({
+        target: `${packageId}::personal_kiosk::new`,
+        arguments: [tx.object(kiosk), tx.object(kioskOwnerCap)],
+    });
 
-	return personalKioskCap;
+    return personalKioskCap;
 }
 
 /**
  * Transfers the personal kiosk Cap to the sender.
  */
 export function transferPersonalCapTx(
-	tx: Transaction,
-	personalKioskCap: TransactionObjectArgument,
-	packageId: string,
+    tx: Transaction,
+    personalKioskCap: TransactionObjectArgument,
+    packageId: string,
 ) {
-	tx.moveCall({
-		target: `${packageId}::personal_kiosk::transfer_to_sender`,
-		arguments: [personalKioskCap],
-	});
+    tx.moveCall({
+        target: `${packageId}::personal_kiosk::transfer_to_sender`,
+        arguments: [personalKioskCap],
+    });
 }

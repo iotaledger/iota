@@ -9,14 +9,14 @@ import { Header } from '@/components/header';
 import { Warning } from '@/components/warning';
 
 export function Root() {
-	return (
-		<div>
-			<Toaster position="bottom-center" />
-			<Header />
-			<div className="container py-8">
-				<Outlet />
-			</div>
-			<Warning />
-		</div>
-	);
+    return (
+        <div>
+            <Toaster position="bottom-center" />
+            <Header />
+            <div className="container py-8">
+                <Outlet />
+            </div>
+            <Warning />
+        </div>
+    );
 }

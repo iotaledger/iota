@@ -9,13 +9,13 @@ import { useForgotPasswordContext } from '../pages/accounts/forgot-password/Forg
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useRecoveryDataMutation() {
-	const backgroundClient = useBackgroundClient();
-	const { add } = useForgotPasswordContext();
-	return useMutation({
-		mutationKey: ['add recovery data'],
-		mutationFn: async (data: PasswordRecoveryData) => {
-			await backgroundClient.verifyPasswordRecoveryData({ data });
-			add(data);
-		},
-	});
+    const backgroundClient = useBackgroundClient();
+    const { add } = useForgotPasswordContext();
+    return useMutation({
+        mutationKey: ['add recovery data'],
+        mutationFn: async (data: PasswordRecoveryData) => {
+            await backgroundClient.verifyPasswordRecoveryData({ data });
+            add(data);
+        },
+    });
 }

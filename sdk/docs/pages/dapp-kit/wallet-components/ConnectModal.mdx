@@ -1,6 +1,6 @@
 import {
-	ControlledConnectModalExample,
-	UncontrolledConnectModalExample,
+    ControlledConnectModalExample,
+    UncontrolledConnectModalExample,
 } from '../../../examples/wallet-components';
 
 # ConnectModal
@@ -15,18 +15,21 @@ import { ConnectModal, useCurrentAccount } from '@iota/dapp-kit';
 import { useState } from 'react';
 
 export function YourApp() {
-	const currentAccount = useCurrentAccount();
-	const [open, setOpen] = useState(false);
+    const currentAccount = useCurrentAccount();
+    const [open, setOpen] = useState(false);
 
-	return (
-		<ConnectModal
-			trigger={
-				<button disabled={!!currentAccount}> {currentAccount ? 'Connected' : 'Connect'}</button>
-			}
-			open={open}
-			onOpenChange={(isOpen) => setOpen(isOpen)}
-		/>
-	);
+    return (
+        <ConnectModal
+            trigger={
+                <button disabled={!!currentAccount}>
+                    {' '}
+                    {currentAccount ? 'Connected' : 'Connect'}
+                </button>
+            }
+            open={open}
+            onOpenChange={(isOpen) => setOpen(isOpen)}
+        />
+    );
 }
 ```
 
@@ -40,15 +43,18 @@ Click **Connect** to connect your wallet and see the previous code in action:
 import { ConnectModal, useCurrentAccount } from '@iota/dapp-kit';
 
 export function YourApp() {
-	const currentAccount = useCurrentAccount();
+    const currentAccount = useCurrentAccount();
 
-	return (
-		<ConnectModal
-			trigger={
-				<button disabled={!!currentAccount}> {currentAccount ? 'Connected' : 'Connect'}</button>
-			}
-		/>
-	);
+    return (
+        <ConnectModal
+            trigger={
+                <button disabled={!!currentAccount}>
+                    {' '}
+                    {currentAccount ? 'Connected' : 'Connect'}
+                </button>
+            }
+        />
+    );
 }
 ```
 
@@ -58,12 +64,12 @@ Click **Connect** to connect your wallet and see the previous code in action:
 
 ## Controlled props
 
-- `open` - The controlled open state of the dialog.
-- `onOpenChange` - Event handler called when the open state of the dialog changes.
-- `trigger` - The trigger button that opens the dialog.
+-   `open` - The controlled open state of the dialog.
+-   `onOpenChange` - Event handler called when the open state of the dialog changes.
+-   `trigger` - The trigger button that opens the dialog.
 
 ## Uncontrolled props
 
-- `defaultOpen` - The open state of the dialog when it is initially rendered. Use when you do not
-  need to control its open state.
-- `trigger` - The trigger button that opens the dialog.
+-   `defaultOpen` - The open state of the dialog when it is initially rendered. Use when you do not
+    need to control its open state.
+-   `trigger` - The trigger button that opens the dialog.

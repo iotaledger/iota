@@ -7,7 +7,7 @@ import { normalizeIotaNSName } from '@iota/iota-sdk/utils';
 import { useResolveIotaNSName as useResolveIotaNSNameCore } from '../../../../../core';
 
 export function useResolveIotaNSName(address?: string) {
-	const enableNewIotaNSFormat = useFeatureIsOn('wallet-enable-new-iotans-name-format');
-	const { data } = useResolveIotaNSNameCore(address);
-	return data ? normalizeIotaNSName(data, enableNewIotaNSFormat ? 'at' : 'dot') : undefined;
+    const enableNewIotaNSFormat = useFeatureIsOn('wallet-enable-new-iotans-name-format');
+    const { data } = useResolveIotaNSNameCore(address);
+    return data ? normalizeIotaNSName(data, enableNewIotaNSFormat ? 'at' : 'dot') : undefined;
 }

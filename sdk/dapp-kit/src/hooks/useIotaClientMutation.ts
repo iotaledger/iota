@@ -9,20 +9,20 @@ import { useIotaClientContext } from './useIotaClient.js';
 import type { IotaRpcMethods } from './useIotaClientQuery.js';
 
 export type UseIotaClientMutationOptions<T extends keyof IotaRpcMethods> = Omit<
-	UseMutationOptions<IotaRpcMethods[T]['result'], Error, IotaRpcMethods[T]['params'], unknown[]>,
-	'mutationFn'
+    UseMutationOptions<IotaRpcMethods[T]['result'], Error, IotaRpcMethods[T]['params'], unknown[]>,
+    'mutationFn'
 >;
 
 export function useIotaClientMutation<T extends keyof IotaRpcMethods>(
-	method: T,
-	options: UseIotaClientMutationOptions<T> = {},
+    method: T,
+    options: UseIotaClientMutationOptions<T> = {},
 ): UseMutationResult<IotaRpcMethods[T]['result'], Error, IotaRpcMethods[T]['params'], unknown[]> {
-	const iotaContext = useIotaClientContext();
+    const iotaContext = useIotaClientContext();
 
-	return useMutation({
-		...options,
-		mutationFn: async (params) => {
-			return await iotaContext.client[method](params as never);
-		},
-	});
+    return useMutation({
+        ...options,
+        mutationFn: async (params) => {
+            return await iotaContext.client[method](params as never);
+        },
+    });
 }

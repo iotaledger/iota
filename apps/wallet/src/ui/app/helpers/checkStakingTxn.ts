@@ -6,5 +6,5 @@ import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 // TODO: Support programmable transactions:
 export function checkStakingTxn(_txn: IotaTransactionBlockResponse) {
-	return false;
+    return false;
 }

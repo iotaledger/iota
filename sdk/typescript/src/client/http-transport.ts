@@ -13,120 +13,122 @@ import { WebsocketClient } from './rpc-websocket-client.js';
 export type HttpHeaders = { [header: string]: string };
 
 export interface IotaHTTPTransportOptions {
-	fetch?: typeof fetch;
-	WebSocketConstructor?: typeof WebSocket;
-	url: string;
-	rpc?: {
-		headers?: HttpHeaders;
-		url?: string;
-	};
-	websocket?: WebsocketClientOptions & {
-		url?: string;
-	};
+    fetch?: typeof fetch;
+    WebSocketConstructor?: typeof WebSocket;
+    url: string;
+    rpc?: {
+        headers?: HttpHeaders;
+        url?: string;
+    };
+    websocket?: WebsocketClientOptions & {
+        url?: string;
+    };
 }
 
 export interface IotaTransportRequestOptions {
-	method: string;
-	params: unknown[];
+    method: string;
+    params: unknown[];
 }
 
 // eslint-disable-next-line @typescript-eslint/ban-types
 
 export interface IotaTransportSubscribeOptions<T> {
-	method: string;
-	unsubscribe: string;
-	params: unknown[];
-	onMessage: (event: T) => void;
+    method: string;
+    unsubscribe: string;
+    params: unknown[];
+    onMessage: (event: T) => void;
 }
 
 export interface IotaTransport {
-	request<T = unknown>(input: IotaTransportRequestOptions): Promise<T>;
-	subscribe<T = unknown>(input: IotaTransportSubscribeOptions<T>): Promise<() => Promise<boolean>>;
+    request<T = unknown>(input: IotaTransportRequestOptions): Promise<T>;
+    subscribe<T = unknown>(
+        input: IotaTransportSubscribeOptions<T>,
+    ): Promise<() => Promise<boolean>>;
 }
 
 export class IotaHTTPTransport implements IotaTransport {
-	#requestId = 0;
-	#options: IotaHTTPTransportOptions;
-	#websocketClient?: WebsocketClient;
+    #requestId = 0;
+    #options: IotaHTTPTransportOptions;
+    #websocketClient?: WebsocketClient;
 
-	constructor(options: IotaHTTPTransportOptions) {
-		this.#options = options;
-	}
+    constructor(options: IotaHTTPTransportOptions) {
+        this.#options = options;
+    }
 
-	fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-		const fetchFn = this.#options.fetch ?? fetch;
+    fetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
+        const fetchFn = this.#options.fetch ?? fetch;
 
-		if (!fetchFn) {
-			throw new Error(
-				'The current environment does not support fetch, you can provide a fetch implementation in the options for IotaHTTPTransport.',
-			);
-		}
+        if (!fetchFn) {
+            throw new Error(
+                'The current environment does not support fetch, you can provide a fetch implementation in the options for IotaHTTPTransport.',
+            );
+        }
 
-		return fetchFn(input, init);
-	}
+        return fetchFn(input, init);
+    }
 
-	#getWebsocketClient(): WebsocketClient {
-		if (!this.#websocketClient) {
-			const WebSocketConstructor = this.#options.WebSocketConstructor ?? WebSocket;
-			if (!WebSocketConstructor) {
-				throw new Error(
-					'The current environment does not support WebSocket, you can provide a WebSocketConstructor in the options for IotaHTTPTransport.',
-				);
-			}
+    #getWebsocketClient(): WebsocketClient {
+        if (!this.#websocketClient) {
+            const WebSocketConstructor = this.#options.WebSocketConstructor ?? WebSocket;
+            if (!WebSocketConstructor) {
+                throw new Error(
+                    'The current environment does not support WebSocket, you can provide a WebSocketConstructor in the options for IotaHTTPTransport.',
+                );
+            }
 
-			this.#websocketClient = new WebsocketClient(
-				this.#options.websocket?.url ?? this.#options.url,
-				{
-					WebSocketConstructor,
-					...this.#options.websocket,
-				},
-			);
-		}
+            this.#websocketClient = new WebsocketClient(
+                this.#options.websocket?.url ?? this.#options.url,
+                {
+                    WebSocketConstructor,
+                    ...this.#options.websocket,
+                },
+            );
+        }
 
-		return this.#websocketClient;
-	}
+        return this.#websocketClient;
+    }
 
-	async request<T>(input: IotaTransportRequestOptions): Promise<T> {
-		this.#requestId += 1;
+    async request<T>(input: IotaTransportRequestOptions): Promise<T> {
+        this.#requestId += 1;
 
-		const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Client-Sdk-Type': 'typescript',
-				'Client-Sdk-Version': PACKAGE_VERSION,
-				'Client-Target-Api-Version': TARGETED_RPC_VERSION,
-				'Client-Request-Method': input.method,
-				...this.#options.rpc?.headers,
-			},
-			body: JSON.stringify({
-				jsonrpc: '2.0',
-				id: this.#requestId,
-				method: input.method,
-				params: input.params,
-			}),
-		});
+        const res = await this.fetch(this.#options.rpc?.url ?? this.#options.url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Client-Sdk-Type': 'typescript',
+                'Client-Sdk-Version': PACKAGE_VERSION,
+                'Client-Target-Api-Version': TARGETED_RPC_VERSION,
+                'Client-Request-Method': input.method,
+                ...this.#options.rpc?.headers,
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: this.#requestId,
+                method: input.method,
+                params: input.params,
+            }),
+        });
 
-		if (!res.ok) {
-			throw new IotaHTTPStatusError(
-				`Unexpected status code: ${res.status}`,
-				res.status,
-				res.statusText,
-			);
-		}
+        if (!res.ok) {
+            throw new IotaHTTPStatusError(
+                `Unexpected status code: ${res.status}`,
+                res.status,
+                res.statusText,
+            );
+        }
 
-		const data = await res.json();
+        const data = await res.json();
 
-		if ('error' in data && data.error != null) {
-			throw new JsonRpcError(data.error.message, data.error.code);
-		}
+        if ('error' in data && data.error != null) {
+            throw new JsonRpcError(data.error.message, data.error.code);
+        }
 
-		return data.result;
-	}
+        return data.result;
+    }
 
-	async subscribe<T>(input: IotaTransportSubscribeOptions<T>): Promise<() => Promise<boolean>> {
-		const unsubscribe = await this.#getWebsocketClient().subscribe(input);
+    async subscribe<T>(input: IotaTransportSubscribeOptions<T>): Promise<() => Promise<boolean>> {
+        const unsubscribe = await this.#getWebsocketClient().subscribe(input);
 
-		return async () => !!(await unsubscribe());
-	}
+        return async () => !!(await unsubscribe());
+    }
 }

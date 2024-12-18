@@ -27,10 +27,10 @@ transactions to finish before sending the next one.
 
 `SerialTransactionExecutor` can be configured with a number of options:
 
-- `client`: An instance of `IotaClient` used to execute transactions.
-- `signer`: The signer/keypair used for signed transactions.
-- `defaultBudget`: The default budget for transactions, which will be used if the transaction does
-  not specify a budget (default `50_000_000n`),
+-   `client`: An instance of `IotaClient` used to execute transactions.
+-   `signer`: The signer/keypair used for signed transactions.
+-   `defaultBudget`: The default budget for transactions, which will be used if the transaction does
+    not specify a budget (default `50_000_000n`),
 
 ```ts
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
@@ -39,8 +39,8 @@ import { SerialTransactionExecutor } from '@iota/iota-sdk/transactions';
 const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
 const executor = new SerialTransactionExecutor({
-	client,
-	signer: yourKeyPair,
+    client,
+    signer: yourKeyPair,
 });
 
 const tx1 = new Transaction();
@@ -51,15 +51,15 @@ const [coin2] = tx2.splitCoins(tx2.gas, [1]);
 tx2.transferObjects([coin2], address2);
 
 const [{ digest: digest1 }, { digest: digest2 }] = await Promise.all([
-	executor.executeTransaction(tx1),
-	executor.executeTransaction(tx2),
+    executor.executeTransaction(tx1),
+    executor.executeTransaction(tx2),
 ]);
 ```
 
 ## `ParallelTransactionExecutor`
 
 <Callout type="warning">
-	`ParallelTransactionExecutor` is experimental and may change rapidly as it is being developed.
+    `ParallelTransactionExecutor` is experimental and may change rapidly as it is being developed.
 </Callout>
 
 The `ParallelTransactionExecutor` class works similarly to the `SerialTransactionExecutor`, but
@@ -84,23 +84,24 @@ way that avoids conflicts between transactions using the same object ids.
 
 `ParallelTransactionExecutor` can be configured with a number of options:
 
-- `client`: An instance of `IotaClient` used to execute transactions.
-- `signer`: The signer/keypair used for signed transactions.
-- `coinBatchSize`: The maximum number of new coins to create when refilling the gas pool
-  (default 20)
-- `initialCoinBalance`: The balance of new coins created for the gas pool in NANOS (default
-  `200_000_000n`),
-- `minimumCoinBalance`: After executing a transaction, the gasCoin will be reused unless it's
-  balance is below this value (default `50_000_000n`),
-- `defaultBudget`: The default budget for transactions, which will be used if the transaction does
-  not specify a budget (default `minimumCoinBalance`),
-- `maxPoolSize`: The maximum number of gas coins to keep in the gas pool, which also limits the
-  maximum number of concurrent transactions (default 50),
-- `sourceCoins`: An array of coins to use to create the gas pool, defaults to using all coins owned
-  by the signer.
-- `epochBoundaryWindow` Time to wait before/after the expected epoch boundary before re-fetching the
-  gas pool (in milliseconds). Building transactions will be paused for up to 2x this duration around
-  each epoch boundary to ensure the gas price is up-to-date for the next epoch. (default `1000`)
+-   `client`: An instance of `IotaClient` used to execute transactions.
+-   `signer`: The signer/keypair used for signed transactions.
+-   `coinBatchSize`: The maximum number of new coins to create when refilling the gas pool
+    (default 20)
+-   `initialCoinBalance`: The balance of new coins created for the gas pool in NANOS (default
+    `200_000_000n`),
+-   `minimumCoinBalance`: After executing a transaction, the gasCoin will be reused unless it's
+    balance is below this value (default `50_000_000n`),
+-   `defaultBudget`: The default budget for transactions, which will be used if the transaction does
+    not specify a budget (default `minimumCoinBalance`),
+-   `maxPoolSize`: The maximum number of gas coins to keep in the gas pool, which also limits the
+    maximum number of concurrent transactions (default 50),
+-   `sourceCoins`: An array of coins to use to create the gas pool, defaults to using all coins
+    owned by the signer.
+-   `epochBoundaryWindow` Time to wait before/after the expected epoch boundary before re-fetching
+    the gas pool (in milliseconds). Building transactions will be paused for up to 2x this duration
+    around each epoch boundary to ensure the gas price is up-to-date for the next epoch. (default
+    `1000`)
 
 ```ts
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
@@ -109,8 +110,8 @@ import { ParallelTransactionExecutor } from '@iota/iota-sdk/transactions';
 const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
 const executor = new ParallelTransactionExecutor({
-	client,
-	signer: yourKeyPair,
+    client,
+    signer: yourKeyPair,
 });
 
 const tx1 = new Transaction();
@@ -121,8 +122,8 @@ const [coin2] = tx2.splitCoins(tx2.gas, [1]);
 tx2.transferObjects([coin2], address2);
 
 const [{ digest: digest1 }, { digest: digest2 }] = await Promise.all([
-	executor.executeTransaction(tx1),
-	executor.executeTransaction(tx2),
+    executor.executeTransaction(tx1),
+    executor.executeTransaction(tx2),
 ]);
 ```
 

@@ -139,7 +139,7 @@ export function Table({
                     {supportingLabel || pageSizeSelector ? (
                         <div className="flex flex-row items-center gap-x-sm">
                             {supportingLabel && (
-                                <span className=" text-label-md text-neutral-40 dark:text-neutral-60">
+                                <span className="text-label-md text-neutral-40 dark:text-neutral-60">
                                     {supportingLabel}
                                 </span>
                             )}

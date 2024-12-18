@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 type FileExtensionType = {
-	[key: string]: {
-		name: string;
-		type: string;
-	};
+    [key: string]: {
+        name: string;
+        type: string;
+    };
 };
 
 // Soft file type detection.
@@ -15,34 +15,34 @@ type FileExtensionType = {
 // extentionType: FileExtensionType
 //    type?: 'image' | 'audio' | 'video';
 const FILE_EXTENSION_TYPE_MAP: FileExtensionType = {
-	jpeg: {
-		name: 'JPEG',
-		type: 'image',
-	},
-	jpg: {
-		name: 'JPEG',
-		type: 'image',
-	},
-	png: {
-		name: 'PNG',
-		type: 'image',
-	},
-	gif: {
-		name: 'GIF',
-		type: 'image',
-	},
-	bmp: {
-		name: 'BMP',
-		type: 'image',
-	},
-	webp: {
-		name: 'WEBP',
-		type: 'image',
-	},
-	svg: {
-		name: 'SVG',
-		type: 'image',
-	},
+    jpeg: {
+        name: 'JPEG',
+        type: 'image',
+    },
+    jpg: {
+        name: 'JPEG',
+        type: 'image',
+    },
+    png: {
+        name: 'PNG',
+        type: 'image',
+    },
+    gif: {
+        name: 'GIF',
+        type: 'image',
+    },
+    bmp: {
+        name: 'BMP',
+        type: 'image',
+    },
+    webp: {
+        name: 'WEBP',
+        type: 'image',
+    },
+    svg: {
+        name: 'SVG',
+        type: 'image',
+    },
 };
 
 /*
@@ -99,7 +99,7 @@ export const extractFileType = async (imgUrl: string) => {
 };
  */
 export default function useFileExtensionType(url: string) {
-	if (!url) return { name: '', type: '' };
-	const fileType = url.split('.').pop() || '';
-	return FILE_EXTENSION_TYPE_MAP[fileType] || { name: '', type: '' };
+    if (!url) return { name: '', type: '' };
+    const fileType = url.split('.').pop() || '';
+    return FILE_EXTENSION_TYPE_MAP[fileType] || { name: '', type: '' };
 }

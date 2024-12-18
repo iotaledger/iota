@@ -3,7 +3,7 @@
 import { Callout } from 'nextra/components';
 
 <Callout type="warning">
-	IotaGraphQLClient is still in development and may change rapidly as it is being developed.
+    IotaGraphQLClient is still in development and may change rapidly as it is being developed.
 </Callout>
 
 To support GraphQL Queries, the Typescript SDK includes the `IotaGraphQLClient` which can help you
@@ -18,21 +18,21 @@ import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
 import { graphql } from '@iota/iota-sdk/graphql/schemas/2024.4';
 
 const gqlClient = new IotaGraphQLClient({
-	url: 'https://iota-testnet.iota.org/graphql',
+    url: 'https://iota-testnet.iota.org/graphql',
 });
 
 const chainIdentifierQuery = graphql(`
-	query {
-		chainIdentifier
-	}
+    query {
+        chainIdentifier
+    }
 `);
 
 async function getChainIdentifier() {
-	const result = await gqlClient.query({
-		query: chainIdentifierQuery,
-	});
+    const result = await gqlClient.query({
+        query: chainIdentifierQuery,
+    });
 
-	return result.data?.chainIdentifier;
+    return result.data?.chainIdentifier;
 }
 ```
 
@@ -51,22 +51,22 @@ to your query are properly typed.
 
 ```typescript
 const getIotaNSName = graphql(`
-	query getIotaName($address: IotaAddress!) {
-		address(address: $address) {
-			defaultIotaNSName
-		}
-	}
+    query getIotaName($address: IotaAddress!) {
+        address(address: $address) {
+            defaultIotaNSName
+        }
+    }
 `);
 
 async function getDefaultIotaNSName(address: string) {
-	const result = await gqlClient.query({
-		query: getIotaNSName,
-		variables: {
-			address,
-		},
-	});
+    const result = await gqlClient.query({
+        query: getIotaNSName,
+        variables: {
+            address,
+        },
+    });
 
-	return result.data?.address?.defaultIotaNSName;
+    return result.data?.address?.defaultIotaNSName;
 }
 ```
 

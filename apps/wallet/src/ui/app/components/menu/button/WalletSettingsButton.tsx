@@ -9,20 +9,20 @@ import { cx } from 'class-variance-authority';
 import { useMenuIsOpen, useNextMenuUrl } from '../hooks';
 
 export function WalletSettingsButton() {
-	const isOpen = useMenuIsOpen();
-	const menuUrl = useNextMenuUrl(!isOpen, '/');
-	const IconComponent = isOpen ? HamburgerOpenIcon : SettingsIcon;
+    const isOpen = useMenuIsOpen();
+    const menuUrl = useNextMenuUrl(!isOpen, '/');
+    const IconComponent = isOpen ? HamburgerOpenIcon : SettingsIcon;
 
-	return (
-		<ButtonOrLink
-			className={cx(
-				'appearance-none bg-transparent border-none cursor-pointer hover:text-hero-dark ml-auto flex items-center justify-center',
-				{ 'text-steel': !isOpen, 'text-gray-90': isOpen },
-			)}
-			aria-label={isOpen ? 'Close settings menu' : 'Open settings menu'}
-			to={menuUrl}
-		>
-			<IconComponent className="h-6 w-6" />
-		</ButtonOrLink>
-	);
+    return (
+        <ButtonOrLink
+            className={cx(
+                'ml-auto flex cursor-pointer appearance-none items-center justify-center border-none bg-transparent hover:text-hero-dark',
+                { 'text-steel': !isOpen, 'text-gray-90': isOpen },
+            )}
+            aria-label={isOpen ? 'Close settings menu' : 'Open settings menu'}
+            to={menuUrl}
+        >
+            <IconComponent className="h-6 w-6" />
+        </ButtonOrLink>
+    );
 }

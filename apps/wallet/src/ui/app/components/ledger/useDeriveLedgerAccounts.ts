@@ -10,55 +10,55 @@ import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 import { useIotaLedgerClient } from './IotaLedgerClientProvider';
 
 export type DerivedLedgerAccount = Pick<
-	LedgerAccountSerializedUI,
-	'address' | 'publicKey' | 'type' | 'derivationPath'
+    LedgerAccountSerializedUI,
+    'address' | 'publicKey' | 'type' | 'derivationPath'
 >;
 type UseDeriveLedgerAccountOptions = {
-	numAccountsToDerive: number;
+    numAccountsToDerive: number;
 } & Pick<UseQueryOptions<DerivedLedgerAccount[], unknown>, 'select'>;
 
 export function useDeriveLedgerAccounts(options: UseDeriveLedgerAccountOptions) {
-	const { numAccountsToDerive, ...useQueryOptions } = options;
-	const { iotaLedgerClient } = useIotaLedgerClient();
+    const { numAccountsToDerive, ...useQueryOptions } = options;
+    const { iotaLedgerClient } = useIotaLedgerClient();
 
-	return useQuery({
-		// eslint-disable-next-line @tanstack/query/exhaustive-deps
-		queryKey: ['derive-ledger-accounts'],
-		queryFn: () => {
-			if (!iotaLedgerClient) {
-				throw new Error("The Iota application isn't open on a connected Ledger device");
-			}
-			return deriveAccountsFromLedger(iotaLedgerClient, numAccountsToDerive);
-		},
-		...useQueryOptions,
-		gcTime: 0,
-	});
+    return useQuery({
+        // eslint-disable-next-line @tanstack/query/exhaustive-deps
+        queryKey: ['derive-ledger-accounts'],
+        queryFn: () => {
+            if (!iotaLedgerClient) {
+                throw new Error("The Iota application isn't open on a connected Ledger device");
+            }
+            return deriveAccountsFromLedger(iotaLedgerClient, numAccountsToDerive);
+        },
+        ...useQueryOptions,
+        gcTime: 0,
+    });
 }
 
 async function deriveAccountsFromLedger(
-	iotaLedgerClient: IotaLedgerClient,
-	numAccountsToDerive: number,
+    iotaLedgerClient: IotaLedgerClient,
+    numAccountsToDerive: number,
 ) {
-	const ledgerAccounts: DerivedLedgerAccount[] = [];
-	const derivationPaths = getDerivationPathsForLedger(numAccountsToDerive);
+    const ledgerAccounts: DerivedLedgerAccount[] = [];
+    const derivationPaths = getDerivationPathsForLedger(numAccountsToDerive);
 
-	for (const derivationPath of derivationPaths) {
-		const publicKeyResult = await iotaLedgerClient.getPublicKey(derivationPath);
-		const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
-		const iotaAddress = publicKey.toIotaAddress();
-		ledgerAccounts.push({
-			type: 'ledger',
-			address: iotaAddress,
-			derivationPath,
-			publicKey: publicKey.toBase64(),
-		});
-	}
+    for (const derivationPath of derivationPaths) {
+        const publicKeyResult = await iotaLedgerClient.getPublicKey(derivationPath);
+        const publicKey = new Ed25519PublicKey(publicKeyResult.publicKey);
+        const iotaAddress = publicKey.toIotaAddress();
+        ledgerAccounts.push({
+            type: 'ledger',
+            address: iotaAddress,
+            derivationPath,
+            publicKey: publicKey.toBase64(),
+        });
+    }
 
-	return ledgerAccounts;
+    return ledgerAccounts;
 }
 
 function getDerivationPathsForLedger(numDerivations: number) {
-	return Array.from({
-		length: numDerivations,
-	}).map((_, index) => `m/44'/784'/${index}'/0'/0'`);
+    return Array.from({
+        length: numDerivations,
+    }).map((_, index) => `m/44'/784'/${index}'/0'/0'`);
 }

@@ -5,7 +5,7 @@ import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 // todo: add more logic for deriving transaction label
 export const getLabel = (transaction: IotaTransactionBlockResponse, currentAddress?: string) => {
-	const isSender = transaction.transaction?.data.sender === currentAddress;
-	// Rename to "Send" to Transaction
-	return isSender ? 'Transaction' : 'Receive';
+    const isSender = transaction.transaction?.data.sender === currentAddress;
+    // Rename to "Send" to Transaction
+    return isSender ? 'Transaction' : 'Receive';
 };

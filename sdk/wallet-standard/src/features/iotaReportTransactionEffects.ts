@@ -10,22 +10,22 @@ import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
  * executed outside of the wallet
  */
 export type IotaReportTransactionEffectsFeature = {
-	/** Namespace for the feature. */
-	'iota:reportTransactionEffects': {
-		/** Version of the feature API. */
-		version: '1.0.0';
-		reportTransactionEffects: IotaReportTransactionEffectsMethod;
-	};
+    /** Namespace for the feature. */
+    'iota:reportTransactionEffects': {
+        /** Version of the feature API. */
+        version: '1.0.0';
+        reportTransactionEffects: IotaReportTransactionEffectsMethod;
+    };
 };
 
 export type IotaReportTransactionEffectsMethod = (
-	input: IotaReportTransactionEffectsInput,
+    input: IotaReportTransactionEffectsInput,
 ) => Promise<void>;
 
 /** Input for signing transactions. */
 export interface IotaReportTransactionEffectsInput {
-	account: WalletAccount;
-	chain: IdentifierString;
-	/** Transaction effects as base64 encoded bcs. */
-	effects: string;
+    account: WalletAccount;
+    chain: IdentifierString;
+    /** Transaction effects as base64 encoded bcs. */
+    effects: string;
 }

@@ -15,33 +15,33 @@ export type IotaSignTransactionBlockVersion = '1.0.0';
  * serialized transaction and transaction signature.
  */
 export type IotaSignTransactionBlockFeature = {
-	/** Namespace for the feature. */
-	'iota:signTransactionBlock': {
-		/** Version of the feature API. */
-		version: IotaSignTransactionBlockVersion;
-		/** @deprecated Use `iota:signTransaction` instead. */
-		signTransactionBlock: IotaSignTransactionBlockMethod;
-	};
+    /** Namespace for the feature. */
+    'iota:signTransactionBlock': {
+        /** Version of the feature API. */
+        version: IotaSignTransactionBlockVersion;
+        /** @deprecated Use `iota:signTransaction` instead. */
+        signTransactionBlock: IotaSignTransactionBlockMethod;
+    };
 };
 
 /** @deprecated Use `iota:signTransaction` instead. */
 export type IotaSignTransactionBlockMethod = (
-	input: IotaSignTransactionBlockInput,
+    input: IotaSignTransactionBlockInput,
 ) => Promise<IotaSignTransactionBlockOutput>;
 
 /** Input for signing transactions. */
 export interface IotaSignTransactionBlockInput {
-	transactionBlock: Transaction;
-	account: WalletAccount;
-	chain: IdentifierString;
+    transactionBlock: Transaction;
+    account: WalletAccount;
+    chain: IdentifierString;
 }
 
 /** Output of signing transactions. */
 export interface IotaSignTransactionBlockOutput extends SignedTransactionBlock {}
 
 export interface SignedTransactionBlock {
-	/** Transaction as base64 encoded bcs. */
-	transactionBlockBytes: string;
-	/** Base64 encoded signature */
-	signature: string;
+    /** Transaction as base64 encoded bcs. */
+    transactionBlockBytes: string;
+    /** Base64 encoded signature */
+    signature: string;
 }

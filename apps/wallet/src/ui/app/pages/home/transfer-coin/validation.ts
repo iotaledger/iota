@@ -8,12 +8,12 @@ import { type IotaClient } from '@iota/iota-sdk/client';
 import * as Yup from 'yup';
 
 export function createValidationSchemaStepOne(
-	client: IotaClient,
-	iotaNSEnabled: boolean,
-	...args: Parameters<typeof createTokenValidation>
+    client: IotaClient,
+    iotaNSEnabled: boolean,
+    ...args: Parameters<typeof createTokenValidation>
 ) {
-	return Yup.object({
-		to: createIotaAddressValidation(client, iotaNSEnabled),
-		amount: createTokenValidation(...args),
-	});
+    return Yup.object({
+        to: createIotaAddressValidation(client, iotaNSEnabled),
+        amount: createTokenValidation(...args),
+    });
 }

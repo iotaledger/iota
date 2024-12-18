@@ -11,35 +11,35 @@ import { API_ENV_TO_NETWORK, type RequestType } from './types';
 import { useDappPreflight } from './useDappPreflight';
 
 export function useShowScamWarning({
-	url,
-	requestType,
-	transaction,
-	requestId,
+    url,
+    requestType,
+    transaction,
+    requestId,
 }: {
-	url?: URL;
-	requestType: RequestType;
-	transaction?: Transaction;
-	requestId: string;
+    url?: URL;
+    requestType: RequestType;
+    transaction?: Transaction;
+    requestId: string;
 }) {
-	const { apiEnv } = useAppSelector((state) => state.app);
-	const { data, isPending, isError } = useDappPreflight({
-		requestType,
-		origin: url?.origin,
-		transaction,
-		requestId,
-		network: API_ENV_TO_NETWORK[apiEnv],
-	});
+    const { apiEnv } = useAppSelector((state) => state.app);
+    const { data, isPending, isError } = useDappPreflight({
+        requestType,
+        origin: url?.origin,
+        transaction,
+        requestId,
+        network: API_ENV_TO_NETWORK[apiEnv],
+    });
 
-	useEffect(() => {
-		if (data?.block.enabled && url?.hostname) {
-			ampli.interactedWithMaliciousDomain({ hostname: url.hostname });
-		}
-	}, [data, url]);
+    useEffect(() => {
+        if (data?.block.enabled && url?.hostname) {
+            ampli.interactedWithMaliciousDomain({ hostname: url.hostname });
+        }
+    }, [data, url]);
 
-	return {
-		data,
-		isOpen: !!data?.block.enabled && !isError,
-		isPending,
-		isError,
-	};
+    return {
+        data,
+        isOpen: !!data?.block.enabled && !isError,
+        isPending,
+        isError,
+    };
 }

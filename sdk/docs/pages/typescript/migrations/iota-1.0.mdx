@@ -7,10 +7,10 @@ This migration guide will primarily focus on helping migrate existing features t
 this release, and won't cover all the new features that have been added, but here are some
 highlights:
 
-- [A new GraphQL Client for the newly released Iota GraphQL API](../graphql)
-- [New Transaction Executor classes for efficient Transaction execution](../executors)
-- [New Transaction Intents to simplify common transaction patterns](../transaction-building/intents)
-- [A new Plugin system for Extending Transaction Building](../plugins)
+-   [A new GraphQL Client for the newly released Iota GraphQL API](../graphql)
+-   [New Transaction Executor classes for efficient Transaction execution](../executors)
+-   [New Transaction Intents to simplify common transaction patterns](../transaction-building/intents)
+-   [A new Plugin system for Extending Transaction Building](../plugins)
 
 The majority of changes in this release are in the `@iota/iota-sdk` package, but the changes to API
 require some breaking changes across all the Typescript SDKs. You can find migration guides for all
@@ -55,24 +55,24 @@ Transaction Block.
 
 The `TransactionBlock` class has been renamed to `Transaction`, along with many related APIs:
 
-- `TransactionBlock` -> `Transaction`
-- `isTransactionBlock` -> `isTransaction`
-- `TransactionBlockInput` -> `TransactionInput`
-- `signer.signTransactionBlock` -> `signer.signTransaction`
-- `pubkey.verifyTransactionBlock` -> `pubkey.verifyTransaction`
-- `iotaClient.waitForTransactionBlock({ transactionBlock })` ->
-  `iotaClient.waitForTransaction({ transaction })`
-- `iotaClient.signAndExecuteTransactionBlock({ transactionBlock })` ->
-  `iotaClient.signAndExecuteTransaction({ transaction })`
+-   `TransactionBlock` -> `Transaction`
+-   `isTransactionBlock` -> `isTransaction`
+-   `TransactionBlockInput` -> `TransactionInput`
+-   `signer.signTransactionBlock` -> `signer.signTransaction`
+-   `pubkey.verifyTransactionBlock` -> `pubkey.verifyTransaction`
+-   `iotaClient.waitForTransactionBlock({ transactionBlock })` ->
+    `iotaClient.waitForTransaction({ transaction })`
+-   `iotaClient.signAndExecuteTransactionBlock({ transactionBlock })` ->
+    `iotaClient.signAndExecuteTransaction({ transaction })`
 
-There are a few methods on IotaClient that retain the `TransactionBlock` name because they correspond
-to specific JSON RPC calls. The following methods are unchanged:
+There are a few methods on IotaClient that retain the `TransactionBlock` name because they
+correspond to specific JSON RPC calls. The following methods are unchanged:
 
-- `iotaClient.getTransactionBlock`
-- `iotaClient.queryTransactionBlocks`
-- `iotaClient.executeTransactionBlock`
-- `iotaClient.dryRunTransactionBlock`
-- `iotaClient.devInspectTransactionBlock`
+-   `iotaClient.getTransactionBlock`
+-   `iotaClient.queryTransactionBlocks`
+-   `iotaClient.executeTransactionBlock`
+-   `iotaClient.dryRunTransactionBlock`
+-   `iotaClient.devInspectTransactionBlock`
 
 ### Building Transactions
 
@@ -158,16 +158,16 @@ The shapes of the following types have change. We expect that for most use-cases
 require any migration because these types represent values created by other parts of the SDK that
 have been updated to return the new format
 
-- [`TransactionObjectArgument`](/typedoc/types/_iota_iota.transactions.TransactionObjectArgument.html)
-  shape changed
-- [`TransactionResult`](/typedoc/types/_iota_iota.transactions.TransactionResult.html) shape
-  changed
-- [`TransactionObjectInput`](/typedoc/types/_iota_iota.transactions.TransactionObjectInput.html)
-  shape changed
-- [`TransactionArgument`](/typedoc/types/_iota_iota.transactions.TransactionArgument.html) shape
-  changed
-- [`TransactionBlockInput`](/typedoc/types/_iota_iota.transactions.TransactionBlockInput.html)
-  shape changed
+-   [`TransactionObjectArgument`](/typedoc/types/_iota_iota.transactions.TransactionObjectArgument.html)
+    shape changed
+-   [`TransactionResult`](/typedoc/types/_iota_iota.transactions.TransactionResult.html) shape
+    changed
+-   [`TransactionObjectInput`](/typedoc/types/_iota_iota.transactions.TransactionObjectInput.html)
+    shape changed
+-   [`TransactionArgument`](/typedoc/types/_iota_iota.transactions.TransactionArgument.html) shape
+    changed
+-   [`TransactionBlockInput`](/typedoc/types/_iota_iota.transactions.TransactionBlockInput.html)
+    shape changed
 
 ### `getPureSerializationType`
 
@@ -191,7 +191,7 @@ helper:
 import { bcs } from '@iota/iota-sdk/bcs';
 
 function callArg(arg: typeof bcs.CallArg.$inferType) {
-	// ...
+    // ...
 }
 ```
 
@@ -273,21 +273,21 @@ operator:
 
 ```ts
 const MyEnum = bcs.enum('MyEnum', {
-	Variant0: bcs.u16(),
-	Variant1: bcs.u8(),
-	Variant2: bcs.string(),
+    Variant0: bcs.u16(),
+    Variant1: bcs.u8(),
+    Variant2: bcs.string(),
 });
 
 const parsed = MyEnum.deserialize(data);
 
 // Discriminate using the $kind property
 if (parsed.$kind === 'Variant0') {
-	parsed.Variant0; // type is number
+    parsed.Variant0; // type is number
 }
 
 // We can also directly the enum properties
 if (parsed.Variant0 !== undefined) {
-	parsed.Variant0; // type is number
+    parsed.Variant0; // type is number
 }
 ```
 

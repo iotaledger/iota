@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query getTotalSupply($coinType: String!) {
-	coinMetadata(coinType: $coinType) {
-		supply
-		decimals
-	}
+    coinMetadata(coinType: $coinType) {
+        supply
+        decimals
+    }
 }

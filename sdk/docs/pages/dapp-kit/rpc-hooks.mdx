@@ -18,23 +18,23 @@ details on the full set of options available.
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending, isError, error, refetch } = useIotaClientQuery(
-		'getOwnedObjects',
-		{ owner: '0x123' },
-		{
-			gcTime: 10000,
-		},
-	);
+    const { data, isPending, isError, error, refetch } = useIotaClientQuery(
+        'getOwnedObjects',
+        { owner: '0x123' },
+        {
+            gcTime: 10000,
+        },
+    );
 
-	if (isPending) {
-		return <div>Loading...</div>;
-	}
+    if (isPending) {
+        return <div>Loading...</div>;
+    }
 
-	if (isError) {
-		return <div>Error: {error.message}</div>;
-	}
+    if (isError) {
+        return <div>Error: {error.message}</div>;
+    }
 
-	return <pre>{JSON.stringify(data, null, 2)}</pre>;
+    return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```
 
@@ -54,42 +54,42 @@ single value. The result is structurally shared to be as referentially stable as
 import { useIotaClientQueries } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending, isError } = useIotaClientQueries({
-		queries: [
-			{
-				method: 'getAllBalances',
-				params: {
-					owner: '0x123',
-				},
-			},
-			{
-				method: 'queryTransactionBlocks',
-				params: {
-					filter: {
-						FromAddress: '0x123',
-					},
-				},
-			},
-		],
-		combine: (result) => {
-			return {
-				data: result.map((res) => res.data),
-				isSuccess: result.every((res) => res.isSuccess),
-				isPending: result.some((res) => res.isPending),
-				isError: result.some((res) => res.isError),
-			};
-		},
-	});
+    const { data, isPending, isError } = useIotaClientQueries({
+        queries: [
+            {
+                method: 'getAllBalances',
+                params: {
+                    owner: '0x123',
+                },
+            },
+            {
+                method: 'queryTransactionBlocks',
+                params: {
+                    filter: {
+                        FromAddress: '0x123',
+                    },
+                },
+            },
+        ],
+        combine: (result) => {
+            return {
+                data: result.map((res) => res.data),
+                isSuccess: result.every((res) => res.isSuccess),
+                isPending: result.some((res) => res.isPending),
+                isError: result.some((res) => res.isError),
+            };
+        },
+    });
 
-	if (isPending) {
-		return <div>Loading...</div>;
-	}
+    if (isPending) {
+        return <div>Loading...</div>;
+    }
 
-	if (isError) {
-		return <div>Fetching Error</div>;
-	}
+    if (isError) {
+        return <div>Fetching Error</div>;
+    }
 
-	return <pre>{JSON.stringify(data, null, 2)}</pre>;
+    return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```
 
@@ -103,20 +103,20 @@ hook. For more details check out out the
 import { useIotaClientInfiniteQuery } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending, isError, error, isFetching, fetchNextPage, hasNextPage } =
-		useIotaClientInfiniteQuery('getOwnedObjects', {
-			owner: '0x123',
-		});
+    const { data, isPending, isError, error, isFetching, fetchNextPage, hasNextPage } =
+        useIotaClientInfiniteQuery('getOwnedObjects', {
+            owner: '0x123',
+        });
 
-	if (isPending) {
-		return <div>Loading...</div>;
-	}
+    if (isPending) {
+        return <div>Loading...</div>;
+    }
 
-	if (isError) {
-		return <div>Error: {error.message}</div>;
-	}
+    if (isError) {
+        return <div>Error: {error.message}</div>;
+    }
 
-	return <pre>{JSON.stringify(data, null, 2)}</pre>;
+    return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```
 
@@ -130,19 +130,19 @@ with any RPC method to imperatively call the RPC method. For more details, check
 import { useIotaClientMutation } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const { mutate } = useIotaClientMutation('dryRunTransactionBlock');
+    const { mutate } = useIotaClientMutation('dryRunTransactionBlock');
 
-	return (
-		<Button
-			onClick={() => {
-				mutate({
-					transactionBlock: tx,
-				});
-			}}
-		>
-			Dry run transaction
-		</Button>
-	);
+    return (
+        <Button
+            onClick={() => {
+                mutate({
+                    transactionBlock: tx,
+                });
+            }}
+        >
+            Dry run transaction
+        </Button>
+    );
 }
 ```
 
@@ -154,16 +154,16 @@ To get the IotaNS name for a given address, use the `useResolveIotaNSName` hook.
 import { useResolveIotaNSName } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending } = useResolveIotaNSName('0x123');
+    const { data, isPending } = useResolveIotaNSName('0x123');
 
-	if (isPending) {
-		return <div>Loading...</div>;
-	}
+    if (isPending) {
+        return <div>Loading...</div>;
+    }
 
-	if (data) {
-		return <div>Domain name is: {data}</div>;
-	}
+    if (data) {
+        return <div>Domain name is: {data}</div>;
+    }
 
-	return <div>Domain name not found</div>;
+    return <div>Domain name not found</div>;
 }
 ```

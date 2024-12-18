@@ -3,21 +3,22 @@ import { Callout } from 'nextra/components';
 # dApp Integration
 
 <Callout type="info">
-	If you are using `dapp-kit`, you do not need to install any additional packages to integrate with
-	the Stashed wallet. [Read how to integrate with dapp-kit.](../dapp-kit/stashed.mdx)
+    If you are using `dapp-kit`, you do not need to install any additional packages to integrate
+    with the Stashed wallet. [Read how to integrate with dapp-kit.](../dapp-kit/stashed.mdx)
 </Callout>
 
 Using the zkSend SDK, you can allow users to connect to the Stashed wallet from your dApp. The
-wallet is provided through the [Wallet Standard](https://docs.iota.org/standards/wallet-standard), and
-should appear automatically in your existing wallet connection UI.
+wallet is provided through the [Wallet Standard](https://docs.iota.org/standards/wallet-standard),
+and should appear automatically in your existing wallet connection UI.
 
 ## Considerations
 
-- Stashed only supports Mainnet at this time.
-- Users will only be able to connect their zkLogin wallet from Stashed.
-- The zkLogin account will be managed by Stashed, you do not need to set up any OAuth providers.
-- You will not get access to the user's private key, you will only be able to connect to the wallet,
-  and suggest transactions and messages to sign, just like any other wallet in the ecosystem.
+-   Stashed only supports Mainnet at this time.
+-   Users will only be able to connect their zkLogin wallet from Stashed.
+-   The zkLogin account will be managed by Stashed, you do not need to set up any OAuth providers.
+-   You will not get access to the user's private key, you will only be able to connect to the
+    wallet, and suggest transactions and messages to sign, just like any other wallet in the
+    ecosystem.
 
 ## Setup
 
@@ -27,12 +28,12 @@ your application's lifecycle.
 
 `registerStashedWallet` takes two arguments:
 
-- `name`: The name of your dApp. This will be shown to the user when they are asked to approve the
-  connection in Stashed.
-- `options`: An optional object with the following properties:
-  - `origin`: The origin of the Stashed website. Defaults to `https://getstashed.com`.
-  - `network`: The network that you would like the Stashed wallet to use. Defaults to `mainnet`,
-    supports `mainnet` and `testnet`.
+-   `name`: The name of your dApp. This will be shown to the user when they are asked to approve the
+    connection in Stashed.
+-   `options`: An optional object with the following properties:
+    -   `origin`: The origin of the Stashed website. Defaults to `https://getstashed.com`.
+    -   `network`: The network that you would like the Stashed wallet to use. Defaults to `mainnet`,
+        supports `mainnet` and `testnet`.
 
 ```ts
 import { registerStashedWallet } from '@iota/zksend';
@@ -44,8 +45,8 @@ registerStashedWallet('Your dApp Name');
 
 The Stashed wallet currently supports the following features:
 
-- `signTransaction`
-- `signPersonalMessage`
+-   `signTransaction`
+-   `signPersonalMessage`
 
 We intentionally do not support `signAndExecuteTransaction`, and suggest that your dApp instead use
 `signTransaction`, and submit the signed transaction within your dApp instead. This provides better
@@ -66,9 +67,9 @@ import { useCurrentWallet } from '@iota/dapp-kit';
 import { STASHED_WALLET_NAME } from '@iota/zksend';
 
 function StashedOnly() {
-	const { currentWallet } = useCurrentWallet();
-	const walletIsStashedWallet = currentWallet?.name === STASHED_WALLET_NAME;
+    const { currentWallet } = useCurrentWallet();
+    const walletIsStashedWallet = currentWallet?.name === STASHED_WALLET_NAME;
 
-	// rest of component logic...
+    // rest of component logic...
 }
 ```

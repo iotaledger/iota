@@ -4,9 +4,9 @@
 
 // eslint-disable-next-line import/no-cycle
 export {
-	verifySignature,
-	verifyPersonalMessageSignature,
-	verifyTransactionSignature,
-	publicKeyFromRawBytes,
-	publicKeyFromIotaBytes,
+    verifySignature,
+    verifyPersonalMessageSignature,
+    verifyTransactionSignature,
+    publicKeyFromRawBytes,
+    publicKeyFromIotaBytes,
 } from './verify.js';

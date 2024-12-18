@@ -17,8 +17,8 @@ const [coin] = tx.splitCoins(tx.gas, [100]);
 tx.transferObjects([coin], recipient);
 ```
 
-This approach works well for IOTA, but can't be used for other coin types. The CoinWithBalance intent
-solves this by providing a helper function that automatically adds the correct SplitCoins and
+This approach works well for IOTA, but can't be used for other coin types. The CoinWithBalance
+intent solves this by providing a helper function that automatically adds the correct SplitCoins and
 MergeCoins commands to the transaction:
 
 ```typescript
@@ -30,13 +30,13 @@ const tx = new Transaction();
 tx.setSender(keypair.toIotaAddress());
 
 tx.transferObjects(
-	[
-		// Create a IOTA coin (balance is in NANOS)
-		coinWithBalance({ balance: 100 }),
-		// Create a coin of another type
-		coinWithBalance({ balance: 100, type: '0x123::foo:Bar' }),
-	],
-	recipient,
+    [
+        // Create a IOTA coin (balance is in NANOS)
+        coinWithBalance({ balance: 100 }),
+        // Create a coin of another type
+        coinWithBalance({ balance: 100, type: '0x123::foo:Bar' }),
+    ],
+    recipient,
 );
 ```
 

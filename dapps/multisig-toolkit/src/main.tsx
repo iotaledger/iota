@@ -18,20 +18,20 @@ import { queryClient } from './lib/queryClient';
 import { router } from './routes';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-	<React.StrictMode>
-		<QueryClientProvider client={queryClient}>
-			<IotaClientProvider
-				defaultNetwork="iota:mainnet"
-				networks={{
-					'iota:testnet': { url: getFullnodeUrl('testnet') },
-					'iota:mainnet': { url: getFullnodeUrl('mainnet') },
-					'iota:devnet': { url: getFullnodeUrl('devnet') },
-				}}
-			>
-				<WalletProvider>
-					<RouterProvider router={router} />
-				</WalletProvider>
-			</IotaClientProvider>
-		</QueryClientProvider>
-	</React.StrictMode>,
+    <React.StrictMode>
+        <QueryClientProvider client={queryClient}>
+            <IotaClientProvider
+                defaultNetwork="iota:mainnet"
+                networks={{
+                    'iota:testnet': { url: getFullnodeUrl('testnet') },
+                    'iota:mainnet': { url: getFullnodeUrl('mainnet') },
+                    'iota:devnet': { url: getFullnodeUrl('devnet') },
+                }}
+            >
+                <WalletProvider>
+                    <RouterProvider router={router} />
+                </WalletProvider>
+            </IotaClientProvider>
+        </QueryClientProvider>
+    </React.StrictMode>,
 );

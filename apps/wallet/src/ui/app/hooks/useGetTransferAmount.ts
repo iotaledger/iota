@@ -8,37 +8,37 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 
 export function useGetTransferAmount({
-	txn,
-	activeAddress,
+    txn,
+    activeAddress,
 }: {
-	txn: IotaTransactionBlockResponse;
-	activeAddress: string;
+    txn: IotaTransactionBlockResponse;
+    activeAddress: string;
 }) {
-	const { effects, events } = txn;
-	// const { coins } = getEventsSummary(events!, activeAddress);
+    const { effects, events } = txn;
+    // const { coins } = getEventsSummary(events!, activeAddress);
 
-	const iotaTransfer = useMemo(() => {
-		const txdetails = txn.transaction?.data.transaction!;
-		return getAmount(txdetails, effects!, events!)?.map(
-			({ amount, coinType, recipientAddress }) => {
-				return {
-					amount: amount || 0,
-					coinType: coinType || IOTA_TYPE_ARG,
-					receiverAddress: recipientAddress,
-				};
-			},
-		);
-	}, [txn, effects, events]);
+    const iotaTransfer = useMemo(() => {
+        const txdetails = txn.transaction?.data.transaction!;
+        return getAmount(txdetails, effects!, events!)?.map(
+            ({ amount, coinType, recipientAddress }) => {
+                return {
+                    amount: amount || 0,
+                    coinType: coinType || IOTA_TYPE_ARG,
+                    receiverAddress: recipientAddress,
+                };
+            },
+        );
+    }, [txn, effects, events]);
 
-	// MUSTFIX(chris)
-	// const transferAmount = useMemo(() => {
-	//     return iotaTransfer?.length
-	//         ? iotaTransfer
-	//         : coins.filter(
-	//               ({ receiverAddress }) => receiverAddress === activeAddress
-	//           );
-	// }, [iotaTransfer, coins, activeAddress]);
+    // MUSTFIX(chris)
+    // const transferAmount = useMemo(() => {
+    //     return iotaTransfer?.length
+    //         ? iotaTransfer
+    //         : coins.filter(
+    //               ({ receiverAddress }) => receiverAddress === activeAddress
+    //           );
+    // }, [iotaTransfer, coins, activeAddress]);
 
-	// return iotaTransfer ?? transferAmount;
-	return iotaTransfer;
+    // return iotaTransfer ?? transferAmount;
+    return iotaTransfer;
 }

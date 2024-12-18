@@ -8,16 +8,16 @@ See https://docs.iota.org/references/ts-sdk/typescript for full documentation
 
 ### Core Features
 
-- **Query Hooks:** dApp Kit provides a set of hooks for making rpc calls to the Iota blockchain,
-  making it easy to load any information needed for your dApp.
-- **Automatic Wallet State Management:** dApp Kit removes the complexity of state management related
-  to wallet connections. You can focus on building your dApp.
-- **Supports all Iota wallets:** No need to manually define wallets you support. All Iota wallets are
-  automatically supported.
-- **Easy to integrate:** dApp Kit provides pre-built React Components that you can drop right into
-  your dApp, for easier integration
-- **Flexible:** dApp Kit ships both fully functional React Component, and lower level hooks that you
-  can use to build your own custom components.
+-   **Query Hooks:** dApp Kit provides a set of hooks for making rpc calls to the Iota blockchain,
+    making it easy to load any information needed for your dApp.
+-   **Automatic Wallet State Management:** dApp Kit removes the complexity of state management
+    related to wallet connections. You can focus on building your dApp.
+-   **Supports all Iota wallets:** No need to manually define wallets you support. All Iota wallets
+    are automatically supported.
+-   **Easy to integrate:** dApp Kit provides pre-built React Components that you can drop right into
+    your dApp, for easier integration
+-   **Flexible:** dApp Kit ships both fully functional React Component, and lower level hooks that
+    you can use to build your own custom components.
 
 ## Install from NPM
 
@@ -40,21 +40,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 });
 const queryClient = new QueryClient();
 
 function App() {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
-				<WalletProvider>
-					<YourApp />
-				</WalletProvider>
-			</IotaClientProvider>
-		</QueryClientProvider>
-	);
+    return (
+        <QueryClientProvider client={queryClient}>
+            <IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
+                <WalletProvider>
+                    <YourApp />
+                </WalletProvider>
+            </IotaClientProvider>
+        </QueryClientProvider>
+    );
 }
 ```
 
@@ -67,7 +67,8 @@ dApp up and running.
 
 To use our provided UI components, you will need to import the dApp Kit's CSS stylesheet into your
 dApp as shown below. For more information regarding customization options, check out the respective
-documentation pages for the components and [themes](https://docs.iota.org/references/ts-sdk/dapp-kit/themes).
+documentation pages for the components and
+[themes](https://docs.iota.org/references/ts-sdk/dapp-kit/themes).
 
 ```tsx
 import '@iota/dapp-kit/dist/index.css';
@@ -84,14 +85,14 @@ these query hooks can be used, check out the
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending, error, refetch } = useIotaClientQuery('getOwnedObjects', {
-		owner: '0x123',
-	});
+    const { data, isPending, error, refetch } = useIotaClientQuery('getOwnedObjects', {
+        owner: '0x123',
+    });
 
-	if (isPending) {
-		return <div>Loading...</div>;
-	}
+    if (isPending) {
+        return <div>Loading...</div>;
+    }
 
-	return <pre>{JSON.stringify(data, null, 2)}</pre>;
+    return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```

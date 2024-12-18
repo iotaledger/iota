@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query getBalance($owner: IotaAddress!, $type: String = "0x2::iota::IOTA") {
-	address(address: $owner) {
-		balance(type: $type) {
-			coinType {
-				repr
-			}
-			coinObjectCount
-			totalBalance
-		}
-	}
+    address(address: $owner) {
+        balance(type: $type) {
+            coinType {
+                repr
+            }
+            coinObjectCount
+            totalBalance
+        }
+    }
 }

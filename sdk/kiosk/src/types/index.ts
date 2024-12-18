@@ -21,16 +21,16 @@ export type ObjectArgument = string | TransactionObjectArgument;
  * Pass `custom` for any other network (devnet, localnet).
  */
 export enum Network {
-	MAINNET = 'mainnet',
-	TESTNET = 'testnet',
-	CUSTOM = 'custom',
+    MAINNET = 'mainnet',
+    TESTNET = 'testnet',
+    CUSTOM = 'custom',
 }
 
 /**
  * The Client Options for Both KioskClient & TransferPolicyManager.
  */
 export type KioskClientOptions = {
-	client: IotaClient;
-	network: Network;
-	packageIds?: BaseRulePackageIds;
+    client: IotaClient;
+    network: Network;
+    packageIds?: BaseRulePackageIds;
 };

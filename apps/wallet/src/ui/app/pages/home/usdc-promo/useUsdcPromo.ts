@@ -4,29 +4,29 @@
 import { useFeatureIsOn, useFeatureValue } from '@growthbook/growthbook-react';
 
 type WalletUsdcPromo = {
-	promoBannerImage: string;
-	promoBannerBackground: string;
-	promoBannerText: string;
-	promoBannerSheetTitle: string;
-	promoBannerSheetContent: string;
-	ctaLabel: string;
-	wrappedUsdcList: string[];
+    promoBannerImage: string;
+    promoBannerBackground: string;
+    promoBannerText: string;
+    promoBannerSheetTitle: string;
+    promoBannerSheetContent: string;
+    ctaLabel: string;
+    wrappedUsdcList: string[];
 };
 
 export function useUsdcPromo() {
-	const enabled = useFeatureIsOn('wallet-usdc-promo-enabled');
-	const dynamicConfigs = useFeatureValue<WalletUsdcPromo>('wallet-usdc-promo', {
-		promoBannerImage: '',
-		promoBannerBackground: '',
-		promoBannerText: '',
-		promoBannerSheetTitle: '',
-		promoBannerSheetContent: '',
-		ctaLabel: '',
-		wrappedUsdcList: [],
-	});
+    const enabled = useFeatureIsOn('wallet-usdc-promo-enabled');
+    const dynamicConfigs = useFeatureValue<WalletUsdcPromo>('wallet-usdc-promo', {
+        promoBannerImage: '',
+        promoBannerBackground: '',
+        promoBannerText: '',
+        promoBannerSheetTitle: '',
+        promoBannerSheetContent: '',
+        ctaLabel: '',
+        wrappedUsdcList: [],
+    });
 
-	return {
-		...dynamicConfigs,
-		enabled,
-	};
+    return {
+        ...dynamicConfigs,
+        enabled,
+    };
 }

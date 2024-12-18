@@ -23,21 +23,21 @@ const kp2 = new Ed25519Keypair();
 const kp3 = new Ed25519Keypair();
 
 const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-	threshold: 2,
-	publicKeys: [
-		{
-			publicKey: kp1.getPublicKey(),
-			weight: 1,
-		},
-		{
-			publicKey: kp2.getPublicKey(),
-			weight: 1,
-		},
-		{
-			publicKey: kp3.getPublicKey(),
-			weight: 2,
-		},
-	],
+    threshold: 2,
+    publicKeys: [
+        {
+            publicKey: kp1.getPublicKey(),
+            weight: 1,
+        },
+        {
+            publicKey: kp2.getPublicKey(),
+            weight: 1,
+        },
+        {
+            publicKey: kp3.getPublicKey(),
+            weight: 2,
+        },
+    ],
 });
 
 const multisigAddress = multiSigPublicKey.toIotaAddress();
@@ -83,17 +83,17 @@ const kp1 = new Ed25519Keypair();
 const kp2 = new Ed25519Keypair();
 
 const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-	threshold: 1,
-	publicKeys: [
-		{
-			publicKey: kp1.getPublicKey(),
-			weight: 1,
-		},
-		{
-			publicKey: kp2.getPublicKey(),
-			weight: 1,
-		},
-	],
+    threshold: 1,
+    publicKeys: [
+        {
+            publicKey: kp1.getPublicKey(),
+            weight: 1,
+        },
+        {
+            publicKey: kp2.getPublicKey(),
+            weight: 1,
+        },
+    ],
 });
 
 const signer = multiSigPublicKey.getSigner(kp1);
@@ -127,11 +127,11 @@ let pkZklogin = toZkLoginPublicIdentifier(addressSeed, decodedJwt.iss);
 // derive multisig address from multisig public key defined by the single key and zkLogin public
 // identifier with weight and threshold.
 const multiSigPublicKey = MultiSigPublicKey.fromPublicKeys({
-	threshold: 1,
-	publicKeys: [
-		{ publicKey: pkSingle, weight: 1 },
-		{ publicKey: pkZklogin, weight: 1 },
-	],
+    threshold: 1,
+    publicKeys: [
+        { publicKey: pkSingle, weight: 1 },
+        { publicKey: pkZklogin, weight: 1 },
+    ],
 });
 
 // this is the sender of any transactions from this multisig account.
@@ -140,9 +140,9 @@ const multisigAddress = multiSigPublicKey.toIotaAddress();
 // create a regular zklogin signature from the zkproof and ephemeral signature for zkLogin.
 // see zklogin-integration.mdx for more details.
 const zkLoginSig = getZkLoginSignature({
-	inputs: zkLoginInputs,
-	maxEpoch: '2',
-	userSignature: fromBase64(ephemeralSig),
+    inputs: zkLoginInputs,
+    maxEpoch: '2',
+    userSignature: fromBase64(ephemeralSig),
 });
 
 // a valid multisig with just the zklogin signature.

@@ -11,75 +11,75 @@ import { Transaction } from '../../src/transactions';
 import { setup, TestToolbox } from './utils/setup';
 
 describe('Test dev inspect', () => {
-	let toolbox: TestToolbox;
-	let packageId: string;
+    let toolbox: TestToolbox;
+    let packageId: string;
 
-	beforeAll(async () => {
-		toolbox = await setup();
-		packageId = await toolbox.getPackage(resolve(__dirname, './data/serializer'));
-	});
+    beforeAll(async () => {
+        toolbox = await setup();
+        packageId = await toolbox.getPackage(resolve(__dirname, './data/serializer'));
+    });
 
-	it('Dev inspect split + transfer', async () => {
-		const tx = new Transaction();
-		const coin = tx.splitCoins(tx.gas, [10]);
-		tx.transferObjects([coin], tx.pure.address(toolbox.address()));
-		await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'success');
-	});
+    it('Dev inspect split + transfer', async () => {
+        const tx = new Transaction();
+        const coin = tx.splitCoins(tx.gas, [10]);
+        tx.transferObjects([coin], tx.pure.address(toolbox.address()));
+        await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'success');
+    });
 
-	it('can set gas price as number', async () => {
-		const tx = new Transaction();
-		const coin = tx.splitCoins(tx.gas, [10]);
-		tx.transferObjects([coin], tx.pure.address(toolbox.address()));
-		await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'success', 2000);
-	});
+    it('can set gas price as number', async () => {
+        const tx = new Transaction();
+        const coin = tx.splitCoins(tx.gas, [10]);
+        tx.transferObjects([coin], tx.pure.address(toolbox.address()));
+        await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'success', 2000);
+    });
 
-	it('can set gas price as bigint', async () => {
-		const tx = new Transaction();
-		const coin = tx.splitCoins(tx.gas, [10]);
-		tx.transferObjects([coin], tx.pure.address(toolbox.address()));
-		await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'success', 2000n);
-	});
+    it('can set gas price as bigint', async () => {
+        const tx = new Transaction();
+        const coin = tx.splitCoins(tx.gas, [10]);
+        tx.transferObjects([coin], tx.pure.address(toolbox.address()));
+        await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'success', 2000n);
+    });
 
-	it('Move Call that returns struct', async () => {
-		const coins = await toolbox.getGasObjectsOwnedByAddress();
+    it('Move Call that returns struct', async () => {
+        const coins = await toolbox.getGasObjectsOwnedByAddress();
 
-		const tx = new Transaction();
-		const coin_0 = coins.data[0];
-		const obj = tx.moveCall({
-			target: `${packageId}::serializer_tests::return_struct`,
-			typeArguments: ['0x2::coin::Coin<0x2::iota::IOTA>'],
-			arguments: [tx.object(coin_0.coinObjectId)],
-		});
+        const tx = new Transaction();
+        const coin_0 = coins.data[0];
+        const obj = tx.moveCall({
+            target: `${packageId}::serializer_tests::return_struct`,
+            typeArguments: ['0x2::coin::Coin<0x2::iota::IOTA>'],
+            arguments: [tx.object(coin_0.coinObjectId)],
+        });
 
-		// TODO: Ideally dev inspect transactions wouldn't need this, but they do for now
-		tx.transferObjects([obj], tx.pure.address(toolbox.address()));
+        // TODO: Ideally dev inspect transactions wouldn't need this, but they do for now
+        tx.transferObjects([obj], tx.pure.address(toolbox.address()));
 
-		await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'success');
-	});
+        await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'success');
+    });
 
-	it('Move Call that aborts', async () => {
-		const tx = new Transaction();
-		tx.moveCall({
-			target: `${packageId}::serializer_tests::test_abort`,
-			typeArguments: [],
-			arguments: [],
-		});
+    it('Move Call that aborts', async () => {
+        const tx = new Transaction();
+        tx.moveCall({
+            target: `${packageId}::serializer_tests::test_abort`,
+            typeArguments: [],
+            arguments: [],
+        });
 
-		await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'failure');
-	});
+        await validateDevInspectTransaction(toolbox.client, toolbox.keypair, tx, 'failure');
+    });
 });
 
 async function validateDevInspectTransaction(
-	client: IotaClient,
-	signer: Keypair,
-	transactionBlock: Transaction,
-	status: 'success' | 'failure',
-	gasPrice?: number | bigint,
+    client: IotaClient,
+    signer: Keypair,
+    transactionBlock: Transaction,
+    status: 'success' | 'failure',
+    gasPrice?: number | bigint,
 ) {
-	const result = await client.devInspectTransactionBlock({
-		transactionBlock,
-		sender: signer.getPublicKey().toIotaAddress(),
-		gasPrice,
-	});
-	expect(result.effects.status.status).toEqual(status);
+    const result = await client.devInspectTransactionBlock({
+        transactionBlock,
+        sender: signer.getPublicKey().toIotaAddress(),
+        gasPrice,
+    });
+    expect(result.effects.status.status).toEqual(status);
 }

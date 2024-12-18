@@ -13,60 +13,60 @@ import { INVALID_SECP256R1_PUBLIC_KEY, VALID_SECP256R1_PUBLIC_KEY } from './secp
 // ../iota/target/debug/iota client new-address secp256r1
 // ../iota/target/debug/iota keytool list
 const TEST_CASES = [
-	{
-		rawPublicKey: 'A8Ju2r5X3EZ3aYuZzH+Ofs6cd1j2WOwY7lhoJQenulBl',
-		iotaPublicKey: 'AgPCbtq+V9xGd2mLmcx/jn7OnHdY9ljsGO5YaCUHp7pQZQ==',
-		iotaAddress: '0xafd0f5a4f41c5770c201879518740b83743164ed2445016fbba9ae98e04af8a5',
-	},
+    {
+        rawPublicKey: 'A8Ju2r5X3EZ3aYuZzH+Ofs6cd1j2WOwY7lhoJQenulBl',
+        iotaPublicKey: 'AgPCbtq+V9xGd2mLmcx/jn7OnHdY9ljsGO5YaCUHp7pQZQ==',
+        iotaAddress: '0xafd0f5a4f41c5770c201879518740b83743164ed2445016fbba9ae98e04af8a5',
+    },
 ];
 
 describe('Secp256r1PublicKey', () => {
-	it('invalid', () => {
-		expect(() => {
-			new Secp256r1PublicKey(INVALID_SECP256R1_PUBLIC_KEY);
-		}).toThrow();
+    it('invalid', () => {
+        expect(() => {
+            new Secp256r1PublicKey(INVALID_SECP256R1_PUBLIC_KEY);
+        }).toThrow();
 
-		expect(() => {
-			const invalid_pubkey_buffer = new Uint8Array(INVALID_SECP256R1_PUBLIC_KEY);
-			let invalid_pubkey_base64 = toBase64(invalid_pubkey_buffer);
-			new Secp256r1PublicKey(invalid_pubkey_base64);
-		}).toThrow();
+        expect(() => {
+            const invalid_pubkey_buffer = new Uint8Array(INVALID_SECP256R1_PUBLIC_KEY);
+            let invalid_pubkey_base64 = toBase64(invalid_pubkey_buffer);
+            new Secp256r1PublicKey(invalid_pubkey_base64);
+        }).toThrow();
 
-		expect(() => {
-			const pubkey_buffer = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
-			let wrong_encode = toHex(pubkey_buffer);
-			new Secp256r1PublicKey(wrong_encode);
-		}).toThrow();
+        expect(() => {
+            const pubkey_buffer = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
+            let wrong_encode = toHex(pubkey_buffer);
+            new Secp256r1PublicKey(wrong_encode);
+        }).toThrow();
 
-		expect(() => {
-			new Secp256r1PublicKey('12345');
-		}).toThrow();
-	});
+        expect(() => {
+            new Secp256r1PublicKey('12345');
+        }).toThrow();
+    });
 
-	it('toBase64', () => {
-		const pub_key = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
-		let pub_key_base64 = toBase64(pub_key);
-		const key = new Secp256r1PublicKey(pub_key_base64);
-		expect(key.toBase64()).toEqual(pub_key_base64);
-	});
+    it('toBase64', () => {
+        const pub_key = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
+        let pub_key_base64 = toBase64(pub_key);
+        const key = new Secp256r1PublicKey(pub_key_base64);
+        expect(key.toBase64()).toEqual(pub_key_base64);
+    });
 
-	it('toBuffer', () => {
-		const pub_key = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
-		let pub_key_base64 = toBase64(pub_key);
-		const key = new Secp256r1PublicKey(pub_key_base64);
-		expect(key.toRawBytes().length).toBe(33);
-		expect(new Secp256r1PublicKey(key.toRawBytes()).equals(key)).toBe(true);
-	});
+    it('toBuffer', () => {
+        const pub_key = new Uint8Array(VALID_SECP256R1_PUBLIC_KEY);
+        let pub_key_base64 = toBase64(pub_key);
+        const key = new Secp256r1PublicKey(pub_key_base64);
+        expect(key.toRawBytes().length).toBe(33);
+        expect(new Secp256r1PublicKey(key.toRawBytes()).equals(key)).toBe(true);
+    });
 
-	TEST_CASES.forEach(({ rawPublicKey, iotaPublicKey, iotaAddress }) => {
-		it(`toIotaAddress from base64 public key ${iotaAddress}`, () => {
-			const key = new Secp256r1PublicKey(rawPublicKey);
-			expect(key.toIotaAddress()).toEqual(iotaAddress);
-		});
+    TEST_CASES.forEach(({ rawPublicKey, iotaPublicKey, iotaAddress }) => {
+        it(`toIotaAddress from base64 public key ${iotaAddress}`, () => {
+            const key = new Secp256r1PublicKey(rawPublicKey);
+            expect(key.toIotaAddress()).toEqual(iotaAddress);
+        });
 
-		it(`toIotaPublicKey from base64 public key ${iotaAddress}`, () => {
-			const key = new Secp256r1PublicKey(rawPublicKey);
-			expect(key.toIotaPublicKey()).toEqual(iotaPublicKey);
-		});
-	});
+        it(`toIotaPublicKey from base64 public key ${iotaAddress}`, () => {
+            const key = new Secp256r1PublicKey(rawPublicKey);
+            expect(key.toIotaPublicKey()).toEqual(iotaPublicKey);
+        });
+    });
 });

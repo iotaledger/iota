@@ -15,68 +15,68 @@ import { StatusIcon } from './StatusIcon';
 import { UnStakeTxnCard } from './UnstakeTxnCard';
 
 type ReceiptCardProps = {
-	txn: IotaTransactionBlockResponse;
-	activeAddress: string;
+    txn: IotaTransactionBlockResponse;
+    activeAddress: string;
 };
 
 function TransactionStatus({ success, timestamp }: { success: boolean; timestamp?: string }) {
-	return (
-		<div className="flex flex-col gap-3 items-center justify-center mb-4">
-			<StatusIcon status={success} />
-			<span data-testid="transaction-status" className="sr-only">
-				{success ? 'Transaction Success' : 'Transaction Failed'}
-			</span>
-			{timestamp && <DateCard timestamp={Number(timestamp)} size="md" />}
-		</div>
-	);
+    return (
+        <div className="mb-4 flex flex-col items-center justify-center gap-3">
+            <StatusIcon status={success} />
+            <span data-testid="transaction-status" className="sr-only">
+                {success ? 'Transaction Success' : 'Transaction Failed'}
+            </span>
+            {timestamp && <DateCard timestamp={Number(timestamp)} size="md" />}
+        </div>
+    );
 }
 
 export function ReceiptCard({ txn, activeAddress }: ReceiptCardProps) {
-	const { events } = txn;
-	const recognizedPackagesList = useRecognizedPackages();
-	const summary = useTransactionSummary({
-		transaction: txn,
-		currentAddress: activeAddress,
-		recognizedPackagesList,
-	});
+    const { events } = txn;
+    const recognizedPackagesList = useRecognizedPackages();
+    const summary = useTransactionSummary({
+        transaction: txn,
+        currentAddress: activeAddress,
+        recognizedPackagesList,
+    });
 
-	if (!summary) return null;
+    if (!summary) return null;
 
-	const stakedTxn = events?.find(({ type }) => type === '0x3::validator::StakingRequestEvent');
+    const stakedTxn = events?.find(({ type }) => type === '0x3::validator::StakingRequestEvent');
 
-	const unstakeTxn = events?.find(({ type }) => type === '0x3::validator::UnstakingRequestEvent');
+    const unstakeTxn = events?.find(({ type }) => type === '0x3::validator::UnstakingRequestEvent');
 
-	// todo: re-using the existing staking cards for now
-	if (stakedTxn || unstakeTxn)
-		return (
-			<div className="block relative w-full h-full">
-				<TransactionStatus
-					success={summary?.status === 'success'}
-					timestamp={txn.timestampMs ?? undefined}
-				/>
-				<section className="-mx-5 bg-iota/10 min-h-full">
-					<div className="px-5 py-10">
-						<div className="flex flex-col gap-4">
-							{stakedTxn ? <StakeTxnCard event={stakedTxn} /> : null}
-							{unstakeTxn ? <UnStakeTxnCard event={unstakeTxn} /> : null}
-							<GasSummary gasSummary={summary?.gas} />
-							<ExplorerLinkCard
-								digest={summary?.digest}
-								timestamp={summary?.timestamp ?? undefined}
-							/>
-						</div>
-					</div>
-				</section>
-			</div>
-		);
+    // todo: re-using the existing staking cards for now
+    if (stakedTxn || unstakeTxn)
+        return (
+            <div className="relative block h-full w-full">
+                <TransactionStatus
+                    success={summary?.status === 'success'}
+                    timestamp={txn.timestampMs ?? undefined}
+                />
+                <section className="-mx-5 min-h-full bg-iota/10">
+                    <div className="px-5 py-10">
+                        <div className="flex flex-col gap-4">
+                            {stakedTxn ? <StakeTxnCard event={stakedTxn} /> : null}
+                            {unstakeTxn ? <UnStakeTxnCard event={unstakeTxn} /> : null}
+                            <GasSummary gasSummary={summary?.gas} />
+                            <ExplorerLinkCard
+                                digest={summary?.digest}
+                                timestamp={summary?.timestamp ?? undefined}
+                            />
+                        </div>
+                    </div>
+                </section>
+            </div>
+        );
 
-	return (
-		<div className="block relative w-full h-full">
-			<TransactionStatus
-				success={summary.status === 'success'}
-				timestamp={txn.timestampMs ?? undefined}
-			/>
-			<TransactionSummary showGasSummary summary={summary} />
-		</div>
-	);
+    return (
+        <div className="relative block h-full w-full">
+            <TransactionStatus
+                success={summary.status === 'success'}
+                timestamp={txn.timestampMs ?? undefined}
+            />
+            <TransactionSummary showGasSummary summary={summary} />
+        </div>
+    );
 }

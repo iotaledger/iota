@@ -12,34 +12,34 @@ import { Root } from './root';
 import SignatureAnalyzer from './signature-analyzer';
 
 export const router = createBrowserRouter([
-	{
-		path: '/',
-		element: <Root />,
-		children: [
-			{
-				path: '/',
-				element: <Navigate to="offline-signer" replace />,
-			},
-			{
-				path: 'offline-signer',
-				element: <OfflineSigner />,
-			},
-			{
-				path: 'signature-analyzer',
-				element: <SignatureAnalyzer />,
-			},
-			{
-				path: 'multisig-address',
-				element: <MultiSigAddressGenerator />,
-			},
-			{
-				path: 'combine-signatures',
-				element: <MultiSigCombinedSignatureGenerator />,
-			},
-			{
-				path: 'execute-transaction',
-				element: <ExecuteTransaction />,
-			},
-		],
-	},
+    {
+        path: '/',
+        element: <Root />,
+        children: [
+            {
+                path: '/',
+                element: <Navigate to="offline-signer" replace />,
+            },
+            {
+                path: 'offline-signer',
+                element: <OfflineSigner />,
+            },
+            {
+                path: 'signature-analyzer',
+                element: <SignatureAnalyzer />,
+            },
+            {
+                path: 'multisig-address',
+                element: <MultiSigAddressGenerator />,
+            },
+            {
+                path: 'combine-signatures',
+                element: <MultiSigCombinedSignatureGenerator />,
+            },
+            {
+                path: 'execute-transaction',
+                element: <ExecuteTransaction />,
+            },
+        ],
+    },
 ]);

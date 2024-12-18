@@ -62,7 +62,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
                     title={
                         transaction.state === TransactionState.Failed
                             ? 'Transaction Failed'
-                            : (transaction.action ?? 'Unknown')
+                            : transaction.action ?? 'Unknown'
                     }
                     subtitle={transactionDate}
                 />

@@ -1,18 +1,18 @@
 # Iota dApp Kit
 
-The Iota dApp Kit is a set of React components, hooks, and utilities to help you build a dApp for the
-Iota ecosystem. Its hooks and components provide an interface for querying data from the Iota
+The Iota dApp Kit is a set of React components, hooks, and utilities to help you build a dApp for
+the Iota ecosystem. Its hooks and components provide an interface for querying data from the Iota
 blockchain and connecting to Iota wallets.
 
 ### Core Features
 
 Some of the core features of the dApp Kit include:
 
-- Query hooks to get the information your dApp needs
-- Automatic wallet state management
-- Support for all Iota wallets
-- Pre-built React components
-- Lower level hooks for custom components
+-   Query hooks to get the information your dApp needs
+-   Automatic wallet state management
+-   Support for all Iota wallets
+-   Pre-built React components
+-   Lower level hooks for custom components
 
 ## Install
 
@@ -35,21 +35,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 });
 const queryClient = new QueryClient();
 
 function App() {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
-				<WalletProvider>
-					<YourApp />
-				</WalletProvider>
-			</IotaClientProvider>
-		</QueryClientProvider>
-	);
+    return (
+        <QueryClientProvider client={queryClient}>
+            <IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
+                <WalletProvider>
+                    <YourApp />
+                </WalletProvider>
+            </IotaClientProvider>
+        </QueryClientProvider>
+    );
 }
 ```
 
@@ -78,14 +78,14 @@ to use these query hooks, check out the
 import { useIotaClientQuery } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const { data, isPending, error, refetch } = useIotaClientQuery('getOwnedObjects', {
-		owner: '0x123',
-	});
+    const { data, isPending, error, refetch } = useIotaClientQuery('getOwnedObjects', {
+        owner: '0x123',
+    });
 
-	if (isPending) {
-		return <div>Loading...</div>;
-	}
+    if (isPending) {
+        return <div>Loading...</div>;
+    }
 
-	return <pre>{JSON.stringify(data, null, 2)}</pre>;
+    return <pre>{JSON.stringify(data, null, 2)}</pre>;
 }
 ```

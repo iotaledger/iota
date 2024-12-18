@@ -8,17 +8,17 @@ import { useContext } from 'react';
 import { IotaClientContext } from '../components/IotaClientProvider.js';
 
 export function useIotaClientContext() {
-	const iotaClient = useContext(IotaClientContext);
+    const iotaClient = useContext(IotaClientContext);
 
-	if (!iotaClient) {
-		throw new Error(
-			'Could not find IotaClientContext. Ensure that you have set up the IotaClientProvider',
-		);
-	}
+    if (!iotaClient) {
+        throw new Error(
+            'Could not find IotaClientContext. Ensure that you have set up the IotaClientProvider',
+        );
+    }
 
-	return iotaClient;
+    return iotaClient;
 }
 
 export function useIotaClient(): IotaClient {
-	return useIotaClientContext().client;
+    return useIotaClientContext().client;
 }

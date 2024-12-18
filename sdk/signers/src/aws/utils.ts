@@ -21,13 +21,13 @@ export const DER_BYTES_LENGTH = DER_BIT_STRING_LENGTH / 8;
  * @throws {Error} If the input array does not have the expected length.
  */
 function bitsToBytes(bitsArray: Uint8ClampedArray): Uint8Array {
-	const bytes = new Uint8Array(DER_BYTES_LENGTH);
-	for (let i = 0; i < DER_BIT_STRING_LENGTH; i++) {
-		if (bitsArray[i] === 1) {
-			bytes[Math.floor(i / 8)] |= 1 << (7 - (i % 8));
-		}
-	}
-	return bytes;
+    const bytes = new Uint8Array(DER_BYTES_LENGTH);
+    for (let i = 0; i < DER_BIT_STRING_LENGTH; i++) {
+        if (bitsArray[i] === 1) {
+            bytes[Math.floor(i / 8)] |= 1 << (7 - (i % 8));
+        }
+    }
+    return bytes;
 }
 
 /**
@@ -42,25 +42,25 @@ function bitsToBytes(bitsArray: Uint8ClampedArray): Uint8Array {
  * @throws {Error} If the uncompressed key has an unexpected length or does not start with the expected prefix.
  */
 export function compressPublicKeyClamped(uncompressedKey: Uint8ClampedArray): Uint8Array {
-	if (uncompressedKey.length !== DER_BIT_STRING_LENGTH) {
-		throw new Error('Unexpected length for an uncompressed public key');
-	}
+    if (uncompressedKey.length !== DER_BIT_STRING_LENGTH) {
+        throw new Error('Unexpected length for an uncompressed public key');
+    }
 
-	// Convert bits to bytes
-	const uncompressedBytes = bitsToBytes(uncompressedKey);
+    // Convert bits to bytes
+    const uncompressedBytes = bitsToBytes(uncompressedKey);
 
-	// Ensure the public key starts with the standard uncompressed prefix 0x04
-	if (uncompressedBytes[0] !== 0x04) {
-		throw new Error('Public key does not start with 0x04');
-	}
+    // Ensure the public key starts with the standard uncompressed prefix 0x04
+    if (uncompressedBytes[0] !== 0x04) {
+        throw new Error('Public key does not start with 0x04');
+    }
 
-	// Extract X-Coordinate (skip the first byte, which is the prefix 0x04)
-	const xCoord = uncompressedBytes.slice(1, 33);
+    // Extract X-Coordinate (skip the first byte, which is the prefix 0x04)
+    const xCoord = uncompressedBytes.slice(1, 33);
 
-	// Determine parity byte for Y coordinate based on the last byte
-	const yCoordLastByte = uncompressedBytes[64];
-	const parityByte = yCoordLastByte % 2 === 0 ? 0x02 : 0x03;
+    // Determine parity byte for Y coordinate based on the last byte
+    const yCoordLastByte = uncompressedBytes[64];
+    const parityByte = yCoordLastByte % 2 === 0 ? 0x02 : 0x03;
 
-	// Return the compressed public key consisting of the parity byte and X-coordinate
-	return new Uint8Array([parityByte, ...xCoord]);
+    // Return the compressed public key consisting of the parity byte and X-coordinate
+    return new Uint8Array([parityByte, ...xCoord]);
 }

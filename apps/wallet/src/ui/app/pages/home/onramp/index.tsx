@@ -17,86 +17,86 @@ import { useNavigate } from 'react-router-dom';
 import { useOnrampProviders } from './useOnrampProviders';
 
 export function Onramp() {
-	const navigate = useNavigate();
-	const address = useActiveAddress();
-	const { providers, setPreferredProvider } = useOnrampProviders();
+    const navigate = useNavigate();
+    const address = useActiveAddress();
+    const { providers, setPreferredProvider } = useOnrampProviders();
 
-	const [preferredProvider, ...otherProviders] = providers ?? [];
+    const [preferredProvider, ...otherProviders] = providers ?? [];
 
-	const { mutate, error } = useMutation({
-		mutationKey: ['onramp', 'get-provider-url'],
-		mutationFn: () => {
-			return preferredProvider.getUrl(address!);
-		},
-		onSuccess: (data) => {
-			ampli.visitedFiatOnRamp({ providerName: preferredProvider.name });
-			window.open(data, '_blank');
-		},
-	});
+    const { mutate, error } = useMutation({
+        mutationKey: ['onramp', 'get-provider-url'],
+        mutationFn: () => {
+            return preferredProvider.getUrl(address!);
+        },
+        onSuccess: (data) => {
+            ampli.visitedFiatOnRamp({ providerName: preferredProvider.name });
+            window.open(data, '_blank');
+        },
+    });
 
-	useEffect(() => {
-		// This shouldn't happen, but if you land on this page directly and no on-ramps are supported, just bail out
-		if (providers && providers.length === 0) {
-			navigate('/tokens');
-		}
-	}, [providers, navigate]);
+    useEffect(() => {
+        // This shouldn't happen, but if you land on this page directly and no on-ramps are supported, just bail out
+        if (providers && providers.length === 0) {
+            navigate('/tokens');
+        }
+    }, [providers, navigate]);
 
-	const isGuardLoading = useUnlockedGuard();
+    const isGuardLoading = useUnlockedGuard();
 
-	if (!providers || !providers.length || isGuardLoading) return null;
+    if (!providers || !providers.length || isGuardLoading) return null;
 
-	return (
-		<Overlay
-			showModal
-			title="Buy"
-			closeOverlay={() => {
-				navigate('/tokens');
-			}}
-		>
-			<div className="w-full flex flex-col gap-5">
-				{preferredProvider && (
-					<Text variant="body" weight="medium" color="steel-darker">
-						Continue checkout out with one of our partners:{' '}
-					</Text>
-				)}
-				<button
-					onClick={() => {
-						mutate();
-					}}
-					className="w-full p-4 bg-iota/10 rounded-2xl flex flex-col gap-2.5 cursor-pointer border boder-solid border-hero/20 hover:border-hero/40"
-				>
-					<span className="flex w-full">
-						<preferredProvider.icon className="mr-auto w-10 h-10" />
-					</span>
+    return (
+        <Overlay
+            showModal
+            title="Buy"
+            closeOverlay={() => {
+                navigate('/tokens');
+            }}
+        >
+            <div className="flex w-full flex-col gap-5">
+                {preferredProvider && (
+                    <Text variant="body" weight="medium" color="steel-darker">
+                        Continue checkout out with one of our partners:{' '}
+                    </Text>
+                )}
+                <button
+                    onClick={() => {
+                        mutate();
+                    }}
+                    className="boder-solid flex w-full cursor-pointer flex-col gap-2.5 rounded-2xl border border-hero/20 bg-iota/10 p-4 hover:border-hero/40"
+                >
+                    <span className="flex w-full">
+                        <preferredProvider.icon className="mr-auto h-10 w-10" />
+                    </span>
 
-					<Heading variant="heading6" weight="semibold" color="hero-dark">
-						Continue with {preferredProvider.name}
-					</Heading>
-				</button>
+                    <Heading variant="heading6" weight="semibold" color="hero-dark">
+                        Continue with {preferredProvider.name}
+                    </Heading>
+                </button>
 
-				{!!error && (
-					<div className="mt-2">
-						<Alert>An unexpected error occurred. Please try again later.</Alert>
-					</div>
-				)}
-				<SectionHeader title="Or" />
-				<div className="flex gap-2">
-					{otherProviders.map((provider) => {
-						return (
-							<button
-								key={provider.key}
-								className="flex gap-3 flex-1 items-center bg-transparent border border-solid border-gray-45 cursor-pointer rounded-4lg p-3.5 hover:border-gray-60"
-								onClick={() => setPreferredProvider(provider.key)}
-							>
-								<provider.icon className="w-8 h-8" />
-								<Text variant="body" weight="semibold" color="gray-90">
-									{provider.name}
-								</Text>
-							</button>
-						);
-					})}
-				</div>
-			</div>
-		</Overlay>
-	);
+                {!!error && (
+                    <div className="mt-2">
+                        <Alert>An unexpected error occurred. Please try again later.</Alert>
+                    </div>
+                )}
+                <SectionHeader title="Or" />
+                <div className="flex gap-2">
+                    {otherProviders.map((provider) => {
+                        return (
+                            <button
+                                key={provider.key}
+                                className="flex flex-1 cursor-pointer items-center gap-3 rounded-4lg border border-solid border-gray-45 bg-transparent p-3.5 hover:border-gray-60"
+                                onClick={() => setPreferredProvider(provider.key)}
+                            >
+                                <provider.icon className="h-8 w-8" />
+                                <Text variant="body" weight="semibold" color="gray-90">
+                                    {provider.name}
+                                </Text>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        </Overlay>
+    );
 }

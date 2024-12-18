@@ -5,14 +5,14 @@
 import { IotaObjectChangeTypes } from './types';
 
 export const ObjectChangeLabels = {
-	created: 'Created',
-	mutated: 'Updated',
-	transferred: 'Transfer',
-	published: 'Publish',
-	deleted: 'Deleted',
-	wrapped: 'Wrap',
+    created: 'Created',
+    mutated: 'Updated',
+    transferred: 'Transfer',
+    published: 'Publish',
+    deleted: 'Deleted',
+    wrapped: 'Wrap',
 };
 
 export function getObjectChangeLabel(type: IotaObjectChangeTypes) {
-	return ObjectChangeLabels[type];
+    return ObjectChangeLabels[type];
 }

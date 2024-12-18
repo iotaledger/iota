@@ -12,28 +12,28 @@ const header = `
 `.trimStart();
 
 const config: CodegenConfig = {
-	overwrite: true,
-	schema: '../../crates/iota-graphql-rpc/schema.graphql',
-	documents: ['src/queries/*.graphql'],
-	ignoreNoDocuments: true,
-	generates: {
-		'src/generated/queries.ts': {
-			plugins: [
-				{
-					add: {
-						content: header,
-					},
-				},
-				'typescript',
-				'typescript-operations',
-				{
-					'typed-document-node': {
-						documentMode: 'string',
-					},
-				},
-			],
-		},
-	},
+    overwrite: true,
+    schema: '../../crates/iota-graphql-rpc/schema.graphql',
+    documents: ['src/queries/*.graphql'],
+    ignoreNoDocuments: true,
+    generates: {
+        'src/generated/queries.ts': {
+            plugins: [
+                {
+                    add: {
+                        content: header,
+                    },
+                },
+                'typescript',
+                'typescript-operations',
+                {
+                    'typed-document-node': {
+                        documentMode: 'string',
+                    },
+                },
+            ],
+        },
+    },
 };
 
 export default config;

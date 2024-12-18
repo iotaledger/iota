@@ -8,23 +8,23 @@ import { useFormatCoin } from '@iota/core';
 import { Card } from '../Card';
 
 export function TotalAmount({ amount, coinType }: { amount?: string; coinType?: string }) {
-	const [formatted, symbol] = useFormatCoin(amount, coinType);
-	if (!amount) return null;
-	return (
-		<Card>
-			<div className="flex justify-between items-center">
-				<Text color="steel-darker" variant="pBody">
-					Total Amount
-				</Text>
-				<div className="flex gap-0.5 items-center">
-					<Heading color="steel-darker" variant="heading2">
-						{formatted}
-					</Heading>
-					<Text color="steel-darker" variant="body" weight="medium">
-						{symbol}
-					</Text>
-				</div>
-			</div>
-		</Card>
-	);
+    const [formatted, symbol] = useFormatCoin(amount, coinType);
+    if (!amount) return null;
+    return (
+        <Card>
+            <div className="flex items-center justify-between">
+                <Text color="steel-darker" variant="pBody">
+                    Total Amount
+                </Text>
+                <div className="flex items-center gap-0.5">
+                    <Heading color="steel-darker" variant="heading2">
+                        {formatted}
+                    </Heading>
+                    <Text color="steel-darker" variant="body" weight="medium">
+                        {symbol}
+                    </Text>
+                </div>
+            </div>
+        </Card>
+    );
 }

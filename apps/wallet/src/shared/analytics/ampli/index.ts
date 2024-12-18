@@ -26,946 +26,946 @@ import * as amplitude from '@amplitude/analytics-browser';
 export type Environment = 'production' | 'development';
 
 export const ApiKey: Record<Environment, string> = {
-	production: '05c63856469c4e1d4aa9a6c1b2298d3b',
-	development: '938968357fcb3bf031d27b5049f62449',
+    production: '05c63856469c4e1d4aa9a6c1b2298d3b',
+    development: '938968357fcb3bf031d27b5049f62449',
 };
 
 /**
  * Default Amplitude configuration options. Contains tracking plan information.
  */
 export const DefaultConfiguration: BrowserOptions = {
-	plan: {
-		version: '6',
-		branch: 'main',
-		source: 'web',
-		versionId: '77fa44dc-250a-4e7e-8b74-164834834066',
-	},
-	...{
-		ingestionMetadata: {
-			sourceName: 'browser-typescript-ampli',
-			sourceVersion: '2.0.0',
-		},
-	},
+    plan: {
+        version: '6',
+        branch: 'main',
+        source: 'web',
+        versionId: '77fa44dc-250a-4e7e-8b74-164834834066',
+    },
+    ...{
+        ingestionMetadata: {
+            sourceName: 'browser-typescript-ampli',
+            sourceVersion: '2.0.0',
+        },
+    },
 };
 
 export interface LoadOptionsBase {
-	disabled?: boolean;
+    disabled?: boolean;
 }
 
 export type LoadOptionsWithEnvironment = LoadOptionsBase & {
-	environment: Environment;
-	client?: { configuration?: BrowserOptions };
+    environment: Environment;
+    client?: { configuration?: BrowserOptions };
 };
 export type LoadOptionsWithApiKey = LoadOptionsBase & {
-	client: { apiKey: string; configuration?: BrowserOptions };
+    client: { apiKey: string; configuration?: BrowserOptions };
 };
 export type LoadOptionsWithClientInstance = LoadOptionsBase & {
-	client: { instance: BrowserClient };
+    client: { instance: BrowserClient };
 };
 
 export type LoadOptions =
-	| LoadOptionsWithEnvironment
-	| LoadOptionsWithApiKey
-	| LoadOptionsWithClientInstance;
+    | LoadOptionsWithEnvironment
+    | LoadOptionsWithApiKey
+    | LoadOptionsWithClientInstance;
 
 export interface IdentifyProperties {
-	/**
-	 * The type of account currently being used by the user.
-	 */
-	activeAccountType?: string;
-	/**
-	 * The Iota Network that the user is currently interacting with.
-	 */
-	activeNetwork: string;
-	/**
-	 * The active origin website that the extension is being used on.
-	 */
-	activeOrigin?: string;
-	/**
-	 * The path (e.g., /apps) of a given screen in the wallet.
-	 */
-	pagePath: string;
-	/**
-	 * The fully qualified path fragment (e.g., /apps?is_connected=true) of a given screen.
-	 */
-	pagePathFragment: string;
-	/**
-	 * The mode that the wallet is currently in.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Enum Values | Fullscreen, Pop-up |
-	 */
-	walletAppMode?: 'Fullscreen' | 'Pop-up';
-	/**
-	 * The version of the wallet the user has installed.
-	 */
-	walletVersion: string;
+    /**
+     * The type of account currently being used by the user.
+     */
+    activeAccountType?: string;
+    /**
+     * The Iota Network that the user is currently interacting with.
+     */
+    activeNetwork: string;
+    /**
+     * The active origin website that the extension is being used on.
+     */
+    activeOrigin?: string;
+    /**
+     * The path (e.g., /apps) of a given screen in the wallet.
+     */
+    pagePath: string;
+    /**
+     * The fully qualified path fragment (e.g., /apps?is_connected=true) of a given screen.
+     */
+    pagePathFragment: string;
+    /**
+     * The mode that the wallet is currently in.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | Fullscreen, Pop-up |
+     */
+    walletAppMode?: 'Fullscreen' | 'Pop-up';
+    /**
+     * The version of the wallet the user has installed.
+     */
+    walletVersion: string;
 }
 
 export interface AddedAccountsProperties {
-	/**
-	 * The type of wallet account (e.g., Ledger, Qredo, etc.)
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Enum Values | Ledger, Qredo, Derived, Imported, Zklogin |
-	 */
-	accountType: 'Ledger' | 'Qredo' | 'Derived' | 'Imported' | 'Zklogin';
-	/**
-	 * The number of accounts imported.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	numberOfAccounts: number;
+    /**
+     * The type of wallet account (e.g., Ledger, Qredo, etc.)
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | Ledger, Qredo, Derived, Imported, Zklogin |
+     */
+    accountType: 'Ledger' | 'Qredo' | 'Derived' | 'Imported' | 'Zklogin';
+    /**
+     * The number of accounts imported.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    numberOfAccounts: number;
 }
 
 export interface BypassedScamWarningProperties {
-	hostname: string;
+    hostname: string;
 }
 
 export interface ClickedBullsharkQuestsCtaProperties {
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
 }
 
 export interface ClickedCollectibleCardProperties {
-	/**
-	 * The object type of a collectible.
-	 */
-	collectibleType: string;
-	/**
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	count?: number;
-	/**
-	 * Whether or not a collectible card represents a Kiosk.
-	 */
-	isKiosk?: boolean;
-	/**
-	 * The ID of an object on Iota.
-	 */
-	objectId: string;
-	sourceScreen?: string;
+    /**
+     * The object type of a collectible.
+     */
+    collectibleType: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    count?: number;
+    /**
+     * Whether or not a collectible card represents a Kiosk.
+     */
+    isKiosk?: boolean;
+    /**
+     * The ID of an object on Iota.
+     */
+    objectId: string;
+    sourceScreen?: string;
 }
 
 export interface ClickedCreateNewAccountProperties {
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
 }
 
 export interface ClickedHideAssetProperties {
-	/**
-	 * The object type of a collectible.
-	 */
-	collectibleType: string;
-	/**
-	 * The ID of an object on Iota.
-	 */
-	objectId: string;
+    /**
+     * The object type of a collectible.
+     */
+    collectibleType: string;
+    /**
+     * The ID of an object on Iota.
+     */
+    objectId: string;
 }
 
 export interface ClickedImportPassphraseProperties {
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
 }
 
 export interface ClickedImportPrivateKeyProperties {
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
 }
 
 export interface ClickedSocialSignInButtonProperties {
-	/**
-	 * The name (e.g., Microsoft) of a social sign-in provider.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Enum Values | Microsoft, Facebook, Google, Twitch, Kakao, Apple |
-	 */
-	signInProvider: 'Microsoft' | 'Facebook' | 'Google' | 'Twitch' | 'Kakao' | 'Apple';
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
+    /**
+     * The name (e.g., Microsoft) of a social sign-in provider.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | Microsoft, Facebook, Google, Twitch, Kakao, Apple |
+     */
+    signInProvider: 'Microsoft' | 'Facebook' | 'Google' | 'Twitch' | 'Kakao' | 'Apple';
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
 }
 
 export interface ClickedStakeIotaProperties {
-	/**
-	 * Whether or not the user is already staking some IOTA.
-	 */
-	isCurrentlyStaking: boolean;
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
+    /**
+     * Whether or not the user is already staking some IOTA.
+     */
+    isCurrentlyStaking: boolean;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
 }
 
 export interface ClickedSwapCoinProperties {
-	/**
-	 * The type of a coin.
-	 */
-	coinType: string;
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
-	/**
-	 * The total balance of the selected coin that the user has.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	totalBalance?: number;
+    /**
+     * The type of a coin.
+     */
+    coinType: string;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
+    /**
+     * The total balance of the selected coin that the user has.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    totalBalance?: number;
 }
 
 export interface ClickedTokenClaimsBannerProperties {
-	/**
-	 * A generic name property that can be used across events.
-	 */
-	name: string;
-	/**
-	 * The ID of an object on Iota.
-	 */
-	objectId: string;
-	objectType: string;
+    /**
+     * A generic name property that can be used across events.
+     */
+    name: string;
+    /**
+     * The ID of an object on Iota.
+     */
+    objectId: string;
+    objectType: string;
 }
 
 export interface ClickedUnstakeIotaProperties {
-	/**
-	 * The amount of IOTA staked.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	stakedAmount: number;
-	/**
-	 * The address of the selected validator.
-	 */
-	validatorAddress: string;
+    /**
+     * The amount of IOTA staked.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount: number;
+    /**
+     * The address of the selected validator.
+     */
+    validatorAddress: string;
 }
 
 export interface ClickedUsdcPromoBannerProperties {
-	/**
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Item Type | string |
-	 */
-	wUsdcInAccount: string[];
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Item Type | string |
+     */
+    wUsdcInAccount: string[];
 }
 
 export interface ConnectedHardwareWalletProperties {
-	/**
-	 * The type of hardware wallet that was connected to.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Enum Values | Ledger |
-	 */
-	hardwareWalletType: 'Ledger';
+    /**
+     * The type of hardware wallet that was connected to.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | Ledger |
+     */
+    hardwareWalletType: 'Ledger';
 }
 
 export interface CreatedNewWalletProperties {
-	/**
-	 * Whether or not the keypair was imported during onboarding.
-	 */
-	imported?: boolean;
-	/**
-	 * The type of account provider used during onboarding.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Enum Values | mnemonic, keypair, zklogin |
-	 */
-	onboardingProvider: 'mnemonic' | 'keypair' | 'zklogin';
+    /**
+     * Whether or not the keypair was imported during onboarding.
+     */
+    imported?: boolean;
+    /**
+     * The type of account provider used during onboarding.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | mnemonic, keypair, zklogin |
+     */
+    onboardingProvider: 'mnemonic' | 'keypair' | 'zklogin';
 }
 
 export interface DisconnectedApplicationProperties {
-	/**
-	 * The name of the application being visited.
-	 */
-	applicationName?: string;
-	/**
-	 * The URL of the application that was disconnected.
-	 */
-	applicationUrl: string;
-	/**
-	 * The number of accounts that were disconnected.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | integer |
-	 */
-	disconnectedAccounts: number;
-	/**
-	 * The flow the user disconnected the application from.
-	 */
-	sourceFlow: string;
+    /**
+     * The name of the application being visited.
+     */
+    applicationName?: string;
+    /**
+     * The URL of the application that was disconnected.
+     */
+    applicationUrl: string;
+    /**
+     * The number of accounts that were disconnected.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | integer |
+     */
+    disconnectedAccounts: number;
+    /**
+     * The flow the user disconnected the application from.
+     */
+    sourceFlow: string;
 }
 
 export interface ImportedExistingAccountProperties {
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
 }
 
 export interface InteractedWithMaliciousDomainProperties {
-	hostname: string;
+    hostname: string;
 }
 
 export interface OpenedApplicationProperties {
-	/**
-	 * The name of the application being visited.
-	 */
-	applicationName: string;
+    /**
+     * The name of the application being visited.
+     */
+    applicationName: string;
 }
 
 export interface OpenedConnectLedgerFlowProperties {
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
 }
 
 export interface PinnedCoinProperties {
-	/**
-	 * The type of a coin.
-	 */
-	coinType: string;
+    /**
+     * The type of a coin.
+     */
+    coinType: string;
 }
 
 export interface ReceivedOnrampProvidersDataProperties {
-	countryCode?: string;
-	/**
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Item Type | string |
-	 */
-	providerNames: string[];
-	region?: string;
+    countryCode?: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Item Type | string |
+     */
+    providerNames: string[];
+    region?: string;
 }
 
 export interface ReceivedOnrampProvidersDataFailedProperties {
-	countryCode: string;
-	/**
-	 * A message associated with an error event.
-	 */
-	errorMessage: string;
-	region?: string;
+    countryCode: string;
+    /**
+     * A message associated with an error event.
+     */
+    errorMessage: string;
+    region?: string;
 }
 
 export interface RespondedToConnectionRequestProperties {
-	/**
-	 * The name of the application that initiated the connection request.
-	 */
-	applicationName?: string;
-	/**
-	 * The URL of the application that initiated the transaction.
-	 */
-	applicationUrl: string;
-	/**
-	 * Whether or not the user approved an application connection request.
-	 */
-	approvedConnection: boolean;
+    /**
+     * The name of the application that initiated the connection request.
+     */
+    applicationName?: string;
+    /**
+     * The URL of the application that initiated the transaction.
+     */
+    applicationUrl: string;
+    /**
+     * Whether or not the user approved an application connection request.
+     */
+    approvedConnection: boolean;
 }
 
 export interface RespondedToTransactionRequestProperties {
-	/**
-	 * The URL of the application that initiated the transaction.
-	 */
-	applicationUrl: string;
-	/**
-	 * Whether or not a transaction request was approved.
-	 */
-	approvedTransaction: boolean;
-	/**
-	 * Whether or not users received a failure warning when signing a transaction.
-	 */
-	receivedFailureWarning: boolean;
-	/**
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Enum Values | sign, sign-and-execute |
-	 */
-	type: 'sign' | 'sign-and-execute';
+    /**
+     * The URL of the application that initiated the transaction.
+     */
+    applicationUrl: string;
+    /**
+     * Whether or not a transaction request was approved.
+     */
+    approvedTransaction: boolean;
+    /**
+     * Whether or not users received a failure warning when signing a transaction.
+     */
+    receivedFailureWarning: boolean;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | sign, sign-and-execute |
+     */
+    type: 'sign' | 'sign-and-execute';
 }
 
 export interface SelectedCoinProperties {
-	/**
-	 * The type of a coin.
-	 */
-	coinType: string;
-	/**
-	 * The flow the user came from.
-	 */
-	sourceFlow: string;
-	/**
-	 * The total balance of the selected coin that the user has.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	totalBalance?: number;
+    /**
+     * The type of a coin.
+     */
+    coinType: string;
+    /**
+     * The flow the user came from.
+     */
+    sourceFlow: string;
+    /**
+     * The total balance of the selected coin that the user has.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    totalBalance?: number;
 }
 
 export interface SelectedValidatorProperties {
-	/**
-	 * The address of the selected validator.
-	 */
-	validatorAddress: string;
-	/**
-	 * The current APY % of the selected validator.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	validatorAPY: number;
-	/**
-	 * The name of the selected validator.
-	 */
-	validatorName: string;
+    /**
+     * The address of the selected validator.
+     */
+    validatorAddress: string;
+    /**
+     * The current APY % of the selected validator.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    validatorAPY: number;
+    /**
+     * The name of the selected validator.
+     */
+    validatorName: string;
 }
 
 export interface SentCoinFailedProperties {
-	/**
-	 * A message associated with an error event.
-	 */
-	errorMessage: string;
+    /**
+     * A message associated with an error event.
+     */
+    errorMessage: string;
 }
 
 export interface SentCoinsProperties {
-	coinType: string;
+    coinType: string;
 }
 
 export interface SentCollectibleProperties {
-	/**
-	 * The ID of an object on Iota.
-	 */
-	objectId: string;
+    /**
+     * The ID of an object on Iota.
+     */
+    objectId: string;
 }
 
 export interface SentCollectibleFailedProperties {
-	/**
-	 * A message associated with an error event.
-	 */
-	errorMessage: string;
-	/**
-	 * The ID of an object on Iota.
-	 */
-	objectId: string;
+    /**
+     * A message associated with an error event.
+     */
+    errorMessage: string;
+    /**
+     * The ID of an object on Iota.
+     */
+    objectId: string;
 }
 
 export interface SignedTransactionBlockFailedProperties {
-	/**
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Enum Values | sign, signAndExecute |
-	 */
-	action: 'sign' | 'signAndExecute';
-	/**
-	 * A message associated with an error event.
-	 */
-	errorMessage: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Enum Values | sign, signAndExecute |
+     */
+    action: 'sign' | 'signAndExecute';
+    /**
+     * A message associated with an error event.
+     */
+    errorMessage: string;
 }
 
 export interface StakedIotaProperties {
-	/**
-	 * The amount of IOTA staked.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	stakedAmount: number;
-	/**
-	 * The address of the selected validator.
-	 */
-	validatorAddress: string;
+    /**
+     * The amount of IOTA staked.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount: number;
+    /**
+     * The address of the selected validator.
+     */
+    validatorAddress: string;
 }
 
 export interface StakedIotaFailedProperties {
-	/**
-	 * A message associated with an error event.
-	 */
-	errorMessage: string;
-	/**
-	 * The amount of IOTA staked.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	stakedAmount: number;
-	/**
-	 * The address of the selected validator.
-	 */
-	validatorAddress: string;
+    /**
+     * A message associated with an error event.
+     */
+    errorMessage: string;
+    /**
+     * The amount of IOTA staked.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    stakedAmount: number;
+    /**
+     * The address of the selected validator.
+     */
+    validatorAddress: string;
 }
 
 export interface SwappedCoinProperties {
-	/**
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	estimatedReturnBalance: number;
-	fromCoinType: string;
-	/**
-	 * swap provider name
-	 */
-	provider?: string;
-	toCoinType: string;
-	/**
-	 * The total balance of the selected coin that the user has.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	totalBalance?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    estimatedReturnBalance: number;
+    fromCoinType: string;
+    /**
+     * swap provider name
+     */
+    provider?: string;
+    toCoinType: string;
+    /**
+     * The total balance of the selected coin that the user has.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    totalBalance?: number;
 }
 
 export interface SwappedCoinFailedProperties {
-	/**
-	 * A message associated with an error event.
-	 */
-	errorMessage: string;
-	/**
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	estimatedReturnBalance: number;
-	fromCoinType: string;
-	/**
-	 * swap provider name
-	 */
-	provider?: string;
-	toCoinType: string;
-	/**
-	 * The total balance of the selected coin that the user has.
-	 *
-	 * | Rule | Value |
-	 * |---|---|
-	 * | Type | number |
-	 */
-	totalBalance?: number;
+    /**
+     * A message associated with an error event.
+     */
+    errorMessage: string;
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    estimatedReturnBalance: number;
+    fromCoinType: string;
+    /**
+     * swap provider name
+     */
+    provider?: string;
+    toCoinType: string;
+    /**
+     * The total balance of the selected coin that the user has.
+     *
+     * | Rule | Value |
+     * |---|---|
+     * | Type | number |
+     */
+    totalBalance?: number;
 }
 
 export interface SwitchedAccountProperties {
-	/**
-	 * The type of account that is being switched to.
-	 */
-	toAccountType: string;
+    /**
+     * The type of account that is being switched to.
+     */
+    toAccountType: string;
 }
 
 export interface SwitchedNetworkProperties {
-	toNetwork: string;
+    toNetwork: string;
 }
 
 export interface UnpinnedCoinProperties {
-	/**
-	 * The type of a coin.
-	 */
-	coinType: string;
+    /**
+     * The type of a coin.
+     */
+    coinType: string;
 }
 
 export interface UnstakedIotaProperties {
-	/**
-	 * The address of the selected validator.
-	 */
-	validatorAddress: string;
+    /**
+     * The address of the selected validator.
+     */
+    validatorAddress: string;
 }
 
 export interface VisitedFiatOnRampProperties {
-	countryCode?: string;
-	isBestRate?: boolean;
-	/**
-	 * The name of the fiat on-ramp provider.
-	 */
-	providerName: string;
-	region?: string;
+    countryCode?: string;
+    isBestRate?: boolean;
+    /**
+     * The name of the fiat on-ramp provider.
+     */
+    providerName: string;
+    region?: string;
 }
 
 export class Identify implements BaseEvent {
-	event_type = amplitude.Types.SpecialEventType.IDENTIFY;
+    event_type = amplitude.Types.SpecialEventType.IDENTIFY;
 
-	constructor(public event_properties: IdentifyProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: IdentifyProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class AddedAccounts implements BaseEvent {
-	event_type = 'added accounts';
+    event_type = 'added accounts';
 
-	constructor(public event_properties: AddedAccountsProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: AddedAccountsProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class BypassedScamWarning implements BaseEvent {
-	event_type = 'bypassed scam warning';
+    event_type = 'bypassed scam warning';
 
-	constructor(public event_properties: BypassedScamWarningProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: BypassedScamWarningProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedBullsharkQuestsCta implements BaseEvent {
-	event_type = 'clicked bullshark quests cta';
+    event_type = 'clicked bullshark quests cta';
 
-	constructor(public event_properties: ClickedBullsharkQuestsCtaProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedBullsharkQuestsCtaProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedCollectibleCard implements BaseEvent {
-	event_type = 'clicked collectible card';
+    event_type = 'clicked collectible card';
 
-	constructor(public event_properties: ClickedCollectibleCardProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedCollectibleCardProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedCreateNewAccount implements BaseEvent {
-	event_type = 'clicked create new account';
+    event_type = 'clicked create new account';
 
-	constructor(public event_properties: ClickedCreateNewAccountProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedCreateNewAccountProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedCreateNewWallet implements BaseEvent {
-	event_type = 'clicked create new wallet';
+    event_type = 'clicked create new wallet';
 }
 
 export class ClickedGetStarted implements BaseEvent {
-	event_type = 'clicked get started';
+    event_type = 'clicked get started';
 }
 
 export class ClickedHideAsset implements BaseEvent {
-	event_type = 'clicked hide asset';
+    event_type = 'clicked hide asset';
 
-	constructor(public event_properties: ClickedHideAssetProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedHideAssetProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedImportExistingWallet implements BaseEvent {
-	event_type = 'clicked import existing wallet';
+    event_type = 'clicked import existing wallet';
 }
 
 export class ClickedImportPassphrase implements BaseEvent {
-	event_type = 'clicked import passphrase';
+    event_type = 'clicked import passphrase';
 
-	constructor(public event_properties: ClickedImportPassphraseProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedImportPassphraseProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedImportPrivateKey implements BaseEvent {
-	event_type = 'clicked import private key';
+    event_type = 'clicked import private key';
 
-	constructor(public event_properties: ClickedImportPrivateKeyProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedImportPrivateKeyProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedSocialSignInButton implements BaseEvent {
-	event_type = 'clicked social sign in button';
+    event_type = 'clicked social sign in button';
 
-	constructor(public event_properties: ClickedSocialSignInButtonProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedSocialSignInButtonProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedStakeIota implements BaseEvent {
-	event_type = 'clicked stake IOTA';
+    event_type = 'clicked stake IOTA';
 
-	constructor(public event_properties: ClickedStakeIotaProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedStakeIotaProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedSwapCoin implements BaseEvent {
-	event_type = 'clicked swap coin';
+    event_type = 'clicked swap coin';
 
-	constructor(public event_properties: ClickedSwapCoinProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedSwapCoinProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedTokenClaimsBanner implements BaseEvent {
-	event_type = 'clicked token claims banner';
+    event_type = 'clicked token claims banner';
 
-	constructor(public event_properties: ClickedTokenClaimsBannerProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedTokenClaimsBannerProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedUnstakeIota implements BaseEvent {
-	event_type = 'clicked unstake IOTA';
+    event_type = 'clicked unstake IOTA';
 
-	constructor(public event_properties: ClickedUnstakeIotaProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedUnstakeIotaProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ClickedUsdcPromoBanner implements BaseEvent {
-	event_type = 'clicked usdc promo banner';
+    event_type = 'clicked usdc promo banner';
 
-	constructor(public event_properties: ClickedUsdcPromoBannerProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ClickedUsdcPromoBannerProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ConnectedHardwareWallet implements BaseEvent {
-	event_type = 'connected hardware wallet';
+    event_type = 'connected hardware wallet';
 
-	constructor(public event_properties: ConnectedHardwareWalletProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ConnectedHardwareWalletProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class CreatedNewWallet implements BaseEvent {
-	event_type = 'created new wallet';
+    event_type = 'created new wallet';
 
-	constructor(public event_properties: CreatedNewWalletProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: CreatedNewWalletProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class DisconnectedApplication implements BaseEvent {
-	event_type = 'disconnected application';
+    event_type = 'disconnected application';
 
-	constructor(public event_properties: DisconnectedApplicationProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: DisconnectedApplicationProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ImportedExistingAccount implements BaseEvent {
-	event_type = 'imported existing account';
+    event_type = 'imported existing account';
 
-	constructor(public event_properties: ImportedExistingAccountProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ImportedExistingAccountProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class InteractedWithMaliciousDomain implements BaseEvent {
-	event_type = 'interacted with malicious domain';
+    event_type = 'interacted with malicious domain';
 
-	constructor(public event_properties: InteractedWithMaliciousDomainProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: InteractedWithMaliciousDomainProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class OpenedApplication implements BaseEvent {
-	event_type = 'opened application';
+    event_type = 'opened application';
 
-	constructor(public event_properties: OpenedApplicationProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: OpenedApplicationProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class OpenedConnectLedgerFlow implements BaseEvent {
-	event_type = 'opened connect ledger flow';
+    event_type = 'opened connect ledger flow';
 
-	constructor(public event_properties: OpenedConnectLedgerFlowProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: OpenedConnectLedgerFlowProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class OpenedWalletExtension implements BaseEvent {
-	event_type = 'opened wallet extension';
+    event_type = 'opened wallet extension';
 }
 
 export class PinnedCoin implements BaseEvent {
-	event_type = 'pinned coin';
+    event_type = 'pinned coin';
 
-	constructor(public event_properties: PinnedCoinProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: PinnedCoinProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ReceivedOnrampProvidersData implements BaseEvent {
-	event_type = 'received onramp providers data';
+    event_type = 'received onramp providers data';
 
-	constructor(public event_properties: ReceivedOnrampProvidersDataProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ReceivedOnrampProvidersDataProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ReceivedOnrampProvidersDataFailed implements BaseEvent {
-	event_type = 'Received onramp providers data (failed)';
+    event_type = 'Received onramp providers data (failed)';
 
-	constructor(public event_properties: ReceivedOnrampProvidersDataFailedProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: ReceivedOnrampProvidersDataFailedProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class RespondedToConnectionRequest implements BaseEvent {
-	event_type = 'responded to connection request';
+    event_type = 'responded to connection request';
 
-	constructor(public event_properties: RespondedToConnectionRequestProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: RespondedToConnectionRequestProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class RespondedToTransactionRequest implements BaseEvent {
-	event_type = 'responded to transaction request';
+    event_type = 'responded to transaction request';
 
-	constructor(public event_properties: RespondedToTransactionRequestProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: RespondedToTransactionRequestProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SelectedCoin implements BaseEvent {
-	event_type = 'selected coin';
+    event_type = 'selected coin';
 
-	constructor(public event_properties: SelectedCoinProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SelectedCoinProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SelectedValidator implements BaseEvent {
-	event_type = 'selected validator';
+    event_type = 'selected validator';
 
-	constructor(public event_properties: SelectedValidatorProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SelectedValidatorProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SentCoinFailed implements BaseEvent {
-	event_type = 'sent coin failed';
+    event_type = 'sent coin failed';
 
-	constructor(public event_properties: SentCoinFailedProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SentCoinFailedProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SentCoins implements BaseEvent {
-	event_type = 'sent coins';
+    event_type = 'sent coins';
 
-	constructor(public event_properties: SentCoinsProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SentCoinsProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SentCollectible implements BaseEvent {
-	event_type = 'sent collectible';
+    event_type = 'sent collectible';
 
-	constructor(public event_properties: SentCollectibleProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SentCollectibleProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SentCollectibleFailed implements BaseEvent {
-	event_type = 'sent collectible (failed)';
+    event_type = 'sent collectible (failed)';
 
-	constructor(public event_properties: SentCollectibleFailedProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SentCollectibleFailedProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SignedTransactionBlockFailed implements BaseEvent {
-	event_type = 'signed transaction block failed';
+    event_type = 'signed transaction block failed';
 
-	constructor(public event_properties: SignedTransactionBlockFailedProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SignedTransactionBlockFailedProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class StakedIota implements BaseEvent {
-	event_type = 'staked IOTA';
+    event_type = 'staked IOTA';
 
-	constructor(public event_properties: StakedIotaProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: StakedIotaProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class StakedIotaFailed implements BaseEvent {
-	event_type = 'staked IOTA (failed)';
+    event_type = 'staked IOTA (failed)';
 
-	constructor(public event_properties: StakedIotaFailedProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: StakedIotaFailedProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SwappedCoin implements BaseEvent {
-	event_type = 'swapped coin';
+    event_type = 'swapped coin';
 
-	constructor(public event_properties: SwappedCoinProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SwappedCoinProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SwappedCoinFailed implements BaseEvent {
-	event_type = 'swapped coin (failed)';
+    event_type = 'swapped coin (failed)';
 
-	constructor(public event_properties: SwappedCoinFailedProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SwappedCoinFailedProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SwitchedAccount implements BaseEvent {
-	event_type = 'switched account';
+    event_type = 'switched account';
 
-	constructor(public event_properties: SwitchedAccountProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SwitchedAccountProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SwitchedNetwork implements BaseEvent {
-	event_type = 'switched network';
+    event_type = 'switched network';
 
-	constructor(public event_properties: SwitchedNetworkProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: SwitchedNetworkProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class UnpinnedCoin implements BaseEvent {
-	event_type = 'unpinned coin';
+    event_type = 'unpinned coin';
 
-	constructor(public event_properties: UnpinnedCoinProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: UnpinnedCoinProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class UnstakedIota implements BaseEvent {
-	event_type = 'unstaked IOTA';
+    event_type = 'unstaked IOTA';
 
-	constructor(public event_properties: UnstakedIotaProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: UnstakedIotaProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ViewedLedgerTutorial implements BaseEvent {
-	event_type = 'viewed ledger tutorial';
+    event_type = 'viewed ledger tutorial';
 }
 
 export class VisitedFiatOnRamp implements BaseEvent {
-	event_type = 'visited fiat on-ramp';
+    event_type = 'visited fiat on-ramp';
 
-	constructor(public event_properties: VisitedFiatOnRampProperties) {
-		this.event_properties = event_properties;
-	}
+    constructor(public event_properties: VisitedFiatOnRampProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export type PromiseResult<T> = { promise: Promise<T | void> };

@@ -23,7 +23,7 @@ import { GasFees } from './GasFees';
 import { TransactionDetails } from './TransactionDetails';
 
 export type TransactionRequestProps = {
-	txRequest: TransactionApprovalRequest;
+    txRequest: TransactionApprovalRequest;
 };
 
 // Some applications require *a lot* of transactions to interact with, and this
@@ -33,116 +33,119 @@ export type TransactionRequestProps = {
 const appOriginsToExcludeFromAnalytics = ['https://iota8192.ethoswallet.xyz'];
 
 export function TransactionRequest({ txRequest }: TransactionRequestProps) {
-	const addressForTransaction = txRequest.tx.account;
-	const { data: accountForTransaction } = useAccountByAddress(addressForTransaction);
-	const signer = useSigner(accountForTransaction);
-	const dispatch = useAppDispatch();
-	const transaction = useMemo(() => {
-		const tx = Transaction.from(txRequest.tx.data);
-		if (addressForTransaction) {
-			tx.setSenderIfNotSet(addressForTransaction);
-		}
-		return tx;
-	}, [txRequest.tx.data, addressForTransaction]);
-	const { isPending, isError } = useTransactionData(addressForTransaction, transaction);
-	const [isConfirmationVisible, setConfirmationVisible] = useState(false);
+    const addressForTransaction = txRequest.tx.account;
+    const { data: accountForTransaction } = useAccountByAddress(addressForTransaction);
+    const signer = useSigner(accountForTransaction);
+    const dispatch = useAppDispatch();
+    const transaction = useMemo(() => {
+        const tx = Transaction.from(txRequest.tx.data);
+        if (addressForTransaction) {
+            tx.setSenderIfNotSet(addressForTransaction);
+        }
+        return tx;
+    }, [txRequest.tx.data, addressForTransaction]);
+    const { isPending, isError } = useTransactionData(addressForTransaction, transaction);
+    const [isConfirmationVisible, setConfirmationVisible] = useState(false);
 
-	const {
-		data,
-		isError: isDryRunError,
-		isPending: isDryRunLoading,
-	} = useTransactionDryRun(addressForTransaction, transaction);
-	const recognizedPackagesList = useRecognizedPackages();
+    const {
+        data,
+        isError: isDryRunError,
+        isPending: isDryRunLoading,
+    } = useTransactionDryRun(addressForTransaction, transaction);
+    const recognizedPackagesList = useRecognizedPackages();
 
-	const summary = useTransactionSummary({
-		transaction: data,
-		currentAddress: addressForTransaction,
-		recognizedPackagesList,
-	});
-	const { clientIdentifier, notificationModal } = useQredoTransaction(true);
-	if (!signer) {
-		return null;
-	}
-	return (
-		<>
-			<UserApproveContainer
-				origin={txRequest.origin}
-				originFavIcon={txRequest.originFavIcon}
-				approveTitle="Approve"
-				rejectTitle="Reject"
-				onSubmit={async (approved: boolean) => {
-					if (isPending) return;
-					if (approved && isError) {
-						setConfirmationVisible(true);
-						return;
-					}
-					await dispatch(
-						respondToTransactionRequest({
-							approved,
-							txRequestID: txRequest.id,
-							signer,
-							clientIdentifier,
-						}),
-					);
-					if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
-						ampli.respondedToTransactionRequest({
-							applicationUrl: txRequest.origin,
-							approvedTransaction: approved,
-							receivedFailureWarning: false,
-							type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
-						});
-					}
-				}}
-				address={addressForTransaction}
-				approveLoading={isPending || isConfirmationVisible}
-				checkAccountLock
-			>
-				<PageMainLayoutTitle title="Approve Transaction" />
-				<div className="flex flex-col">
-					<div className="flex flex-col gap-4">
-						<TransactionSummary
-							isDryRun
-							isLoading={isDryRunLoading}
-							isError={isDryRunError}
-							showGasSummary={false}
-							summary={summary}
-						/>
-					</div>
-					<section className=" bg-white -mx-6">
-						<div className="flex flex-col gap-4 p-6">
-							<GasFees sender={addressForTransaction} transaction={transaction} />
-							<TransactionDetails sender={addressForTransaction} transaction={transaction} />
-						</div>
-					</section>
-				</div>
-			</UserApproveContainer>
-			<ConfirmationModal
-				isOpen={isConfirmationVisible}
-				title="This transaction might fail. Are you sure you still want to approve the transaction?"
-				hint="You will still be charged a gas fee for this transaction."
-				confirmStyle="primary"
-				confirmText="Approve"
-				cancelText="Reject"
-				cancelStyle="warning"
-				onResponse={async (isConfirmed) => {
-					await dispatch(
-						respondToTransactionRequest({
-							approved: isConfirmed,
-							txRequestID: txRequest.id,
-							signer,
-							clientIdentifier,
-						}),
-					);
-					ampli.respondedToTransactionRequest({
-						applicationUrl: txRequest.origin,
-						approvedTransaction: isConfirmed,
-						receivedFailureWarning: true,
-						type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
-					});
-					setConfirmationVisible(false);
-				}}
-			/>
-			{notificationModal}
-		</>
-	);
+    const summary = useTransactionSummary({
+        transaction: data,
+        currentAddress: addressForTransaction,
+        recognizedPackagesList,
+    });
+    const { clientIdentifier, notificationModal } = useQredoTransaction(true);
+    if (!signer) {
+        return null;
+    }
+    return (
+        <>
+            <UserApproveContainer
+                origin={txRequest.origin}
+                originFavIcon={txRequest.originFavIcon}
+                approveTitle="Approve"
+                rejectTitle="Reject"
+                onSubmit={async (approved: boolean) => {
+                    if (isPending) return;
+                    if (approved && isError) {
+                        setConfirmationVisible(true);
+                        return;
+                    }
+                    await dispatch(
+                        respondToTransactionRequest({
+                            approved,
+                            txRequestID: txRequest.id,
+                            signer,
+                            clientIdentifier,
+                        }),
+                    );
+                    if (!appOriginsToExcludeFromAnalytics.includes(txRequest.origin)) {
+                        ampli.respondedToTransactionRequest({
+                            applicationUrl: txRequest.origin,
+                            approvedTransaction: approved,
+                            receivedFailureWarning: false,
+                            type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
+                        });
+                    }
+                }}
+                address={addressForTransaction}
+                approveLoading={isPending || isConfirmationVisible}
+                checkAccountLock
+            >
+                <PageMainLayoutTitle title="Approve Transaction" />
+                <div className="flex flex-col">
+                    <div className="flex flex-col gap-4">
+                        <TransactionSummary
+                            isDryRun
+                            isLoading={isDryRunLoading}
+                            isError={isDryRunError}
+                            showGasSummary={false}
+                            summary={summary}
+                        />
+                    </div>
+                    <section className="-mx-6 bg-white">
+                        <div className="flex flex-col gap-4 p-6">
+                            <GasFees sender={addressForTransaction} transaction={transaction} />
+                            <TransactionDetails
+                                sender={addressForTransaction}
+                                transaction={transaction}
+                            />
+                        </div>
+                    </section>
+                </div>
+            </UserApproveContainer>
+            <ConfirmationModal
+                isOpen={isConfirmationVisible}
+                title="This transaction might fail. Are you sure you still want to approve the transaction?"
+                hint="You will still be charged a gas fee for this transaction."
+                confirmStyle="primary"
+                confirmText="Approve"
+                cancelText="Reject"
+                cancelStyle="warning"
+                onResponse={async (isConfirmed) => {
+                    await dispatch(
+                        respondToTransactionRequest({
+                            approved: isConfirmed,
+                            txRequestID: txRequest.id,
+                            signer,
+                            clientIdentifier,
+                        }),
+                    );
+                    ampli.respondedToTransactionRequest({
+                        applicationUrl: txRequest.origin,
+                        approvedTransaction: isConfirmed,
+                        receivedFailureWarning: true,
+                        type: txRequest.tx.justSign ? 'sign' : 'sign-and-execute',
+                    });
+                    setConfirmationVisible(false);
+                }}
+            />
+            {notificationModal}
+        </>
+    );
 }

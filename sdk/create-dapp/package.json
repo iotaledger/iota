@@ -1,49 +1,49 @@
 {
-	"name": "@iota/create-dapp",
-	"author": "IOTA Foundation <info@iota.org>",
-	"description": "A CLI for creating new Iota dApps",
-	"homepage": "https://docs.iota.org/references/ts-sdk/typescript",
-	"version": "0.3.41",
-	"license": "Apache-2.0",
-	"files": [
-		"CHANGELOG.md",
-		"LICENSE",
-		"README.md",
-		"dist",
-		"src",
-		"templates"
-	],
-	"type": "commonjs",
-	"main": "./dist/cjs/index.js",
-	"module": "./dist/esm/index.js",
-	"types": "./dist/cjs/index.d.ts",
-	"scripts": {
-		"clean": "rm -rf tsconfig.tsbuildinfo ./dist",
-		"build": "tsc --build",
-		"prepublishOnly": "pnpm build",
-		"prettier:check": "prettier -c --ignore-unknown .",
-		"prettier:fix": "prettier -w --ignore-unknown .",
-		"eslint:check": "eslint --max-warnings=0 .",
-		"eslint:fix": "pnpm run eslint:check --fix",
-		"lint": "pnpm run eslint:check && pnpm run prettier:check",
-		"lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
-	},
-	"bugs": {
-		"url": "https://github.com/iotaledger/iota/issues/new"
-	},
-	"publishConfig": {
-		"access": "public"
-	},
-	"devDependencies": {
-		"@iota/build-scripts": "workspace:*",
-		"typescript": "^5.5.3"
-	},
-	"dependencies": {
-		"@iota/dapp-kit": "workspace:*",
-		"@iota/iota-sdk": "workspace:*",
-		"@types/node": "^20.14.10",
-		"enquirer": "^2.4.1"
-	},
-	"sideEffects": false,
-	"bin": "./bin/index.js"
+    "name": "@iota/create-dapp",
+    "author": "IOTA Foundation <info@iota.org>",
+    "description": "A CLI for creating new Iota dApps",
+    "homepage": "https://docs.iota.org/references/ts-sdk/typescript",
+    "version": "0.3.41",
+    "license": "Apache-2.0",
+    "files": [
+        "CHANGELOG.md",
+        "LICENSE",
+        "README.md",
+        "dist",
+        "src",
+        "templates"
+    ],
+    "type": "commonjs",
+    "main": "./dist/cjs/index.js",
+    "module": "./dist/esm/index.js",
+    "types": "./dist/cjs/index.d.ts",
+    "scripts": {
+        "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
+        "build": "tsc --build",
+        "prepublishOnly": "pnpm build",
+        "prettier:check": "prettier -c --ignore-unknown .",
+        "prettier:fix": "prettier -w --ignore-unknown .",
+        "eslint:check": "eslint --max-warnings=0 .",
+        "eslint:fix": "pnpm run eslint:check --fix",
+        "lint": "pnpm run eslint:check && pnpm run prettier:check",
+        "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
+    },
+    "bugs": {
+        "url": "https://github.com/iotaledger/iota/issues/new"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "devDependencies": {
+        "@iota/build-scripts": "workspace:*",
+        "typescript": "^5.5.3"
+    },
+    "dependencies": {
+        "@iota/dapp-kit": "workspace:*",
+        "@iota/iota-sdk": "workspace:*",
+        "@types/node": "^20.14.10",
+        "enquirer": "^2.4.1"
+    },
+    "sideEffects": false,
+    "bin": "./bin/index.js"
 }

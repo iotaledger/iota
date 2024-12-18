@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type {
-	ExecuteTransactionRequestType,
-	IotaTransactionBlockResponse,
-	IotaTransactionBlockResponseOptions,
+    ExecuteTransactionRequestType,
+    IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 } from '@iota/iota-sdk/client';
 
 import type { IotaSignTransactionBlockInput } from './iotaSignTransactionBlock.js';
@@ -21,28 +21,28 @@ export type IotaSignAndExecuteTransactionBlockVersion = '1.0.0';
  * and return the transaction response.
  */
 export type IotaSignAndExecuteTransactionBlockFeature = {
-	/** Namespace for the feature. */
-	'iota:signAndExecuteTransactionBlock': {
-		/** Version of the feature API. */
-		version: IotaSignAndExecuteTransactionBlockVersion;
-		/** @deprecated Use `iota:signAndExecuteTransaction` instead. */
-		signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod;
-	};
+    /** Namespace for the feature. */
+    'iota:signAndExecuteTransactionBlock': {
+        /** Version of the feature API. */
+        version: IotaSignAndExecuteTransactionBlockVersion;
+        /** @deprecated Use `iota:signAndExecuteTransaction` instead. */
+        signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod;
+    };
 };
 
 /** @deprecated Use `iota:signAndExecuteTransaction` instead. */
 export type IotaSignAndExecuteTransactionBlockMethod = (
-	input: IotaSignAndExecuteTransactionBlockInput,
+    input: IotaSignAndExecuteTransactionBlockInput,
 ) => Promise<IotaSignAndExecuteTransactionBlockOutput>;
 
 /** Input for signing and sending transactions. */
 export interface IotaSignAndExecuteTransactionBlockInput extends IotaSignTransactionBlockInput {
-	/**
-	 * @deprecated requestType will be ignored by JSON RPC in the future
-	 */
-	requestType?: ExecuteTransactionRequestType;
-	/** specify which fields to return (e.g., transaction, effects, events, etc). By default, only the transaction digest will be returned. */
-	options?: IotaTransactionBlockResponseOptions;
+    /**
+     * @deprecated requestType will be ignored by JSON RPC in the future
+     */
+    requestType?: ExecuteTransactionRequestType;
+    /** specify which fields to return (e.g., transaction, effects, events, etc). By default, only the transaction digest will be returned. */
+    options?: IotaTransactionBlockResponseOptions;
 }
 
 /** Output of signing and sending transactions. */

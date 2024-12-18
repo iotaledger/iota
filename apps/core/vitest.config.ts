@@ -9,5 +9,5 @@ process.env.VITE_VERCEL_ENV = process.env.VERCEL_ENV || 'development';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-	plugins: [vanillaExtractPlugin()],
+    plugins: [vanillaExtractPlugin()],
 });

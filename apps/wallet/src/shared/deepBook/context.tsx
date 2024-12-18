@@ -12,60 +12,64 @@ import { DeepBookClient } from '@iota/deepbook';
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 type DeepBookContextProps = {
-	client: DeepBookClient;
-	accountCapId: string;
-	configs: {
-		pools: Record<string, string[]>;
-		coinsMap: Record<Coins, string>;
-	};
-	walletFeeAddress: string;
+    client: DeepBookClient;
+    accountCapId: string;
+    configs: {
+        pools: Record<string, string[]>;
+        coinsMap: Record<Coins, string>;
+    };
+    walletFeeAddress: string;
 };
 
 const DeepBookContext = createContext<DeepBookContextProps | null>(null);
 
 interface DeepBookContextProviderProps {
-	children: ReactNode;
+    children: ReactNode;
 }
 
 export function useDeepBookContext() {
-	const context = useContext(DeepBookContext);
-	if (!context) {
-		throw new Error('useDeepBookContext must be used within a DeepBookContextProvider');
-	}
-	return context;
+    const context = useContext(DeepBookContext);
+    if (!context) {
+        throw new Error('useDeepBookContext must be used within a DeepBookContextProvider');
+    }
+    return context;
 }
 
 export function DeepBookContextProvider({ children }: DeepBookContextProviderProps) {
-	const iotaClient = useIotaClient();
-	const activeAccount = useActiveAccount();
-	const activeAccountAddress = activeAccount?.address;
+    const iotaClient = useIotaClient();
+    const activeAccount = useActiveAccount();
+    const activeAccountAddress = activeAccount?.address;
 
-	const configs = useDeepBookConfigs();
-	const walletFeeAddress = useFeatureValue(FEATURES.WALLET_FEE_ADDRESS, DEFAULT_WALLET_FEE_ADDRESS);
+    const configs = useDeepBookConfigs();
+    const walletFeeAddress = useFeatureValue(
+        FEATURES.WALLET_FEE_ADDRESS,
+        DEFAULT_WALLET_FEE_ADDRESS,
+    );
 
-	const { data } = useGetOwnedObjects(
-		activeAccountAddress,
-		{ StructType: '0xdee9::custodian_v2::AccountCap' },
-		1,
-	);
+    const { data } = useGetOwnedObjects(
+        activeAccountAddress,
+        { StructType: '0xdee9::custodian_v2::AccountCap' },
+        1,
+    );
 
-	const objectContent = data?.pages?.[0]?.data?.[0]?.data?.content;
-	const objectFields = objectContent?.dataType === 'moveObject' ? objectContent?.fields : null;
+    const objectContent = data?.pages?.[0]?.data?.[0]?.data?.content;
+    const objectFields = objectContent?.dataType === 'moveObject' ? objectContent?.fields : null;
 
-	const accountCapId = (objectFields as Record<string, string | number | object>)?.owner as string;
+    const accountCapId = (objectFields as Record<string, string | number | object>)
+        ?.owner as string;
 
-	const deepBookClient = useMemo(() => {
-		return new DeepBookClient(iotaClient, accountCapId);
-	}, [accountCapId, iotaClient]);
+    const deepBookClient = useMemo(() => {
+        return new DeepBookClient(iotaClient, accountCapId);
+    }, [accountCapId, iotaClient]);
 
-	const contextValue = useMemo(() => {
-		return {
-			client: deepBookClient,
-			accountCapId,
-			configs,
-			walletFeeAddress,
-		};
-	}, [accountCapId, configs, deepBookClient, walletFeeAddress]);
+    const contextValue = useMemo(() => {
+        return {
+            client: deepBookClient,
+            accountCapId,
+            configs,
+            walletFeeAddress,
+        };
+    }, [accountCapId, configs, deepBookClient, walletFeeAddress]);
 
-	return <DeepBookContext.Provider value={contextValue}>{children}</DeepBookContext.Provider>;
+    return <DeepBookContext.Provider value={contextValue}>{children}</DeepBookContext.Provider>;
 }

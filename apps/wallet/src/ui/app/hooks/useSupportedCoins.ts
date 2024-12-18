@@ -5,10 +5,10 @@ import { useAppsBackend } from '@iota/core';
 import { useQuery } from '@tanstack/react-query';
 
 export function useSupportedCoins() {
-	const { request } = useAppsBackend();
+    const { request } = useAppsBackend();
 
-	return useQuery({
-		queryKey: ['supported-coins-apps-backend'],
-		queryFn: async () => request<{ supported: string[] }>('swap/coins'),
-	});
+    return useQuery({
+        queryKey: ['supported-coins-apps-backend'],
+        queryFn: async () => request<{ supported: string[] }>('swap/coins'),
+    });
 }

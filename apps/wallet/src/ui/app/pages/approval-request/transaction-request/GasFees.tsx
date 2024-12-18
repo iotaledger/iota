@@ -11,46 +11,46 @@ import { DescriptionItem, DescriptionList } from './DescriptionList';
 import { SummaryCard } from './SummaryCard';
 
 interface Props {
-	sender?: string;
-	transaction: Transaction;
+    sender?: string;
+    transaction: Transaction;
 }
 
 export function GasFees({ sender, transaction }: Props) {
-	const { data: transactionData } = useTransactionData(sender, transaction);
-	const { data: gasBudget, isPending, isError } = useTransactionGasBudget(sender, transaction);
-	const isSponsored =
-		transactionData?.gasData.owner && transactionData.sender !== transactionData.gasData.owner;
-	return (
-		<SummaryCard
-			header="Estimated Gas Fees"
-			badge={
-				isSponsored ? (
-					<div className="bg-white text-success px-1.5 py-0.5 text-captionSmallExtra rounded-full font-medium uppercase">
-						Sponsored
-					</div>
-				) : null
-			}
-			initialExpanded
-		>
-			<DescriptionList>
-				<DescriptionItem title="You Pay">
-					{isPending
-						? 'Estimating...'
-						: isError
-							? 'Gas estimation failed'
-							: `${isSponsored ? 0 : gasBudget} ${GAS_SYMBOL}`}
-				</DescriptionItem>
-				{isSponsored && (
-					<>
-						<DescriptionItem title="Sponsor Pays">
-							{gasBudget ? `${gasBudget} ${GAS_SYMBOL}` : '-'}
-						</DescriptionItem>
-						<DescriptionItem title="Sponsor">
-							{formatAddress(transactionData!.gasData.owner!)}
-						</DescriptionItem>
-					</>
-				)}
-			</DescriptionList>
-		</SummaryCard>
-	);
+    const { data: transactionData } = useTransactionData(sender, transaction);
+    const { data: gasBudget, isPending, isError } = useTransactionGasBudget(sender, transaction);
+    const isSponsored =
+        transactionData?.gasData.owner && transactionData.sender !== transactionData.gasData.owner;
+    return (
+        <SummaryCard
+            header="Estimated Gas Fees"
+            badge={
+                isSponsored ? (
+                    <div className="rounded-full bg-white px-1.5 py-0.5 text-captionSmallExtra font-medium uppercase text-success">
+                        Sponsored
+                    </div>
+                ) : null
+            }
+            initialExpanded
+        >
+            <DescriptionList>
+                <DescriptionItem title="You Pay">
+                    {isPending
+                        ? 'Estimating...'
+                        : isError
+                          ? 'Gas estimation failed'
+                          : `${isSponsored ? 0 : gasBudget} ${GAS_SYMBOL}`}
+                </DescriptionItem>
+                {isSponsored && (
+                    <>
+                        <DescriptionItem title="Sponsor Pays">
+                            {gasBudget ? `${gasBudget} ${GAS_SYMBOL}` : '-'}
+                        </DescriptionItem>
+                        <DescriptionItem title="Sponsor">
+                            {formatAddress(transactionData!.gasData.owner!)}
+                        </DescriptionItem>
+                    </>
+                )}
+            </DescriptionList>
+        </SummaryCard>
+    );
 }

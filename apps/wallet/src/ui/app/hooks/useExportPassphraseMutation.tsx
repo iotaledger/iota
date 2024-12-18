@@ -9,12 +9,12 @@ import { useMutation } from '@tanstack/react-query';
 import { useBackgroundClient } from './useBackgroundClient';
 
 export function useExportPassphraseMutation() {
-	const backgroundClient = useBackgroundClient();
-	return useMutation({
-		mutationKey: ['export passphrase'],
-		mutationFn: async (args: MethodPayload<'getAccountSourceEntropy'>['args']) =>
-			entropyToMnemonic(
-				toEntropy((await backgroundClient.getAccountSourceEntropy(args)).entropy),
-			).split(' '),
-	});
+    const backgroundClient = useBackgroundClient();
+    return useMutation({
+        mutationKey: ['export passphrase'],
+        mutationFn: async (args: MethodPayload<'getAccountSourceEntropy'>['args']) =>
+            entropyToMnemonic(
+                toEntropy((await backgroundClient.getAccountSourceEntropy(args)).entropy),
+            ).split(' '),
+    });
 }

@@ -9,24 +9,26 @@ import { createContext, ReactNode, useContext, useMemo } from 'react';
 export const KioskClientContext = createContext<KioskClient | undefined>(undefined);
 
 export function KioskClientProvider({ children }: { children: ReactNode }) {
-	const iotaClient = useIotaClient();
-	const { network } = useIotaClientContext();
-	const kioskClient = useMemo(
-		() =>
-			new KioskClient({
-				client: iotaClient,
-				network: network as Network,
-			}),
-		[iotaClient, network],
-	);
+    const iotaClient = useIotaClient();
+    const { network } = useIotaClientContext();
+    const kioskClient = useMemo(
+        () =>
+            new KioskClient({
+                client: iotaClient,
+                network: network as Network,
+            }),
+        [iotaClient, network],
+    );
 
-	return <KioskClientContext.Provider value={kioskClient}>{children}</KioskClientContext.Provider>;
+    return (
+        <KioskClientContext.Provider value={kioskClient}>{children}</KioskClientContext.Provider>
+    );
 }
 
 export function useKioskClient() {
-	const kioskClient = useContext(KioskClientContext);
-	if (!kioskClient) {
-		throw new Error('kioskClient not setup properly.');
-	}
-	return kioskClient;
+    const kioskClient = useContext(KioskClientContext);
+    if (!kioskClient) {
+        throw new Error('kioskClient not setup properly.');
+    }
+    return kioskClient;
 }

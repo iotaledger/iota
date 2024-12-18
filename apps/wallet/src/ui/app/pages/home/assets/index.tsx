@@ -9,17 +9,17 @@ import { HiddenAssetsPage, NftsPage } from '..';
 import { HiddenAssetsProvider } from '../hidden-assets/HiddenAssetsProvider';
 
 function AssetsPage() {
-	if (useUnlockedGuard()) {
-		return null;
-	}
-	return (
-		<HiddenAssetsProvider>
-			<Routes>
-				<Route path="/hidden-assets" element={<HiddenAssetsPage />} />
-				<Route path="/:filterType?/*" element={<NftsPage />} />
-			</Routes>
-		</HiddenAssetsProvider>
-	);
+    if (useUnlockedGuard()) {
+        return null;
+    }
+    return (
+        <HiddenAssetsProvider>
+            <Routes>
+                <Route path="/hidden-assets" element={<HiddenAssetsPage />} />
+                <Route path="/:filterType?/*" element={<NftsPage />} />
+            </Routes>
+        </HiddenAssetsProvider>
+    );
 }
 
 export default AssetsPage;

@@ -17,16 +17,16 @@ import { getFullnodeUrl } from '@iota/iota-sdk/client';
 const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-	<React.StrictMode>
-		<QueryClientProvider client={queryClient}>
-			<IotaClientProvider
-				defaultNetwork="testnet"
-				networks={{ testnet: { url: getFullnodeUrl('testnet') } }}
-			>
-				<WalletProvider enableUnsafeBurner>
-					<App />
-				</WalletProvider>
-			</IotaClientProvider>
-		</QueryClientProvider>
-	</React.StrictMode>,
+    <React.StrictMode>
+        <QueryClientProvider client={queryClient}>
+            <IotaClientProvider
+                defaultNetwork="testnet"
+                networks={{ testnet: { url: getFullnodeUrl('testnet') } }}
+            >
+                <WalletProvider enableUnsafeBurner>
+                    <App />
+                </WalletProvider>
+            </IotaClientProvider>
+        </QueryClientProvider>
+    </React.StrictMode>,
 );

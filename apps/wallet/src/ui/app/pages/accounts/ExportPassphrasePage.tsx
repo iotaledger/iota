@@ -13,37 +13,43 @@ import { useAccountSources } from '../../hooks/useAccountSources';
 import { useExportPassphraseMutation } from '../../hooks/useExportPassphraseMutation';
 
 export function ExportPassphrasePage() {
-	const { accountSourceID } = useParams();
-	const { data: allAccountSources, isPending } = useAccountSources();
-	const accountSource = allAccountSources?.find(({ id }) => id === accountSourceID) || null;
-	const navigate = useNavigate();
-	const exportMutation = useExportPassphraseMutation();
-	if (!isPending && accountSource?.type !== 'mnemonic') {
-		return <Navigate to="/accounts/manage" />;
-	}
-	return (
-		<Overlay title="Export Passphrase" closeOverlay={() => navigate(-1)} showModal>
-			<Loading loading={isPending}>
-				{exportMutation.data ? (
-					<div className="flex flex-col gap-3 min-w-0">
-						<Alert>
-							<div className="break-normal">Do not share your Passphrase!</div>
-							<div className="break-normal">
-								It provides full control of all accounts derived from it.
-							</div>
-						</Alert>
-						<HideShowDisplayBox value={exportMutation.data} copiedMessage="Passphrase copied" />
-					</div>
-				) : (
-					<VerifyPasswordModal
-						open
-						onVerify={async (password) => {
-							await exportMutation.mutateAsync({ password, accountSourceID: accountSource!.id });
-						}}
-						onClose={() => navigate(-1)}
-					/>
-				)}
-			</Loading>
-		</Overlay>
-	);
+    const { accountSourceID } = useParams();
+    const { data: allAccountSources, isPending } = useAccountSources();
+    const accountSource = allAccountSources?.find(({ id }) => id === accountSourceID) || null;
+    const navigate = useNavigate();
+    const exportMutation = useExportPassphraseMutation();
+    if (!isPending && accountSource?.type !== 'mnemonic') {
+        return <Navigate to="/accounts/manage" />;
+    }
+    return (
+        <Overlay title="Export Passphrase" closeOverlay={() => navigate(-1)} showModal>
+            <Loading loading={isPending}>
+                {exportMutation.data ? (
+                    <div className="flex min-w-0 flex-col gap-3">
+                        <Alert>
+                            <div className="break-normal">Do not share your Passphrase!</div>
+                            <div className="break-normal">
+                                It provides full control of all accounts derived from it.
+                            </div>
+                        </Alert>
+                        <HideShowDisplayBox
+                            value={exportMutation.data}
+                            copiedMessage="Passphrase copied"
+                        />
+                    </div>
+                ) : (
+                    <VerifyPasswordModal
+                        open
+                        onVerify={async (password) => {
+                            await exportMutation.mutateAsync({
+                                password,
+                                accountSourceID: accountSource!.id,
+                            });
+                        }}
+                        onClose={() => navigate(-1)}
+                    />
+                )}
+            </Loading>
+        </Overlay>
+    );
 }

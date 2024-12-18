@@ -5,13 +5,17 @@
 import { type DelegatedStake } from '@iota/iota-sdk/client';
 
 // Get Stake IOTA by stakeIotaId
-export const getStakeIotaByIotaId = (allDelegation: DelegatedStake[], stakeIotaId?: string | null) => {
-	return (
-		allDelegation.reduce((acc, curr) => {
-			const total = BigInt(
-				curr.stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId)?.principal || 0,
-			);
-			return total + acc;
-		}, 0n) || 0n
-	);
+export const getStakeIotaByIotaId = (
+    allDelegation: DelegatedStake[],
+    stakeIotaId?: string | null,
+) => {
+    return (
+        allDelegation.reduce((acc, curr) => {
+            const total = BigInt(
+                curr.stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId)?.principal ||
+                    0,
+            );
+            return total + acc;
+        }, 0n) || 0n
+    );
 };

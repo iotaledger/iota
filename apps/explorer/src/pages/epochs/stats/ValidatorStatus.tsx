@@ -71,7 +71,7 @@ export function ValidatorStatus(): JSX.Element | null {
                         </div>
                     </div>
 
-                    <div className="h-full w-full max-w-[250px] sm:w-1/2 md:w-auto lg:w-1/2 ">
+                    <div className="h-full w-full max-w-[250px] sm:w-1/2 md:w-auto lg:w-1/2">
                         <DisplayStats
                             label="Estimated Next Epoch
                             Reference Gas Price"

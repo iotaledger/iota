@@ -3,18 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export type IotaNSContract = {
-	packageId: string;
-	iotans: string;
-	registry: string;
-	reverseRegistry: string;
+    packageId: string;
+    iotans: string;
+    registry: string;
+    reverseRegistry: string;
 };
 
 export type NameObject = {
-	id: string;
-	owner: string;
-	targetAddress: string;
-	avatar?: string;
-	contentHash?: string;
+    id: string;
+    owner: string;
+    targetAddress: string;
+    avatar?: string;
+    contentHash?: string;
 };
 
 export type DataFields = 'avatar' | 'contentHash';

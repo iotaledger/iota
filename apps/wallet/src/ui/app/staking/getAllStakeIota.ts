@@ -6,10 +6,11 @@ import { type DelegatedStake } from '@iota/iota-sdk/client';
 
 // Get staked Iota
 export const getAllStakeIota = (allDelegation: DelegatedStake[]) => {
-	return (
-		allDelegation.reduce(
-			(acc, curr) => curr.stakes.reduce((total, { principal }) => total + BigInt(principal), acc),
-			0n,
-		) || 0n
-	);
+    return (
+        allDelegation.reduce(
+            (acc, curr) =>
+                curr.stakes.reduce((total, { principal }) => total + BigInt(principal), acc),
+            0n,
+        ) || 0n
+    );
 };

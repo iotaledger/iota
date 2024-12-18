@@ -10,29 +10,29 @@ import { SocialButton } from '../../shared/SocialButton';
 import { useUnlockAccount } from './UnlockAccountContext';
 
 export type UnlockAccountButtonProps = {
-	account: SerializedUIAccount;
-	title?: string;
+    account: SerializedUIAccount;
+    title?: string;
 };
 export function UnlockAccountButton({
-	account,
-	title = 'Unlock Account',
+    account,
+    title = 'Unlock Account',
 }: UnlockAccountButtonProps) {
-	const { isPasswordUnlockable } = account;
-	const { unlockAccount, isPending } = useUnlockAccount();
+    const { isPasswordUnlockable } = account;
+    const { unlockAccount, isPending } = useUnlockAccount();
 
-	if (isPasswordUnlockable) {
-		return <Button text={title} onClick={() => unlockAccount(account)} />;
-	}
-	if (isZkLoginAccountSerializedUI(account)) {
-		return (
-			<SocialButton
-				provider={account.provider}
-				onClick={() => {
-					unlockAccount(account);
-				}}
-				loading={isPending}
-				showLabel
-			/>
-		);
-	}
+    if (isPasswordUnlockable) {
+        return <Button text={title} onClick={() => unlockAccount(account)} />;
+    }
+    if (isZkLoginAccountSerializedUI(account)) {
+        return (
+            <SocialButton
+                provider={account.provider}
+                onClick={() => {
+                    unlockAccount(account);
+                }}
+                loading={isPending}
+                showLabel
+            />
+        );
+    }
 }

@@ -12,30 +12,30 @@ export type IotaSignPersonalMessageVersion = '1.0.0';
  * message bytes that were signed, and message signature.
  */
 export type IotaSignPersonalMessageFeature = {
-	/** Namespace for the feature. */
-	'iota:signPersonalMessage': {
-		/** Version of the feature API. */
-		version: IotaSignPersonalMessageVersion;
-		signPersonalMessage: IotaSignPersonalMessageMethod;
-	};
+    /** Namespace for the feature. */
+    'iota:signPersonalMessage': {
+        /** Version of the feature API. */
+        version: IotaSignPersonalMessageVersion;
+        signPersonalMessage: IotaSignPersonalMessageMethod;
+    };
 };
 
 export type IotaSignPersonalMessageMethod = (
-	input: IotaSignPersonalMessageInput,
+    input: IotaSignPersonalMessageInput,
 ) => Promise<IotaSignPersonalMessageOutput>;
 
 /** Input for signing personal messages. */
 export interface IotaSignPersonalMessageInput {
-	message: Uint8Array;
-	account: WalletAccount;
+    message: Uint8Array;
+    account: WalletAccount;
 }
 
 /** Output of signing personal messages. */
 export interface IotaSignPersonalMessageOutput extends SignedPersonalMessage {}
 
 export interface SignedPersonalMessage {
-	/** Base64 encoded message bytes */
-	bytes: string;
-	/** Base64 encoded signature */
-	signature: string;
+    /** Base64 encoded message bytes */
+    bytes: string;
+    /** Base64 encoded signature */
+    signature: string;
 }

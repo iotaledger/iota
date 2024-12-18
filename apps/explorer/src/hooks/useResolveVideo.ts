@@ -11,7 +11,7 @@ export function useResolveVideo(object: IotaObjectResponse): string | undefined 
     const [network] = useNetwork();
     const recognizedPackages = useRecognizedPackages(network as Network);
     const objectType =
-        (object.data?.type ?? object?.data?.content?.dataType === 'package')
+        object.data?.type ?? object?.data?.content?.dataType === 'package'
             ? 'package'
             : object?.data?.content?.type;
     const isRecognized = objectType && recognizedPackages.includes(objectType.split('::')[0]);

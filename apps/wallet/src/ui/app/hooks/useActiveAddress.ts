@@ -5,5 +5,5 @@
 import { useActiveAccount } from './useActiveAccount';
 
 export function useActiveAddress() {
-	return useActiveAccount()?.address || null;
+    return useActiveAccount()?.address || null;
 }

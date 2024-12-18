@@ -9,29 +9,29 @@ import { type TransactionInput } from '@iota/iota-sdk/transactions';
 import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface InputProps {
-	input: TransactionInput;
+    input: TransactionInput;
 }
 
 export function Input({ input }: InputProps) {
-	const { objectId } =
-		input?.Object?.ImmOrOwnedObject ??
-		input?.Object?.SharedObject ??
-		input.Object?.Receiving! ??
-		{};
+    const { objectId } =
+        input?.Object?.ImmOrOwnedObject ??
+        input?.Object?.SharedObject ??
+        input.Object?.Receiving! ??
+        {};
 
-	return (
-		<div className="break-all">
-			<Text variant="pBodySmall" weight="medium" color="steel-dark" mono>
-				{input.Pure ? (
-					`${input.Pure.bytes}`
-				) : input.Object ? (
-					<ExplorerLink type={ExplorerLinkType.object} objectID={objectId!}>
-						{formatAddress(objectId)}
-					</ExplorerLink>
-				) : (
-					'Unknown input value'
-				)}
-			</Text>
-		</div>
-	);
+    return (
+        <div className="break-all">
+            <Text variant="pBodySmall" weight="medium" color="steel-dark" mono>
+                {input.Pure ? (
+                    `${input.Pure.bytes}`
+                ) : input.Object ? (
+                    <ExplorerLink type={ExplorerLinkType.object} objectID={objectId!}>
+                        {formatAddress(objectId)}
+                    </ExplorerLink>
+                ) : (
+                    'Unknown input value'
+                )}
+            </Text>
+        </div>
+    );
 }

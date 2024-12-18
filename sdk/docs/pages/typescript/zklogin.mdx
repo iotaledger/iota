@@ -43,11 +43,11 @@ To compute an address from a parsed jwt:
 import { computeZkLoginAddress } from '@iota/iota-sdk/zklogin';
 
 const address = computeZkLoginAddress({
-	claimName,
-	claimValue,
-	iss,
-	aud,
-	userSalt: BigInt(salt),
+    claimName,
+    claimValue,
+    iss,
+    aud,
+    userSalt: BigInt(salt),
 });
 ```
 

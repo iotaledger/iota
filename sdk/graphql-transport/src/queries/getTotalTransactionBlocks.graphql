@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 query getTotalTransactionBlocks {
-	checkpoint {
-		networkTotalTransactions
-	}
+    checkpoint {
+        networkTotalTransactions
+    }
 }

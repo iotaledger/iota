@@ -14,29 +14,30 @@ import { KioskClientProvider } from './context/KioskClientContext';
 const queryClient = new QueryClient();
 
 const { networkConfig } = createNetworkConfig({
-	localnet: { url: getFullnodeUrl('localnet') },
-	devnet: { url: getFullnodeUrl('devnet') },
-	testnet: { url: getFullnodeUrl('testnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    devnet: { url: getFullnodeUrl('devnet') },
+    testnet: { url: getFullnodeUrl('testnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 });
 
 export default function Root() {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<IotaClientProvider defaultNetwork="testnet" networks={networkConfig}>
-				<WalletProvider>
-					<KioskClientProvider>
-						<Header />
-						<div className="min-h-[80vh]">
-							<Outlet />
-						</div>
-						<div className="mt-6 border-t border-primary text-center py-6">
-							Copyright © Mysten Labs, Inc., Modifications Copyright © 2024 IOTA Stiftung
-						</div>
-						<Toaster position="bottom-center" />
-					</KioskClientProvider>
-				</WalletProvider>
-			</IotaClientProvider>
-		</QueryClientProvider>
-	);
+    return (
+        <QueryClientProvider client={queryClient}>
+            <IotaClientProvider defaultNetwork="testnet" networks={networkConfig}>
+                <WalletProvider>
+                    <KioskClientProvider>
+                        <Header />
+                        <div className="min-h-[80vh]">
+                            <Outlet />
+                        </div>
+                        <div className="mt-6 border-t border-primary text-center py-6">
+                            Copyright © Mysten Labs, Inc., Modifications Copyright © 2024 IOTA
+                            Stiftung
+                        </div>
+                        <Toaster position="bottom-center" />
+                    </KioskClientProvider>
+                </WalletProvider>
+            </IotaClientProvider>
+        </QueryClientProvider>
+    );
 }

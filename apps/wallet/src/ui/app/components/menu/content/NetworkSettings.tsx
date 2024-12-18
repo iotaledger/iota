@@ -8,10 +8,10 @@ import NetworkSelector from '_components/network-selector';
 import { MenuLayout } from './MenuLayout';
 
 export function NetworkSettings() {
-	const mainMenuUrl = useNextMenuUrl(true, '/');
-	return (
-		<MenuLayout title="Network" back={mainMenuUrl}>
-			<NetworkSelector />
-		</MenuLayout>
-	);
+    const mainMenuUrl = useNextMenuUrl(true, '/');
+    return (
+        <MenuLayout title="Network" back={mainMenuUrl}>
+            <NetworkSelector />
+        </MenuLayout>
+    );
 }

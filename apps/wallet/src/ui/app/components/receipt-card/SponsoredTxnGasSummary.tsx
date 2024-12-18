@@ -9,40 +9,40 @@ import { useFormatCoin } from '@iota/core';
 import { TxnAddressLink } from './TxnAddressLink';
 
 type SponsoredTxnGasSummaryProps = {
-	totalGas: number;
-	sponsor: string;
+    totalGas: number;
+    sponsor: string;
 };
 
 export function SponsoredTxnGasSummary({ totalGas, sponsor }: SponsoredTxnGasSummaryProps) {
-	const [sponsorTotalAmount, sponsorTotalAmountSymbol] = useFormatCoin(totalGas, GAS_TYPE_ARG);
+    const [sponsorTotalAmount, sponsorTotalAmountSymbol] = useFormatCoin(totalGas, GAS_TYPE_ARG);
 
-	return (
-		<div className="flex flex-col w-full gap-3.5 border-t border-solid border-steel/20 border-x-0 border-b-0 py-3.5 first:pt-0">
-			<Text variant="body" weight="medium" color="steel">
-				Gas Fees
-			</Text>
-			<div className="flex justify-between items-center w-full">
-				<Text variant="body" weight="medium" color="steel-darker">
-					You Paid
-				</Text>
-				<Text variant="body" weight="medium" color="steel-darker">
-					0 {GAS_SYMBOL}
-				</Text>
-			</div>
-			<div className="flex justify-between items-center w-full">
-				<Text variant="body" weight="medium" color="steel-darker">
-					Paid by Sponsor
-				</Text>
-				<Text variant="body" weight="medium" color="steel-darker">
-					{sponsorTotalAmount} {sponsorTotalAmountSymbol}
-				</Text>
-			</div>
-			<div className="flex justify-between items-center w-full">
-				<Text variant="body" weight="medium" color="steel-darker">
-					Sponsor
-				</Text>
-				<TxnAddressLink address={sponsor} />
-			</div>
-		</div>
-	);
+    return (
+        <div className="flex w-full flex-col gap-3.5 border-x-0 border-b-0 border-t border-solid border-steel/20 py-3.5 first:pt-0">
+            <Text variant="body" weight="medium" color="steel">
+                Gas Fees
+            </Text>
+            <div className="flex w-full items-center justify-between">
+                <Text variant="body" weight="medium" color="steel-darker">
+                    You Paid
+                </Text>
+                <Text variant="body" weight="medium" color="steel-darker">
+                    0 {GAS_SYMBOL}
+                </Text>
+            </div>
+            <div className="flex w-full items-center justify-between">
+                <Text variant="body" weight="medium" color="steel-darker">
+                    Paid by Sponsor
+                </Text>
+                <Text variant="body" weight="medium" color="steel-darker">
+                    {sponsorTotalAmount} {sponsorTotalAmountSymbol}
+                </Text>
+            </div>
+            <div className="flex w-full items-center justify-between">
+                <Text variant="body" weight="medium" color="steel-darker">
+                    Sponsor
+                </Text>
+                <TxnAddressLink address={sponsor} />
+            </div>
+        </div>
+    );
 }

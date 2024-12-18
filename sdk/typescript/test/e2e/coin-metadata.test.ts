@@ -8,22 +8,22 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { setup, TestToolbox } from './utils/setup';
 
 describe('Test Coin Metadata', () => {
-	let toolbox: TestToolbox;
-	let packageId: string;
+    let toolbox: TestToolbox;
+    let packageId: string;
 
-	beforeAll(async () => {
-		toolbox = await setup();
-		const packagePath = resolve(__dirname, './data/coin_metadata');
-		packageId = await toolbox.getPackage(packagePath);
-	});
+    beforeAll(async () => {
+        toolbox = await setup();
+        const packagePath = resolve(__dirname, './data/coin_metadata');
+        packageId = await toolbox.getPackage(packagePath);
+    });
 
-	it('Test accessing coin metadata', async () => {
-		const coinMetadata = (await toolbox.client.getCoinMetadata({
-			coinType: `${packageId}::test::TEST`,
-		}))!;
-		expect(coinMetadata.decimals).to.equal(2);
-		expect(coinMetadata.name).to.equal('Test Coin');
-		expect(coinMetadata.description).to.equal('Test coin metadata');
-		expect(coinMetadata.iconUrl).to.equal('http://iota.io');
-	});
+    it('Test accessing coin metadata', async () => {
+        const coinMetadata = (await toolbox.client.getCoinMetadata({
+            coinType: `${packageId}::test::TEST`,
+        }))!;
+        expect(coinMetadata.decimals).to.equal(2);
+        expect(coinMetadata.name).to.equal('Test Coin');
+        expect(coinMetadata.description).to.equal('Test coin metadata');
+        expect(coinMetadata.iconUrl).to.equal('http://iota.io');
+    });
 });

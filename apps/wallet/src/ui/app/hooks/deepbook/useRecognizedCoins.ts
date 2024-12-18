@@ -6,13 +6,13 @@ import { useDeepBookContext } from '_shared/deepBook/context';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 export function useRecognizedCoins() {
-	const coinsMap = useDeepBookContext().configs.coinsMap;
-	return Object.values(coinsMap);
+    const coinsMap = useDeepBookContext().configs.coinsMap;
+    return Object.values(coinsMap);
 }
 
 export function useAllowedSwapCoinsList() {
-	const deepBookConfigs = useDeepBookConfigs();
-	const coinsMap = deepBookConfigs.coinsMap;
+    const deepBookConfigs = useDeepBookConfigs();
+    const coinsMap = deepBookConfigs.coinsMap;
 
-	return [IOTA_TYPE_ARG, coinsMap.IOTA, coinsMap.USDC];
+    return [IOTA_TYPE_ARG, coinsMap.IOTA, coinsMap.USDC];
 }

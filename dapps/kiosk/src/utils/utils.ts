@@ -9,41 +9,39 @@ import { NANOS_PER_IOTA, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 // Parse the display of a list of objects into a simple {object_id: display} map
 // to use throughout the app.
 export const parseObjectDisplays = (
-	data: IotaObjectResponse[],
+    data: IotaObjectResponse[],
 ): Record<string, Record<string, string> | undefined> => {
-	return data.reduce<Record<string, Record<string, string> | undefined>>(
-		(acc, item: IotaObjectResponse) => {
-			const display = item.data?.display?.data;
-			const id = item.data?.objectId!;
-			acc[id] = display || undefined;
-			return acc;
-		},
-		{},
-	);
+    return data.reduce<Record<string, Record<string, string> | undefined>>(
+        (acc, item: IotaObjectResponse) => {
+            const display = item.data?.display?.data;
+            const id = item.data?.objectId!;
+            acc[id] = display || undefined;
+            return acc;
+        },
+        {},
+    );
 };
 
 export const processKioskListings = (data: KioskListing[]): Record<string, KioskListing> => {
-	const results: Record<string, KioskListing> = {};
+    const results: Record<string, KioskListing> = {};
 
-	data
-		.filter((x) => !!x)
-		.map((x: KioskListing) => {
-			results[x.objectId || ''] = x;
-			return x;
-		});
-	return results;
+    data.filter((x) => !!x).map((x: KioskListing) => {
+        results[x.objectId || ''] = x;
+        return x;
+    });
+    return results;
 };
 
 export const nanosToIota = (nanos: bigint | string | undefined) => {
-	if (!nanos) return 0;
-	return Number(nanos || 0) / Number(NANOS_PER_IOTA);
+    if (!nanos) return 0;
+    return Number(nanos || 0) / Number(NANOS_PER_IOTA);
 };
 
 export const formatIota = (amount: number) => {
-	return new Intl.NumberFormat('en-US', {
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 5,
-	}).format(amount);
+    return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 5,
+    }).format(amount);
 };
 
 /**
@@ -51,8 +49,8 @@ export const formatIota = (amount: number) => {
  * address owned kiosks.
  */
 export const findActiveCap = (
-	caps: KioskOwnerCap[] = [],
-	kioskId: string,
+    caps: KioskOwnerCap[] = [],
+    kioskId: string,
 ): KioskOwnerCap | undefined => {
-	return caps.find((x) => normalizeIotaAddress(x.kioskId) === normalizeIotaAddress(kioskId));
+    return caps.find((x) => normalizeIotaAddress(x.kioskId) === normalizeIotaAddress(kioskId));
 };

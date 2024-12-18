@@ -8,8 +8,8 @@ Client dApp using the following tools:
 - [Vite](https://vitejs.dev/) for build tooling
 - [Radix UI](https://www.radix-ui.com/) for pre-built UI components
 - [ESLint](https://eslint.org/) for linting
-- [`@iota/dapp-kit`](https://docs.iota.org/references/ts-sdk/dapp-kit) for connecting to
-  wallets and loading data
+- [`@iota/dapp-kit`](https://docs.iota.org/references/ts-sdk/dapp-kit) for
+  connecting to wallets and loading data
 - [pnpm](https://pnpm.io/) for package management
 
 For a full guide on how to build this dApp from scratch, visit this
@@ -19,9 +19,10 @@ For a full guide on how to build this dApp from scratch, visit this
 
 ### Install Iota cli
 
-Before deploying your move code, ensure that you have installed the Iota CLI. You
-can follow the [Iota installation instruction](https://docs.iota.org/build/install)
-to get everything set up.
+Before deploying your move code, ensure that you have installed the Iota CLI.
+You can follow the
+[Iota installation instruction](https://docs.iota.org/build/install) to get
+everything set up.
 
 This template uses `testnet` by default, so we'll need to set up a testnet
 environment in the CLI:

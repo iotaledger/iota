@@ -7,21 +7,21 @@ export const USDC_CONVERSION_RATE = 9;
 export const MAX_FLOAT = 2;
 export const WALLET_FEES_PERCENTAGE = 0.5;
 export const DEFAULT_WALLET_FEE_ADDRESS =
-	'0x55b0eb986766351d802ac3e1bbb8750a072b3fa40c782ebe3a0f48c9099f7fd3';
+    '0x55b0eb986766351d802ac3e1bbb8750a072b3fa40c782ebe3a0f48c9099f7fd3';
 export const DEFAULT_MAX_SLIPPAGE_PERCENTAGE = '0.5';
 export const IOTA_USDC_AVERAGE_CONVERSION_RATE = 3;
 
 export const initialValues = {
-	amount: '',
-	toAssetType: '',
-	allowedMaxSlippagePercentage: DEFAULT_MAX_SLIPPAGE_PERCENTAGE,
+    amount: '',
+    toAssetType: '',
+    allowedMaxSlippagePercentage: DEFAULT_MAX_SLIPPAGE_PERCENTAGE,
 };
 export type FormValues = typeof initialValues;
 
 export enum Coins {
-	IOTA = 'IOTA',
-	USDC = 'USDC',
-	USDT = 'USDT',
-	WETH = 'WETH',
-	TBTC = 'TBTC',
+    IOTA = 'IOTA',
+    USDC = 'USDC',
+    USDT = 'USDT',
+    WETH = 'WETH',
+    TBTC = 'TBTC',
 }

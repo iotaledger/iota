@@ -8,8 +8,8 @@ Kit.
 Place the `IotaClientProvider` at the root of your app and wrap all components that use the dApp Kit
 hooks.
 
-`IotaClientProvider` accepts a list of network configurations to create `IotaClient` instances for the
-currently active network.
+`IotaClientProvider` accepts a list of network configurations to create `IotaClient` instances for
+the currently active network.
 
 ```tsx
 import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
@@ -17,31 +17,31 @@ import { getFullnodeUrl } from '@iota/iota-sdk/client';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 });
 
 function App() {
-	return (
-		<IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
-			<YourApp />
-		</IotaClientProvider>
-	);
+    return (
+        <IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
+            <YourApp />
+        </IotaClientProvider>
+    );
 }
 ```
 
 ## Props
 
-- `networks`: A map of networks you can use. The keys are the network names, and the values can be
-  either a configuration object (`IotaClientOptions`) or a `IotaClient` instance.
-- `defaultNetwork`: The name of the network to use by default when using the `IotaClientProvider` as
-  an uncontrolled component.
-- `network`: The name of the network to use when using the `IotaClientProvider` as a controlled
-  component.
-- `onNetworkChange`: A callback when the active network changes.
-- `createClient`: A callback when a new `IotaClient` is created (for example, when the active network
-  changes). It receives the network name and configuration object as arguments, returning a
-  `IotaClient` instance.
+-   `networks`: A map of networks you can use. The keys are the network names, and the values can be
+    either a configuration object (`IotaClientOptions`) or a `IotaClient` instance.
+-   `defaultNetwork`: The name of the network to use by default when using the `IotaClientProvider`
+    as an uncontrolled component.
+-   `network`: The name of the network to use when using the `IotaClientProvider` as a controlled
+    component.
+-   `onNetworkChange`: A callback when the active network changes.
+-   `createClient`: A callback when a new `IotaClient` is created (for example, when the active
+    network changes). It receives the network name and configuration object as arguments, returning
+    a `IotaClient` instance.
 
 ## Controlled component
 
@@ -54,24 +54,24 @@ import { useState } from 'react';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 });
 
 function App() {
-	const [activeNetwork, setActiveNetwork] = useState('localnet' as keyof typeof networks);
+    const [activeNetwork, setActiveNetwork] = useState('localnet' as keyof typeof networks);
 
-	return (
-		<IotaClientProvider
-			networks={networkConfig}
-			network={activeNetwork}
-			onNetworkChange={(network) => {
-				setActiveNetwork(network);
-			}}
-		>
-			<YourApp />
-		</IotaClientProvider>
-	);
+    return (
+        <IotaClientProvider
+            networks={networkConfig}
+            network={activeNetwork}
+            onNetworkChange={(network) => {
+                setActiveNetwork(network);
+            }}
+        >
+            <YourApp />
+        </IotaClientProvider>
+    );
 }
 ```
 
@@ -85,31 +85,31 @@ import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/cl
 
 // Config options for the networks you want to connect to
 const networks = {
-	localnet: { url: getFullnodeUrl('localnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    localnet: { url: getFullnodeUrl('localnet') },
+    mainnet: { url: getFullnodeUrl('mainnet') },
 } satisfies Record<string, IotaClientOptions>;
 
 function App() {
-	return (
-		<IotaClientProvider
-			networks={networks}
-			defaultNetwork="localnet"
-			createClient={(network, config) => {
-				return new IotaClient({
-					transport: new IotaHTTPTransport({
-						url: 'https://api.safecoin.org',
-						rpc: {
-							headers: {
-								Authorization: 'xyz',
-							},
-						},
-					}),
-				});
-			}}
-		>
-			<YourApp />
-		</IotaClientProvider>
-	);
+    return (
+        <IotaClientProvider
+            networks={networks}
+            defaultNetwork="localnet"
+            createClient={(network, config) => {
+                return new IotaClient({
+                    transport: new IotaHTTPTransport({
+                        url: 'https://api.safecoin.org',
+                        rpc: {
+                            headers: {
+                                Authorization: 'xyz',
+                            },
+                        },
+                    }),
+                });
+            }}
+        >
+            <YourApp />
+        </IotaClientProvider>
+    );
 }
 ```
 
@@ -122,9 +122,9 @@ To use the `IotaClient` from the provider, import the `useIotaClient` function f
 import { useIotaClient } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const client = useIotaClient();
+    const client = useIotaClient();
 
-	// use the client
+    // use the client
 }
 ```
 
@@ -135,17 +135,17 @@ hook to get the list of networks and set the active one:
 
 ```tsx
 function NetworkSelector() {
-	const ctx = useIotaClientContext();
+    const ctx = useIotaClientContext();
 
-	return (
-		<div>
-			{Object.keys(ctx.networks).map((network) => (
-				<button key={network} onClick={() => ctx.selectNetwork(network)}>
-					{`select ${network}`}
-				</button>
-			))}
-		</div>
-	);
+    return (
+        <div>
+            {Object.keys(ctx.networks).map((network) => (
+                <button key={network} onClick={() => ctx.selectNetwork(network)}>
+                    {`select ${network}`}
+                </button>
+            ))}
+        </div>
+    );
 }
 ```
 
@@ -158,9 +158,9 @@ configurations that your components can access.
 The `createNetworkConfig` function returns the provided configuration, along with hooks you can use
 to get the variables defined in your configuration.
 
-- `useNetworkConfig` returns the full network configuration object
-- `useNetworkVariables` returns the full variables object from the network configuration
-- `useNetworkVariable` returns a specific variable from the network configuration
+-   `useNetworkConfig` returns the full network configuration object
+-   `useNetworkVariables` returns the full variables object from the network configuration
+-   `useNetworkVariable` returns a specific variable from the network configuration
 
 ```tsx
 import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
@@ -169,37 +169,37 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to
 const { networkConfig, useNetworkVariable } = createNetworkConfig({
-	localnet: {
-		url: getFullnodeUrl('localnet'),
-		variables: {
-			myMovePackageId: '0x123',
-		},
-	},
-	mainnet: {
-		url: getFullnodeUrl('mainnet'),
-		variables: {
-			myMovePackageId: '0x456',
-		},
-	},
+    localnet: {
+        url: getFullnodeUrl('localnet'),
+        variables: {
+            myMovePackageId: '0x123',
+        },
+    },
+    mainnet: {
+        url: getFullnodeUrl('mainnet'),
+        variables: {
+            myMovePackageId: '0x456',
+        },
+    },
 });
 
 const queryClient = new QueryClient();
 
 function App() {
-	return (
-		<QueryClientProvider client={queryClient}>
-			<IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
-				<WalletProvider>
-					<YourApp />
-				</WalletProvider>
-			</IotaClientProvider>
-		</QueryClientProvider>
-	);
+    return (
+        <QueryClientProvider client={queryClient}>
+            <IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
+                <WalletProvider>
+                    <YourApp />
+                </WalletProvider>
+            </IotaClientProvider>
+        </QueryClientProvider>
+    );
 }
 
 function YourApp() {
-	const id = useNetworkVariable('myMovePackageId');
+    const id = useNetworkVariable('myMovePackageId');
 
-	return <div>Package ID: {id}</div>;
+    return <div>Package ID: {id}</div>;
 }
 ```

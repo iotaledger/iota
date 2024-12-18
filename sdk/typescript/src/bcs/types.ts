@@ -3,35 +3,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export type SharedObjectRef = {
-	/** Hex code as string representing the object id */
-	objectId: string;
+    /** Hex code as string representing the object id */
+    objectId: string;
 
-	/** The version the object was shared at */
-	initialSharedVersion: number | string;
+    /** The version the object was shared at */
+    initialSharedVersion: number | string;
 
-	/** Whether reference is mutable */
-	mutable: boolean;
+    /** Whether reference is mutable */
+    mutable: boolean;
 };
 
 export type IotaObjectRef = {
-	/** Base64 string representing the object digest */
-	objectId: string;
-	/** Object version */
-	version: number | string;
-	/** Hex code as string representing the object id */
-	digest: string;
+    /** Base64 string representing the object digest */
+    objectId: string;
+    /** Object version */
+    version: number | string;
+    /** Hex code as string representing the object id */
+    digest: string;
 };
 
 /**
  * An object argument.
  */
 export type ObjectArg =
-	| { ImmOrOwnedObject: IotaObjectRef }
-	| { SharedObject: SharedObjectRef }
-	| { Receiving: IotaObjectRef };
+    | { ImmOrOwnedObject: IotaObjectRef }
+    | { SharedObject: SharedObjectRef }
+    | { Receiving: IotaObjectRef };
 
 export type ObjectCallArg = {
-	Object: ObjectArg;
+    Object: ObjectArg;
 };
 
 /**
@@ -40,7 +40,7 @@ export type ObjectCallArg = {
 export type PureArg = { Pure: Array<number> };
 
 export function isPureArg(arg: any): arg is PureArg {
-	return (arg as PureArg).Pure !== undefined;
+    return (arg as PureArg).Pure !== undefined;
 }
 
 /**
@@ -72,27 +72,27 @@ export type CallArg = PureArg | ObjectCallArg;
  * Kind of a TypeTag which is represented by a Move type identifier.
  */
 export type StructTag = {
-	address: string;
-	module: string;
-	name: string;
-	typeParams: TypeTag[];
+    address: string;
+    module: string;
+    name: string;
+    typeParams: TypeTag[];
 };
 
 /**
  * Iota TypeTag object. A decoupled `0x...::module::Type<???>` parameter.
  */
 export type TypeTag =
-	| { bool: null | true }
-	| { u8: null | true }
-	| { u64: null | true }
-	| { u128: null | true }
-	| { address: null | true }
-	| { signer: null | true }
-	| { vector: TypeTag }
-	| { struct: StructTag }
-	| { u16: null | true }
-	| { u32: null | true }
-	| { u256: null | true };
+    | { bool: null | true }
+    | { u8: null | true }
+    | { u64: null | true }
+    | { u128: null | true }
+    | { address: null | true }
+    | { signer: null | true }
+    | { vector: TypeTag }
+    | { struct: StructTag }
+    | { u16: null | true }
+    | { u32: null | true }
+    | { u256: null | true };
 
 // ========== TransactionData ===========
 
@@ -100,10 +100,10 @@ export type TypeTag =
  * The GasData to be used in the transaction.
  */
 export type GasData = {
-	payment: IotaObjectRef[];
-	owner: string; // Gas Object's owner
-	price: number;
-	budget: number;
+    payment: IotaObjectRef[];
+    owner: string; // Gas Object's owner
+    price: number;
+    budget: number;
 };
 
 /**
