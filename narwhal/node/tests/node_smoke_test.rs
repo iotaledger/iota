@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use config::Export;
 use std::time::{Duration, Instant};
-use test_utils::{temp_dir, CommitteeFixture};
+
+use config::Export;
+use test_utils::{CommitteeFixture, temp_dir};
 
 const TEST_DURATION: Duration = Duration::from_secs(3);
 
@@ -69,7 +70,7 @@ fn test_primary_with_consensus() {
             "--store",
             &db_path,
             "primary",
-            //no arg : default of with_consensus
+            // no arg : default of with_consensus
         ])
         .spawn()
         .expect("failed to launch primary process w/o consensus");

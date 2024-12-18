@@ -2,11 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ingestion::client::{FetchError, FetchResult, IngestionClientTrait};
-use axum::body::Bytes;
 use std::path::PathBuf;
 
-// FIXME: To productionize this, we need to add garbage collection to remove old checkpoint files.
+use axum::body::Bytes;
+
+use crate::ingestion::client::{FetchError, FetchResult, IngestionClientTrait};
+
+// FIXME: To productionize this, we need to add garbage collection to remove old
+// checkpoint files.
 
 pub struct LocalIngestionClient {
     path: PathBuf,
@@ -38,12 +41,15 @@ impl IngestionClientTrait for LocalIngestionClient {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::ingestion::client::IngestionClient;
-    use crate::ingestion::test_utils::test_checkpoint_data;
-    use crate::metrics::tests::test_metrics;
     use std::sync::Arc;
+
     use iota_storage::blob::{Blob, BlobEncoding};
     use tokio_util::sync::CancellationToken;
+
+    use crate::{
+        ingestion::{client::IngestionClient, test_utils::test_checkpoint_data},
+        metrics::tests::test_metrics,
+    };
 
     #[tokio::test]
     async fn local_test_fetch() {

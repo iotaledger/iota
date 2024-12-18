@@ -2,11 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ingestion::client::{FetchError, FetchResult, IngestionClientTrait};
-use crate::ingestion::Result as IngestionResult;
 use reqwest::{Client, StatusCode};
 use tracing::{debug, error};
 use url::Url;
+
+use crate::ingestion::{
+    Result as IngestionResult,
+    client::{FetchError, FetchResult, IngestionClientTrait},
+};
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub enum HttpError {
@@ -108,17 +111,19 @@ impl IngestionClientTrait for RemoteIngestionClient {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
-    use crate::ingestion::client::IngestionClient;
-    use crate::ingestion::error::Error;
-    use crate::ingestion::test_utils::test_checkpoint_data;
-    use crate::metrics::tests::test_metrics;
-    use axum::http::StatusCode;
     use std::sync::{Arc, Mutex};
+
+    use axum::http::StatusCode;
     use tokio_util::sync::CancellationToken;
     use wiremock::{
-        matchers::{method, path_regex},
         Mock, MockServer, Request, Respond, ResponseTemplate,
+        matchers::{method, path_regex},
+    };
+
+    use super::*;
+    use crate::{
+        ingestion::{client::IngestionClient, error::Error, test_utils::test_checkpoint_data},
+        metrics::tests::test_metrics,
     };
 
     pub(crate) async fn respond_with(server: &MockServer, response: impl Respond + 'static) {
@@ -176,15 +181,16 @@ pub(crate) mod tests {
         assert_http_error(error, 42, StatusCode::IM_A_TEAPOT);
     }
 
-    /// Even if the server is repeatedly returning transient errors, it is possible to cancel the
-    /// fetch request via its cancellation token.
+    /// Even if the server is repeatedly returning transient errors, it is
+    /// possible to cancel the fetch request via its cancellation token.
     #[tokio::test]
     async fn fail_on_cancel() {
         let cancel = CancellationToken::new();
         let server = MockServer::start().await;
 
-        // This mock server repeatedly returns internal server errors, but will also send a
-        // cancellation with the second request (this is a bit of a contrived test set-up).
+        // This mock server repeatedly returns internal server errors, but will also
+        // send a cancellation with the second request (this is a bit of a
+        // contrived test set-up).
         let times: Mutex<u64> = Mutex::new(0);
         let server_cancel = cancel.clone();
         respond_with(&server, move |_: &Request| {
@@ -205,8 +211,8 @@ pub(crate) mod tests {
         assert!(matches!(error, Error::Cancelled));
     }
 
-    /// Assume that failures to send the request to the remote store are due to temporary
-    /// connectivity issues, and retry them.
+    /// Assume that failures to send the request to the remote store are due to
+    /// temporary connectivity issues, and retry them.
     #[tokio::test]
     async fn retry_on_request_error() {
         let server = MockServer::start().await;
@@ -241,9 +247,9 @@ pub(crate) mod tests {
         assert_http_error(error, 42, StatusCode::IM_A_TEAPOT);
     }
 
-    /// Assume that certain errors will recover by themselves, and keep retrying with an
-    /// exponential back-off. These errors include: 5xx (server) errors, 408 (timeout), and 429
-    /// (rate limiting).
+    /// Assume that certain errors will recover by themselves, and keep retrying
+    /// with an exponential back-off. These errors include: 5xx (server)
+    /// errors, 408 (timeout), and 429 (rate limiting).
     #[tokio::test]
     async fn retry_on_transient_server_error() {
         let server = MockServer::start().await;
@@ -269,8 +275,9 @@ pub(crate) mod tests {
         assert_http_error(error, 42, StatusCode::IM_A_TEAPOT);
     }
 
-    /// Treat deserialization failure as another kind of transient error -- all checkpoint data
-    /// that is fetched should be valid (deserializable as a `CheckpointData`).
+    /// Treat deserialization failure as another kind of transient error -- all
+    /// checkpoint data that is fetched should be valid (deserializable as a
+    /// `CheckpointData`).
     #[tokio::test]
     async fn retry_on_deserialization_error() {
         let server = MockServer::start().await;

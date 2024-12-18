@@ -4,49 +4,51 @@
 
 use std::{
     cmp::Ordering,
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     sync::Arc,
 };
 
 use tokio::{
     sync::mpsc,
     task::JoinHandle,
-    time::{interval, MissedTickBehavior},
+    time::{MissedTickBehavior, interval},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
+use super::Handler;
 use crate::{
     db::Db,
     metrics::IndexerMetrics,
     pipeline::{
-        CommitterConfig, WatermarkPart, LOUD_WATERMARK_UPDATE_INTERVAL, WARN_PENDING_WATERMARKS,
+        CommitterConfig, LOUD_WATERMARK_UPDATE_INTERVAL, WARN_PENDING_WATERMARKS, WatermarkPart,
     },
     watermarks::CommitterWatermark,
 };
 
-use super::Handler;
-
-/// The watermark task is responsible for keeping track of a pipeline's out-of-order commits and
-/// updating its row in the `watermarks` table when a continuous run of checkpoints have landed
-/// since the last watermark update.
+/// The watermark task is responsible for keeping track of a pipeline's
+/// out-of-order commits and updating its row in the `watermarks` table when a
+/// continuous run of checkpoints have landed since the last watermark update.
 ///
-/// It receives watermark "parts" that detail the proportion of each checkpoint's data that has
-/// been written out by the committer and periodically (on a configurable interval) checks if the
-/// watermark for the pipeline can be pushed forward. The watermark can be pushed forward if there
-/// is one or more complete (all data for that checkpoint written out) watermarks spanning
-/// contiguously from the current high watermark into the future.
+/// It receives watermark "parts" that detail the proportion of each
+/// checkpoint's data that has been written out by the committer and
+/// periodically (on a configurable interval) checks if the watermark for the
+/// pipeline can be pushed forward. The watermark can be pushed forward if there
+/// is one or more complete (all data for that checkpoint written out)
+/// watermarks spanning contiguously from the current high watermark into the
+/// future.
 ///
-/// If it detects that more than [WARN_PENDING_WATERMARKS] watermarks have built up, it will issue
-/// a warning, as this could be the indication of a memory leak, and the caller probably intended
-/// to run the indexer with watermarking disabled (e.g. if they are running a backfill).
+/// If it detects that more than [WARN_PENDING_WATERMARKS] watermarks have built
+/// up, it will issue a warning, as this could be the indication of a memory
+/// leak, and the caller probably intended to run the indexer with watermarking
+/// disabled (e.g. if they are running a backfill).
 ///
-/// The task regularly traces its progress, outputting at a higher log level every
-/// [LOUD_WATERMARK_UPDATE_INTERVAL]-many checkpoints.
+/// The task regularly traces its progress, outputting at a higher log level
+/// every [LOUD_WATERMARK_UPDATE_INTERVAL]-many checkpoints.
 ///
-/// The task will shutdown if the `cancel` token is signalled, or if the `rx` channel closes and
-/// the watermark cannot be progressed. If `skip_watermark` is set, the task will shutdown
-/// immediately.
+/// The task will shutdown if the `cancel` token is signalled, or if the `rx`
+/// channel closes and the watermark cannot be progressed. If `skip_watermark`
+/// is set, the task will shutdown immediately.
 pub(super) fn commit_watermark<H: Handler + 'static>(
     initial_watermark: Option<CommitterWatermark<'static>>,
     config: CommitterConfig,
@@ -65,11 +67,12 @@ pub(super) fn commit_watermark<H: Handler + 'static>(
         let mut poll = interval(config.watermark_interval());
         poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        // To correctly update the watermark, the task tracks the watermark it last tried to write
-        // and the watermark parts for any checkpoints that have been written since then
-        // ("pre-committed"). After each batch is written, the task will try to progress the
-        // watermark as much as possible without going over any holes in the sequence of
-        // checkpoints (entirely missing watermarks, or incomplete watermarks).
+        // To correctly update the watermark, the task tracks the watermark it last
+        // tried to write and the watermark parts for any checkpoints that have
+        // been written since then ("pre-committed"). After each batch is
+        // written, the task will try to progress the watermark as much as
+        // possible without going over any holes in the sequence of checkpoints
+        // (entirely missing watermarks, or incomplete watermarks).
         let mut precommitted: BTreeMap<u64, WatermarkPart> = BTreeMap::new();
         let (mut watermark, mut next_checkpoint) = if let Some(watermark) = initial_watermark {
             let next = watermark.checkpoint_hi_inclusive + 1;
@@ -78,8 +81,8 @@ pub(super) fn commit_watermark<H: Handler + 'static>(
             (CommitterWatermark::initial(H::NAME.into()), 0)
         };
 
-        // The watermark task will periodically output a log message at a higher log level to
-        // demonstrate that the pipeline is making progress.
+        // The watermark task will periodically output a log message at a higher log
+        // level to demonstrate that the pipeline is making progress.
         let mut next_loud_watermark_update =
             watermark.checkpoint_hi_inclusive + LOUD_WATERMARK_UPDATE_INTERVAL;
 

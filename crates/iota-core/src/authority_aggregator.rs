@@ -3,63 +3,66 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority_client::{
-    make_authority_clients_with_timeout_config, make_network_authority_clients_with_network_config,
-    AuthorityAPI, NetworkAuthorityClient,
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    convert::AsRef,
+    net::SocketAddr,
+    string::ToString,
+    sync::Arc,
+    time::Duration,
 };
-use crate::safe_client::{SafeClient, SafeClientMetrics, SafeClientMetricsBase};
-use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
-use iota_metrics::{monitored_future, spawn_monitored_task, GaugeGuard, MonitorCancellation};
-use iota_network_stack::config::Config;
-use std::convert::AsRef;
-use std::net::SocketAddr;
-use iota_authority_aggregation::ReduceOutput;
-use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult};
+
+use futures::{StreamExt, future::BoxFuture, stream::FuturesUnordered};
+use iota_authority_aggregation::{AsyncResult, ReduceOutput, quorum_map_then_reduce_with_timeout};
 use iota_config::genesis::Genesis;
+use iota_metrics::{GaugeGuard, MonitorCancellation, monitored_future, spawn_monitored_task};
 use iota_network::{
-    default_iota_network_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
+    DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
+use iota_network_stack::config::Config;
 use iota_swarm_config::network_config::NetworkConfig;
-use iota_types::crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo};
-use iota_types::error::UserInputError;
-use iota_types::fp_ensure;
-use iota_types::message_envelope::Message;
-use iota_types::object::Object;
-use iota_types::quorum_driver_types::{GroupedErrors, QuorumDriverResponse};
-use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
-use iota_types::iota_system_state::{IotaSystemState, IotaSystemStateTrait};
 use iota_types::{
     base_types::*,
-    committee::Committee,
-    error::{IotaError, IotaResult},
+    committee::{Committee, CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit},
+    crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo},
+    effects::{
+        CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects,
+        TransactionEvents, VerifiedCertifiedTransactionEffects,
+    },
+    error::{IotaError, IotaResult, UserInputError},
+    fp_ensure,
+    iota_system_state::{
+        IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
+    },
+    message_envelope::Message,
+    messages_grpc::{
+        HandleCertificateRequestV3, HandleCertificateResponseV3, LayoutGenerationOption,
+        ObjectInfoRequest, TransactionInfoRequest,
+    },
+    messages_safe_client::PlainTransactionInfoResponse,
+    object::Object,
+    quorum_driver_types::{GroupedErrors, QuorumDriverResponse},
     transaction::*,
 };
-use thiserror::Error;
-use tracing::{debug, error, info, instrument, trace, trace_span, warn, Instrument};
-
-use crate::epoch::committee_store::CommitteeStore;
-use crate::stake_aggregator::{InsertResult, MultiStakeAggregator, StakeAggregator};
 use prometheus::{
-    register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, register_int_gauge_with_registry, Histogram, IntCounter,
-    IntCounterVec, IntGauge, Registry,
+    Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::string::ToString;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_types::committee::{CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit};
-use iota_types::effects::{
-    CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects, TransactionEvents,
-    VerifiedCertifiedTransactionEffects,
-};
-use iota_types::messages_grpc::{
-    HandleCertificateRequestV3, HandleCertificateResponseV3, LayoutGenerationOption,
-    ObjectInfoRequest, TransactionInfoRequest,
-};
-use iota_types::messages_safe_client::PlainTransactionInfoResponse;
-use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
+use thiserror::Error;
 use tokio::time::{sleep, timeout};
+use tracing::{Instrument, debug, error, info, instrument, trace, trace_span, warn};
+
+use crate::{
+    authority_client::{
+        AuthorityAPI, NetworkAuthorityClient, make_authority_clients_with_timeout_config,
+        make_network_authority_clients_with_network_config,
+    },
+    epoch::committee_store::CommitteeStore,
+    safe_client::{SafeClient, SafeClientMetrics, SafeClientMetricsBase},
+    stake_aggregator::{InsertResult, MultiStakeAggregator, StakeAggregator},
+};
 
 pub const DEFAULT_RETRIES: usize = 4;
 
@@ -210,7 +213,7 @@ impl AuthAggMetrics {
 pub enum AggregatorProcessTransactionError {
     #[error(
         "Failed to execute transaction on a quorum of validators due to non-retryable errors. Validator errors: {:?}",
-        errors,
+        errors
     )]
     FatalTransaction { errors: GroupedErrors },
 
@@ -223,7 +226,7 @@ pub enum AggregatorProcessTransactionError {
     #[error(
         "Failed to execute transaction on a quorum of validators due to conflicting transactions. Locked objects: {:?}. Validator errors: {:?}",
         conflicting_tx_digests,
-        errors,
+        errors
     )]
     FatalConflictingTransaction {
         errors: GroupedErrors,
@@ -234,7 +237,7 @@ pub enum AggregatorProcessTransactionError {
     #[error(
         "Validators returned conflicting transactions but it is potentially recoverable. Locked objects: {:?}. Validator errors: {:?}",
         conflicting_tx_digests,
-        errors,
+        errors
     )]
     RetryableConflictingTransaction {
         conflicting_tx_digest_to_retry: Option<TransactionDigest>,
@@ -321,7 +324,8 @@ impl RetryableOverloadInfo {
             .or_insert(stake);
     }
 
-    // Gets the duration of retry requested by a quorum of validators with smallest retry durations.
+    // Gets the duration of retry requested by a quorum of validators with smallest
+    // retry durations.
     pub fn get_quorum_retry_after(
         &self,
         good_stake: StakeUnit,
@@ -419,13 +423,16 @@ impl ProcessTransactionState {
         &self,
         validity_threshold: StakeUnit,
     ) -> bool {
-        // In some edge cases, the client may send the same transaction multiple times but with different user signatures.
-        // When this happens, the "minority" tx will fail in safe_client because the certificate verification would fail
+        // In some edge cases, the client may send the same transaction multiple times
+        // but with different user signatures. When this happens, the "minority"
+        // tx will fail in safe_client because the certificate verification would fail
         // and return Iota::FailedToVerifyTxCertWithExecutedEffects.
-        // Here, we check if there are f+1 validators return this error. If so, the transaction is already finalized
-        // with a different set of user signatures. It's not trivial to return the results of that successful transaction
-        // because we don't want fullnode to store the transaction with non-canonical user signatures. Given that this is
-        // very rare, we simply return an error here.
+        // Here, we check if there are f+1 validators return this error. If so, the
+        // transaction is already finalized with a different set of user
+        // signatures. It's not trivial to return the results of that successful
+        // transaction because we don't want fullnode to store the transaction
+        // with non-canonical user signatures. Given that this is very rare, we
+        // simply return an error here.
         let invalid_sig_stake: StakeUnit = self
             .errors
             .iter()
@@ -469,9 +476,10 @@ struct ProcessCertificateState {
 pub enum ProcessTransactionResult {
     Certified {
         certificate: CertifiedTransaction,
-        /// Whether this certificate is newly created by aggregating 2f+1 signatures.
-        /// If a validator returned a cert directly, this will be false.
-        /// This is used to inform the quorum driver, which could make better decisions on telemetry
+        /// Whether this certificate is newly created by aggregating 2f+1
+        /// signatures. If a validator returned a cert directly, this
+        /// will be false. This is used to inform the quorum driver,
+        /// which could make better decisions on telemetry
         /// such as settlement latency.
         newly_formed: bool,
     },
@@ -506,7 +514,8 @@ pub struct AuthorityAggregator<A: Clone> {
     pub authority_clients: Arc<BTreeMap<AuthorityName, Arc<SafeClient<A>>>>,
     /// Metrics
     pub metrics: Arc<AuthAggMetrics>,
-    /// Metric base for the purpose of creating new safe clients during reconfiguration.
+    /// Metric base for the purpose of creating new safe clients during
+    /// reconfiguration.
     pub safe_client_metrics_base: SafeClientMetricsBase,
     pub timeouts: TimeoutConfig,
     /// Store here for clone during re-config.
@@ -568,8 +577,9 @@ impl<A: Clone> AuthorityAggregator<A> {
             })
             .collect::<BTreeMap<_, _>>();
 
-        // TODO: It's likely safer to do the following operations atomically, in case this function
-        // gets called from different threads. It cannot happen today, but worth the caution.
+        // TODO: It's likely safer to do the following operations atomically, in case
+        // this function gets called from different threads. It cannot happen
+        // today, but worth the caution.
         let new_committee = committee.committee().clone();
         if disallow_missing_intermediate_committees {
             fp_ensure!(
@@ -651,8 +661,9 @@ fn create_safe_clients<A: Clone>(
 }
 
 impl AuthorityAggregator<NetworkAuthorityClient> {
-    /// Create a new network authority aggregator by reading the committee and network addresses
-    /// information from the given epoch start system state.
+    /// Create a new network authority aggregator by reading the committee and
+    /// network addresses information from the given epoch start system
+    /// state.
     pub fn new_from_epoch_start_state(
         epoch_start_state: &EpochStartSystemState,
         committee_store: &Arc<CommitteeStore>,
@@ -670,9 +681,10 @@ impl AuthorityAggregator<NetworkAuthorityClient> {
         )
     }
 
-    /// Create a new AuthorityAggregator using information from the given epoch start system state.
-    /// This is typically used during reconfiguration to create a new AuthorityAggregator with the
-    /// new committee and network addresses.
+    /// Create a new AuthorityAggregator using information from the given epoch
+    /// start system state. This is typically used during reconfiguration to
+    /// create a new AuthorityAggregator with the new committee and network
+    /// addresses.
     pub fn recreate_with_new_epoch_start_state(
         &self,
         epoch_start_state: &EpochStartSystemState,
@@ -711,9 +723,10 @@ impl<A> AuthorityAggregator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
-    // Repeatedly calls the provided closure on a randomly selected validator until it succeeds.
-    // Once all validators have been attempted, starts over at the beginning. Intended for cases
-    // that must eventually succeed as long as the network is up (or comes back up) eventually.
+    // Repeatedly calls the provided closure on a randomly selected validator until
+    // it succeeds. Once all validators have been attempted, starts over at the
+    // beginning. Intended for cases that must eventually succeed as long as the
+    // network is up (or comes back up) eventually.
     async fn quorum_once_inner<'a, S, FMap>(
         &'a self,
         // try these authorities first
@@ -765,26 +778,27 @@ where
                 }))
             };
 
-            // This process is intended to minimize latency in the face of unreliable authorities,
-            // without creating undue load on authorities.
+            // This process is intended to minimize latency in the face of unreliable
+            // authorities, without creating undue load on authorities.
             //
             // The fastest possible process from the
             // client's point of view would simply be to issue a concurrent request to every
             // authority and then take the winner - this would create unnecessary load on
             // authorities.
             //
-            // The most efficient process from the network's point of view is to do one request at
-            // a time, however if the first validator that the client contacts is unavailable or
-            // slow, the client must wait for the serial_authority_request_interval period to elapse
+            // The most efficient process from the network's point of view is to do one
+            // request at a time, however if the first validator that the client
+            // contacts is unavailable or slow, the client must wait for the
+            // serial_authority_request_interval period to elapse
             // before starting its next request.
             //
             // So, this process is designed as a compromise between these two extremes.
             // - We start one request, and schedule another request to begin after
             //   serial_authority_request_interval.
-            // - Whenever a request finishes, if it succeeded, we return. if it failed, we start a
-            //   new request.
-            // - If serial_authority_request_interval elapses, we begin a new request even if the
-            //   previous one is not finished, and schedule another future request.
+            // - Whenever a request finishes, if it succeeded, we return. if it failed, we
+            //   start a new request.
+            // - If serial_authority_request_interval elapses, we begin a new request even
+            //   if the previous one is not finished, and schedule another future request.
 
             let name = authorities_shuffled.next().ok_or_else(|| {
                 error!(
@@ -842,10 +856,11 @@ where
         }
     }
 
-    /// Like quorum_map_then_reduce_with_timeout, but for things that need only a single
-    /// successful response, such as fetching a Transaction from some authority.
-    /// This is intended for cases in which byzantine authorities can time out or slow-loris, but
-    /// can't give a false answer, because e.g. the digest of the response is known, or a
+    /// Like quorum_map_then_reduce_with_timeout, but for things that need only
+    /// a single successful response, such as fetching a Transaction from
+    /// some authority. This is intended for cases in which byzantine
+    /// authorities can time out or slow-loris, but can't give a false
+    /// answer, because e.g. the digest of the response is known, or a
     /// quorum-signed object such as a checkpoint has been requested.
     pub(crate) async fn quorum_once_with_timeout<'a, S, FMap>(
         &'a self,
@@ -900,9 +915,10 @@ where
 
     /// Query the object with highest version number from the authorities.
     /// We stop after receiving responses from 2f+1 validators.
-    /// This function is untrusted because we simply assume each response is valid and there are no
-    /// byzantine validators.
-    /// Because of this, this function should only be used for testing or benchmarking.
+    /// This function is untrusted because we simply assume each response is
+    /// valid and there are no byzantine validators.
+    /// Because of this, this function should only be used for testing or
+    /// benchmarking.
     pub async fn get_latest_object_version_for_testing(
         &self,
         object_id: ObjectID,
@@ -1264,10 +1280,12 @@ where
             };
         }
 
-        // When state is in a retryable state and process transaction was not successful, it indicates that
-        // we have heard from *all* validators. Check if any SystemOverloadRetryAfter error caused the txn
-        // to fail. If so, return explicit SystemOverloadRetryAfter error for continuous retry (since objects
-        // are locked in validators). If not, retry regular RetryableTransaction error.
+        // When state is in a retryable state and process transaction was not
+        // successful, it indicates that we have heard from *all* validators.
+        // Check if any SystemOverloadRetryAfter error caused the txn
+        // to fail. If so, return explicit SystemOverloadRetryAfter error for continuous
+        // retry (since objects are locked in validators). If not, retry regular
+        // RetryableTransaction error.
         if state.tx_signatures.total_votes() + state.retryable_overload_info.total_stake
             >= quorum_threshold
         {
@@ -1282,7 +1300,8 @@ where
             };
         }
 
-        // No conflicting transaction, the system is not overloaded and transaction state is still retryable.
+        // No conflicting transaction, the system is not overloaded and transaction
+        // state is still retryable.
         AggregatorProcessTransactionError::RetryableTransaction {
             errors: group_errors(state.errors),
         }
@@ -1388,8 +1407,9 @@ where
             }
             _ => {
                 // If we get 2f+1 effects, it's a proof that the transaction
-                // has already been finalized. This works because validators would re-sign effects for transactions
-                // that were finalized in previous epochs.
+                // has already been finalized. This works because validators would re-sign
+                // effects for transactions that were finalized in previous
+                // epochs.
                 let digest = plain_tx_effects.data().digest();
                 match state.effects_map.insert(digest, plain_tx_effects.clone()) {
                     InsertResult::NotEnoughVotes {
@@ -1469,8 +1489,9 @@ where
                 involved_validators.extend_from_slice(validators);
                 total_stake += stake;
             }
-            // TODO: Instead of pushing a new error, we should add more information about the non-quorum effects
-            // in the final error if state is no longer retryable
+            // TODO: Instead of pushing a new error, we should add more information about
+            // the non-quorum effects in the final error if state is no longer
+            // retryable
             state.errors.push((
                 IotaError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction {
                     effects_map: non_quorum_effects,
@@ -1509,7 +1530,8 @@ where
             request: request.clone(),
         };
 
-        // create a set of validators that we should sample to request input/output objects from
+        // create a set of validators that we should sample to request input/output
+        // objects from
         let validators_to_sample =
             if request.include_input_objects || request.include_output_objects {
                 // Number of validators to request input/output objects from
@@ -1775,7 +1797,10 @@ where
                                 && state.output_objects.is_none())
                         {
                             metrics.quorum_reached_without_requested_objects.inc();
-                            debug!(?tx_digest, "Quorum Reached but requested input/output objects were not returned");
+                            debug!(
+                                ?tx_digest,
+                                "Quorum Reached but requested input/output objects were not returned"
+                            );
                         }
 
                         ct.verify(&committee).map(|ct| {
@@ -1831,8 +1856,8 @@ where
         Ok(response.effects_cert)
     }
 
-    /// This function tries to get SignedTransaction OR CertifiedTransaction from
-    /// an given list of validators who are supposed to know about it.
+    /// This function tries to get SignedTransaction OR CertifiedTransaction
+    /// from an given list of validators who are supposed to know about it.
     #[instrument(level = "trace", skip_all, fields(?tx_digest))]
     pub async fn handle_transaction_info_request_from_some_validators(
         &self,

@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-use std::str::FromStr;
+use std::{env, str::FromStr};
+
 use iota_config::NodeConfig;
 use tap::TapFallible;
 use tokio::runtime::Runtime;

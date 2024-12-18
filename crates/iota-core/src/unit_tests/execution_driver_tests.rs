@@ -2,46 +2,55 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_tests::{send_consensus, send_consensus_no_execution};
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use crate::authority::AuthorityState;
-use crate::authority_aggregator::authority_aggregator_tests::{
-    create_object_move_transaction, do_cert, do_transaction, extract_cert, get_latest_ref,
+use std::{
+    collections::BTreeSet,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+    time::Duration,
 };
-use crate::authority_server::{ValidatorService, ValidatorServiceMetrics};
-use crate::consensus_adapter::ConsensusAdapter;
-use crate::consensus_adapter::ConsensusAdapterMetrics;
-use crate::consensus_adapter::{ConnectionMonitorStatusForTests, MockConsensusClient};
-use crate::safe_client::SafeClient;
-use crate::test_authority_clients::LocalAuthorityClient;
-use crate::test_utils::make_transfer_object_transaction;
-use crate::test_utils::{
-    init_local_authorities, init_local_authorities_with_overload_thresholds,
-    make_transfer_object_move_transaction,
-};
-use iota_protocol_config::ProtocolConfig;
-use iota_types::error::IotaError;
 
-use std::collections::BTreeSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::Arc;
-use std::time::Duration;
-
-use itertools::Itertools;
 use iota_config::node::AuthorityOverloadConfig;
+use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::TransactionDigest;
-use iota_types::committee::Committee;
-use iota_types::crypto::{get_key_pair, AccountKeyPair};
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use iota_types::error::IotaResult;
-use iota_types::object::{Object, Owner};
-use iota_types::transaction::CertifiedTransaction;
-use iota_types::transaction::{
-    Transaction, VerifiedCertificate, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+use iota_types::{
+    base_types::TransactionDigest,
+    committee::Committee,
+    crypto::{AccountKeyPair, get_key_pair},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::{IotaError, IotaResult},
+    object::{Object, Owner},
+    transaction::{
+        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
+        VerifiedCertificate,
+    },
 };
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::time::{sleep, timeout};
+use itertools::Itertools;
+use tokio::{
+    sync::mpsc::UnboundedReceiver,
+    time::{sleep, timeout},
+};
+
+use crate::{
+    authority::{
+        AuthorityState,
+        authority_tests::{send_consensus, send_consensus_no_execution},
+        test_authority_builder::TestAuthorityBuilder,
+    },
+    authority_aggregator::authority_aggregator_tests::{
+        create_object_move_transaction, do_cert, do_transaction, extract_cert, get_latest_ref,
+    },
+    authority_server::{ValidatorService, ValidatorServiceMetrics},
+    consensus_adapter::{
+        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+        MockConsensusClient,
+    },
+    safe_client::SafeClient,
+    test_authority_clients::LocalAuthorityClient,
+    test_utils::{
+        init_local_authorities, init_local_authorities_with_overload_thresholds,
+        make_transfer_object_move_transaction, make_transfer_object_transaction,
+    },
+};
 
 #[allow(dead_code)]
 async fn wait_for_certs(
@@ -71,172 +80,173 @@ async fn wait_for_certs(
     }
 }
 
-/*
-TODO: Re-enable after we have checkpoint v2.
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn pending_exec_notify_ready_certificates() {
-    use telemetry_subscribers::init_for_testing;
-    init_for_testing();
-
-    let setup = checkpoint_tests_setup(20, Duration::from_millis(200), true).await;
-
-    let TestSetup {
-        committee: _committee,
-        authorities,
-        mut transactions,
-        aggregator,
-    } = setup;
-
-    let authority_state = authorities[0].authority.clone();
-    let mut ready_certificates_stream = authority_state.ready_certificates_stream().await.unwrap();
-
-    // TODO: duplicated with checkpoint_driver/tests.rs
-    // Start active part of authority.
-    for inner_state in authorities.clone() {
-        let inner_agg = aggregator.clone();
-        let active_state = Arc::new(
-            ActiveAuthority::new_with_ephemeral_storage_for_test(
-                inner_state.authority.clone(),
-                inner_agg,
-            )
-            .unwrap(),
-        );
-        let _active_handle = active_state
-            .spawn_checkpoint_process(CheckpointMetrics::new_for_tests())
-            .await;
-    }
-
-    let sender_aggregator = aggregator.clone();
-    let _end_of_sending_join = tokio::task::spawn(async move {
-        let mut certs = Vec::new();
-        while let Some(t) = transactions.pop() {
-            let (_cert, effects) = sender_aggregator
-                .execute_transaction_block(&t)
-                .await
-                .expect("All ok.");
-
-            // Check whether this is a success?
-            assert!(matches!(
-                effects.data().status,
-                ExecutionStatus::Success { .. }
-            ));
-            println!("Execute at {:?}", tokio::time::Instant::now());
-
-            certs.push(_cert);
-
-            // Add some delay between transactions
-            tokio::time::sleep(Duration::from_secs(27)).await;
-        }
-
-        certs
-    });
-
-    // Wait for all the sending to happen.
-    let certs = _end_of_sending_join.await.expect("all ok");
-
-    // Clear effects so their executions will happen below.
-    authority_state
-        .database
-        .perpetual_tables
-        .effects
-        .clear()
-        .expect("Clearing effects failed!");
-
-    // Insert the certificates
-    authority_state
-        .enqueue_certificates_for_execution(certs.clone())
-        .await
-        .expect("Storage is ok");
-
-    tokio::task::yield_now().await;
-
-    // Wait to get back the certificates
-    wait_for_certs(&mut ready_certificates_stream, &certs).await;
-
-    // Should have no certificate any more.
-    wait_for_certs(&mut ready_certificates_stream, &vec![]).await;
-}
-
-#[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn pending_exec_full() {
-    use telemetry_subscribers::init_for_testing;
-    init_for_testing();
-
-    let setup = checkpoint_tests_setup(20, Duration::from_millis(200), true).await;
-
-    let TestSetup {
-        committee: _committee,
-        authorities,
-        mut transactions,
-        aggregator,
-    } = setup;
-
-    let authority_state = authorities[0].authority.clone();
-
-    // Start active part of authority.
-    for inner_state in authorities.clone() {
-        let inner_agg = aggregator.clone();
-        let _active_handle = tokio::task::spawn(async move {
-            let active_state = Arc::new(
-                ActiveAuthority::new_with_ephemeral_storage_for_test(
-                    inner_state.authority.clone(),
-                    inner_agg,
-                )
-                .unwrap(),
-            );
-            let batch_state = inner_state.authority.clone();
-            tokio::task::spawn(async move {
-                batch_state
-                    .run_batch_service(1, Duration::from_secs(1))
-                    .await
-            });
-            active_state
-                .spawn_checkpoint_process(CheckpointMetrics::new_for_tests())
-                .await;
-        });
-    }
-
-    let sender_aggregator = aggregator.clone();
-    let _end_of_sending_join = tokio::task::spawn(async move {
-        let mut certs = Vec::new();
-        while let Some(t) = transactions.pop() {
-            let (_cert, effects) = sender_aggregator
-                .execute_transaction_block(&t)
-                .await
-                .expect("All ok.");
-
-            // Check whether this is a success?
-            assert!(matches!(
-                effects.data().status,
-                ExecutionStatus::Success { .. }
-            ));
-            println!("Execute at {:?}", tokio::time::Instant::now());
-
-            certs.push(_cert);
-
-            // Add some delay between transactions
-            tokio::time::sleep(Duration::from_secs(27)).await;
-        }
-
-        certs
-    });
-
-    // Wait for all the sending to happen.
-    let certs = _end_of_sending_join.await.expect("all ok");
-
-    // Insert the certificates
-    authority_state
-        .enqueue_certificates_for_execution(certs.clone())
-        .await
-        .expect("Storage is ok");
-
-    // Wait for execution.
-    for cert in certs {
-        wait_for_tx(*cert.digest(), authority_state.clone()).await;
-    }
-}
-
- */
+// TODO: Re-enable after we have checkpoint v2.
+// #[tokio::test(flavor = "current_thread", start_paused = true)]
+// async fn pending_exec_notify_ready_certificates() {
+// use telemetry_subscribers::init_for_testing;
+// init_for_testing();
+//
+// let setup = checkpoint_tests_setup(20, Duration::from_millis(200),
+// true).await;
+//
+// let TestSetup {
+// committee: _committee,
+// authorities,
+// mut transactions,
+// aggregator,
+// } = setup;
+//
+// let authority_state = authorities[0].authority.clone();
+// let mut ready_certificates_stream =
+// authority_state.ready_certificates_stream().await.unwrap();
+//
+// TODO: duplicated with checkpoint_driver/tests.rs
+// Start active part of authority.
+// for inner_state in authorities.clone() {
+// let inner_agg = aggregator.clone();
+// let active_state = Arc::new(
+// ActiveAuthority::new_with_ephemeral_storage_for_test(
+// inner_state.authority.clone(),
+// inner_agg,
+// )
+// .unwrap(),
+// );
+// let _active_handle = active_state
+// .spawn_checkpoint_process(CheckpointMetrics::new_for_tests())
+// .await;
+// }
+//
+// let sender_aggregator = aggregator.clone();
+// let _end_of_sending_join = tokio::task::spawn(async move {
+// let mut certs = Vec::new();
+// while let Some(t) = transactions.pop() {
+// let (_cert, effects) = sender_aggregator
+// .execute_transaction_block(&t)
+// .await
+// .expect("All ok.");
+//
+// Check whether this is a success?
+// assert!(matches!(
+// effects.data().status,
+// ExecutionStatus::Success { .. }
+// ));
+// println!("Execute at {:?}", tokio::time::Instant::now());
+//
+// certs.push(_cert);
+//
+// Add some delay between transactions
+// tokio::time::sleep(Duration::from_secs(27)).await;
+// }
+//
+// certs
+// });
+//
+// Wait for all the sending to happen.
+// let certs = _end_of_sending_join.await.expect("all ok");
+//
+// Clear effects so their executions will happen below.
+// authority_state
+// .database
+// .perpetual_tables
+// .effects
+// .clear()
+// .expect("Clearing effects failed!");
+//
+// Insert the certificates
+// authority_state
+// .enqueue_certificates_for_execution(certs.clone())
+// .await
+// .expect("Storage is ok");
+//
+// tokio::task::yield_now().await;
+//
+// Wait to get back the certificates
+// wait_for_certs(&mut ready_certificates_stream, &certs).await;
+//
+// Should have no certificate any more.
+// wait_for_certs(&mut ready_certificates_stream, &vec![]).await;
+// }
+//
+// #[tokio::test(flavor = "current_thread", start_paused = true)]
+// async fn pending_exec_full() {
+// use telemetry_subscribers::init_for_testing;
+// init_for_testing();
+//
+// let setup = checkpoint_tests_setup(20, Duration::from_millis(200),
+// true).await;
+//
+// let TestSetup {
+// committee: _committee,
+// authorities,
+// mut transactions,
+// aggregator,
+// } = setup;
+//
+// let authority_state = authorities[0].authority.clone();
+//
+// Start active part of authority.
+// for inner_state in authorities.clone() {
+// let inner_agg = aggregator.clone();
+// let _active_handle = tokio::task::spawn(async move {
+// let active_state = Arc::new(
+// ActiveAuthority::new_with_ephemeral_storage_for_test(
+// inner_state.authority.clone(),
+// inner_agg,
+// )
+// .unwrap(),
+// );
+// let batch_state = inner_state.authority.clone();
+// tokio::task::spawn(async move {
+// batch_state
+// .run_batch_service(1, Duration::from_secs(1))
+// .await
+// });
+// active_state
+// .spawn_checkpoint_process(CheckpointMetrics::new_for_tests())
+// .await;
+// });
+// }
+//
+// let sender_aggregator = aggregator.clone();
+// let _end_of_sending_join = tokio::task::spawn(async move {
+// let mut certs = Vec::new();
+// while let Some(t) = transactions.pop() {
+// let (_cert, effects) = sender_aggregator
+// .execute_transaction_block(&t)
+// .await
+// .expect("All ok.");
+//
+// Check whether this is a success?
+// assert!(matches!(
+// effects.data().status,
+// ExecutionStatus::Success { .. }
+// ));
+// println!("Execute at {:?}", tokio::time::Instant::now());
+//
+// certs.push(_cert);
+//
+// Add some delay between transactions
+// tokio::time::sleep(Duration::from_secs(27)).await;
+// }
+//
+// certs
+// });
+//
+// Wait for all the sending to happen.
+// let certs = _end_of_sending_join.await.expect("all ok");
+//
+// Insert the certificates
+// authority_state
+// .enqueue_certificates_for_execution(certs.clone())
+// .await
+// .expect("Storage is ok");
+//
+// Wait for execution.
+// for cert in certs {
+// wait_for_tx(*cert.digest(), authority_state.clone()).await;
+// }
+// }
+//
 
 async fn execute_owned_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
@@ -292,7 +302,8 @@ async fn execute_shared_on_first_three_authorities(
 async fn test_execution_with_dependencies() {
     telemetry_subscribers::init_for_testing();
 
-    // Disable randomness, it can't be constructed with fake authorities in this test anyway.
+    // Disable randomness, it can't be constructed with fake authorities in this
+    // test anyway.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_random_beacon_for_testing(false);
         config
@@ -341,7 +352,8 @@ async fn test_execution_with_dependencies() {
     executed_owned_certs.push(cert);
     let mut owned_object_ref = effects1.created()[0].0;
 
-    // Initialize a shared counter, re-using gas_ref_0 so it has to execute after tx1.
+    // Initialize a shared counter, re-using gas_ref_0 so it has to execute after
+    // tx1.
     let gas_ref = get_latest_ref(authority_clients[0].clone(), gas_objects[0][0].id()).await;
     let tx2 = TestTransactionBuilder::new(*addr1, gas_ref, rgp)
         .call_counter_create(package)
@@ -355,18 +367,19 @@ async fn test_execution_with_dependencies() {
         initial_shared_version,
     } = owner
     {
-        // Because the gas object used has version 2, the initial lamport timestamp of the shared
-        // counter is 3.
+        // Because the gas object used has version 2, the initial lamport timestamp of
+        // the shared counter is 3.
         assert_eq!(initial_shared_version.value(), 3);
         initial_shared_version
     } else {
         panic!("Not a shared object! {:?} {:?}", shared_counter_ref, owner);
     };
 
-    // ---- Execute transactions with dependencies on first 3 nodes in the dependency order.
+    // ---- Execute transactions with dependencies on first 3 nodes in the
+    // dependency order.
 
-    // In each iteration, creates an owned and a shared transaction that depends on previous input
-    // and gas objects.
+    // In each iteration, creates an owned and a shared transaction that depends on
+    // previous input and gas objects.
     for i in 0..100 {
         let source_index = i % NUM_ACCOUNTS;
         let (source_addr, source_key) = &accounts[source_index];
@@ -474,7 +487,8 @@ async fn try_sign_on_first_three_authorities(
 async fn test_per_object_overload() {
     telemetry_subscribers::init_for_testing();
 
-    // Disable randomness, it can't be constructed with fake authorities in this test anyway.
+    // Disable randomness, it can't be constructed with fake authorities in this
+    // test anyway.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_random_beacon_for_testing(false);
         config
@@ -547,8 +561,9 @@ async fn test_per_object_overload() {
     // Make sure execution driver has exited.
     sleep(Duration::from_secs(1)).await;
 
-    // Sign and try execute 1000 txns on the first three authorities. And enqueue them on the last authority.
-    // First shared counter txn has input object available on authority 3. So to overload authority 3, 1 more
+    // Sign and try execute 1000 txns on the first three authorities. And enqueue
+    // them on the last authority. First shared counter txn has input object
+    // available on authority 3. So to overload authority 3, 1 more
     // txn is needed.
     let num_txns = authorities[3]
         .overload_config()
@@ -600,7 +615,8 @@ async fn test_per_object_overload() {
 async fn test_txn_age_overload() {
     telemetry_subscribers::init_for_testing();
 
-    // Disable randomness, it can't be constructed with fake authorities in this test anyway.
+    // Disable randomness, it can't be constructed with fake authorities in this
+    // test anyway.
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_random_beacon_for_testing(false);
         config
@@ -680,8 +696,9 @@ async fn test_txn_age_overload() {
     // Make sure execution driver has exited.
     sleep(Duration::from_secs(1)).await;
 
-    // Sign and try execute 2 txns on the first three authorities. And enqueue them on the last authority.
-    // First shared counter txn has input object available on authority 3. So to put a txn in the queue, we
+    // Sign and try execute 2 txns on the first three authorities. And enqueue them
+    // on the last authority. First shared counter txn has input object
+    // available on authority 3. So to put a txn in the queue, we
     // will need another txn.
     for gas_object in gas_objects.iter().take(2) {
         let gas_ref = get_latest_ref(authority_clients[0].clone(), gas_object.id()).await;
@@ -705,7 +722,8 @@ async fn test_txn_age_overload() {
         send_consensus(&authorities[3], &shared_cert).await;
     }
 
-    // Sleep for 6 seconds to make sure the transaction is old enough since our threshold is 5.
+    // Sleep for 6 seconds to make sure the transaction is old enough since our
+    // threshold is 5.
     tokio::time::sleep(Duration::from_secs(6)).await;
 
     // Trying to sign a new transaction would now fail.
@@ -728,7 +746,8 @@ async fn test_txn_age_overload() {
     );
 }
 
-// Tests that when validator is in load shedding mode, it can pushback txn signing correctly.
+// Tests that when validator is in load shedding mode, it can pushback txn
+// signing correctly.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_authority_txn_signing_pushback() {
     telemetry_subscribers::init_for_testing();
@@ -740,8 +759,9 @@ async fn test_authority_txn_signing_pushback() {
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);
 
-    // Initialize an AuthorityState. Disable overload monitor by setting max_load_shedding_percentage to 0;
-    // Set check_system_overload_at_signing to true.
+    // Initialize an AuthorityState. Disable overload monitor by setting
+    // max_load_shedding_percentage to 0; Set check_system_overload_at_signing
+    // to true.
     let overload_config = AuthorityOverloadConfig {
         check_system_overload_at_signing: true,
         max_load_shedding_percentage: 0,
@@ -805,8 +825,8 @@ async fn test_authority_txn_signing_pushback() {
         .unwrap();
     assert_eq!(tx.digest(), lock_tx.digest());
 
-    // Send the same txn again. Although objects are locked, since authority is in load shedding mode,
-    // it should still pushback the transaction.
+    // Send the same txn again. Although objects are locked, since authority is in
+    // load shedding mode, it should still pushback the transaction.
     assert!(matches!(
         validator_service
             .handle_transaction_for_benchmarking(tx.clone())
@@ -818,8 +838,8 @@ async fn test_authority_txn_signing_pushback() {
     ));
 
     // Send another transaction, that send the same object to a different recipient.
-    // Transaction signing should failed with ObjectLockConflict error, since the object
-    // is already locked by the previous transaction.
+    // Transaction signing should failed with ObjectLockConflict error, since the
+    // object is already locked by the previous transaction.
     let tx2 = make_transfer_object_transaction(
         gas_object1.compute_object_reference(),
         gas_object2.compute_object_reference(),
@@ -841,7 +861,8 @@ async fn test_authority_txn_signing_pushback() {
     // Clear the authority overload status.
     authority_state.overload_info.clear_overload();
 
-    // Re-send the first transaction, now the transaction can be successfully signed.
+    // Re-send the first transaction, now the transaction can be successfully
+    // signed.
     let response = validator_service
         .handle_transaction_for_benchmarking(tx.clone())
         .await;
@@ -856,7 +877,8 @@ async fn test_authority_txn_signing_pushback() {
     );
 }
 
-// Tests that when validator is in load shedding mode, it can pushback txn execution correctly.
+// Tests that when validator is in load shedding mode, it can pushback txn
+// execution correctly.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_authority_txn_execution_pushback() {
     telemetry_subscribers::init_for_testing();
@@ -867,9 +889,10 @@ async fn test_authority_txn_execution_pushback() {
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);
 
-    // Initialize an AuthorityState. Disable overload monitor by setting max_load_shedding_percentage to 0;
-    // Set check_system_overload_at_signing to false to disable load shedding at signing, this we are testing load shedding at execution.
-    // Set check_system_overload_at_execution to true.
+    // Initialize an AuthorityState. Disable overload monitor by setting
+    // max_load_shedding_percentage to 0; Set check_system_overload_at_signing
+    // to false to disable load shedding at signing, this we are testing load
+    // shedding at execution. Set check_system_overload_at_execution to true.
     let overload_config = AuthorityOverloadConfig {
         check_system_overload_at_signing: false,
         check_system_overload_at_execution: true,
@@ -931,7 +954,8 @@ async fn test_authority_txn_execution_pushback() {
     )
     .unwrap();
 
-    // Ask the validator to execute the certificate, it should fail with ValidatorOverloadedRetryAfter error.
+    // Ask the validator to execute the certificate, it should fail with
+    // ValidatorOverloadedRetryAfter error.
     assert!(matches!(
         validator_service
             .execute_certificate_for_testing(cert.clone())
@@ -942,10 +966,13 @@ async fn test_authority_txn_execution_pushback() {
         IotaError::ValidatorOverloadedRetryAfter { .. }
     ));
 
-    // Clear the validator overload status and retry the certificate. It should succeed.
+    // Clear the validator overload status and retry the certificate. It should
+    // succeed.
     authority_state.overload_info.clear_overload();
-    assert!(validator_service
-        .execute_certificate_for_testing(cert)
-        .await
-        .is_ok());
+    assert!(
+        validator_service
+            .execute_certificate_for_testing(cert)
+            .await
+            .is_ok()
+    );
 }

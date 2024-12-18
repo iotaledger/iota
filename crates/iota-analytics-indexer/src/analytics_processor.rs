@@ -2,32 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fs;
-use std::ops::Range;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    fs,
+    ops::Range,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
-use anyhow::Context;
-use anyhow::Result;
-use object_store::path::Path;
-use object_store::DynObjectStore;
-use serde::Serialize;
-use tokio::sync::{mpsc, oneshot, Mutex};
-use tracing::{error, info};
-
+use anyhow::{Context, Result};
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_data_ingestion_core::Worker;
 use iota_rpc_api::CheckpointData;
 use iota_storage::object_store::util::{copy_file, path_to_filesystem};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use object_store::{DynObjectStore, path::Path};
+use serde::Serialize;
+use tokio::sync::{Mutex, mpsc, oneshot};
+use tracing::{error, info};
 
-use crate::analytics_metrics::AnalyticsMetrics;
-use crate::handlers::AnalyticsHandler;
-use crate::writers::AnalyticsWriter;
 use crate::{
-    join_paths, AnalyticsIndexerConfig, FileMetadata, MaxCheckpointReader, ParquetSchema,
-    EPOCH_DIR_PREFIX,
+    AnalyticsIndexerConfig, EPOCH_DIR_PREFIX, FileMetadata, MaxCheckpointReader, ParquetSchema,
+    analytics_metrics::AnalyticsMetrics, handlers::AnalyticsHandler, join_paths,
+    writers::AnalyticsWriter,
 };
 
 struct State<S: Serialize + ParquetSchema> {

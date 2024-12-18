@@ -6,9 +6,9 @@ use std::path::PathBuf;
 
 use clap::*;
 use colored::Colorize;
-use move_package::BuildConfig as MoveBuildConfig;
 use iota_move::execute_move_command;
 use iota_types::exit_main;
+use move_package::BuildConfig as MoveBuildConfig;
 use tracing::debug;
 
 // Define the `GIT_REVISION` and `VERSION` consts
@@ -26,7 +26,8 @@ struct Args {
     /// Path to a package which the command should be run with respect to.
     #[clap(long = "path", short = 'p', global = true)]
     pub package_path: Option<PathBuf>,
-    /// If true, run the Move bytecode verifier on the bytecode from a successful build
+    /// If true, run the Move bytecode verifier on the bytecode from a
+    /// successful build
     #[clap(long, global = true)]
     pub run_bytecode_verifier: bool,
     /// If true, print build diagnostics to stderr--no printing if false

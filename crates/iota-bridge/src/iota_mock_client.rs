@@ -4,29 +4,30 @@
 
 //! A mock implementation of Iota JSON-RPC client.
 
-use crate::error::{BridgeError, BridgeResult};
-use crate::test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
-use async_trait::async_trait;
-use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Mutex};
-use iota_json_rpc_types::IotaTransactionBlockResponse;
-use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent};
-use iota_types::base_types::ObjectID;
-use iota_types::base_types::ObjectRef;
-use iota_types::bridge::{
-    BridgeCommitteeSummary, BridgeSummary, MoveTypeParsedTokenTransferMessage,
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Arc, Mutex, atomic::AtomicU64},
 };
-use iota_types::digests::TransactionDigest;
-use iota_types::event::EventID;
-use iota_types::gas_coin::GasCoin;
-use iota_types::object::Owner;
-use iota_types::transaction::ObjectArg;
-use iota_types::transaction::Transaction;
-use iota_types::Identifier;
 
-use crate::iota_client::IotaClientInner;
-use crate::types::{BridgeAction, BridgeActionStatus, IsBridgePaused};
+use async_trait::async_trait;
+use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent, IotaTransactionBlockResponse};
+use iota_types::{
+    Identifier,
+    base_types::{ObjectID, ObjectRef},
+    bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeParsedTokenTransferMessage},
+    digests::TransactionDigest,
+    event::EventID,
+    gas_coin::GasCoin,
+    object::Owner,
+    transaction::{ObjectArg, Transaction},
+};
+
+use crate::{
+    error::{BridgeError, BridgeResult},
+    iota_client::IotaClientInner,
+    test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
+    types::{BridgeAction, BridgeActionStatus, IsBridgePaused},
+};
 
 /// Mock client used in test environments.
 #[allow(clippy::type_complexity)]

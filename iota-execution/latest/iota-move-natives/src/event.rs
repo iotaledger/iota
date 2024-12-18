@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{legacy_test_cost, object_runtime::ObjectRuntime, NativesCostTable};
+use std::collections::VecDeque;
+
+use iota_types::error::VMMemoryLimitExceededSubStatusCode;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{gas_algebra::InternalGas, language_storage::TypeTag, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -10,8 +12,8 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
-use iota_types::error::VMMemoryLimitExceededSubStatusCode;
+
+use crate::{NativesCostTable, legacy_test_cost, object_runtime::ObjectRuntime};
 
 #[derive(Clone, Debug)]
 pub struct EventEmitCostParams {
@@ -20,15 +22,20 @@ pub struct EventEmitCostParams {
     pub event_emit_tag_size_derivation_cost_per_byte: InternalGas,
     pub event_emit_output_cost_per_byte: InternalGas,
 }
-/***************************************************************************************************
- * native fun emit
- * Implementation of the Move native function `event::emit<T: copy + drop>(event: T)`
- * Adds an event to the transaction's event log
- *   gas cost: event_emit_cost_base                  |  covers various fixed costs in the oper
- *              + event_emit_value_size_derivation_cost_per_byte * event_size     | derivation of size
- *              + event_emit_tag_size_derivation_cost_per_byte * tag_size         | converting type
- *              + event_emit_output_cost_per_byte * (tag_size + event_size)       | emitting the actual event
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun emit
+/// Implementation of the Move native function `event::emit<T: copy +
+/// drop>(event: T)` Adds an event to the transaction's event log
+///   gas cost: event_emit_cost_base                  |  covers various fixed
+/// costs in the oper
+///              + event_emit_value_size_derivation_cost_per_byte * event_size
+///                | derivation of size
+///              + event_emit_tag_size_derivation_cost_per_byte * tag_size
+///                | converting type
+///              + event_emit_output_cost_per_byte * (tag_size + event_size)
+///                | emitting the actual event
+/// ****************************************************************************
+/// *******************
 pub fn emit(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -63,7 +70,7 @@ pub fn emit(
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                     .with_message("Iota verifier guarantees this is a struct".to_string()),
-            )
+            );
         }
     };
     let tag_size = tag.abstract_size_for_gas_metering();
@@ -129,10 +136,9 @@ pub fn num_events(
     assert!(args.is_empty());
     let object_runtime_ref: &ObjectRuntime = context.extensions().get();
     let num_events = object_runtime_ref.state.events().len();
-    Ok(NativeResult::ok(
-        legacy_test_cost(),
-        smallvec![Value::u32(num_events as u32)],
-    ))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![Value::u32(
+        num_events as u32
+    )]))
 }
 
 /// Get the all emitted events of type `T`, starting at the specified index
@@ -157,8 +163,7 @@ pub fn get_events_by_type(
             }
         })
         .collect::<Vec<_>>();
-    Ok(NativeResult::ok(
-        legacy_test_cost(),
-        smallvec![Value::vector_for_testing_only(matched_events)],
-    ))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
+        Value::vector_for_testing_only(matched_events)
+    ]))
 }

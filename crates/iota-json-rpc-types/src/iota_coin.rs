@@ -4,19 +4,18 @@
 
 use std::collections::HashMap;
 
+use iota_types::{
+    base_types::{EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest},
+    coin::CoinMetadata,
+    error::IotaError,
+    iota_serde::{BigInt, SequenceNumber as AsSequenceNumber},
+    object::Object,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::Page;
-use iota_types::base_types::{
-    EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
-};
-use iota_types::coin::CoinMetadata;
-use iota_types::error::IotaError;
-use iota_types::object::Object;
-use iota_types::iota_serde::BigInt;
-use iota_types::iota_serde::SequenceNumber as AsSequenceNumber;
 
 pub type CoinPage = Page<Coin, ObjectID>;
 

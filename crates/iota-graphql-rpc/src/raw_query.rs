@@ -11,18 +11,19 @@ use crate::data::DieselBackend;
 
 pub(crate) type RawSqlQuery = BoxedSqlQuery<'static, DieselBackend, SqlQuery>;
 
-/// `RawQuery` is a utility for building and managing `diesel::query_builder::BoxedSqlQuery` queries
-/// dynamically.
+/// `RawQuery` is a utility for building and managing
+/// `diesel::query_builder::BoxedSqlQuery` queries dynamically.
 ///
-/// 1. **Dynamic Value Binding**: Allows binding string values dynamically to the query, bypassing
-///    the need to specify types explicitly, as is typically required with Diesel's
-///    `sql_query.bind`.
+/// 1. **Dynamic Value Binding**: Allows binding string values dynamically to
+///    the query, bypassing the need to specify types explicitly, as is
+///    typically required with Diesel's `sql_query.bind`.
 ///
-/// 2. **Query String Merging**: Can be used to represent and merge query strings and their
-///    associated bindings. Placeholder strings and bindings are applied in sequential order.
+/// 2. **Query String Merging**: Can be used to represent and merge query
+///    strings and their associated bindings. Placeholder strings and bindings
+///    are applied in sequential order.
 ///
-/// Note: `RawQuery` only supports binding string values, as interpolating raw strings directly
-/// increases exposure to SQL injection attacks.
+/// Note: `RawQuery` only supports binding string values, as interpolating raw
+/// strings directly increases exposure to SQL injection attacks.
 #[derive(Clone)]
 pub(crate) struct RawQuery {
     /// The `SELECT` and `FROM` clauses of the query.
@@ -52,7 +53,8 @@ impl RawQuery {
         }
     }
 
-    /// Adds a `WHERE` condition to the query, combining it with existing conditions using `AND`.
+    /// Adds a `WHERE` condition to the query, combining it with existing
+    /// conditions using `AND`.
     pub(crate) fn filter<T: std::fmt::Display>(mut self, condition: T) -> Self {
         self.where_ = match self.where_ {
             Some(where_) => Some(format!("({}) AND {}", where_, condition)),
@@ -62,7 +64,8 @@ impl RawQuery {
         self
     }
 
-    /// Adds a `WHERE` condition to the query, combining it with existing conditions using `OR`.
+    /// Adds a `WHERE` condition to the query, combining it with existing
+    /// conditions using `OR`.
     #[allow(dead_code)]
     pub(crate) fn or_filter<T: std::fmt::Display>(mut self, condition: T) -> Self {
         self.where_ = match self.where_ {
@@ -96,9 +99,9 @@ impl RawQuery {
         self.binds.push(condition);
     }
 
-    /// Constructs the query string and returns it along with the list of binds for this query. This
-    /// function is not intended to be called directly, and instead should be used through the
-    /// `query!` macro.
+    /// Constructs the query string and returns it along with the list of binds
+    /// for this query. This function is not intended to be called directly,
+    /// and instead should be used through the `query!` macro.
     pub(crate) fn finish(self) -> (String, Vec<String>) {
         let mut select = self.select;
 
@@ -129,9 +132,10 @@ impl RawQuery {
         (select, self.binds)
     }
 
-    /// Converts this `RawQuery` into a `diesel::query_builder::BoxedSqlQuery`. Consumes `self` into
-    /// a raw sql string and bindings, if any. A `BoxedSqlQuery` is constructed from the raw sql
-    /// string, and bindings are added using `sql_query.bind()`.
+    /// Converts this `RawQuery` into a `diesel::query_builder::BoxedSqlQuery`.
+    /// Consumes `self` into a raw sql string and bindings, if any. A
+    /// `BoxedSqlQuery` is constructed from the raw sql string, and bindings
+    /// are added using `sql_query.bind()`.
     pub(crate) fn into_boxed(self) -> RawSqlQuery {
         let (raw_sql_string, binds) = self.finish();
 
@@ -158,7 +162,8 @@ impl RawQuery {
     }
 }
 
-/// Applies the `AND` condition to the given `RawQuery` and binds input string values, if any.
+/// Applies the `AND` condition to the given `RawQuery` and binds input string
+/// values, if any.
 #[macro_export]
 macro_rules! filter {
     ($query:expr, $condition:expr $(,$binds:expr)*) => {{
@@ -169,7 +174,8 @@ macro_rules! filter {
     }};
 }
 
-/// Applies the `OR` condition to the given `RawQuery` and binds input string values, if any.
+/// Applies the `OR` condition to the given `RawQuery` and binds input string
+/// values, if any.
 #[macro_export]
 macro_rules! or_filter {
     ($query:expr, $condition:expr $(,$binds:expr)*) => {{
@@ -180,7 +186,8 @@ macro_rules! or_filter {
     }};
 }
 
-/// Accepts two `RawQuery` instances and a third expression consisting of which columns to join on.
+/// Accepts two `RawQuery` instances and a third expression consisting of which
+/// columns to join on.
 #[macro_export]
 macro_rules! inner_join {
     ($lhs:expr, $alias:expr => $rhs_query:expr, using: [$using:expr $(, $more_using:expr)*]) => {{
@@ -201,11 +208,12 @@ macro_rules! inner_join {
     }};
 }
 
-/// Accepts a `SELECT FROM` format string and optional subqueries. If subqueries are provided, there
-/// should be curly braces `{}` in the format string to interpolate each subquery's sql string into.
-/// Concatenates subqueries to the `SELECT FROM` clause, and creates a new `RawQuery` from the
-/// concatenated sql string. The binds from each subquery are added in the order they appear in the
-/// macro parameter. Subqueries are consumed into the new `RawQuery`.
+/// Accepts a `SELECT FROM` format string and optional subqueries. If subqueries
+/// are provided, there should be curly braces `{}` in the format string to
+/// interpolate each subquery's sql string into. Concatenates subqueries to the
+/// `SELECT FROM` clause, and creates a new `RawQuery` from the concatenated sql
+/// string. The binds from each subquery are added in the order they appear in
+/// the macro parameter. Subqueries are consumed into the new `RawQuery`.
 #[macro_export]
 macro_rules! query {
     // Matches the case where no subqueries are provided. A `RawQuery` is constructed from the given

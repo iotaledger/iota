@@ -7,18 +7,22 @@
 //! It aims at providing a similar SDK functionality like the one existing for
 //! [TypeScript](https://github.com/iotaledger/iota/tree/main/sdk/typescript/).
 //! Iota Rust SDK builds on top of the [JSON RPC API](https://docs.iota.org/iota-jsonrpc)
-//! and therefore many of the return types are the ones specified in [iota_types].
+//! and therefore many of the return types are the ones specified in
+//! [iota_types].
 //!
 //! The API is split in several parts corresponding to different functionalities
 //! as following:
 //! * [CoinReadApi] - provides read-only functions to work with the coins
 //! * [EventApi] - provides event related functions functions to
 //! * [GovernanceApi] - provides functionality related to staking
-//! * [QuorumDriverApi] - provides functionality to execute a transaction
-//!     block and submit it to the fullnode(s)
-//! * [ReadApi] - provides functions for retrieving data about different
-//!     objects and transactions
-//! * <a href="../iota_transaction_builder/struct.TransactionBuilder.html" title="struct iota_transaction_builder::TransactionBuilder">TransactionBuilder</a> - provides functions for building transactions
+//! * [QuorumDriverApi] - provides functionality to execute a transaction block
+//!   and submit it to the fullnode(s)
+//! * [ReadApi] - provides functions for retrieving data about different objects
+//!   and transactions
+//! * <a href="../iota_transaction_builder/struct.TransactionBuilder.html"
+//!   title="struct
+//!   iota_transaction_builder::TransactionBuilder">TransactionBuilder</a> -
+//!   provides functions for building transactions
 //!
 //! # Usage
 //! The main way to interact with the API is through the [IotaClientBuilder],
@@ -44,7 +48,6 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), anyhow::Error> {
-//!
 //!     let iota = IotaClientBuilder::default()
 //!         .build("http://127.0.0.1:9000") // provide the Iota network URL
 //!         .await?;
@@ -62,7 +65,6 @@
 //!     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
 //!     println!("Iota testnet version: {:?}", iota_testnet.api_version());
 //!     Ok(())
-//!
 //! }
 //! ```
 //!
@@ -71,40 +73,44 @@
 //! For detailed examples, please check the APIs docs and the examples folder
 //! in the [main repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    fmt::{Debug, Formatter},
+    sync::Arc,
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use base64::Engine;
-use jsonrpsee::core::client::ClientT;
-use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
-use jsonrpsee::rpc_params;
-use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
-use serde_json::Value;
-
-use move_core_types::language_storage::StructTag;
 pub use iota_json as json;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
-    ObjectsPage, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
-    IotaObjectResponseQuery,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    ObjectsPage,
 };
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
-use iota_types::base_types::{ObjectID, ObjectInfo, IotaAddress};
+use iota_types::base_types::{IotaAddress, ObjectID, ObjectInfo};
+use jsonrpsee::{
+    core::client::ClientT,
+    http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder},
+    rpc_params,
+    ws_client::{WsClient, WsClientBuilder},
+};
+use move_core_types::language_storage::StructTag;
+use serde_json::Value;
 
-use crate::apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi};
-use crate::error::{Error, IotaRpcResult};
+use crate::{
+    apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi},
+    error::{Error, IotaRpcResult},
+};
 
 pub mod apis;
 pub mod error;
-pub mod json_rpc_error;
 pub mod iota_client_config;
+pub mod json_rpc_error;
 pub mod wallet_context;
 
 pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
@@ -188,7 +194,8 @@ impl IotaClientBuilder {
         self
     }
 
-    /// Returns a [IotaClient] object connected to the Iota network running at the URI provided.
+    /// Returns a [IotaClient] object connected to the Iota network running at
+    /// the URI provided.
     ///
     /// # Examples
     ///
@@ -287,9 +294,7 @@ impl IotaClientBuilder {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default()
-    ///         .build_localnet()
-    ///         .await?;
+    ///     let iota = IotaClientBuilder::default().build_localnet().await?;
     ///
     ///     println!("Iota local version: {:?}", iota.api_version());
     ///     Ok(())
@@ -299,7 +304,8 @@ impl IotaClientBuilder {
         self.build(IOTA_LOCAL_NETWORK_URL).await
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the Iota devnet.
+    /// Returns a [IotaClient] object that is ready to interact with the Iota
+    /// devnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead..
     ///
@@ -310,9 +316,7 @@ impl IotaClientBuilder {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default()
-    ///         .build_devnet()
-    ///         .await?;
+    ///     let iota = IotaClientBuilder::default().build_devnet().await?;
     ///
     ///     println!("{:?}", iota.api_version());
     ///     Ok(())
@@ -322,7 +326,8 @@ impl IotaClientBuilder {
         self.build(IOTA_DEVNET_URL).await
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the Iota testnet.
+    /// Returns a [IotaClient] object that is ready to interact with the Iota
+    /// testnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
     ///
@@ -333,9 +338,7 @@ impl IotaClientBuilder {
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let iota = IotaClientBuilder::default()
-    ///         .build_testnet()
-    ///         .await?;
+    ///     let iota = IotaClientBuilder::default().build_testnet().await?;
     ///
     ///     println!("{:?}", iota.api_version());
     ///     Ok(())
@@ -394,7 +397,8 @@ impl IotaClientBuilder {
     }
 }
 
-/// IotaClient is the basic type that provides all the necessary abstractions for interacting with the Iota network.
+/// IotaClient is the basic type that provides all the necessary abstractions
+/// for interacting with the Iota network.
 ///
 /// # Usage
 ///
@@ -403,15 +407,15 @@ impl IotaClientBuilder {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use iota_sdk::types::base_types::IotaAddress;
-/// use iota_sdk::IotaClientBuilder;
 /// use std::str::FromStr;
+///
+/// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {
 ///     let iota = IotaClientBuilder::default()
-///      .build("http://127.0.0.1:9000")
-///      .await?;
+///         .build("http://127.0.0.1:9000")
+///         .await?;
 ///
 ///     println!("{:?}", iota.available_rpc_methods());
 ///     println!("{:?}", iota.available_subscriptions());
@@ -419,9 +423,9 @@ impl IotaClientBuilder {
 ///
 ///     let address = IotaAddress::from_str("0x0000....0000")?;
 ///     let owned_objects = iota
-///        .read_api()
-///        .get_owned_objects(address, None, None, None)
-///        .await?;
+///         .read_api()
+///         .get_owned_objects(address, None, None, None)
+///         .await?;
 ///
 ///     println!("{:?}", owned_objects);
 ///
@@ -455,7 +459,8 @@ impl Debug for RpcClient {
     }
 }
 
-/// ServerInfo contains all the useful information regarding the API version, the available RPC calls, and subscriptions.
+/// ServerInfo contains all the useful information regarding the API version,
+/// the available RPC calls, and subscriptions.
 struct ServerInfo {
     rpc_methods: Vec<String>,
     subscriptions: Vec<String>,
@@ -463,12 +468,14 @@ struct ServerInfo {
 }
 
 impl IotaClient {
-    /// Returns a list of RPC methods supported by the node the client is connected to.
+    /// Returns a list of RPC methods supported by the node the client is
+    /// connected to.
     pub fn available_rpc_methods(&self) -> &Vec<String> {
         &self.api.info.rpc_methods
     }
 
-    /// Returns a list of streaming/subscription APIs supported by the node the client is connected to.
+    /// Returns a list of streaming/subscription APIs supported by the node the
+    /// client is connected to.
     pub fn available_subscriptions(&self) -> &Vec<String> {
         &self.api.info.subscriptions
     }
@@ -476,12 +483,14 @@ impl IotaClient {
     /// Returns the API version information as a string.
     ///
     /// The format of this string is `<major>.<minor>.<patch>`, e.g., `1.6.0`,
-    /// and it is retrieved from the OpenRPC specification via the discover service method.
+    /// and it is retrieved from the OpenRPC specification via the discover
+    /// service method.
     pub fn api_version(&self) -> &str {
         &self.api.info.version
     }
 
-    /// Verifies if the API version matches the server version and returns an error if they do not match.
+    /// Verifies if the API version matches the server version and returns an
+    /// error if they do not match.
     pub fn check_api_version(&self) -> IotaRpcResult<()> {
         let server_version = self.api_version();
         let client_version = env!("CARGO_PKG_VERSION");

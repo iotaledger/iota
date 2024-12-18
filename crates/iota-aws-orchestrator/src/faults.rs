@@ -58,7 +58,8 @@ impl Display for FaultsType {
     }
 }
 
-/// The actions to apply to the testbed, i.e., which instances to crash and recover.
+/// The actions to apply to the testbed, i.e., which instances to crash and
+/// recover.
 #[derive(Default)]
 pub struct CrashRecoveryAction {
     /// The instances to boot.
@@ -164,9 +165,8 @@ impl CrashRecoverySchedule {
 mod faults_tests {
     use std::time::Duration;
 
-    use crate::client::Instance;
-
     use super::{CrashRecoverySchedule, FaultsType};
+    use crate::client::Instance;
 
     #[test]
     fn crash_recovery_1_fault() {

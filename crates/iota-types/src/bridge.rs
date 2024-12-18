@@ -2,31 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::ObjectID;
-use crate::base_types::SequenceNumber;
-use crate::collection_types::LinkedTableNode;
-use crate::dynamic_field::{get_dynamic_field_from_store, Field};
-use crate::error::IotaResult;
-use crate::object::Owner;
-use crate::storage::ObjectStore;
-use crate::iota_serde::BigInt;
-use crate::iota_serde::Readable;
-use crate::versioned::Versioned;
-use crate::IOTA_BRIDGE_OBJECT_ID;
-use crate::{
-    base_types::IotaAddress,
-    collection_types::{Bag, LinkedTable, VecMap},
-    error::IotaError,
-    id::UID,
-};
 use enum_dispatch::enum_dispatch;
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
+use move_core_types::{ident_str, identifier::IdentStr};
 use num_enum::TryFromPrimitive;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use strum_macros::Display;
+
+use crate::{
+    IOTA_BRIDGE_OBJECT_ID,
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    collection_types::{Bag, LinkedTable, LinkedTableNode, VecMap},
+    dynamic_field::{Field, get_dynamic_field_from_store},
+    error::{IotaError, IotaResult},
+    id::UID,
+    iota_serde::{BigInt, Readable},
+    object::Owner,
+    storage::ObjectStore,
+    versioned::Versioned,
+};
 
 pub type BridgeInnerDynamicField = Field<u64, BridgeInnerV1>;
 pub type BridgeRecordDyanmicField = Field<
@@ -117,10 +112,10 @@ pub fn get_bridge_obj_initial_shared_version(
         }))
 }
 
-/// Bridge provides an abstraction over multiple versions of the inner BridgeInner object.
-/// This should be the primary interface to the bridge object in Rust.
-/// We use enum dispatch to dispatch all methods defined in BridgeTrait to the actual
-/// implementation in the inner types.
+/// Bridge provides an abstraction over multiple versions of the inner
+/// BridgeInner object. This should be the primary interface to the bridge
+/// object in Rust. We use enum dispatch to dispatch all methods defined in
+/// BridgeTrait to the actual implementation in the inner types.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[enum_dispatch(BridgeTrait)]
 pub enum Bridge {
@@ -131,8 +126,8 @@ pub enum Bridge {
 /// This repreents the object with 0x9 ID.
 /// In Rust, this type should be rarely used since it's just a thin
 /// wrapper used to access the inner object.
-/// Within this module, we use it to determine the current version of the bridge inner object type,
-/// so that we could deserialize the inner object correctly.
+/// Within this module, we use it to determine the current version of the bridge
+/// inner object type, so that we could deserialize the inner object correctly.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BridgeWrapper {
     pub id: UID,
@@ -200,7 +195,9 @@ pub fn get_bridge_wrapper(object_store: &dyn ObjectStore) -> Result<BridgeWrappe
     let wrapper = object_store
         .get_object(&IOTA_BRIDGE_OBJECT_ID)
         // Don't panic here on None because object_store is a generic store.
-        .ok_or_else(|| IotaError::IotaBridgeReadError("BridgeWrapper object not found".to_owned()))?;
+        .ok_or_else(|| {
+            IotaError::IotaBridgeReadError("BridgeWrapper object not found".to_owned())
+        })?;
     let move_object = wrapper.data.try_as_move().ok_or_else(|| {
         IotaError::IotaBridgeReadError("BridgeWrapper object must be a Move object".to_owned())
     })?;

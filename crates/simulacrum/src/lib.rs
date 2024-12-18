@@ -4,66 +4,64 @@
 
 //! A `Simulacrum` of Iota.
 //!
-//! The word simulacrum is latin for "likeness, semblance", it is also a spell in D&D which creates
-//! a copy of a creature which then follows the player's commands and wishes. As such this crate
-//! provides the [`Simulacrum`] type which is a implementation or instantiation of a iota
-//! blockchain, one which doesn't do anything unless acted upon.
+//! The word simulacrum is latin for "likeness, semblance", it is also a spell
+//! in D&D which creates a copy of a creature which then follows the player's
+//! commands and wishes. As such this crate provides the [`Simulacrum`] type
+//! which is a implementation or instantiation of a iota blockchain, one which
+//! doesn't do anything unless acted upon.
 //!
 //! [`Simulacrum`]: crate::Simulacrum
 
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{num::NonZeroUsize, path::PathBuf, sync::Arc};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use fastcrypto::traits::Signer;
-use rand::rngs::OsRng;
-use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_config::{genesis, transaction_deny_config::TransactionDenyConfig};
+use iota_config::{
+    genesis, transaction_deny_config::TransactionDenyConfig,
+    verifier_signing_config::VerifierSigningConfig,
+};
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::blob::{Blob, BlobEncoding};
-use iota_swarm_config::genesis_config::AccountConfig;
-use iota_swarm_config::network_config::NetworkConfig;
-use iota_swarm_config::network_config_builder::ConfigBuilder;
-use iota_types::base_types::{AuthorityName, ObjectID, VersionNumber};
-use iota_types::crypto::AuthoritySignature;
-use iota_types::digests::ConsensusCommitDigest;
-use iota_types::object::Object;
-use iota_types::storage::{ObjectStore, ReadStore, RpcStateReader};
-use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
-use iota_types::transaction::EndOfEpochTransactionKind;
+use iota_swarm_config::{
+    genesis_config::AccountConfig, network_config::NetworkConfig,
+    network_config_builder::ConfigBuilder,
+};
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{AuthorityName, IotaAddress, ObjectID, VersionNumber},
     committee::Committee,
+    crypto::AuthoritySignature,
+    digests::ConsensusCommitDigest,
     effects::TransactionEffects,
     error::ExecutionError,
-    gas_coin::NANOS_PER_IOTA,
+    gas_coin::{GasCoin, NANOS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
-    messages_checkpoint::{EndOfEpochData, VerifiedCheckpoint},
-    signature::VerifyParams,
-    transaction::{Transaction, VerifiedTransaction},
-};
-
-use self::epoch_state::EpochState;
-pub use self::store::in_mem_store::InMemoryStore;
-use self::store::in_mem_store::KeyStore;
-pub use self::store::SimulatorStore;
-use iota_types::messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber};
-use iota_types::mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider};
-use iota_types::{
-    gas_coin::GasCoin,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSequenceNumber, EndOfEpochData, VerifiedCheckpoint,
+    },
+    mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{GasData, TransactionData, TransactionKind},
+    signature::VerifyParams,
+    storage::{ObjectStore, ReadStore, RpcStateReader},
+    transaction::{
+        EndOfEpochTransactionKind, GasData, Transaction, TransactionData, TransactionKind,
+        VerifiedTransaction,
+    },
 };
+use rand::rngs::OsRng;
+
+pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
+use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 
 mod epoch_state;
 pub mod store;
 
 /// A `Simulacrum` of Iota.
 ///
-/// This type represents a simulated instantiation of a Iota blockchain that needs to be driven
-/// manually, that is time doesn't advance and checkpoints are not formed unless explicitly
-/// requested.
+/// This type represents a simulated instantiation of a Iota blockchain that
+/// needs to be driven manually, that is time doesn't advance and checkpoints
+/// are not formed unless explicitly requested.
 ///
 /// See [module level][mod] documentation for more details.
 ///
@@ -86,7 +84,8 @@ pub struct Simulacrum<R = OsRng, Store: SimulatorStore = InMemoryStore> {
 }
 
 impl Simulacrum {
-    /// Create a new, random Simulacrum instance using an `OsRng` as the source of randomness.
+    /// Create a new, random Simulacrum instance using an `OsRng` as the source
+    /// of randomness.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self::new_with_rng(OsRng)
@@ -99,12 +98,12 @@ where
 {
     /// Create a new Simulacrum instance using the provided `rng`.
     ///
-    /// This allows you to create a fully deterministic initial chainstate when a seeded rng is
-    /// used.
+    /// This allows you to create a fully deterministic initial chainstate when
+    /// a seeded rng is used.
     ///
     /// ```
-    /// use simulacrum::Simulacrum;
     /// use rand::{SeedableRng, rngs::StdRng};
+    /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {
     /// let mut rng = StdRng::seed_from_u64(1);
@@ -165,15 +164,17 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
     /// Attempts to execute the provided Transaction.
     ///
-    /// The provided Transaction undergoes the same types of checks that a Validator does prior to
-    /// signing and executing in the production system. Some of these checks are as follows:
+    /// The provided Transaction undergoes the same types of checks that a
+    /// Validator does prior to signing and executing in the production
+    /// system. Some of these checks are as follows:
     /// - User signature is valid
     /// - Sender owns all OwnedObject inputs
     /// - etc
     ///
-    /// If the above checks are successful then the transaction is immediately executed, enqueued
-    /// to be included in the next checkpoint (the next time `create_checkpoint` is called) and the
-    /// corresponding TransactionEffects are returned.
+    /// If the above checks are successful then the transaction is immediately
+    /// executed, enqueued to be included in the next checkpoint (the next
+    /// time `create_checkpoint` is called) and the corresponding
+    /// TransactionEffects are returned.
     pub fn execute_transaction(
         &mut self,
         transaction: Transaction,
@@ -206,8 +207,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         Ok((effects, execution_error_opt.err()))
     }
 
-    /// Creates the next Checkpoint using the Transactions enqueued since the last checkpoint was
-    /// created.
+    /// Creates the next Checkpoint using the Transactions enqueued since the
+    /// last checkpoint was created.
     pub fn create_checkpoint(&mut self) -> VerifiedCheckpoint {
         let committee = CommitteeWithKeys::new(&self.keystore, self.epoch_state.committee());
         let (checkpoint, contents, _) = self
@@ -222,8 +223,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
     /// Advances the clock by `duration`.
     ///
-    /// This creates and executes a ConsensusCommitPrologue transaction which advances the chain
-    /// Clock by the provided duration.
+    /// This creates and executes a ConsensusCommitPrologue transaction which
+    /// advances the chain Clock by the provided duration.
     pub fn advance_clock(&mut self, duration: std::time::Duration) -> TransactionEffects {
         let epoch = self.epoch_state.epoch();
         let round = self.epoch_state.next_consensus_round();
@@ -245,16 +246,17 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
     /// Advances the epoch.
     ///
-    /// This creates and executes an EndOfEpoch transaction which advances the chain into the next
-    /// epoch. Since it is required to be the final transaction in an epoch, the final checkpoint in
-    /// the epoch is also created.
+    /// This creates and executes an EndOfEpoch transaction which advances the
+    /// chain into the next epoch. Since it is required to be the final
+    /// transaction in an epoch, the final checkpoint in the epoch is also
+    /// created.
     ///
-    /// create_random_state controls whether a `RandomStateCreate` end of epoch transaction is
-    /// included as part of this epoch change (to initialise on-chain randomness for the first
-    /// time).
+    /// create_random_state controls whether a `RandomStateCreate` end of epoch
+    /// transaction is included as part of this epoch change (to initialise
+    /// on-chain randomness for the first time).
     ///
-    /// NOTE: This function does not currently support updating the protocol version or the system
-    /// packages
+    /// NOTE: This function does not currently support updating the protocol
+    /// version or the system packages
     pub fn advance_epoch(&mut self, create_random_state: bool) {
         let next_epoch = self.epoch_state.epoch() + 1;
         let next_epoch_protocol_version = self.epoch_state.protocol_version();
@@ -317,9 +319,10 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
     /// Return a handle to the internally held RNG.
     ///
-    /// Returns a handle to the RNG used to create this Simulacrum for use as a source of
-    /// randomness. Using a seeded RNG to build a Simulacrum and then utilizing the stored RNG as a
-    /// source of randomness can lead to a fully deterministic chain evolution.
+    /// Returns a handle to the RNG used to create this Simulacrum for use as a
+    /// source of randomness. Using a seeded RNG to build a Simulacrum and
+    /// then utilizing the stored RNG as a source of randomness can lead to
+    /// a fully deterministic chain evolution.
     pub fn rng(&mut self) -> &mut R {
         &mut self.rng
     }
@@ -332,9 +335,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
+    /// use iota_types::{base_types::IotaAddress, gas_coin::NANOS_PER_IOTA};
     /// use simulacrum::Simulacrum;
-    /// use iota_types::base_types::IotaAddress;
-    /// use iota_types::gas_coin::NANOS_PER_IOTA;
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
@@ -346,8 +348,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// # }
     /// ```
     pub fn request_gas(&mut self, address: IotaAddress, amount: u64) -> Result<TransactionEffects> {
-        // For right now we'll just use the first account as the `faucet` account. We may want to
-        // explicitly cordon off the faucet account from the rest of the accounts though.
+        // For right now we'll just use the first account as the `faucet` account. We
+        // may want to explicitly cordon off the faucet account from the rest of
+        // the accounts though.
         let (sender, key) = self.keystore().accounts().next().unwrap();
         let object = self
             .store()
@@ -479,8 +482,8 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         &self,
     ) -> iota_types::storage::error::Result<iota_types::messages_checkpoint::CheckpointSequenceNumber>
     {
-        // TODO wire this up to the underlying sim store, for now this will work since we never
-        // prune the sim store
+        // TODO wire this up to the underlying sim store, for now this will work since
+        // we never prune the sim store
         Ok(0)
     }
 
@@ -575,9 +578,11 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RpcStateReader for 
 
 impl Simulacrum {
     /// Generate a random transfer transaction.
-    /// TODO: This is here today to make it easier to write tests. But we should utilize all the
-    /// existing code for generating transactions in iota-test-transaction-builder by defining a trait
-    /// that both WalletContext and Simulacrum implement. Then we can remove this function.
+    /// TODO: This is here today to make it easier to write tests. But we should
+    /// utilize all the existing code for generating transactions in
+    /// iota-test-transaction-builder by defining a trait
+    /// that both WalletContext and Simulacrum implement. Then we can remove
+    /// this function.
     pub fn transfer_txn(&mut self, recipient: IotaAddress) -> (Transaction, u64) {
         let (sender, key) = self.keystore().accounts().next().unwrap();
         let sender = *sender;
@@ -613,11 +618,11 @@ impl Simulacrum {
 mod tests {
     use std::time::Duration;
 
-    use rand::{rngs::StdRng, SeedableRng};
     use iota_types::{
         base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
         transaction::TransactionDataAPI,
     };
+    use rand::{SeedableRng, rngs::StdRng};
 
     use super::*;
 

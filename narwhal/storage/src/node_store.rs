@@ -2,29 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::payload_store::PayloadStore;
-use crate::proposer_store::ProposerKey;
-use crate::vote_digest_store::VoteDigestStore;
-use crate::{
-    CertificateStore, CertificateStoreCache, CertificateStoreCacheMetrics, ConsensusStore,
-    ProposerStore,
-};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+
 use config::{AuthorityIdentifier, WorkerId};
 use fastcrypto::groups;
-use fastcrypto_tbls::dkg_v1;
-use fastcrypto_tbls::nodes::PartyId;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use std::time::Duration;
-use store::metrics::SamplingInterval;
-use store::reopen;
-use store::rocks::{default_db_options, open_cf_opts, DBMap, MetricConf, ReadWriteOptions};
+use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
+use store::{
+    metrics::SamplingInterval,
+    reopen,
+    rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
+};
 use types::{
     Batch, BatchDigest, Certificate, CertificateDigest, CommittedSubDagShell, ConsensusCommit,
     Header, RandomnessRound, Round, SequenceNumber, VoteInfo,
 };
 
-// A type alias marking the "payload" tokens sent by workers to their primary as batch acknowledgements
+use crate::{
+    CertificateStore, CertificateStoreCache, CertificateStoreCacheMetrics, ConsensusStore,
+    ProposerStore, payload_store::PayloadStore, proposer_store::ProposerKey,
+    vote_digest_store::VoteDigestStore,
+};
+
+// A type alias marking the "payload" tokens sent by workers to their primary as
+// batch acknowledgements
 pub type PayloadToken = u8;
 
 // Types used in deprecated random beacon tables.
@@ -60,9 +60,10 @@ impl NodeStorage {
     pub(crate) const DKG_OUTPUT_CF: &'static str = "dkg_output";
     pub(crate) const RANDOMNESS_ROUND_CF: &'static str = "randomness_round";
 
-    // 100 nodes * 60 rounds (assuming 1 round/sec this will hold data for about the last 1 minute
-    // which should be more than enough for advancing the protocol and also help other nodes)
-    // TODO: take into account committee size instead of having fixed 100.
+    // 100 nodes * 60 rounds (assuming 1 round/sec this will hold data for about the
+    // last 1 minute which should be more than enough for advancing the protocol
+    // and also help other nodes) TODO: take into account committee size instead
+    // of having fixed 100.
     pub(crate) const CERTIFICATE_STORE_CACHE_SIZE: usize = 100 * 60;
 
     /// Open or reopen all the storage of the node.

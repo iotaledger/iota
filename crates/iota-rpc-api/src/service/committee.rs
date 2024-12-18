@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::Result;
-use crate::RpcService;
 use iota_sdk_types::types::{EpochId, ValidatorCommittee};
+
+use crate::{Result, RpcService};
 
 impl RpcService {
     pub fn get_committee(&self, epoch: Option<EpochId>) -> Result<ValidatorCommittee> {

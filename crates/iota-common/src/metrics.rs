@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use iota_metrics::RegistryService;
 use prometheus::Encoder;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info};
 
 const METRICS_PUSH_TIMEOUT: Duration = Duration::from_secs(45);
@@ -49,7 +50,8 @@ pub async fn push_metrics(
 ) -> Result<(), anyhow::Error> {
     info!(push_url =% url, "pushing metrics to remote");
 
-    // now represents a collection timestamp for all of the metrics we send to the proxy
+    // now represents a collection timestamp for all of the metrics we send to the
+    // proxy
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()

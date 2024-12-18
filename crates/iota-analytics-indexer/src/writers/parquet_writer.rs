@@ -2,22 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{AnalyticsWriter, FileFormat, FileType};
-use crate::{ParquetSchema, ParquetValue};
-use anyhow::{anyhow, Result};
-use arrow_array::{ArrayRef, BooleanArray, Int64Array, RecordBatch, StringArray, UInt64Array};
-use serde::Serialize;
-use std::fs::File;
-use std::fs::{create_dir_all, remove_file};
-use std::ops::Range;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use iota_types::base_types::EpochId;
+use std::{
+    fs::{File, create_dir_all, remove_file},
+    ops::Range,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use parquet::arrow::ArrowWriter;
-use parquet::basic::Compression;
-use parquet::file::properties::WriterProperties;
+use anyhow::{Result, anyhow};
+use arrow_array::{ArrayRef, BooleanArray, Int64Array, RecordBatch, StringArray, UInt64Array};
 use iota_storage::object_store::util::path_to_filesystem;
+use iota_types::base_types::EpochId;
+use parquet::{arrow::ArrowWriter, basic::Compression, file::properties::WriterProperties};
+use serde::Serialize;
+
+use crate::{AnalyticsWriter, FileFormat, FileType, ParquetSchema, ParquetValue};
 
 // Save table entries to parquet files.
 pub(crate) struct ParquetWriter {

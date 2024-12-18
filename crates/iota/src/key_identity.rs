@@ -5,10 +5,10 @@
 use std::{fmt::Display, str::FromStr};
 
 use anyhow::Error;
-use serde::Serialize;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk::wallet_context::WalletContext;
 use iota_types::base_types::IotaAddress;
+use serde::Serialize;
 
 /// An address or an alias associated with a key in the wallet
 /// This is used to distinguish between an address or an alias,

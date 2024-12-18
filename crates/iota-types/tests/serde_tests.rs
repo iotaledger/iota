@@ -2,14 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
+
+use iota_types::{base_types::ObjectType, iota_serde::IotaStructTag, parse_iota_struct_tag};
 use move_core_types::language_storage::StructTag;
 use serde::Serialize;
 use serde_json::Value;
 use serde_with::serde_as;
-use std::str::FromStr;
-use iota_types::base_types::ObjectType;
-use iota_types::parse_iota_struct_tag;
-use iota_types::iota_serde::IotaStructTag;
 
 #[test]
 fn test_struct_tag_serde() {
@@ -22,7 +21,10 @@ fn test_struct_tag_serde() {
     let Value::String(json) = serde_json::to_value(TestStructTag(tag.clone())).unwrap() else {
         panic!()
     };
-    assert_eq!(json, "0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::iotafrens::IotaFren<0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::capy::Capy>");
+    assert_eq!(
+        json,
+        "0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::iotafrens::IotaFren<0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::capy::Capy>"
+    );
 
     let tag2 = parse_iota_struct_tag(&json).unwrap();
     assert_eq!(tag, tag2);

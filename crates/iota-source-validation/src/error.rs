@@ -4,12 +4,12 @@
 
 use std::fmt;
 
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::Symbol;
 use iota_json_rpc_types::IotaRawMoveObject;
 use iota_package_management::PublishedAtError;
 use iota_sdk::error::Error as SdkError;
 use iota_types::{base_types::ObjectID, error::IotaObjectResponseError};
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::Symbol;
 
 #[derive(Debug, thiserror::Error)]
 pub struct AggregateError(pub(crate) Vec<Error>);

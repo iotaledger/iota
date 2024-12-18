@@ -8,22 +8,21 @@ use std::{
     str::FromStr,
 };
 
-use serde::{Deserialize, Serialize};
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{base_types::IotaAddress, multiaddr::Multiaddr};
+use serde::{Deserialize, Serialize};
 
+use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     settings::Settings,
 };
 
-use super::{ProtocolCommands, ProtocolMetrics};
-
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IotaBenchmarkType {
-    /// Percentage of shared vs owned objects; 0 means only owned objects and 100 means
-    /// only shared objects.
+    /// Percentage of shared vs owned objects; 0 means only owned objects and
+    /// 100 means only shared objects.
     shared_objects_ratio: u16,
 }
 
@@ -109,8 +108,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         //     .map(|i| {
         //         (
         //             i,
-        //             "tail -f --pid=$(pidof iota) -f /dev/null; tail -100 node.log".to_string(),
-        //         )
+        //             "tail -f --pid=$(pidof iota) -f /dev/null; tail -100
+        // node.log".to_string(),         )
         //     })
         //     .collect()
         vec![]
@@ -159,9 +158,12 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     where
         I: IntoIterator<Item = Instance>,
     {
-        let genesis_path: PathBuf = [&self.working_dir, &iota_config::IOTA_GENESIS_FILENAME.into()]
-            .iter()
-            .collect();
+        let genesis_path: PathBuf = [
+            &self.working_dir,
+            &iota_config::IOTA_GENESIS_FILENAME.into(),
+        ]
+        .iter()
+        .collect();
         let keystore_path: PathBuf = [
             &self.working_dir,
             &iota_config::IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME.into(),
@@ -221,8 +223,8 @@ impl IotaProtocol {
         }
     }
 
-    /// Creates the network addresses in multi address format for the instances. It returns the
-    /// Instance and the corresponding address.
+    /// Creates the network addresses in multi address format for the instances.
+    /// It returns the Instance and the corresponding address.
     pub fn resolve_network_addresses(
         instances: impl IntoIterator<Item = Instance>,
     ) -> Vec<(Instance, Multiaddr)> {

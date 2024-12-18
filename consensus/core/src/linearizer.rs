@@ -8,15 +8,16 @@ use consensus_config::AuthorityIndex;
 use parking_lot::RwLock;
 
 use crate::{
+    Round, TransactionIndex,
     block::{BlockAPI, BlockRef, VerifiedBlock},
-    commit::{sort_sub_dag_blocks, Commit, CommittedSubDag, TrustedCommit},
+    commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     dag_state::DagState,
     leader_schedule::LeaderSchedule,
-    Round, TransactionIndex,
 };
 
-/// The `StorageAPI` trait provides an interface for the block store and has been
-/// mostly introduced for allowing to inject the test store in `DagBuilder`.
+/// The `StorageAPI` trait provides an interface for the block store and has
+/// been mostly introduced for allowing to inject the test store in
+/// `DagBuilder`.
 pub(crate) trait BlockStoreAPI {
     fn get_blocks(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>>;
 
@@ -60,8 +61,9 @@ impl Linearizer {
         }
     }
 
-    /// Collect the sub-dag and the corresponding commit from a specific leader excluding any duplicates or
-    /// blocks that have already been committed (within previous sub-dags).
+    /// Collect the sub-dag and the corresponding commit from a specific leader
+    /// excluding any duplicates or blocks that have already been committed
+    /// (within previous sub-dags).
     fn collect_sub_dag_and_commit(
         &mut self,
         leader_block: VerifiedBlock,
@@ -114,9 +116,11 @@ impl Linearizer {
         dag_state: impl BlockStoreAPI,
     ) -> (Vec<VerifiedBlock>, Vec<Vec<TransactionIndex>>) {
         let gc_enabled = dag_state.gc_enabled();
-        // The GC round here is calculated based on the last committed round of the leader block. The algorithm will attempt to
-        // commit blocks up to this GC round. Once this commit has been processed and written to DagState, then gc round will update
-        // and on the processing of the next commit we'll have it already updated, so no need to do any gc_round recalculations here.
+        // The GC round here is calculated based on the last committed round of the
+        // leader block. The algorithm will attempt to commit blocks up to this
+        // GC round. Once this commit has been processed and written to DagState, then
+        // gc round will update and on the processing of the next commit we'll
+        // have it already updated, so no need to do any gc_round recalculations here.
         // We just use whatever is currently in DagState.
         let gc_round: Round = dag_state.gc_round();
         let leader_block_ref = leader_block.reference();
@@ -136,14 +140,18 @@ impl Linearizer {
                         .filter(|ancestor| {
                             // We skip the block if we already committed it or we reached a
                             // round that we already committed.
-                            // TODO: for Fast Path we need to amend the recursion rule here and allow us to commit blocks all the way up to the `gc_round`.
-                            // Some additional work will be needed to make sure that we keep the uncommitted blocks up to the `gc_round` across commits.
+                            // TODO: for Fast Path we need to amend the recursion rule here and
+                            // allow us to commit blocks all the way up to the `gc_round`.
+                            // Some additional work will be needed to make sure that we keep the
+                            // uncommitted blocks up to the `gc_round` across commits.
                             !committed.contains(ancestor)
                                 && last_committed_rounds[ancestor.author] < ancestor.round
                         })
                         .filter(|ancestor| {
-                            // Keep the block if GC is not enabled or it is enabled and the block is above the gc_round. We do this
-                            // to stop the recursion early and avoid going to deep when it's unnecessary.
+                            // Keep the block if GC is not enabled or it is enabled and the block is
+                            // above the gc_round. We do this
+                            // to stop the recursion early and avoid going to deep when it's
+                            // unnecessary.
                             !gc_enabled || ancestor.round > gc_round
                         })
                         .collect::<Vec<_>>(),
@@ -160,10 +168,15 @@ impl Linearizer {
             }
         }
 
-        // The above code should have not yielded any blocks that are <= gc_round, but just to make sure that we'll never
-        // commit anything that should be garbage collected we attempt to prune here as well.
+        // The above code should have not yielded any blocks that are <= gc_round, but
+        // just to make sure that we'll never commit anything that should be
+        // garbage collected we attempt to prune here as well.
         if gc_enabled {
-            assert!(to_commit.iter().all(|block| block.round() > gc_round), "No blocks <= {gc_round} should be committed. Leader round {}, blocks {to_commit:?}.", leader_block_ref);
+            assert!(
+                to_commit.iter().all(|block| block.round() > gc_round),
+                "No blocks <= {gc_round} should be committed. Leader round {}, blocks {to_commit:?}.",
+                leader_block_ref
+            );
         }
 
         // Sort the blocks of the sub-dag blocks
@@ -177,8 +190,8 @@ impl Linearizer {
     }
 
     // This function should be called whenever a new commit is observed. This will
-    // iterate over the sequence of committed leaders and produce a list of committed
-    // sub-dags.
+    // iterate over the sequence of committed leaders and produce a list of
+    // committed sub-dags.
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlock>,
@@ -187,8 +200,8 @@ impl Linearizer {
             return vec![];
         }
 
-        // We check whether the leader schedule has been updated. If yes, then we'll send the scores as
-        // part of the first sub dag.
+        // We check whether the leader schedule has been updated. If yes, then we'll
+        // send the scores as part of the first sub dag.
         let schedule_updated = self
             .leader_schedule
             .leader_schedule_updated(&self.dag_state);
@@ -205,7 +218,8 @@ impl Linearizer {
                 vec![]
             };
 
-            // Collect the sub-dag generated using each of these leaders and the corresponding commit.
+            // Collect the sub-dag generated using each of these leaders and the
+            // corresponding commit.
             let (sub_dag, commit) =
                 self.collect_sub_dag_and_commit(leader_block, reputation_scores_desc);
 
@@ -216,11 +230,12 @@ impl Linearizer {
             committed_sub_dags.push(sub_dag);
         }
 
-        // Committed blocks must be persisted to storage before sending them to Iota and executing
-        // their transactions.
-        // Commit metadata can be persisted more lazily because they are recoverable. Uncommitted
-        // blocks can wait to persist too.
-        // But for simplicity, all unpersisted blocks and commits are flushed to storage.
+        // Committed blocks must be persisted to storage before sending them to Iota and
+        // executing their transactions.
+        // Commit metadata can be persisted more lazily because they are recoverable.
+        // Uncommitted blocks can wait to persist too.
+        // But for simplicity, all unpersisted blocks and commits are flushed to
+        // storage.
         self.dag_state.write().flush();
 
         committed_sub_dags
@@ -233,13 +248,13 @@ mod tests {
 
     use super::*;
     use crate::{
+        CommitIndex,
         commit::{CommitAPI as _, CommitDigest, DEFAULT_WAVE_LENGTH},
         context::Context,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
-        CommitIndex,
     };
 
     #[tokio::test]
@@ -343,7 +358,8 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
-        // Now on the commits only the first one should contain the updated scores, the other should be empty
+        // Now on the commits only the first one should contain the updated scores, the
+        // other should be empty
         let commits = linearizer.handle_commit(leaders.clone());
         assert_eq!(commits.len(), 10);
         let scores = vec![
@@ -412,7 +428,8 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
-        // Now on the commits only the first one should contain the updated scores, the other should be empty
+        // Now on the commits only the first one should contain the updated scores, the
+        // other should be empty
         let commits = linearizer.handle_commit(leaders.clone());
         assert_eq!(commits.len(), 10);
         let scores = vec![
@@ -475,7 +492,8 @@ mod tests {
         );
         dag_state.write().add_commit(first_commit_data);
 
-        // Now take all the blocks from round `leader_round_wave_1` up to round `leader_round_wave_2-1`
+        // Now take all the blocks from round `leader_round_wave_1` up to round
+        // `leader_round_wave_2-1`
         let mut blocks = dag_builder.blocks(leader_round_wave_1..=leader_round_wave_2 - 1);
         // Filter out leader block of round `leader_round_wave_1`
         blocks.retain(|block| {
@@ -532,8 +550,9 @@ mod tests {
         }
     }
 
-    /// This test will run the linearizer with GC disabled (gc_depth = 0) and gc enabled (gc_depth = 3) and make
-    /// sure that for the exact same DAG the linearizer will commit different blocks according to the rules.
+    /// This test will run the linearizer with GC disabled (gc_depth = 0) and gc
+    /// enabled (gc_depth = 3) and make sure that for the exact same DAG the
+    /// linearizer will commit different blocks according to the rules.
     #[rstest]
     #[tokio::test]
     async fn test_handle_commit_with_gc_simple(#[values(0, 3)] gc_depth: u32) {
@@ -555,11 +574,14 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(dag_state.clone(), leader_schedule);
 
-        // Authorities of index 0->2 will always creates blocks that see each other, but until round 5 they won't see the blocks of authority 3.
-        // For authority 3 we create blocks that connect to all the other authorities.
-        // On round 5 we finally make the other authorities see the blocks of authority 3.
-        // Practically we "simulate" here a long chain created by authority 3 that is visible in round 5, but due to GC blocks of only round >=2 will
-        // be committed, when GC is enabled. When GC is disabled all blocks will be committed for rounds >= 1.
+        // Authorities of index 0->2 will always creates blocks that see each other, but
+        // until round 5 they won't see the blocks of authority 3. For authority
+        // 3 we create blocks that connect to all the other authorities.
+        // On round 5 we finally make the other authorities see the blocks of authority
+        // 3. Practically we "simulate" here a long chain created by authority 3
+        // that is visible in round 5, but due to GC blocks of only round >=2 will
+        // be committed, when GC is enabled. When GC is disabled all blocks will be
+        // committed for rounds >= 1.
         let dag_str = "DAG {
                 Round 0 : { 4 },
                 Round 1 : { * },
@@ -606,15 +628,19 @@ mod tests {
             } else if idx == 2 {
                 // We commit:
                 // * 1 block on round 4, the leader block
-                // * 3 blocks on round 3, as no commit happened on round 3 since the leader was missing
-                // * 2 blocks on round 2, again as no commit happened on round 3, we commit the "sub dag" of leader of round 3, which will be another 2 blocks
+                // * 3 blocks on round 3, as no commit happened on round 3 since the leader was
+                //   missing
+                // * 2 blocks on round 2, again as no commit happened on round 3, we commit the
+                //   "sub dag" of leader of round 3, which will be another 2 blocks
                 assert_eq!(subdag.blocks.len(), 6);
             } else {
                 // GC is enabled, so we expect to see only blocks of round >= 2
                 if gc_depth > 0 {
-                    // Now it's going to be the first time that a leader will see the blocks of authority 3 and will attempt to commit
-                    // the long chain. However, due to GC it will only commit blocks of round > 1. That's because it will commit blocks
-                    // up to previous leader's round (round = 4) minus the gc_depth = 3, so that will be gc_round = 4 - 3 = 1. So we expect
+                    // Now it's going to be the first time that a leader will see the blocks of
+                    // authority 3 and will attempt to commit the long chain.
+                    // However, due to GC it will only commit blocks of round > 1. That's because it
+                    // will commit blocks up to previous leader's round (round =
+                    // 4) minus the gc_depth = 3, so that will be gc_round = 4 - 3 = 1. So we expect
                     // to see on the sub dag committed blocks of round >= 2.
                     assert_eq!(subdag.blocks.len(), 5);
 

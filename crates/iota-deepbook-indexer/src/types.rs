@@ -2,22 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt::{Display, Formatter};
+
 use bigdecimal::BigDecimal;
 use iota_types::base_types::{IotaAddress, TransactionDigest};
 
-use std::fmt::{Display, Formatter};
-
-use crate::models::Balances as DBBalances;
-use crate::models::Flashloan as DBFlashloan;
-use crate::models::OrderFill as DBOrderFill;
-use crate::models::OrderUpdate as DBOrderUpdate;
-use crate::models::PoolPrice as DBPoolPrice;
-use crate::models::Proposals as DBProposals;
-use crate::models::Rebates as DBRebates;
-use crate::models::Stakes as DBStakes;
-use crate::models::IotaErrorTransactions;
-use crate::models::TradeParamsUpdate as DBTradeParamsUpdate;
-use crate::models::Votes as DBVotes;
+use crate::models::{
+    Balances as DBBalances, Flashloan as DBFlashloan, IotaErrorTransactions,
+    OrderFill as DBOrderFill, OrderUpdate as DBOrderUpdate, PoolPrice as DBPoolPrice,
+    Proposals as DBProposals, Rebates as DBRebates, Stakes as DBStakes,
+    TradeParamsUpdate as DBTradeParamsUpdate, Votes as DBVotes,
+};
 
 #[derive(Clone, Debug)]
 pub enum ProcessedTxnData {

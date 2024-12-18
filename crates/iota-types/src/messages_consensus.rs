@@ -2,26 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{AuthorityName, ObjectRef, TransactionDigest};
-use crate::base_types::{ConciseableName, ObjectID, SequenceNumber};
-use crate::digests::ConsensusCommitDigest;
-use crate::messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage};
-use crate::supported_protocol_versions::{
-    Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+use std::{
+    collections::hash_map::DefaultHasher,
+    fmt::{Debug, Formatter},
+    hash::{Hash, Hasher},
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
 };
-use crate::transaction::{CertifiedTransaction, Transaction};
+
 use byteorder::{BigEndian, ReadBytesExt};
-use fastcrypto::error::FastCryptoResult;
-use fastcrypto::groups::bls12381;
+use fastcrypto::{error::FastCryptoResult, groups::bls12381};
 use fastcrypto_tbls::dkg_v1;
-use fastcrypto_zkp::bn254::zk_login::{JwkId, JWK};
+use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::DefaultHasher;
-use std::fmt::{Debug, Formatter};
-use std::hash::{Hash, Hasher};
-use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::{
+    base_types::{
+        AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+    },
+    digests::ConsensusCommitDigest,
+    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
+    supported_protocol_versions::{
+        Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+    },
+    transaction::{CertifiedTransaction, Transaction},
+};
 
 /// The index of an authority in the consensus committee.
 /// The value should be the same in Iota committee.
@@ -37,7 +43,8 @@ pub type TransactionIndex = u16;
 pub type TimestampMs = u64;
 
 /// Only commit_timestamp_ms is passed to the move call currently.
-/// However we include epoch and round to make sure each ConsensusCommitPrologue has a unique tx digest.
+/// However we include epoch and round to make sure each ConsensusCommitPrologue
+/// has a unique tx digest.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ConsensusCommitPrologue {
     /// Epoch of the commit prologue transaction
@@ -60,7 +67,8 @@ pub struct ConsensusCommitPrologueV2 {
     pub consensus_commit_digest: ConsensusCommitDigest,
 }
 
-/// Uses an enum to allow for future expansion of the ConsensusDeterminedVersionAssignments.
+/// Uses an enum to allow for future expansion of the
+/// ConsensusDeterminedVersionAssignments.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 pub enum ConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
@@ -73,8 +81,8 @@ pub struct ConsensusCommitPrologueV3 {
     pub epoch: u64,
     /// Consensus round of the commit
     pub round: u64,
-    /// The sub DAG index of the consensus commit. This field will be populated if there
-    /// are multiple consensus commits per round.
+    /// The sub DAG index of the consensus commit. This field will be populated
+    /// if there are multiple consensus commits per round.
     pub sub_dag_index: Option<u64>,
     /// Unix timestamp from consensus commit.
     pub commit_timestamp_ms: TimestampMs,
@@ -84,8 +92,9 @@ pub struct ConsensusCommitPrologueV3 {
     pub consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
 }
 
-// In practice, JWKs are about 500 bytes of json each, plus a bit more for the ID.
-// 4096 should give us plenty of space for any imaginable JWK while preventing DoSes.
+// In practice, JWKs are about 500 bytes of json each, plus a bit more for the
+// ID. 4096 should give us plenty of space for any imaginable JWK while
+// preventing DoSes.
 static MAX_TOTAL_JWK_SIZE: usize = 4096;
 
 pub fn check_total_jwk_size(id: &JwkId, jwk: &JWK) -> bool {
@@ -95,8 +104,9 @@ pub fn check_total_jwk_size(id: &JwkId, jwk: &JWK) -> bool {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ConsensusTransaction {
-    /// Encodes an u64 unique tracking id to allow us trace a message between Iota and consensus.
-    /// Use an byte array instead of u64 to ensure stable serialization.
+    /// Encodes an u64 unique tracking id to allow us trace a message between
+    /// Iota and consensus. Use an byte array instead of u64 to ensure
+    /// stable serialization.
     pub tracking_id: [u8; 8],
     pub kind: ConsensusTransactionKind,
 }
@@ -107,8 +117,8 @@ pub enum ConsensusTransactionKey {
     CheckpointSignature(AuthorityName, CheckpointSequenceNumber),
     EndOfPublish(AuthorityName),
     CapabilityNotification(AuthorityName, u64 /* generation */),
-    // Key must include both id and jwk, because honest validators could be given multiple jwks for
-    // the same id by malfunctioning providers.
+    // Key must include both id and jwk, because honest validators could be given multiple jwks
+    // for the same id by malfunctioning providers.
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
@@ -148,24 +158,26 @@ impl Debug for ConsensusTransactionKey {
     }
 }
 
-/// Used to advertise capabilities of each authority via consensus. This allows validators to
-/// negotiate the creation of the ChangeEpoch transaction.
+/// Used to advertise capabilities of each authority via consensus. This allows
+/// validators to negotiate the creation of the ChangeEpoch transaction.
 #[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct AuthorityCapabilitiesV1 {
     /// Originating authority - must match consensus transaction source.
     pub authority: AuthorityName,
-    /// Generation number set by sending authority. Used to determine which of multiple
-    /// AuthorityCapabilities messages from the same authority is the most recent.
+    /// Generation number set by sending authority. Used to determine which of
+    /// multiple AuthorityCapabilities messages from the same authority is
+    /// the most recent.
     ///
-    /// (Currently, we just set this to the current time in milliseconds since the epoch, but this
-    /// should not be interpreted as a timestamp.)
+    /// (Currently, we just set this to the current time in milliseconds since
+    /// the epoch, but this should not be interpreted as a timestamp.)
     pub generation: u64,
 
     /// ProtocolVersions that the authority supports.
     pub supported_protocol_versions: SupportedProtocolVersions,
 
-    /// The ObjectRefs of all versions of system packages that the validator possesses.
-    /// Used to determine whether to do a framework/movestdlib upgrade.
+    /// The ObjectRefs of all versions of system packages that the validator
+    /// possesses. Used to determine whether to do a framework/movestdlib
+    /// upgrade.
     pub available_system_packages: Vec<ObjectRef>,
 }
 
@@ -204,24 +216,27 @@ impl AuthorityCapabilitiesV1 {
     }
 }
 
-/// Used to advertise capabilities of each authority via consensus. This allows validators to
-/// negotiate the creation of the ChangeEpoch transaction.
+/// Used to advertise capabilities of each authority via consensus. This allows
+/// validators to negotiate the creation of the ChangeEpoch transaction.
 #[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct AuthorityCapabilitiesV2 {
-    /// Originating authority - must match transaction source authority from consensus.
+    /// Originating authority - must match transaction source authority from
+    /// consensus.
     pub authority: AuthorityName,
-    /// Generation number set by sending authority. Used to determine which of multiple
-    /// AuthorityCapabilities messages from the same authority is the most recent.
+    /// Generation number set by sending authority. Used to determine which of
+    /// multiple AuthorityCapabilities messages from the same authority is
+    /// the most recent.
     ///
-    /// (Currently, we just set this to the current time in milliseconds since the epoch, but this
-    /// should not be interpreted as a timestamp.)
+    /// (Currently, we just set this to the current time in milliseconds since
+    /// the epoch, but this should not be interpreted as a timestamp.)
     pub generation: u64,
 
     /// ProtocolVersions that the authority supports.
     pub supported_protocol_versions: SupportedProtocolVersionsWithHashes,
 
-    /// The ObjectRefs of all versions of system packages that the validator possesses.
-    /// Used to determine whether to do a framework/movestdlib upgrade.
+    /// The ObjectRefs of all versions of system packages that the validator
+    /// possesses. Used to determine whether to do a framework/movestdlib
+    /// upgrade.
     pub available_system_packages: Vec<ObjectRef>,
 }
 
@@ -279,9 +294,9 @@ pub enum ConsensusTransactionKind {
     // `RandomnessDkgMessage` is sent out at start-of-epoch to initiate the process.
     // Contents are a serialized `fastcrypto_tbls::dkg::Message`.
     RandomnessDkgMessage(AuthorityName, Vec<u8>),
-    // `RandomnessDkgConfirmation` is the second DKG message, sent as soon as a threshold amount of
-    // `RandomnessDkgMessages` have been received locally, to complete the key generation process.
-    // Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
+    // `RandomnessDkgConfirmation` is the second DKG message, sent as soon as a threshold amount
+    // of `RandomnessDkgMessages` have been received locally, to complete the key generation
+    // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
 
     CapabilityNotificationV2(AuthorityCapabilitiesV2),
@@ -545,7 +560,9 @@ impl ConsensusTransaction {
                 )))
             }
             ConsensusTransactionKind::RandomnessStateUpdate(_, _) => {
-                unreachable!("there should never be a RandomnessStateUpdate with SequencedConsensusTransactionKind::External")
+                unreachable!(
+                    "there should never be a RandomnessStateUpdate with SequencedConsensusTransactionKind::External"
+                )
             }
             ConsensusTransactionKind::RandomnessDkgMessage(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgMessage(*authority)
@@ -579,9 +596,9 @@ impl ConsensusTransaction {
 #[test]
 fn test_jwk_compatibility() {
     // Ensure that the JWK and JwkId structs in fastcrypto do not change formats.
-    // If this test breaks DO NOT JUST UPDATE THE EXPECTED BYTES. Instead, add a local JWK or
-    // JwkId struct that mirrors the fastcrypto struct, use it in AuthenticatorStateUpdate, and
-    // add Into/From as necessary.
+    // If this test breaks DO NOT JUST UPDATE THE EXPECTED BYTES. Instead, add a
+    // local JWK or JwkId struct that mirrors the fastcrypto struct, use it in
+    // AuthenticatorStateUpdate, and add Into/From as necessary.
     let jwk = JWK {
         kty: "a".to_string(),
         e: "b".to_string(),

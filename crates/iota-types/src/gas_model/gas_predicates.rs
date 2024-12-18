@@ -3,18 +3,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//
 // Predicates and utility functions based on gas versions.
 //
 
-use crate::gas_model::tables::{
-    initial_cost_schedule_v1, initial_cost_schedule_v2, initial_cost_schedule_v3,
-    initial_cost_schedule_v4, initial_cost_schedule_v5,
-};
-use crate::gas_model::units_types::CostTable;
 use iota_protocol_config::ProtocolConfig;
 
-// Threshold after which native functions contribute to virtual instruction count.
+use crate::gas_model::{
+    tables::{
+        initial_cost_schedule_v1, initial_cost_schedule_v2, initial_cost_schedule_v3,
+        initial_cost_schedule_v4, initial_cost_schedule_v5,
+    },
+    units_types::CostTable,
+};
+
+// Threshold after which native functions contribute to virtual instruction
+// count.
 const V2_NATIVE_FUNCTION_CALL_THRESHOLD: u64 = 700;
 
 /// If true, do not charge the entire budget on storage OOG
@@ -38,8 +41,8 @@ pub fn use_legacy_abstract_size(gas_model_version: u64) -> bool {
     gas_model_version <= 7
 }
 
-// If true, use the value of txn_base_cost as a multiplier of transaction gas price
-// to determine the minimum cost of a transaction.
+// If true, use the value of txn_base_cost as a multiplier of transaction gas
+// price to determine the minimum cost of a transaction.
 pub fn txn_base_cost_as_multiplier(protocol_config: &ProtocolConfig) -> bool {
     protocol_config.txn_base_cost_as_multiplier()
 }

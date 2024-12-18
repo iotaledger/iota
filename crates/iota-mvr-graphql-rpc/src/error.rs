@@ -8,8 +8,8 @@ use iota_json_rpc::name_service::NameServiceError;
 
 use crate::types::move_registry::error::MoveRegistryError;
 
-/// Error codes for the `extensions.code` field of a GraphQL error that originates from outside
-/// GraphQL.
+/// Error codes for the `extensions.code` field of a GraphQL error that
+/// originates from outside GraphQL.
 /// `<https://www.apollographql.com/docs/apollo-server/data/errors/#built-in-error-codes>`
 pub(crate) mod code {
     pub const BAD_USER_INPUT: &str = "BAD_USER_INPUT";
@@ -20,7 +20,8 @@ pub(crate) mod code {
 
 /// Create a generic GraphQL Server Error.
 ///
-/// This error has no path, source, or locations, just a message and an error code.
+/// This error has no path, source, or locations, just a message and an error
+/// code.
 pub(crate) fn graphql_error(code: &str, message: impl Into<String>) -> ServerError {
     let mut ext = ErrorExtensionValues::default();
     ext.set("code", code);

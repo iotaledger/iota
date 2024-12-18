@@ -4,11 +4,11 @@
 
 use std::path::Path;
 
+use iota_move::unit_test::run_move_unit_tests;
+use iota_move_build::BuildConfig;
 use move_cli::base::test::UnitTestResult;
 use move_package::LintFlag;
 use move_unit_test::UnitTestingConfig;
-use iota_move::unit_test::run_move_unit_tests;
-use iota_move_build::BuildConfig;
 
 pub(crate) const EXAMPLES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples");
 pub(crate) const FRAMEWORK: &str = concat!(

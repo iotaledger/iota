@@ -17,8 +17,8 @@ pub(crate) struct BalanceTraversal {
     balances: BTreeMap<TypeTag, u64>,
 }
 
-/// Helper traversal to accumulate the values of all u64s visited. Used by `BalanceTraversal` to
-/// get the value of a `Balance` struct's field.
+/// Helper traversal to accumulate the values of all u64s visited. Used by
+/// `BalanceTraversal` to get the value of a `Balance` struct's field.
 #[derive(Default)]
 struct Accumulator {
     total: u64,
@@ -63,7 +63,8 @@ impl<'b, 'l> Traversal<'b, 'l> for Accumulator {
     }
 }
 
-/// Returns `Some(T)` if the struct is a `iota::balance::Balance<T>`, and `None` otherwise.
+/// Returns `Some(T)` if the struct is a `iota::balance::Balance<T>`, and `None`
+/// otherwise.
 fn is_balance(s: &StructTag) -> Option<TypeTag> {
     (Balance::is_balance(s) && s.type_params.len() == 1).then(|| s.type_params[0].clone())
 }
@@ -72,14 +73,13 @@ fn is_balance(s: &StructTag) -> Option<TypeTag> {
 mod tests {
     use std::str::FromStr;
 
-    use crate::id::UID;
-
-    use super::*;
-
     use move_core_types::{
         account_address::AccountAddress, annotated_value as A, identifier::Identifier,
         language_storage::StructTag,
     };
+
+    use super::*;
+    use crate::id::UID;
 
     #[test]
     fn test_traverse_balance() {
@@ -113,29 +113,23 @@ mod tests {
     fn test_traverse_nested() {
         use A::MoveTypeLayout as T;
 
-        let layout = layout_(
-            "0xa::foo::Bar",
-            vec![
-                ("b", bal_t("0x42::baz::Qux")),
-                ("c", coin_t("0x42::baz::Qux")),
-                ("d", T::Vector(Box::new(coin_t("0x42::quy::Frob")))),
-            ],
-        );
+        let layout = layout_("0xa::foo::Bar", vec![
+            ("b", bal_t("0x42::baz::Qux")),
+            ("c", coin_t("0x42::baz::Qux")),
+            ("d", T::Vector(Box::new(coin_t("0x42::quy::Frob")))),
+        ]);
 
-        let value = value_(
-            "0xa::foo::Bar",
-            vec![
-                ("b", bal_v("0x42::baz::Qux", 42)),
-                ("c", coin_v("0x42::baz::Qux", "0x101", 43)),
-                (
-                    "d",
-                    A::MoveValue::Vector(vec![
-                        coin_v("0x42::quy::Frob", "0x102", 44),
-                        coin_v("0x42::quy::Frob", "0x103", 45),
-                    ]),
-                ),
-            ],
-        );
+        let value = value_("0xa::foo::Bar", vec![
+            ("b", bal_v("0x42::baz::Qux", 42)),
+            ("c", coin_v("0x42::baz::Qux", "0x101", 43)),
+            (
+                "d",
+                A::MoveValue::Vector(vec![
+                    coin_v("0x42::quy::Frob", "0x102", 44),
+                    coin_v("0x42::quy::Frob", "0x103", 45),
+                ]),
+            ),
+        ]);
 
         let bytes = serialize(value.clone());
 
@@ -171,36 +165,30 @@ mod tests {
     fn test_traverse_fake_balance() {
         use A::MoveTypeLayout as T;
 
-        let layout = layout_(
-            "0xa::foo::Bar",
-            vec![
-                ("b", bal_t("0x42::baz::Qux")),
-                ("c", coin_t("0x42::baz::Qux")),
-                (
-                    "d",
-                    layout_(
-                        // Fake balance
-                        "0x3::balance::Balance<0x42::baz::Qux>",
-                        vec![("value", T::U64)],
-                    ),
+        let layout = layout_("0xa::foo::Bar", vec![
+            ("b", bal_t("0x42::baz::Qux")),
+            ("c", coin_t("0x42::baz::Qux")),
+            (
+                "d",
+                layout_(
+                    // Fake balance
+                    "0x3::balance::Balance<0x42::baz::Qux>",
+                    vec![("value", T::U64)],
                 ),
-            ],
-        );
+            ),
+        ]);
 
-        let value = value_(
-            "0xa::foo::Bar",
-            vec![
-                ("b", bal_v("0x42::baz::Qux", 42)),
-                ("c", coin_v("0x42::baz::Qux", "0x101", 43)),
-                (
-                    "d",
-                    value_(
-                        "0x3::balance::Balance<0x42::baz::Qux>",
-                        vec![("value", A::MoveValue::U64(44))],
-                    ),
-                ),
-            ],
-        );
+        let value = value_("0xa::foo::Bar", vec![
+            ("b", bal_v("0x42::baz::Qux", 42)),
+            ("c", coin_v("0x42::baz::Qux", "0x101", 43)),
+            (
+                "d",
+                value_("0x3::balance::Balance<0x42::baz::Qux>", vec![(
+                    "value",
+                    A::MoveValue::U64(44),
+                )]),
+            ),
+        ]);
 
         let bytes = serialize(value.clone());
 
@@ -216,54 +204,45 @@ mod tests {
 
     /// Create a UID Move Value for test purposes.
     fn uid_(addr: &str) -> A::MoveValue {
-        value_(
-            "0x2::object::UID",
-            vec![(
-                "id",
-                value_(
-                    "0x2::object::ID",
-                    vec![(
-                        "bytes",
-                        A::MoveValue::Address(AccountAddress::from_str(addr).unwrap()),
-                    )],
-                ),
-            )],
-        )
+        value_("0x2::object::UID", vec![(
+            "id",
+            value_("0x2::object::ID", vec![(
+                "bytes",
+                A::MoveValue::Address(AccountAddress::from_str(addr).unwrap()),
+            )]),
+        )])
     }
 
     /// Create a Balance value for testing purposes.
     fn bal_v(tag: &str, value: u64) -> A::MoveValue {
-        value_(
-            &format!("0x2::balance::Balance<{tag}>"),
-            vec![("value", A::MoveValue::U64(value))],
-        )
+        value_(&format!("0x2::balance::Balance<{tag}>"), vec![(
+            "value",
+            A::MoveValue::U64(value),
+        )])
     }
 
     /// Create a Coin value for testing purposes.
     fn coin_v(tag: &str, id: &str, value: u64) -> A::MoveValue {
-        value_(
-            &format!("0x2::coin::Coin<{tag}>"),
-            vec![("id", uid_(id)), ("balance", bal_v(tag, value))],
-        )
+        value_(&format!("0x2::coin::Coin<{tag}>"), vec![
+            ("id", uid_(id)),
+            ("balance", bal_v(tag, value)),
+        ])
     }
 
     /// Create a Balance layout for testing purposes.
     fn bal_t(tag: &str) -> A::MoveTypeLayout {
-        layout_(
-            &format!("0x2::balance::Balance<{tag}>"),
-            vec![("value", A::MoveTypeLayout::U64)],
-        )
+        layout_(&format!("0x2::balance::Balance<{tag}>"), vec![(
+            "value",
+            A::MoveTypeLayout::U64,
+        )])
     }
 
     /// Create a Coin layout for testing purposes.
     fn coin_t(tag: &str) -> A::MoveTypeLayout {
-        layout_(
-            &format!("0x2::coin::Coin<{tag}>"),
-            vec![
-                ("id", A::MoveTypeLayout::Struct(Box::new(UID::layout()))),
-                ("balance", bal_t(tag)),
-            ],
-        )
+        layout_(&format!("0x2::coin::Coin<{tag}>"), vec![
+            ("id", A::MoveTypeLayout::Struct(Box::new(UID::layout()))),
+            ("balance", bal_t(tag)),
+        ])
     }
 
     /// Create a struct value for test purposes.

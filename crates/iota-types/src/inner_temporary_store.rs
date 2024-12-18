@@ -2,23 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{SequenceNumber, VersionDigest};
-use crate::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use crate::error::IotaResult;
-use crate::execution::DynamicallyLoadedObjectMetadata;
-use crate::storage::PackageObject;
-use crate::storage::{BackingPackageStore, InputKey};
-use crate::{
-    base_types::ObjectID,
-    object::{Object, Owner},
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
 };
-use move_binary_format::binary_config::BinaryConfig;
-use move_binary_format::CompiledModule;
+
+use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::sync::Arc;
+
+use crate::{
+    base_types::{ObjectID, SequenceNumber, VersionDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::IotaResult,
+    execution::DynamicallyLoadedObjectMetadata,
+    object::{Object, Owner},
+    storage::{BackingPackageStore, InputKey, PackageObject},
+};
 
 pub type WrittenObjects = BTreeMap<ObjectID, Object>;
 pub type ObjectMap = BTreeMap<ObjectID, Object>;
@@ -60,7 +60,8 @@ impl InnerTemporaryStore {
             .map(|oref| (oref.0, oref.1))
             .collect();
 
-        // add deleted shared objects to the outputkeys that then get sent to notify_commit
+        // add deleted shared objects to the outputkeys that then get sent to
+        // notify_commit
         let deleted_output_keys = deleted
             .iter()
             .filter(|(id, _)| {
@@ -74,8 +75,9 @@ impl InnerTemporaryStore {
             });
         output_keys.extend(deleted_output_keys);
 
-        // For any previously deleted shared objects that appeared mutably in the transaction,
-        // synthesize a notification for the next version of the object.
+        // For any previously deleted shared objects that appeared mutably in the
+        // transaction, synthesize a notification for the next version of the
+        // object.
         let smeared_version = self.lamport_version;
         let deleted_accessed_objects = effects.deleted_mutably_accessed_shared_objects();
         for object_id in deleted_accessed_objects.into_iter() {

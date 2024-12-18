@@ -3,11 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(msim)]
-pub use msim::*;
-
-#[cfg(msim)]
 use std::hash::Hasher;
-
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 // Re-export things used by iota-macros
@@ -15,23 +11,23 @@ pub use ::rand as rand_crate;
 pub use anemo;
 pub use anemo_tower;
 pub use fastcrypto;
-pub use lru;
-pub use move_package;
-pub use narwhal_network;
 pub use iota_framework;
 pub use iota_move_build;
 pub use iota_types;
+pub use lru;
+pub use move_package;
+#[cfg(msim)]
+pub use msim::*;
+pub use narwhal_network;
 pub use telemetry_subscribers;
 pub use tempfile;
 pub use tower;
 
 #[cfg(msim)]
 pub mod configs {
-    use msim::*;
-    use std::collections::HashMap;
-    use std::ops::Range;
-    use std::time::Duration;
+    use std::{collections::HashMap, ops::Range, time::Duration};
 
+    use msim::*;
     use tracing::info;
 
     fn ms_to_dur(range: Range<u64>) -> Range<Duration> {
@@ -152,16 +148,16 @@ pub fn current_simnode_id() -> msim::task::NodeId {
 
 #[cfg(msim)]
 pub mod random {
+    use std::{cell::RefCell, collections::HashSet, hash::Hash};
+
+    use rand_crate::{Rng, SeedableRng, rngs::SmallRng, thread_rng};
+    use serde::Serialize;
+
     use super::*;
 
-    use rand_crate::{rngs::SmallRng, thread_rng, Rng, SeedableRng};
-    use serde::Serialize;
-    use std::cell::RefCell;
-    use std::collections::HashSet;
-    use std::hash::Hash;
-
-    /// Given a value, produce a random probability using the value as a seed, with
-    /// an additional seed that is constant only for the current test thread.
+    /// Given a value, produce a random probability using the value as a seed,
+    /// with an additional seed that is constant only for the current test
+    /// thread.
     pub fn deterministic_probability<T: Hash>(value: T, chance: f32) -> bool {
         thread_local! {
             // a random seed that is shared by the whole test process, so that equal `value`
@@ -179,8 +175,9 @@ pub mod random {
             })
     }
 
-    /// Like deterministic_probability, but only returns true once for each unique value. May eventually
-    /// consume all memory if there are a large number of unique, failing values.
+    /// Like deterministic_probability, but only returns true once for each
+    /// unique value. May eventually consume all memory if there are a large
+    /// number of unique, failing values.
     pub fn deterministic_probability_once<T: Hash + Serialize>(value: T, chance: f32) -> bool {
         thread_local! {
             static FAILING_VALUES: RefCell<HashSet<(msim::task::NodeId, Vec<u8>)>> = RefCell::new(HashSet::new());

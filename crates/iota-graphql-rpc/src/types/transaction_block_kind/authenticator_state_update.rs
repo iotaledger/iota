@@ -6,7 +6,6 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-
 use iota_types::{
     authenticator_state::ActiveJwk as NativeActiveJwk,
     transaction::AuthenticatorStateUpdate as NativeAuthenticatorStateUpdateTransaction,
@@ -30,7 +29,8 @@ pub(crate) struct AuthenticatorStateUpdateTransaction {
 
 pub(crate) type CActiveJwk = JsonCursor<ConsistentIndexCursor>;
 
-/// The active JSON Web Key representing a set of public keys for an OpenID provider
+/// The active JSON Web Key representing a set of public keys for an OpenID
+/// provider
 struct ActiveJwk {
     native: NativeActiveJwk,
     /// The checkpoint sequence number this was viewed at.
@@ -104,7 +104,8 @@ impl ActiveJwk {
         &self.native.jwk_id.iss
     }
 
-    /// The string (Key ID) that identifies the JWK among a set of JWKs, (RFC 7517, Section 4.5).
+    /// The string (Key ID) that identifies the JWK among a set of JWKs, (RFC
+    /// 7517, Section 4.5).
     async fn kid(&self) -> &str {
         &self.native.jwk_id.kid
     }

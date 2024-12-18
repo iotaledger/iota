@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro::TokenStream;
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::{
-    fold::{fold_expr, fold_item_macro, fold_stmt, Fold},
-    parse::Parser,
-    parse2, parse_macro_input,
-    punctuated::Punctuated,
-    spanned::Spanned,
     Attribute, BinOp, Data, DataEnum, DeriveInput, Expr, ExprBinary, ExprMacro, Item, ItemMacro,
     Stmt, StmtMacro, Token, UnOp,
+    fold::{Fold, fold_expr, fold_item_macro, fold_stmt},
+    parse::Parser,
+    parse_macro_input, parse2,
+    punctuated::Punctuated,
+    spanned::Spanned,
 };
 
 #[proc_macro_attribute]
@@ -153,7 +153,8 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
 /// The iota_test macro will invoke either `#[msim::test]` or `#[tokio::test]`,
 /// depending on whether the simulator config var is enabled.
 ///
-/// This should be used for tests that can meaningfully run in either environment.
+/// This should be used for tests that can meaningfully run in either
+/// environment.
 #[proc_macro_attribute]
 pub fn iota_test(args: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemFn);
@@ -179,12 +180,14 @@ pub fn iota_test(args: TokenStream, item: TokenStream) -> TokenStream {
     result.into()
 }
 
-/// The sim_test macro will invoke `#[msim::test]` if the simulator config var is enabled.
+/// The sim_test macro will invoke `#[msim::test]` if the simulator config var
+/// is enabled.
 ///
-/// Otherwise, it will emit an ignored test - if forcibly run, the ignored test will panic.
+/// Otherwise, it will emit an ignored test - if forcibly run, the ignored test
+/// will panic.
 ///
-/// This macro must be used in order to pass any simulator-specific arguments, such as
-/// `check_determinism`, which is not understood by tokio.
+/// This macro must be used in order to pass any simulator-specific arguments,
+/// such as `check_determinism`, which is not understood by tokio.
 #[proc_macro_attribute]
 pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemFn);
@@ -319,7 +322,7 @@ impl CheckArithmetic {
         let Ok(exprs) = parser.parse(tokens.clone().into()) else {
             return Err(syn::Error::new_spanned(
                 tokens,
-                "could not process macro contents - use #[skip_checked_arithmetic] to skip this macro"
+                "could not process macro contents - use #[skip_checked_arithmetic] to skip this macro",
             ));
         };
 
@@ -537,10 +540,10 @@ impl Fold for CheckArithmetic {
     }
 }
 
-/// This proc macro generates a function `order_to_variant_map` which returns a map
-/// of the position of each variant to the name of the variant.
-/// It is intended to catch changes in enum order when backward compat is required.
-/// ```rust,ignore
+/// This proc macro generates a function `order_to_variant_map` which returns a
+/// map of the position of each variant to the name of the variant.
+/// It is intended to catch changes in enum order when backward compat is
+/// required. ```rust,ignore
 ///    /// Example for this enum
 ///    #[derive(EnumVariantOrder)]
 ///    pub enum MyEnum {

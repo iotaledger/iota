@@ -4,27 +4,30 @@
 
 #[cfg(msim)]
 mod sim_only_tests {
-    use std::path::PathBuf;
-    use std::time::Duration;
+    use std::{path::PathBuf, time::Duration};
+
     use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::sim_test;
     use iota_node::IotaNode;
     use iota_test_transaction_builder::publish_package;
-    use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-    use iota_types::{base_types::ObjectID, digests::TransactionDigest};
+    use iota_types::{
+        base_types::ObjectID, digests::TransactionDigest,
+        messages_checkpoint::CheckpointSequenceNumber,
+    };
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
 
     // Tests that object pruning can prune objects correctly.
-    // Specifically, we first wrap a child object into a root object (tests wrap tombstone),
-    // then unwrap and delete the child object (tests unwrap and delete),
-    // and last delete the root object (tests object deletion).
+    // Specifically, we first wrap a child object into a root object (tests wrap
+    // tombstone), then unwrap and delete the child object (tests unwrap and
+    // delete), and last delete the root object (tests object deletion).
     #[sim_test]
     async fn object_pruning_test() {
         let test_cluster = TestClusterBuilder::new().build().await;
         let fullnode = &test_cluster.fullnode_handle.iota_node;
 
-        // Create a root object and a child object. Wrap the child object inside the root object.
+        // Create a root object and a child object. Wrap the child object inside the
+        // root object.
         let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
         let child_id = create_owned_child(&test_cluster, package_id).await;
         let wrap_child_txn_digest = wrap_child(&test_cluster, package_id, object_id, child_id)
@@ -53,7 +56,8 @@ mod sim_only_tests {
                 let state = node.state();
                 let checkpoint_store = state.get_checkpoint_store();
 
-                // Manually initiating a pruning and compaction job to make sure that deleted objects are gong from object store.
+                // Manually initiating a pruning and compaction job to make sure that deleted
+                // objects are gong from object store.
                 state
                     .database_for_testing()
                     .prune_objects_and_compact_for_testing(checkpoint_store, None)
@@ -73,7 +77,8 @@ mod sim_only_tests {
             })
             .await;
 
-        // Next, we unwrap and delete the child object, as well as delete the root object.
+        // Next, we unwrap and delete the child object, as well as delete the root
+        // object.
         let unwrap_delete_txn_digest =
             unwrap_and_delete_child(&test_cluster, package_id, object_id)
                 .await
@@ -109,7 +114,8 @@ mod sim_only_tests {
 
                 let state = node.state();
                 let checkpoit_store = state.get_checkpoint_store();
-                // Manually initiating a pruning and compaction job to make sure that deleted objects are gong from object store.
+                // Manually initiating a pruning and compaction job to make sure that deleted
+                // objects are gong from object store.
                 state
                     .database_for_testing()
                     .prune_objects_and_compact_for_testing(checkpoit_store, None)
@@ -190,23 +196,24 @@ mod sim_only_tests {
                 &test_cluster
                     .test_transaction_builder()
                     .await
-                    .move_call(
-                        package_id,
-                        "objects",
-                        "wrap_child",
-                        vec![object.into(), child.into(), true.into()],
-                    )
+                    .move_call(package_id, "objects", "wrap_child", vec![
+                        object.into(),
+                        child.into(),
+                        true.into(),
+                    ])
                     .build(),
             )
             .await
             .effects
             .unwrap();
         assert_eq!(effects.wrapped().len(), 1);
-        assert!(test_cluster
-            .get_object_or_tombstone_from_fullnode_store(child_id)
-            .await
-            .2
-            .is_wrapped());
+        assert!(
+            test_cluster
+                .get_object_or_tombstone_from_fullnode_store(child_id)
+                .await
+                .2
+                .is_wrapped()
+        );
         effects
     }
 
@@ -221,12 +228,9 @@ mod sim_only_tests {
                 &test_cluster
                     .test_transaction_builder()
                     .await
-                    .move_call(
-                        package_id,
-                        "objects",
-                        "unwrap_and_delete_child",
-                        vec![object.into()],
-                    )
+                    .move_call(package_id, "objects", "unwrap_and_delete_child", vec![
+                        object.into(),
+                    ])
                     .build(),
             )
             .await

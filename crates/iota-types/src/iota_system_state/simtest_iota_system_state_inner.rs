@@ -2,24 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::balance::Balance;
-use crate::base_types::IotaAddress;
-use crate::collection_types::{Bag, Table};
-use crate::committee::{CommitteeWithNetworkMetadata, NetworkMetadata};
-use crate::crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey};
-use crate::error::IotaError;
-use crate::storage::ObjectStore;
-use crate::iota_system_state::epoch_start_iota_system_state::{
-    EpochStartSystemState, EpochStartValidatorInfoV1,
-};
-use crate::iota_system_state::iota_system_state_summary::{
-    IotaSystemStateSummary, IotaValidatorSummary,
-};
-use crate::iota_system_state::{AdvanceEpochParams, IotaSystemStateTrait};
 use fastcrypto::traits::ToFromBytes;
 use iota_network_stack::Multiaddr;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    balance::Balance,
+    base_types::IotaAddress,
+    collection_types::{Bag, Table},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
+    crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey},
+    error::IotaError,
+    iota_system_state::{
+        AdvanceEpochParams, IotaSystemStateTrait,
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartValidatorInfoV1},
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    },
+    storage::ObjectStore,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestIotaSystemStateInnerV1 {
@@ -171,14 +172,11 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: verified_metadata.net_address.clone(),
-                            narwhal_primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                    }),
                 )
             })
             .collect();
@@ -288,14 +286,11 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: verified_metadata.net_address.clone(),
-                            narwhal_primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                    }),
                 )
             })
             .collect();
@@ -434,14 +429,11 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: verified_metadata.net_address.clone(),
-                            narwhal_primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                    }),
                 )
             })
             .collect();

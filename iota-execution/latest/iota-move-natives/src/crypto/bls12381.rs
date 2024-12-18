@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::collections::VecDeque;
+
 use fastcrypto::{
     bls12381::{min_pk, min_sig},
     traits::{ToFromBytes, VerifyingKey},
@@ -15,7 +17,6 @@ use move_vm_types::{
     values::{Value, VectorRef},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
 
 use crate::NativesCostTable;
 
@@ -30,15 +31,23 @@ pub struct Bls12381Bls12381MinSigVerifyCostParams {
     /// Cost per block of `msg`, where a block is 64 bytes
     pub bls12381_bls12381_min_sig_verify_msg_cost_per_block: InternalGas,
 }
-/***************************************************************************************************
- * native fun bls12381_min_sig_verify
- * Implementation of the Move native function `bls12381_min_sig_verify(signature: &vector<u8>, public_key: &vector<u8>, msg: &vector<u8>): bool`
- *   gas cost: bls12381_bls12381_min_sig_verify_cost_base                    | covers various fixed costs in the oper
- *              + bls12381_bls12381_min_sig_verify_msg_cost_per_byte    * size_of(msg)        | covers cost of operating on each byte of `msg`
- *              + bls12381_bls12381_min_sig_verify_msg_cost_per_block   * num_blocks(msg)     | covers cost of operating on each block in `msg`
- * Note: each block is of size `BLS12381_BLOCK_SIZE` bytes, and we round up.
- *       `signature` and `public_key` are fixed size, so their costs are included in the base cost.
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun bls12381_min_sig_verify
+/// Implementation of the Move native function
+/// `bls12381_min_sig_verify(signature: &vector<u8>, public_key: &vector<u8>,
+/// msg: &vector<u8>): bool`   gas cost:
+/// bls12381_bls12381_min_sig_verify_cost_base                    | covers
+/// various fixed costs in the oper
+///              + bls12381_bls12381_min_sig_verify_msg_cost_per_byte    *
+///                size_of(msg)        | covers cost of operating on each byte
+///                of `msg`
+///              + bls12381_bls12381_min_sig_verify_msg_cost_per_block   *
+///                num_blocks(msg)     | covers cost of operating on each block
+///                in `msg`
+/// Note: each block is of size `BLS12381_BLOCK_SIZE` bytes, and we round up.
+///       `signature` and `public_key` are fixed size, so their costs are
+/// included in the base cost. *************************************************
+/// **********************************************
 pub fn bls12381_min_sig_verify(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -95,10 +104,9 @@ pub fn bls12381_min_sig_verify(
             Err(_) => return Ok(NativeResult::ok(cost, smallvec![Value::bool(false)])),
         };
 
-    Ok(NativeResult::ok(
-        cost,
-        smallvec![Value::bool(public_key.verify(&msg_ref, &signature).is_ok())],
-    ))
+    Ok(NativeResult::ok(cost, smallvec![Value::bool(
+        public_key.verify(&msg_ref, &signature).is_ok()
+    )]))
 }
 
 #[derive(Clone)]
@@ -110,15 +118,23 @@ pub struct Bls12381Bls12381MinPkVerifyCostParams {
     /// Cost per block of `msg`, where a block is 64 bytes
     pub bls12381_bls12381_min_pk_verify_msg_cost_per_block: InternalGas,
 }
-/***************************************************************************************************
- * native fun bls12381_min_pk_verify
- * Implementation of the Move native function `bls12381_min_pk_verify(signature: &vector<u8>, public_key: &vector<u8>, msg: &vector<u8>): bool`
- *   gas cost: bls12381_bls12381_min_pk_verify_cost_base                    | covers various fixed costs in the oper
- *              + bls12381_bls12381_min_pk_verify_msg_cost_per_byte    * size_of(msg)        | covers cost of operating on each byte of `msg`
- *              + bls12381_bls12381_min_pk_verify_msg_cost_per_block   * num_blocks(msg)     | covers cost of operating on each block in `msg`
- * Note: each block is of size `BLS12381_BLOCK_SIZE` bytes, and we round up.
- *       `signature` and `public_key` are fixed size, so their costs are included in the base cost.
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun bls12381_min_pk_verify
+/// Implementation of the Move native function
+/// `bls12381_min_pk_verify(signature: &vector<u8>, public_key: &vector<u8>,
+/// msg: &vector<u8>): bool`   gas cost:
+/// bls12381_bls12381_min_pk_verify_cost_base                    | covers
+/// various fixed costs in the oper
+///              + bls12381_bls12381_min_pk_verify_msg_cost_per_byte    *
+///                size_of(msg)        | covers cost of operating on each byte
+///                of `msg`
+///              + bls12381_bls12381_min_pk_verify_msg_cost_per_block   *
+///                num_blocks(msg)     | covers cost of operating on each block
+///                in `msg`
+/// Note: each block is of size `BLS12381_BLOCK_SIZE` bytes, and we round up.
+///       `signature` and `public_key` are fixed size, so their costs are
+/// included in the base cost. *************************************************
+/// **********************************************
 pub fn bls12381_min_pk_verify(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -176,8 +192,7 @@ pub fn bls12381_min_pk_verify(
             Err(_) => return Ok(NativeResult::ok(cost, smallvec![Value::bool(false)])),
         };
 
-    Ok(NativeResult::ok(
-        cost,
-        smallvec![Value::bool(public_key.verify(&msg_ref, &signature).is_ok())],
-    ))
+    Ok(NativeResult::ok(cost, smallvec![Value::bool(
+        public_key.verify(&msg_ref, &signature).is_ok()
+    )]))
 }

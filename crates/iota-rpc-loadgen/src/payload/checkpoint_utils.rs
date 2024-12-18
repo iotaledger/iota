@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fmt, fmt::Display};
+
 use futures::future::join_all;
-use std::fmt;
-use std::fmt::Display;
 use iota_sdk::IotaClient;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 

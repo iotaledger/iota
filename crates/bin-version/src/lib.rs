@@ -11,14 +11,15 @@ pub mod _hidden {
 /// Define constants that hold the git revision and package versions.
 ///
 /// Defines two global `const`s:
-///   `GIT_REVISION`: The git revision as specified by the `GIT_REVISION` env variable provided at
-///   compile time, or the current git revision as discovered by running `git describe`.
+///   `GIT_REVISION`: The git revision as specified by the `GIT_REVISION` env
+/// variable provided at   compile time, or the current git revision as
+/// discovered by running `git describe`.
 ///
-///   `VERSION`: The value of the `CARGO_PKG_VERSION` environment variable concatenated with the
-///   value of `GIT_REVISION`.
+///   `VERSION`: The value of the `CARGO_PKG_VERSION` environment variable
+/// concatenated with the   value of `GIT_REVISION`.
 ///
-/// Note: This macro must only be used from a binary, if used inside a library this will fail to
-/// compile.
+/// Note: This macro must only be used from a binary, if used inside a library
+/// this will fail to compile.
 #[macro_export]
 macro_rules! bin_version {
     () => {
@@ -31,11 +32,12 @@ macro_rules! bin_version {
 
 /// Defines constant that holds the git revision at build time.
 ///
-///   `GIT_REVISION`: The git revision as specified by the `GIT_REVISION` env variable provided at
-///   compile time, or the current git revision as discovered by running `git describe`.
+///   `GIT_REVISION`: The git revision as specified by the `GIT_REVISION` env
+/// variable provided at   compile time, or the current git revision as
+/// discovered by running `git describe`.
 ///
-/// Note: This macro must only be used from a binary, if used inside a library this will fail to
-/// compile.
+/// Note: This macro must only be used from a binary, if used inside a library
+/// this will fail to compile.
 #[macro_export]
 macro_rules! git_revision {
     () => {

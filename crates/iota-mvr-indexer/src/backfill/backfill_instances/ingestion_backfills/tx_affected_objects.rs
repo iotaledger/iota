@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::backfill::backfill_instances::ingestion_backfills::IngestionBackfillTrait;
-use crate::database::ConnectionPool;
-use crate::models::tx_indices::StoredTxAffectedObjects;
-use crate::schema::tx_affected_objects;
 use diesel_async::RunQueryDsl;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::{effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData};
+
+use crate::{
+    backfill::backfill_instances::ingestion_backfills::IngestionBackfillTrait,
+    database::ConnectionPool, models::tx_indices::StoredTxAffectedObjects,
+    schema::tx_affected_objects,
+};
 
 pub struct TxAffectedObjectsBackfill;
 

@@ -4,19 +4,18 @@
 mod bigtable;
 use anyhow::Result;
 use async_trait::async_trait;
-pub use bigtable::client::BigTableClient;
-pub use bigtable::worker::KvWorker;
-use iota_types::base_types::ObjectID;
-use iota_types::crypto::AuthorityStrongQuorumSignInfo;
-use iota_types::digests::{CheckpointDigest, TransactionDigest};
-use iota_types::effects::{TransactionEffects, TransactionEvents};
-use iota_types::full_checkpoint_content::CheckpointData;
-use iota_types::messages_checkpoint::{
-    CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
+pub use bigtable::{client::BigTableClient, worker::KvWorker};
+use iota_types::{
+    base_types::ObjectID,
+    crypto::AuthorityStrongQuorumSignInfo,
+    digests::{CheckpointDigest, TransactionDigest},
+    effects::{TransactionEffects, TransactionEvents},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, CheckpointSummary},
+    object::Object,
+    storage::ObjectKey,
+    transaction::Transaction,
 };
-use iota_types::object::Object;
-use iota_types::storage::ObjectKey;
-use iota_types::transaction::Transaction;
 
 #[async_trait]
 pub trait KeyValueStoreReader {

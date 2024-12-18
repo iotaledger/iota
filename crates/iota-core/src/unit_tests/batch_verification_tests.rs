@@ -2,24 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::signature_verifier::*;
-use crate::test_utils::{make_cert_with_large_committee, make_dummy_tx};
+use std::sync::Arc;
+
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
-use itertools::Itertools as _;
-use prometheus::Registry;
-use rand::{thread_rng, Rng};
-use std::sync::Arc;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_types::committee::Committee;
-use iota_types::crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair};
-use iota_types::gas::GasCostSummary;
-use iota_types::messages_checkpoint::{
-    CheckpointContents, CheckpointSummary, SignedCheckpointSummary,
+use iota_types::{
+    committee::Committee,
+    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
+    gas::GasCostSummary,
+    messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
+    signature_verification::VerifiedDigestCache,
+    transaction::CertifiedTransaction,
 };
-use iota_types::signature_verification::VerifiedDigestCache;
-use iota_types::transaction::CertifiedTransaction;
+use itertools::Itertools as _;
+use prometheus::Registry;
+use rand::{Rng, thread_rng};
+
+use crate::{
+    signature_verifier::*,
+    test_utils::{make_cert_with_large_committee, make_dummy_tx},
+};
 
 // TODO consolidate with `gen_certs` in batch_verification_bench.rs
 fn gen_certs(
@@ -102,8 +106,8 @@ async fn test_batch_verify() {
     }
 
     let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
-    // this test is a bit much for the current implementation - it was originally written to verify
-    // a bisecting fall back approach.
+    // this test is a bit much for the current implementation - it was originally
+    // written to verify a bisecting fall back approach.
     for i in 0..16 {
         let (receiver, _): (_, AccountKeyPair) = get_key_pair();
         let mut certs = certs.clone();

@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{PeerHeights, StateSync, StateSyncMessage};
-use anemo::{rpc::Status, types::response::StatusCode, Request, Response, Result};
+use std::{
+    sync::{Arc, RwLock},
+    task::{Context, Poll},
+};
+
+use anemo::{Request, Response, Result, rpc::Status, types::response::StatusCode};
 use dashmap::DashMap;
 use futures::future::BoxFuture;
-use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
-use std::task::{Context, Poll};
 use iota_types::{
     digests::{CheckpointContentsDigest, CheckpointDigest},
     messages_checkpoint::{
@@ -17,7 +18,10 @@ use iota_types::{
     },
     storage::WriteStore,
 };
-use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
+use serde::{Deserialize, Serialize};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
+
+use super::{PeerHeights, StateSync, StateSyncMessage};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum GetCheckpointSummaryRequest {
@@ -130,8 +134,8 @@ where
     }
 }
 
-/// [`Layer`] for adding a per-checkpoint limit to the number of inflight GetCheckpointContent
-/// requests.
+/// [`Layer`] for adding a per-checkpoint limit to the number of inflight
+/// GetCheckpointContent requests.
 #[derive(Clone)]
 pub(super) struct CheckpointContentsDownloadLimitLayer {
     inflight_per_checkpoint: Arc<DashMap<CheckpointContentsDigest, Arc<Semaphore>>>,
@@ -168,8 +172,8 @@ impl<S> tower::layer::Layer<S> for CheckpointContentsDownloadLimitLayer {
     }
 }
 
-/// Middleware for adding a per-checkpoint limit to the number of inflight GetCheckpointContent
-/// requests.
+/// Middleware for adding a per-checkpoint limit to the number of inflight
+/// GetCheckpointContent requests.
 #[derive(Clone)]
 pub(super) struct CheckpointContentsDownloadLimit<S> {
     inner: S,

@@ -2,33 +2,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::env;
+use std::{collections::HashMap, env};
 
 use anyhow::Result;
+use async_trait::async_trait;
+use futures::future::try_join_all;
+use iota_data_ingestion_core::{
+    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
+};
+use iota_metrics::spawn_monitored_task;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use async_trait::async_trait;
-use futures::future::try_join_all;
-use iota_metrics::spawn_monitored_task;
-use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
+use crate::{
+    build_json_rpc_server,
+    config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
+    database::ConnectionPool,
+    errors::IndexerError,
+    handlers::{
+        checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
+        pruner::Pruner,
+    },
+    indexer_reader::IndexerReader,
+    metrics::IndexerMetrics,
+    store::{IndexerStore, PgIndexerStore},
 };
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-
-use crate::build_json_rpc_server;
-use crate::config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig};
-use crate::database::ConnectionPool;
-use crate::errors::IndexerError;
-use crate::handlers::checkpoint_handler::new_handlers;
-use crate::handlers::objects_snapshot_handler::start_objects_snapshot_handler;
-use crate::handlers::pruner::Pruner;
-use crate::indexer_reader::IndexerReader;
-use crate::metrics::IndexerMetrics;
-use crate::store::{IndexerStore, PgIndexerStore};
 
 pub struct Indexer;
 
@@ -56,7 +57,8 @@ impl Indexer {
             ..Default::default()
         };
 
-        // Start objects snapshot processor, which is a separate pipeline with its ingestion pipeline.
+        // Start objects snapshot processor, which is a separate pipeline with its
+        // ingestion pipeline.
         let (object_snapshot_worker, object_snapshot_watermark) = start_objects_snapshot_handler(
             store.clone(),
             metrics.clone(),
@@ -68,9 +70,12 @@ impl Indexer {
         .await?;
 
         if mvr_mode {
-            warn!("Indexer in MVR mode is configured to prune `objects_history` to 2 epochs. The other tables have a 2000 epoch retention.");
+            warn!(
+                "Indexer in MVR mode is configured to prune `objects_history` to 2 epochs. The other tables have a 2000 epoch retention."
+            );
             retention_config = Some(RetentionConfig {
-                epochs_to_keep: 2000, // epochs, roughly 5+ years. We really just care about pruning `objects_history` per the default 2 epochs.
+                epochs_to_keep: 2000, /* epochs, roughly 5+ years. We really just care about
+                                       * pruning `objects_history` per the default 2 epochs. */
                 overrides: Default::default(),
             });
         }
@@ -81,10 +86,10 @@ impl Indexer {
             spawn_monitored_task!(pruner.start(cancel_clone));
         }
 
-        // If we already have chain identifier indexed (i.e. the first checkpoint has been indexed),
-        // then we persist protocol configs for protocol versions not yet in the db.
-        // Otherwise, we would do the persisting in `commit_checkpoint` while the first cp is
-        // being indexed.
+        // If we already have chain identifier indexed (i.e. the first checkpoint has
+        // been indexed), then we persist protocol configs for protocol versions
+        // not yet in the db. Otherwise, we would do the persisting in
+        // `commit_checkpoint` while the first cp is being indexed.
         if let Some(chain_id) = IndexerStore::get_chain_identifier(&store).await? {
             store
                 .persist_protocol_configs_and_feature_flags(chain_id)
@@ -103,8 +108,9 @@ impl Indexer {
             mvr_mode,
         )
         .await?;
-        // Ingestion task watermarks are snapshotted once on indexer startup based on the
-        // corresponding watermark table before being handed off to the ingestion task.
+        // Ingestion task watermarks are snapshotted once on indexer startup based on
+        // the corresponding watermark table before being handed off to the
+        // ingestion task.
         let progress_store = ShimIndexerProgressStore::new(vec![
             ("primary".to_string(), primary_watermark),
             ("object_snapshot".to_string(), object_snapshot_watermark),
@@ -125,7 +131,8 @@ impl Indexer {
         executors.push((executor, exit_receiver));
         exit_senders.push(exit_sender);
 
-        // in a non-colocated setup, start a separate indexer for processing object snapshots
+        // in a non-colocated setup, start a separate indexer for processing object
+        // snapshots
         if config.sources.data_ingestion_path.is_none() {
             let executor = IndexerExecutor::new(
                 progress_store,

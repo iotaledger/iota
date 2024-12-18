@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use futures::stream::FuturesUnordered;
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use iota_types::base_types::{ObjectRef, IotaAddress};
-use iota_types::crypto::{get_account_key_pair, AccountKeyPair};
-use iota_types::object::Object;
+use iota_types::{
+    base_types::{IotaAddress, ObjectRef},
+    crypto::{AccountKeyPair, get_account_key_pair},
+    object::Object,
+};
 
 #[derive(Clone)]
 pub struct Account {
@@ -16,8 +18,9 @@ pub struct Account {
     pub gas_objects: Arc<Vec<ObjectRef>>,
 }
 
-/// Generate \num_accounts accounts and for each account generate \gas_object_num_per_account gas objects.
-/// Return all accounts along with a flattened list of all gas objects as genesis objects.
+/// Generate \num_accounts accounts and for each account generate
+/// \gas_object_num_per_account gas objects. Return all accounts along with a
+/// flattened list of all gas objects as genesis objects.
 pub async fn batch_create_account_and_gas(
     num_accounts: u64,
     gas_object_num_per_account: u64,
@@ -41,14 +44,11 @@ pub async fn batch_create_account_and_gas(
             .iter()
             .map(|o| o.compute_object_reference())
             .collect();
-        accounts.insert(
+        accounts.insert(sender, Account {
             sender,
-            Account {
-                sender,
-                keypair: Arc::new(keypair),
-                gas_objects: Arc::new(gas_object_refs),
-            },
-        );
+            keypair: Arc::new(keypair),
+            gas_objects: Arc::new(gas_object_refs),
+        });
         genesis_gas_objects.extend(gas_objects);
     }
     (accounts, genesis_gas_objects)

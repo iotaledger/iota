@@ -5,17 +5,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::RpcModule;
 use iota_core::authority::AuthorityState;
 use iota_json_rpc_api::{BridgeReadApiOpenRpc, BridgeReadApiServer, JsonRpcMetrics};
 use iota_open_rpc::Module;
-use iota_types::bridge::{get_bridge_obj_initial_shared_version, BridgeSummary, BridgeTrait};
+use iota_types::bridge::{BridgeSummary, BridgeTrait, get_bridge_obj_initial_shared_version};
+use jsonrpsee::{RpcModule, core::RpcResult};
 use tracing::{info, instrument};
 
-use crate::authority_state::StateRead;
-use crate::error::Error;
-use crate::{with_tracing, IotaRpcModule};
+use crate::{IotaRpcModule, authority_state::StateRead, error::Error, with_tracing};
 
 #[derive(Clone)]
 pub struct BridgeReadApi {

@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use miette::{miette, LabeledSpan, Severity};
 use std::fmt;
+
+use miette::{LabeledSpan, Severity, miette};
 use thiserror::Error;
 
 pub type PTBResult<T> = Result<T, PTBError>;
@@ -21,7 +22,8 @@ pub struct Spanned<T> {
     pub value: T,
 }
 
-/// An error with a message, a location in the source code, and an optional help message.
+/// An error with a message, a location in the source code, and an optional help
+/// message.
 #[derive(Debug, Clone, Error)]
 #[error("{message}")]
 pub struct PTBError {
@@ -103,8 +105,9 @@ impl Span {
         Spanned { span: self, value }
     }
 
-    /// Widen the span to include another span. The resulting span will start at the minimum of the
-    /// two start positions and end at the maximum of the two end positions.
+    /// Widen the span to include another span. The resulting span will start at
+    /// the minimum of the two start positions and end at the maximum of the
+    /// two end positions.
     pub fn widen(self, other: Span) -> Span {
         Span {
             start: self.start.min(other.start),
@@ -112,7 +115,8 @@ impl Span {
         }
     }
 
-    /// Widen the span to include another if it is Some, otherwise return the original span.
+    /// Widen the span to include another if it is Some, otherwise return the
+    /// original span.
     pub fn widen_opt(self, other: Option<Span>) -> Span {
         other.map_or(self, |other| self.widen(other))
     }
@@ -127,7 +131,8 @@ impl Span {
 }
 
 impl<T> Spanned<T> {
-    /// Apply a function `f` to the underlying value, returning a new `Spanned` with the same span.
+    /// Apply a function `f` to the underlying value, returning a new `Spanned`
+    /// with the same span.
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Spanned<U> {
         Spanned {
             span: self.span,
@@ -135,14 +140,16 @@ impl<T> Spanned<T> {
         }
     }
 
-    /// Widen the span to include another span. The resulting span will start at the minimum of the
-    /// two start positions and end at the maximum of the two end positions.
+    /// Widen the span to include another span. The resulting span will start at
+    /// the minimum of the two start positions and end at the maximum of the
+    /// two end positions.
     pub fn widen<U>(self, other: Spanned<U>) -> Spanned<T> {
         self.widen_span(other.span)
     }
 
-    /// Widen the span to include another span. The resulting span will start at the minimum of the
-    /// two start positions and end at the maximum of the two end positions.
+    /// Widen the span to include another span. The resulting span will start at
+    /// the minimum of the two start positions and end at the maximum of the
+    /// two end positions.
     pub fn widen_span(self, other: Span) -> Spanned<T> {
         Spanned {
             span: self.span.widen(other),

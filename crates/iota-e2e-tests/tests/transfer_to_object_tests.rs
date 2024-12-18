@@ -2,18 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashSet;
-use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::{collections::HashSet, net::SocketAddr, path::PathBuf};
+
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::*;
 use iota_test_transaction_builder::publish_package;
-use iota_types::base_types::{ObjectID, ObjectRef};
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::effects::{TransactionEffects, TransactionEvents};
-use iota_types::error::{IotaError, UserInputError};
-use iota_types::object::Owner;
-use iota_types::transaction::{CallArg, ObjectArg, Transaction};
+use iota_types::{
+    base_types::{ObjectID, ObjectRef},
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::{IotaError, UserInputError},
+    object::Owner,
+    transaction::{CallArg, ObjectArg, Transaction},
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[sim_test]
@@ -45,12 +45,9 @@ async fn receive_object_feature_deny() {
         .map(|_| ())
         .unwrap_err();
 
-    assert!(matches!(
-        err,
-        IotaError::UserInputError {
-            error: UserInputError::Unsupported(..)
-        }
-    ));
+    assert!(matches!(err, IotaError::UserInputError {
+        error: UserInputError::Unsupported(..)
+    }));
 }
 
 #[sim_test]
@@ -133,8 +130,8 @@ async fn delete_of_object_with_reconfiguration_receive_of_new_parent_and_old_chi
 }
 
 fn get_parent_and_child(created: Vec<(ObjectRef, Owner)>) -> (ObjectRef, ObjectRef) {
-    // make sure there is an object with an `AddressOwner` who matches the object ID of another
-    // object.
+    // make sure there is an object with an `AddressOwner` who matches the object ID
+    // of another object.
     let created_addrs: HashSet<_> = created.iter().map(|((i, _, _), _)| i).collect();
     let (child, parent_id) = created
         .iter()
@@ -217,11 +214,7 @@ impl TestEnvironment {
                 .iter()
                 .find_map(
                     |(oref, _)| {
-                        if oref.0 == child.0 {
-                            Some(*oref)
-                        } else {
-                            None
-                        }
+                        if oref.0 == child.0 { Some(*oref) } else { None }
                     },
                 )
                 .unwrap();

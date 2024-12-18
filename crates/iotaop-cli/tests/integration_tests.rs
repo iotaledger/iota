@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Context, Result};
-use std::process::Command;
 use iotaoplib::cli::service::init;
+use std::process::Command;
 use tracing::debug;
 
 #[cfg(test)]
@@ -50,7 +50,8 @@ members = []
   "#,
     )?;
     // Create a dummy Dockerfile at the tempdir/iota/docker/iota-services level
-    let iota_services_dockerfile_path = temp_dir.path().join("iota/docker/iota-services/Dockerfile");
+    let iota_services_dockerfile_path =
+        temp_dir.path().join("iota/docker/iota-services/Dockerfile");
     std::fs::create_dir_all(iota_services_dockerfile_path.parent().unwrap())?;
     std::fs::write(
         &iota_services_dockerfile_path,

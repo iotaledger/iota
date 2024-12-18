@@ -2,48 +2,54 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store_tables::AuthorityPerpetualTables;
-use crate::authority::epoch_start_configuration::EpochStartConfiguration;
-use crate::authority::{AuthorityState, AuthorityStore};
-use crate::checkpoints::CheckpointStore;
-use crate::epoch::committee_store::CommitteeStore;
-use crate::epoch::epoch_metrics::EpochMetrics;
-use crate::epoch::randomness::RandomnessManager;
-use crate::execution_cache::build_execution_cache;
-use crate::jsonrpc_index::IndexStore;
-use crate::mock_consensus::{ConsensusMode, MockConsensusClient};
-use crate::module_cache_metrics::ResolverMetrics;
-use crate::rpc_index::RpcIndexStore;
-use crate::signature_verifier::SignatureVerifierMetrics;
+use std::{path::PathBuf, sync::Arc};
+
 use fastcrypto::traits::KeyPair;
-use prometheus::Registry;
-use std::path::PathBuf;
-use std::sync::Arc;
 use iota_archival::reader::ArchiveReaderBalancer;
-use iota_config::certificate_deny_config::CertificateDenyConfig;
-use iota_config::genesis::Genesis;
-use iota_config::node::AuthorityOverloadConfig;
-use iota_config::node::{
-    AuthorityStorePruningConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
+use iota_config::{
+    ExecutionCacheConfig,
+    certificate_deny_config::CertificateDenyConfig,
+    genesis::Genesis,
+    node::{
+        AuthorityOverloadConfig, AuthorityStorePruningConfig, DBCheckpointConfig,
+        ExpensiveSafetyCheckConfig,
+    },
+    transaction_deny_config::TransactionDenyConfig,
 };
-use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_config::ExecutionCacheConfig;
 use iota_macros::nondeterministic;
 use iota_network::randomness;
 use iota_protocol_config::ProtocolConfig;
-use iota_swarm_config::genesis_config::AccountConfig;
-use iota_swarm_config::network_config::NetworkConfig;
-use iota_types::base_types::{AuthorityName, ObjectID};
-use iota_types::crypto::AuthorityKeyPair;
-use iota_types::digests::ChainIdentifier;
-use iota_types::executable_transaction::VerifiedExecutableTransaction;
-use iota_types::object::Object;
-use iota_types::iota_system_state::IotaSystemStateTrait;
-use iota_types::supported_protocol_versions::SupportedProtocolVersions;
-use iota_types::transaction::VerifiedTransaction;
+use iota_swarm_config::{genesis_config::AccountConfig, network_config::NetworkConfig};
+use iota_types::{
+    base_types::{AuthorityName, ObjectID},
+    crypto::AuthorityKeyPair,
+    digests::ChainIdentifier,
+    executable_transaction::VerifiedExecutableTransaction,
+    iota_system_state::IotaSystemStateTrait,
+    object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
+    transaction::VerifiedTransaction,
+};
+use prometheus::Registry;
 
 use super::epoch_start_configuration::EpochFlag;
+use crate::{
+    authority::{
+        AuthorityState, AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::AuthorityPerpetualTables,
+        epoch_start_configuration::EpochStartConfiguration,
+    },
+    checkpoints::CheckpointStore,
+    epoch::{
+        committee_store::CommitteeStore, epoch_metrics::EpochMetrics, randomness::RandomnessManager,
+    },
+    execution_cache::build_execution_cache,
+    jsonrpc_index::IndexStore,
+    mock_consensus::{ConsensusMode, MockConsensusClient},
+    module_cache_metrics::ResolverMetrics,
+    rpc_index::RpcIndexStore,
+    signature_verifier::SignatureVerifierMetrics,
+};
 
 #[derive(Default, Clone)]
 pub struct TestAuthorityBuilder<'a> {
@@ -59,7 +65,8 @@ pub struct TestAuthorityBuilder<'a> {
     expensive_safety_checks: Option<ExpensiveSafetyCheckConfig>,
     disable_indexer: bool,
     accounts: Vec<AccountConfig>,
-    /// By default, we don't insert the genesis checkpoint, which isn't needed by most tests.
+    /// By default, we don't insert the genesis checkpoint, which isn't needed
+    /// by most tests.
     insert_genesis_checkpoint: bool,
     authority_overload_config: Option<AuthorityOverloadConfig>,
     cache_config: Option<ExecutionCacheConfig>,
@@ -101,12 +108,14 @@ impl<'a> TestAuthorityBuilder<'a> {
     }
 
     pub fn with_reference_gas_price(mut self, reference_gas_price: u64) -> Self {
-        // If genesis is already set then setting rgp is meaningless since it will be overwritten.
+        // If genesis is already set then setting rgp is meaningless since it will be
+        // overwritten.
         assert!(self.genesis.is_none());
-        assert!(self
-            .reference_gas_price
-            .replace(reference_gas_price)
-            .is_none());
+        assert!(
+            self.reference_gas_price
+                .replace(reference_gas_price)
+                .is_none()
+        );
         self
     }
 
@@ -351,9 +360,10 @@ impl<'a> TestAuthorityBuilder<'a> {
             }
         }
 
-        // For any type of local testing that does not actually spawn a node, the checkpoint executor
-        // won't be started, which means we won't actually execute the genesis transaction. In that case,
-        // the genesis objects (e.g. all the genesis test coins) won't be accessible. Executing it
+        // For any type of local testing that does not actually spawn a node, the
+        // checkpoint executor won't be started, which means we won't actually
+        // execute the genesis transaction. In that case, the genesis objects
+        // (e.g. all the genesis test coins) won't be accessible. Executing it
         // explicitly makes sure all genesis objects are ready for use.
         state
             .try_execute_immediately(
@@ -373,10 +383,10 @@ impl<'a> TestAuthorityBuilder<'a> {
             .commit_transaction_outputs(epoch_store.epoch(), &[*genesis.transaction().digest()])
             .await;
 
-        // We want to insert these objects directly instead of relying on genesis because
-        // genesis process would set the previous transaction field for these objects, which would
-        // change their object digest. This makes it difficult to write tests that want to use
-        // these objects directly.
+        // We want to insert these objects directly instead of relying on genesis
+        // because genesis process would set the previous transaction field for
+        // these objects, which would change their object digest. This makes it
+        // difficult to write tests that want to use these objects directly.
         // TODO: we should probably have a better way to do this.
         if let Some(starting_objects) = self.starting_objects {
             state

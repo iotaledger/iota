@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod utils;
-use iota_sdk::rpc_types::{
-    IotaGetPastObjectRequest, IotaObjectDataOptions, IotaTransactionBlockResponseOptions,
+use iota_sdk::{
+    rpc_types::{
+        IotaGetPastObjectRequest, IotaObjectDataOptions, IotaTransactionBlockResponseOptions,
+    },
+    types::base_types::ObjectID,
 };
-use iota_sdk::types::base_types::ObjectID;
 use utils::{setup_for_write, split_coin_digest};
 
 // This example uses the Read API to get owned objects of an address,
@@ -117,18 +119,15 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** Transaction data *** ");
     let tx_response = iota
         .read_api()
-        .get_transaction_with_options(
-            tx_digest,
-            IotaTransactionBlockResponseOptions {
-                show_input: true,
-                show_raw_input: true,
-                show_effects: true,
-                show_events: true,
-                show_object_changes: true,
-                show_balance_changes: true,
-                show_raw_effects: true,
-            },
-        )
+        .get_transaction_with_options(tx_digest, IotaTransactionBlockResponseOptions {
+            show_input: true,
+            show_raw_input: true,
+            show_effects: true,
+            show_events: true,
+            show_object_changes: true,
+            show_balance_changes: true,
+            show_raw_effects: true,
+        })
         .await?;
     println!("Transaction succeeded: {:?}\n\n", tx_response.status_ok());
 

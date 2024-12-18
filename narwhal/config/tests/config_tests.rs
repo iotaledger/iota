@@ -4,20 +4,26 @@
 
 #![allow(clippy::mutable_key_type)]
 
-// This file contains tests that detect changes in Narwhal configs and parameters.
-// If a PR breaks one or more tests here, the PR probably has a real impact
-// on a Narwhal configuration file. When test failure happens, the PR should
-// be marked as a breaking change and reviewers should be aware of this.
+// This file contains tests that detect changes in Narwhal configs and
+// parameters. If a PR breaks one or more tests here, the PR probably has a real
+// impact on a Narwhal configuration file. When test failure happens, the PR
+// should be marked as a breaking change and reviewers should be aware of this.
 //
 // Owners and operators of production configuration files can add themselves to
-// .github/CODEOWNERS for the corresponding snapshot tests, so they can get notified
-// of changes. PRs that modifies snapshot files should wait for reviews from
-// code owners (if any) before merging.
+// .github/CODEOWNERS for the corresponding snapshot tests, so they can get
+// notified of changes. PRs that modifies snapshot files should wait for reviews
+// from code owners (if any) before merging.
 //
 // To review snapshot changes, and fix snapshot differences,
 // 0. Install cargo-insta
 // 1. Run `cargo insta test --review` under `./config`.
 // 2. Review, accept or reject changes.
+
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs::File,
+    io::Write,
+};
 
 use config::{
     Import, NetworkAdminServerParameters, Parameters, PrometheusMetricsParameters, Stake,
@@ -26,12 +32,7 @@ use crypto::PublicKey;
 use insta::assert_json_snapshot;
 use iota_network_stack::Multiaddr;
 use narwhal_config as config;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs::File,
-    io::Write,
-};
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use tempfile::tempdir;
 use test_utils::CommitteeFixture;
 
@@ -149,11 +150,14 @@ fn update_primary_network_info_test() {
     }
 }
 
-// If one or both of the parameters_xx_matches() tests are broken by a change, the following additional places are
-// highly likely needed to be updated as well:
-// 1. Docker/validators/parameters.json for starting Narwhal cluster with Docker Compose.
+// If one or both of the parameters_xx_matches() tests are broken by a change,
+// the following additional places are highly likely needed to be updated as
+// well:
+// 1. Docker/validators/parameters.json for starting Narwhal cluster with Docker
+//    Compose.
 // 2. benchmark/fabfile.py for benchmarking a Narwhal cluster locally.
-// 3. Iota configurations & snapshot tests when upgrading Narwhal in Iota to include the change.
+// 3. Iota configurations & snapshot tests when upgrading Narwhal in Iota to
+//    include the change.
 
 #[test]
 fn parameters_snapshot_matches() {

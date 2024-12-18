@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::Path;
+
 use clap::Parser;
+use iota_move_build::set_iota_flavor;
 #[cfg(feature = "unit_test")]
 use move_cli::base::test::UnitTestResult;
 use move_package::BuildConfig;
-use std::path::Path;
-use iota_move_build::set_iota_flavor;
 
 #[cfg(feature = "build")]
 pub mod build;

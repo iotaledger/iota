@@ -6,7 +6,8 @@ use move_binary_format::errors::PartialVMResult;
 use move_bytecode_verifier_meter::{Meter, Scope};
 use serde::Serialize;
 
-/// A meter that accumulates all the scopes that it sees, without enforcing a limit.
+/// A meter that accumulates all the scopes that it sees, without enforcing a
+/// limit.
 #[derive(Debug)]
 pub(crate) struct AccumulatingMeter {
     pkg_acc: Accumulator,
@@ -62,7 +63,8 @@ impl Accumulator {
         }
     }
 
-    /// Find the max ticks spent verifying `scope`s within this scope (including itself).
+    /// Find the max ticks spent verifying `scope`s within this scope (including
+    /// itself).
     pub fn max_ticks(&self, scope: Scope) -> u128 {
         let mut accs = vec![self];
 

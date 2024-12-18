@@ -2,47 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-use super::execution::SimulateTransactionQueryParameters;
-use super::TransactionSimulationResponse;
-use crate::reader::StateReader;
-use crate::rest::openapi::ApiEndpoint;
-use crate::rest::openapi::OperationBuilder;
-use crate::rest::openapi::RequestBodyBuilder;
-use crate::rest::openapi::ResponseBuilder;
-use crate::rest::openapi::RouteHandler;
-use crate::service::objects::ObjectNotFoundError;
-use crate::Result;
-use crate::RpcService;
-use crate::RpcServiceError;
-use axum::extract::Query;
-use axum::extract::State;
-use axum::Json;
+use axum::{
+    Json,
+    extract::{Query, State},
+};
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::types::{Argument, Command, ObjectId, Transaction, unresolved};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    effects::TransactionEffectsAPI,
+    gas::GasCostSummary,
+    gas_coin::GasCoin,
+    move_package::MovePackage,
+    transaction::{
+        CallArg, GasData, ObjectArg, ProgrammableTransaction, TransactionData, TransactionDataAPI,
+    },
+};
 use itertools::Itertools;
 use move_binary_format::normalized;
 use schemars::JsonSchema;
-use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::types::unresolved;
-use iota_sdk_types::types::Argument;
-use iota_sdk_types::types::Command;
-use iota_sdk_types::types::ObjectId;
-use iota_sdk_types::types::Transaction;
-use iota_types::base_types::ObjectID;
-use iota_types::base_types::ObjectRef;
-use iota_types::base_types::IotaAddress;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::gas::GasCostSummary;
-use iota_types::gas_coin::GasCoin;
-use iota_types::move_package::MovePackage;
-use iota_types::transaction::CallArg;
-use iota_types::transaction::GasData;
-use iota_types::transaction::ObjectArg;
-use iota_types::transaction::ProgrammableTransaction;
-use iota_types::transaction::TransactionData;
-use iota_types::transaction::TransactionDataAPI;
 use tap::Pipe;
+
+use super::{TransactionSimulationResponse, execution::SimulateTransactionQueryParameters};
+use crate::{
+    Result, RpcService, RpcServiceError,
+    reader::StateReader,
+    rest::openapi::{
+        ApiEndpoint, OperationBuilder, RequestBodyBuilder, ResponseBuilder, RouteHandler,
+    },
+    service::objects::ObjectNotFoundError,
+};
 
 mod literal;
 
@@ -125,8 +116,8 @@ async fn resolve_transaction(
         unresolved_transaction,
     )?;
 
-    // If the user didn't provide a budget we need to run a quick simulation in order to calculate
-    // a good estimated budget to use
+    // If the user didn't provide a budget we need to run a quick simulation in
+    // order to calculate a good estimated budget to use
     let budget = if let Some(user_provided_budget) = user_provided_budget {
         user_provided_budget
     } else {
@@ -187,8 +178,8 @@ async fn resolve_transaction(
 /// Query parameters for the resolve transaction endpoint
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct ResolveTransactionQueryParameters {
-    /// Request that the fully resolved transaction be simulated and have its results sent back in
-    /// the response.
+    /// Request that the fully resolved transaction be simulated and have its
+    /// results sent back in the response.
     #[serde(default)]
     pub simulate: bool,
     #[serde(flatten)]
@@ -235,12 +226,14 @@ fn called_packages(
             })?
             .to_owned();
 
-        // Normalization doesn't take the linkage or type origin tables into account, which means
-        // that if you have an upgraded package that introduces a new type, then that type's
-        // package ID is going to appear incorrectly if you fetch it from its normalized module.
+        // Normalization doesn't take the linkage or type origin tables into account,
+        // which means that if you have an upgraded package that introduces a
+        // new type, then that type's package ID is going to appear incorrectly
+        // if you fetch it from its normalized module.
         //
-        // Despite the above this is safe given we are only using the signature information (and in
-        // particular the reference kind) from the normalized package.
+        // Despite the above this is safe given we are only using the signature
+        // information (and in particular the reference kind) from the
+        // normalized package.
         let normalized_modules = package.normalize(&binary_config).map_err(|e| {
             RpcServiceError::new(
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -319,8 +312,8 @@ fn resolve_object_reference(
 
 // Resolve an object reference against the provided object.
 //
-// Callers should check that the object_id matches the id in the `unresolved_object_reference`
-// before calling.
+// Callers should check that the object_id matches the id in the
+// `unresolved_object_reference` before calling.
 fn resolve_object_reference_with_object(
     object: &iota_types::object::Object,
     unresolved_object_reference: unresolved::ObjectReference,
@@ -337,7 +330,7 @@ fn resolve_object_reference_with_object(
             return Err(RpcServiceError::new(
                 axum::http::StatusCode::BAD_REQUEST,
                 format!("object {object_id} is not Immutable or AddressOwned"),
-            ))
+            ));
         }
     }
 
@@ -408,8 +401,7 @@ fn resolve_arg(
     arg: unresolved::Input,
     arg_idx: usize,
 ) -> Result<CallArg> {
-    use fastcrypto::encoding::Base64;
-    use fastcrypto::encoding::Encoding;
+    use fastcrypto::encoding::{Base64, Encoding};
     use iota_sdk_types::types::unresolved::InputKind::*;
 
     let unresolved::Input {
@@ -497,7 +489,7 @@ fn resolve_arg(
             return Err(RpcServiceError::new(
                 axum::http::StatusCode::BAD_REQUEST,
                 "invalid unresolved input argument",
-            ))
+            ));
         }
     }
     .pipe(Ok)
@@ -520,25 +512,22 @@ fn resolve_object(
         .ok_or_else(|| ObjectNotFoundError::new(object_id))?;
 
     match object.owner() {
-        iota_types::object::Owner::Immutable => resolve_object_reference_with_object(
-            &object,
-            unresolved::ObjectReference {
+        iota_types::object::Owner::Immutable => {
+            resolve_object_reference_with_object(&object, unresolved::ObjectReference {
                 object_id,
                 version,
                 digest,
-            },
-        )
-        .map(ObjectArg::ImmOrOwnedObject),
+            })
+            .map(ObjectArg::ImmOrOwnedObject)
+        }
 
         iota_types::object::Owner::AddressOwner(_) => {
-            let object_ref = resolve_object_reference_with_object(
-                &object,
-                unresolved::ObjectReference {
+            let object_ref =
+                resolve_object_reference_with_object(&object, unresolved::ObjectReference {
                     object_id,
                     version,
                     digest,
-                },
-            )?;
+                })?;
 
             if is_input_argument_receiving(called_packages, commands, arg_idx)? {
                 ObjectArg::Receiving(object_ref)
@@ -547,7 +536,8 @@ fn resolve_object(
             }
             .pipe(Ok)
         }
-        iota_types::object::Owner::Shared { .. } | iota_types::object::Owner::ConsensusV2 { .. } => {
+        iota_types::object::Owner::Shared { .. }
+        | iota_types::object::Owner::ConsensusV2 { .. } => {
             resolve_shared_input_with_object(called_packages, commands, arg_idx, object)
         }
         iota_types::object::Owner::ObjectOwner(_) => Err(RpcServiceError::new(
@@ -602,7 +592,7 @@ fn is_input_argument_receiving(
             }
         }
 
-        //XXX do we want to ensure its only used once as receiving?
+        // XXX do we want to ensure its only used once as receiving?
         if receiving {
             break;
         }
@@ -611,8 +601,9 @@ fn is_input_argument_receiving(
     Ok(receiving)
 }
 
-// TODO still need to handle the case where a function parameter is a generic parameter and the
-// real type needs to be lookedup from the provided type args in the MoveCall itself
+// TODO still need to handle the case where a function parameter is a generic
+// parameter and the real type needs to be lookedup from the provided type args
+// in the MoveCall itself
 fn arg_type_of_move_call_input<'a>(
     called_packages: &'a HashMap<ObjectId, NormalizedPackage>,
     move_call: &iota_sdk_types::types::MoveCall,
@@ -684,8 +675,8 @@ fn resolve_shared_input_with_object(
             }
             _ => {}
         }
-        // Early break out of the loop if we've already determined that the shared object
-        // is needed to be mutable
+        // Early break out of the loop if we've already determined that the shared
+        // object is needed to be mutable
         if mutable {
             break;
         }
@@ -700,8 +691,8 @@ fn resolve_shared_input_with_object(
 
 /// Given an particular input argument, find all of its uses.
 ///
-/// The returned iterator contains all commands where the argument is used and an optional index
-/// to indicate where the argument is used in that command.
+/// The returned iterator contains all commands where the argument is used and
+/// an optional index to indicate where the argument is used in that command.
 fn find_arg_uses(
     arg_idx: usize,
     commands: &[Command],
@@ -765,10 +756,9 @@ fn find_arg_uses(
 /// Estimate the gas budget using the gas_cost_summary from a previous DryRun
 ///
 /// The estimated gas budget is computed as following:
-/// * the maximum between A and B, where:
-///     A = computation cost + GAS_SAFE_OVERHEAD * reference gas price
-///     B = computation cost + storage cost - storage rebate + GAS_SAFE_OVERHEAD * reference gas price
-///     overhead
+/// * the maximum between A and B, where: A = computation cost +
+///   GAS_SAFE_OVERHEAD * reference gas price B = computation cost + storage
+///   cost - storage rebate + GAS_SAFE_OVERHEAD * reference gas price overhead
 ///
 /// This gas estimate is computed similarly as in the TypeScript SDK
 fn estimate_gas_budget_from_gas_cost(
@@ -791,7 +781,7 @@ fn select_gas(
     max_gas_payment_objects: u32,
     input_objects: &[ObjectID],
 ) -> Result<Vec<ObjectRef>> {
-    //TODO implement index of gas coins sorted in order of decreasing value
+    // TODO implement index of gas coins sorted in order of decreasing value
     let gas_coins = reader
         .inner()
         .indexes()

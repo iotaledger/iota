@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::Result;
 use iota_data_ingestion_core::setup_single_workflow;
-use iota_kvstore::BigTableClient;
-use iota_kvstore::KvWorker;
+use iota_kvstore::{BigTableClient, KvWorker};
 use telemetry_subscribers::TelemetryConfig;
 
 #[tokio::main]

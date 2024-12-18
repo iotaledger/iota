@@ -2,13 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{routing::any, Router};
+use axum::{Router, routing::any};
 use clap::Parser;
+use iota_edge_proxy::{
+    config::{ProxyConfig, load},
+    handlers::{AppState, proxy_handler},
+    metrics::AppMetrics,
+};
 use iota_metrics::start_prometheus_server;
 use reqwest::Client;
-use iota_edge_proxy::config::{load, ProxyConfig};
-use iota_edge_proxy::handlers::{proxy_handler, AppState};
-use iota_edge_proxy::metrics::AppMetrics;
 use tracing::info;
 
 #[derive(Parser, Debug)]

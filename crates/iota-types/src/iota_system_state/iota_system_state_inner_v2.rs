@@ -2,22 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::epoch_start_iota_system_state::EpochStartValidatorInfoV1;
-use super::iota_system_state_inner_v1::ValidatorV1;
-use super::iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary};
-use super::{AdvanceEpochParams, IotaSystemStateTrait};
-use crate::balance::Balance;
-use crate::base_types::IotaAddress;
-use crate::collection_types::{Bag, Table, TableVec, VecMap, VecSet};
-use crate::committee::{CommitteeWithNetworkMetadata, NetworkMetadata};
-use crate::error::IotaError;
-use crate::storage::ObjectStore;
-use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
-use crate::iota_system_state::get_validators_from_table_vec;
-use crate::iota_system_state::iota_system_state_inner_v1::{
-    StakeSubsidyV1, StorageFundV1, ValidatorSetV1,
-};
 use serde::{Deserialize, Serialize};
+
+use super::{
+    AdvanceEpochParams, IotaSystemStateTrait,
+    epoch_start_iota_system_state::EpochStartValidatorInfoV1,
+    iota_system_state_inner_v1::ValidatorV1,
+    iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+};
+use crate::{
+    balance::Balance,
+    base_types::IotaAddress,
+    collection_types::{Bag, Table, TableVec, VecMap, VecSet},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
+    error::IotaError,
+    iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemState,
+        get_validators_from_table_vec,
+        iota_system_state_inner_v1::{StakeSubsidyV1, StorageFundV1, ValidatorSetV1},
+    },
+    storage::ObjectStore,
+};
 
 /// Rust version of the Move iota::iota_system::SystemParametersV2 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -38,13 +43,14 @@ pub struct SystemParametersV2 {
     /// Lower-bound on the amount of stake required to become a validator.
     pub min_validator_joining_stake: u64,
 
-    /// Validators with stake amount below `validator_low_stake_threshold` are considered to
-    /// have low stake and will be escorted out of the validator set after being below this
-    /// threshold for more than `validator_low_stake_grace_period` number of epochs.
+    /// Validators with stake amount below `validator_low_stake_threshold` are
+    /// considered to have low stake and will be escorted out of the
+    /// validator set after being below this threshold for more than
+    /// `validator_low_stake_grace_period` number of epochs.
     pub validator_low_stake_threshold: u64,
 
-    /// Validators with stake below `validator_very_low_stake_threshold` will be removed
-    /// immediately at epoch change, no grace period.
+    /// Validators with stake below `validator_very_low_stake_threshold` will be
+    /// removed immediately at epoch change, no grace period.
     pub validator_very_low_stake_threshold: u64,
 
     /// A validator can have stake below `validator_low_stake_threshold`
@@ -54,7 +60,8 @@ pub struct SystemParametersV2 {
     pub extra_fields: Bag,
 }
 
-/// Rust version of the Move iota_system::iota_system::IotaSystemStateInnerV2 type
+/// Rust version of the Move iota_system::iota_system::IotaSystemStateInnerV2
+/// type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct IotaSystemStateInnerV2 {
     pub epoch: u64,
@@ -128,14 +135,11 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: verified_metadata.net_address.clone(),
-                            narwhal_primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                    }),
                 )
             })
             .collect();
@@ -187,9 +191,10 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
     }
 
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
-        // If you are making any changes to IotaSystemStateV1 or any of its dependent types before
-        // mainnet, please also update IotaSystemStateSummary and its corresponding TS type.
-        // Post-mainnet, we will need to introduce a new version.
+        // If you are making any changes to IotaSystemStateV1 or any of its dependent
+        // types before mainnet, please also update IotaSystemStateSummary and
+        // its corresponding TS type. Post-mainnet, we will need to introduce a
+        // new version.
         let Self {
             epoch,
             protocol_version,

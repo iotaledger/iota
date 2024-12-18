@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
+use iota_types::object::bounded_visitor::BoundedVisitor;
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A, ident_str,
@@ -10,12 +11,13 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
-use iota_types::object::bounded_visitor::BoundedVisitor;
 
-use crate::data::package_resolver::PackageResolver;
-use crate::{error::Error, types::json::Json, types::move_type::unexpected_signer_error};
-
-use super::{base64::Base64, big_int::BigInt, move_type::MoveType, iota_address::IotaAddress};
+use super::{base64::Base64, big_int::BigInt, iota_address::IotaAddress, move_type::MoveType};
+use crate::{
+    data::package_resolver::PackageResolver,
+    error::Error,
+    types::{json::Json, move_type::unexpected_signer_error},
+};
 
 const STD: AccountAddress = AccountAddress::ONE;
 const IOTA: AccountAddress = AccountAddress::TWO;
@@ -106,13 +108,15 @@ impl MoveValue {
             .extend();
         };
 
-        // Factor out into its own non-GraphQL, non-async function for better testability
+        // Factor out into its own non-GraphQL, non-async function for better
+        // testability
         self.data_impl(layout).extend()
     }
 
     /// Representation of a Move value in JSON, where:
     ///
-    /// - Addresses, IDs, and UIDs are represented in canonical form, as JSON strings.
+    /// - Addresses, IDs, and UIDs are represented in canonical form, as JSON
+    ///   strings.
     /// - Bools are represented by JSON boolean literals.
     /// - u8, u16, and u32 are represented as JSON numbers.
     /// - u64, u128, and u256 are represented as JSON strings.
@@ -120,8 +124,8 @@ impl MoveValue {
     /// - Structs are represented by JSON objects.
     /// - Empty optional values are represented by `null`.
     ///
-    /// This form is offered as a less verbose convenience in cases where the layout of the type is
-    /// known by the client.
+    /// This form is offered as a less verbose convenience in cases where the
+    /// layout of the type is known by the client.
     async fn json(&self, ctx: &Context<'_>) -> Result<Json> {
         let resolver: &PackageResolver = ctx
             .data()
@@ -135,7 +139,8 @@ impl MoveValue {
             .extend();
         };
 
-        // Factor out into its own non-GraphQL, non-async function for better testability
+        // Factor out into its own non-GraphQL, non-async function for better
+        // testability
         self.json_impl(layout).extend()
     }
 }
@@ -348,8 +353,8 @@ macro_rules! extract_field {
     }};
 }
 
-/// Extracts a vector of bytes from `value`, assuming it's a `MoveValue::Vector` where all the
-/// values are `MoveValue::U8`s.
+/// Extracts a vector of bytes from `value`, assuming it's a `MoveValue::Vector`
+/// where all the values are `MoveValue::U8`s.
 fn extract_bytes(value: A::MoveValue) -> Result<Vec<u8>, Error> {
     use A::MoveValue as V;
     let V::Vector(elements) = value else {
@@ -367,14 +372,15 @@ fn extract_bytes(value: A::MoveValue) -> Result<Vec<u8>, Error> {
     Ok(bytes)
 }
 
-/// Extracts a Rust String from the contents of a Move Struct assuming that struct matches the
-/// contents of Move String:
+/// Extracts a Rust String from the contents of a Move Struct assuming that
+/// struct matches the contents of Move String:
 ///
 /// ```notrust
 ///     { bytes: vector<u8> }
 /// ```
 ///
-/// Which is conformed to by both `std::ascii::String` and `std::string::String`.
+/// Which is conformed to by both `std::ascii::String` and
+/// `std::string::String`.
 fn extract_string(
     type_: &StructTag,
     fields: Vec<(Identifier, A::MoveValue)>,
@@ -395,8 +401,8 @@ fn extract_string(
     })
 }
 
-/// Extracts an address from the contents of a Move Struct, assuming the struct matches the
-/// following shape:
+/// Extracts an address from the contents of a Move Struct, assuming the struct
+/// matches the following shape:
 ///
 /// ```notrust
 ///     { bytes: address }
@@ -417,8 +423,8 @@ fn extract_id(
     Ok(addr)
 }
 
-/// Extracts an address from the contents of a Move Struct, assuming the struct matches the
-/// following shape:
+/// Extracts an address from the contents of a Move Struct, assuming the struct
+/// matches the following shape:
 ///
 /// ```notrust
 ///     { id: 0x2::object::ID { bytes: address } }
@@ -446,14 +452,15 @@ fn extract_uid(
     extract_id(&type_, fields)
 }
 
-/// Extracts a value from the contents of a Move Struct, assuming the struct matches the following
-/// shape:
+/// Extracts a value from the contents of a Move Struct, assuming the struct
+/// matches the following shape:
 ///
 /// ```notrust
 ///     { vec: vector<T> }
 /// ```
 ///
-/// Where `vec` contains at most one element.  This matches the shape of `0x1::option::Option<T>`.
+/// Where `vec` contains at most one element.  This matches the shape of
+/// `0x1::option::Option<T>`.
 fn extract_option(
     type_: &StructTag,
     fields: Vec<(Identifier, A::MoveValue)>,
@@ -510,9 +517,9 @@ mod tests {
     fn data<T: Serialize>(layout: A::MoveTypeLayout, data: T) -> Result<MoveData, Error> {
         let tag: TypeTag = (&layout).into();
 
-        // The format for type from its `Display` impl does not technically match the format that
-        // the RPC expects from the data layer (where a type's package should be canonicalized), but
-        // it will suffice.
+        // The format for type from its `Display` impl does not technically match the
+        // format that the RPC expects from the data layer (where a type's
+        // package should be canonicalized), but it will suffice.
         data_with_tag(format!("{}", tag), layout, data)
     }
 
@@ -706,7 +713,9 @@ mod tests {
     #[test]
     fn address_data() {
         let v = data(L::Address, address("0x42"));
-        let expect = expect!["Ok(Address(IotaAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66])))"];
+        let expect = expect![
+            "Ok(Address(IotaAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66])))"
+        ];
         expect.assert_eq(&format!("{v:?}"));
     }
 
@@ -727,7 +736,9 @@ mod tests {
         });
 
         let v = data(l, address("0x42"));
-        let expect = expect!["Ok(Uid(IotaAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66])))"];
+        let expect = expect![
+            "Ok(Uid(IotaAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66])))"
+        ];
         expect.assert_eq(&format!("{v:?}"));
     }
 
@@ -762,13 +773,10 @@ mod tests {
 
         let v = data(
             l,
-            (
-                vec![] as Vec<Vec<u8>>,
-                vec![
-                    (44u16, vec!["Hello, world!"], address("0x45")),
-                    (46u16, vec![], address("0x47")),
-                ],
-            ),
+            (vec![] as Vec<Vec<u8>>, vec![
+                (44u16, vec!["Hello, world!"], address("0x45")),
+                (46u16, vec![], address("0x47")),
+            ]),
         );
 
         let expect = expect![[r#"
@@ -933,13 +941,10 @@ mod tests {
 
         let v = json(
             l,
-            (
-                vec![] as Vec<Vec<u8>>,
-                vec![
-                    (44u16, vec!["Hello, world!"], address("0x45")),
-                    (46u16, vec![], address("0x47")),
-                ],
-            ),
+            (vec![] as Vec<Vec<u8>>, vec![
+                (44u16, vec!["Hello, world!"], address("0x45")),
+                (46u16, vec![], address("0x47")),
+            ]),
         )
         .unwrap();
 
@@ -970,10 +975,10 @@ mod tests {
 
     #[test]
     fn signer_nested_data() {
-        let v = data(
-            vector_layout!(L::Signer),
-            vec![address("0x42"), address("0x43")],
-        );
+        let v = data(vector_layout!(L::Signer), vec![
+            address("0x42"),
+            address("0x43"),
+        ]);
         let expect = expect![[r#"
             Err(
                 Internal(
@@ -985,10 +990,10 @@ mod tests {
 
     #[test]
     fn signer_nested_json() {
-        let err = json(
-            vector_layout!(L::Signer),
-            vec![address("0x42"), address("0x43")],
-        )
+        let err = json(vector_layout!(L::Signer), vec![
+            address("0x42"),
+            address("0x43"),
+        ])
         .unwrap_err();
 
         let expect = expect![[r#"Internal("Unexpected value of type: signer.")"#]];

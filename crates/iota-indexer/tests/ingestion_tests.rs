@@ -1,38 +1,34 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use diesel::dsl::count_star;
-use diesel::ExpressionMethods;
-use diesel::QueryDsl;
+use diesel::{ExpressionMethods, QueryDsl, dsl::count_star};
 use diesel_async::RunQueryDsl;
+use iota_indexer::{
+    errors::IndexerError,
+    handlers::TransactionObjectChangesToCommit,
+    models::{
+        checkpoints::StoredCheckpoint,
+        objects::{StoredObject, StoredObjectSnapshot},
+        transactions::StoredTransaction,
+    },
+    schema::{
+        checkpoints, epochs, events, full_objects_history, objects, objects_history,
+        objects_snapshot, transactions,
+    },
+    store::indexer_store::IndexerStore,
+    test_utils::{
+        set_up, set_up_on_mvr_mode, set_up_with_start_and_end_checkpoints, wait_for_checkpoint,
+        wait_for_objects_snapshot,
+    },
+    types::{EventIndex, IndexedDeletedObject, IndexedObject, TxIndex},
+};
+use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
+    gas_coin::GasCoin,
+};
 use simulacrum::Simulacrum;
-use iota_indexer::errors::IndexerError;
-use iota_indexer::handlers::TransactionObjectChangesToCommit;
-use iota_indexer::models::{
-    checkpoints::StoredCheckpoint, objects::StoredObject, objects::StoredObjectSnapshot,
-    transactions::StoredTransaction,
-};
-use iota_indexer::schema::epochs;
-use iota_indexer::schema::events;
-use iota_indexer::schema::full_objects_history;
-use iota_indexer::schema::objects_history;
-use iota_indexer::schema::{checkpoints, objects, objects_snapshot, transactions};
-use iota_indexer::store::indexer_store::IndexerStore;
-use iota_indexer::test_utils::set_up_on_mvr_mode;
-use iota_indexer::test_utils::{
-    set_up, set_up_with_start_and_end_checkpoints, wait_for_checkpoint, wait_for_objects_snapshot,
-};
-use iota_indexer::types::EventIndex;
-use iota_indexer::types::IndexedDeletedObject;
-use iota_indexer::types::IndexedObject;
-use iota_indexer::types::TxIndex;
-use iota_types::base_types::IotaAddress;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::gas_coin::GasCoin;
-use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -215,12 +211,14 @@ pub async fn test_objects_snapshot() -> Result<(), IndexerError> {
 
     let (_, pg_store, _, _database) = set_up(Arc::new(sim), data_ingestion_path).await;
 
-    // Wait for objects snapshot at checkpoint max_expected_checkpoint_sequence_number
+    // Wait for objects snapshot at checkpoint
+    // max_expected_checkpoint_sequence_number
     let max_expected_checkpoint_sequence_number = total_checkpoint_sequence_number - 5;
     wait_for_objects_snapshot(&pg_store, max_expected_checkpoint_sequence_number as u64).await?;
 
     let mut connection = pg_store.pool().dedicated_connection().await.unwrap();
-    // Get max checkpoint_sequence_number from objects_snapshot table and assert it's expected
+    // Get max checkpoint_sequence_number from objects_snapshot table and assert
+    // it's expected
     let max_checkpoint_sequence_number = objects_snapshot::table
         .select(objects_snapshot::checkpoint_sequence_number)
         .order(objects_snapshot::checkpoint_sequence_number.desc())
@@ -247,7 +245,8 @@ pub async fn test_objects_snapshot() -> Result<(), IndexerError> {
         .first::<StoredObjectSnapshot>(&mut connection)
         .await
         .expect("Failed reading object from objects_snapshot");
-    // Assert that the object state is as expected at checkpoint max_expected_checkpoint_sequence_number
+    // Assert that the object state is as expected at checkpoint
+    // max_expected_checkpoint_sequence_number
     assert_eq!(snapshot_object.object_id, obj_id.to_vec());
     assert_eq!(
         snapshot_object.checkpoint_sequence_number,
@@ -413,8 +412,8 @@ pub async fn test_mvr_mode() -> Result<(), IndexerError> {
             .expect("Failed to count * transactions")
     );
 
-    // Check that objects_history is being correctly pruned. At epoch 3, we should only have data
-    // between 2 and 3 inclusive.
+    // Check that objects_history is being correctly pruned. At epoch 3, we should
+    // only have data between 2 and 3 inclusive.
     loop {
         let history_objects = objects_history::table
             .select(objects_history::checkpoint_sequence_number)

@@ -2,16 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::validator_commands::{
-    get_validator_summary, IotaValidatorCommand, IotaValidatorCommandResponse,
-};
 use anyhow::Ok;
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{IotaKeyPair, Signature},
+    transaction::{Transaction, TransactionData},
+};
 use shared_crypto::intent::{Intent, IntentMessage};
-use iota_types::crypto::IotaKeyPair;
-use iota_types::transaction::TransactionData;
-use iota_types::{base_types::IotaAddress, crypto::Signature, transaction::Transaction};
 use test_cluster::TestClusterBuilder;
+
+use crate::validator_commands::{
+    IotaValidatorCommand, IotaValidatorCommandResponse, get_validator_summary,
+};
 
 #[tokio::test]
 async fn test_print_raw_rgp_txn() -> Result<(), anyhow::Error> {

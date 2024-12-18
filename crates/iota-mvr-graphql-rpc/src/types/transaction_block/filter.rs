@@ -2,20 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::TransactionBlockKindInput;
-use crate::types::{digest::Digest, iota_address::IotaAddress, type_filter::FqNameFilter};
-use crate::types::{intersect, uint53::UInt53};
-use async_graphql::InputObject;
 use std::collections::BTreeSet;
+
+use async_graphql::InputObject;
 use iota_types::base_types::IotaAddress as NativeIotaAddress;
+
+use super::TransactionBlockKindInput;
+use crate::types::{
+    digest::Digest, intersect, iota_address::IotaAddress, type_filter::FqNameFilter, uint53::UInt53,
+};
 
 #[derive(InputObject, Debug, Default, Clone)]
 pub(crate) struct TransactionBlockFilter {
-    /// Filter transactions by move function called. Calls can be filtered by the `package`,
-    /// `package::module`, or the `package::module::name` of their function.
+    /// Filter transactions by move function called. Calls can be filtered by
+    /// the `package`, `package::module`, or the `package::module::name` of
+    /// their function.
     pub function: Option<FqNameFilter>,
 
-    /// An input filter selecting for either system or programmable transactions.
+    /// An input filter selecting for either system or programmable
+    /// transactions.
     pub kind: Option<TransactionBlockKindInput>,
 
     /// Limit to transactions that occurred strictly after the given checkpoint.
@@ -27,13 +32,14 @@ pub(crate) struct TransactionBlockFilter {
     /// Limit to transaction that occurred strictly before the given checkpoint.
     pub before_checkpoint: Option<UInt53>,
 
-    /// Limit to transactions that interacted with the given address. The address could be a
-    /// sender, sponsor, or recipient of the transaction.
+    /// Limit to transactions that interacted with the given address. The
+    /// address could be a sender, sponsor, or recipient of the transaction.
     pub affected_address: Option<IotaAddress>,
 
-    /// Limit to transactions that interacted with the given object. The object could have been
-    /// created, read, modified, deleted, wrapped, or unwrapped by the transaction. Objects that
-    /// were passed as a `Receiving` input are not considered to have been affected by a
+    /// Limit to transactions that interacted with the given object. The object
+    /// could have been created, read, modified, deleted, wrapped, or
+    /// unwrapped by the transaction. Objects that were passed as a
+    /// `Receiving` input are not considered to have been affected by a
     /// transaction unless they were actually received.
     #[cfg(feature = "staging")]
     pub affected_object: Option<IotaAddress>,
@@ -41,18 +47,20 @@ pub(crate) struct TransactionBlockFilter {
     /// Limit to transactions that were sent by the given address.
     pub sent_address: Option<IotaAddress>,
 
-    /// Limit to transactions that accepted the given object as an input. NOTE: this input filter
-    /// has been deprecated in favor of `affectedObject` which offers an easier to under behavior.
+    /// Limit to transactions that accepted the given object as an input. NOTE:
+    /// this input filter has been deprecated in favor of `affectedObject`
+    /// which offers an easier to under behavior.
     ///
-    /// This filter will be removed with 1.36.0 (2024-10-14), or at least one release after
-    /// `affectedObject` is introduced, whichever is later.
+    /// This filter will be removed with 1.36.0 (2024-10-14), or at least one
+    /// release after `affectedObject` is introduced, whichever is later.
     pub input_object: Option<IotaAddress>,
 
-    /// Limit to transactions that output a versioon of this object. NOTE: this input filter has
-    /// been deprecated in favor of `affectedObject` which offers an easier to understand behavior.
+    /// Limit to transactions that output a versioon of this object. NOTE: this
+    /// input filter has been deprecated in favor of `affectedObject` which
+    /// offers an easier to understand behavior.
     ///
-    /// This filter will be removed with 1.36.0 (2024-10-14), or at least one release after
-    /// `affectedObject` is introduced, whichever is later.
+    /// This filter will be removed with 1.36.0 (2024-10-14), or at least one
+    /// release after `affectedObject` is introduced, whichever is later.
     pub changed_object: Option<IotaAddress>,
 
     /// Select transactions by their digest.
@@ -60,9 +68,10 @@ pub(crate) struct TransactionBlockFilter {
 }
 
 impl TransactionBlockFilter {
-    /// Try to create a filter whose results are the intersection of transaction blocks in `self`'s
-    /// results and transaction blocks in `other`'s results. This may not be possible if the
-    /// resulting filter is inconsistent in some way (e.g. a filter that requires one field to be
+    /// Try to create a filter whose results are the intersection of transaction
+    /// blocks in `self`'s results and transaction blocks in `other`'s
+    /// results. This may not be possible if the resulting filter is
+    /// inconsistent in some way (e.g. a filter that requires one field to be
     /// two different values simultaneously).
     pub(crate) fn intersect(self, other: Self) -> Option<Self> {
         macro_rules! intersect {
@@ -94,9 +103,10 @@ impl TransactionBlockFilter {
         })
     }
 
-    /// Most filter conditions require a scan limit if used in tandem with other filters. The
-    /// exception to this is sender and checkpoint, since sender is denormalized on all tables, and
-    /// the corresponding tx range can be determined for a checkpoint.
+    /// Most filter conditions require a scan limit if used in tandem with other
+    /// filters. The exception to this is sender and checkpoint, since
+    /// sender is denormalized on all tables, and the corresponding tx range
+    /// can be determined for a checkpoint.
     pub(crate) fn requires_scan_limit(&self) -> bool {
         [
             self.function.is_some(),
@@ -114,9 +124,10 @@ impl TransactionBlockFilter {
             > 1
     }
 
-    /// If we don't query a lookup table that has a denormalized sender column, we need to
-    /// explicitly specify the sender with a query on `tx_sender`. This function returns the sender
-    /// we need to add an explicit query for if one is required, or `None` otherwise.
+    /// If we don't query a lookup table that has a denormalized sender column,
+    /// we need to explicitly specify the sender with a query on
+    /// `tx_sender`. This function returns the sender we need to add an
+    /// explicit query for if one is required, or `None` otherwise.
     pub(crate) fn explicit_sender(&self) -> Option<IotaAddress> {
         let missing_implicit_sender = self.function.is_none()
             && self.kind.is_none()
@@ -132,8 +143,8 @@ impl TransactionBlockFilter {
             .flatten()
     }
 
-    /// A TransactionBlockFilter is considered not to have any filters if no filters are specified,
-    /// or if the only filters are on `checkpoint`.
+    /// A TransactionBlockFilter is considered not to have any filters if no
+    /// filters are specified, or if the only filters are on `checkpoint`.
     pub(crate) fn has_filters(&self) -> bool {
         let has_filters = self.function.is_some()
             || self.kind.is_some()

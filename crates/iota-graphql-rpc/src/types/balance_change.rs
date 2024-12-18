@@ -6,7 +6,7 @@ use async_graphql::*;
 use iota_json_rpc_types::BalanceChange as StoredBalanceChange;
 use iota_types::object::Owner as NativeOwner;
 
-use super::{big_int::BigInt, move_type::MoveType, owner::Owner, iota_address::IotaAddress};
+use super::{big_int::BigInt, iota_address::IotaAddress, move_type::MoveType, owner::Owner};
 use crate::error::Error;
 
 pub(crate) struct BalanceChange {
@@ -15,7 +15,8 @@ pub(crate) struct BalanceChange {
     checkpoint_viewed_at: u64,
 }
 
-/// Effects to the balance (sum of coin values per coin type) owned by an address or object.
+/// Effects to the balance (sum of coin values per coin type) owned by an
+/// address or object.
 #[Object]
 impl BalanceChange {
     /// The address or object whose balance has changed.
@@ -35,7 +36,8 @@ impl BalanceChange {
         }
     }
 
-    /// The inner type of the coin whose balance has changed (e.g. `0x2::iota::IOTA`).
+    /// The inner type of the coin whose balance has changed (e.g.
+    /// `0x2::iota::IOTA`).
     async fn coin_type(&self) -> Option<MoveType> {
         Some(self.stored.coin_type.clone().into())
     }
@@ -47,9 +49,10 @@ impl BalanceChange {
 }
 
 impl BalanceChange {
-    /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this
-    /// `BalanceChange` was queried for. This is stored on `BalanceChange` so that when viewing that
-    /// entity's state, it will be as if it was read at the same checkpoint.
+    /// `checkpoint_viewed_at` represents the checkpoint sequence number at
+    /// which this `BalanceChange` was queried for. This is stored on
+    /// `BalanceChange` so that when viewing that entity's state, it will be
+    /// as if it was read at the same checkpoint.
     pub(crate) fn read(bytes: &[u8], checkpoint_viewed_at: u64) -> Result<Self, Error> {
         let stored = bcs::from_bytes(bytes)
             .map_err(|e| Error::Internal(format!("Error deserializing BalanceChange: {e}")))?;

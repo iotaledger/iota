@@ -2,21 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use proptest::arbitrary::*;
-use proptest::test_runner::TestCaseError;
-use iota_types::base_types::dbg_addr;
-use iota_types::crypto::KeypairTraits;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::transaction::TransactionData;
-use iota_types::transaction::TransactionKind;
-use iota_types::utils::to_sender_signed_transaction;
+use iota_types::{
+    base_types::dbg_addr,
+    crypto::KeypairTraits,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{TransactionData, TransactionKind},
+    utils::to_sender_signed_transaction,
+};
+use proptest::{arbitrary::*, test_runner::TestCaseError};
 use tracing::debug;
-use transaction_fuzzer::executor::Executor;
-use transaction_fuzzer::run_proptest;
-use transaction_fuzzer::GasDataGenConfig;
-use transaction_fuzzer::GasDataWithObjects;
+use transaction_fuzzer::{GasDataGenConfig, GasDataWithObjects, executor::Executor, run_proptest};
 
-/// Send transfer iota txn with provided random gas data and gas objects to an authority.
+/// Send transfer iota txn with provided random gas data and gas objects to an
+/// authority.
 fn test_with_random_gas_data(
     gas_data_test: GasDataWithObjects,
     executor: &mut Executor,

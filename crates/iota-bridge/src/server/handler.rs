@@ -4,26 +4,26 @@
 
 #![allow(clippy::type_complexity)]
 
-use crate::crypto::{BridgeAuthorityKeyPair, BridgeAuthoritySignInfo};
-use crate::error::{BridgeError, BridgeResult};
-use crate::eth_client::EthClient;
-use crate::metrics::BridgeMetrics;
-use crate::iota_client::{IotaClient, IotaClientInner};
-use crate::types::{BridgeAction, SignedBridgeAction};
+use std::{num::NonZeroUsize, str::FromStr, sync::Arc};
+
 use async_trait::async_trait;
 use axum::Json;
-use ethers::providers::JsonRpcClient;
-use ethers::types::TxHash;
-use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::str::FromStr;
-use std::sync::Arc;
+use ethers::{providers::JsonRpcClient, types::TxHash};
 use iota_types::digests::TransactionDigest;
+use lru::LruCache;
 use tap::TapFallible;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 use tracing::info;
 
 use super::governance_verifier::GovernanceVerifier;
+use crate::{
+    crypto::{BridgeAuthorityKeyPair, BridgeAuthoritySignInfo},
+    error::{BridgeError, BridgeResult},
+    eth_client::EthClient,
+    iota_client::{IotaClient, IotaClientInner},
+    metrics::BridgeMetrics,
+    types::{BridgeAction, SignedBridgeAction},
+};
 
 #[async_trait]
 pub trait BridgeRequestHandlerTrait {
@@ -142,8 +142,8 @@ where
                     .await
                     .unwrap_or_else(|| panic!("Server signer's channel is closed"));
                 let result = self.sign(key).await;
-                // The receiver may be dropped before the sender (client connection was dropped for example),
-                // we ignore the error in that case.
+                // The receiver may be dropped before the sender (client connection was dropped
+                // for example), we ignore the error in that case.
                 let _ = tx.send(result);
             }
         })
@@ -153,7 +153,8 @@ where
         &mut self,
         key: K,
     ) -> Arc<Mutex<Option<BridgeResult<SignedBridgeAction>>>> {
-        // This mutex exists to make sure everyone gets the same entry, namely no double insert
+        // This mutex exists to make sure everyone gets the same entry, namely no double
+        // insert
         let _ = self.mutex.lock().await;
         self.cache
             .get_or_insert(key, || Arc::new(Mutex::new(None)))
@@ -350,20 +351,24 @@ impl BridgeRequestHandlerTrait for BridgeRequestHandler {
 mod tests {
     use std::collections::HashSet;
 
+    use ethers::types::{Address as EthAddress, TransactionReceipt};
+    use iota_json_rpc_types::{BcsEvent, IotaEvent};
+    use iota_types::{
+        base_types::IotaAddress,
+        bridge::{BridgeChainId, TOKEN_ID_USDC},
+        crypto::get_key_pair,
+    };
+
     use super::*;
     use crate::{
         eth_mock_provider::EthMockProvider,
-        events::{init_all_struct_tags, MoveTokenDepositedEvent, IotaToEthTokenBridgeV1},
+        events::{IotaToEthTokenBridgeV1, MoveTokenDepositedEvent, init_all_struct_tags},
         iota_mock_client::IotaMockClient,
         test_utils::{
-            get_test_log_and_action, get_test_iota_to_eth_bridge_action, mock_last_finalized_block,
+            get_test_iota_to_eth_bridge_action, get_test_log_and_action, mock_last_finalized_block,
         },
         types::{EmergencyAction, EmergencyActionType, LimitUpdateAction},
     };
-    use ethers::types::{Address as EthAddress, TransactionReceipt};
-    use iota_json_rpc_types::{BcsEvent, IotaEvent};
-    use iota_types::bridge::{BridgeChainId, TOKEN_ID_USDC};
-    use iota_types::{base_types::IotaAddress, crypto::get_key_pair};
 
     #[tokio::test]
     async fn test_iota_signer_with_cache() {
@@ -374,15 +379,18 @@ mod tests {
             iota_client: Arc::new(IotaClient::new_for_testing(iota_client_mock.clone())),
         };
         let metrics = Arc::new(BridgeMetrics::new_for_testing());
-        let mut iota_signer_with_cache = SignerWithCache::new(signer.clone(), iota_verifier, metrics);
+        let mut iota_signer_with_cache =
+            SignerWithCache::new(signer.clone(), iota_verifier, metrics);
 
         // Test `get_cache_entry` creates a new entry if not exist
         let iota_tx_digest = TransactionDigest::random();
         let iota_event_idx = 42;
-        assert!(iota_signer_with_cache
-            .get_testing_only((iota_tx_digest, iota_event_idx))
-            .await
-            .is_none());
+        assert!(
+            iota_signer_with_cache
+                .get_testing_only((iota_tx_digest, iota_event_idx))
+                .await
+                .is_none()
+        );
         let entry = iota_signer_with_cache
             .get_cache_entry((iota_tx_digest, iota_event_idx))
             .await;
@@ -423,7 +431,8 @@ mod tests {
             .await;
         assert!(entry_.unwrap().lock().await.is_none());
 
-        // Mock a cacheable error such as no bridge events in tx position (empty event list)
+        // Mock a cacheable error such as no bridge events in tx position (empty event
+        // list)
         iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![]);
         assert!(matches!(
             iota_signer_with_cache
@@ -439,8 +448,9 @@ mod tests {
             BridgeError::NoBridgeEventsInTxPosition,
         );
 
-        // TODO: test BridgeEventInUnrecognizedIotaPackage, IotaBridgeEvent::try_from_iota_event
-        // and BridgeEventNotActionable to be cached
+        // TODO: test BridgeEventInUnrecognizedIotaPackage,
+        // IotaBridgeEvent::try_from_iota_event and BridgeEventNotActionable to
+        // be cached
 
         // Test `sign` caches Ok result
         let emitted_event_1 = MoveTokenDepositedEvent {
@@ -466,10 +476,10 @@ mod tests {
         let iota_event_idx_2 = 1;
         iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![iota_event_2.clone()]);
 
-        iota_client_mock.add_events_by_tx_digest(
-            iota_tx_digest,
-            vec![iota_event_1.clone(), iota_event_2.clone()],
-        );
+        iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![
+            iota_event_1.clone(),
+            iota_event_2.clone(),
+        ]);
         let signed_1 = iota_signer_with_cache
             .sign((iota_tx_digest, iota_event_idx))
             .await
@@ -480,7 +490,8 @@ mod tests {
             .unwrap();
 
         // Because the result is cached now, the verifier should not be called again.
-        // Even though we remove the `add_events_by_tx_digest` mock, we will still get the same result.
+        // Even though we remove the `add_events_by_tx_digest` mock, we will still get
+        // the same result.
         iota_client_mock.add_events_by_tx_digest(iota_tx_digest, vec![]);
         assert_eq!(
             iota_signer_with_cache
@@ -518,17 +529,20 @@ mod tests {
         // Test `get_cache_entry` creates a new entry if not exist
         let eth_tx_hash = TxHash::random();
         let eth_event_idx = 42;
-        assert!(eth_signer_with_cache
-            .get_testing_only((eth_tx_hash, eth_event_idx))
-            .await
-            .is_none());
+        assert!(
+            eth_signer_with_cache
+                .get_testing_only((eth_tx_hash, eth_event_idx))
+                .await
+                .is_none()
+        );
         let entry = eth_signer_with_cache
             .get_cache_entry((eth_tx_hash, eth_event_idx))
             .await;
         let entry_ = eth_signer_with_cache
             .get_testing_only((eth_tx_hash, eth_event_idx))
             .await;
-        // first unwrap should not pacic because the entry should have been inserted by `get_cache_entry`
+        // first unwrap should not pacic because the entry should have been inserted by
+        // `get_cache_entry`
         assert!(entry_.unwrap().lock().await.is_none());
 
         let (_, action) = get_test_log_and_action(contract_address, eth_tx_hash, eth_event_idx);

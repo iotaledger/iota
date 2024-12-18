@@ -2,18 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::PeerConfig;
-use crate::metrics::AppMetrics;
+use std::time::Instant;
+
 use axum::{
     body::Body,
     extract::{Request, State},
-    http::request::Parts,
-    http::StatusCode,
+    http::{StatusCode, request::Parts},
     response::Response,
 };
 use bytes::Bytes;
-use std::time::Instant;
 use tracing::{debug, info, warn};
+
+use crate::{config::PeerConfig, metrics::AppMetrics};
 
 #[derive(Debug)]
 enum PeerRole {

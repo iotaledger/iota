@@ -2,21 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{SequenceNumber, IotaAddress};
-use crate::collection_types::{Bag, Table, VecSet};
-use crate::dynamic_field::get_dynamic_field_from_store;
-use crate::error::{UserInputError, UserInputResult};
-use crate::id::{ID, UID};
-use crate::object::{Object, Owner};
-use crate::storage::ObjectStore;
-use crate::transaction::{CheckedInputObjects, ReceivingObjects};
-use crate::IOTA_DENY_LIST_OBJECT_ID;
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use tracing::debug;
-use tracing::error;
+
+use move_core_types::{ident_str, identifier::IdentStr};
+use serde::{Deserialize, Serialize};
+use tracing::{debug, error};
+
+use crate::{
+    IOTA_DENY_LIST_OBJECT_ID,
+    base_types::{IotaAddress, SequenceNumber},
+    collection_types::{Bag, Table, VecSet},
+    dynamic_field::get_dynamic_field_from_store,
+    error::{UserInputError, UserInputResult},
+    id::{ID, UID},
+    object::{Object, Owner},
+    storage::ObjectStore,
+    transaction::{CheckedInputObjects, ReceivingObjects},
+};
 
 pub const DENY_LIST_MODULE: &IdentStr = ident_str!("deny_list");
 pub const DENY_LIST_CREATE_FUNC: &IdentStr = ident_str!("create");
@@ -26,8 +28,8 @@ pub const DENY_LIST_COIN_TYPE_INDEX: u64 = 0;
 /// Rust representation of the Move type 0x2::deny_list::DenyList.
 /// It has a bag that contains the deny lists for different system types.
 /// At creation, there is only one type (at key 0), which is the Coin type.
-/// We also take advantage of the dynamic nature of Bag to add more types in the future,
-/// as well as making changes to the deny lists for existing types.
+/// We also take advantage of the dynamic nature of Bag to add more types in the
+/// future, as well as making changes to the deny lists for existing types.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DenyList {
     pub id: UID,
@@ -35,10 +37,12 @@ pub struct DenyList {
 }
 
 /// Rust representation of the Move type 0x2::deny_list::PerTypeDenyList.
-/// denied_count is a table that stores the number of denied addresses for each coin template type.
-/// It can be used as a quick check to see if an address is denied for any coin template type.
-/// denied_addresses is a table that stores all the addresses that are denied for each coin template type.
-/// The key to the table is the coin template type in string form: package_id::module_name::struct_name.
+/// denied_count is a table that stores the number of denied addresses for each
+/// coin template type. It can be used as a quick check to see if an address is
+/// denied for any coin template type. denied_addresses is a table that stores
+/// all the addresses that are denied for each coin template type. The key to
+/// the table is the coin template type in string form:
+/// package_id::module_name::struct_name.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PerTypeDenyList {
     pub id: UID,
@@ -49,7 +53,8 @@ pub struct PerTypeDenyList {
 }
 
 /// Checks coin denylist v1 at signing time.
-/// It checks that none of the coin types in the transaction are denied for the sender.
+/// It checks that none of the coin types in the transaction are denied for the
+/// sender.
 pub fn check_coin_deny_list_v1(
     sender: IotaAddress,
     input_objects: &CheckedInputObjects,
@@ -69,8 +74,9 @@ pub fn check_coin_deny_list_v1(
     check_deny_list_v1_impl(deny_list, sender, coin_types, object_store)
 }
 
-/// Returns all unique coin types in canonical string form from the input objects and receiving objects.
-/// It filters out IOTA coins since it's known that it's not a regulated coin.
+/// Returns all unique coin types in canonical string form from the input
+/// objects and receiving objects. It filters out IOTA coins since it's known
+/// that it's not a regulated coin.
 pub(crate) fn input_object_coin_types_for_denylist_check(
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,

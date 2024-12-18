@@ -5,12 +5,12 @@ pub struct Http {
     /// **NOTE:** All service configuration rules follow "last one wins" order.
     #[prost(message, repeated, tag = "1")]
     pub rules: ::prost::alloc::vec::Vec<HttpRule>,
-    /// When set to true, URL path parameters will be fully URI-decoded except in
-    /// cases of single segment matches in reserved expansion, where "%2F" will be
-    /// left encoded.
+    /// When set to true, URL path parameters will be fully URI-decoded except
+    /// in cases of single segment matches in reserved expansion, where
+    /// "%2F" will be left encoded.
     ///
-    /// The default behavior is to not decode RFC 6570 reserved characters in multi
-    /// segment matches.
+    /// The default behavior is to not decode RFC 6570 reserved characters in
+    /// multi segment matches.
     #[prost(bool, tag = "2")]
     pub fully_decode_reserved_expansion: bool,
 }
@@ -298,18 +298,19 @@ pub struct HttpRule {
     pub selector: ::prost::alloc::string::String,
     /// The name of the request field whose value is mapped to the HTTP request
     /// body, or `*` for mapping all request fields not captured by the path
-    /// pattern to the HTTP body, or omitted for not having any HTTP request body.
+    /// pattern to the HTTP body, or omitted for not having any HTTP request
+    /// body.
     ///
     /// NOTE: the referred field must be present at the top-level of the request
     /// message type.
     #[prost(string, tag = "7")]
     pub body: ::prost::alloc::string::String,
-    /// Optional. The name of the response field whose value is mapped to the HTTP
-    /// response body. When omitted, the entire response message will be used
-    /// as the HTTP response body.
+    /// Optional. The name of the response field whose value is mapped to the
+    /// HTTP response body. When omitted, the entire response message will
+    /// be used as the HTTP response body.
     ///
-    /// NOTE: The referred field must be present at the top-level of the response
-    /// message type.
+    /// NOTE: The referred field must be present at the top-level of the
+    /// response message type.
     #[prost(string, tag = "12")]
     pub response_body: ::prost::alloc::string::String,
     /// Additional HTTP bindings for the selector. Nested bindings must
@@ -318,16 +319,16 @@ pub struct HttpRule {
     #[prost(message, repeated, tag = "11")]
     pub additional_bindings: ::prost::alloc::vec::Vec<HttpRule>,
     /// Determines the URL pattern is matched by this rules. This pattern can be
-    /// used with any of the {get|put|post|delete|patch} methods. A custom method
-    /// can be defined using the 'custom' field.
+    /// used with any of the {get|put|post|delete|patch} methods. A custom
+    /// method can be defined using the 'custom' field.
     #[prost(oneof = "http_rule::Pattern", tags = "2, 3, 4, 5, 6, 8")]
     pub pattern: ::core::option::Option<http_rule::Pattern>,
 }
 /// Nested message and enum types in `HttpRule`.
 pub mod http_rule {
     /// Determines the URL pattern is matched by this rules. This pattern can be
-    /// used with any of the {get|put|post|delete|patch} methods. A custom method
-    /// can be defined using the 'custom' field.
+    /// used with any of the {get|put|post|delete|patch} methods. A custom
+    /// method can be defined using the 'custom' field.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Pattern {
         /// Maps to HTTP GET. Used for listing and getting information about
@@ -337,7 +338,8 @@ pub mod http_rule {
         /// Maps to HTTP PUT. Used for replacing a resource.
         #[prost(string, tag = "3")]
         Put(::prost::alloc::string::String),
-        /// Maps to HTTP POST. Used for creating a resource or performing an action.
+        /// Maps to HTTP POST. Used for creating a resource or performing an
+        /// action.
         #[prost(string, tag = "4")]
         Post(::prost::alloc::string::String),
         /// Maps to HTTP DELETE. Used for deleting a resource.
@@ -373,23 +375,25 @@ pub enum LaunchStage {
     Unspecified = 0,
     /// The feature is not yet implemented. Users can not use it.
     Unimplemented = 6,
-    /// Prelaunch features are hidden from users and are only visible internally.
+    /// Prelaunch features are hidden from users and are only visible
+    /// internally.
     Prelaunch = 7,
     /// Early Access features are limited to a closed group of testers. To use
     /// these features, you must sign up in advance and sign a Trusted Tester
-    /// agreement (which includes confidentiality provisions). These features may
-    /// be unstable, changed in backward-incompatible ways, and are not
+    /// agreement (which includes confidentiality provisions). These features
+    /// may be unstable, changed in backward-incompatible ways, and are not
     /// guaranteed to be released.
     EarlyAccess = 1,
-    /// Alpha is a limited availability test for releases before they are cleared
-    /// for widespread use. By Alpha, all significant design issues are resolved
-    /// and we are in the process of verifying functionality. Alpha customers
-    /// need to apply for access, agree to applicable terms, and have their
-    /// projects allowlisted. Alpha releases don't have to be feature complete,
-    /// no SLAs are provided, and there are no technical support obligations, but
-    /// they will be far enough along that customers can actually use them in
-    /// test environments or for limited-use tests -- just like they would in
-    /// normal production cases.
+    /// Alpha is a limited availability test for releases before they are
+    /// cleared for widespread use. By Alpha, all significant design issues
+    /// are resolved and we are in the process of verifying functionality.
+    /// Alpha customers need to apply for access, agree to applicable terms,
+    /// and have their projects allowlisted. Alpha releases don't have to be
+    /// feature complete, no SLAs are provided, and there are no technical
+    /// support obligations, but they will be far enough along that
+    /// customers can actually use them in test environments or for
+    /// limited-use tests -- just like they would in normal production
+    /// cases.
     Alpha = 2,
     /// Beta is the point at which we are ready to open a release for any
     /// customer to use. There are no SLA or technical support obligations in a
@@ -411,7 +415,8 @@ impl LaunchStage {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    /// (if the ProtoBuf definition does not change) and safe for programmatic
+    /// use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
             LaunchStage::Unspecified => "LAUNCH_STAGE_UNSPECIFIED",
@@ -447,7 +452,8 @@ pub struct CommonLanguageSettings {
     #[deprecated]
     #[prost(string, tag = "1")]
     pub reference_docs_uri: ::prost::alloc::string::String,
-    /// The destination where API teams want this client library to be published.
+    /// The destination where API teams want this client library to be
+    /// published.
     #[prost(enumeration = "ClientLibraryDestination", repeated, tag = "2")]
     pub destinations: ::prost::alloc::vec::Vec<i32>,
 }
@@ -456,7 +462,8 @@ pub struct CommonLanguageSettings {
 pub struct ClientLibrarySettings {
     /// Version of the API to apply these settings to. This is the full protobuf
     /// package for the API, ending in the version element.
-    /// Examples: "google.cloud.speech.v1" and "google.spanner.admin.database.v1".
+    /// Examples: "google.cloud.speech.v1" and
+    /// "google.spanner.admin.database.v1".
     #[prost(string, tag = "1")]
     pub version: ::prost::alloc::string::String,
     /// Launch stage of this version of the API.
@@ -496,8 +503,8 @@ pub struct ClientLibrarySettings {
 /// generated from the service config.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Publishing {
-    /// A list of API method settings, e.g. the behavior for methods that use the
-    /// long-running operation pattern.
+    /// A list of API method settings, e.g. the behavior for methods that use
+    /// the long-running operation pattern.
     #[prost(message, repeated, tag = "2")]
     pub method_settings: ::prost::alloc::vec::Vec<MethodSettings>,
     /// Link to a *public* URI where users can report issues.  Example:
@@ -658,8 +665,8 @@ pub struct GoSettings {
 /// Describes the generator configuration for a method.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MethodSettings {
-    /// The fully qualified name of the method, for which the options below apply.
-    /// This is used to find the method to apply the options.
+    /// The fully qualified name of the method, for which the options below
+    /// apply. This is used to find the method to apply the options.
     #[prost(string, tag = "1")]
     pub selector: ::prost::alloc::string::String,
     /// Describes settings to use for long-running operations when generating
@@ -671,14 +678,9 @@ pub struct MethodSettings {
     ///   publishing:
     ///     method_settings:
     ///       - selector: google.cloud.speech.v2.Speech.BatchRecognize
-    ///         long_running:
-    ///           initial_poll_delay:
-    ///             seconds: 60 # 1 minute
-    ///           poll_delay_multiplier: 1.5
-    ///           max_poll_delay:
-    ///             seconds: 360 # 6 minutes
-    ///           total_poll_timeout:
-    ///              seconds: 54000 # 90 minutes
+    ///         long_running: initial_poll_delay: seconds: 60 # 1 minute
+    ///         poll_delay_multiplier: 1.5 max_poll_delay: seconds: 360 # 6
+    ///         minutes total_poll_timeout: seconds: 54000 # 90 minutes
     #[prost(message, optional, tag = "2")]
     pub long_running: ::core::option::Option<method_settings::LongRunning>,
     /// List of top-level fields of the request message, that should be
@@ -708,8 +710,8 @@ pub mod method_settings {
         /// Default value: 5 seconds.
         #[prost(message, optional, tag = "1")]
         pub initial_poll_delay: ::core::option::Option<::prost_types::Duration>,
-        /// Multiplier to gradually increase delay between subsequent polls until it
-        /// reaches max_poll_delay.
+        /// Multiplier to gradually increase delay between subsequent polls
+        /// until it reaches max_poll_delay.
         /// Default value: 1.5.
         #[prost(float, tag = "2")]
         pub poll_delay_multiplier: f32,
@@ -749,7 +751,8 @@ impl ClientLibraryOrganization {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    /// (if the ProtoBuf definition does not change) and safe for programmatic
+    /// use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
             ClientLibraryOrganization::Unspecified => "CLIENT_LIBRARY_ORGANIZATION_UNSPECIFIED",
@@ -794,7 +797,8 @@ impl ClientLibraryDestination {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    /// (if the ProtoBuf definition does not change) and safe for programmatic
+    /// use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
             ClientLibraryDestination::Unspecified => "CLIENT_LIBRARY_DESTINATION_UNSPECIFIED",
@@ -828,12 +832,13 @@ pub enum FieldBehavior {
     /// for emphasis if appropriate.
     Optional = 1,
     /// Denotes a field as required.
-    /// This indicates that the field **must** be provided as part of the request,
-    /// and failure to do so will cause an error (usually `INVALID_ARGUMENT`).
+    /// This indicates that the field **must** be provided as part of the
+    /// request, and failure to do so will cause an error (usually
+    /// `INVALID_ARGUMENT`).
     Required = 2,
     /// Denotes a field as output only.
-    /// This indicates that the field is provided in responses, but including the
-    /// field in a request does nothing (the server *must* ignore it and
+    /// This indicates that the field is provided in responses, but including
+    /// the field in a request does nothing (the server *must* ignore it and
     /// *must not* throw an error as a result of the field's presence).
     OutputOnly = 3,
     /// Denotes a field as input only.
@@ -855,24 +860,26 @@ pub enum FieldBehavior {
     /// non-empty value to expect.
     NonEmptyDefault = 7,
     /// Denotes that the field in a resource (a message annotated with
-    /// google.api.resource) is used in the resource name to uniquely identify the
-    /// resource. For AIP-compliant APIs, this should only be applied to the
-    /// `name` field on the resource.
+    /// google.api.resource) is used in the resource name to uniquely identify
+    /// the resource. For AIP-compliant APIs, this should only be applied to
+    /// the `name` field on the resource.
     ///
-    /// This behavior should not be applied to references to other resources within
-    /// the message.
+    /// This behavior should not be applied to references to other resources
+    /// within the message.
     ///
     /// The identifier field of resources often have different field behavior
     /// depending on the request it is embedded in (e.g. for Create methods name
-    /// is optional and unused, while for Update methods it is required). Instead
-    /// of method-specific annotations, only `IDENTIFIER` is required.
+    /// is optional and unused, while for Update methods it is required).
+    /// Instead of method-specific annotations, only `IDENTIFIER` is
+    /// required.
     Identifier = 8,
 }
 impl FieldBehavior {
     /// String value of the enum field names used in the ProtoBuf definition.
     ///
     /// The values are not transformed in any way and thus are considered stable
-    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    /// (if the ProtoBuf definition does not change) and safe for programmatic
+    /// use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
             FieldBehavior::Unspecified => "FIELD_BEHAVIOR_UNSPECIFIED",
@@ -960,8 +967,8 @@ pub struct ResourceDescriptor {
     /// Example: `storage.googleapis.com/Bucket`
     ///
     /// The value of the resource_type_kind must follow the regular expression
-    /// /\[A-Za-z][a-zA-Z0-9\]+/. It should start with an upper case character and
-    /// should use PascalCase (UpperCamelCase). The maximum number of
+    /// /\[A-Za-z][a-zA-Z0-9\]+/. It should start with an upper case character
+    /// and should use PascalCase (UpperCamelCase). The maximum number of
     /// characters allowed for the `resource_type_kind` is 100.
     #[prost(string, tag = "1")]
     pub r#type: ::prost::alloc::string::String,
@@ -1012,9 +1019,9 @@ pub struct ResourceDescriptor {
     #[prost(enumeration = "resource_descriptor::History", tag = "4")]
     pub history: i32,
     /// The plural name used in the resource name and permission names, such as
-    /// 'projects' for the resource name of 'projects/{project}' and the permission
-    /// name of 'cloudresourcemanager.googleapis.com/projects.get'. It is the same
-    /// concept of the `plural` field in k8s CRD spec
+    /// 'projects' for the resource name of 'projects/{project}' and the
+    /// permission name of 'cloudresourcemanager.googleapis.com/projects.
+    /// get'. It is the same concept of the `plural` field in k8s CRD spec
     /// <https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definitions/>
     ///
     /// Note: The plural form is required even for singleton resources. See
@@ -1045,15 +1052,18 @@ pub mod resource_descriptor {
         /// additional patterns were added later.
         OriginallySinglePattern = 1,
         /// The resource has one pattern, but the API owner expects to add more
-        /// later. (This is the inverse of ORIGINALLY_SINGLE_PATTERN, and prevents
-        /// that from being necessary once there are multiple patterns.)
+        /// later. (This is the inverse of ORIGINALLY_SINGLE_PATTERN, and
+        /// prevents that from being necessary once there are multiple
+        /// patterns.)
         FutureMultiPattern = 2,
     }
     impl History {
-        /// String value of the enum field names used in the ProtoBuf definition.
+        /// String value of the enum field names used in the ProtoBuf
+        /// definition.
         ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        /// The values are not transformed in any way and thus are considered
+        /// stable (if the ProtoBuf definition does not change) and safe
+        /// for programmatic use.
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 History::Unspecified => "HISTORY_UNSPECIFIED",
@@ -1071,7 +1081,8 @@ pub mod resource_descriptor {
             }
         }
     }
-    /// A flag representing a specific style that a resource claims to conform to.
+    /// A flag representing a specific style that a resource claims to conform
+    /// to.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum Style {
@@ -1088,10 +1099,12 @@ pub mod resource_descriptor {
         DeclarativeFriendly = 1,
     }
     impl Style {
-        /// String value of the enum field names used in the ProtoBuf definition.
+        /// String value of the enum field names used in the ProtoBuf
+        /// definition.
         ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        /// The values are not transformed in any way and thus are considered
+        /// stable (if the ProtoBuf definition does not change) and safe
+        /// for programmatic use.
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 Style::Unspecified => "STYLE_UNSPECIFIED",

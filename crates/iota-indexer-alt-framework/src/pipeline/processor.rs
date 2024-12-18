@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
+use std::sync::{Arc, atomic::AtomicU64};
 
 use iota_types::full_checkpoint_content::CheckpointData;
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -11,13 +10,12 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
+use super::Indexed;
 use crate::{metrics::IndexerMetrics, pipeline::Break, task::TrySpawnStreamExt};
 
-use super::Indexed;
-
-/// Implementors of this trait are responsible for transforming checkpoint into rows for their
-/// table. The `FANOUT` associated value controls how many concurrent workers will be used to
-/// process checkpoint information.
+/// Implementors of this trait are responsible for transforming checkpoint into
+/// rows for their table. The `FANOUT` associated value controls how many
+/// concurrent workers will be used to process checkpoint information.
 pub trait Processor {
     /// Used to identify the pipeline in logs and metrics.
     const NAME: &'static str;
@@ -32,15 +30,16 @@ pub trait Processor {
     fn process(&self, checkpoint: &Arc<CheckpointData>) -> anyhow::Result<Vec<Self::Value>>;
 }
 
-/// The processor task is responsible for taking checkpoint data and breaking it down into rows
-/// ready to commit. It spins up a supervisor that waits on the `rx` channel for checkpoints, and
-/// distributes them among `H::FANOUT` workers.
+/// The processor task is responsible for taking checkpoint data and breaking it
+/// down into rows ready to commit. It spins up a supervisor that waits on the
+/// `rx` channel for checkpoints, and distributes them among `H::FANOUT`
+/// workers.
 ///
-/// Each worker processes a checkpoint into rows and sends them on to the committer using the `tx`
-/// channel.
+/// Each worker processes a checkpoint into rows and sends them on to the
+/// committer using the `tx` channel.
 ///
-/// The task will shutdown if the `cancel` token is cancelled, or if any of the workers encounters
-/// an error -- there is no retry logic at this level.
+/// The task will shutdown if the `cancel` token is cancelled, or if any of the
+/// workers encounters an error -- there is no retry logic at this level.
 pub(super) fn processor<P: Processor + Send + Sync + 'static>(
     processor: P,
     rx: mpsc::Receiver<Arc<CheckpointData>>,

@@ -2,34 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    fs,
+    io::Read,
+    os::unix::fs::FileExt,
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
+
 use expect_test::expect;
-use reqwest::Client;
-use std::fs;
-use std::io::Read;
-use std::os::unix::fs::FileExt;
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
-use iota::client_commands::{OptsWithGas, IotaClientCommandResult, IotaClientCommands};
+use iota::client_commands::{IotaClientCommandResult, IotaClientCommands, OptsWithGas};
 use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::rpc_types::{
-    OwnedObjectRef, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsV1,
+use iota_sdk::{
+    rpc_types::{
+        IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsV1,
+        OwnedObjectRef,
+    },
+    types::{base_types::ObjectID, object::Owner, transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    wallet_context::WalletContext,
 };
-use iota_sdk::types::base_types::ObjectID;
-use iota_sdk::types::object::Owner;
-use iota_sdk::types::transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH;
-use iota_sdk::wallet_context::WalletContext;
-use tokio::sync::oneshot;
-
+use iota_source_validation_service::{
+    AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse,
+    IOTA_SOURCE_VALIDATION_VERSION_HEADER, METRICS_HOST_PORT, Network, NetworkLookup, Package,
+    PackageSource, RepositorySource, SourceInfo, SourceLookup, SourceResponse,
+    SourceServiceMetrics, host_port, initialize, serve, start_prometheus_server, verify_packages,
+    watch_for_upgrades,
+};
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
-use iota_source_validation_service::{
-    host_port, initialize, serve, start_prometheus_server, verify_packages, watch_for_upgrades,
-    AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse, Network,
-    NetworkLookup, Package, PackageSource, RepositorySource, SourceInfo, SourceLookup,
-    SourceResponse, SourceServiceMetrics, METRICS_HOST_PORT, IOTA_SOURCE_VALIDATION_VERSION_HEADER,
-};
+use reqwest::Client;
 use test_cluster::TestClusterBuilder;
+use tokio::sync::oneshot;
 
 const LOCALNET_PORT: u16 = 9000;
 const TEST_FIXTURES_DIR: &str = "tests/fixture";
@@ -281,13 +285,10 @@ async fn test_api_route() -> anyhow::Result<()> {
         .join("iota/move-stdlib/sources/address.move");
 
     let mut source_lookup = SourceLookup::new();
-    source_lookup.insert(
-        Symbol::from(module),
-        SourceInfo {
-            path: source_path,
-            source: Some("module address {...}".to_owned()),
-        },
-    );
+    source_lookup.insert(Symbol::from(module), SourceInfo {
+        path: source_path,
+        source: Some("module address {...}".to_owned()),
+    });
     let mut address_lookup = AddressLookup::new();
     let account_address = AccountAddress::from_hex_literal(address).unwrap();
     address_lookup.insert(account_address, source_lookup);

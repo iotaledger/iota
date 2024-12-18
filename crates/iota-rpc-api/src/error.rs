@@ -8,10 +8,11 @@ pub type Result<T, E = RpcServiceError> = std::result::Result<T, E>;
 
 /// An internal RPC service error
 ///
-/// General error type used by top-level RPC service methods. The main purpose of this error type
-/// is to provide a convenient type for converting between internal errors and a response that
-/// needs to be sent to a calling client. This is done by converting this type into either an
-/// `axum::Response` or a `tonic::Status`.
+/// General error type used by top-level RPC service methods. The main purpose
+/// of this error type is to provide a convenient type for converting between
+/// internal errors and a response that needs to be sent to a calling client.
+/// This is done by converting this type into either an `axum::Response` or a
+/// `tonic::Status`.
 #[derive(Debug)]
 pub struct RpcServiceError {
     status: StatusCode,
@@ -88,9 +89,8 @@ impl From<bcs::Error> for RpcServiceError {
 
 impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcServiceError {
     fn from(error: iota_types::quorum_driver_types::QuorumDriverError) -> Self {
+        use iota_types::{error::IotaError, quorum_driver_types::QuorumDriverError::*};
         use itertools::Itertools;
-        use iota_types::error::IotaError;
-        use iota_types::quorum_driver_types::QuorumDriverError::*;
 
         match error {
             InvalidUserSignature(err) => {
@@ -122,11 +122,11 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcServiceErro
                     .collect::<std::collections::BTreeMap<_, Vec<_>>>();
 
                 let message = format!(
-                        "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {:?}, success: {:?}. Conflicting Transactions:\n{:#?}",
-                        retried_tx_status.map(|(tx, _)| tx),
-                        retried_tx_status.map(|(_, success)| success),
-                        new_map,
-                    );
+                    "Failed to sign transaction by a quorum of validators because of locked objects. Retried a conflicting transaction {:?}, success: {:?}. Conflicting Transactions:\n{:#?}",
+                    retried_tx_status.map(|(tx, _)| tx),
+                    retried_tx_status.map(|(_, success)| success),
+                    new_map,
+                );
 
                 RpcServiceError::new(StatusCode::CONFLICT, message)
             }
@@ -172,7 +172,10 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcServiceErro
                 );
 
                 let error_list = new_errors.join(", ");
-                let error_msg = format!("Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {}.", error_list);
+                let error_msg = format!(
+                    "Transaction execution failed due to issues with transaction inputs, please review the errors and try again: {}.",
+                    error_list
+                );
 
                 RpcServiceError::new(StatusCode::BAD_REQUEST, error_msg)
             }

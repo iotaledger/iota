@@ -3,39 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
-pub use bridge::BridgeReadApiClient;
-pub use bridge::BridgeReadApiOpenRpc;
-pub use bridge::BridgeReadApiServer;
-pub use coin::CoinReadApiClient;
-pub use coin::CoinReadApiOpenRpc;
-pub use coin::CoinReadApiServer;
-pub use extended::ExtendedApiClient;
-pub use extended::ExtendedApiOpenRpc;
-pub use extended::ExtendedApiServer;
-pub use governance::GovernanceReadApiClient;
-pub use governance::GovernanceReadApiOpenRpc;
-pub use governance::GovernanceReadApiServer;
-pub use indexer::IndexerApiClient;
-pub use indexer::IndexerApiOpenRpc;
-pub use indexer::IndexerApiServer;
-pub use move_utils::MoveUtilsClient;
-pub use move_utils::MoveUtilsOpenRpc;
-pub use move_utils::MoveUtilsServer;
+pub use bridge::{BridgeReadApiClient, BridgeReadApiOpenRpc, BridgeReadApiServer};
+pub use coin::{CoinReadApiClient, CoinReadApiOpenRpc, CoinReadApiServer};
+pub use extended::{ExtendedApiClient, ExtendedApiOpenRpc, ExtendedApiServer};
+pub use governance::{GovernanceReadApiClient, GovernanceReadApiOpenRpc, GovernanceReadApiServer};
+pub use indexer::{IndexerApiClient, IndexerApiOpenRpc, IndexerApiServer};
+pub use move_utils::{MoveUtilsClient, MoveUtilsOpenRpc, MoveUtilsServer};
 use once_cell::sync::Lazy;
-use prometheus::register_histogram_with_registry;
-use prometheus::Histogram;
-use prometheus::{register_int_counter_with_registry, IntCounter};
-pub use read::ReadApiClient;
-pub use read::ReadApiOpenRpc;
-pub use read::ReadApiServer;
+use prometheus::{
+    Histogram, IntCounter, register_histogram_with_registry, register_int_counter_with_registry,
+};
+pub use read::{ReadApiClient, ReadApiOpenRpc, ReadApiServer};
 use tap::TapFallible;
 use tracing::warn;
-pub use transaction_builder::TransactionBuilderClient;
-pub use transaction_builder::TransactionBuilderOpenRpc;
-pub use transaction_builder::TransactionBuilderServer;
-pub use write::WriteApiClient;
-pub use write::WriteApiOpenRpc;
-pub use write::WriteApiServer;
+pub use transaction_builder::{
+    TransactionBuilderClient, TransactionBuilderOpenRpc, TransactionBuilderServer,
+};
+pub use write::{WriteApiClient, WriteApiOpenRpc, WriteApiServer};
 
 mod bridge;
 mod coin;
@@ -340,10 +324,11 @@ pub fn read_size_from_env(var_name: &str) -> Option<usize> {
 
 pub const CLIENT_REQUEST_METHOD_HEADER: &str = "client-request-method";
 pub const CLIENT_SDK_TYPE_HEADER: &str = "client-sdk-type";
-/// The version number of the SDK itself. This can be different from the API version.
+/// The version number of the SDK itself. This can be different from the API
+/// version.
 pub const CLIENT_SDK_VERSION_HEADER: &str = "client-sdk-version";
-/// The RPC API version that the client is targeting. Different SDK versions may target the same
-/// API version.
+/// The RPC API version that the client is targeting. Different SDK versions may
+/// target the same API version.
 pub const CLIENT_TARGET_API_VERSION_HEADER: &str = "client-target-api-version";
 
 pub const TRANSIENT_ERROR_CODE: i32 = -32050;

@@ -2,22 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::Page;
 use fastcrypto::encoding::Base64;
+use iota_types::{
+    base_types::TransactionDigest,
+    committee::EpochId,
+    crypto::AggregateAuthoritySignature,
+    digests::CheckpointDigest,
+    gas::GasCostSummary,
+    iota_serde::BigInt,
+    message_envelope::Message,
+    messages_checkpoint::{
+        CheckpointCommitment, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
+        CheckpointTimestamp, EndOfEpochData,
+    },
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use iota_types::base_types::TransactionDigest;
-use iota_types::committee::EpochId;
-use iota_types::crypto::AggregateAuthoritySignature;
-use iota_types::digests::CheckpointDigest;
-use iota_types::gas::GasCostSummary;
-use iota_types::message_envelope::Message;
-use iota_types::messages_checkpoint::{
-    CheckpointCommitment, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
-    CheckpointTimestamp, EndOfEpochData,
-};
-use iota_types::iota_serde::BigInt;
+
+use crate::Page;
 pub type CheckpointPage = Page<Checkpoint, BigInt<u64>>;
 
 #[serde_as]
@@ -34,20 +37,21 @@ pub struct Checkpoint {
     pub sequence_number: CheckpointSequenceNumber,
     /// Checkpoint digest
     pub digest: CheckpointDigest,
-    /// Total number of transactions committed since genesis, including those in this
-    /// checkpoint.
+    /// Total number of transactions committed since genesis, including those in
+    /// this checkpoint.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub network_total_transactions: u64,
     /// Digest of the previous checkpoint
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_digest: Option<CheckpointDigest>,
-    /// The running total gas costs of all transactions included in the current epoch so far
-    /// until this checkpoint.
+    /// The running total gas costs of all transactions included in the current
+    /// epoch so far until this checkpoint.
     pub epoch_rolling_gas_cost_summary: GasCostSummary,
     /// Timestamp of the checkpoint - number of milliseconds from the Unix epoch
-    /// Checkpoint timestamps are monotonic, but not strongly monotonic - subsequent
-    /// checkpoints can have same timestamp if they originate from the same underlining consensus commit
+    /// Checkpoint timestamps are monotonic, but not strongly monotonic -
+    /// subsequent checkpoints can have same timestamp if they originate
+    /// from the same underlining consensus commit
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub timestamp_ms: CheckpointTimestamp,

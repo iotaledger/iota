@@ -2,25 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::balance::Balance;
-use crate::base_types::{ObjectID, IotaAddress};
-use crate::collection_types::{Bag, Table, TableVec, VecMap, VecSet};
-use crate::committee::{CommitteeWithNetworkMetadata, NetworkMetadata};
-use crate::crypto::{verify_proof_of_possession, AuthorityPublicKey, AuthoritySignature};
-use crate::crypto::{AuthorityPublicKeyBytes, NetworkPublicKey};
-use crate::error::IotaError;
-use crate::id::ID;
-use crate::multiaddr::Multiaddr;
-use crate::storage::ObjectStore;
-use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
-use super::epoch_start_iota_system_state::EpochStartValidatorInfoV1;
-use super::iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary};
-use super::{get_validators_from_table_vec, AdvanceEpochParams, IotaSystemStateTrait};
+use super::{
+    AdvanceEpochParams, IotaSystemStateTrait,
+    epoch_start_iota_system_state::EpochStartValidatorInfoV1,
+    get_validators_from_table_vec,
+    iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+};
+use crate::{
+    balance::Balance,
+    base_types::{IotaAddress, ObjectID},
+    collection_types::{Bag, Table, TableVec, VecMap, VecSet},
+    committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
+    crypto::{
+        AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
+        verify_proof_of_possession,
+    },
+    error::IotaError,
+    id::ID,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    multiaddr::Multiaddr,
+    storage::ObjectStore,
+};
 
 const E_METADATA_INVALID_POP: u64 = 0;
 const E_METADATA_INVALID_PUBKEY: u64 = 1;
@@ -47,13 +54,14 @@ pub struct SystemParametersV1 {
     /// Lower-bound on the amount of stake required to become a validator.
     pub min_validator_joining_stake: u64,
 
-    /// Validators with stake amount below `validator_low_stake_threshold` are considered to
-    /// have low stake and will be escorted out of the validator set after being below this
-    /// threshold for more than `validator_low_stake_grace_period` number of epochs.
+    /// Validators with stake amount below `validator_low_stake_threshold` are
+    /// considered to have low stake and will be escorted out of the
+    /// validator set after being below this threshold for more than
+    /// `validator_low_stake_grace_period` number of epochs.
     pub validator_low_stake_threshold: u64,
 
-    /// Validators with stake below `validator_very_low_stake_threshold` will be removed
-    /// immediately at epoch change, no grace period.
+    /// Validators with stake below `validator_very_low_stake_threshold` will be
+    /// removed immediately at epoch change, no grace period.
     pub validator_very_low_stake_threshold: u64,
 
     /// A validator can have stake below `validator_low_stake_threshold`
@@ -122,7 +130,8 @@ impl VerifiedValidatorMetadataV1 {
 }
 
 impl ValidatorMetadataV1 {
-    /// Verify validator metadata and return a verified version (on success) or error code (on failure)
+    /// Verify validator metadata and return a verified version (on success) or
+    /// error code (on failure)
     pub fn verify(&self) -> Result<VerifiedValidatorMetadataV1, u64> {
         let protocol_pubkey = AuthorityPublicKey::from_bytes(self.protocol_pubkey_bytes.as_ref())
             .map_err(|_| E_METADATA_INVALID_PUBKEY)?;
@@ -144,7 +153,8 @@ impl ValidatorMetadataV1 {
         let net_address = Multiaddr::try_from(self.net_address.clone())
             .map_err(|_| E_METADATA_INVALID_NET_ADDR)?;
 
-        // Ensure p2p, primary, and worker addresses are both Multiaddr's and valid anemo addresses
+        // Ensure p2p, primary, and worker addresses are both Multiaddr's and valid
+        // anemo addresses
         let p2p_address = Multiaddr::try_from(self.p2p_address.clone())
             .map_err(|_| E_METADATA_INVALID_P2P_ADDR)?;
         p2p_address
@@ -476,7 +486,8 @@ pub struct IotaSystemStateInnerV1 {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct StakeSubsidyV1 {
-    /// Balance of IOTA set aside for stake subsidies that will be drawn down over time.
+    /// Balance of IOTA set aside for stake subsidies that will be drawn down
+    /// over time.
     pub balance: Balance,
 
     /// Count of the number of times stake subsidies have been distributed.
@@ -548,14 +559,11 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
                 let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: verified_metadata.net_address.clone(),
-                            narwhal_primary_address: verified_metadata.primary_address.clone(),
-                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: verified_metadata.net_address.clone(),
+                        narwhal_primary_address: verified_metadata.primary_address.clone(),
+                        network_public_key: Some(verified_metadata.network_pubkey.clone()),
+                    }),
                 )
             })
             .collect();
@@ -607,9 +615,10 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
     }
 
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
-        // If you are making any changes to IotaSystemStateV1 or any of its dependent types before
-        // mainnet, please also update IotaSystemStateSummary and its corresponding TS type.
-        // Post-mainnet, we will need to introduce a new version.
+        // If you are making any changes to IotaSystemStateV1 or any of its dependent
+        // types before mainnet, please also update IotaSystemStateSummary and
+        // its corresponding TS type. Post-mainnet, we will need to introduce a
+        // new version.
         let Self {
             epoch,
             protocol_version,
@@ -735,7 +744,8 @@ impl IotaSystemStateTrait for IotaSystemStateInnerV1 {
     }
 }
 
-/// Rust version of the Move iota_system::validator_cap::UnverifiedValidatorOperationCap type
+/// Rust version of the Move
+/// iota_system::validator_cap::UnverifiedValidatorOperationCap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct UnverifiedValidatorOperationCapV1 {
     pub id: ObjectID,

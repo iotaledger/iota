@@ -2,41 +2,44 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::{
+    base_types::{MoveObjectType, ObjectDigest, SequenceNumber, TransactionDigest},
+    coin::Coin,
+    crypto::{Signable, default_hash},
+    error::IotaError,
+    move_package::MovePackage,
+    object::{Data, MoveObject, Object, ObjectInner, Owner},
+    storage::ObjectKey,
+};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use serde_with::Bytes;
-use iota_types::base_types::MoveObjectType;
-use iota_types::base_types::{ObjectDigest, SequenceNumber, TransactionDigest};
-use iota_types::coin::Coin;
-use iota_types::crypto::{default_hash, Signable};
-use iota_types::error::IotaError;
-use iota_types::move_package::MovePackage;
-use iota_types::object::{Data, MoveObject, Object, ObjectInner, Owner};
-use iota_types::storage::ObjectKey;
+use serde_with::{Bytes, serde_as};
 
 pub type ObjectContentDigest = ObjectDigest;
 
 // Versioning process:
 //
-// Object storage versioning is done lazily (at read time) - therefore we must always preserve the
-// code for reading the very first storage version. For all versions, a migration function
+// Object storage versioning is done lazily (at read time) - therefore we must
+// always preserve the code for reading the very first storage version. For all
+// versions, a migration function
 //
 //   f(V_n) -> V_(n+1)
 //
-// must be defined. This way we can iteratively migrate the very oldest version to the very newest
-// version at any point in the future.
+// must be defined. This way we can iteratively migrate the very oldest version
+// to the very newest version at any point in the future.
 //
-// To change the format of the object table value types (StoreObject and StoreMoveObject), use the
-// following process:
+// To change the format of the object table value types (StoreObject and
+// StoreMoveObject), use the following process:
 // - Add a new variant to the enum to store the new version type.
-// - Extend the `migrate` functions to migrate from the previous version to the new version.
-// - Change `From<Object> for StoreObjectPair` to create the newest version only.
+// - Extend the `migrate` functions to migrate from the previous version to the
+//   new version.
+// - Change `From<Object> for StoreObjectPair` to create the newest version
+//   only.
 //
 // Additionally, the first time we version these formats, we will need to:
-// - Add a check in the `TryFrom<StoreObjectPair> for Object` to see if the object that was just
-//   read is the latest version.
-// - If it is not, use the migration function (as explained above) to migrate it to the next
-//   version.
+// - Add a check in the `TryFrom<StoreObjectPair> for Object` to see if the
+//   object that was just read is the latest version.
+// - If it is not, use the migration function (as explained above) to migrate it
+//   to the next version.
 // - Repeat until we have arrive at the current version.
 
 /// Enum wrapper for versioning
@@ -50,13 +53,14 @@ pub type StoreObject = StoreObjectV1;
 
 impl StoreObjectWrapper {
     pub fn migrate(self) -> Self {
-        // TODO: when there are multiple versions, we must iteratively migrate from version N to
-        // N+1 until we arrive at the latest version
+        // TODO: when there are multiple versions, we must iteratively migrate from
+        // version N to N+1 until we arrive at the latest version
         self
     }
 
-    // Always returns the most recent version. Older versions are migrated to the latest version at
-    // read time, so there is never a need to access older versions.
+    // Always returns the most recent version. Older versions are migrated to the
+    // latest version at read time, so there is never a need to access older
+    // versions.
     pub fn inner(&self) -> &StoreObject {
         match self {
             Self::V1(v1) => v1,
@@ -101,7 +105,8 @@ pub struct StoreObjectValue {
 }
 
 /// Forked version of [`iota_types::object::Data`]
-/// Adds extra enum value `IndirectObject`, which represents a reference to an object stored separately
+/// Adds extra enum value `IndirectObject`, which represents a reference to an
+/// object stored separately
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum StoreData {
     Move(MoveObject),
@@ -128,13 +133,14 @@ pub type StoreMoveObject = StoreMoveObjectV1;
 
 impl StoreMoveObjectWrapper {
     pub fn migrate(self) -> Self {
-        // TODO: when there are multiple versions, we must iteratively migrate from version N to
-        // N+1 until we arrive at the latest version
+        // TODO: when there are multiple versions, we must iteratively migrate from
+        // version N to N+1 until we arrive at the latest version
         self
     }
 
-    // Always returns the most recent version. Older versions are migrated to the latest version at
-    // read time, so there is never a need to access older versions.
+    // Always returns the most recent version. Older versions are migrated to the
+    // latest version at read time, so there is never a need to access older
+    // versions.
     pub fn inner(&self) -> &StoreMoveObject {
         match self {
             Self::V1(v1) => v1,
@@ -271,7 +277,7 @@ pub(crate) fn try_construct_object(
         _ => {
             return Err(IotaError::Storage(
                 "corrupted field: inconsistent object representation".to_string(),
-            ))
+            ));
         }
     };
 

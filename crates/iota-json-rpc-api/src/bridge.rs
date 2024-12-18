@@ -2,11 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
 use iota_open_rpc_macros::open_rpc;
 use iota_types::bridge::BridgeSummary;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 #[open_rpc(namespace = "iotax", tag = "Bridge Read API")]
 #[rpc(server, client, namespace = "iotax")]

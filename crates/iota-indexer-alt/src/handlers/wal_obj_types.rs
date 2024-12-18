@@ -9,16 +9,15 @@ use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
 use iota_indexer_alt_framework::{
     db,
-    pipeline::{concurrent::Handler, Processor},
+    pipeline::{Processor, concurrent::Handler},
 };
 use iota_types::full_checkpoint_content::CheckpointData;
 
+use super::sum_obj_types::SumObjTypes;
 use crate::{
     models::objects::{StoredObjectUpdate, StoredSumObjType, StoredWalObjType},
     schema::wal_obj_types,
 };
-
-use super::sum_obj_types::SumObjTypes;
 
 pub(crate) struct WalObjTypes;
 

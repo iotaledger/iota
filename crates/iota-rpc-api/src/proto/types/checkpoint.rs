@@ -1,7 +1,7 @@
-use super::TryFromProtoError;
 use tap::Pipe;
 
-//
+use super::TryFromProtoError;
+
 // CheckpointSummary
 //
 
@@ -103,7 +103,6 @@ impl TryFrom<&super::CheckpointSummary> for iota_sdk_types::types::CheckpointSum
     }
 }
 
-//
 // GasCostSummary
 //
 
@@ -153,7 +152,6 @@ impl TryFrom<&super::GasCostSummary> for iota_sdk_types::types::GasCostSummary {
     }
 }
 
-//
 // CheckpointCommitment
 //
 
@@ -190,7 +188,6 @@ impl TryFrom<&super::CheckpointCommitment> for iota_sdk_types::types::Checkpoint
     }
 }
 
-//
 // EndOfEpochData
 //
 
@@ -237,7 +234,6 @@ impl TryFrom<&super::EndOfEpochData> for iota_sdk_types::types::EndOfEpochData {
     }
 }
 
-//
 // CheckpointedTransactionInfo
 //
 
@@ -283,7 +279,6 @@ impl TryFrom<&super::CheckpointedTransactionInfo>
     }
 }
 
-//
 // CheckpointContents
 //
 

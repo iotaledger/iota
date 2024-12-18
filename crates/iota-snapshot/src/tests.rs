@@ -2,24 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::reader::StateSnapshotReaderV1;
-use crate::writer::StateSnapshotWriterV1;
-use crate::FileCompression;
+use std::{collections::HashSet, num::NonZeroUsize, sync::Arc};
+
 use fastcrypto::hash::MultisetHash;
 use futures::future::AbortHandle;
 use indicatif::MultiProgress;
-use std::collections::HashSet;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use iota_core::state_accumulator::StateAccumulator;
+use iota_core::{
+    authority::authority_store_tables::AuthorityPerpetualTables,
+    state_accumulator::StateAccumulator,
+};
 use iota_protocol_config::ProtocolConfig;
-use iota_types::accumulator::Accumulator;
-use iota_types::base_types::ObjectID;
-use iota_types::messages_checkpoint::ECMHLiveObjectSetDigest;
-use iota_types::object::Object;
+use iota_types::{
+    accumulator::Accumulator, base_types::ObjectID, messages_checkpoint::ECMHLiveObjectSetDigest,
+    object::Object,
+};
 use tempfile::tempdir;
+
+use crate::{FileCompression, reader::StateSnapshotReaderV1, writer::StateSnapshotWriterV1};
 
 fn temp_dir() -> std::path::PathBuf {
     tempdir()

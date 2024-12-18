@@ -3,16 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    RPCTransactionRequestParams, IotaTransactionBlockBuilderMode, IotaTypeTag, TransactionBlockBytes,
+    IotaTransactionBlockBuilderMode, IotaTypeTag, RPCTransactionRequestParams,
+    TransactionBlockBytes,
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::iota_serde::BigInt;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    iota_serde::BigInt,
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 #[open_rpc(namespace = "unsafe", tag = "Transaction Builder API")]
 #[rpc(server, client, namespace = "unsafe")]

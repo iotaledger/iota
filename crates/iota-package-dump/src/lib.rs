@@ -8,24 +8,25 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{Context, Result, bail, ensure};
 use client::Client;
 use fastcrypto::encoding::{Base64, Encoding};
-use query::{limits, packages, IotaAddress, UInt53};
 use iota_types::object::Object;
+use query::{IotaAddress, UInt53, limits, packages};
 use tracing::info;
 
 mod client;
 mod query;
 
-/// Ensure all packages created before `before_checkpoint` are written to the `output_dir`ectory,
-/// from the GraphQL service at `rpc_url`.
+/// Ensure all packages created before `before_checkpoint` are written to the
+/// `output_dir`ectory, from the GraphQL service at `rpc_url`.
 ///
-/// `output_dir` can be a path to a non-existent directory, an existing empty directory, or an
-/// existing directory written to in the past. If the path is non-existent, the invocation creates
-/// it. If the path exists but is empty, the invocation writes to the directory. If the directory
-/// has been written to in the past, the invocation picks back up where the previous invocation
-/// left off.
+/// `output_dir` can be a path to a non-existent directory, an existing empty
+/// directory, or an existing directory written to in the past. If the path is
+/// non-existent, the invocation creates it. If the path exists but is empty,
+/// the invocation writes to the directory. If the directory has been written to
+/// in the past, the invocation picks back up where the previous invocation left
+/// off.
 pub async fn dump(
     rpc_url: String,
     output_dir: PathBuf,
@@ -52,8 +53,8 @@ pub async fn dump(
     Ok(())
 }
 
-/// Ensure the output directory exists, either because it already exists as a writable directory, or
-/// by creating a new directory.
+/// Ensure the output directory exists, either because it already exists as a
+/// writable directory, or by creating a new directory.
 fn ensure_output_directory(path: impl Into<PathBuf>) -> Result<()> {
     let path: PathBuf = path.into();
     if !path.exists() {
@@ -78,8 +79,8 @@ fn ensure_output_directory(path: impl Into<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-/// Load the last checkpoint that was loaded by a previous run of the tool, if there is a previous
-/// run.
+/// Load the last checkpoint that was loaded by a previous run of the tool, if
+/// there is a previous run.
 fn read_last_checkpoint(output: &Path) -> Result<Option<u64>> {
     let path = output.join("last-checkpoint");
     if !path.exists() {
@@ -95,7 +96,8 @@ fn read_last_checkpoint(output: &Path) -> Result<Option<u64>> {
     Ok(Some(checkpoint))
 }
 
-/// Write the max checkpoint that we have seen a package from back to the output directory.
+/// Write the max checkpoint that we have seen a package from back to the output
+/// directory.
 fn write_last_checkpoint(output: &Path, checkpoint: u64) -> Result<()> {
     let path = output.join("last-checkpoint");
     let content =
@@ -115,14 +117,15 @@ async fn max_page_size(client: &Client) -> Result<i32> {
         .max_page_size)
 }
 
-/// Read all the packages between `after_checkpoint` and `before_checkpoint`, in batches of
-/// `page_size` from the `client` connected to a GraphQL service.
+/// Read all the packages between `after_checkpoint` and `before_checkpoint`, in
+/// batches of `page_size` from the `client` connected to a GraphQL service.
 ///
-/// If `after_checkpoint` is not provided, packages are read from genesis. If `before_checkpoint`
-/// is not provided, packages are read until the latest checkpoint.
+/// If `after_checkpoint` is not provided, packages are read from genesis. If
+/// `before_checkpoint` is not provided, packages are read until the latest
+/// checkpoint.
 ///
-/// Returns the latest checkpoint that was read from in this fetch, and a list of all the packages
-/// that were read.
+/// Returns the latest checkpoint that was read from in this fetch, and a list
+/// of all the packages that were read.
 async fn fetch_packages(
     client: &Client,
     page_size: i32,
@@ -193,17 +196,20 @@ async fn fetch_packages(
     Ok((last_checkpoint, nodes))
 }
 
-/// Write out `pkg` to the `output_dir`ectory, using the package's address and name as the directory
-/// name. The following files are written for each directory:
+/// Write out `pkg` to the `output_dir`ectory, using the package's address and
+/// name as the directory name. The following files are written for each
+/// directory:
 ///
-/// - `object.bcs` -- the BCS serialized form of the `Object` type containing the package.
+/// - `object.bcs` -- the BCS serialized form of the `Object` type containing
+///   the package.
 ///
-/// - `linkage.json` -- a JSON serialization of the package's linkage table, mapping dependency
-///   original IDs to the version of the dependency being depended on and the ID of the object
-///   on chain that contains that version.
+/// - `linkage.json` -- a JSON serialization of the package's linkage table,
+///   mapping dependency original IDs to the version of the dependency being
+///   depended on and the ID of the object on chain that contains that version.
 ///
-/// - `origins.json` -- a JSON serialization of the type origin table, mapping type names contained
-///   in this package to the version of the package that first introduced that type.
+/// - `origins.json` -- a JSON serialization of the type origin table, mapping
+///   type names contained in this package to the version of the package that
+///   first introduced that type.
 ///
 /// - `*.mv` -- a BCS serialization of each compiled module in the package.
 fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {

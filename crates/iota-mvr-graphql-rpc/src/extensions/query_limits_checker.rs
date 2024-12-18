@@ -2,40 +2,48 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::{Limits, ServiceConfig};
-use crate::error::{code, graphql_error, graphql_error_at_pos};
-use crate::metrics::Metrics;
-use async_graphql::extensions::NextParseQuery;
-use async_graphql::extensions::NextRequest;
-use async_graphql::extensions::{Extension, ExtensionContext, ExtensionFactory};
-use async_graphql::parser::types::{
-    DocumentOperations, ExecutableDocument, Field, FragmentDefinition, OperationDefinition,
-    Selection,
+use std::{
+    collections::{HashMap, HashSet},
+    mem,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Instant,
 };
-use async_graphql::{value, Name, Pos, Positioned, Response, ServerError, ServerResult, Variables};
-use async_graphql_value::Value as GqlValue;
-use async_graphql_value::{ConstValue, Value};
+
+use async_graphql::{
+    Name, Pos, Positioned, Response, ServerError, ServerResult, Variables,
+    extensions::{Extension, ExtensionContext, ExtensionFactory, NextParseQuery, NextRequest},
+    parser::types::{
+        DocumentOperations, ExecutableDocument, Field, FragmentDefinition, OperationDefinition,
+        Selection,
+    },
+    value,
+};
+use async_graphql_value::{ConstValue, Value as GqlValue, Value};
 use async_trait::async_trait;
 use axum::http::HeaderName;
-use serde::Serialize;
-use std::collections::{HashMap, HashSet};
-use std::mem;
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
 use iota_graphql_rpc_headers::LIMITS_HEADER;
+use serde::Serialize;
 use tracing::{error, info};
 use uuid::Uuid;
+
+use crate::{
+    config::{Limits, ServiceConfig},
+    error::{code, graphql_error, graphql_error_at_pos},
+    metrics::Metrics,
+};
 
 pub(crate) const CONNECTION_FIELDS: [&str; 2] = ["edges", "nodes"];
 const DRY_RUN_TX_BLOCK: &str = "dryRunTransactionBlock";
 const EXECUTE_TX_BLOCK: &str = "executeTransactionBlock";
 
-/// The size of the query payload in bytes, as it comes from the request header: `Content-Length`.
+/// The size of the query payload in bytes, as it comes from the request header:
+/// `Content-Length`.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PayloadSize(pub u64);
 
-/// Extension factory for adding checks that the query is within configurable limits.
+/// Extension factory for adding checks that the query is within configurable
+/// limits.
 pub(crate) struct QueryLimitsChecker;
 
 #[derive(Debug, Default)]
@@ -46,8 +54,9 @@ struct QueryLimitsCheckerExt {
 /// Only display usage information if this header was in the request.
 pub(crate) struct ShowUsage;
 
-/// State for traversing a document to check for limits. Holds on to environments for looking up
-/// variables and fragments, limits, and the remainder of the limit that can be used.
+/// State for traversing a document to check for limits. Holds on to
+/// environments for looking up variables and fragments, limits, and the
+/// remainder of the limit that can be used.
 struct LimitsTraversal<'a> {
     // Environments for resolving lookups in the document
     fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
@@ -59,8 +68,9 @@ struct LimitsTraversal<'a> {
     /// Raw size of the request
     payload_size: u64,
 
-    /// Variables that are used in transaction executions and dry-runs. If these variables are used
-    /// multiple times, the size of their contents should not be double counted.
+    /// Variables that are used in transaction executions and dry-runs. If these
+    /// variables are used multiple times, the size of their contents should
+    /// not be double counted.
     tx_variables_used: HashSet<&'a Name>,
 
     // Remaining budget for the traversal
@@ -116,21 +126,21 @@ impl<'a> LimitsTraversal<'a> {
 
     /// Main entrypoint for checking all limits.
     fn check_document(&mut self, doc: &'a ExecutableDocument) -> ServerResult<()> {
-        // First, check the size of the query inputs. This is done using a non-recursive algorithm in
-        // case the input has too many nodes or is too deep. This allows subsequent checks to be
-        // implemented recursively.
+        // First, check the size of the query inputs. This is done using a non-recursive
+        // algorithm in case the input has too many nodes or is too deep. This
+        // allows subsequent checks to be implemented recursively.
         for (_name, op) in doc.operations.iter() {
             self.check_input_limits(op)?;
         }
 
-        // Then gather inputs to transaction execution and dry-run nodes, and make sure these are
-        // within budget, cumulatively.
+        // Then gather inputs to transaction execution and dry-run nodes, and make sure
+        // these are within budget, cumulatively.
         for (_name, op) in doc.operations.iter() {
             self.check_tx_payload(op)?;
         }
 
-        // Next, with the transaction payloads accounted for, ensure the remaining query is within
-        // the size limit.
+        // Next, with the transaction payloads accounted for, ensure the remaining query
+        // is within the size limit.
         let limits = self.reporter.limits;
         let tx_payload_size = (limits.max_tx_payload_size - self.tx_payload_budget) as u64;
         let query_payload_size = self.payload_size - tx_payload_size;
@@ -139,8 +149,8 @@ impl<'a> LimitsTraversal<'a> {
             return Err(self.reporter.payload_size_error(&message));
         }
 
-        // Finally, run output node estimation, to check that the output won't contain too many
-        // nodes, in the worst case.
+        // Finally, run output node estimation, to check that the output won't contain
+        // too many nodes, in the worst case.
         for (_name, op) in doc.operations.iter() {
             self.check_output_limits(op)?;
         }
@@ -207,11 +217,13 @@ impl<'a> LimitsTraversal<'a> {
         Ok(())
     }
 
-    /// Test that inputs to `executeTransactionBlock` and `dryRunTransactionBlock` take up less
-    /// space than the service's transaction payload limit, cumulatively.
+    /// Test that inputs to `executeTransactionBlock` and
+    /// `dryRunTransactionBlock` take up less space than the service's
+    /// transaction payload limit, cumulatively.
     ///
-    /// This check must be done after the input limit check, because it relies on the query depth
-    /// being bounded to protect it from recursing too deeply.
+    /// This check must be done after the input limit check, because it relies
+    /// on the query depth being bounded to protect it from recursing too
+    /// deeply.
     fn check_tx_payload(&mut self, op: &'a Positioned<OperationDefinition>) -> ServerResult<()> {
         for item in &op.node.selection_set.node.items {
             self.traverse_selection_for_tx_payload(item)?;
@@ -219,8 +231,9 @@ impl<'a> LimitsTraversal<'a> {
         Ok(())
     }
 
-    /// Look for `executeTransactionBlock` and `dryRunTransactionBlock` nodes among the
-    /// query selections, and check their argument sizes are under the service limits.
+    /// Look for `executeTransactionBlock` and `dryRunTransactionBlock` nodes
+    /// among the query selections, and check their argument sizes are under
+    /// the service limits.
     fn traverse_selection_for_tx_payload(
         &mut self,
         item: &'a Positioned<Selection>,
@@ -256,9 +269,10 @@ impl<'a> LimitsTraversal<'a> {
         Ok(())
     }
 
-    /// Deduct the size of the transaction argument's `value` from the transaction payload budget.
-    /// This operation resolves variables and deducts their size from the budget as well, as long
-    /// as they have not already been encountered in some previous transaction payload.
+    /// Deduct the size of the transaction argument's `value` from the
+    /// transaction payload budget. This operation resolves variables and
+    /// deducts their size from the budget as well, as long as they have not
+    /// already been encountered in some previous transaction payload.
     ///
     /// Fails if there is insufficient remaining budget.
     fn check_tx_arg(&mut self, value: &'a Positioned<Value>) -> ServerResult<()> {
@@ -301,12 +315,14 @@ impl<'a> LimitsTraversal<'a> {
                 | V::Binary(_)
                 | V::Enum(_)
                 | V::Object(_) => {
-                    // Transaction payloads cannot be any of these types, so this request is
-                    // destined to fail. Ignore these values for now, so that it can fail later on
+                    // Transaction payloads cannot be any of these types, so
+                    // this request is destined to fail.
+                    // Ignore these values for now, so that it can fail later on
                     // with a more legible error message.
                     //
-                    // From a limits perspective, it is safe to ignore these values here, because
-                    // they will still be counted as part of the query payload (and so are still
+                    // From a limits perspective, it is safe to ignore these
+                    // values here, because they will still
+                    // be counted as part of the query payload (and so are still
                     // subject to a limit).
                 }
             }
@@ -315,8 +331,9 @@ impl<'a> LimitsTraversal<'a> {
         Ok(())
     }
 
-    /// Deduct the size of the value that variable `name` resolve to from the transaction payload
-    /// budget, if it has not already been encountered in a previous transaction payload.
+    /// Deduct the size of the value that variable `name` resolve to from the
+    /// transaction payload budget, if it has not already been encountered
+    /// in a previous transaction payload.
     ///
     /// Fails if there is insufficient remaining budget.
     fn check_tx_var(&mut self, name: &'a Name) -> ServerResult<()> {
@@ -375,10 +392,12 @@ impl<'a> LimitsTraversal<'a> {
         Ok(())
     }
 
-    /// Check that the operation's output node estimate will not exceed the service's limit.
+    /// Check that the operation's output node estimate will not exceed the
+    /// service's limit.
     ///
-    /// This check must be done after the input limit check, because it relies on the query depth
-    /// being bounded to protect it from recursing too deeply.
+    /// This check must be done after the input limit check, because it relies
+    /// on the query depth being bounded to protect it from recursing too
+    /// deeply.
     fn check_output_limits(&mut self, op: &Positioned<OperationDefinition>) -> ServerResult<()> {
         for selection in &op.node.selection_set.node.items {
             self.traverse_selection_for_output(selection, 1, None)?;
@@ -386,13 +405,14 @@ impl<'a> LimitsTraversal<'a> {
         Ok(())
     }
 
-    /// Account for the estimated output size of this selection and its children.
+    /// Account for the estimated output size of this selection and its
+    /// children.
     ///
-    /// `multiplicity` is the number of times this selection will be output, on account of being
-    /// nested within paginated ancestors.
+    /// `multiplicity` is the number of times this selection will be output, on
+    /// account of being nested within paginated ancestors.
     ///
-    /// If this field is inside a connection, but not inside one of its fields, `page_size` is the
-    /// size of the connection's page.
+    /// If this field is inside a connection, but not inside one of its fields,
+    /// `page_size` is the size of the connection's page.
     fn traverse_selection_for_output(
         &mut self,
         selection: &Positioned<Selection>,
@@ -407,10 +427,10 @@ impl<'a> LimitsTraversal<'a> {
                     self.output_budget -= multiplicity;
                 }
 
-                // If the field being traversed is a connection field, increase multiplicity by a
-                // factor of page size. This operation can fail due to overflow, which will be
-                // treated as a limits check failure, even if the resulting value does not get used
-                // for anything.
+                // If the field being traversed is a connection field, increase multiplicity by
+                // a factor of page size. This operation can fail due to
+                // overflow, which will be treated as a limits check failure,
+                // even if the resulting value does not get used for anything.
                 let name = &f.node.name.node;
                 let multiplicity = 'm: {
                     if !CONNECTION_FIELDS.contains(&name.as_str()) {
@@ -455,8 +475,9 @@ impl<'a> LimitsTraversal<'a> {
         Ok(())
     }
 
-    /// If the field `f` is a connection, extract its page size, otherwise return `None`.
-    /// Returns an error if the page size cannot be represented as a `u32`.
+    /// If the field `f` is a connection, extract its page size, otherwise
+    /// return `None`. Returns an error if the page size cannot be
+    /// represented as a `u32`.
     fn connection_page_size(&mut self, f: &Positioned<Field>) -> ServerResult<Option<u32>> {
         if !self.is_connection(f) {
             return Ok(None);
@@ -476,9 +497,10 @@ impl<'a> LimitsTraversal<'a> {
         ))
     }
 
-    /// Checks if the given field corresponds to a connection based on whether it contains a
-    /// selection for `edges` or `nodes`. That selection could be immediately in that field's
-    /// selection set, or nested within a fragment or inline fragment spread.
+    /// Checks if the given field corresponds to a connection based on whether
+    /// it contains a selection for `edges` or `nodes`. That selection could
+    /// be immediately in that field's selection set, or nested within a
+    /// fragment or inline fragment spread.
     fn is_connection(&self, f: &Positioned<Field>) -> bool {
         f.node
             .selection_set
@@ -488,9 +510,10 @@ impl<'a> LimitsTraversal<'a> {
             .any(|s| self.has_connection_fields(s))
     }
 
-    /// Look for fields that suggest the container for this selection is a connection. Recurses
-    /// through fragment and inline fragment applications, but does not look recursively through
-    /// fields, as only the fields requested from the immediate parent are relevant.
+    /// Look for fields that suggest the container for this selection is a
+    /// connection. Recurses through fragment and inline fragment
+    /// applications, but does not look recursively through fields, as only
+    /// the fields requested from the immediate parent are relevant.
     fn has_connection_fields(&self, s: &Positioned<Selection>) -> bool {
         match &s.node {
             Selection::Field(f) => {
@@ -522,7 +545,8 @@ impl<'a> LimitsTraversal<'a> {
         }
     }
 
-    /// Translate a GraphQL value into a u64, if possible, resolving variables if necessary.
+    /// Translate a GraphQL value into a u64, if possible, resolving variables
+    /// if necessary.
     fn resolve_u64(&self, value: Option<&Positioned<Value>>) -> Option<u64> {
         match &value?.node {
             Value::Number(num) => num,
@@ -540,9 +564,10 @@ impl<'a> LimitsTraversal<'a> {
         .as_u64()
     }
 
-    /// Error returned if transaction payloads exceed limit. Also sets the transaction payload
-    /// budget to zero to indicate it has been spent (This is done to prevent future checks for
-    /// smaller arguments from succeeding even though a previous larger argument has already
+    /// Error returned if transaction payloads exceed limit. Also sets the
+    /// transaction payload budget to zero to indicate it has been spent
+    /// (This is done to prevent future checks for smaller arguments from
+    /// succeeding even though a previous larger argument has already
     /// failed).
     fn tx_payload_size_error(&mut self) -> ServerError {
         self.tx_payload_budget = 0;
@@ -550,10 +575,11 @@ impl<'a> LimitsTraversal<'a> {
             .payload_size_error("Transaction payload too large")
     }
 
-    /// Error returned if output node estimate exceeds limit. Also sets the output budget to zero,
-    /// to indicate that it has been spent (This is done because unlike other budgets, the output
-    /// budget is not decremented one unit at a time, so we can have hit the limit previously but
-    /// still have budget left over).
+    /// Error returned if output node estimate exceeds limit. Also sets the
+    /// output budget to zero, to indicate that it has been spent (This is
+    /// done because unlike other budgets, the output budget is not
+    /// decremented one unit at a time, so we can have hit the limit previously
+    /// but still have budget left over).
     fn output_node_error(&mut self) -> ServerError {
         self.output_budget = 0;
         self.reporter.output_node_error()
@@ -583,7 +609,8 @@ impl<'a> Reporter<'a> {
         }
     }
 
-    /// Error returned if a fragment is referred to but not found in the document.
+    /// Error returned if a fragment is referred to but not found in the
+    /// document.
     fn fragment_not_found_error(&self, name: &Name, pos: Pos) -> ServerError {
         self.graphql_error_at_pos(
             code::BAD_USER_INPUT,
@@ -624,7 +651,8 @@ impl<'a> Reporter<'a> {
         graphql_error(code, message)
     }
 
-    /// Like `graphql_error` but for an error at a specific position in the query.
+    /// Like `graphql_error` but for an error at a specific position in the
+    /// query.
     fn graphql_error_at_pos(&self, code: &str, message: String, pos: Pos) -> ServerError {
         self.log_error(code, &message);
         graphql_error_at_pos(code, message, pos)
@@ -718,9 +746,9 @@ impl Extension for QueryLimitsCheckerExt {
         // Document layout of the query
         let doc = next.run(ctx, query, variables).await?;
 
-        // If the query is pure introspection, we don't need to check the limits. Pure introspection
-        // queries are queries that only have one operation with one field and that field is a
-        // `__schema` query
+        // If the query is pure introspection, we don't need to check the limits. Pure
+        // introspection queries are queries that only have one operation with
+        // one field and that field is a `__schema` query
         if let DocumentOperations::Single(op) = &doc.operations {
             if let [field] = &op.node.selection_set.node.items[..] {
                 if let Selection::Field(f) = &field.node {

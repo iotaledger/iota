@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{extract::Extension, http::StatusCode, routing::get, Json, Router};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::Duration,
+};
+
+use axum::{Json, Router, extract::Extension, http::StatusCode, routing::get};
 use iota_metrics::spawn_logged_monitored_task;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::time::Duration;
-use tokio::net::TcpListener;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
+use tokio::{net::TcpListener, task::JoinHandle, time::sleep};
 use tracing::{error, info};
 use types::ConditionalBroadcastReceiver;
 

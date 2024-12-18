@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::NativesCostTable;
+use std::collections::VecDeque;
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas, u256::U256};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -10,7 +11,8 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
+
+use crate::NativesCostTable;
 
 const E_ADDRESS_PARSE_ERROR: u64 = 0;
 #[derive(Clone)]
@@ -18,11 +20,12 @@ pub struct AddressFromBytesCostParams {
     /// addresses are constant size, so base cost suffices
     pub address_from_bytes_cost_base: InternalGas,
 }
-/***************************************************************************************************
- * native fun from_bytes
- * Implementation of the Move native function `address::from_bytes(bytes: vector<u8>)`
- *   gas cost: address_from_bytes_cost_base                                        | addresses are constant size, so base cost suffices
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun from_bytes
+/// Implementation of the Move native function `address::from_bytes(bytes:
+/// vector<u8>)`   gas cost: address_from_bytes_cost_base
+/// | addresses are constant size, so base cost suffices ***********************
+/// ************************************************************************
 pub fn from_bytes(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -57,11 +60,12 @@ pub struct AddressToU256CostParams {
     /// addresses and u256 are constant size, so base cost suffices
     pub address_to_u256_cost_base: InternalGas,
 }
-/***************************************************************************************************
- * native fun to_u256
- * Implementation of the Move native function `address::to_u256(address): u256`
- *   gas cost:  address_to_u256_cost_base                   | addresses and u256 are constant size, so base cost suffices
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun to_u256
+/// Implementation of the Move native function `address::to_u256(address): u256`
+///   gas cost:  address_to_u256_cost_base                   | addresses and
+/// u256 are constant size, so base cost suffices ******************************
+/// *****************************************************************
 pub fn to_u256(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -96,11 +100,12 @@ pub struct AddressFromU256CostParams {
     /// addresses and u256 are constant size, so base cost suffices
     pub address_from_u256_cost_base: InternalGas,
 }
-/***************************************************************************************************
- * native fun from_u256
- * Implementation of the Move native function `address::from_u256(u256): address`
- *   gas cost: address_from_u256_cost_base              | addresses and u256 are constant size, so base cost suffices
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun from_u256
+/// Implementation of the Move native function `address::from_u256(u256):
+/// address`   gas cost: address_from_u256_cost_base              | addresses
+/// and u256 are constant size, so base cost suffices **************************
+/// *********************************************************************
 pub fn from_u256(
     context: &mut NativeContext,
     ty_args: Vec<Type>,

@@ -13,13 +13,15 @@ pub struct Config {
 
     /// Enable indexing of transactions and objects
     ///
-    /// This enables indexing of transactions and objects which allows for a slightly richer rpc
-    /// api. There are some APIs which will be disabled/enabled based on this config while others
-    /// (eg GetTransaction) will still be enabled regardless of this config but may return slight
-    /// less data (eg GetTransaction won't return the checkpoint that includes the requested
-    /// transaction).
+    /// This enables indexing of transactions and objects which allows for a
+    /// slightly richer rpc api. There are some APIs which will be
+    /// disabled/enabled based on this config while others
+    /// (eg GetTransaction) will still be enabled regardless of this config but
+    /// may return slight less data (eg GetTransaction won't return the
+    /// checkpoint that includes the requested transaction).
     ///
-    /// Defaults to `false`, with indexing and APIs which require indexes being disabled
+    /// Defaults to `false`, with indexing and APIs which require indexes being
+    /// disabled
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_indexing: Option<bool>,
 
@@ -33,8 +35,8 @@ pub struct Config {
 impl Config {
     pub fn enable_unstable_apis(&self) -> bool {
         // TODO
-        // Until the rest service as a whole is "stabalized" with a sane set of default stable
-        // apis, have the default be to enable all apis
+        // Until the rest service as a whole is "stabalized" with a sane set of default
+        // stable apis, have the default be to enable all apis
         self.enable_unstable_apis.unwrap_or(true)
     }
 

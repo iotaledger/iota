@@ -2,24 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::rest::transactions::SimulateTransactionQueryParameters;
-use crate::rest::transactions::TransactionSimulationResponse;
-use crate::types::EffectsFinality;
-use crate::types::ExecuteTransactionOptions;
-use crate::types::ExecuteTransactionResponse;
-use crate::Result;
-use crate::RpcService;
-use crate::RpcServiceError;
-use iota_sdk_types::types::framework::Coin;
-use iota_sdk_types::types::Address;
-use iota_sdk_types::types::BalanceChange;
-use iota_sdk_types::types::Object;
-use iota_sdk_types::types::Owner;
-use iota_sdk_types::types::SignedTransaction;
-use iota_sdk_types::types::Transaction;
-use iota_sdk_types::types::TransactionEffects;
+use iota_sdk_types::types::{
+    Address, BalanceChange, Object, Owner, SignedTransaction, Transaction, TransactionEffects,
+    framework::Coin,
+};
 use iota_types::transaction_executor::SimulateTransactionResult;
 use tap::Pipe;
+
+use crate::{
+    Result, RpcService, RpcServiceError,
+    rest::transactions::{SimulateTransactionQueryParameters, TransactionSimulationResponse},
+    types::{EffectsFinality, ExecuteTransactionOptions, ExecuteTransactionResponse},
+};
 
 impl RpcService {
     pub async fn execute_transaction(

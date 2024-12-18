@@ -2,41 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::HashMap,
+    ops::Add,
+    str::FromStr,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime},
+};
+
 use chrono::{DateTime, Utc};
 use config::{DownloadFeedConfigs, UploadFeedConfig, UploadParameters};
-use metrics::OracleMetrics;
-use iota_metrics::monitored_scope;
-use once_cell::sync::OnceCell;
-use prometheus::Registry;
-use std::ops::Add;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::{Duration, SystemTime};
-use std::{collections::HashMap, time::Instant};
-use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use iota_sdk::apis::ReadApi;
-use iota_sdk::rpc_types::IotaObjectResponse;
-use iota_sdk::IotaClient;
-use iota_types::error::UserInputError;
-use iota_types::object::{Object, Owner};
-use iota_types::parse_iota_type_tag;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::quorum_driver_types::NON_RECOVERABLE_ERROR_MSG;
-use iota_types::transaction::{Argument, Transaction};
-use iota_types::transaction::{Command, ObjectArg};
-use iota_types::Identifier;
+use iota_metrics::monitored_scope;
+use iota_sdk::{
+    IotaClient, apis::ReadApi, rpc_types::IotaObjectResponse, wallet_context::WalletContext,
+};
 use iota_types::{
-    base_types::IotaAddress,
-    transaction::{CallArg, TransactionData},
+    Identifier,
+    base_types::{IotaAddress, ObjectID, ObjectRef, random_object_ref},
+    error::UserInputError,
+    object::{Object, Owner},
+    parse_iota_type_tag,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::NON_RECOVERABLE_ERROR_MSG,
+    transaction::{Argument, CallArg, Command, ObjectArg, Transaction, TransactionData},
 };
+use metrics::OracleMetrics;
+use once_cell::sync::OnceCell;
+use prometheus::Registry;
 use tap::tap::TapFallible;
-
-use iota_sdk::wallet_context::WalletContext;
-use iota_types::base_types::{random_object_ref, ObjectID, ObjectRef};
 use tracing::{debug, error, info, warn};
 pub mod config;
 mod metrics;
@@ -361,7 +358,9 @@ impl OnChainDataUploader {
             let data_points = self.collect().await;
             if !data_points.is_empty() {
                 if let Err(err) = self.upload(data_points).await {
-                    error!("Upload failure: {err}. About to resting for {UPLOAD_FAILURE_RECOVER_SEC} sec.");
+                    error!(
+                        "Upload failure: {err}. About to resting for {UPLOAD_FAILURE_RECOVER_SEC} sec."
+                    );
                     tokio::time::sleep(Duration::from_secs(UPLOAD_FAILURE_RECOVER_SEC)).await;
                     self.gas_obj_ref = get_gas_obj_ref(
                         self.client.read_api(),

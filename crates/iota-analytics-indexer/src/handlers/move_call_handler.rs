@@ -4,15 +4,11 @@
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
+use iota_rpc_api::CheckpointData;
+use iota_types::{base_types::ObjectID, transaction::TransactionDataAPI};
 use tokio::sync::Mutex;
 
-use iota_rpc_api::CheckpointData;
-use iota_types::base_types::ObjectID;
-use iota_types::transaction::TransactionDataAPI;
-
-use crate::handlers::AnalyticsHandler;
-use crate::tables::MoveCallEntry;
-use crate::FileType;
+use crate::{FileType, handlers::AnalyticsHandler, tables::MoveCallEntry};
 
 pub struct MoveCallHandler {
     state: Mutex<State>,

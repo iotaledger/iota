@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
-
-use serde::{Deserialize, Serialize};
 use iota_types::{
     base_types::ObjectRef,
     committee::Committee,
@@ -14,6 +12,7 @@ use iota_types::{
     object::Object,
     transaction::Transaction,
 };
+use serde::{Deserialize, Serialize};
 
 /// Define aspect of Iota state that need to be certified in a proof
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -29,29 +28,30 @@ pub struct ProofTarget {
 }
 
 impl ProofTarget {
-    /// Create a new empty proof target. An empty proof target still ensures that the
-    /// checkpoint summary is correct.
+    /// Create a new empty proof target. An empty proof target still ensures
+    /// that the checkpoint summary is correct.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Add an object to be certified by object reference and content. A verified proof will
-    /// ensure that both the reference and content are correct. Note that some content is
-    /// metadata such as the transaction that created this object.
+    /// Add an object to be certified by object reference and content. A
+    /// verified proof will ensure that both the reference and content are
+    /// correct. Note that some content is metadata such as the transaction
+    /// that created this object.
     pub fn add_object(mut self, object_ref: ObjectRef, object: Object) -> Self {
         self.objects.push((object_ref, object));
         self
     }
 
-    /// Add an event to be certified by event ID and content. A verified proof will ensure that
-    /// both the ID and content are correct.
+    /// Add an event to be certified by event ID and content. A verified proof
+    /// will ensure that both the ID and content are correct.
     pub fn add_event(mut self, event_id: EventID, event: Event) -> Self {
         self.events.push((event_id, event));
         self
     }
 
-    /// Add the next committee to be certified. A verified proof will ensure that the next
-    /// committee is correct.
+    /// Add the next committee to be certified. A verified proof will ensure
+    /// that the next committee is correct.
     pub fn set_committee(mut self, committee: Committee) -> Self {
         self.committee = Some(committee);
         self
@@ -75,11 +75,12 @@ pub struct TransactionProof {
     pub events: Option<TransactionEvents>,
 }
 
-/// A proof for specific targets. It certifies a checkpoint summary and optionally includes
-/// transaction evidence to certify objects and events.
+/// A proof for specific targets. It certifies a checkpoint summary and
+/// optionally includes transaction evidence to certify objects and events.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Proof {
-    /// Targets of the proof are a committee, objects, or events that need to be certified.
+    /// Targets of the proof are a committee, objects, or events that need to be
+    /// certified.
     pub targets: ProofTarget,
 
     /// A summary of the checkpoint being certified.
@@ -89,17 +90,18 @@ pub struct Proof {
     pub contents_proof: Option<TransactionProof>,
 }
 
-/// Verify a proof against a committee. A proof is valid if it certifies the checkpoint summary
-/// and optionally includes transaction evidence to certify objects and events.
+/// Verify a proof against a committee. A proof is valid if it certifies the
+/// checkpoint summary and optionally includes transaction evidence to certify
+/// objects and events.
 ///
-/// If the result is `Ok(())` then the proof is valid. If Err is returned then the proof is invalid
-/// and the error message will describe the reason. Once a proof is verified it can be trusted,
-/// and information in `targets` as well as `checkpoint_summary` or `contents_proof` can be
-/// trusted as being authentic.
+/// If the result is `Ok(())` then the proof is valid. If Err is returned then
+/// the proof is invalid and the error message will describe the reason. Once a
+/// proof is verified it can be trusted, and information in `targets` as well as
+/// `checkpoint_summary` or `contents_proof` can be trusted as being authentic.
 ///
-/// The authoritative committee is required to verify the proof. The sequence of committees can be
-/// verified through a Committee proof target on the last checkpoint of each epoch,
-/// sequentially since the first epoch.
+/// The authoritative committee is required to verify the proof. The sequence of
+/// committees can be verified through a Committee proof target on the last
+/// checkpoint of each epoch, sequentially since the first epoch.
 pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> {
     // Get checkpoint summary and optional contents
     let summary = &proof.checkpoint_summary;

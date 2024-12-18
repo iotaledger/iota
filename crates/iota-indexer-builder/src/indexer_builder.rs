@@ -2,19 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::cmp::min;
-use std::sync::Arc;
+use std::{cmp::min, sync::Arc};
 
 use anyhow::Error;
 use async_trait::async_trait;
 use futures::StreamExt;
+use iota_metrics::{metered_channel, spawn_monitored_task};
 use prometheus::{IntGauge, IntGaugeVec};
+use tap::tap::TapFallible;
 use tokio::task::JoinHandle;
 
-use crate::metrics::IndexerMetricProvider;
-use crate::{Task, Tasks};
-use iota_metrics::{metered_channel, spawn_monitored_task};
-use tap::tap::TapFallible;
+use crate::{Task, Tasks, metrics::IndexerMetricProvider};
 
 type CheckpointData<T> = (u64, Vec<T>);
 pub type DataSender<T> = metered_channel::Sender<CheckpointData<T>>;
@@ -113,8 +111,8 @@ impl<P, D, M> Indexer<P, D, M> {
             })?;
 
         // Start latest checkpoint worker
-        // Tasks are ordered in checkpoint descending order, realtime update task always come first
-        // tasks won't be empty here, ok to unwrap.
+        // Tasks are ordered in checkpoint descending order, realtime update task always
+        // come first tasks won't be empty here, ok to unwrap.
         let live_task_future = match ongoing_tasks.live_task() {
             Some(live_task) if !self.disable_live_task => {
                 let live_task_future = self.datasource.start_ingestion_task(
@@ -229,11 +227,12 @@ impl<P, D, M> Indexer<P, D, M> {
             }
         }
 
-        // 2, if there is a gap between `largest_checkpoint` and `live_task_from_checkpoint`,
-        // create backfill task [largest_checkpoint + 1, live_task_from_checkpoint - 1]
+        // 2, if there is a gap between `largest_checkpoint` and
+        // `live_task_from_checkpoint`, create backfill task [largest_checkpoint
+        // + 1, live_task_from_checkpoint - 1]
 
-        // TODO: when there is a hole, we create one task for the hole, but ideally we should
-        // honor the partition size and create as needed.
+        // TODO: when there is a hole, we create one task for the hole, but ideally we
+        // should honor the partition size and create as needed.
         let from_checkpoint = largest_checkpoint
             .map(|cp| cp + 1)
             .unwrap_or(self.datasource.get_genesis_height());
@@ -328,9 +327,9 @@ pub trait Persistent<T>: IndexerProgressStore + Sync + Send + Clone {
 pub trait IndexerProgressStore: Send {
     async fn load_progress(&self, task_name: String) -> anyhow::Result<u64>;
     /// Attempt to save progress. Depending on the `ProgressSavingPolicy`,
-    /// the progress may be cached somewhere instead of flushing to persistent storage.
-    /// Returns saved checkpoint number if any. Caller can use this value as a signal
-    /// to see if we have reached the target checkpoint.
+    /// the progress may be cached somewhere instead of flushing to persistent
+    /// storage. Returns saved checkpoint number if any. Caller can use this
+    /// value as a signal to see if we have reached the target checkpoint.
     async fn save_progress(
         &mut self,
         task: &Task,
@@ -441,7 +440,8 @@ pub trait Datasource<T: Send>: Sync + Send {
             let mut heights = vec![];
             let mut data = vec![];
             for (height, d) in batch {
-                // Filter out data with height > target_checkpoint, in case data source returns any
+                // Filter out data with height > target_checkpoint, in case data source returns
+                // any
                 if height > target_checkpoint {
                     tracing::warn!(
                         task_name,

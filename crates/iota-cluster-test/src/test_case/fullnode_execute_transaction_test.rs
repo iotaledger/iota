@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{TestCaseImpl, TestContext};
 use async_trait::async_trait;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
@@ -12,6 +11,8 @@ use iota_types::{
     base_types::TransactionDigest, quorum_driver_types::ExecuteTransactionRequestType,
 };
 use tracing::info;
+
+use crate::{TestCaseImpl, TestContext};
 
 pub struct FullNodeExecuteTransactionTest;
 

@@ -2,22 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::ReplayableNetworkConfigSet;
-use crate::types::ReplayEngineError;
-use crate::types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD};
-use crate::LocalExec;
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_types::base_types::IotaAddress;
-use iota_types::digests::TransactionDigest;
+use iota_types::{base_types::IotaAddress, digests::TransactionDigest};
+
+use crate::{
+    LocalExec,
+    config::ReplayableNetworkConfigSet,
+    types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD, ReplayEngineError},
+};
 
 /// Keep searching for non-system TXs in the checkppints for this long
 /// Very unlikely to take this long, but we want to be sure we find one
 const NUM_CHECKPOINTS_TO_ATTEMPT: usize = 1_000;
 
-/// Checks that replaying the latest tx on each testnet and mainnet does not fail
+/// Checks that replaying the latest tx on each testnet and mainnet does not
+/// fail
 #[ignore]
 #[tokio::test]
 async fn verify_latest_tx_replay_testnet_mainnet() {

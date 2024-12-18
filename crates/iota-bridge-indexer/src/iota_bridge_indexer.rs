@@ -3,25 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Error;
-use tracing::{info, warn};
-
 use iota_bridge::events::{
     EmergencyOpEvent, MoveBlocklistValidatorEvent, MoveNewTokenEvent, MoveTokenDepositedEvent,
     MoveTokenRegistrationEvent, MoveTokenTransferApproved, MoveTokenTransferClaimed,
     UpdateRouteLimitEvent, UpdateTokenPriceEvent,
 };
-use iota_indexer_builder::indexer_builder::DataMapper;
-use iota_indexer_builder::iota_datasource::CheckpointTxnData;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::event::Event;
-use iota_types::execution_status::ExecutionStatus;
-use iota_types::full_checkpoint_content::CheckpointTransaction;
-use iota_types::{BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID};
+use iota_indexer_builder::{indexer_builder::DataMapper, iota_datasource::CheckpointTxnData};
+use iota_types::{
+    BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, effects::TransactionEffectsAPI, event::Event,
+    execution_status::ExecutionStatus, full_checkpoint_content::CheckpointTransaction,
+};
+use tracing::{info, warn};
 
-use crate::metrics::BridgeIndexerMetrics;
 use crate::{
-    BridgeDataSource, GovernanceAction, GovernanceActionType, ProcessedTxnData, IotaTxnError,
-    TokenTransfer, TokenTransferData, TokenTransferStatus,
+    BridgeDataSource, GovernanceAction, GovernanceActionType, IotaTxnError, ProcessedTxnData,
+    TokenTransfer, TokenTransferData, TokenTransferStatus, metrics::BridgeIndexerMetrics,
 };
 
 /// Data mapper impl

@@ -2,13 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
+use iota_indexer::{
+    apis::read_api::ReadApi,
+    indexer_reader::IndexerReader,
+    test_utils::{set_up, wait_for_checkpoint},
+};
+use iota_json_rpc_api::ReadApiServer;
 use jsonrpsee::core::RpcResult;
 use simulacrum::Simulacrum;
-use std::sync::Arc;
-use iota_indexer::apis::read_api::ReadApi;
-use iota_indexer::indexer_reader::IndexerReader;
-use iota_indexer::test_utils::{set_up, wait_for_checkpoint};
-use iota_json_rpc_api::ReadApiServer;
 use tempfile::tempdir;
 
 #[tokio::test]

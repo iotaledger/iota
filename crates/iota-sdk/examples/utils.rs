@@ -7,29 +7,28 @@ use std::{str::FromStr, time::Duration};
 use anyhow::bail;
 use futures::{future, stream::StreamExt};
 use iota_config::{
-    iota_config_dir, Config, PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
+    Config, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, PersistedConfig, iota_config_dir,
 };
 use iota_json_rpc_types::{Coin, IotaObjectDataOptions};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
+    IotaClient, IotaClientBuilder,
     iota_client_config::{IotaClientConfig, IotaEnv},
+    rpc_types::IotaTransactionBlockResponseOptions,
+    types::{
+        base_types::{IotaAddress, ObjectID},
+        crypto::SignatureScheme::ED25519,
+        digests::TransactionDigest,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        quorum_driver_types::ExecuteTransactionRequestType,
+        transaction::{Argument, Command, Transaction, TransactionData},
+    },
     wallet_context::WalletContext,
 };
-use tracing::info;
-
 use reqwest::Client;
 use serde_json::json;
 use shared_crypto::intent::Intent;
-use iota_sdk::types::{
-    base_types::{ObjectID, IotaAddress},
-    crypto::SignatureScheme::ED25519,
-    digests::TransactionDigest,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Argument, Command, Transaction, TransactionData},
-};
-
-use iota_sdk::{rpc_types::IotaTransactionBlockResponseOptions, IotaClient, IotaClientBuilder};
+use tracing::info;
 
 #[derive(serde::Deserialize)]
 struct FaucetResponse {
@@ -44,11 +43,13 @@ pub const IOTA_FAUCET: &str = "https://faucet.testnet.iota.io/v1/gas"; // testne
 // const IOTA_FAUCET: &str = "http://127.0.0.1:9123/gas";
 
 /// Return a iota client to interact with the APIs,
-/// the active address of the local wallet, and another address that can be used as a recipient.
+/// the active address of the local wallet, and another address that can be used
+/// as a recipient.
 ///
-/// By default, this function will set up a wallet locally if there isn't any, or reuse the
-/// existing one and its active address. This function should be used when two addresses are needed,
-/// e.g., transferring objects from one address to another.
+/// By default, this function will set up a wallet locally if there isn't any,
+/// or reuse the existing one and its active address. This function should be
+/// used when two addresses are needed, e.g., transferring objects from one
+/// address to another.
 pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress), anyhow::Error> {
     let (client, active_address) = setup_for_read().await?;
     // make sure we have some IOTA (5_000_000 NANOS) on this address
@@ -69,7 +70,8 @@ pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress),
     Ok((client, active_address, *recipient))
 }
 
-/// Return a iota client to interact with the APIs and an active address from the local wallet.
+/// Return a iota client to interact with the APIs and an active address from
+/// the local wallet.
 ///
 /// This function sets up a wallet in case there is no wallet locally,
 /// and ensures that the active address of the wallet has IOTA on it.
@@ -157,7 +159,8 @@ pub async fn request_tokens_from_faucet(
         }
     }
 
-    // wait until the fullnode has the coin object, and check if it has the same owner
+    // wait until the fullnode has the coin object, and check if it has the same
+    // owner
     loop {
         let owner = iota_client
             .read_api()
@@ -179,7 +182,8 @@ pub async fn request_tokens_from_faucet(
     Ok(())
 }
 
-/// Return the coin owned by the address that has at least 5_000_000 NANOS, otherwise returns None
+/// Return the coin owned by the address that has at least 5_000_000 NANOS,
+/// otherwise returns None
 pub async fn fetch_coin(
     iota: &IotaClient,
     sender: &IotaAddress,
@@ -224,20 +228,18 @@ pub async fn split_coin_digest(
 
     // now we programmatically build the transaction through several commands
     let mut ptb = ProgrammableTransactionBuilder::new();
-    // first, we want to split the coin, and we specify how much IOTA (in NANOS) we want
-    // for the new coin
+    // first, we want to split the coin, and we specify how much IOTA (in NANOS) we
+    // want for the new coin
     let split_coin_amount = ptb.pure(1000u64)?; // note that we need to specify the u64 type here
-    ptb.command(Command::SplitCoins(
-        Argument::GasCoin,
-        vec![split_coin_amount],
-    ));
-    // now we want to merge the coins (so that we don't have many coins with very small values)
-    // observe here that we pass Argument::Result(0), which instructs the PTB to get
-    // the result from the previous command
-    ptb.command(Command::MergeCoins(
-        Argument::GasCoin,
-        vec![Argument::Result(0)],
-    ));
+    ptb.command(Command::SplitCoins(Argument::GasCoin, vec![
+        split_coin_amount,
+    ]));
+    // now we want to merge the coins (so that we don't have many coins with very
+    // small values) observe here that we pass Argument::Result(0), which
+    // instructs the PTB to get the result from the previous command
+    ptb.command(Command::MergeCoins(Argument::GasCoin, vec![
+        Argument::Result(0),
+    ]));
 
     // we finished constructing our PTB and we need to call finish
     let builder = ptb.finish();

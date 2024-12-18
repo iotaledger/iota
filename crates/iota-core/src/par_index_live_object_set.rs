@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_store_tables::LiveObject;
-use crate::authority::AuthorityStore;
 use std::time::Instant;
-use iota_types::base_types::ObjectID;
-use iota_types::object::Object;
-use iota_types::storage::error::Error as StorageError;
+
+use iota_types::{base_types::ObjectID, object::Object, storage::error::Error as StorageError};
 use tracing::info;
+
+use crate::authority::{AuthorityStore, authority_store_tables::LiveObject};
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set
 pub trait ParMakeLiveObjectIndexer: Sync {
@@ -17,23 +16,25 @@ pub trait ParMakeLiveObjectIndexer: Sync {
     fn make_live_object_indexer(&self) -> Self::ObjectIndexer;
 }
 
-/// Represents an instance of a indexer that operates on a subset of the live object set
+/// Represents an instance of a indexer that operates on a subset of the live
+/// object set
 pub trait LiveObjectIndexer {
-    /// Called on each object in the range of the live object set this indexer task is responsible
-    /// for.
+    /// Called on each object in the range of the live object set this indexer
+    /// task is responsible for.
     fn index_object(&mut self, object: Object) -> Result<(), StorageError>;
 
-    /// Called once the range of objects this indexer task is responsible for have been processed
-    /// by calling `index_object`.
+    /// Called once the range of objects this indexer task is responsible for
+    /// have been processed by calling `index_object`.
     fn finish(self) -> Result<(), StorageError>;
 }
 
 /// Utility for iterating over, and indexing, the live object set in parallel
 ///
-/// This is done by dividing the addressable ObjectID space into smaller, disjoint sets and
-/// operating on each set in parallel in a separate thread. User's will need to implement the
-/// `ParMakeLiveObjectIndexer` trait which will be used to make N `LiveObjectIndexer`s which will
-/// then process one of the disjoint parts of the live object set.
+/// This is done by dividing the addressable ObjectID space into smaller,
+/// disjoint sets and operating on each set in parallel in a separate thread.
+/// User's will need to implement the `ParMakeLiveObjectIndexer` trait which
+/// will be used to make N `LiveObjectIndexer`s which will then process one of
+/// the disjoint parts of the live object set.
 pub fn par_index_live_object_set<T: ParMakeLiveObjectIndexer>(
     authority_store: &AuthorityStore,
     make_indexer: &T,

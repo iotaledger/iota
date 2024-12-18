@@ -5,26 +5,27 @@
 //! A mock implementation for `BridgeRequestHandlerTrait`
 //! that handles requests according to preset behaviors.
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    str::FromStr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-use crate::crypto::BridgeAuthorityKeyPair;
-use crate::crypto::BridgeAuthoritySignInfo;
-use crate::error::BridgeError;
-use crate::error::BridgeResult;
-use crate::metrics::BridgeMetrics;
-use crate::server::BridgeNodePublicMetadata;
-use crate::types::SignedBridgeAction;
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use axum::Json;
 use iota_types::digests::TransactionDigest;
 
-use super::handler::BridgeRequestHandlerTrait;
-use super::make_router;
+use super::{handler::BridgeRequestHandlerTrait, make_router};
+use crate::{
+    crypto::{BridgeAuthorityKeyPair, BridgeAuthoritySignInfo},
+    error::{BridgeError, BridgeResult},
+    metrics::BridgeMetrics,
+    server::BridgeNodePublicMetadata,
+    types::SignedBridgeAction,
+};
 
 #[allow(clippy::type_complexity)]
 #[derive(Clone)]

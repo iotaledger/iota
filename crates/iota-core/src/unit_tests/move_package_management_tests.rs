@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use expect_test::expect;
 use std::{fs::File, io::Read, path::PathBuf};
 
+use expect_test::expect;
 use iota_move::manage_package::ManagePackage;
 use iota_move_build::BuildConfig;
 use iota_types::base_types::ObjectID;
@@ -23,7 +23,8 @@ async fn test_manage_package_update() {
         .clone()
         .build(&path)
         .expect("Move package did not build");
-    // Update the lock file with placeholder compiler version so this isn't bumped every release.
+    // Update the lock file with placeholder compiler version so this isn't bumped
+    // every release.
     build_config
         .config
         .update_lock_file_toolchain_version(&path, "0.0.1".into())

@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{error::IotaResult, execution_config_utils::to_binary_config};
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Meter;
 use move_vm_config::verifier::MeterConfig;
-use iota_protocol_config::ProtocolConfig;
-use iota_types::error::IotaResult;
-use iota_types::execution_config_utils::to_binary_config;
 
 pub trait Verifier {
     /// Create a new bytecode verifier meter.
@@ -15,9 +14,9 @@ pub trait Verifier {
 
     /// Run the bytecode verifier with a meter limit
     ///
-    /// This function only fails if the verification does not complete within the limit.  If the
-    /// modules fail to verify but verification completes within the meter limit, the function
-    /// succeeds.
+    /// This function only fails if the verification does not complete within
+    /// the limit.  If the modules fail to verify but verification completes
+    /// within the meter limit, the function succeeds.
     fn meter_compiled_modules(
         &mut self,
         protocol_config: &ProtocolConfig,

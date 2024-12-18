@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::IotaError;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
 use move_core_types::{
     annotated_value as A,
     language_storage::{StructTag, TypeTag},
 };
+
+use crate::error::IotaError;
 
 pub trait LayoutResolver {
     fn get_annotated_layout(

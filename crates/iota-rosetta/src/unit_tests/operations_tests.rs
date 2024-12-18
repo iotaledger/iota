@@ -2,15 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::annotated_value::MoveTypeLayout;
 use iota_json_rpc_types::IotaCallArg;
-use iota_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, IotaAddress};
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::transaction::{CallArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER};
+use iota_types::{
+    base_types::{IotaAddress, ObjectDigest, ObjectID, SequenceNumber},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+};
+use move_core_types::annotated_value::MoveTypeLayout;
 
-use crate::operations::Operations;
-use crate::types::{ConstructionMetadata, OperationType};
-use crate::IOTA;
+use crate::{
+    IOTA,
+    operations::Operations,
+    types::{ConstructionMetadata, OperationType},
+};
 
 #[tokio::test]
 async fn test_operation_data_parsing_pay_iota() -> Result<(), anyhow::Error> {
@@ -81,7 +85,8 @@ async fn test_operation_data_parsing_pay_coin() -> Result<(), anyhow::Error> {
                 vec![10000],
             )
             .unwrap();
-        // the following is important in order to be able to transfer the coin type info between the various flow steps
+        // the following is important in order to be able to transfer the coin type info
+        // between the various flow steps
         builder.pure(serde_json::to_string(&IOTA.clone())?)?;
         builder.finish()
     };

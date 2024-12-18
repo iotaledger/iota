@@ -2,29 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::drivers::Interval;
-use crate::system_state_observer::SystemStateObserver;
-use crate::util::publish_basics_package;
-use crate::workloads::payload::Payload;
-use crate::workloads::workload::{
-    ExpectedFailureType, Workload, WorkloadBuilder, ESTIMATED_COMPUTATION_COST,
-    MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COUNTER,
-};
-use crate::workloads::GasCoinConfig;
-use crate::workloads::{Gas, WorkloadBuilderInfo, WorkloadParams};
-use crate::{ExecutionEffects, ValidatorProxy};
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use futures::future::join_all;
-use rand::seq::SliceRandom;
-use rand::Rng;
-use std::sync::Arc;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::crypto::get_key_pair;
 use iota_types::{
     base_types::{ObjectDigest, ObjectID, SequenceNumber},
+    crypto::get_key_pair,
     transaction::Transaction,
 };
+use rand::{Rng, seq::SliceRandom};
 use tracing::{debug, error, info};
+
+use crate::{
+    ExecutionEffects, ValidatorProxy,
+    drivers::Interval,
+    system_state_observer::SystemStateObserver,
+    util::publish_basics_package,
+    workloads::{
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+        payload::Payload,
+        workload::{
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, MAX_GAS_FOR_TESTING,
+            STORAGE_COST_PER_COUNTER, Workload, WorkloadBuilder,
+        },
+    },
+};
 
 /// The max amount of gas units needed for a payload.
 pub const MAX_GAS_IN_UNIT: u64 = 1_000_000_000;

@@ -15,15 +15,17 @@ use handlers::{
     tx_balance_changes::TxBalanceChanges, tx_calls::TxCalls, tx_digests::TxDigests,
     tx_kinds::TxKinds, wal_coin_balances::WalCoinBalances, wal_obj_types::WalObjTypes,
 };
-use models::MIGRATIONS;
-use iota_indexer_alt_framework::db::DbArgs;
-use iota_indexer_alt_framework::ingestion::{ClientArgs, IngestionConfig};
-use iota_indexer_alt_framework::pipeline::{
-    concurrent::{ConcurrentConfig, PrunerConfig},
-    sequential::SequentialConfig,
-    CommitterConfig,
+use iota_indexer_alt_framework::{
+    Indexer, IndexerArgs,
+    db::DbArgs,
+    ingestion::{ClientArgs, IngestionConfig},
+    pipeline::{
+        CommitterConfig,
+        concurrent::{ConcurrentConfig, PrunerConfig},
+        sequential::SequentialConfig,
+    },
 };
-use iota_indexer_alt_framework::{Indexer, IndexerArgs};
+use models::MIGRATIONS;
 use tokio_util::sync::CancellationToken;
 
 pub mod args;
@@ -94,8 +96,9 @@ pub async fn start_indexer(
     let committer = committer.finish(CommitterConfig::default());
     let pruner = pruner.finish(PrunerConfig::default());
 
-    // Pipelines that are split up into a summary table, and a write-ahead log prune their
-    // write-ahead log so it contains just enough information to overlap with the summary table.
+    // Pipelines that are split up into a summary table, and a write-ahead log prune
+    // their write-ahead log so it contains just enough information to overlap
+    // with the summary table.
     let consistent_range = consistent_range.unwrap_or_default();
     let pruner_config = (consistent_range != 0).then(|| PrunerConfig {
         interval_ms: consistent_pruning_interval_ms,
@@ -120,19 +123,21 @@ pub async fn start_indexer(
     )
     .await?;
 
-    // These macros are responsible for registering pipelines with the indexer. It is responsible
-    // for:
+    // These macros are responsible for registering pipelines with the indexer. It
+    // is responsible for:
     //
     //  - Checking whether the pipeline is enabled in the file-based configuration.
     //  - Checking for unexpected parameters in the config.
     //  - Combining shared and per-pipeline configurations.
     //  - Registering the pipeline with the indexer.
     //
-    // There are three kinds of pipeline, each with their own macro: `add_concurrent`,
-    // `add_sequential`, and `add_consistent`. `add_concurrent` and `add_sequential` map directly
-    // to `Indexer::concurrent_pipeline` and `Indexer::sequential_pipeline` respectively while
-    // `add_consistent` is a special case that generates both a sequential "summary" pipeline and a
-    // `concurrent` "write-ahead log" pipeline, with their configuration based on the supplied
+    // There are three kinds of pipeline, each with their own macro:
+    // `add_concurrent`, `add_sequential`, and `add_consistent`.
+    // `add_concurrent` and `add_sequential` map directly
+    // to `Indexer::concurrent_pipeline` and `Indexer::sequential_pipeline`
+    // respectively while `add_consistent` is a special case that generates both
+    // a sequential "summary" pipeline and a `concurrent` "write-ahead log"
+    // pipeline, with their configuration based on the supplied
     // ConsistencyConfig.
 
     macro_rules! add_concurrent {
@@ -172,27 +177,19 @@ pub async fn start_indexer(
         ($sum_handler:expr, $sum_config:expr; $wal_handler:expr, $wal_config:expr) => {
             if let Some(sum_layer) = $sum_config {
                 indexer
-                    .sequential_pipeline(
-                        $sum_handler,
-                        SequentialConfig {
-                            committer: sum_layer.finish(committer.clone()),
-                            checkpoint_lag: consistent_range,
-                        },
-                    )
+                    .sequential_pipeline($sum_handler, SequentialConfig {
+                        committer: sum_layer.finish(committer.clone()),
+                        checkpoint_lag: consistent_range,
+                    })
                     .await?;
 
                 if let Some(pruner_config) = pruner_config.clone() {
                     indexer
-                        .concurrent_pipeline(
-                            $wal_handler,
-                            ConcurrentConfig {
-                                committer: $wal_config
-                                    .unwrap_or_default()
-                                    .finish(committer.clone()),
-                                pruner: Some(pruner_config),
-                                checkpoint_lag: None,
-                            },
-                        )
+                        .concurrent_pipeline($wal_handler, ConcurrentConfig {
+                            committer: $wal_config.unwrap_or_default().finish(committer.clone()),
+                            pruner: Some(pruner_config),
+                            checkpoint_lag: None,
+                        })
                         .await?;
                 }
             }

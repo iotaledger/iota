@@ -2,27 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::rejection::JsonRejection;
 use std::fmt::Debug;
 
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::{
+    Json,
+    extract::rejection::JsonRejection,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
 use fastcrypto::error::FastCryptoError;
-use serde::Serialize;
-use serde::Serializer;
-use serde_json::{json, Value};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
 use iota_types::error::IotaError;
-
-use crate::types::{BlockHash, OperationType, PublicKey, IotaEnv};
-use strum::EnumProperty;
-use strum_macros::Display;
-use strum_macros::EnumDiscriminants;
+use serde::{Serialize, Serializer};
+use serde_json::{Value, json};
+use strum::{EnumProperty, IntoEnumIterator};
+use strum_macros::{Display, EnumDiscriminants, EnumIter};
 use thiserror::Error;
 use typed_store::TypedStoreError;
+
+use crate::types::{BlockHash, IotaEnv, OperationType, PublicKey};
 
 /// Iota-Rosetta specific error types.
 /// This contains all the errors returns by the iota-rosetta server.

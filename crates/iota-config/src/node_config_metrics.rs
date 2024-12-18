@@ -2,9 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::NodeConfig;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use std::sync::Arc;
+
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+
+use crate::NodeConfig;
 
 pub struct NodeConfigMetrics {
     tx_deny_config_user_transaction_disabled: IntGauge,

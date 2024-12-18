@@ -1,25 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::object_runtime::ObjectRuntime;
-use crate::NativesCostTable;
-use fastcrypto_vdf::class_group::discriminant::DISCRIMINANT_3072;
-use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
-use fastcrypto_vdf::vdf::VDF;
+use std::collections::VecDeque;
+
+use fastcrypto_vdf::{
+    class_group::{QuadraticForm, discriminant::DISCRIMINANT_3072},
+    vdf::{VDF, wesolowski::DefaultVDF},
+};
 use move_binary_format::errors::PartialVMResult;
-use move_core_types::gas_algebra::InternalGas;
-use move_core_types::vm_status::StatusCode;
+use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
-use move_vm_types::natives::function::PartialVMError;
 use move_vm_types::{
     loaded_data::runtime_types::Type,
-    natives::function::NativeResult,
+    natives::function::{NativeResult, PartialVMError},
     pop_arg,
     values::{Value, VectorRef},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
+
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 pub const INVALID_INPUT_ERROR: u64 = 0;
 pub const NOT_SUPPORTED_ERROR: u64 = 1;
@@ -38,17 +37,18 @@ pub struct VDFCostParams {
     pub hash_to_input_cost: Option<InternalGas>,
 }
 
-/***************************************************************************************************
- * native fun vdf_verify_internal
- *
- * Implementation of the Move native function `vdf::verify_vdf_internal(
- *      input: &vector<u8>,
- *      output: &vector<u8>,
- *      proof: &vector<u8>,
- *      iterations: u64): bool`
- *
- * Gas cost: verify_vdf_cost
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun vdf_verify_internal
+///
+/// Implementation of the Move native function `vdf::verify_vdf_internal(
+///      input: &vector<u8>,
+///      output: &vector<u8>,
+///      proof: &vector<u8>,
+///      iterations: u64): bool`
+///
+/// Gas cost: verify_vdf_cost
+/// ****************************************************************************
+/// *******************
 pub fn vdf_verify_internal(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -101,24 +101,26 @@ pub fn vdf_verify_internal(
         Err(_) => return Ok(NativeResult::err(context.gas_used(), INVALID_INPUT_ERROR)),
     };
 
-    // We use the default VDF construction: Wesolowski's construction using a strong Fiat-Shamir
-    // construction and a windowed scalar multiplier to speed up the proof verification.
+    // We use the default VDF construction: Wesolowski's construction using a strong
+    // Fiat-Shamir construction and a windowed scalar multiplier to speed up the
+    // proof verification.
     let vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), iterations);
     let verified = vdf.verify(&input, &output, &proof).is_ok();
 
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::bool(verified)],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::bool(verified)
+    ]))
 }
 
-/***************************************************************************************************
- * native fun hash_to_input_internal
- *
- * Implementation of the Move native function `vdf::hash_to_input_internal(message: &vector<u8>): vector<u8>`
- *
- * Gas cost: hash_to_input_cost
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun hash_to_input_internal
+///
+/// Implementation of the Move native function
+/// `vdf::hash_to_input_internal(message: &vector<u8>): vector<u8>`
+///
+/// Gas cost: hash_to_input_cost
+/// ****************************************************************************
+/// *******************
 pub fn hash_to_input_internal(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -166,8 +168,7 @@ pub fn hash_to_input_internal(
         Err(_) => return Ok(NativeResult::err(context.gas_used(), INVALID_INPUT_ERROR)),
     };
 
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::vector_u8(output_bytes)],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::vector_u8(output_bytes)
+    ]))
 }

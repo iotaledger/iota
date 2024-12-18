@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{env, sync::Arc};
+
 use clap::Parser;
-use std::env;
-use std::sync::Arc;
 use iota_config::iota_config_dir;
-use iota_faucet::{create_wallet_context, start_faucet, AppState};
-use iota_faucet::{FaucetConfig, SimpleFaucet};
+use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use tracing::info;
 
 const CONCURRENCY_LIMIT: usize = 30;

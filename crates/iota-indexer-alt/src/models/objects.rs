@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::{
-    backend::Backend, deserialize, expression::AsExpression, prelude::*, serialize,
-    sql_types::SmallInt, FromSqlRow,
+    FromSqlRow, backend::Backend, deserialize, expression::AsExpression, prelude::*, serialize,
+    sql_types::SmallInt,
 };
 use iota_field_count::FieldCount;
 use iota_types::base_types::ObjectID;
@@ -31,14 +31,15 @@ pub struct StoredObjVersion {
     pub cp_sequence_number: i64,
 }
 
-/// An insert/update or deletion of an object record, keyed on a particular Object ID and version.
+/// An insert/update or deletion of an object record, keyed on a particular
+/// Object ID and version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StoredObjectUpdate<T> {
     pub object_id: ObjectID,
     pub object_version: u64,
     pub cp_sequence_number: u64,
-    /// `None` means the object was deleted or wrapped at this version, `Some(x)` means it was
-    /// changed to `x`.
+    /// `None` means the object was deleted or wrapped at this version,
+    /// `Some(x)` means it was changed to `x`.
     pub update: Option<T>,
 }
 
@@ -110,10 +111,12 @@ pub struct StoredWalObjType {
     pub cp_sequence_number: i64,
 }
 
-/// StoredObjectUpdate is a wrapper type, we want to count the fields of the inner type.
+/// StoredObjectUpdate is a wrapper type, we want to count the fields of the
+/// inner type.
 impl<T: FieldCount> FieldCount for StoredObjectUpdate<T> {
-    // Add one here for cp_sequence_number field, because StoredObjectUpdate is used for
-    // wal_* handlers, where the actual type to commit has an additional field besides fields of T.
+    // Add one here for cp_sequence_number field, because StoredObjectUpdate is used
+    // for wal_* handlers, where the actual type to commit has an additional
+    // field besides fields of T.
     const FIELD_COUNT: usize = T::FIELD_COUNT.saturating_add(1);
 }
 

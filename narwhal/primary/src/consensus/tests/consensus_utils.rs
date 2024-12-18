@@ -1,12 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::{num::NonZeroUsize, sync::Arc};
+
 use config::AuthorityIdentifier;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
 use storage::{CertificateStore, CertificateStoreCache, ConsensusStore};
-use store::rocks::MetricConf;
-use store::{reopen, rocks, rocks::DBMap, rocks::ReadWriteOptions};
+use store::{
+    reopen, rocks,
+    rocks::{DBMap, MetricConf, ReadWriteOptions},
+};
 use types::{Certificate, CertificateDigest, ConsensusCommit, Round, SequenceNumber};
 
 #[allow(unused)]
@@ -17,12 +19,10 @@ pub fn make_consensus_store(store_path: &std::path::Path) -> Arc<ConsensusStore>
     const LAST_COMMITTED_CF: &str = "last_committed";
     const COMMITTED_SUB_DAG_CF: &str = "committed_sub_dag";
 
-    let rocksdb = rocks::open_cf(
-        store_path,
-        None,
-        MetricConf::default(),
-        &[LAST_COMMITTED_CF, COMMITTED_SUB_DAG_CF],
-    )
+    let rocksdb = rocks::open_cf(store_path, None, MetricConf::default(), &[
+        LAST_COMMITTED_CF,
+        COMMITTED_SUB_DAG_CF,
+    ])
     .expect("Failed to create database");
 
     let (last_committed_map, committed_sub_dag_map) = reopen!(&rocksdb,
@@ -42,16 +42,11 @@ pub fn make_certificate_store(store_path: &std::path::Path) -> CertificateStore 
     const CERTIFICATE_DIGEST_BY_ROUND_CF: &str = "certificate_digest_by_round";
     const CERTIFICATE_DIGEST_BY_ORIGIN_CF: &str = "certificate_digest_by_origin";
 
-    let rocksdb = rocks::open_cf(
-        store_path,
-        None,
-        MetricConf::default(),
-        &[
-            CERTIFICATES_CF,
-            CERTIFICATE_DIGEST_BY_ROUND_CF,
-            CERTIFICATE_DIGEST_BY_ORIGIN_CF,
-        ],
-    )
+    let rocksdb = rocks::open_cf(store_path, None, MetricConf::default(), &[
+        CERTIFICATES_CF,
+        CERTIFICATE_DIGEST_BY_ROUND_CF,
+        CERTIFICATE_DIGEST_BY_ORIGIN_CF,
+    ])
     .expect("Failed creating database");
 
     let (certificate_map, certificate_digest_by_round_map, certificate_digest_by_origin_map) = reopen!(&rocksdb,

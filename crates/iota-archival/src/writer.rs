@@ -3,37 +3,49 @@
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
-use crate::{
-    create_file_metadata, read_manifest, write_manifest, CheckpointUpdates, FileMetadata, FileType,
-    Manifest, CHECKPOINT_FILE_MAGIC, CHECKPOINT_FILE_SUFFIX, EPOCH_DIR_PREFIX, MAGIC_BYTES,
-    SUMMARY_FILE_MAGIC, SUMMARY_FILE_SUFFIX,
+use std::{
+    fs,
+    fs::{File, OpenOptions},
+    io::{BufWriter, Seek, SeekFrom, Write},
+    ops::Range,
+    path::{Path, PathBuf},
+    sync::Arc,
+    thread::sleep,
+    time::Duration,
 };
-use anyhow::Context;
-use anyhow::Result;
+
+use anyhow::{Context, Result};
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
-use object_store::DynObjectStore;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
-use std::fs;
-use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Seek, SeekFrom, Write};
-use std::ops::Range;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::thread::sleep;
-use std::time::Duration;
 use iota_config::object_storage_config::ObjectStoreConfig;
-use iota_storage::blob::{Blob, BlobEncoding};
-use iota_storage::object_store::util::{copy_file, path_to_filesystem};
-use iota_storage::{compress, FileCompression, StorageFormat};
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber,
-    FullCheckpointContents as CheckpointContents,
+use iota_storage::{
+    FileCompression, StorageFormat,
+    blob::{Blob, BlobEncoding},
+    compress,
+    object_store::util::{copy_file, path_to_filesystem},
 };
-use iota_types::storage::WriteStore;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::time::Instant;
+use iota_types::{
+    messages_checkpoint::{
+        CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber,
+        FullCheckpointContents as CheckpointContents,
+    },
+    storage::WriteStore,
+};
+use object_store::DynObjectStore;
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use tokio::{
+    sync::{
+        mpsc,
+        mpsc::{Receiver, Sender},
+    },
+    time::Instant,
+};
 use tracing::{debug, info};
+
+use crate::{
+    CHECKPOINT_FILE_MAGIC, CHECKPOINT_FILE_SUFFIX, CheckpointUpdates, EPOCH_DIR_PREFIX,
+    FileMetadata, FileType, MAGIC_BYTES, Manifest, SUMMARY_FILE_MAGIC, SUMMARY_FILE_SUFFIX,
+    create_file_metadata, read_manifest, write_manifest,
+};
 
 pub struct ArchiveMetrics {
     pub latest_checkpoint_archived: IntGauge,
@@ -53,7 +65,8 @@ impl ArchiveMetrics {
     }
 }
 
-/// CheckpointWriter writes checkpoints and summaries. It creates multiple *.chk and *.sum files
+/// CheckpointWriter writes checkpoints and summaries. It creates multiple *.chk
+/// and *.sum files
 struct CheckpointWriter {
     root_dir_path: PathBuf,
     epoch_num: u64,
@@ -310,8 +323,8 @@ impl CheckpointWriter {
     }
 }
 
-/// ArchiveWriter archives history by tailing checkpoints writing them to a local staging dir and
-/// simultaneously uploading them to a remote object store
+/// ArchiveWriter archives history by tailing checkpoints writing them to a
+/// local staging dir and simultaneously uploading them to a remote object store
 pub struct ArchiveWriter {
     file_compression: FileCompression,
     storage_format: StorageFormat,
@@ -424,8 +437,8 @@ impl ArchiveWriter {
                     continue;
                 }
             }
-            // Checkpoint with `checkpoint_sequence_number` is not available to read from store yet,
-            // sleep for sometime and then retry
+            // Checkpoint with `checkpoint_sequence_number` is not available to read from
+            // store yet, sleep for sometime and then retry
             sleep(Duration::from_secs(3));
         }
         Ok(())

@@ -6,64 +6,62 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use std::collections::BTreeSet;
     use std::{
         borrow::Borrow,
-        collections::{BTreeMap, HashMap},
+        collections::{BTreeMap, BTreeSet, HashMap},
         sync::Arc,
     };
 
-    use crate::adapter::new_native_extensions;
-    use crate::error::convert_vm_error;
-    use crate::execution_mode::ExecutionMode;
-    use crate::execution_value::{CommandKind, ObjectContents, TryFromValue, Value};
-    use crate::execution_value::{
-        ExecutionState, InputObjectMetadata, InputValue, ObjectValue, RawValueType, ResultValue,
-        UsageKind,
+    use iota_move_natives::object_runtime::{
+        self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
-    use crate::gas_charger::GasCharger;
-    use crate::programmable_transactions::linkage_view::LinkageView;
-    use crate::type_resolver::TypeTagResolver;
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::{
+        balance::Balance,
+        base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
+        coin::Coin,
+        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
+        event::Event,
+        execution::{ExecutionResults, ExecutionResultsV2},
+        execution_status::CommandArgumentError,
+        metrics::LimitsMetrics,
+        move_package::MovePackage,
+        object::{Data, MoveObject, Object, ObjectInner, Owner},
+        storage::{BackingPackageStore, PackageObject},
+        transaction::{Argument, CallArg, ObjectArg},
+    };
     use move_binary_format::{
+        CompiledModule,
         errors::{Location, PartialVMError, PartialVMResult, VMError, VMResult},
         file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
-        CompiledModule,
     };
-    use move_core_types::resolver::ModuleResolver;
-    use move_core_types::vm_status::StatusCode;
     use move_core_types::{
         account_address::AccountAddress,
         identifier::IdentStr,
         language_storage::{ModuleId, StructTag, TypeTag},
+        resolver::ModuleResolver,
+        vm_status::StatusCode,
     };
-    use move_vm_runtime::native_extensions::NativeContextExtensions;
     use move_vm_runtime::{
         move_vm::MoveVM,
+        native_extensions::NativeContextExtensions,
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
-    use move_vm_types::data_store::DataStore;
-    use move_vm_types::loaded_data::runtime_types::Type;
-    use iota_move_natives::object_runtime::{
-        self, get_all_uids, max_event_error, LoadedRuntimeObject, ObjectRuntime, RuntimeResults,
-    };
-    use iota_protocol_config::ProtocolConfig;
-    use iota_types::execution::ExecutionResults;
-    use iota_types::storage::PackageObject;
-    use iota_types::{
-        balance::Balance,
-        base_types::{MoveObjectType, ObjectID, IotaAddress, TxContext},
-        coin::Coin,
-        error::{ExecutionError, ExecutionErrorKind},
-        event::Event,
-        execution::ExecutionResultsV2,
-        metrics::LimitsMetrics,
-        move_package::MovePackage,
-        object::{Data, MoveObject, Object, ObjectInner, Owner},
-        storage::BackingPackageStore,
-        transaction::{Argument, CallArg, ObjectArg},
-    };
-    use iota_types::{error::command_argument_error, execution_status::CommandArgumentError};
+    use move_vm_types::{data_store::DataStore, loaded_data::runtime_types::Type};
     use tracing::instrument;
+
+    use crate::{
+        adapter::new_native_extensions,
+        error::convert_vm_error,
+        execution_mode::ExecutionMode,
+        execution_value::{
+            CommandKind, ExecutionState, InputObjectMetadata, InputValue, ObjectContents,
+            ObjectValue, RawValueType, ResultValue, TryFromValue, UsageKind, Value,
+        },
+        gas_charger::GasCharger,
+        programmable_transactions::linkage_view::LinkageView,
+        type_resolver::TypeTagResolver,
+    };
 
     /// Maintains all runtime state specific to programmable transactions
     pub struct ExecutionContext<'vm, 'state, 'a> {
@@ -78,8 +76,8 @@ mod checked {
         pub native_extensions: NativeContextExtensions<'state>,
         /// The global state, used for resolving packages
         pub state_view: &'state dyn ExecutionState,
-        /// A shared transaction context, contains transaction digest information and manages the
-        /// creation of new object IDs
+        /// A shared transaction context, contains transaction digest
+        /// information and manages the creation of new object IDs
         pub tx_context: &'a mut TxContext,
         /// The gas charger used for metering
         pub gas_charger: &'a mut GasCharger,
@@ -92,18 +90,22 @@ mod checked {
         // runtime data
         /// The runtime value for the Gas coin, None if it has been taken/moved
         gas: InputValue,
-        /// The runtime value for the inputs/call args, None if it has been taken/moved
+        /// The runtime value for the inputs/call args, None if it has been
+        /// taken/moved
         inputs: Vec<InputValue>,
-        /// The results of a given command. For most commands, the inner vector will have length 1.
-        /// It will only not be 1 for Move calls with multiple return values.
-        /// Inner values are None if taken/moved by-value
+        /// The results of a given command. For most commands, the inner vector
+        /// will have length 1. It will only not be 1 for Move calls
+        /// with multiple return values. Inner values are None if
+        /// taken/moved by-value
         results: Vec<Vec<ResultValue>>,
-        /// Map of arguments that are currently borrowed in this command, true if the borrow is mutable
-        /// This gets cleared out when new results are pushed, i.e. the end of a command
+        /// Map of arguments that are currently borrowed in this command, true
+        /// if the borrow is mutable This gets cleared out when new
+        /// results are pushed, i.e. the end of a command
         borrowed: HashMap<Argument, /* mut */ bool>,
     }
 
-    /// A write for an object that was generated outside of the Move ObjectRuntime
+    /// A write for an object that was generated outside of the Move
+    /// ObjectRuntime
     struct AdditionalWrite {
         /// The new owner of the object
         recipient: Owner,
@@ -153,12 +155,13 @@ mod checked {
                     &mut linkage_view,
                     &[],
                     &mut input_object_map,
-                    /* imm override */ false,
+                    // imm override
+                    false,
                     gas_coin,
                 )?;
-                // subtract the max gas budget. This amount is off limits in the programmable transaction,
-                // so to mimic this "off limits" behavior, we act as if the coin has less balance than
-                // it really does
+                // subtract the max gas budget. This amount is off limits in the programmable
+                // transaction, so to mimic this "off limits" behavior, we act
+                // as if the coin has less balance than it really does
                 let Some(Value::Object(ObjectValue {
                     contents: ObjectContents::Coin(coin),
                     ..
@@ -253,8 +256,9 @@ mod checked {
                 .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))
         }
 
-        /// Set the link context for the session from the linkage information in the MovePackage found
-        /// at `package_id`.  Returns the runtime ID of the link context package on success.
+        /// Set the link context for the session from the linkage information in
+        /// the MovePackage found at `package_id`.  Returns the runtime
+        /// ID of the link context package on success.
         pub fn set_link_context(
             &mut self,
             package_id: ObjectID,
@@ -293,8 +297,8 @@ mod checked {
             )
         }
 
-        /// Takes the user events from the runtime and tags them with the Move module of the function
-        /// that was invoked for the command
+        /// Takes the user events from the runtime and tags them with the Move
+        /// module of the function that was invoked for the command
         pub fn take_user_events(
             &mut self,
             module_id: &ModuleId,
@@ -329,10 +333,11 @@ mod checked {
             Ok(())
         }
 
-        /// Get the argument value. Cloning the value if it is copyable, and setting its value to None
-        /// if it is not (making it unavailable).
-        /// Errors if out of bounds, if the argument is borrowed, if it is unavailable (already taken),
-        /// or if it is an object that cannot be taken by value (shared or immutable)
+        /// Get the argument value. Cloning the value if it is copyable, and
+        /// setting its value to None if it is not (making it
+        /// unavailable). Errors if out of bounds, if the argument is
+        /// borrowed, if it is unavailable (already taken), or if it is
+        /// an object that cannot be taken by value (shared or immutable)
         pub fn by_value_arg<V: TryFromValue>(
             &mut self,
             command_kind: CommandKind<'_>,
@@ -356,10 +361,10 @@ mod checked {
                 return Err(CommandArgumentError::InvalidValueUsage);
             };
             // If it was taken, we catch this above.
-            // If it was not copyable and was borrowed, error as it creates a dangling reference in
-            // effect.
-            // We allow copyable values to be copied out even if borrowed, as we do not care about
-            // referential transparency at this level.
+            // If it was not copyable and was borrowed, error as it creates a dangling
+            // reference in effect.
+            // We allow copyable values to be copied out even if borrowed, as we do not care
+            // about referential transparency at this level.
             if !is_copyable && is_borrowed {
                 return Err(CommandArgumentError::InvalidValueUsage);
             }
@@ -411,11 +416,12 @@ mod checked {
             V::try_from_value(val)
         }
 
-        /// Mimic a mutable borrow by taking the argument value, setting its value to None,
-        /// making it unavailable. The value will be marked as borrowed and must be returned with
-        /// restore_arg
-        /// Errors if out of bounds, if the argument is borrowed, if it is unavailable (already taken),
-        /// or if it is an object that cannot be mutably borrowed (immutable)
+        /// Mimic a mutable borrow by taking the argument value, setting its
+        /// value to None, making it unavailable. The value will be
+        /// marked as borrowed and must be returned with restore_arg
+        /// Errors if out of bounds, if the argument is borrowed, if it is
+        /// unavailable (already taken), or if it is an object that
+        /// cannot be mutably borrowed (immutable)
         pub fn borrow_arg_mut<V: TryFromValue>(
             &mut self,
             arg_idx: usize,
@@ -447,8 +453,8 @@ mod checked {
             {
                 return Err(CommandArgumentError::InvalidObjectByMutRef);
             }
-            // if it is copyable, don't take it as we allow for the value to be copied even if
-            // mutably borrowed
+            // if it is copyable, don't take it as we allow for the value to be copied even
+            // if mutably borrowed
             let val = if is_copyable {
                 val_opt.as_ref().unwrap().clone()
             } else {
@@ -457,9 +463,10 @@ mod checked {
             V::try_from_value(val)
         }
 
-        /// Mimics an immutable borrow by cloning the argument value without setting its value to None
-        /// Errors if out of bounds, if the argument is mutably borrowed,
-        /// or if it is unavailable (already taken)
+        /// Mimics an immutable borrow by cloning the argument value without
+        /// setting its value to None Errors if out of bounds, if the
+        /// argument is mutably borrowed, or if it is unavailable
+        /// (already taken)
         pub fn borrow_arg<V: TryFromValue>(
             &mut self,
             arg_idx: usize,
@@ -550,7 +557,8 @@ mod checked {
             )
         }
 
-        /// Create a package upgrade from `previous_package` with `new_modules` and `dependencies`
+        /// Create a package upgrade from `previous_package` with `new_modules`
+        /// and `dependencies`
         pub fn upgrade_package<'p>(
             &self,
             storage_id: ObjectID,
@@ -572,14 +580,16 @@ mod checked {
         }
 
         /// Return the last package pushed in `write_package`.
-        /// This function should be used in block of codes that push a package, verify
-        /// it, run the init and in case of error will remove the package.
-        /// The package has to be pushed for the init to run correctly.
+        /// This function should be used in block of codes that push a package,
+        /// verify it, run the init and in case of error will remove the
+        /// package. The package has to be pushed for the init to run
+        /// correctly.
         pub fn pop_package(&mut self) -> Option<MovePackage> {
             self.new_packages.pop()
         }
 
-        /// Finish a command: clearing the borrows and adding the results to the result vector
+        /// Finish a command: clearing the borrows and adding the results to the
+        /// result vector
         pub fn push_command_results(&mut self, results: Vec<Value>) -> Result<(), ExecutionError> {
             assert_invariant!(
                 self.borrowed.values().all(|is_mut| !is_mut),
@@ -629,13 +639,10 @@ mod checked {
                 else {
                     continue;
                 };
-                loaded_runtime_objects.insert(
-                    id,
-                    LoadedRuntimeObject {
-                        version,
-                        is_modified: true,
-                    },
-                );
+                loaded_runtime_objects.insert(id, LoadedRuntimeObject {
+                    version,
+                    is_modified: true,
+                });
                 if let Some(Value::Object(object_value)) = value {
                     add_additional_write(&mut additional_writes, owner, object_value)?;
                 } else if owner.is_shared() {
@@ -658,14 +665,14 @@ mod checked {
                                     result_idx: i as u16,
                                     secondary_idx: j as u16,
                                 }
-                                .into())
+                                .into());
                             }
                             Some(Value::Raw(RawValueType::Any, _)) => (),
                             Some(Value::Raw(RawValueType::Loaded { abilities, .. }, _)) => {
                                 // - nothing to check for drop
-                                // - if it does not have drop, but has copy,
-                                //   the last usage must be by value in order to "lie" and say that the
-                                //   last usage is actually a take instead of a clone
+                                // - if it does not have drop, but has copy, the last usage must be
+                                //   by value in order to "lie" and say that the last usage is
+                                //   actually a take instead of a clone
                                 // - Otherwise, an error
                                 if abilities.has_drop()
                                     || (abilities.has_copy()
@@ -733,7 +740,8 @@ mod checked {
                     has_public_transfer,
                     bytes,
                 } = additional_write;
-                // safe given the invariant that the runtime correctly propagates has_public_transfer
+                // safe given the invariant that the runtime correctly propagates
+                // has_public_transfer
                 let move_object = unsafe {
                     create_written_object(
                         vm,
@@ -783,13 +791,15 @@ mod checked {
                 written_objects.insert(id, object);
             }
 
-            // Before finishing, ensure that any shared object taken by value by the transaction is either:
+            // Before finishing, ensure that any shared object taken by value by the
+            // transaction is either:
             // 1. Mutated (and still has a shared ownership); or
             // 2. Deleted.
-            // Otherwise, the shared object operation is not allowed and we fail the transaction.
+            // Otherwise, the shared object operation is not allowed and we fail the
+            // transaction.
             for id in &by_value_shared_objects {
-                // If it's been written it must have been reshared so must still have an ownership
-                // of `Shared`.
+                // If it's been written it must have been reshared so must still have an
+                // ownership of `Shared`.
                 if let Some(obj) = written_objects.get(id) {
                     if !obj.is_shared() {
                         return Err(ExecutionError::new(
@@ -805,8 +815,8 @@ mod checked {
                         ));
                     }
                 } else {
-                    // If it's not in the written objects, the object must have been deleted. Otherwise
-                    // it's an error.
+                    // If it's not in the written objects, the object must have been deleted.
+                    // Otherwise it's an error.
                     if !deleted_object_ids.contains(id) {
                         return Err(ExecutionError::new(
                             ExecutionErrorKind::SharedObjectOperationNotAllowed,
@@ -851,8 +861,8 @@ mod checked {
 
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
-            use move_core_types::vm_status::StatusCode;
             use iota_types::execution_status::TypeArgumentError;
+            use move_core_types::vm_status::StatusCode;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {
                     ExecutionErrorKind::TypeArityMismatch.into()
@@ -871,17 +881,20 @@ mod checked {
             }
         }
 
-        /// Returns true if the value at the argument's location is borrowed, mutably or immutably
+        /// Returns true if the value at the argument's location is borrowed,
+        /// mutably or immutably
         fn arg_is_borrowed(&self, arg: &Argument) -> bool {
             self.borrowed.contains_key(arg)
         }
 
-        /// Returns true if the value at the argument's location is mutably borrowed
+        /// Returns true if the value at the argument's location is mutably
+        /// borrowed
         fn arg_is_mut_borrowed(&self, arg: &Argument) -> bool {
             matches!(self.borrowed.get(arg), Some(/* mut */ true))
         }
 
-        /// Internal helper to borrow the value for an argument and update the most recent usage
+        /// Internal helper to borrow the value for an argument and update the
+        /// most recent usage
         fn borrow_mut(
             &mut self,
             arg: Argument,
@@ -1015,8 +1028,9 @@ mod checked {
         }
     }
 
-    /// Fetch the package at `package_id` with a view to using it as a link context.  Produces an error
-    /// if the object at that ID does not exist, or is not a package.
+    /// Fetch the package at `package_id` with a view to using it as a link
+    /// context.  Produces an error if the object at that ID does not exist,
+    /// or is not a package.
     fn package_for_linkage(
         linkage_view: &LinkageView,
         package_id: ObjectID,
@@ -1103,8 +1117,9 @@ mod checked {
         }
     }
 
-    /// Load `type_tag` to get a `Type` in the provided `session`.  `session`'s linkage context may be
-    /// reset after this operation, because during the operation, it may change when loading a struct.
+    /// Load `type_tag` to get a `Type` in the provided `session`.  `session`'s
+    /// linkage context may be reset after this operation, because during
+    /// the operation, it may change when loading a struct.
     pub fn load_type(
         vm: &MoveVM,
         linkage_view: &mut LinkageView,
@@ -1126,7 +1141,7 @@ mod checked {
                 Type::Vector(Box::new(load_type(vm, linkage_view, new_packages, inner)?))
             }
             TypeTag::Struct(struct_tag) => {
-                return load_type_from_struct(vm, linkage_view, new_packages, struct_tag)
+                return load_type_from_struct(vm, linkage_view, new_packages, struct_tag);
             }
         })
     }
@@ -1288,7 +1303,8 @@ mod checked {
         })
     }
 
-    /// Load an ObjectArg from state view, marking if it can be treated as mutable or not
+    /// Load an ObjectArg from state view, marking if it can be treated as
+    /// mutable or not
     fn load_object_arg(
         protocol_config: &ProtocolConfig,
         vm: &MoveVM,
@@ -1306,7 +1322,8 @@ mod checked {
                 linkage_view,
                 new_packages,
                 input_object_map,
-                /* imm override */ false,
+                // imm override
+                false,
                 id,
             ),
             ObjectArg::SharedObject { id, mutable, .. } => load_object(
@@ -1316,7 +1333,8 @@ mod checked {
                 linkage_view,
                 new_packages,
                 input_object_map,
-                /* imm override */ !mutable,
+                // imm override
+                !mutable,
                 id,
             ),
             ObjectArg::Receiving((id, version, _)) => {
@@ -1354,8 +1372,9 @@ mod checked {
         Ok(())
     }
 
-    /// The max budget was deducted from the gas coin at the beginning of the transaction,
-    /// now we return exactly that amount. Gas will be charged by the execution engine
+    /// The max budget was deducted from the gas coin at the beginning of the
+    /// transaction, now we return exactly that amount. Gas will be charged
+    /// by the execution engine
     fn refund_max_gas_budget(
         additional_writes: &mut BTreeMap<ObjectID, AdditionalWrite>,
         gas_charger: &mut GasCharger,
@@ -1381,8 +1400,9 @@ mod checked {
     /// Generate an MoveObject given an updated/written object
     /// # Safety
     ///
-    /// This function assumes proper generation of has_public_transfer, either from the abilities of
-    /// the StructTag, or from the runtime correctly propagating from the inputs
+    /// This function assumes proper generation of has_public_transfer, either
+    /// from the abilities of the StructTag, or from the runtime correctly
+    /// propagating from the inputs
     unsafe fn create_written_object(
         vm: &MoveVM,
         linkage_view: &LinkageView,
@@ -1423,8 +1443,9 @@ mod checked {
     // When used during execution it may have a list of new packages that have
     // just been published in the current context. Those are used for module/type
     // resolution when executing module init.
-    // It may be created with an empty slice of packages either when no publish/upgrade
-    // are performed or when a type is requested not during execution.
+    // It may be created with an empty slice of packages either when no
+    // publish/upgrade are performed or when a type is requested not during
+    // execution.
     pub(crate) struct IotaDataStore<'state, 'a> {
         linkage_view: &'a LinkageView<'state>,
         new_packages: &'a [MovePackage],
@@ -1453,7 +1474,8 @@ mod checked {
     }
 
     // TODO: `DataStore` will be reworked and this is likely to disappear.
-    //       Leaving this comment around until then as testament to better days to come...
+    //       Leaving this comment around until then as testament to better days to
+    // come...
     impl<'state, 'a> DataStore for IotaDataStore<'state, 'a> {
         fn link_context(&self) -> AccountAddress {
             self.linkage_view.link_context()

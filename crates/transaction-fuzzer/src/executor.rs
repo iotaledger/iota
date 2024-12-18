@@ -8,16 +8,20 @@
 
 use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
-use iota_core::authority::test_authority_builder::TestAuthorityBuilder;
-use iota_core::{authority::AuthorityState, test_utils::send_and_confirm_transaction};
+use iota_core::{
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
+    test_utils::send_and_confirm_transaction,
+};
 use iota_move_build::BuildConfig;
-use iota_types::base_types::ObjectID;
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use iota_types::error::IotaError;
-use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use iota_types::object::Object;
-use iota_types::transaction::{Transaction, TransactionData};
-use iota_types::utils::to_sender_signed_transaction;
+use iota_types::{
+    base_types::ObjectID,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::IotaError,
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
+    object::Object,
+    transaction::{Transaction, TransactionData},
+    utils::to_sender_signed_transaction,
+};
 use tokio::runtime::Runtime;
 
 use crate::account_universe::{AccountCurrent, PUBLISH_BUDGET};
@@ -36,8 +40,8 @@ fn build_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
     )
 }
 
-// We want to look for either panics (in which case we won't hit this) or invariant violations in
-// which case we want to panic.
+// We want to look for either panics (in which case we won't hit this) or
+// invariant violations in which case we want to panic.
 pub fn assert_is_acceptable_result(result: &ExecutionResult) {
     if let Ok(
         e @ ExecutionStatus::Failure {
@@ -116,7 +120,8 @@ impl Executor {
         account: &mut AccountCurrent,
     ) -> TransactionEffects {
         let (_, modules) = build_test_modules(package_name);
-        // let gas_obj_ref = account.current_coins.last().unwrap().compute_object_reference();
+        // let gas_obj_ref =
+        // account.current_coins.last().unwrap().compute_object_reference();
         let gas_object = account.new_gas_object(self);
         let data = TransactionData::new_module(
             account.initial_data.account.address,

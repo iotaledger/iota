@@ -2,22 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::connection::ScanConnection;
+use async_graphql::{connection::Connection, *};
 
 use super::{
     balance::{self, Balance},
     coin::Coin,
     cursor::Page,
+    iota_address::IotaAddress,
+    iotans_registration::{DomainFormat, IotaNSRegistration},
     move_object::MoveObject,
     object::{self, ObjectFilter},
     owner::OwnerImpl,
     stake::StakedIota,
-    iota_address::IotaAddress,
-    iotans_registration::{DomainFormat, IotaNSRegistration},
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     type_filter::ExactTypeFilter,
 };
-use async_graphql::{connection::Connection, *};
+use crate::connection::ScanConnection;
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub(crate) struct Address {
@@ -31,12 +31,14 @@ pub(crate) struct Address {
 pub(crate) enum AddressTransactionBlockRelationship {
     /// Transactions this address has sent.
     Sent,
-    /// Transactions that this address was involved in, either as the sender, sponsor, or as the
-    /// owner of some object that was created, modified or transfered.
+    /// Transactions that this address was involved in, either as the sender,
+    /// sponsor, or as the owner of some object that was created, modified
+    /// or transfered.
     Affected,
 }
 
-/// The 32-byte address that is an account address (corresponding to a public key).
+/// The 32-byte address that is an account address (corresponding to a public
+/// key).
 #[Object]
 impl Address {
     pub(crate) async fn address(&self) -> IotaAddress {
@@ -58,8 +60,8 @@ impl Address {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this address. If type is not supplied,
-    /// it defaults to `0x2::iota::IOTA`.
+    /// Total balance of all coins with marker type owned by this address. If
+    /// type is not supplied, it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -84,7 +86,8 @@ impl Address {
 
     /// The coin objects for this address.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -113,7 +116,8 @@ impl Address {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this address.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// address.
     pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
@@ -122,8 +126,8 @@ impl Address {
         OwnerImpl::from(self).default_iotans_name(ctx, format).await
     }
 
-    /// The IotaNSRegistration NFTs owned by this address. These grant the owner the capability to
-    /// manage the associated domain.
+    /// The IotaNSRegistration NFTs owned by this address. These grant the owner
+    /// the capability to manage the associated domain.
     pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
@@ -137,27 +141,33 @@ impl Address {
             .await
     }
 
-    /// Similar behavior to the `transactionBlocks` in Query but supporting the additional
-    /// `AddressTransactionBlockRelationship` filter, which defaults to `SENT`.
+    /// Similar behavior to the `transactionBlocks` in Query but supporting the
+    /// additional `AddressTransactionBlockRelationship` filter, which
+    /// defaults to `SENT`.
     ///
-    /// `scanLimit` restricts the number of candidate transactions scanned when gathering a page of
-    /// results. It is required for queries that apply more than two complex filters (on function,
-    /// kind, sender, recipient, input object, changed object, or ids), and can be at most
+    /// `scanLimit` restricts the number of candidate transactions scanned when
+    /// gathering a page of results. It is required for queries that apply
+    /// more than two complex filters (on function, kind, sender, recipient,
+    /// input object, changed object, or ids), and can be at most
     /// `serviceConfig.maxScanLimit`.
     ///
-    /// When the scan limit is reached the page will be returned even if it has fewer than `first`
-    /// results when paginating forward (`last` when paginating backwards). If there are more
-    /// transactions to scan, `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
-    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set to the last
-    /// transaction that was scanned as opposed to the last (or first) transaction in the page.
+    /// When the scan limit is reached the page will be returned even if it has
+    /// fewer than `first` results when paginating forward (`last` when
+    /// paginating backwards). If there are more transactions to scan,
+    /// `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
+    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
+    /// to the last transaction that was scanned as opposed to the last (or
+    /// first) transaction in the page.
     ///
-    /// Requesting the next (or previous) page after this cursor will resume the search, scanning
-    /// the next `scanLimit` many transactions in the direction of pagination, and so on until all
-    /// transactions in the scanning range have been visited.
+    /// Requesting the next (or previous) page after this cursor will resume the
+    /// search, scanning the next `scanLimit` many transactions in the
+    /// direction of pagination, and so on until all transactions in the
+    /// scanning range have been visited.
     ///
-    /// By default, the scanning range includes all transactions known to GraphQL, but it can be
-    /// restricted by the `after` and `before` cursors, and the `beforeCheckpoint`,
-    /// `afterCheckpoint` and `atCheckpoint` filters.
+    /// By default, the scanning range includes all transactions known to
+    /// GraphQL, but it can be restricted by the `after` and `before`
+    /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
+    /// `atCheckpoint` filters.
     async fn transaction_blocks(
         &self,
         ctx: &Context<'_>,

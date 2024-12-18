@@ -2,11 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::string_input::impl_string_input;
+use std::{fmt, str::FromStr};
+
 use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
-use std::{fmt, str::FromStr};
 use iota_types::digests::{ObjectDigest, TransactionDigest};
+
+use super::string_input::impl_string_input;
 
 pub(crate) const BASE58_DIGEST_LENGTH: usize = 32;
 
@@ -81,8 +83,7 @@ impl fmt::Display for Digest {
 
 #[cfg(test)]
 mod tests {
-    use super::Error;
-    use super::*;
+    use super::{Error, *};
 
     #[test]
     fn test_base58_digest() {

@@ -3,15 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-
 use iota_json_rpc_types::Checkpoint as RpcCheckpoint;
-use iota_types::base_types::TransactionDigest;
-use iota_types::digests::CheckpointDigest;
-use iota_types::gas::GasCostSummary;
+use iota_types::{base_types::TransactionDigest, digests::CheckpointDigest, gas::GasCostSummary};
 
-use crate::errors::IndexerError;
-use crate::schema::{chain_identifier, checkpoints, pruner_cp_watermark};
-use crate::types::IndexedCheckpoint;
+use crate::{
+    errors::IndexerError,
+    schema::{chain_identifier, checkpoints, pruner_cp_watermark},
+    types::IndexedCheckpoint,
+};
 
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = chain_identifier)]

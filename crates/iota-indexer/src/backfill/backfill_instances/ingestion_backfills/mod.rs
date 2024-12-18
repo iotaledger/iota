@@ -7,8 +7,9 @@ pub(crate) mod ingestion_backfill_task;
 pub(crate) mod raw_checkpoints;
 pub(crate) mod tx_affected_objects;
 
-use crate::database::ConnectionPool;
 use iota_types::full_checkpoint_content::CheckpointData;
+
+use crate::database::ConnectionPool;
 
 #[async_trait::async_trait]
 pub trait IngestionBackfillTrait: Send + Sync {

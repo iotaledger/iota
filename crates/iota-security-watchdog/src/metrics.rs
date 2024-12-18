@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use std::collections::HashMap;
+
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio::sync::Mutex;
 
 /// Defines a structure to hold and manage metrics for a watchdog service.
-/// This structure is thread-safe, allowing concurrent access and modification of metrics.
+/// This structure is thread-safe, allowing concurrent access and modification
+/// of metrics.
 #[derive(Debug)]
 pub struct WatchdogMetrics {
     // The Prometheus registry to which metrics are registered.
@@ -18,7 +20,8 @@ pub struct WatchdogMetrics {
 }
 
 impl WatchdogMetrics {
-    /// Constructs a new WatchdogMetrics instance with the given Prometheus registry
+    /// Constructs a new WatchdogMetrics instance with the given Prometheus
+    /// registry
     pub fn new(registry: &Registry) -> Self {
         Self {
             registry: registry.clone(),

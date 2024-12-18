@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::base_types::ObjectID;
 use narwhal_types::Round;
 use serde::{Deserialize, Serialize};
-use iota_types::base_types::ObjectID;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum DeferralKey {
@@ -13,9 +13,10 @@ pub enum DeferralKey {
     Randomness {
         deferred_from_round: Round, // commit round, not randomness round
     },
-    // ConsensusRound deferral key requires both the round to which the tx should be deferred (so that
-    // we can efficiently load all txns that are now ready), and the round from which it has been
-    // deferred (so that multiple rounds can efficiently defer to the same future round).
+    // ConsensusRound deferral key requires both the round to which the tx should be deferred (so
+    // that we can efficiently load all txns that are now ready), and the round from which it
+    // has been deferred (so that multiple rounds can efficiently defer to the same future
+    // round).
     ConsensusRound {
         future_round: Round,
         deferred_from_round: Round,
@@ -47,7 +48,8 @@ impl DeferralKey {
         )
     }
 
-    // Returns a range of deferral keys that are deferred up to the given consensus round.
+    // Returns a range of deferral keys that are deferred up to the given consensus
+    // round.
     pub fn range_for_up_to_consensus_round(consensus_round: Round) -> (Self, Self) {
         (
             Self::ConsensusRound {
@@ -101,13 +103,13 @@ pub fn transaction_deferral_within_limit(
 
 #[cfg(test)]
 mod object_cost_tests {
-    use super::*;
-    use typed_store::DBMapUtils;
-    use typed_store::Map;
     use typed_store::{
+        DBMapUtils, Map,
         rocks::{DBMap, MetricConf},
         traits::{TableSummary, TypedStoreDebug},
     };
+
+    use super::*;
 
     #[tokio::test]
     async fn test_deferral_key_sort_order() {
@@ -148,7 +150,8 @@ mod object_cost_tests {
         }
     }
 
-    // Tests that fetching deferred transactions up to a given consensus rounds works as expected.
+    // Tests that fetching deferred transactions up to a given consensus rounds
+    // works as expected.
     #[tokio::test]
     async fn test_fetching_deferred_txs() {
         use rand::prelude::*;
@@ -181,7 +184,8 @@ mod object_cost_tests {
                     &(),
                 )
                 .unwrap();
-            // Add a randomness deferral txn to make sure that it won't show up when fetching deferred consensus round txs.
+            // Add a randomness deferral txn to make sure that it won't show up when
+            // fetching deferred consensus round txs.
             db.deferred_certs
                 .insert(&DeferralKey::new_for_randomness(current_round), &())
                 .unwrap();

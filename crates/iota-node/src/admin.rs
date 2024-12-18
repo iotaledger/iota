@@ -2,29 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::IotaNode;
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    routing::{get, post},
-    Router,
-};
-use base64::Engine;
-use humantime::parse_duration;
-use serde::Deserialize;
-use std::sync::Arc;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
+    sync::Arc,
 };
+
+use axum::{
+    Router,
+    extract::{Query, State},
+    http::StatusCode,
+    routing::{get, post},
+};
+use base64::Engine;
+use humantime::parse_duration;
 use iota_types::{
     base_types::AuthorityName,
     crypto::{RandomnessPartialSignature, RandomnessRound, RandomnessSignature},
     error::IotaError,
 };
+use serde::Deserialize;
 use telemetry_subscribers::TracingHandle;
 use tokio::sync::oneshot;
 use tracing::info;
+
+use crate::IotaNode;
 
 // Example commands:
 //
@@ -41,7 +43,8 @@ use tracing::info;
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/force-close-epoch?epoch=2'
 //
-// View current all capabilities from all authorities that have been received by this node:
+// View current all capabilities from all authorities that have been received by
+// this node:
 //
 //   $ curl 'http://127.0.0.1:1337/capabilities'
 //
@@ -49,8 +52,8 @@ use tracing::info;
 //
 //   $ curl 'http://127.0.0.1:1337/node-config'
 //
-// Set a time-limited tracing config. After the duration expires, tracing will be disabled
-// automatically.
+// Set a time-limited tracing config. After the duration expires, tracing will
+// be disabled automatically.
 //
 //   $ curl -X POST 'http://127.0.0.1:1337/enable-tracing?filter=info&duration=10s'
 //
@@ -62,7 +65,8 @@ use tracing::info;
 //
 //  $ curl 'http://127.0.0.1:1337/randomness-partial-sigs?round=123'
 //
-// Inject a randomness partial signature from another node, bypassing validity checks.
+// Inject a randomness partial signature from another node, bypassing validity
+// checks.
 //
 //  $ curl 'http://127.0.0.1:1337/randomness-inject-partial-sigs?authority_name=hexencodedname&round=123&sigs=base64encodedsigs'
 //

@@ -2,9 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    consistency::ConsistentIndexCursor, data::package_resolver::PackageResolver, error::Error,
-};
 use async_graphql::{
     connection::{Connection, ConnectionNameType, CursorType, Edge, EdgeNameType, EmptyFields},
     *,
@@ -41,9 +38,13 @@ use super::{
     uint53::UInt53,
     unchanged_shared_object::UnchangedSharedObject,
 };
+use crate::{
+    consistency::ConsistentIndexCursor, data::package_resolver::PackageResolver, error::Error,
+};
 
-/// Wraps the actual transaction block effects data with the checkpoint sequence number at which the
-/// data was viewed, for consistent results on paginating through and resolving nested types.
+/// Wraps the actual transaction block effects data with the checkpoint sequence
+/// number at which the data was viewed, for consistent results on paginating
+/// through and resolving nested types.
 #[derive(Clone, Debug)]
 pub(crate) struct TransactionBlockEffects {
     pub kind: TransactionBlockEffectsKind,
@@ -60,14 +61,16 @@ pub(crate) enum TransactionBlockEffectsKind {
         native: NativeTransactionEffects,
     },
     /// A transaction block that has been executed via executeTransactionBlock
-    /// but not yet indexed. So it does not contain checkpoint, timestamp or balanceChanges.
+    /// but not yet indexed. So it does not contain checkpoint, timestamp or
+    /// balanceChanges.
     Executed {
         tx_data: NativeSenderSignedData,
         native: NativeTransactionEffects,
         events: Vec<NativeEvent>,
     },
-    /// A transaction block that has been executed via dryRunTransactionBlock. Similar to
-    /// Executed, it does not contain checkpoint, timestamp or balanceChanges.
+    /// A transaction block that has been executed via dryRunTransactionBlock.
+    /// Similar to Executed, it does not contain checkpoint, timestamp or
+    /// balanceChanges.
     DryRun {
         tx_data: NativeTransactionData,
         native: NativeTransactionEffects,
@@ -84,8 +87,9 @@ pub enum ExecutionStatus {
     Failure,
 }
 
-/// Type to override names of the Dependencies Connection (which has nullable transactions and
-/// therefore must be a different types to the default `TransactionBlockConnection`).
+/// Type to override names of the Dependencies Connection (which has nullable
+/// transactions and therefore must be a different types to the default
+/// `TransactionBlockConnection`).
 struct DependencyConnectionNames;
 
 type CDependencies = JsonCursor<ConsistentIndexCursor>;
@@ -110,15 +114,17 @@ impl TransactionBlockEffects {
         })
     }
 
-    /// The latest version of all objects (apart from packages) that have been created or modified
-    /// by this transaction, immediately following this transaction.
+    /// The latest version of all objects (apart from packages) that have been
+    /// created or modified by this transaction, immediately following this
+    /// transaction.
     async fn lamport_version(&self) -> UInt53 {
         self.native().lamport_version().value().into()
     }
 
     /// The reason for a transaction failure, if it did fail.
-    /// If the error is a Move abort, the error message will be resolved to a human-readable form if
-    /// possible, otherwise it will fall back to displaying the abort code and location.
+    /// If the error is a Move abort, the error message will be resolved to a
+    /// human-readable form if possible, otherwise it will fall back to
+    /// displaying the abort code and location.
     async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
         let status = self.resolve_native_status_impl(resolver).await?;
@@ -267,7 +273,8 @@ impl TransactionBlockEffects {
         Some(GasEffects::from(self.native(), self.checkpoint_viewed_at))
     }
 
-    /// Shared objects that are referenced by but not changed by this transaction.
+    /// Shared objects that are referenced by but not changed by this
+    /// transaction.
     async fn unchanged_shared_objects(
         &self,
         ctx: &Context<'_>,
@@ -298,7 +305,8 @@ impl TransactionBlockEffects {
                         .edges
                         .push(Edge::new(c.encode_cursor(), unchanged_shared_object));
                 }
-                Err(_shared_object_changed) => continue, // Only add unchanged shared objects to the connection.
+                Err(_shared_object_changed) => continue, /* Only add unchanged shared objects to
+                                                          * the connection. */
             }
         }
 
@@ -342,8 +350,8 @@ impl TransactionBlockEffects {
         Ok(connection)
     }
 
-    /// The effect this transaction had on the balances (sum of coin values per coin type) of
-    /// addresses and objects.
+    /// The effect this transaction had on the balances (sum of coin values per
+    /// coin type) of addresses and objects.
     async fn balance_changes(
         &self,
         ctx: &Context<'_>,
@@ -425,7 +433,8 @@ impl TransactionBlockEffects {
         Ok(connection)
     }
 
-    /// Timestamp corresponding to the checkpoint this transaction was finalized in.
+    /// Timestamp corresponding to the checkpoint this transaction was finalized
+    /// in.
     async fn timestamp(&self) -> Result<Option<DateTime>, Error> {
         let TransactionBlockEffectsKind::Stored { stored_tx, .. } = &self.kind else {
             return Ok(None);
@@ -446,7 +455,8 @@ impl TransactionBlockEffects {
 
     /// The checkpoint this transaction was finalized in.
     async fn checkpoint(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
-        // If the transaction data is not a stored transaction, it's not in the checkpoint yet so we return None.
+        // If the transaction data is not a stored transaction, it's not in the
+        // checkpoint yet so we return None.
         let TransactionBlockEffectsKind::Stored { stored_tx, .. } = &self.kind else {
             return Ok(None);
         };
@@ -484,7 +494,8 @@ impl TransactionBlockEffects {
     }
 
     /// Get the transaction data from the transaction block effects.
-    /// Will error if the transaction data is not available/invalid, but this should not occur.
+    /// Will error if the transaction data is not available/invalid, but this
+    /// should not occur.
     fn transaction_data(&self) -> Result<NativeTransactionData> {
         Ok(match &self.kind {
             TransactionBlockEffectsKind::Stored { stored_tx, .. } => {
@@ -502,10 +513,12 @@ impl TransactionBlockEffects {
     }
 
     /// Get the programmable transaction from the transaction block effects.
-    /// * If the transaction was unable to be retrieved, this will return an Err.
-    /// * If the transaction was able to be retrieved but was not a programmable transaction, this
-    ///   will return Ok(None).
-    /// * If the transaction was a programmable transaction, this will return Ok(Some(tx)).
+    /// * If the transaction was unable to be retrieved, this will return an
+    ///   Err.
+    /// * If the transaction was able to be retrieved but was not a programmable
+    ///   transaction, this will return Ok(None).
+    /// * If the transaction was a programmable transaction, this will return
+    ///   Ok(Some(tx)).
     fn programmable_transaction(&self) -> Result<Option<ProgrammableTransaction>> {
         let tx_data = self.transaction_data()?;
         match tx_data.into_kind() {
@@ -514,12 +527,12 @@ impl TransactionBlockEffects {
         }
     }
 
-    /// Resolves the module ID within a Move abort to the storage ID of the package that the
-    /// abort occurred in.
-    /// * If the error is not a Move abort, or the Move call in the programmable transaction cannot
-    ///   be found, this function will do nothing.
-    /// * If the error is a Move abort and the storage ID is unable to be resolved an error is
-    ///   returned.
+    /// Resolves the module ID within a Move abort to the storage ID of the
+    /// package that the abort occurred in.
+    /// * If the error is not a Move abort, or the Move call in the programmable
+    ///   transaction cannot be found, this function will do nothing.
+    /// * If the error is a Move abort and the storage ID is unable to be
+    ///   resolved an error is returned.
     async fn resolve_native_status_impl(
         &self,
         resolver: &PackageResolver,
@@ -541,9 +554,10 @@ impl TransactionBlockEffects {
                 .and_then(|ptb| ptb.commands.into_iter().nth(*command_idx))
             {
                 let module_new = module.clone();
-                // Resolve the runtime module ID in the Move abort to the storage ID of the package
-                // that the abort occurred in. This is important to make sure that we look at the
-                // correct version of the module when resolving the error.
+                // Resolve the runtime module ID in the Move abort to the storage ID of the
+                // package that the abort occurred in. This is important to make
+                // sure that we look at the correct version of the module when
+                // resolving the error.
                 *module = resolver
                     .resolve_module_id(module_new, ptb_call.package.into())
                     .await

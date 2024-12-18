@@ -2,22 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::language_storage::StructTag;
-use move_core_types::{account_address::AccountAddress, identifier::Identifier};
-use proptest::arbitrary::*;
-use proptest::prelude::*;
-
 use iota_core::test_utils::send_and_confirm_transaction;
-use iota_types::base_types::ObjectID;
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use iota_types::error::IotaError;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::transaction::{ProgrammableTransaction, TransactionData, TransactionKind};
-use iota_types::utils::to_sender_signed_transaction;
-use iota_types::{TypeTag, IOTA_FRAMEWORK_PACKAGE_ID};
+use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, TypeTag,
+    base_types::ObjectID,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::IotaError,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{ProgrammableTransaction, TransactionData, TransactionKind},
+    utils::to_sender_signed_transaction,
+};
+use move_core_types::{
+    account_address::AccountAddress, identifier::Identifier, language_storage::StructTag,
+};
+use proptest::{arbitrary::*, prelude::*};
 
-use crate::account_universe::AccountCurrent;
-use crate::executor::{assert_is_acceptable_result, Executor};
+use crate::{
+    account_universe::AccountCurrent,
+    executor::{Executor, assert_is_acceptable_result},
+};
 
 const GAS_PRICE: u64 = 700;
 const GAS: u64 = 1_000_000 * GAS_PRICE;

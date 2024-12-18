@@ -2,37 +2,40 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module provides a function to render a Move abort status string into a more human-readable
-//! error message using the clever error rendering logic.
+//! This module provides a function to render a Move abort status string into a
+//! more human-readable error message using the clever error rendering logic.
 //!
-//! The logic in this file is largely a stop-gap to provide Clever Error rendering in the CLI while
-//! it still uses the JSON-RPC API. The new GraphQL API already rendered Clever Errors on the server
-//! side in a much more robust and efficient way.
+//! The logic in this file is largely a stop-gap to provide Clever Error
+//! rendering in the CLI while it still uses the JSON-RPC API. The new GraphQL
+//! API already rendered Clever Errors on the server side in a much more robust
+//! and efficient way.
 //!
-//! Once the CLI is updated to use the GraphQL API, this file can be removed, and the GraphQL-based
-//! rendering logic for Clever Errors should be used instead.
+//! Once the CLI is updated to use the GraphQL API, this file can be removed,
+//! and the GraphQL-based rendering logic for Clever Errors should be used
+//! instead.
 
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
+use iota_sdk::apis::ReadApi;
+use iota_types::{Identifier, base_types::ObjectID};
 use move_binary_format::{
-    binary_config::BinaryConfig, file_format::SignatureToken, CompiledModule,
+    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
 use move_command_line_common::{
-    display::{try_render_constant, RenderResult},
+    display::{RenderResult, try_render_constant},
     error_bitset::ErrorBitset,
 };
 use move_core_types::account_address::AccountAddress;
-use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
-use iota_sdk::apis::ReadApi;
-use iota_types::{base_types::ObjectID, Identifier};
 
-/// Take a Move abort status string and render it into a more human-readable error message using
-/// by parsing the string (as best we can) and seeing if the abort code is a Clever Error abort
-/// code. If it is, we attempt to render the error in a more huma-readable manner using the Read
-/// API and decoding the Clever Error encoding in the abort code.
+/// Take a Move abort status string and render it into a more human-readable
+/// error message using by parsing the string (as best we can) and seeing if the
+/// abort code is a Clever Error abort code. If it is, we attempt to render the
+/// error in a more huma-readable manner using the Read API and decoding the
+/// Clever Error encoding in the abort code.
 ///
-/// This function is used to render Clever Errors for on-chain errors only within the Iota CLI. This
-/// function is _not_ used at all for off-chain errors or Move unit tests. You should only use this
-/// function within this crate.
+/// This function is used to render Clever Errors for on-chain errors only
+/// within the Iota CLI. This function is _not_ used at all for off-chain errors
+/// or Move unit tests. You should only use this function within this crate.
 pub(crate) async fn render_clever_error_opt(
     error_string: &str,
     read_api: &ReadApi,
@@ -129,16 +132,18 @@ pub(crate) async fn render_clever_error_opt(
     Some(format!("{command}{suffix} command aborted within {error}"))
 }
 
-/// Parsing the error with a regex is not great, but it's the best we can do with the current
-/// JSON-RPC API since we only get error messages as strings. This function attempts to parse a
-/// Move abort status string into its different parts, and then parses it back into the structured
-/// format that we can then use to render a Clever Error.
+/// Parsing the error with a regex is not great, but it's the best we can do
+/// with the current JSON-RPC API since we only get error messages as strings.
+/// This function attempts to parse a Move abort status string into its
+/// different parts, and then parses it back into the structured format that we
+/// can then use to render a Clever Error.
 ///
-/// If we are able to parse the string, we return a tuple with the address, module name, function
-/// name, instruction, abort code, and command index. If we are unable to parse the string, we
-/// return `Err`.
+/// If we are able to parse the string, we return a tuple with the address,
+/// module name, function name, instruction, abort code, and command index. If
+/// we are unable to parse the string, we return `Err`.
 ///
-/// You should delete this function with glee once the CLI is updated to use the GraphQL API.
+/// You should delete this function with glee once the CLI is updated to use the
+/// GraphQL API.
 fn parse_abort_status_string(
     s: &str,
 ) -> Result<(AccountAddress, Identifier, Identifier, u16, u64, u16), anyhow::Error> {

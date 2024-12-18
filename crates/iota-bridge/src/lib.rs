@@ -13,6 +13,10 @@ pub mod eth_client;
 pub mod eth_syncer;
 pub mod eth_transaction_builder;
 pub mod events;
+pub mod iota_bridge_watchdog;
+pub mod iota_client;
+pub mod iota_syncer;
+pub mod iota_transaction_builder;
 pub mod metered_eth_provider;
 pub mod metrics;
 pub mod monitor;
@@ -20,10 +24,6 @@ pub mod node;
 pub mod orchestrator;
 pub mod server;
 pub mod storage;
-pub mod iota_bridge_watchdog;
-pub mod iota_client;
-pub mod iota_syncer;
-pub mod iota_transaction_builder;
 pub mod types;
 pub mod utils;
 
@@ -62,7 +62,8 @@ macro_rules! retry_with_max_elapsed_time {
                         return Ok(result);
                     }
                     Err(e) => {
-                        // For simplicity we treat every error as transient so we can retry until max_elapsed_time
+                        // For simplicity we treat every error as transient so we can retry until
+                        // max_elapsed_time
                         tracing::debug!("Retrying due to error: {:?}", e);
                         return Err(backoff::Error::transient(e));
                     }
@@ -76,8 +77,9 @@ macro_rules! retry_with_max_elapsed_time {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::time::Duration;
+
+    use super::*;
 
     async fn example_func_ok() -> anyhow::Result<()> {
         Ok(())
@@ -98,7 +100,8 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        // now call a function that always errors and expect it to return before max_elapsed_time runs out
+        // now call a function that always errors and expect it to return before
+        // max_elapsed_time runs out
         let max_elapsed_time = Duration::from_secs(10);
         let instant = std::time::Instant::now();
         retry_with_max_elapsed_time!(example_func_err(), max_elapsed_time).unwrap_err();

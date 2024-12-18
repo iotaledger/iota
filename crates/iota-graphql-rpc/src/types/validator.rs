@@ -2,31 +2,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::consistency::ConsistentIndexCursor;
-use crate::data::apys::calculate_apy;
-use crate::data::{DataLoader, Db};
-use crate::types::cursor::{JsonCursor, Page};
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::dataloader::Loader;
 use std::collections::{BTreeMap, HashMap};
-use iota_indexer::apis::GovernanceReadApi;
-use iota_types::committee::EpochId;
-use iota_types::iota_system_state::PoolTokenExchangeRate;
 
-use iota_types::base_types::IotaAddress as NativeIotaAddress;
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    dataloader::Loader,
+    *,
+};
+use iota_indexer::apis::{GovernanceReadApi, governance_api::exchange_rates};
+use iota_types::{
+    base_types::IotaAddress as NativeIotaAddress,
+    committee::EpochId,
+    iota_system_state::{
+        PoolTokenExchangeRate,
+        iota_system_state_summary::IotaValidatorSummary as NativeIotaValidatorSummary,
+    },
+};
 
-use super::big_int::BigInt;
-use super::move_object::MoveObject;
-use super::object::Object;
-use super::owner::Owner;
-use super::iota_address::IotaAddress;
-use super::uint53::UInt53;
-use super::validator_credentials::ValidatorCredentials;
-use super::{address::Address, base64::Base64};
-use crate::error::Error;
-use async_graphql::*;
-use iota_indexer::apis::governance_api::exchange_rates;
-use iota_types::iota_system_state::iota_system_state_summary::IotaValidatorSummary as NativeIotaValidatorSummary;
+use super::{
+    address::Address, base64::Base64, big_int::BigInt, iota_address::IotaAddress,
+    move_object::MoveObject, object::Object, owner::Owner, uint53::UInt53,
+    validator_credentials::ValidatorCredentials,
+};
+use crate::{
+    consistency::ConsistentIndexCursor,
+    data::{DataLoader, Db, apys::calculate_apy},
+    error::Error,
+    types::cursor::{JsonCursor, Page},
+};
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
     pub validator_summary: NativeIotaValidatorSummary,
@@ -34,17 +37,19 @@ pub(crate) struct Validator {
     pub report_records: Option<Vec<Address>>,
     /// The checkpoint sequence number at which this was viewed at.
     pub checkpoint_viewed_at: u64,
-    /// The epoch at which this validator's information was requested to be viewed at.
+    /// The epoch at which this validator's information was requested to be
+    /// viewed at.
     pub requested_for_epoch: u64,
 }
 
 type EpochStakeSubsidyStarted = u64;
 
-/// Loads the exchange rates from the cache and return a tuple (epoch stake subsidy started, and
-/// a BTreeMap holiding the exchange rates for each epoch for each validator.
+/// Loads the exchange rates from the cache and return a tuple (epoch stake
+/// subsidy started, and a BTreeMap holiding the exchange rates for each epoch
+/// for each validator.
 ///
-/// It automatically filters the exchange rate table to only include data for the epochs that are
-/// less than or equal to the requested epoch.
+/// It automatically filters the exchange rate table to only include data for
+/// the epochs that are less than or equal to the requested epoch.
 #[async_trait::async_trait]
 impl Loader<u64> for Db {
     type Value = (
@@ -77,12 +82,12 @@ impl Loader<u64> for Db {
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
         let mut results = BTreeMap::new();
 
-        // The requested epoch is the epoch for which we want to compute the APY. For the current
-        // ongoing epoch we cannot compute an APY, so we compute it for epoch - 1.
-        // First need to check if that requested epoch is not the current running one. If it is,
-        // then subtract one as the APY cannot be computed for a running epoch.
-        // If no epoch is passed in the key, then we default to the latest epoch - 1
-        // for the same reasons as above.
+        // The requested epoch is the epoch for which we want to compute the APY. For
+        // the current ongoing epoch we cannot compute an APY, so we compute it
+        // for epoch - 1. First need to check if that requested epoch is not the
+        // current running one. If it is, then subtract one as the APY cannot be
+        // computed for a running epoch. If no epoch is passed in the key, then
+        // we default to the latest epoch - 1 for the same reasons as above.
         let epoch_to_filter_out = if let Some(epoch) = keys.first() {
             if epoch == &latest_iota_system_state.epoch {
                 *epoch - 1
@@ -93,11 +98,12 @@ impl Loader<u64> for Db {
             latest_iota_system_state.epoch - 1
         };
 
-        // filter the exchange rates to only include data for the epochs that are less than or
-        // equal to the requested epoch. This enables us to get historical exchange rates
-        // accurately and pass this to the APY calculation function
-        // TODO we might even filter here by the epoch at which the stake subsidy started
-        // to avoid passing that to the `calculate_apy` function and doing another filter there
+        // filter the exchange rates to only include data for the epochs that are less
+        // than or equal to the requested epoch. This enables us to get
+        // historical exchange rates accurately and pass this to the APY
+        // calculation function TODO we might even filter here by the epoch at
+        // which the stake subsidy started to avoid passing that to the
+        // `calculate_apy` function and doing another filter there
         for er in exchange_rates {
             results.insert(
                 er.address,
@@ -135,7 +141,8 @@ impl Validator {
         }
     }
 
-    /// Validator's set of credentials such as public keys, network addresses and others.
+    /// Validator's set of credentials such as public keys, network addresses
+    /// and others.
     async fn credentials(&self) -> Option<ValidatorCredentials> {
         let v = &self.validator_summary;
         let credentials = ValidatorCredentials {
@@ -191,8 +198,9 @@ impl Validator {
     }
 
     /// The validator's current valid `Cap` object. Validators can delegate
-    /// the operation ability to another address. The address holding this `Cap` object
-    /// can then update the reference gas price and tallying rule on behalf of the validator.
+    /// the operation ability to another address. The address holding this `Cap`
+    /// object can then update the reference gas price and tallying rule on
+    /// behalf of the validator.
     async fn operation_cap(&self, ctx: &Context<'_>) -> Result<Option<MoveObject>> {
         MoveObject::query(
             ctx,
@@ -203,8 +211,8 @@ impl Validator {
         .extend()
     }
 
-    /// The validator's current staking pool object, used to track the amount of stake
-    /// and to compound staking rewards.
+    /// The validator's current staking pool object, used to track the amount of
+    /// stake and to compound staking rewards.
     #[graphql(
         deprecation = "The staking pool is a wrapped object. Access its fields directly on the \
         `Validator` type."
@@ -218,8 +226,9 @@ impl Validator {
         self.validator_summary.staking_pool_id.into()
     }
 
-    /// The validator's current exchange object. The exchange rate is used to determine
-    /// the amount of IOTA tokens that each past IOTA staker can withdraw in the future.
+    /// The validator's current exchange object. The exchange rate is used to
+    /// determine the amount of IOTA tokens that each past IOTA staker can
+    /// withdraw in the future.
     #[graphql(
         deprecation = "The exchange object is a wrapped object. Access its dynamic fields through \
         the `exchangeRatesTable` query."
@@ -228,9 +237,10 @@ impl Validator {
         Ok(None)
     }
 
-    /// A wrapped object containing the validator's exchange rates. This is a table from epoch
-    /// number to `PoolTokenExchangeRate` value. The exchange rate is used to determine the amount
-    /// of IOTA tokens that each past IOTA staker can withdraw in the future.
+    /// A wrapped object containing the validator's exchange rates. This is a
+    /// table from epoch number to `PoolTokenExchangeRate` value. The
+    /// exchange rate is used to determine the amount of IOTA tokens that
+    /// each past IOTA staker can withdraw in the future.
     async fn exchange_rates_table(&self) -> Result<Option<Owner>> {
         Ok(Some(Owner {
             address: self.validator_summary.exchange_rates_id.into(),
@@ -273,21 +283,24 @@ impl Validator {
         Some(BigInt::from(self.validator_summary.pending_stake))
     }
 
-    /// Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
+    /// Pending stake withdrawn during the current epoch, emptied at epoch
+    /// boundaries.
     async fn pending_total_iota_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
             self.validator_summary.pending_total_iota_withdraw,
         ))
     }
 
-    /// Pending pool token withdrawn during the current epoch, emptied at epoch boundaries.
+    /// Pending pool token withdrawn during the current epoch, emptied at epoch
+    /// boundaries.
     async fn pending_pool_token_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
             self.validator_summary.pending_pool_token_withdraw,
         ))
     }
 
-    /// The voting power of this validator in basis points (e.g., 100 = 1% voting power).
+    /// The voting power of this validator in basis points (e.g., 100 = 1%
+    /// voting power).
     async fn voting_power(&self) -> Option<u64> {
         Some(self.validator_summary.voting_power)
     }
@@ -352,13 +365,10 @@ impl Validator {
         connection.has_next_page = next;
 
         for c in cs {
-            connection.edges.push(Edge::new(
-                c.encode_cursor(),
-                Address {
-                    address: addresses[c.ix].address,
-                    checkpoint_viewed_at: c.c,
-                },
-            ));
+            connection.edges.push(Edge::new(c.encode_cursor(), Address {
+                address: addresses[c.ix].address,
+                checkpoint_viewed_at: c.c,
+            }));
         }
 
         Ok(connection)

@@ -2,38 +2,42 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::gas_charger::GasCharger;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::language_storage::StructTag;
-use move_core_types::resolver::ResourceResolver;
-use parking_lot::RwLock;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
+
 use iota_protocol_config::ProtocolConfig;
-use iota_types::base_types::VersionDigest;
-use iota_types::committee::EpochId;
-use iota_types::digests::ObjectDigest;
-use iota_types::effects::{TransactionEffects, TransactionEvents};
-use iota_types::execution::{
-    DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV2, SharedInput,
-};
-use iota_types::execution_config_utils::to_binary_config;
-use iota_types::execution_status::ExecutionStatus;
-use iota_types::inner_temporary_store::InnerTemporaryStore;
-use iota_types::layout_resolver::LayoutResolver;
-use iota_types::storage::{BackingStore, DenyListResult, PackageObject};
-use iota_types::iota_system_state::{get_iota_system_state_wrapper, AdvanceEpochParams};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest},
-    effects::EffectsObjectChange,
+    IOTA_SYSTEM_STATE_OBJECT_ID,
+    base_types::{
+        IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, VersionDigest,
+    },
+    committee::EpochId,
+    digests::ObjectDigest,
+    effects::{EffectsObjectChange, TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
+    execution::{
+        DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV2, SharedInput,
+    },
+    execution_config_utils::to_binary_config,
+    execution_status::ExecutionStatus,
     fp_bail,
     gas::GasCostSummary,
-    object::Owner,
-    object::{Data, Object},
-    storage::{BackingPackageStore, ChildObjectResolver, ParentSync, Storage},
+    inner_temporary_store::InnerTemporaryStore,
+    iota_system_state::{AdvanceEpochParams, get_iota_system_state_wrapper},
+    is_system_package,
+    layout_resolver::LayoutResolver,
+    object::{Data, Object, Owner},
+    storage::{
+        BackingPackageStore, BackingStore, ChildObjectResolver, DenyListResult, PackageObject,
+        ParentSync, Storage,
+    },
     transaction::InputObjects,
 };
-use iota_types::{is_system_package, IOTA_SYSTEM_STATE_OBJECT_ID};
+use move_core_types::{
+    account_address::AccountAddress, language_storage::StructTag, resolver::ResourceResolver,
+};
+use parking_lot::RwLock;
+
+use crate::gas_charger::GasCharger;
 
 pub struct TemporaryStore<'backing> {
     // The backing store for retrieving Move packages onchain.
@@ -44,13 +48,16 @@ pub struct TemporaryStore<'backing> {
     store: &'backing dyn BackingStore,
     tx_digest: TransactionDigest,
     input_objects: BTreeMap<ObjectID, Object>,
-    /// The version to assign to all objects written by the transaction using this store.
+    /// The version to assign to all objects written by the transaction using
+    /// this store.
     lamport_timestamp: SequenceNumber,
     mutable_input_refs: BTreeMap<ObjectID, (VersionDigest, Owner)>, // Inputs that are mutable
     execution_results: ExecutionResultsV2,
-    /// Objects that were loaded during execution (dynamic fields + received objects).
+    /// Objects that were loaded during execution (dynamic fields + received
+    /// objects).
     loaded_runtime_objects: BTreeMap<ObjectID, DynamicallyLoadedObjectMetadata>,
-    /// A map from wrapped object to its container. Used during expensive invariant checks.
+    /// A map from wrapped object to its container. Used during expensive
+    /// invariant checks.
     wrapped_object_containers: BTreeMap<ObjectID, ObjectID>,
     protocol_config: &'backing ProtocolConfig,
 
@@ -58,14 +65,14 @@ pub struct TemporaryStore<'backing> {
     /// These packages were not previously loaded into the temporary store.
     runtime_packages_loaded_from_db: RwLock<BTreeMap<ObjectID, PackageObject>>,
 
-    /// The set of objects that we may receive during execution. Not guaranteed to receive all, or
-    /// any of the objects referenced in this set.
+    /// The set of objects that we may receive during execution. Not guaranteed
+    /// to receive all, or any of the objects referenced in this set.
     receiving_objects: Vec<ObjectRef>,
 }
 
 impl<'backing> TemporaryStore<'backing> {
-    /// Creates a new store associated with an authority store, and populates it with
-    /// initial objects.
+    /// Creates a new store associated with an authority store, and populates it
+    /// with initial objects.
     pub fn new(
         store: &'backing dyn BackingStore,
         input_objects: InputObjects,
@@ -79,17 +86,19 @@ impl<'backing> TemporaryStore<'backing> {
         #[cfg(debug_assertions)]
         {
             // Ensure that input objects and receiving objects must not overlap.
-            assert!(objects
-                .keys()
-                .collect::<HashSet<_>>()
-                .intersection(
-                    &receiving_objects
-                        .iter()
-                        .map(|oref| &oref.0)
-                        .collect::<HashSet<_>>()
-                )
-                .next()
-                .is_none());
+            assert!(
+                objects
+                    .keys()
+                    .collect::<HashSet<_>>()
+                    .intersection(
+                        &receiving_objects
+                            .iter()
+                            .map(|oref| &oref.0)
+                            .collect::<HashSet<_>>()
+                    )
+                    .next()
+                    .is_none()
+            );
         }
         Self {
             store,
@@ -125,7 +134,8 @@ impl<'backing> TemporaryStore<'backing> {
         }
     }
 
-    /// Break up the structure and return its internal stores (objects, active_inputs, written, deleted)
+    /// Break up the structure and return its internal stores (objects,
+    /// active_inputs, written, deleted)
     pub fn into_inner(self) -> InnerTemporaryStore {
         let results = self.execution_results;
         InnerTemporaryStore {
@@ -142,9 +152,10 @@ impl<'backing> TemporaryStore<'backing> {
         }
     }
 
-    /// For every object from active_inputs (i.e. all mutable objects), if they are not
-    /// mutated during the transaction execution, force mutating them by incrementing the
-    /// sequence number. This is required to achieve safety.
+    /// For every object from active_inputs (i.e. all mutable objects), if they
+    /// are not mutated during the transaction execution, force mutating
+    /// them by incrementing the sequence number. This is required to
+    /// achieve safety.
     pub(crate) fn ensure_active_inputs_mutated(&mut self) {
         let mut to_be_updated = vec![];
         for id in self.mutable_input_refs.keys() {
@@ -199,12 +210,14 @@ impl<'backing> TemporaryStore<'backing> {
     ) -> (InnerTemporaryStore, TransactionEffects) {
         self.update_object_version_and_prev_tx();
 
-        // Regardless of execution status (including aborts), we insert the previous transaction
-        // for any successfully received objects during the transaction.
+        // Regardless of execution status (including aborts), we insert the previous
+        // transaction for any successfully received objects during the
+        // transaction.
         for (id, expected_version, expected_digest) in &self.receiving_objects {
-            // If the receiving object is in the loaded runtime objects, then that means that it
-            // was actually successfully loaded (so existed, and there was authenticated mutable
-            // access to it). So we insert the previous transaction as a dependency.
+            // If the receiving object is in the loaded runtime objects, then that means
+            // that it was actually successfully loaded (so existed, and there
+            // was authenticated mutable access to it). So we insert the
+            // previous transaction as a dependency.
             if let Some(obj_meta) = self.loaded_runtime_objects.get(id) {
                 // Check that the expected version, digest, and owner match the loaded version,
                 // digest, and owner. If they don't then don't register a dependency.
@@ -280,8 +293,9 @@ impl<'backing> TemporaryStore<'backing> {
         let mut deleted = vec![];
         let mut unwrapped_then_deleted = vec![];
         let mut wrapped = vec![];
-        // It is important that we constructs `modified_at_versions` and `deleted_at_versions`
-        // separately, and merge them latter to achieve the exact same order as in v1.
+        // It is important that we constructs `modified_at_versions` and
+        // `deleted_at_versions` separately, and merge them latter to achieve
+        // the exact same order as in v1.
         let mut modified_at_versions = vec![];
         let mut deleted_at_versions = vec![];
         self.execution_results
@@ -428,7 +442,8 @@ impl<'backing> TemporaryStore<'backing> {
         );
     }
 
-    /// Mutate a mutable input object. This is used to mutate input objects outside of PT execution.
+    /// Mutate a mutable input object. This is used to mutate input objects
+    /// outside of PT execution.
     pub fn mutate_input_object(&mut self, object: Object) {
         let id = object.id();
         debug_assert!(self.input_objects.contains_key(&id));
@@ -437,32 +452,31 @@ impl<'backing> TemporaryStore<'backing> {
         self.execution_results.written_objects.insert(id, object);
     }
 
-    /// Mutate a child object outside of PT. This should be used extremely rarely.
-    /// Currently it's only used by advance_epoch_safe_mode because it's all native
-    /// without PT. This should almost never be used otherwise.
+    /// Mutate a child object outside of PT. This should be used extremely
+    /// rarely. Currently it's only used by advance_epoch_safe_mode because
+    /// it's all native without PT. This should almost never be used
+    /// otherwise.
     pub fn mutate_child_object(&mut self, old_object: Object, new_object: Object) {
         let id = new_object.id();
         let old_ref = old_object.compute_object_reference();
         debug_assert_eq!(old_ref.0, id);
-        self.loaded_runtime_objects.insert(
-            id,
-            DynamicallyLoadedObjectMetadata {
+        self.loaded_runtime_objects
+            .insert(id, DynamicallyLoadedObjectMetadata {
                 version: old_ref.1,
                 digest: old_ref.2,
                 owner: old_object.owner.clone(),
                 storage_rebate: old_object.storage_rebate,
                 previous_transaction: old_object.previous_transaction,
-            },
-        );
+            });
         self.execution_results.modified_objects.insert(id);
         self.execution_results
             .written_objects
             .insert(id, new_object);
     }
 
-    /// Upgrade system package during epoch change. This requires special treatment
-    /// since the system package to be upgraded is not in the input objects.
-    /// We could probably fix above to make it less special.
+    /// Upgrade system package during epoch change. This requires special
+    /// treatment since the system package to be upgraded is not in the
+    /// input objects. We could probably fix above to make it less special.
     pub fn upgrade_system_package(&mut self, package: Object) {
         let id = package.id();
         assert!(package.is_package() && is_system_package(id));
@@ -470,12 +484,14 @@ impl<'backing> TemporaryStore<'backing> {
         self.execution_results.written_objects.insert(id, package);
     }
 
-    /// Crate a new objcet. This is used to create objects outside of PT execution.
+    /// Crate a new objcet. This is used to create objects outside of PT
+    /// execution.
     pub fn create_object(&mut self, object: Object) {
-        // Created mutable objects' versions are set to the store's lamport timestamp when it is
-        // committed to effects. Creating an object at a non-zero version risks violating the
-        // lamport timestamp invariant (that a transaction's lamport timestamp is strictly greater
-        // than all versions witnessed by the transaction).
+        // Created mutable objects' versions are set to the store's lamport timestamp
+        // when it is committed to effects. Creating an object at a non-zero
+        // version risks violating the lamport timestamp invariant (that a
+        // transaction's lamport timestamp is strictly greater than all versions
+        // witnessed by the transaction).
         debug_assert!(
             object.is_immutable() || object.version() == SequenceNumber::MIN,
             "Created mutable objects should not have a version set",
@@ -485,7 +501,8 @@ impl<'backing> TemporaryStore<'backing> {
         self.execution_results.written_objects.insert(id, object);
     }
 
-    /// Delete a mutable input object. This is used to delete input objects outside of PT execution.
+    /// Delete a mutable input object. This is used to delete input objects
+    /// outside of PT execution.
     pub fn delete_input_object(&mut self, id: &ObjectID) {
         // there should be no deletion after write
         debug_assert!(!self.execution_results.written_objects.contains_key(id));
@@ -524,8 +541,9 @@ impl<'backing> TemporaryStore<'backing> {
                 }
             }
         }
-        // Merge the two maps because we may be calling the execution engine more than once
-        // (e.g. in advance epoch transaction, where we may be publishing a new system package).
+        // Merge the two maps because we may be calling the execution engine more than
+        // once (e.g. in advance epoch transaction, where we may be publishing a
+        // new system package).
         self.loaded_runtime_objects.extend(loaded_runtime_objects);
     }
 
@@ -546,8 +564,9 @@ impl<'backing> TemporaryStore<'backing> {
                 }
             }
         }
-        // Merge the two maps because we may be calling the execution engine more than once
-        // (e.g. in advance epoch transaction, where we may be publishing a new system package).
+        // Merge the two maps because we may be calling the execution engine more than
+        // once (e.g. in advance epoch transaction, where we may be publishing a
+        // new system package).
         self.wrapped_object_containers
             .extend(wrapped_object_containers);
     }
@@ -588,15 +607,16 @@ impl<'backing> TemporaryStore<'backing> {
             .fold(0, |sum, obj| sum + obj.object_size_for_gas_metering())
     }
 
-    /// If there are unmetered storage rebate (due to system transaction), we put them into
-    /// the storage rebate of 0x5 object.
-    /// TODO: This will not work for potential future new system transactions if 0x5 is not in the input.
-    /// We should fix this.
+    /// If there are unmetered storage rebate (due to system transaction), we
+    /// put them into the storage rebate of 0x5 object.
+    /// TODO: This will not work for potential future new system transactions if
+    /// 0x5 is not in the input. We should fix this.
     pub fn conserve_unmetered_storage_rebate(&mut self, unmetered_storage_rebate: u64) {
         if unmetered_storage_rebate == 0 {
-            // If unmetered_storage_rebate is 0, we are most likely executing the genesis transaction.
-            // And in that case we cannot mutate the 0x5 object because it's newly created.
-            // And there is no storage rebate that needs distribution anyway.
+            // If unmetered_storage_rebate is 0, we are most likely executing the genesis
+            // transaction. And in that case we cannot mutate the 0x5 object
+            // because it's newly created. And there is no storage rebate that
+            // needs distribution anyway.
             return;
         }
         tracing::debug!(
@@ -615,10 +635,11 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     /// Given an object ID, if it's not modified, returns None.
-    /// Otherwise returns its metadata, including version, digest, owner and storage rebate.
-    /// A modified object must be either a mutable input, or a loaded child object.
-    /// The only exception is when we upgrade system packages, in which case the upgraded
-    /// system packages are not part of input, but are modified.
+    /// Otherwise returns its metadata, including version, digest, owner and
+    /// storage rebate. A modified object must be either a mutable input, or
+    /// a loaded child object. The only exception is when we upgrade system
+    /// packages, in which case the upgraded system packages are not part of
+    /// input, but are modified.
     fn get_object_modified_at(
         &self,
         object_id: &ObjectID,
@@ -660,8 +681,8 @@ impl<'backing> TemporaryStore<'backing> {
 }
 
 impl<'backing> TemporaryStore<'backing> {
-    // check that every object read is owned directly or indirectly by sender, sponsor,
-    // or a shared object input
+    // check that every object read is owned directly or indirectly by sender,
+    // sponsor, or a shared object input
     pub fn check_ownership_invariants(
         &self,
         sender: &IotaAddress,
@@ -788,13 +809,15 @@ impl<'backing> TemporaryStore<'backing> {
 
 impl<'backing> TemporaryStore<'backing> {
     /// Track storage gas for each mutable input object (including the gas coin)
-    /// and each created object. Compute storage refunds for each deleted object.
-    /// Will *not* charge anything, gas status keeps track of storage cost and rebate.
-    /// All objects will be updated with their new (current) storage rebate/cost.
-    /// `IotaGasStatus` `storage_rebate` and `storage_gas_units` track the transaction
-    /// overall storage rebate and cost.
+    /// and each created object. Compute storage refunds for each deleted
+    /// object. Will *not* charge anything, gas status keeps track of
+    /// storage cost and rebate. All objects will be updated with their new
+    /// (current) storage rebate/cost. `IotaGasStatus` `storage_rebate` and
+    /// `storage_gas_units` track the transaction overall storage rebate and
+    /// cost.
     pub(crate) fn collect_storage_and_rebate(&mut self, gas_charger: &mut GasCharger) {
-        // Use two loops because we cannot mut iterate written while calling get_object_modified_at.
+        // Use two loops because we cannot mut iterate written while calling
+        // get_object_modified_at.
         let old_storage_rebates: Vec<_> = self
             .execution_results
             .written_objects
@@ -897,7 +920,8 @@ impl<'backing> TemporaryStore<'backing> {
         layout_resolver: &mut impl LayoutResolver,
     ) -> Result<u64, ExecutionError> {
         if let Some(obj) = self.input_objects.get(id) {
-            // the assumption here is that if it is in the input objects must be the right one
+            // the assumption here is that if it is in the input objects must be the right
+            // one
             if obj.version() != expected_version {
                 invariant_violation!(
                     "Version mismatching when resolving input object to check conservation--\
@@ -932,8 +956,10 @@ impl<'backing> TemporaryStore<'backing> {
 
     /// Return the list of all modified objects, for each object, returns
     /// - Object ID,
-    /// - Input: If the object existed prior to this transaction, include their version and storage_rebate,
-    /// - Output: If a new version of the object is written, include the new object.
+    /// - Input: If the object existed prior to this transaction, include their
+    ///   version and storage_rebate,
+    /// - Output: If a new version of the object is written, include the new
+    ///   object.
     fn get_modified_objects(&self) -> Vec<ModifiedObjectInfo<'_>> {
         self.execution_results
             .modified_objects
@@ -958,15 +984,17 @@ impl<'backing> TemporaryStore<'backing> {
             .collect()
     }
 
-    /// Check that this transaction neither creates nor destroys IOTA. This should hold for all txes
-    /// except the epoch change tx, which mints staking rewards equal to the gas fees burned in the
-    /// previous epoch.  Specifically, this checks two key invariants about storage
+    /// Check that this transaction neither creates nor destroys IOTA. This
+    /// should hold for all txes except the epoch change tx, which mints
+    /// staking rewards equal to the gas fees burned in the previous epoch.
+    /// Specifically, this checks two key invariants about storage
     /// fees and storage rebate:
     ///
-    /// 1. all IOTA in storage rebate fields of input objects should flow either to the transaction
-    ///    storage rebate, or the transaction non-refundable storage rebate
-    /// 2. all IOTA charged for storage should flow into the storage rebate field of some output
-    ///    object
+    /// 1. all IOTA in storage rebate fields of input objects should flow either
+    ///    to the transaction storage rebate, or the transaction non-refundable
+    ///    storage rebate
+    /// 2. all IOTA charged for storage should flow into the storage rebate
+    ///    field of some output object
     ///
     /// This function is intended to be called *after* we have charged for
     /// gas + applied the storage rebate to the gas object, but *before* we
@@ -1043,16 +1071,17 @@ impl<'backing> TemporaryStore<'backing> {
     }
 
     /// Check that this transaction neither creates nor destroys IOTA.
-    /// This more expensive check will check a third invariant on top of the 2 performed
-    /// by `check_iota_conserved` above:
+    /// This more expensive check will check a third invariant on top of the 2
+    /// performed by `check_iota_conserved` above:
     ///
-    /// * all IOTA in input objects (including coins etc in the Move part of an object) should flow
-    ///    either to an output object, or be burned as part of computation fees or non-refundable
-    ///    storage rebate
+    /// * all IOTA in input objects (including coins etc in the Move part of an
+    ///   object) should flow either to an output object, or be burned as part
+    ///   of computation fees or non-refundable storage rebate
     ///
-    /// This function is intended to be called *after* we have charged for gas + applied the
-    /// storage rebate to the gas object, but *before* we have updated object versions. The
-    /// advance epoch transaction would mint `epoch_fees` amount of IOTA, and burn `epoch_rebates`
+    /// This function is intended to be called *after* we have charged for gas +
+    /// applied the storage rebate to the gas object, but *before* we have
+    /// updated object versions. The advance epoch transaction would mint
+    /// `epoch_fees` amount of IOTA, and burn `epoch_rebates`
     /// amount of IOTA. We need these information for this check.
     pub fn check_iota_conserved_expensive(
         &self,
@@ -1060,9 +1089,11 @@ impl<'backing> TemporaryStore<'backing> {
         advance_epoch_gas_summary: Option<(u64, u64)>,
         layout_resolver: &mut impl LayoutResolver,
     ) -> Result<(), ExecutionError> {
-        // total amount of IOTA in input objects, including both coins and storage rebates
+        // total amount of IOTA in input objects, including both coins and storage
+        // rebates
         let mut total_input_iota = 0;
-        // total amount of IOTA in output objects, including both coins and storage rebates
+        // total amount of IOTA in output objects, including both coins and storage
+        // rebates
         let mut total_output_iota = 0;
         for (id, input, output) in self.get_modified_objects() {
             if let Some(input) = input {
@@ -1078,10 +1109,11 @@ impl<'backing> TemporaryStore<'backing> {
                 })?;
             }
         }
-        // note: storage_cost flows into the storage_rebate field of the output objects, which is
-        // why it is not accounted for here.
+        // note: storage_cost flows into the storage_rebate field of the output objects,
+        // which is why it is not accounted for here.
         // similarly, all of the storage_rebate *except* the storage_fund_rebate_inflow
-        // gets credited to the gas coin both computation costs and storage rebate inflow are
+        // gets credited to the gas coin both computation costs and storage rebate
+        // inflow are
         total_output_iota += gas_summary.computation_cost + gas_summary.non_refundable_storage_fee;
         if let Some((epoch_fees, epoch_rebates)) = advance_epoch_gas_summary {
             total_input_iota += epoch_fees;
@@ -1121,16 +1153,21 @@ impl<'backing> ChildObjectResolver for TemporaryStore<'backing> {
         receive_object_at_version: SequenceNumber,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
-        // You should never be able to try and receive an object after deleting it or writing it in the same
-        // transaction since `Receiving` doesn't have copy.
-        debug_assert!(!self
-            .execution_results
-            .written_objects
-            .contains_key(receiving_object_id));
-        debug_assert!(!self
-            .execution_results
-            .deleted_object_ids
-            .contains(receiving_object_id));
+        // You should never be able to try and receive an object after deleting it or
+        // writing it in the same transaction since `Receiving` doesn't have
+        // copy.
+        debug_assert!(
+            !self
+                .execution_results
+                .written_objects
+                .contains_key(receiving_object_id)
+        );
+        debug_assert!(
+            !self
+                .execution_results
+                .deleted_object_ids
+                .contains(receiving_object_id)
+        );
         self.store.get_object_received_at_version(
             owner,
             receiving_object_id,
@@ -1149,7 +1186,8 @@ impl<'backing> Storage for TemporaryStore<'backing> {
         TemporaryStore::read_object(self, id)
     }
 
-    /// Take execution results v2, and translate it back to be compatible with effects v1.
+    /// Take execution results v2, and translate it back to be compatible with
+    /// effects v1.
     fn record_execution_results(&mut self, results: ExecutionResults) {
         let ExecutionResults::V2(results) = results else {
             panic!("ExecutionResults::V2 expected in iota-execution v1 and above");
@@ -1183,10 +1221,11 @@ impl<'backing> Storage for TemporaryStore<'backing> {
 
 impl<'backing> BackingPackageStore for TemporaryStore<'backing> {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
-        // We first check the objects in the temporary store because in non-production code path,
-        // it is possible to read packages that are just written in the same transaction.
-        // This can happen for example when we run the expensive conservation checks, where we may
-        // look into the types of each written object in the output, and some of them need the
+        // We first check the objects in the temporary store because in non-production
+        // code path, it is possible to read packages that are just written in
+        // the same transaction. This can happen for example when we run the
+        // expensive conservation checks, where we may look into the types of
+        // each written object in the output, and some of them need the
         // newly written packages for type checking.
         // In production path though, this should never happen.
         if let Some(obj) = self.execution_results.written_objects.get(package_id) {

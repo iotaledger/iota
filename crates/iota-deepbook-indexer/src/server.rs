@@ -2,37 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    error::DeepBookError,
-    models::{BalancesSummary, OrderFillSummary, Pools},
-    schema::{self},
-    iota_deepbook_indexer::PgDeepbookPersistent,
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
 };
+
 use axum::{
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::get,
-    Json, Router,
 };
-use diesel::dsl::sql;
-use diesel::BoolExpressionMethods;
-use diesel::QueryDsl;
-use diesel::{ExpressionMethods, SelectableHelper};
+use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, SelectableHelper, dsl::sql};
 use diesel_async::RunQueryDsl;
-use serde_json::Value;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::{collections::HashMap, net::SocketAddr};
-use tokio::{net::TcpListener, task::JoinHandle};
-
-use std::str::FromStr;
 use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse};
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    TypeTag,
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, TransactionKind},
     type_input::TypeInput,
-    TypeTag,
+};
+use serde_json::Value;
+use tokio::{net::TcpListener, task::JoinHandle};
+
+use crate::{
+    error::DeepBookError,
+    iota_deepbook_indexer::PgDeepbookPersistent,
+    models::{BalancesSummary, OrderFillSummary, Pools},
+    schema::{self},
 };
 
 pub const IOTA_MAINNET_URL: &str = "https://fullnode.mainnet.iota.io:443";
@@ -138,7 +139,8 @@ async fn historical_volume(
         ));
     }
 
-    // Parse start_time and end_time from query parameters (in seconds) and convert to milliseconds
+    // Parse start_time and end_time from query parameters (in seconds) and convert
+    // to milliseconds
     let end_time = params
         .get("end_time")
         .and_then(|v| v.parse::<i64>().ok())
@@ -285,7 +287,8 @@ async fn get_historical_volume_by_balance_manager_id_with_interval(
     let connection = &mut state.pool.get().await?;
     let pool_ids_list: Vec<String> = pool_ids.split(',').map(|s| s.to_string()).collect();
 
-    // Parse interval from query parameters (in seconds), default to 1 hour (3600 seconds)
+    // Parse interval from query parameters (in seconds), default to 1 hour (3600
+    // seconds)
     let interval = params
         .get("interval")
         .and_then(|v| v.parse::<i64>().ok())

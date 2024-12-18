@@ -1,47 +1,53 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::metrics::{
-    DefaultMetricsCallbackProvider, MetricsCallbackProvider, MetricsHandler,
-    GRPC_ENDPOINT_PATH_HEADER,
+use std::{
+    convert::Infallible,
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
 };
-use crate::{
-    config::Config,
-    multiaddr::{parse_dns, parse_ip4, parse_ip6, Multiaddr, Protocol},
+
+use eyre::{Result, eyre};
+use futures::{FutureExt, Stream, StreamExt, stream::FuturesUnordered};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::{TcpListener, TcpStream, ToSocketAddrs},
 };
-use eyre::{eyre, Result};
-use futures::stream::FuturesUnordered;
-use futures::{FutureExt, Stream, StreamExt};
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use std::{convert::Infallible, net::SocketAddr};
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::{TcpListener, TcpStream, ToSocketAddrs};
-use tokio_rustls::rustls::ServerConfig;
-use tokio_rustls::{server::TlsStream, TlsAcceptor};
-use tonic::codegen::http::HeaderValue;
+use tokio_rustls::{TlsAcceptor, rustls::ServerConfig, server::TlsStream};
 use tonic::{
     body::BoxBody,
     codegen::{
-        http::{Request, Response},
         BoxFuture,
+        http::{HeaderValue, Request, Response},
     },
     server::NamedService,
     transport::server::Router,
 };
 use tower::{
+    Layer, Service, ServiceBuilder,
     layer::util::{Identity, Stack},
     limit::GlobalConcurrencyLimitLayer,
     load_shed::LoadShedLayer,
     util::Either,
-    Layer, Service, ServiceBuilder,
 };
-use tower_http::classify::{GrpcErrorsAsFailures, SharedClassifier};
-use tower_http::propagate_header::PropagateHeaderLayer;
-use tower_http::set_header::SetRequestHeaderLayer;
-use tower_http::trace::{DefaultMakeSpan, DefaultOnBodyChunk, DefaultOnEos, TraceLayer};
+use tower_http::{
+    classify::{GrpcErrorsAsFailures, SharedClassifier},
+    propagate_header::PropagateHeaderLayer,
+    set_header::SetRequestHeaderLayer,
+    trace::{DefaultMakeSpan, DefaultOnBodyChunk, DefaultOnEos, TraceLayer},
+};
 use tracing::debug;
+
+use crate::{
+    config::Config,
+    metrics::{
+        DefaultMetricsCallbackProvider, GRPC_ENDPOINT_PATH_HEADER, MetricsCallbackProvider,
+        MetricsHandler,
+    },
+    multiaddr::{Multiaddr, Protocol, parse_dns, parse_ip4, parse_ip6},
+};
 
 pub struct ServerBuilder<M: MetricsCallbackProvider = DefaultMetricsCallbackProvider> {
     router: Router<WrapperService<M>>,
@@ -278,8 +284,8 @@ impl TcpOrTlsListener {
 
         // Determine whether new connection is TLS.
         let mut buf = [0; 1];
-        // `peek` blocks until at least some data is available, so if there is no error then
-        // it must return the one byte we are requesting.
+        // `peek` blocks until at least some data is available, so if there is no error
+        // then it must return the one byte we are requesting.
         stream.peek(&mut buf).await?;
         if buf[0] == 0x16 {
             // First byte of a TLS handshake is 0x16.
@@ -402,15 +408,16 @@ fn update_tcp_port_in_multiaddr(addr: &Multiaddr, port: u16) -> Multiaddr {
 
 #[cfg(test)]
 mod test {
-    use crate::config::Config;
-    use crate::metrics::MetricsCallbackProvider;
-    use crate::Multiaddr;
-    use std::ops::Deref;
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::{
+        ops::Deref,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
+
     use tonic::Code;
-    use tonic_health::pb::health_client::HealthClient;
-    use tonic_health::pb::HealthCheckRequest;
+    use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
+
+    use crate::{Multiaddr, config::Config, metrics::MetricsCallbackProvider};
 
     #[test]
     fn document_multiaddr_limitation_for_unix_protocol() {

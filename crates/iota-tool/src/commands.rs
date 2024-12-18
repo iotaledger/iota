@@ -2,39 +2,39 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    check_completed_snapshot,
-    db_tool::{execute_db_tool_command, print_db_all_tables, DbToolCommand},
-    download_db_snapshot, download_formal_snapshot, dump_checkpoints_from_archive,
-    get_latest_available_epoch, get_object, get_transaction_block, make_clients,
-    restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum, ConciseObjectOutput,
-    GroupedObjectOutput, SnapshotVerifyMode, VerboseObjectOutput,
-};
+use std::{collections::BTreeMap, env, path::PathBuf, sync::Arc};
+
 use anyhow::Result;
-use futures::{future::join_all, StreamExt};
-use std::path::PathBuf;
-use std::{collections::BTreeMap, env, sync::Arc};
-use iota_config::genesis::Genesis;
-use iota_core::authority_client::AuthorityAPI;
-use iota_protocol_config::Chain;
-use iota_replay::{execute_replay_command, ReplayToolCommand};
-use iota_sdk::{rpc_types::IotaTransactionBlockResponseOptions, IotaClient, IotaClientBuilder};
-use telemetry_subscribers::TracingHandle;
-
-use iota_types::{
-    base_types::*, crypto::AuthorityPublicKeyBytes, messages_grpc::TransactionInfoRequest,
-};
-
 use clap::*;
 use fastcrypto::encoding::Encoding;
+use futures::{StreamExt, future::join_all};
 use iota_archival::{read_manifest_as_json, write_manifest_from_json};
-use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_config::Config;
-use iota_core::authority_aggregator::AuthorityAggregatorBuilder;
-use iota_types::messages_checkpoint::{
-    CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
+use iota_config::{
+    Config,
+    genesis::Genesis,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
-use iota_types::transaction::{SenderSignedData, Transaction};
+use iota_core::{authority_aggregator::AuthorityAggregatorBuilder, authority_client::AuthorityAPI};
+use iota_protocol_config::Chain;
+use iota_replay::{ReplayToolCommand, execute_replay_command};
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
+use iota_types::{
+    base_types::*,
+    crypto::AuthorityPublicKeyBytes,
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber},
+    messages_grpc::TransactionInfoRequest,
+    transaction::{SenderSignedData, Transaction},
+};
+use telemetry_subscribers::TracingHandle;
+
+use crate::{
+    ConciseObjectOutput, GroupedObjectOutput, SnapshotVerifyMode, VerboseObjectOutput,
+    check_completed_snapshot,
+    db_tool::{DbToolCommand, execute_db_tool_command, print_db_all_tables},
+    download_db_snapshot, download_formal_snapshot, dump_checkpoints_from_archive,
+    get_latest_available_epoch, get_object, get_transaction_block, make_clients,
+    restore_from_db_checkpoint, verify_archive, verify_archive_by_checksum,
+};
 
 #[derive(Parser, Clone, ValueEnum)]
 pub enum Verbosity {
@@ -45,7 +45,8 @@ pub enum Verbosity {
 
 #[derive(Parser)]
 pub enum ToolCommand {
-    /// Inspect if a specific object is or all gas objects owned by an address are locked by validators
+    /// Inspect if a specific object is or all gas objects owned by an address
+    /// are locked by validators
     #[command(name = "locked-object")]
     LockedObject {
         /// Either id or address must be provided
@@ -59,7 +60,8 @@ pub enum ToolCommand {
         /// RPC address to provide the up-to-date committee info
         #[arg(long = "fullnode-rpc-url")]
         fullnode_rpc_url: String,
-        /// Should attempt to rescue the object if it's locked but not fully locked
+        /// Should attempt to rescue the object if it's locked but not fully
+        /// locked
         #[arg(long = "rescue")]
         rescue: bool,
     },
@@ -85,8 +87,8 @@ pub enum ToolCommand {
 
         /// Concise mode groups responses by results.
         /// prints tabular output suitable for processing with unix tools. For
-        /// instance, to quickly check that all validators agree on the history of an object:
-        /// ```text
+        /// instance, to quickly check that all validators agree on the history
+        /// of an object: ```text
         /// $ iota-tool fetch-object --id 0x260efde76ebccf57f4c5e951157f5c361cde822c \
         ///      --genesis $HOME/.iota/iota_config/genesis.blob \
         ///      --verbosity concise --concise-no-header
@@ -177,28 +179,31 @@ pub enum ToolCommand {
         max_content_length: usize,
     },
 
-    /// Download all packages to the local filesystem from a GraphQL service. Each package gets its
-    /// own sub-directory, named for its ID on chain and version containing two metadata files
-    /// (linkage.json and origins.json), a file containing the overall object and a file for every
-    /// module it contains. Each module file is named for its module name, with a .mv suffix, and
-    /// contains Move bytecode (suitable for passing into a disassembler).
+    /// Download all packages to the local filesystem from a GraphQL service.
+    /// Each package gets its own sub-directory, named for its ID on chain
+    /// and version containing two metadata files (linkage.json and
+    /// origins.json), a file containing the overall object and a file for every
+    /// module it contains. Each module file is named for its module name, with
+    /// a .mv suffix, and contains Move bytecode (suitable for passing into
+    /// a disassembler).
     #[command(name = "dump-packages")]
     DumpPackages {
         /// Connection information for a GraphQL service.
         #[clap(long, short)]
         rpc_url: String,
 
-        /// Path to a non-existent directory that can be created and filled with package information.
+        /// Path to a non-existent directory that can be created and filled with
+        /// package information.
         #[clap(long, short)]
         output_dir: PathBuf,
 
-        /// Only fetch packages that were created before this checkpoint (given by its sequence
-        /// number).
+        /// Only fetch packages that were created before this checkpoint (given
+        /// by its sequence number).
         #[clap(long)]
         before_checkpoint: Option<u64>,
 
-        /// If false (default), log level will be overridden to "off", and output will be reduced to
-        /// necessary status information.
+        /// If false (default), log level will be overridden to "off", and
+        /// output will be reduced to necessary status information.
         #[clap(short, long = "verbose")]
         verbose: bool,
     },
@@ -221,8 +226,9 @@ pub enum ToolCommand {
         genesis: PathBuf,
     },
 
-    /// Fetch authenticated checkpoint information at a specific sequence number.
-    /// If sequence number is not specified, get the latest authenticated checkpoint.
+    /// Fetch authenticated checkpoint information at a specific sequence
+    /// number. If sequence number is not specified, get the latest
+    /// authenticated checkpoint.
     #[command(name = "fetch-checkpoint")]
     FetchCheckpoint {
         // RPC address to provide the up-to-date committee info
@@ -311,8 +317,8 @@ pub enum ToolCommand {
     },
 
     // Restore from formal (slim, DB agnostic) snapshot. Note that this is only supported
-    /// for protocol versions supporting `commit_root_state_digest`. For mainnet, this is
-    /// epoch 20+, and for testnet this is epoch 12+
+    /// for protocol versions supporting `commit_root_state_digest`. For
+    /// mainnet, this is epoch 20+, and for testnet this is epoch 12+
     #[clap(
         name = "download-formal-snapshot",
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
@@ -371,10 +377,12 @@ pub enum ToolCommand {
         #[clap(long = "verbose")]
         verbose: bool,
 
-        /// If provided, all checkpoint summaries from genesis to the end of the target epoch
-        /// will be downloaded and (if --verify is provided) full checkpoint chain verification
-        /// will be performed. If omitted, only end of epoch checkpoint summaries will be
-        /// downloaded, and (if --verify is provided) will be verified via committee signature.
+        /// If provided, all checkpoint summaries from genesis to the end of the
+        /// target epoch will be downloaded and (if --verify is
+        /// provided) full checkpoint chain verification
+        /// will be performed. If omitted, only end of epoch checkpoint
+        /// summaries will be downloaded, and (if --verify is provided)
+        /// will be verified via committee signature.
         #[clap(long = "all-checkpoints")]
         all_checkpoints: bool,
     },
@@ -793,8 +801,7 @@ impl ToolCommand {
                     );
 
                     let archive_bucket_type = env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE").expect("If setting `CUSTOM_ARCHIVE_BUCKET=true` Must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE, and credentials");
-                    match archive_bucket_type.to_ascii_lowercase().as_str()
-                    {
+                    match archive_bucket_type.to_ascii_lowercase().as_str() {
                         "s3" => ObjectStoreConfig {
                             object_store: Some(ObjectStoreType::S3),
                             bucket: archive_bucket.filter(|s| !s.is_empty()),
@@ -833,10 +840,13 @@ impl ToolCommand {
                             no_sign_request: false,
                             ..Default::default()
                         },
-                        _ => panic!("If setting `CUSTOM_ARCHIVE_BUCKET=true` must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE to one of 'gcs', 'azure', or 's3' "),
+                        _ => panic!(
+                            "If setting `CUSTOM_ARCHIVE_BUCKET=true` must set FORMAL_SNAPSHOT_ARCHIVE_BUCKET_TYPE to one of 'gcs', 'azure', or 's3' "
+                        ),
                     }
                 } else {
-                    // if not explicitly overridden, just default to the permissionless archive store
+                    // if not explicitly overridden, just default to the permissionless archive
+                    // store
                     ObjectStoreConfig {
                         object_store: Some(ObjectStoreType::S3),
                         bucket: archive_bucket.filter(|s| !s.is_empty()),
@@ -1003,8 +1013,8 @@ impl ToolCommand {
                                 }
                             } else {
                                 panic!(
-                                "--snapshot-path must be specified for --snapshot-bucket-type=file"
-                            );
+                                    "--snapshot-path must be specified for --snapshot-bucket-type=file"
+                                );
                             }
                         }
                     }

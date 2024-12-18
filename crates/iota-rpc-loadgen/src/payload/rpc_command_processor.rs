@@ -2,42 +2,45 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Result};
+use std::{
+    fmt,
+    fs::{self, File},
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use dashmap::{DashMap, DashSet};
 use futures::future::join_all;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use shared_crypto::intent::{Intent, IntentMessage};
-use std::fmt;
-use std::fs::{self, File};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockDataAPI,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 };
-use iota_types::digests::TransactionDigest;
-use tokio::sync::RwLock;
-use tokio::time::sleep;
+use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
+    digests::TransactionDigest,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{Transaction, TransactionData},
+};
+use serde::{Serialize, de::DeserializeOwned};
+use shared_crypto::intent::{Intent, IntentMessage};
+use tokio::{sync::RwLock, time::sleep};
 use tracing::{debug, info};
 
-use crate::load_test::LoadTestConfig;
-use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
-use iota_types::crypto::{get_key_pair, AccountKeyPair, EncodeDecodeBase64, Signature, IotaKeyPair};
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::transaction::{Transaction, TransactionData};
-
-use crate::payload::checkpoint_utils::get_latest_checkpoint_stats;
-use crate::payload::validation::chunk_entities;
-use crate::payload::{
-    Command, CommandData, DryRun, GetAllBalances, GetCheckpoints, GetObject, MultiGetObjects,
-    Payload, ProcessPayload, Processor, QueryTransactionBlocks, SignerInfo,
-};
-
 use super::MultiGetTransactionBlocks;
+use crate::{
+    load_test::LoadTestConfig,
+    payload::{
+        Command, CommandData, DryRun, GetAllBalances, GetCheckpoints, GetObject, MultiGetObjects,
+        Payload, ProcessPayload, Processor, QueryTransactionBlocks, SignerInfo,
+        checkpoint_utils::get_latest_checkpoint_stats, validation::chunk_entities,
+    },
+};
 
 pub(crate) const DEFAULT_GAS_BUDGET: u64 = 500_000_000;
 pub(crate) const DEFAULT_LARGE_GAS_BUDGET: u64 = 50_000_000_000;
@@ -126,7 +129,8 @@ impl RpcCommandProcessor {
         resp
     }
 
-    /// get the latest object ref from local cache, and if not exist, fetch from fullnode
+    /// get the latest object ref from local cache, and if not exist, fetch from
+    /// fullnode
     pub(crate) async fn get_object_ref(
         &self,
         client: &IotaClient,
@@ -152,7 +156,8 @@ impl RpcCommandProcessor {
     }
 
     pub(crate) fn add_transaction_digests(&self, digests: Vec<TransactionDigest>) {
-        // extend method requires mutable access to the underlying DashSet, which is not allowed by the Arc
+        // extend method requires mutable access to the underlying DashSet, which is not
+        // allowed by the Arc
         for digest in digests {
             self.transaction_digests.insert(digest);
         }
@@ -242,7 +247,10 @@ impl Processor for RpcCommandProcessor {
                 }
                 let clients = self.get_clients().await?;
                 let checkpoint_stats = get_latest_checkpoint_stats(&clients, None).await;
-                info!("Repeat {i}: Checkpoint stats {checkpoint_stats}, elapse {:.4} since last repeat", elapsed_time.as_secs_f64());
+                info!(
+                    "Repeat {i}: Checkpoint stats {checkpoint_stats}, elapse {:.4} since last repeat",
+                    elapsed_time.as_secs_f64()
+                );
             }
         }
         Ok(())
@@ -383,7 +391,8 @@ impl fmt::Display for CacheType {
     }
 }
 
-// TODO(Will): Consider using enums for input and output? Would mean we need to do checks any time we use generic load_cache_from_file
+// TODO(Will): Consider using enums for input and output? Would mean we need to
+// do checks any time we use generic load_cache_from_file
 pub fn load_addresses_from_file(filepath: String) -> Vec<IotaAddress> {
     let path = format!("{}/{}", filepath, CacheType::IotaAddress);
     let addresses: Vec<IotaAddress> = read_data_from_file(&path).expect("Failed to read addresses");
@@ -563,11 +572,13 @@ async fn prepare_new_signer_and_coins(
     // 2. gas fee for splitting the primary coin into `num_coins`
     let required_balance = pay_amount + gas_fee_for_split + gas_fee_for_pay_iota;
     if required_balance > balance {
-        panic!("Current balance {balance} is smaller than require amount of NANOS to fund the operation {required_balance}");
+        panic!(
+            "Current balance {balance} is smaller than require amount of NANOS to fund the operation {required_balance}"
+        );
     }
 
-    // There is a limit for the number of new objects in a transactions, therefore we need
-    // multiple split transactions if the `num_coins` is large
+    // There is a limit for the number of new objects in a transactions, therefore
+    // we need multiple split transactions if the `num_coins` is large
     let split_amounts = calculate_split_amounts(
         num_coins,
         amount_per_coin,
@@ -576,9 +587,10 @@ async fn prepare_new_signer_and_coins(
 
     debug!("split_amounts {split_amounts:?}");
 
-    // We don't want to split coins in our primary address because we want to avoid having
-    // a million coin objects in our address. We can also fetch directly from the faucet, but in
-    // some environment that might not be possible when faucet resource is scarce
+    // We don't want to split coins in our primary address because we want to avoid
+    // having a million coin objects in our address. We can also fetch directly
+    // from the faucet, but in some environment that might not be possible when
+    // faucet resource is scarce
     let (burner_address, burner_keypair): (_, AccountKeyPair) = get_key_pair();
     let burner_keypair = IotaKeyPair::Ed25519(burner_keypair);
     let pay_amounts = split_amounts
@@ -643,8 +655,8 @@ async fn prepare_new_signer_and_coins(
     (results, burner_keypair.encode_base64())
 }
 
-/// Calculate the number of transactions needed to split the given number of coins.
-/// new_coins_per_txn must be greater than 0
+/// Calculate the number of transactions needed to split the given number of
+/// coins. new_coins_per_txn must be greater than 0
 fn num_transactions_needed(num_coins: usize, new_coins_per_txn: usize) -> usize {
     assert!(new_coins_per_txn > 0);
     if num_coins == 1 {
@@ -653,8 +665,9 @@ fn num_transactions_needed(num_coins: usize, new_coins_per_txn: usize) -> usize 
     (num_coins + new_coins_per_txn - 1) / new_coins_per_txn
 }
 
-/// Calculate the split amounts for a given number of coins, amount per coin, and maximum number of coins per transaction.
-/// Returns a Vec of (primary_coin_amount, split_into_n_coins)
+/// Calculate the split amounts for a given number of coins, amount per coin,
+/// and maximum number of coins per transaction. Returns a Vec of
+/// (primary_coin_amount, split_into_n_coins)
 fn calculate_split_amounts(
     num_coins: usize,
     amount_per_coin: u64,
@@ -812,8 +825,9 @@ pub(crate) async fn sign_and_execute(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::{assert_eq, vec};
+
+    use super::*;
 
     #[test]
     fn test_calculate_split_amounts_no_split_needed() {

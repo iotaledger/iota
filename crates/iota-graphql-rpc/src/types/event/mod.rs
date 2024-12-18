@@ -4,26 +4,38 @@
 
 use std::str::FromStr;
 
-use super::cursor::{Page, Target};
-use super::{
-    address::Address, base64::Base64, date_time::DateTime, move_module::MoveModule,
-    move_value::MoveValue, transaction_block::TransactionBlock,
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
 };
-use crate::data::{self, DbConnection, QueryExecutor};
-use crate::query;
-use crate::{data::Db, error::Error};
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::*;
 use cursor::EvLookup;
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::scoped_futures::ScopedFutureExt;
-use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
-use iota_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
-use iota_indexer::schema::{checkpoints, events};
-use iota_types::base_types::ObjectID;
-use iota_types::Identifier;
+use iota_indexer::{
+    models::{events::StoredEvent, transactions::StoredTransaction},
+    schema::{checkpoints, events},
+};
 use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress, event::Event as NativeEvent, parse_iota_struct_tag,
+    Identifier,
+    base_types::{IotaAddress as NativeIotaAddress, ObjectID},
+    event::Event as NativeEvent,
+    parse_iota_struct_tag,
+};
+use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
+
+use super::{
+    address::Address,
+    base64::Base64,
+    cursor::{Page, Target},
+    date_time::DateTime,
+    move_module::MoveModule,
+    move_value::MoveValue,
+    transaction_block::TransactionBlock,
+};
+use crate::{
+    data::{self, Db, DbConnection, QueryExecutor},
+    error::Error,
+    query,
 };
 
 mod cursor;
@@ -51,9 +63,9 @@ type Query<ST, GB> = data::Query<ST, events::table, GB>;
 
 #[Object]
 impl Event {
-    /// The transaction block that emitted this event. This information is only available for
-    /// events from indexed transactions, and not from transactions that have just been executed or
-    /// dry-run.
+    /// The transaction block that emitted this event. This information is only
+    /// available for events from indexed transactions, and not from
+    /// transactions that have just been executed or dry-run.
     async fn transaction_block(&self, ctx: &Context<'_>) -> Result<Option<TransactionBlock>> {
         let Some(stored) = &self.stored else {
             return Ok(None);
@@ -121,16 +133,19 @@ impl Event {
 }
 
 impl Event {
-    /// Query the database for a `page` of events. The Page uses the transaction, event, and
-    /// checkpoint sequence numbers as the cursor to determine the correct page of results. The
-    /// query can optionally be further `filter`-ed by the `EventFilter`.
+    /// Query the database for a `page` of events. The Page uses the
+    /// transaction, event, and checkpoint sequence numbers as the cursor to
+    /// determine the correct page of results. The query can optionally be
+    /// further `filter`-ed by the `EventFilter`.
     ///
-    /// The `checkpoint_viewed_at` parameter represents the checkpoint sequence number at which
-    /// this page was queried. Each entity returned in the connection inherits this checkpoint, so
-    /// that when viewing that entity's state, it's as if it's being viewed at this checkpoint.
+    /// The `checkpoint_viewed_at` parameter represents the checkpoint sequence
+    /// number at which this page was queried. Each entity returned in the
+    /// connection inherits this checkpoint, so that when viewing that
+    /// entity's state, it's as if it's being viewed at this checkpoint.
     ///
-    /// The cursors in `page` might also include checkpoint viewed at fields. If these are set,
-    /// they take precedence over the checkpoint that pagination is being conducted in.
+    /// The cursors in `page` might also include checkpoint viewed at fields. If
+    /// these are set, they take precedence over the checkpoint that
+    /// pagination is being conducted in.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
@@ -140,11 +155,11 @@ impl Event {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
-        // Construct tx and ev sequence number query with table-relevant filters, if they exist. The
-        // resulting query will look something like `SELECT tx_sequence_number,
-        // event_sequence_number FROM lookup_table WHERE ...`. If no filter is provided we don't
-        // need to use any lookup tables and can just query `events` table, as can be seen in the
-        // code below.
+        // Construct tx and ev sequence number query with table-relevant filters, if
+        // they exist. The resulting query will look something like `SELECT
+        // tx_sequence_number, event_sequence_number FROM lookup_table WHERE
+        // ...`. If no filter is provided we don't need to use any lookup tables
+        // and can just query `events` table, as can be seen in the code below.
         let query_constraint = match (filter.sender, &filter.emitting_module, &filter.event_type) {
             (None, None, None) => None,
             (Some(sender), None, None) => Some(select_sender(sender)),
@@ -153,7 +168,7 @@ impl Event {
             (_, Some(_), Some(_)) => {
                 return Err(Error::Client(
                     "Filtering by both emitting module and event type is not supported".to_string(),
-                ))
+                ));
             }
         };
 
@@ -221,7 +236,8 @@ impl Event {
 
         let mut conn = Connection::new(prev, next);
 
-        // The "checkpoint viewed at" sets a consistent upper bound for the nested queries.
+        // The "checkpoint viewed at" sets a consistent upper bound for the nested
+        // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             conn.edges.push(Edge::new(
@@ -285,8 +301,8 @@ impl Event {
             .map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =
             ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
-        let type_ =
-            parse_iota_struct_tag(&stored.event_type).map_err(|e| Error::Internal(e.to_string()))?;
+        let type_ = parse_iota_struct_tag(&stored.event_type)
+            .map_err(|e| Error::Internal(e.to_string()))?;
         let transaction_module =
             Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();

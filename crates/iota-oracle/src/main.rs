@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{path::PathBuf, time::Duration};
+
 use clap::Parser;
-use iota_metrics::start_prometheus_server;
-use std::path::PathBuf;
-use std::time::Duration;
 use iota_config::Config;
-use iota_oracle::{config::OracleNodeConfig, OracleNode};
+use iota_metrics::start_prometheus_server;
+use iota_oracle::{OracleNode, config::OracleNodeConfig};
 use iota_sdk::wallet_context::WalletContext;
 
 #[derive(Parser)]

@@ -16,8 +16,8 @@ use crate::{
     consistency::ConsistentIndexCursor,
     types::{
         cursor::{JsonCursor, Page},
-        object::Object,
         iota_address::IotaAddress,
+        object::Object,
     },
 };
 
@@ -30,7 +30,8 @@ pub(crate) struct GenesisTransaction {
 
 pub(crate) type CObject = JsonCursor<ConsistentIndexCursor>;
 
-/// System transaction that initializes the network and writes the initial set of objects on-chain.
+/// System transaction that initializes the network and writes the initial set
+/// of objects on-chain.
 #[Object]
 impl GenesisTransaction {
     /// Objects to be created during genesis.

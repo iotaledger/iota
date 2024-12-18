@@ -2,16 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use move_binary_format::{file_format::Visibility, CompiledModule};
-use move_compiler::editions::Edition;
-use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use std::{
     collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
 };
+
+use anyhow::Result;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
+use move_binary_format::{CompiledModule, file_format::Visibility};
+use move_compiler::editions::Edition;
+use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 const COMPILED_PACKAGES_DIR: &str = "packages_compiled";
@@ -65,8 +66,7 @@ fn check_diff(checked_in: &Path, built: &Path) {
             .output()
             .unwrap();
         if !output.status.success() {
-            let header =
-                "Generated and checked-in iota-framework packages and/or docs do not match.\n\
+            let header = "Generated and checked-in iota-framework packages and/or docs do not match.\n\
                  Re-run with `UPDATE=1` to update checked-in packages and docs. e.g.\n\n\
                  UPDATE=1 cargo test -p iota-framework --test build-system-packages";
 
@@ -228,16 +228,17 @@ fn build_packages_with_move_config(
     fs::write(out_dir.join(PUBLISHED_API_FILE), published_api).unwrap();
 }
 
-/// Post process the generated docs so that they are in a format that can be consumed by
-/// docusaurus.
-/// * Flatten out the tree-like structure of the docs directory that we generate for a package into
-///   a flat list of packages;
-/// * Deduplicate packages (since multiple packages could share dependencies); and
+/// Post process the generated docs so that they are in a format that can be
+/// consumed by docusaurus.
+/// * Flatten out the tree-like structure of the docs directory that we generate
+///   for a package into a flat list of packages;
+/// * Deduplicate packages (since multiple packages could share dependencies);
+///   and
 /// * Write out the package docs in a flat directory structure.
 fn relocate_docs(prefix: &str, files: &[(String, String)], output: &mut BTreeMap<String, String>) {
-    // Turn on multi-line mode so that `.` matches newlines, consume from the start of the file to
-    // beginning of the heading, then capture the heading and replace with the yaml tag for docusaurus. E.g.,
-    // ```
+    // Turn on multi-line mode so that `.` matches newlines, consume from the start
+    // of the file to beginning of the heading, then capture the heading and
+    // replace with the yaml tag for docusaurus. E.g., ```
     // -<a name="0x2_display"></a>
     // -
     // -# Module `0x2::display`

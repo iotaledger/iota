@@ -2,9 +2,10 @@
 /// Rows which exceed 256MiB in size cannot be read in full.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Row {
-    /// The unique key which identifies this row within its table. This is the same
-    /// key that's used to identify the row in, for example, a MutateRowRequest.
-    /// May contain any non-empty byte string up to 4KiB in length.
+    /// The unique key which identifies this row within its table. This is the
+    /// same key that's used to identify the row in, for example, a
+    /// MutateRowRequest. May contain any non-empty byte string up to 4KiB
+    /// in length.
     #[prost(bytes = "vec", tag = "1")]
     pub key: ::prost::alloc::vec::Vec<u8>,
     /// May be empty, but only if the entire row is empty.
@@ -32,9 +33,9 @@ pub struct Family {
 /// table.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Column {
-    /// The unique key which identifies this column within its family. This is the
-    /// same key that's used to identify the column in, for example, a RowFilter
-    /// which sets its `column_qualifier_regex_filter` field.
+    /// The unique key which identifies this column within its family. This is
+    /// the same key that's used to identify the column in, for example, a
+    /// RowFilter which sets its `column_qualifier_regex_filter` field.
     /// May contain any byte string, including the empty string, up to 16kiB in
     /// length.
     #[prost(bytes = "vec", tag = "1")]
@@ -43,15 +44,16 @@ pub struct Column {
     #[prost(message, repeated, tag = "2")]
     pub cells: ::prost::alloc::vec::Vec<Cell>,
 }
-/// Specifies (some of) the contents of a single row/column/timestamp of a table.
+/// Specifies (some of) the contents of a single row/column/timestamp of a
+/// table.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Cell {
     /// The cell's stored timestamp, which also uniquely identifies it within
     /// its column.
-    /// Values are always expressed in microseconds, but individual tables may set
-    /// a coarser granularity to further restrict the allowed values. For
-    /// example, a table which specifies millisecond granularity will only allow
-    /// values of `timestamp_micros` which are multiples of 1000.
+    /// Values are always expressed in microseconds, but individual tables may
+    /// set a coarser granularity to further restrict the allowed values.
+    /// For example, a table which specifies millisecond granularity will
+    /// only allow values of `timestamp_micros` which are multiples of 1000.
     #[prost(int64, tag = "1")]
     pub timestamp_micros: i64,
     /// The value stored in the cell.
@@ -59,7 +61,8 @@ pub struct Cell {
     /// length.
     #[prost(bytes = "vec", tag = "2")]
     pub value: ::prost::alloc::vec::Vec<u8>,
-    /// Labels applied to the cell by a \[RowFilter][google.bigtable.v2.RowFilter\].
+    /// Labels applied to the cell by a
+    /// \[RowFilter][google.bigtable.v2.RowFilter\].
     #[prost(string, repeated, tag = "3")]
     pub labels: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
@@ -119,8 +122,9 @@ pub struct ColumnRange {
     /// The name of the column family within which this range falls.
     #[prost(string, tag = "1")]
     pub family_name: ::prost::alloc::string::String,
-    /// The column qualifier at which to start the range (within `column_family`).
-    /// If neither field is set, interpreted as the empty string, inclusive.
+    /// The column qualifier at which to start the range (within
+    /// `column_family`). If neither field is set, interpreted as the empty
+    /// string, inclusive.
     #[prost(oneof = "column_range::StartQualifier", tags = "2, 3")]
     pub start_qualifier: ::core::option::Option<column_range::StartQualifier>,
     /// The column qualifier at which to end the range (within `column_family`).
@@ -130,8 +134,9 @@ pub struct ColumnRange {
 }
 /// Nested message and enum types in `ColumnRange`.
 pub mod column_range {
-    /// The column qualifier at which to start the range (within `column_family`).
-    /// If neither field is set, interpreted as the empty string, inclusive.
+    /// The column qualifier at which to start the range (within
+    /// `column_family`). If neither field is set, interpreted as the empty
+    /// string, inclusive.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum StartQualifier {
         /// Used when giving an inclusive lower bound for the range.
@@ -208,14 +213,14 @@ pub mod value_range {
 /// every column of a particular family, give just the two most recent cells
 /// which are older than timestamp X."
 ///
-/// There are two broad categories of RowFilters (true filters and transformers),
-/// as well as two ways to compose simple filters into more complex ones
-/// (chains and interleaves). They work as follows:
+/// There are two broad categories of RowFilters (true filters and
+/// transformers), as well as two ways to compose simple filters into more
+/// complex ones (chains and interleaves). They work as follows:
 ///
 /// * True filters alter the input row by excluding some of its cells wholesale
-/// from the output row. An example of a true filter is the `value_regex_filter`,
-/// which excludes cells whose values don't match the specified pattern. All
-/// regex true filters use RE2 syntax (<https://github.com/google/re2/wiki/Syntax>)
+/// from the output row. An example of a true filter is the
+/// `value_regex_filter`, which excludes cells whose values don't match the
+/// specified pattern. All regex true filters use RE2 syntax (<https://github.com/google/re2/wiki/Syntax>)
 /// in raw byte mode (RE2::Latin1), and are evaluated as full matches. An
 /// important point to keep in mind is that `RE2(.)` is equivalent by default to
 /// `RE2(\[^\n\])`, meaning that it does not match newlines. When attempting to
@@ -248,9 +253,9 @@ pub mod row_filter {
     /// A RowFilter which sends rows through several RowFilters in sequence.
     #[derive(Clone, PartialEq, ::prost::Message)]
     pub struct Chain {
-        /// The elements of "filters" are chained together to process the input row:
-        /// in row -> f(0) -> intermediate row -> f(1) -> ... -> f(N) -> out row
-        /// The full chain is executed atomically.
+        /// The elements of "filters" are chained together to process the input
+        /// row: in row -> f(0) -> intermediate row -> f(1) -> ... ->
+        /// f(N) -> out row The full chain is executed atomically.
         #[prost(message, repeated, tag = "1")]
         pub filters: ::prost::alloc::vec::Vec<super::RowFilter>,
     }
@@ -258,12 +263,12 @@ pub mod row_filter {
     /// RowFilters and interleaves the results.
     #[derive(Clone, PartialEq, ::prost::Message)]
     pub struct Interleave {
-        /// The elements of "filters" all process a copy of the input row, and the
-        /// results are pooled, sorted, and combined into a single output row.
-        /// If multiple cells are produced with the same column and timestamp,
-        /// they will all appear in the output row in an unspecified mutual order.
-        /// Consider the following example, with three filters:
-        ///```ignore
+        /// The elements of "filters" all process a copy of the input row, and
+        /// the results are pooled, sorted, and combined into a single
+        /// output row. If multiple cells are produced with the same
+        /// column and timestamp, they will all appear in the output row
+        /// in an unspecified mutual order. Consider the following
+        /// example, with three filters: ```ignore
         ///                                   input row
         ///                                       |
         ///             -----------------------------------------------------
@@ -287,25 +292,29 @@ pub mod row_filter {
         pub filters: ::prost::alloc::vec::Vec<super::RowFilter>,
     }
     /// A RowFilter which evaluates one of two possible RowFilters, depending on
-    /// whether or not a predicate RowFilter outputs any cells from the input row.
+    /// whether or not a predicate RowFilter outputs any cells from the input
+    /// row.
     ///
-    /// IMPORTANT NOTE: The predicate filter does not execute atomically with the
-    /// true and false filters, which may lead to inconsistent or unexpected
-    /// results. Additionally, Condition filters have poor performance, especially
-    /// when filters are set for the false condition.
+    /// IMPORTANT NOTE: The predicate filter does not execute atomically with
+    /// the true and false filters, which may lead to inconsistent or
+    /// unexpected results. Additionally, Condition filters have poor
+    /// performance, especially when filters are set for the false
+    /// condition.
     #[derive(Clone, PartialEq, ::prost::Message)]
     pub struct Condition {
         /// If `predicate_filter` outputs any cells, then `true_filter` will be
-        /// evaluated on the input row. Otherwise, `false_filter` will be evaluated.
+        /// evaluated on the input row. Otherwise, `false_filter` will be
+        /// evaluated.
         #[prost(message, optional, boxed, tag = "1")]
         pub predicate_filter: ::core::option::Option<::prost::alloc::boxed::Box<super::RowFilter>>,
-        /// The filter to apply to the input row if `predicate_filter` returns any
-        /// results. If not provided, no results will be returned in the true case.
+        /// The filter to apply to the input row if `predicate_filter` returns
+        /// any results. If not provided, no results will be returned in
+        /// the true case.
         #[prost(message, optional, boxed, tag = "2")]
         pub true_filter: ::core::option::Option<::prost::alloc::boxed::Box<super::RowFilter>>,
         /// The filter to apply to the input row if `predicate_filter` does not
-        /// return any results. If not provided, no results will be returned in the
-        /// false case.
+        /// return any results. If not provided, no results will be returned in
+        /// the false case.
         #[prost(message, optional, boxed, tag = "3")]
         pub false_filter: ::core::option::Option<::prost::alloc::boxed::Box<super::RowFilter>>,
     }
@@ -321,15 +330,15 @@ pub mod row_filter {
         /// results.
         #[prost(message, tag = "2")]
         Interleave(Interleave),
-        /// Applies one of two possible RowFilters to the data based on the output of
-        /// a predicate RowFilter.
+        /// Applies one of two possible RowFilters to the data based on the
+        /// output of a predicate RowFilter.
         #[prost(message, tag = "3")]
         Condition(::prost::alloc::boxed::Box<Condition>),
         /// ADVANCED USE ONLY.
-        /// Hook for introspection into the RowFilter. Outputs all cells directly to
-        /// the output of the read rather than to any parent filter. Consider the
-        /// following example:
-        ///```ignore
+        /// Hook for introspection into the RowFilter. Outputs all cells
+        /// directly to the output of the read rather than to any parent
+        /// filter. Consider the following example:
+        /// ```ignore
         ///      Chain(
         ///        FamilyRegex("A"),
         ///        Interleave(
@@ -390,37 +399,37 @@ pub mod row_filter {
         /// leaving `filter` unset, but included for completeness.
         #[prost(bool, tag = "17")]
         PassAllFilter(bool),
-        /// Does not match any cells, regardless of input. Useful for temporarily
-        /// disabling just part of a filter.
+        /// Does not match any cells, regardless of input. Useful for
+        /// temporarily disabling just part of a filter.
         #[prost(bool, tag = "18")]
         BlockAllFilter(bool),
-        /// Matches only cells from rows whose keys satisfy the given RE2 regex. In
-        /// other words, passes through the entire row when the key matches, and
-        /// otherwise produces an empty row.
-        /// Note that, since row keys can contain arbitrary bytes, the `\C` escape
-        /// sequence must be used if a true wildcard is desired. The `.` character
-        /// will not match the new line character `\n`, which may be present in a
-        /// binary key.
+        /// Matches only cells from rows whose keys satisfy the given RE2 regex.
+        /// In other words, passes through the entire row when the key
+        /// matches, and otherwise produces an empty row.
+        /// Note that, since row keys can contain arbitrary bytes, the `\C`
+        /// escape sequence must be used if a true wildcard is desired.
+        /// The `.` character will not match the new line character
+        /// `\n`, which may be present in a binary key.
         #[prost(bytes, tag = "4")]
         RowKeyRegexFilter(::prost::alloc::vec::Vec<u8>),
-        /// Matches all cells from a row with probability p, and matches no cells
-        /// from the row with probability 1-p.
+        /// Matches all cells from a row with probability p, and matches no
+        /// cells from the row with probability 1-p.
         #[prost(double, tag = "14")]
         RowSampleFilter(f64),
         /// Matches only cells from columns whose families satisfy the given RE2
         /// regex. For technical reasons, the regex must not contain the `:`
         /// character, even if it is not being used as a literal.
-        /// Note that, since column families cannot contain the new line character
-        /// `\n`, it is sufficient to use `.` as a full wildcard when matching
-        /// column family names.
+        /// Note that, since column families cannot contain the new line
+        /// character `\n`, it is sufficient to use `.` as a full
+        /// wildcard when matching column family names.
         #[prost(string, tag = "5")]
         FamilyNameRegexFilter(::prost::alloc::string::String),
-        /// Matches only cells from columns whose qualifiers satisfy the given RE2
-        /// regex.
-        /// Note that, since column qualifiers can contain arbitrary bytes, the `\C`
-        /// escape sequence must be used if a true wildcard is desired. The `.`
-        /// character will not match the new line character `\n`, which may be
-        /// present in a binary qualifier.
+        /// Matches only cells from columns whose qualifiers satisfy the given
+        /// RE2 regex.
+        /// Note that, since column qualifiers can contain arbitrary bytes, the
+        /// `\C` escape sequence must be used if a true wildcard is
+        /// desired. The `.` character will not match the new line
+        /// character `\n`, which may be present in a binary qualifier.
         #[prost(bytes, tag = "6")]
         ColumnQualifierRegexFilter(::prost::alloc::vec::Vec<u8>),
         /// Matches only cells from columns within the given range.
@@ -429,10 +438,11 @@ pub mod row_filter {
         /// Matches only cells with timestamps within the given range.
         #[prost(message, tag = "8")]
         TimestampRangeFilter(super::TimestampRange),
-        /// Matches only cells with values that satisfy the given regular expression.
-        /// Note that, since cell values can contain arbitrary bytes, the `\C` escape
-        /// sequence must be used if a true wildcard is desired. The `.` character
-        /// will not match the new line character `\n`, which may be present in a
+        /// Matches only cells with values that satisfy the given regular
+        /// expression. Note that, since cell values can contain
+        /// arbitrary bytes, the `\C` escape sequence must be used if a
+        /// true wildcard is desired. The `.` character will not match
+        /// the new line character `\n`, which may be present in a
         /// binary value.
         #[prost(bytes, tag = "9")]
         ValueRegexFilter(::prost::alloc::vec::Vec<u8>),
@@ -440,38 +450,39 @@ pub mod row_filter {
         #[prost(message, tag = "15")]
         ValueRangeFilter(super::ValueRange),
         /// Skips the first N cells of each row, matching all subsequent cells.
-        /// If duplicate cells are present, as is possible when using an Interleave,
-        /// each copy of the cell is counted separately.
+        /// If duplicate cells are present, as is possible when using an
+        /// Interleave, each copy of the cell is counted separately.
         #[prost(int32, tag = "10")]
         CellsPerRowOffsetFilter(i32),
         /// Matches only the first N cells of each row.
-        /// If duplicate cells are present, as is possible when using an Interleave,
-        /// each copy of the cell is counted separately.
+        /// If duplicate cells are present, as is possible when using an
+        /// Interleave, each copy of the cell is counted separately.
         #[prost(int32, tag = "11")]
         CellsPerRowLimitFilter(i32),
-        /// Matches only the most recent N cells within each column. For example,
-        /// if N=2, this filter would match column `foo:bar` at timestamps 10 and 9,
-        /// skip all earlier cells in `foo:bar`, and then begin matching again in
-        /// column `foo:bar2`.
-        /// If duplicate cells are present, as is possible when using an Interleave,
-        /// each copy of the cell is counted separately.
+        /// Matches only the most recent N cells within each column. For
+        /// example, if N=2, this filter would match column `foo:bar` at
+        /// timestamps 10 and 9, skip all earlier cells in `foo:bar`,
+        /// and then begin matching again in column `foo:bar2`.
+        /// If duplicate cells are present, as is possible when using an
+        /// Interleave, each copy of the cell is counted separately.
         #[prost(int32, tag = "12")]
         CellsPerColumnLimitFilter(i32),
         /// Replaces each cell's value with the empty string.
         #[prost(bool, tag = "13")]
         StripValueTransformer(bool),
         /// Applies the given label to all cells in the output row. This allows
-        /// the client to determine which results were produced from which part of
-        /// the filter.
+        /// the client to determine which results were produced from which part
+        /// of the filter.
         ///
         /// Values must be at most 15 characters in length, and match the RE2
         /// pattern `\[a-z0-9\\-\]+`
         ///
         /// Due to a technical limitation, it is not currently possible to apply
-        /// multiple labels to a cell. As a result, a Chain may have no more than
-        /// one sub-filter which contains a `apply_label_transformer`. It is okay for
-        /// an Interleave to contain multiple `apply_label_transformers`, as they
-        /// will be applied to separate copies of the input. This may be relaxed in
+        /// multiple labels to a cell. As a result, a Chain may have no more
+        /// than one sub-filter which contains a
+        /// `apply_label_transformer`. It is okay for an Interleave to
+        /// contain multiple `apply_label_transformers`, as they will be
+        /// applied to separate copies of the input. This may be relaxed in
         /// the future.
         #[prost(string, tag = "19")]
         ApplyLabelTransformer(::prost::alloc::string::String),
@@ -500,8 +511,9 @@ pub mod mutation {
         /// The timestamp of the cell into which new data should be written.
         /// Use -1 for current Bigtable server time.
         /// Otherwise, the client should set this value itself, noting that the
-        /// default value is a timestamp of zero if the field is left unspecified.
-        /// Values must match the granularity of the table (e.g. micros, millis).
+        /// default value is a timestamp of zero if the field is left
+        /// unspecified. Values must match the granularity of the table
+        /// (e.g. micros, millis).
         #[prost(int64, tag = "3")]
         pub timestamp_micros: i64,
         /// The value to be written into the specified cell.
@@ -565,26 +577,27 @@ pub struct ReadModifyWriteRule {
     /// Can be any byte string, including the empty string.
     #[prost(bytes = "vec", tag = "2")]
     pub column_qualifier: ::prost::alloc::vec::Vec<u8>,
-    /// The rule used to determine the column's new latest value from its current
-    /// latest value.
+    /// The rule used to determine the column's new latest value from its
+    /// current latest value.
     #[prost(oneof = "read_modify_write_rule::Rule", tags = "3, 4")]
     pub rule: ::core::option::Option<read_modify_write_rule::Rule>,
 }
 /// Nested message and enum types in `ReadModifyWriteRule`.
 pub mod read_modify_write_rule {
-    /// The rule used to determine the column's new latest value from its current
-    /// latest value.
+    /// The rule used to determine the column's new latest value from its
+    /// current latest value.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Rule {
-        /// Rule specifying that `append_value` be appended to the existing value.
-        /// If the targeted cell is unset, it will be treated as containing the
-        /// empty string.
+        /// Rule specifying that `append_value` be appended to the existing
+        /// value. If the targeted cell is unset, it will be treated as
+        /// containing the empty string.
         #[prost(bytes, tag = "3")]
         AppendValue(::prost::alloc::vec::Vec<u8>),
-        /// Rule specifying that `increment_amount` be added to the existing value.
-        /// If the targeted cell is unset, it will be treated as containing a zero.
-        /// Otherwise, the targeted cell must contain an 8-byte value (interpreted
-        /// as a 64-bit big-endian signed integer), or the entire request will fail.
+        /// Rule specifying that `increment_amount` be added to the existing
+        /// value. If the targeted cell is unset, it will be treated as
+        /// containing a zero. Otherwise, the targeted cell must contain
+        /// an 8-byte value (interpreted as a 64-bit big-endian signed
+        /// integer), or the entire request will fail.
         #[prost(int64, tag = "4")]
         IncrementAmount(i64),
     }
@@ -624,15 +637,15 @@ pub struct StreamContinuationToken {
 /// operation versus the results returned.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadIterationStats {
-    /// The rows seen (scanned) as part of the request. This includes the count of
-    /// rows returned, as captured below.
+    /// The rows seen (scanned) as part of the request. This includes the count
+    /// of rows returned, as captured below.
     #[prost(int64, tag = "1")]
     pub rows_seen_count: i64,
     /// The rows returned as part of the request.
     #[prost(int64, tag = "2")]
     pub rows_returned_count: i64,
-    /// The cells seen (scanned) as part of the request. This includes the count of
-    /// cells returned, as captured below.
+    /// The cells seen (scanned) as part of the request. This includes the count
+    /// of cells returned, as captured below.
     #[prost(int64, tag = "3")]
     pub cells_seen_count: i64,
     /// The cells returned as part of the request.
@@ -646,21 +659,21 @@ pub struct ReadIterationStats {
 pub struct RequestLatencyStats {
     /// The latency measured by the frontend server handling this request, from
     /// when the request was received, to when this value is sent back in the
-    /// response. For more context on the component that is measuring this latency,
-    /// see: <https://cloud.google.com/bigtable/docs/overview>
+    /// response. For more context on the component that is measuring this
+    /// latency, see: <https://cloud.google.com/bigtable/docs/overview>
     ///
     /// Note: This value may be slightly shorter than the value reported into
     /// aggregate latency metrics in Monitoring for this request
     /// (<https://cloud.google.com/bigtable/docs/monitoring-instance>) as this value
-    /// needs to be sent in the response before the latency measurement including
-    /// that transmission is finalized.
+    /// needs to be sent in the response before the latency measurement
+    /// including that transmission is finalized.
     ///
     /// Note: This value includes the end-to-end latency of contacting nodes in
     /// the targeted cluster, e.g. measuring from when the first byte arrives at
-    /// the frontend server, to when this value is sent back as the last value in
-    /// the response, including any latency incurred by contacting nodes, waiting
-    /// for results from nodes, and finally sending results from nodes back to the
-    /// caller.
+    /// the frontend server, to when this value is sent back as the last value
+    /// in the response, including any latency incurred by contacting nodes,
+    /// waiting for results from nodes, and finally sending results from
+    /// nodes back to the caller.
     #[prost(message, optional, tag = "1")]
     pub frontend_server_latency: ::core::option::Option<::prost_types::Duration>,
 }
@@ -668,13 +681,13 @@ pub struct RequestLatencyStats {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FullReadStatsView {
     /// Iteration stats describe how efficient the read is, e.g. comparing
-    /// rows seen vs. rows returned or cells seen vs cells returned can provide an
-    /// indication of read efficiency (the higher the ratio of seen to returned the
-    /// better).
+    /// rows seen vs. rows returned or cells seen vs cells returned can provide
+    /// an indication of read efficiency (the higher the ratio of seen to
+    /// returned the better).
     #[prost(message, optional, tag = "1")]
     pub read_iteration_stats: ::core::option::Option<ReadIterationStats>,
-    /// Request latency stats describe the time taken to complete a request, from
-    /// the server side.
+    /// Request latency stats describe the time taken to complete a request,
+    /// from the server side.
     #[prost(message, optional, tag = "2")]
     pub request_latency_stats: ::core::option::Option<RequestLatencyStats>,
 }
@@ -699,7 +712,8 @@ pub mod request_stats {
     /// See the messages above for additional context.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum StatsView {
-        /// Available with the ReadRowsRequest.RequestStatsView.REQUEST_STATS_FULL
+        /// Available with the
+        /// ReadRowsRequest.RequestStatsView.REQUEST_STATS_FULL
         /// view, see package google.bigtable.v2.
         #[prost(message, tag = "1")]
         FullReadStatsView(super::FullReadStatsView),
@@ -739,7 +753,7 @@ pub struct ReadRowsRequest {
     /// contents will not be affected by this flag.
     ///
     /// Example result set:
-    ///```ignore
+    /// ```ignore
     ///      [
     ///        {key: "k2", "f:col1": "v1", "f:col2": "v1"},
     ///        {key: "k1", "f:col1": "v2", "f:col2": "v2"}
@@ -749,13 +763,15 @@ pub struct ReadRowsRequest {
 }
 /// Nested message and enum types in `ReadRowsRequest`.
 pub mod read_rows_request {
-    /// The desired view into RequestStats that should be returned in the response.
+    /// The desired view into RequestStats that should be returned in the
+    /// response.
     ///
     /// See also: RequestStats message.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum RequestStatsView {
-        /// The default / unset value. The API will default to the NONE option below.
+        /// The default / unset value. The API will default to the NONE option
+        /// below.
         Unspecified = 0,
         /// Do not include any RequestStats in the response. This will leave the
         /// RequestStats embedded message unset in the response.
@@ -765,10 +781,12 @@ pub mod read_rows_request {
         RequestStatsFull = 2,
     }
     impl RequestStatsView {
-        /// String value of the enum field names used in the ProtoBuf definition.
+        /// String value of the enum field names used in the ProtoBuf
+        /// definition.
         ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        /// The values are not transformed in any way and thus are considered
+        /// stable (if the ProtoBuf definition does not change) and safe
+        /// for programmatic use.
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 RequestStatsView::Unspecified => "REQUEST_STATS_VIEW_UNSPECIFIED",
@@ -802,16 +820,15 @@ pub struct ReadRowsResponse {
     /// key, allowing the client to skip that work on a retry.
     #[prost(bytes = "vec", tag = "2")]
     pub last_scanned_row_key: ::prost::alloc::vec::Vec<u8>,
-    ///
-    /// If requested, provide enhanced query performance statistics. The semantics
-    /// dictate:
+    /// If requested, provide enhanced query performance statistics. The
+    /// semantics dictate:
     ///    * request_stats is empty on every (streamed) response, except
     ///    * request_stats has non-empty information after all chunks have been
     ///      streamed, where the ReadRowsResponse message only contains
     ///      request_stats.
     ///        * For example, if a read request would have returned an empty
-    ///          response instead a single ReadRowsResponse is streamed with empty
-    ///          chunks and request_stats filled.
+    ///          response instead a single ReadRowsResponse is streamed with
+    ///          empty chunks and request_stats filled.
     ///
     /// Visually, response messages will stream as follows:
     ///     ... -> {chunks: \[...\]} -> {chunks: [], request_stats: {...}}
@@ -893,8 +910,8 @@ pub mod read_rows_response {
             /// `row_key`, as it will be re-read from the beginning.
             #[prost(bool, tag = "8")]
             ResetRow(bool),
-            /// Indicates that the client can safely process all previous chunks for
-            /// `row_key`, as its data has been fully read.
+            /// Indicates that the client can safely process all previous chunks
+            /// for `row_key`, as its data has been fully read.
             #[prost(bool, tag = "9")]
             CommitRow(bool),
         }
@@ -916,19 +933,19 @@ pub struct SampleRowKeysRequest {
 /// Response message for Bigtable.SampleRowKeys.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SampleRowKeysResponse {
-    /// Sorted streamed sequence of sample row keys in the table. The table might
-    /// have contents before the first row key in the list and after the last one,
-    /// but a key containing the empty string indicates "end of table" and will be
-    /// the last response given, if present.
-    /// Note that row keys in this list may not have ever been written to or read
-    /// from, and users should therefore not make any assumptions about the row key
-    /// structure that are specific to their use case.
+    /// Sorted streamed sequence of sample row keys in the table. The table
+    /// might have contents before the first row key in the list and after
+    /// the last one, but a key containing the empty string indicates "end
+    /// of table" and will be the last response given, if present.
+    /// Note that row keys in this list may not have ever been written to or
+    /// read from, and users should therefore not make any assumptions about
+    /// the row key structure that are specific to their use case.
     #[prost(bytes = "vec", tag = "1")]
     pub row_key: ::prost::alloc::vec::Vec<u8>,
-    /// Approximate total storage space used by all rows in the table which precede
-    /// `row_key`. Buffering the contents of all rows between two subsequent
-    /// samples would require space roughly equal to the difference in their
-    /// `offset_bytes` fields.
+    /// Approximate total storage space used by all rows in the table which
+    /// precede `row_key`. Buffering the contents of all rows between two
+    /// subsequent samples would require space roughly equal to the
+    /// difference in their `offset_bytes` fields.
     #[prost(int64, tag = "2")]
     pub offset_bytes: i64,
 }
@@ -948,8 +965,8 @@ pub struct MutateRowRequest {
     #[prost(bytes = "vec", tag = "2")]
     pub row_key: ::prost::alloc::vec::Vec<u8>,
     /// Required. Changes to be atomically applied to the specified row. Entries
-    /// are applied in order, meaning that earlier mutations can be masked by later
-    /// ones. Must contain at least one entry and at most 100000.
+    /// are applied in order, meaning that earlier mutations can be masked by
+    /// later ones. Must contain at least one entry and at most 100000.
     #[prost(message, repeated, tag = "3")]
     pub mutations: ::prost::alloc::vec::Vec<Mutation>,
 }
@@ -967,11 +984,11 @@ pub struct MutateRowsRequest {
     /// "default" application profile will be used.
     #[prost(string, tag = "3")]
     pub app_profile_id: ::prost::alloc::string::String,
-    /// Required. The row keys and corresponding mutations to be applied in bulk.
-    /// Each entry is applied as an atomic mutation, but the entries may be
-    /// applied in arbitrary order (even between entries for the same row).
-    /// At least one entry must be specified, and in total the entries can
-    /// contain at most 100000 mutations.
+    /// Required. The row keys and corresponding mutations to be applied in
+    /// bulk. Each entry is applied as an atomic mutation, but the entries
+    /// may be applied in arbitrary order (even between entries for the same
+    /// row). At least one entry must be specified, and in total the entries
+    /// can contain at most 100000 mutations.
     #[prost(message, repeated, tag = "2")]
     pub entries: ::prost::alloc::vec::Vec<mutate_rows_request::Entry>,
 }
@@ -984,8 +1001,9 @@ pub mod mutate_rows_request {
         #[prost(bytes = "vec", tag = "1")]
         pub row_key: ::prost::alloc::vec::Vec<u8>,
         /// Required. Changes to be atomically applied to the specified row.
-        /// Mutations are applied in order, meaning that earlier mutations can be
-        /// masked by later ones. You must specify at least one mutation.
+        /// Mutations are applied in order, meaning that earlier mutations can
+        /// be masked by later ones. You must specify at least one
+        /// mutation.
         #[prost(message, repeated, tag = "2")]
         pub mutations: ::prost::alloc::vec::Vec<super::Mutation>,
     }
@@ -996,9 +1014,9 @@ pub struct MutateRowsResponse {
     /// One or more results for Entries from the batch request.
     #[prost(message, repeated, tag = "1")]
     pub entries: ::prost::alloc::vec::Vec<mutate_rows_response::Entry>,
-    /// Information about how client should limit the rate (QPS). Primirily used by
-    /// supported official Cloud Bigtable clients. If unset, the rate limit info is
-    /// not provided by the server.
+    /// Information about how client should limit the rate (QPS). Primirily used
+    /// by supported official Cloud Bigtable clients. If unset, the rate
+    /// limit info is not provided by the server.
     #[prost(message, optional, tag = "3")]
     pub rate_limit_info: ::core::option::Option<RateLimitInfo>,
 }
@@ -1012,9 +1030,10 @@ pub mod mutate_rows_response {
         #[prost(int64, tag = "1")]
         pub index: i64,
         /// The result of the request Entry identified by `index`.
-        /// Depending on how requests are batched during execution, it is possible
-        /// for one Entry to fail due to an error with another Entry. In the event
-        /// that this occurs, the same error will be reported for both entries.
+        /// Depending on how requests are batched during execution, it is
+        /// possible for one Entry to fail due to an error with another
+        /// Entry. In the event that this occurs, the same error will be
+        /// reported for both entries.
         #[prost(message, optional, tag = "2")]
         pub status: ::core::option::Option<super::super::super::rpc::Status>,
     }
@@ -1031,14 +1050,14 @@ pub struct RateLimitInfo {
     #[prost(message, optional, tag = "1")]
     pub period: ::core::option::Option<::prost_types::Duration>,
     /// If it has been at least one `period` since the last load adjustment, the
-    /// client should multiply the current load by this value to get the new target
-    /// load. For example, if the current load is 100 and `factor` is 0.8, the new
-    /// target load should be 80. After adjusting, the client should ignore
-    /// `factor` until another `period` has passed.
+    /// client should multiply the current load by this value to get the new
+    /// target load. For example, if the current load is 100 and `factor` is
+    /// 0.8, the new target load should be 80. After adjusting, the client
+    /// should ignore `factor` until another `period` has passed.
     ///
-    /// The client can measure its load using any unit that's comparable over time
-    /// For example, QPS can be used as long as each request involves a similar
-    /// amount of work.
+    /// The client can measure its load using any unit that's comparable over
+    /// time For example, QPS can be used as long as each request involves a
+    /// similar amount of work.
     #[prost(double, tag = "2")]
     pub factor: f64,
 }
@@ -1060,22 +1079,22 @@ pub struct CheckAndMutateRowRequest {
     pub row_key: ::prost::alloc::vec::Vec<u8>,
     /// The filter to be applied to the contents of the specified row. Depending
     /// on whether or not any results are yielded, either `true_mutations` or
-    /// `false_mutations` will be executed. If unset, checks that the row contains
-    /// any values at all.
+    /// `false_mutations` will be executed. If unset, checks that the row
+    /// contains any values at all.
     #[prost(message, optional, tag = "6")]
     pub predicate_filter: ::core::option::Option<RowFilter>,
-    /// Changes to be atomically applied to the specified row if `predicate_filter`
-    /// yields at least one cell when applied to `row_key`. Entries are applied in
-    /// order, meaning that earlier mutations can be masked by later ones.
-    /// Must contain at least one entry if `false_mutations` is empty, and at most
-    /// 100000.
+    /// Changes to be atomically applied to the specified row if
+    /// `predicate_filter` yields at least one cell when applied to
+    /// `row_key`. Entries are applied in order, meaning that earlier
+    /// mutations can be masked by later ones. Must contain at least one
+    /// entry if `false_mutations` is empty, and at most 100000.
     #[prost(message, repeated, tag = "4")]
     pub true_mutations: ::prost::alloc::vec::Vec<Mutation>,
-    /// Changes to be atomically applied to the specified row if `predicate_filter`
-    /// does not yield any cells when applied to `row_key`. Entries are applied in
-    /// order, meaning that earlier mutations can be masked by later ones.
-    /// Must contain at least one entry if `true_mutations` is empty, and at most
-    /// 100000.
+    /// Changes to be atomically applied to the specified row if
+    /// `predicate_filter` does not yield any cells when applied to
+    /// `row_key`. Entries are applied in order, meaning that earlier
+    /// mutations can be masked by later ones. Must contain at least one
+    /// entry if `true_mutations` is empty, and at most 100000.
     #[prost(message, repeated, tag = "5")]
     pub false_mutations: ::prost::alloc::vec::Vec<Mutation>,
 }
@@ -1090,8 +1109,8 @@ pub struct CheckAndMutateRowResponse {
 /// Request message for client connection keep-alive and warming.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct PingAndWarmRequest {
-    /// Required. The unique name of the instance to check permissions for as well
-    /// as respond. Values are of the form
+    /// Required. The unique name of the instance to check permissions for as
+    /// well as respond. Values are of the form
     /// `projects/<project>/instances/<instance>`.
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
@@ -1106,8 +1125,8 @@ pub struct PingAndWarmResponse {}
 /// Request message for Bigtable.ReadModifyWriteRow.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadModifyWriteRowRequest {
-    /// Required. The unique name of the table to which the read/modify/write rules
-    /// should be applied. Values are of the form
+    /// Required. The unique name of the table to which the read/modify/write
+    /// rules should be applied. Values are of the form
     /// `projects/<project>/instances/<instance>/tables/<table>`.
     #[prost(string, tag = "1")]
     pub table_name: ::prost::alloc::string::String,
@@ -1115,13 +1134,13 @@ pub struct ReadModifyWriteRowRequest {
     /// "default" application profile will be used.
     #[prost(string, tag = "4")]
     pub app_profile_id: ::prost::alloc::string::String,
-    /// Required. The key of the row to which the read/modify/write rules should be
-    /// applied.
+    /// Required. The key of the row to which the read/modify/write rules should
+    /// be applied.
     #[prost(bytes = "vec", tag = "2")]
     pub row_key: ::prost::alloc::vec::Vec<u8>,
     /// Required. Rules specifying how the specified row's contents are to be
-    /// transformed into writes. Entries are applied in order, meaning that earlier
-    /// rules will affect the results of later ones.
+    /// transformed into writes. Entries are applied in order, meaning that
+    /// earlier rules will affect the results of later ones.
     #[prost(message, repeated, tag = "3")]
     pub rules: ::prost::alloc::vec::Vec<ReadModifyWriteRule>,
 }
@@ -1160,8 +1179,8 @@ pub struct GenerateInitialChangeStreamPartitionsResponse {
 /// Request message for Bigtable.ReadChangeStream.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ReadChangeStreamRequest {
-    /// Required. The unique name of the table from which to read a change stream.
-    /// Values are of the form
+    /// Required. The unique name of the table from which to read a change
+    /// stream. Values are of the form
     /// `projects/<project>/instances/<instance>/tables/<table>`.
     /// Change streaming must be enabled on the table.
     #[prost(string, tag = "1")]
@@ -1175,8 +1194,9 @@ pub struct ReadChangeStreamRequest {
     #[prost(message, optional, tag = "3")]
     pub partition: ::core::option::Option<StreamPartition>,
     /// If specified, OK will be returned when the stream advances beyond
-    /// this time. Otherwise, changes will be continuously delivered on the stream.
-    /// This value is inclusive and will be truncated to microsecond granularity.
+    /// this time. Otherwise, changes will be continuously delivered on the
+    /// stream. This value is inclusive and will be truncated to microsecond
+    /// granularity.
     #[prost(message, optional, tag = "5")]
     pub end_time: ::core::option::Option<::prost_types::Timestamp>,
     /// If specified, the duration between `Heartbeat` messages on the stream.
@@ -1192,22 +1212,23 @@ pub mod read_change_stream_request {
     /// Options for describing where we want to start reading from the stream.
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum StartFrom {
-        /// Start reading the stream at the specified timestamp. This timestamp must
-        /// be within the change stream retention period, less than or equal to the
-        /// current time, and after change stream creation, whichever is greater.
-        /// This value is inclusive and will be truncated to microsecond granularity.
+        /// Start reading the stream at the specified timestamp. This timestamp
+        /// must be within the change stream retention period, less than
+        /// or equal to the current time, and after change stream
+        /// creation, whichever is greater. This value is inclusive and
+        /// will be truncated to microsecond granularity.
         #[prost(message, tag = "4")]
         StartTime(::prost_types::Timestamp),
         /// Tokens that describe how to resume reading a stream where reading
-        /// previously left off. If specified, changes will be read starting at the
-        /// the position. Tokens are delivered on the stream as part of `Heartbeat`
-        /// and `CloseStream` messages.
+        /// previously left off. If specified, changes will be read starting at
+        /// the the position. Tokens are delivered on the stream as part
+        /// of `Heartbeat` and `CloseStream` messages.
         ///
-        /// If a single token is provided, the token’s partition must exactly match
-        /// the request’s partition. If multiple tokens are provided, as in the case
-        /// of a partition merge, the union of the token partitions must exactly
-        /// cover the request’s partition. Otherwise, INVALID_ARGUMENT will be
-        /// returned.
+        /// If a single token is provided, the token’s partition must exactly
+        /// match the request’s partition. If multiple tokens are
+        /// provided, as in the case of a partition merge, the union of
+        /// the token partitions must exactly cover the request’s
+        /// partition. Otherwise, INVALID_ARGUMENT will be returned.
         #[prost(message, tag = "6")]
         ContinuationTokens(super::StreamContinuationTokens),
     }
@@ -1229,20 +1250,23 @@ pub mod read_change_stream_response {
         /// multiple messages.
         #[prost(message, optional, tag = "1")]
         pub chunk_info: ::core::option::Option<mutation_chunk::ChunkInfo>,
-        /// If this is a continuation of a chunked message (`chunked_value_offset` >
-        /// 0), ignore all fields except the `SetCell`'s value and merge it with
-        /// the previous message by concatenating the value fields.
+        /// If this is a continuation of a chunked message
+        /// (`chunked_value_offset` > 0), ignore all fields except the
+        /// `SetCell`'s value and merge it with the previous message by
+        /// concatenating the value fields.
         #[prost(message, optional, tag = "2")]
         pub mutation: ::core::option::Option<super::Mutation>,
     }
     /// Nested message and enum types in `MutationChunk`.
     pub mod mutation_chunk {
         /// Information about the chunking of this mutation.
-        /// Only `SetCell` mutations can be chunked, and all chunks for a `SetCell`
-        /// will be delivered contiguously with no other mutation types interleaved.
+        /// Only `SetCell` mutations can be chunked, and all chunks for a
+        /// `SetCell` will be delivered contiguously with no other
+        /// mutation types interleaved.
         #[derive(Clone, PartialEq, ::prost::Message)]
         pub struct ChunkInfo {
-            /// The total value size of all the chunks that make up the `SetCell`.
+            /// The total value size of all the chunks that make up the
+            /// `SetCell`.
             #[prost(int32, tag = "1")]
             pub chunked_value_size: i32,
             /// The byte offset of this chunk into the total value size of the
@@ -1270,11 +1294,12 @@ pub mod read_change_stream_response {
         #[prost(string, tag = "2")]
         pub source_cluster_id: ::prost::alloc::string::String,
         /// The row key for all mutations that are part of this `DataChange`.
-        /// If the `DataChange` is chunked across multiple messages, then this field
-        /// will only be set for the first message.
+        /// If the `DataChange` is chunked across multiple messages, then this
+        /// field will only be set for the first message.
         #[prost(bytes = "vec", tag = "3")]
         pub row_key: ::prost::alloc::vec::Vec<u8>,
-        /// The timestamp at which the mutation was applied on the Bigtable server.
+        /// The timestamp at which the mutation was applied on the Bigtable
+        /// server.
         #[prost(message, optional, tag = "4")]
         pub commit_timestamp: ::core::option::Option<::prost_types::Timestamp>,
         /// A value that lets stream consumers reconstruct Bigtable's
@@ -1282,8 +1307,9 @@ pub mod read_change_stream_response {
         /// <https://cloud.google.com/bigtable/docs/writes#conflict-resolution>
         /// In the event that the same row key, column family, column qualifier,
         /// timestamp are modified on different clusters at the same
-        /// `commit_timestamp`, the mutation with the larger `tiebreaker` will be the
-        /// one chosen for the eventually consistent state of the system.
+        /// `commit_timestamp`, the mutation with the larger `tiebreaker` will
+        /// be the one chosen for the eventually consistent state of the
+        /// system.
         #[prost(int32, tag = "5")]
         pub tiebreaker: i32,
         /// The mutations associated with this change to the partition.
@@ -1295,14 +1321,16 @@ pub mod read_change_stream_response {
         /// and the client can safely process the message.
         #[prost(bool, tag = "8")]
         pub done: bool,
-        /// An encoded position for this stream's partition to restart reading from.
-        /// This token is for the StreamPartition from the request.
+        /// An encoded position for this stream's partition to restart reading
+        /// from. This token is for the StreamPartition from the
+        /// request.
         #[prost(string, tag = "9")]
         pub token: ::prost::alloc::string::String,
-        /// An estimate of the commit timestamp that is usually lower than or equal
-        /// to any timestamp for a record that will be delivered in the future on the
-        /// stream. It is possible that, under particular circumstances that a future
-        /// record has a timestamp is is lower than a previously seen timestamp. For
+        /// An estimate of the commit timestamp that is usually lower than or
+        /// equal to any timestamp for a record that will be delivered
+        /// in the future on the stream. It is possible that, under
+        /// particular circumstances that a future record has a
+        /// timestamp is is lower than a previously seen timestamp. For
         /// an example usage see
         /// <https://beam.apache.org/documentation/basics/#watermarks>
         #[prost(message, optional, tag = "10")]
@@ -1327,10 +1355,12 @@ pub mod read_change_stream_response {
             Continuation = 3,
         }
         impl Type {
-            /// String value of the enum field names used in the ProtoBuf definition.
+            /// String value of the enum field names used in the ProtoBuf
+            /// definition.
             ///
-            /// The values are not transformed in any way and thus are considered stable
-            /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+            /// The values are not transformed in any way and thus are
+            /// considered stable (if the ProtoBuf definition does
+            /// not change) and safe for programmatic use.
             pub fn as_str_name(&self) -> &'static str {
                 match self {
                     Type::Unspecified => "TYPE_UNSPECIFIED",
@@ -1339,7 +1369,8 @@ pub mod read_change_stream_response {
                     Type::Continuation => "CONTINUATION",
                 }
             }
-            /// Creates an enum from field names used in the ProtoBuf definition.
+            /// Creates an enum from field names used in the ProtoBuf
+            /// definition.
             pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
                 match value {
                     "TYPE_UNSPECIFIED" => Some(Self::Unspecified),
@@ -1359,21 +1390,22 @@ pub mod read_change_stream_response {
         /// to pick up reading at the current stream position.
         #[prost(message, optional, tag = "1")]
         pub continuation_token: ::core::option::Option<super::StreamContinuationToken>,
-        /// An estimate of the commit timestamp that is usually lower than or equal
-        /// to any timestamp for a record that will be delivered in the future on the
-        /// stream. It is possible that, under particular circumstances that a future
-        /// record has a timestamp is is lower than a previously seen timestamp. For
+        /// An estimate of the commit timestamp that is usually lower than or
+        /// equal to any timestamp for a record that will be delivered
+        /// in the future on the stream. It is possible that, under
+        /// particular circumstances that a future record has a
+        /// timestamp is is lower than a previously seen timestamp. For
         /// an example usage see
         /// <https://beam.apache.org/documentation/basics/#watermarks>
         #[prost(message, optional, tag = "2")]
         pub estimated_low_watermark: ::core::option::Option<::prost_types::Timestamp>,
     }
-    /// A message indicating that the client should stop reading from the stream.
-    /// If status is OK and `continuation_tokens` & `new_partitions` are empty, the
-    /// stream has finished (for example if there was an `end_time` specified).
-    /// If `continuation_tokens` & `new_partitions` are present, then a change in
-    /// partitioning requires the client to open a new stream for each token to
-    /// resume reading. Example:
+    /// A message indicating that the client should stop reading from the
+    /// stream. If status is OK and `continuation_tokens` & `new_partitions`
+    /// are empty, the stream has finished (for example if there was an
+    /// `end_time` specified). If `continuation_tokens` & `new_partitions`
+    /// are present, then a change in partitioning requires the client to
+    /// open a new stream for each token to resume reading. Example:
     ///                                   [B,      D) ends
     ///                                        |
     ///                                        v
@@ -1393,13 +1425,13 @@ pub mod read_change_stream_response {
         /// The status of the stream.
         #[prost(message, optional, tag = "1")]
         pub status: ::core::option::Option<super::super::super::rpc::Status>,
-        /// If non-empty, contains the information needed to resume reading their
-        /// associated partitions.
+        /// If non-empty, contains the information needed to resume reading
+        /// their associated partitions.
         #[prost(message, repeated, tag = "2")]
         pub continuation_tokens: ::prost::alloc::vec::Vec<super::StreamContinuationToken>,
-        /// If non-empty, contains the new partitions to start reading from, which
-        /// are related to but not necessarily identical to the partitions for the
-        /// above `continuation_tokens`.
+        /// If non-empty, contains the new partitions to start reading from,
+        /// which are related to but not necessarily identical to the
+        /// partitions for the above `continuation_tokens`.
         #[prost(message, repeated, tag = "3")]
         pub new_partitions: ::prost::alloc::vec::Vec<super::StreamPartition>,
     }
@@ -1420,8 +1452,7 @@ pub mod read_change_stream_response {
 /// Generated client implementations.
 pub mod bigtable_client {
     #![allow(unused_variables, dead_code, missing_docs, clippy::let_unit_value)]
-    use tonic::codegen::http::Uri;
-    use tonic::codegen::*;
+    use tonic::codegen::{http::Uri, *};
     /// Service for reading from and writing to existing Bigtable tables.
     #[derive(Debug, Clone)]
     pub struct BigtableClient<T> {
@@ -1461,11 +1492,11 @@ pub mod bigtable_client {
             F: tonic::service::Interceptor,
             T::ResponseBody: Default,
             T: tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-                Response = http::Response<
-                    <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
+                    http::Request<tonic::body::BoxBody>,
+                    Response = http::Response<
+                        <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
+                    >,
                 >,
-            >,
             <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
                 Into<StdError> + Send + Sync,
         {
@@ -1473,8 +1504,8 @@ pub mod bigtable_client {
         }
         /// Compress requests with the given encoding.
         ///
-        /// This requires the server to support it otherwise it might respond with an
-        /// error.
+        /// This requires the server to support it otherwise it might respond
+        /// with an error.
         #[must_use]
         pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
             self.inner = self.inner.send_compressed(encoding);
@@ -1502,11 +1533,12 @@ pub mod bigtable_client {
             self.inner = self.inner.max_encoding_message_size(limit);
             self
         }
-        /// Streams back the contents of all requested rows in key order, optionally
-        /// applying the same Reader filter to each. Depending on their size,
-        /// rows and cells may be broken up across multiple responses, but
-        /// atomicity of each row will still be preserved. See the
-        /// ReadRowsResponse documentation for details.
+        /// Streams back the contents of all requested rows in key order,
+        /// optionally applying the same Reader filter to each.
+        /// Depending on their size, rows and cells may be broken up
+        /// across multiple responses, but atomicity of each row will
+        /// still be preserved. See the ReadRowsResponse documentation
+        /// for details.
         pub async fn read_rows(
             &mut self,
             request: impl tonic::IntoRequest<super::ReadRowsRequest>,
@@ -1528,10 +1560,10 @@ pub mod bigtable_client {
                 .insert(GrpcMethod::new("google.bigtable.v2.Bigtable", "ReadRows"));
             self.inner.server_streaming(req, path, codec).await
         }
-        /// Returns a sample of row keys in the table. The returned row keys will
-        /// delimit contiguous sections of the table of approximately equal size,
-        /// which can be used to break up the data for distributed tasks like
-        /// mapreduces.
+        /// Returns a sample of row keys in the table. The returned row keys
+        /// will delimit contiguous sections of the table of
+        /// approximately equal size, which can be used to break up the
+        /// data for distributed tasks like mapreduces.
         pub async fn sample_row_keys(
             &mut self,
             request: impl tonic::IntoRequest<super::SampleRowKeysRequest>,
@@ -1599,7 +1631,8 @@ pub mod bigtable_client {
                 .insert(GrpcMethod::new("google.bigtable.v2.Bigtable", "MutateRows"));
             self.inner.server_streaming(req, path, codec).await
         }
-        /// Mutates a row atomically based on the output of a predicate Reader filter.
+        /// Mutates a row atomically based on the output of a predicate Reader
+        /// filter.
         pub async fn check_and_mutate_row(
             &mut self,
             request: impl tonic::IntoRequest<super::CheckAndMutateRowRequest>,
@@ -1623,7 +1656,8 @@ pub mod bigtable_client {
             self.inner.unary(req, path, codec).await
         }
         /// Warm up associated instance metadata for this connection.
-        /// This call is not required but may be useful for connection keep-alive.
+        /// This call is not required but may be useful for connection
+        /// keep-alive.
         pub async fn ping_and_warm(
             &mut self,
             request: impl tonic::IntoRequest<super::PingAndWarmRequest>,
@@ -1646,10 +1680,11 @@ pub mod bigtable_client {
             self.inner.unary(req, path, codec).await
         }
         /// Modifies a row atomically on the server. The method reads the latest
-        /// existing timestamp and value from the specified columns and writes a new
-        /// entry based on pre-defined read/modify/write rules. The new value for the
-        /// timestamp is the greater of the existing timestamp or the current server
-        /// time. The method returns the new contents of all modified cells.
+        /// existing timestamp and value from the specified columns and writes a
+        /// new entry based on pre-defined read/modify/write rules. The
+        /// new value for the timestamp is the greater of the existing
+        /// timestamp or the current server time. The method returns the
+        /// new contents of all modified cells.
         pub async fn read_modify_write_row(
             &mut self,
             request: impl tonic::IntoRequest<super::ReadModifyWriteRowRequest>,
@@ -1674,8 +1709,8 @@ pub mod bigtable_client {
         }
         /// NOTE: This API is intended to be used by Apache Beam BigtableIO.
         /// Returns the current list of partitions that make up the table's
-        /// change stream. The union of partitions will cover the entire keyspace.
-        /// Partitions can be read with `ReadChangeStream`.
+        /// change stream. The union of partitions will cover the entire
+        /// keyspace. Partitions can be read with `ReadChangeStream`.
         pub async fn generate_initial_change_stream_partitions(
             &mut self,
             request: impl tonic::IntoRequest<super::GenerateInitialChangeStreamPartitionsRequest>,
@@ -1704,8 +1739,8 @@ pub mod bigtable_client {
         }
         /// NOTE: This API is intended to be used by Apache Beam BigtableIO.
         /// Reads changes from a table's change stream. Changes will
-        /// reflect both user-initiated mutations and mutations that are caused by
-        /// garbage collection.
+        /// reflect both user-initiated mutations and mutations that are caused
+        /// by garbage collection.
         pub async fn read_change_stream(
             &mut self,
             request: impl tonic::IntoRequest<super::ReadChangeStreamRequest>,

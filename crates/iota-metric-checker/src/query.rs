@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::unix_seconds_to_timestamp_string;
 use anyhow::anyhow;
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use prometheus_http_query::Client;
-use reqwest::header::{HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderValue};
 use tracing::{debug, info};
+
+use crate::unix_seconds_to_timestamp_string;
 
 pub async fn instant_query(
     auth_header: &str,
@@ -42,7 +43,8 @@ pub async fn instant_query(
     }
 }
 
-// This will return the median value of the queried metric over the given time range.
+// This will return the median value of the queried metric over the given time
+// range.
 pub async fn range_query(
     auth_header: &str,
     client: Client,
@@ -83,11 +85,7 @@ pub async fn range_query(
         .iter()
         .filter_map(|sample| {
             let v = sample.value();
-            if v.is_nan() {
-                None
-            } else {
-                Some(v)
-            }
+            if v.is_nan() { None } else { Some(v) }
         })
         .collect();
     if samples.is_empty() {

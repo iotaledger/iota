@@ -2,14 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::ExecutionErrorKind;
-use crate::error::IotaError;
-use crate::{
-    balance::{Balance, Supply},
-    error::ExecutionError,
-    object::{Data, Object},
-};
-use crate::{base_types::ObjectID, id::UID, IOTA_FRAMEWORK_ADDRESS};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
@@ -18,6 +10,15 @@ use move_core_types::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
+    balance::{Balance, Supply},
+    base_types::ObjectID,
+    error::{ExecutionError, ExecutionErrorKind, IotaError},
+    id::UID,
+    object::{Data, Object},
+};
 
 pub const COIN_MODULE_NAME: &IdentStr = ident_str!("coin");
 pub const COIN_STRUCT_NAME: &IdentStr = ident_str!("Coin");
@@ -65,9 +66,10 @@ impl Coin {
         bcs::from_bytes(content)
     }
 
-    /// If the given object is a Coin, deserialize its contents and extract the balance Ok(Some(u64)).
-    /// If it's not a Coin, return Ok(None).
-    /// The cost is 2 comparisons if not a coin, and deserialization if its a Coin.
+    /// If the given object is a Coin, deserialize its contents and extract the
+    /// balance Ok(Some(u64)). If it's not a Coin, return Ok(None).
+    /// The cost is 2 comparisons if not a coin, and deserialization if its a
+    /// Coin.
     pub fn extract_balance_if_coin(object: &Object) -> Result<Option<(TypeTag, u64)>, bcs::Error> {
         let Data::Move(obj) = &object.data else {
             return Ok(None);
@@ -109,7 +111,8 @@ impl Coin {
         }
     }
 
-    /// Add balance to this coin, erroring if the new total balance exceeds the maximum
+    /// Add balance to this coin, erroring if the new total balance exceeds the
+    /// maximum
     pub fn add(&mut self, balance: Balance) -> Result<(), ExecutionError> {
         let Some(new_value) = self.value().checked_add(balance.value()) else {
             return Err(ExecutionError::from_kind(
@@ -121,8 +124,9 @@ impl Coin {
     }
 
     // Split amount out of this coin to a new coin.
-    // Related coin objects need to be updated in temporary_store to persist the changes,
-    // including creating the coin object related to the newly created coin.
+    // Related coin objects need to be updated in temporary_store to persist the
+    // changes, including creating the coin object related to the newly created
+    // coin.
     pub fn split(&mut self, amount: u64, new_coin_id: UID) -> Result<Coin, ExecutionError> {
         self.balance.withdraw(amount)?;
         Ok(Coin::new(new_coin_id, amount))
@@ -159,7 +163,8 @@ impl TreasuryCap {
         }
     }
 
-    /// Checks if the provided type is `TreasuryCap<T>`, returning the type T if so.
+    /// Checks if the provided type is `TreasuryCap<T>`, returning the type T if
+    /// so.
     pub fn is_treasury_with_coin_type(other: &StructTag) -> Option<&StructTag> {
         if Self::is_treasury_type(other) && other.type_params.len() == 1 {
             match other.type_params.first() {
@@ -230,7 +235,8 @@ impl CoinMetadata {
         }
     }
 
-    /// Checks if the provided type is `CoinMetadata<T>`, returning the type T if so.
+    /// Checks if the provided type is `CoinMetadata<T>`, returning the type T
+    /// if so.
     pub fn is_coin_metadata_with_coin_type(other: &StructTag) -> Option<&StructTag> {
         if Self::is_coin_metadata(other) && other.type_params.len() == 1 {
             match other.type_params.first() {

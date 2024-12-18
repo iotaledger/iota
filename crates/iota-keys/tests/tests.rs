@@ -2,20 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fs;
-use std::str::FromStr;
+use std::{fs, str::FromStr};
 
-use fastcrypto::hash::HashFunction;
-use fastcrypto::traits::EncodeDecodeBase64;
-use iota_keys::key_derive::generate_new_key;
-use tempfile::TempDir;
-
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore};
-use iota_types::crypto::{DefaultHash, SignatureScheme, IotaSignatureInner};
-use iota_types::{
-    base_types::{IotaAddress, IOTA_ADDRESS_LENGTH},
-    crypto::Ed25519IotaSignature,
+use fastcrypto::{hash::HashFunction, traits::EncodeDecodeBase64};
+use iota_keys::{
+    key_derive::generate_new_key,
+    keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore},
 };
+use iota_types::{
+    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
+    crypto::{DefaultHash, Ed25519IotaSignature, IotaSignatureInner, SignatureScheme},
+};
+use tempfile::TempDir;
 
 #[test]
 fn alias_exists_test() {
@@ -106,7 +104,8 @@ fn keystore_no_aliases() {
     // and a new alias for it.
     // This idea is to test the correct conversion
     // from the old type (which only contains keys and an optional path)
-    // to the new type which contains keys and aliases (and an optional path), and if it creates the aliases file.
+    // to the new type which contains keys and aliases (and an optional path), and
+    // if it creates the aliases file.
 
     let temp_dir = TempDir::new().unwrap();
     let mut keystore_path = temp_dir.path().join("iota.keystore");
@@ -211,12 +210,14 @@ fn mnemonic_test() {
     assert_eq!(address, imported_address);
 }
 
-/// This test confirms rust's implementation of mnemonic is the same with the Iota Wallet
+/// This test confirms rust's implementation of mnemonic is the same with the
+/// Iota Wallet
 #[test]
 fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
-    let expected_address =
-        IotaAddress::from_str("0x936accb491f0facaac668baaedcf4d0cfc6da1120b66f77fa6a43af718669973")?;
+    let expected_address = IotaAddress::from_str(
+        "0x936accb491f0facaac668baaedcf4d0cfc6da1120b66f77fa6a43af718669973",
+    )?;
 
     let temp_dir = TempDir::new().unwrap();
     let keystore_path = temp_dir.path().join("iota.keystore");

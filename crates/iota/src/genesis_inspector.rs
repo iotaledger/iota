@@ -2,15 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use inquire::Select;
 use std::collections::BTreeMap;
+
+use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
-use iota_types::iota_system_state::IotaValidatorGenesis;
 use iota_types::{
     base_types::ObjectID,
     coin::CoinMetadata,
     gas_coin::{GasCoin, NANOS_PER_IOTA, TOTAL_SUPPLY_NANOS},
     governance::StakedIota,
+    iota_system_state::IotaValidatorGenesis,
     move_package::MovePackage,
     object::{MoveObject, Owner},
 };
@@ -116,7 +117,8 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     examine_total_supply(&iota_distribution, false);
 
     // Main loop for inspection
-    let main_options: Vec<&str> = vec![STR_IOTA_DISTRIBUTION, STR_VALIDATORS, STR_OBJECTS, STR_EXIT];
+    let main_options: Vec<&str> =
+        vec![STR_IOTA_DISTRIBUTION, STR_VALIDATORS, STR_OBJECTS, STR_EXIT];
     loop {
         let ans = Select::new(
             "Select one main category to examine ('Exit' to exit the program):",

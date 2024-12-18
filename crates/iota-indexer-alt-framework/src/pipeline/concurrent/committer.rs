@@ -10,6 +10,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
+use super::{Batched, Handler};
 use crate::{
     db::Db,
     metrics::IndexerMetrics,
@@ -17,24 +18,24 @@ use crate::{
     task::TrySpawnStreamExt,
 };
 
-use super::{Batched, Handler};
-
 /// If the committer needs to retry a commit, it will wait this long initially.
 const INITIAL_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 
-/// If the committer needs to retry a commit, it will wait at most this long between retries.
+/// If the committer needs to retry a commit, it will wait at most this long
+/// between retries.
 const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
-/// The committer task is responsible for writing batches of rows to the database. It receives
-/// batches on `rx` and writes them out to the `db` concurrently (`config.write_concurrency`
-/// controls the degree of fan-out).
+/// The committer task is responsible for writing batches of rows to the
+/// database. It receives batches on `rx` and writes them out to the `db`
+/// concurrently (`config.write_concurrency` controls the degree of fan-out).
 ///
-/// The writing of each batch will be repeatedly retried on an exponential back-off until it
-/// succeeds. Once the write succeeds, the [WatermarkPart]s for that batch are sent on `tx` to the
-/// watermark task, as long as `skip_watermark` is not true.
+/// The writing of each batch will be repeatedly retried on an exponential
+/// back-off until it succeeds. Once the write succeeds, the [WatermarkPart]s
+/// for that batch are sent on `tx` to the watermark task, as long as
+/// `skip_watermark` is not true.
 ///
-/// This task will shutdown via its `cancel`lation token, or if its receiver or sender channels are
-/// closed.
+/// This task will shutdown via its `cancel`lation token, or if its receiver or
+/// sender channels are closed.
 pub(super) fn committer<H: Handler + 'static>(
     config: CommitterConfig,
     skip_watermark: bool,

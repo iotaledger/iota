@@ -8,15 +8,15 @@ use std::{
     str::FromStr,
 };
 
+use narwhal_config::PrometheusMetricsParameters;
+use serde::{Deserialize, Serialize};
+
+use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     settings::Settings,
 };
-use narwhal_config::PrometheusMetricsParameters;
-use serde::{Deserialize, Serialize};
-
-use super::{ProtocolCommands, ProtocolMetrics};
 
 const NUM_WORKERS: usize = 1;
 const BASE_PORT: usize = 5000;

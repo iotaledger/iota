@@ -4,17 +4,16 @@
 
 use anyhow::Result;
 use fastcrypto::traits::EncodeDecodeBase64;
-use tokio::sync::Mutex;
-
 use iota_data_ingestion_core::Worker;
 use iota_rpc_api::{CheckpointData, CheckpointTransaction};
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary};
-use iota_types::transaction::TransactionDataAPI;
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary},
+    transaction::TransactionDataAPI,
+};
+use tokio::sync::Mutex;
 
-use crate::handlers::AnalyticsHandler;
-use crate::tables::CheckpointEntry;
-use crate::FileType;
+use crate::{FileType, handlers::AnalyticsHandler, tables::CheckpointEntry};
 
 pub struct CheckpointHandler {
     state: Mutex<State>,

@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::fuzz::TransactionKindMutator;
-use rand::seq::SliceRandom;
 use iota_types::transaction::{Command, TransactionKind};
+use rand::seq::SliceRandom;
 use tracing::info;
+
+use crate::fuzz::TransactionKindMutator;
 
 pub struct ShuffleTypes {
     pub rng: rand::rngs::StdRng,

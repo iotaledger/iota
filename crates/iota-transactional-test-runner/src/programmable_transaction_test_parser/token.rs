@@ -5,8 +5,7 @@
 use std::fmt::{self, Display};
 
 use anyhow::bail;
-use move_core_types::identifier;
-use move_core_types::parsing::parser::Token;
+use move_core_types::{identifier, parsing::parser::Token};
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum CommandToken {

@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fs;
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 
 use clap::Parser;
-use iota_mvr_graphql_rpc::commands::Command;
-use iota_mvr_graphql_rpc::config::{ServerConfig, ServiceConfig, Version};
-use iota_mvr_graphql_rpc::server::graphiql_server::start_graphiql_server;
-use tokio_util::sync::CancellationToken;
-use tokio_util::task::TaskTracker;
+use iota_mvr_graphql_rpc::{
+    commands::Command,
+    config::{ServerConfig, ServiceConfig, Version},
+    server::graphiql_server::start_graphiql_server,
+};
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 // Define the `GIT_REVISION` const
 bin_version::git_revision!();

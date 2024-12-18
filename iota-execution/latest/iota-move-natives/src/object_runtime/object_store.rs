@@ -2,20 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::object_runtime::get_all_uids;
-use move_binary_format::errors::{PartialVMError, PartialVMResult};
-use move_core_types::{
-    annotated_value as A, effects::Op, runtime_value as R, vm_status::StatusCode,
-};
-use move_vm_types::{
-    loaded_data::runtime_types::Type,
-    values::{GlobalValue, StructRef, Value},
-};
 use std::{
-    collections::{btree_map, BTreeMap},
+    collections::{BTreeMap, btree_map},
     sync::Arc,
 };
-use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
+
+use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_types::{
     base_types::{MoveObjectType, ObjectID, SequenceNumber},
     committee::EpochId,
@@ -25,6 +17,16 @@ use iota_types::{
     object::{Data, MoveObject, Object, Owner},
     storage::ChildObjectResolver,
 };
+use move_binary_format::errors::{PartialVMError, PartialVMResult};
+use move_core_types::{
+    annotated_value as A, effects::Op, runtime_value as R, vm_status::StatusCode,
+};
+use move_vm_types::{
+    loaded_data::runtime_types::Type,
+    values::{GlobalValue, StructRef, Value},
+};
+
+use crate::object_runtime::get_all_uids;
 
 pub(super) struct ChildObject {
     pub(super) owner: ObjectID,
@@ -78,8 +80,8 @@ struct Inner<'a> {
     current_epoch_id: EpochId,
 }
 
-// maintains the runtime GlobalValues for child objects and manages the fetching of objects
-// from storage, through the `ChildObjectResolver`
+// maintains the runtime GlobalValues for child objects and manages the fetching
+// of objects from storage, through the `ChildObjectResolver`
 pub(super) struct ChildObjectStore<'a> {
     // contains object resolver and object cache
     // kept as a separate struct to deal with lifetime issues where the `store` is accessed
@@ -120,8 +122,8 @@ macro_rules! fetch_child_object_unbounded {
                     )),
                 );
             }
-            // guard against bugs in `read_child_object`: if it returns a child object such that
-            // C.parent != parent, we raise an invariant violation
+            // guard against bugs in `read_child_object`: if it returns a child object such
+            // that C.parent != parent, we raise an invariant violation
             match &object.owner {
                 Owner::ObjectOwner(id) => {
                     if ObjectID::from(*id) != $parent {
@@ -144,7 +146,7 @@ macro_rules! fetch_child_object_unbounded {
                             immutable, or shared owner",
                             $child, $parent
                         ),
-                    ))
+                    ));
                 }
             };
             match object.data {
@@ -155,7 +157,7 @@ macro_rules! fetch_child_object_unbounded {
                             Expected a Move object but found a Move package",
                             $child
                         ),
-                    ))
+                    ));
                 }
                 Data::Move(_) => Some(object),
             }
@@ -179,8 +181,9 @@ impl<'a> Inner<'a> {
                 PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(format!("{msg}"))
             })?;
         let obj_opt = if let Some(object) = child_opt {
-            // guard against bugs in `receive_object_at_version`: if it returns a child object such that
-            // C.parent != parent, we raise an invariant violation since that should be checked by
+            // guard against bugs in `receive_object_at_version`: if it returns a child
+            // object such that C.parent != parent, we raise an invariant
+            // violation since that should be checked by
             // `receive_object_at_version`.
             if object.owner != Owner::AddressOwner(owner.into()) {
                 return Err(
@@ -199,10 +202,10 @@ impl<'a> Inner<'a> {
                 previous_transaction: object.previous_transaction,
             };
 
-            // `ChildObjectResolver::receive_object_at_version` should return the object at the
-            // version or nothing at all. If it returns an object with a different version, we
-            // should raise an invariant violation since it should be checked by
-            // `receive_object_at_version`.
+            // `ChildObjectResolver::receive_object_at_version` should return the object at
+            // the version or nothing at all. If it returns an object with a
+            // different version, we should raise an invariant violation since
+            // it should be checked by `receive_object_at_version`.
             if object.version() != version {
                 return Err(
                     PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(format!(
@@ -219,7 +222,7 @@ impl<'a> Inner<'a> {
                             "Mismatched object type for {child}. \
                                 Expected a Move object but found a Move package"
                         ),
-                    ))
+                    ));
                 }
                 Data::Move(mo @ MoveObject { .. }) => Some((mo, loaded_metadata)),
             }
@@ -298,7 +301,7 @@ impl<'a> Inner<'a> {
                 return Ok(ObjectResult::Loaded((
                     child_ty.clone(),
                     GlobalValue::none(),
-                )))
+                )));
             }
             Some(obj) => obj,
         };
@@ -322,7 +325,7 @@ impl<'a> Inner<'a> {
                 Err(e) => {
                     return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                         format!("Object {child} did not deserialize to a struct Value. Error: {e}"),
-                    ))
+                    ));
                 }
             };
         // Find all UIDs inside of the value and update the object parent maps
@@ -364,7 +367,7 @@ fn deserialize_move_object(
                 PartialVMError::new(StatusCode::FAILED_TO_DESERIALIZE_RESOURCE).with_message(
                     format!("Failed to deserialize object {child_id} with type {child_move_type}",),
                 ),
-            )
+            );
         }
     };
     Ok(ObjectResult::Loaded((
@@ -422,9 +425,10 @@ impl<'a> ChildObjectStore<'a> {
             match deserialize_move_object(&obj, child_ty, child_layout, child_move_type)? {
                 ObjectResult::MismatchedType => (ObjectResult::MismatchedType, obj_meta),
                 ObjectResult::Loaded((_, _, v)) => {
-                    // Find all UIDs inside of the value and update the object parent maps with the contained
-                    // UIDs in the received value. They should all have an upper bound version as the receiving object.
-                    // Only do this if we successfully load the object though.
+                    // Find all UIDs inside of the value and update the object parent maps with the
+                    // contained UIDs in the received value. They should all
+                    // have an upper bound version as the receiving object. Only
+                    // do this if we successfully load the object though.
                     let contained_uids = get_all_uids(child_fully_annotated_layout, obj.contents())
                         .map_err(|e| {
                             PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
@@ -681,8 +685,9 @@ impl<'a> ChildObjectStore<'a> {
         Ok(ObjectResult::Loaded(Some(value)))
     }
 
-    /// Used by test scenario to insert a config setting into the cache, which replicates the
-    /// behavior of a config already being in the object store.
+    /// Used by test scenario to insert a config setting into the cache, which
+    /// replicates the behavior of a config already being in the object
+    /// store.
     pub(super) fn config_setting_cache_update(
         &mut self,
         config_id: ObjectID,

@@ -8,22 +8,25 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 pub mod checked {
 
-    use crate::gas_model::gas_predicates::gas_price_too_high;
-    use crate::{
-        effects::{TransactionEffects, TransactionEffectsAPI},
-        error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{gas_v2::IotaGasStatus as IotaGasStatusV2, tables::GasStatus},
-        object::Object,
-        iota_serde::{BigInt, Readable},
-        transaction::ObjectReadResult,
-        ObjectID,
-    };
     use enum_dispatch::enum_dispatch;
+    use iota_protocol_config::ProtocolConfig;
     use itertools::MultiUnzip;
     use schemars::JsonSchema;
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
-    use iota_protocol_config::ProtocolConfig;
+
+    use crate::{
+        ObjectID,
+        effects::{TransactionEffects, TransactionEffectsAPI},
+        error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
+        gas_model::{
+            gas_predicates::gas_price_too_high, gas_v2::IotaGasStatus as IotaGasStatusV2,
+            tables::GasStatus,
+        },
+        iota_serde::{BigInt, Readable},
+        object::Object,
+        transaction::ObjectReadResult,
+    };
 
     #[enum_dispatch]
     pub trait IotaGasStatusAPI {
@@ -66,8 +69,8 @@ pub mod checked {
             reference_gas_price: u64,
             config: &ProtocolConfig,
         ) -> IotaResult<Self> {
-            // Common checks. We may pull them into version specific status as needed, but they
-            // are unlikely to change.
+            // Common checks. We may pull them into version specific status as needed, but
+            // they are unlikely to change.
 
             // gas price must be bigger or equal to reference gas price
             if gas_price < reference_gas_price {
@@ -97,8 +100,8 @@ pub mod checked {
             Self::V2(IotaGasStatusV2::new_unmetered())
         }
 
-        // This is the only public API on IotaGasStatus, all other gas related operations should
-        // go through `GasCharger`
+        // This is the only public API on IotaGasStatus, all other gas related
+        // operations should go through `GasCharger`
         pub fn check_gas_balance(
             &self,
             gas_objs: &[&ObjectReadResult],
@@ -113,26 +116,28 @@ pub mod checked {
     /// Summary of the charges in a transaction.
     /// Storage is charged independently of computation.
     /// There are 3 parts to the storage charges:
-    /// `storage_cost`: it is the charge of storage at the time the transaction is executed.
-    ///                 The cost of storage is the number of bytes of the objects being mutated
-    ///                 multiplied by a variable storage cost per byte
-    /// `storage_rebate`: this is the amount a user gets back when manipulating an object.
-    ///                   The `storage_rebate` is the `storage_cost` for an object minus fees.
-    /// `non_refundable_storage_fee`: not all the value of the object storage cost is
-    ///                               given back to user and there is a small fraction that
-    ///                               is kept by the system. This value tracks that charge.
+    /// `storage_cost`: it is the charge of storage at the time the transaction
+    /// is executed.                 The cost of storage is the number of
+    /// bytes of the objects being mutated                 multiplied by a
+    /// variable storage cost per byte `storage_rebate`: this is the amount
+    /// a user gets back when manipulating an object.                   The
+    /// `storage_rebate` is the `storage_cost` for an object minus fees.
+    /// `non_refundable_storage_fee`: not all the value of the object storage
+    /// cost is                               given back to user and there
+    /// is a small fraction that                               is kept by
+    /// the system. This value tracks that charge.
     ///
     /// When looking at a gas cost summary the amount charged to the user is
     /// `computation_cost + storage_cost - storage_rebate`
     /// and that is the amount that is deducted from the gas coins.
-    /// `non_refundable_storage_fee` is collected from the objects being mutated/deleted
-    /// and it is tracked by the system in storage funds.
+    /// `non_refundable_storage_fee` is collected from the objects being
+    /// mutated/deleted and it is tracked by the system in storage funds.
     ///
-    /// Objects deleted, including the older versions of objects mutated, have the storage field
-    /// on the objects added up to a pool of "potential rebate". This rebate then is reduced
-    /// by the "nonrefundable rate" such that:
-    /// `potential_rebate(storage cost of deleted/mutated objects) =
-    /// storage_rebate + non_refundable_storage_fee`
+    /// Objects deleted, including the older versions of objects mutated, have
+    /// the storage field on the objects added up to a pool of "potential
+    /// rebate". This rebate then is reduced by the "nonrefundable rate"
+    /// such that: `potential_rebate(storage cost of deleted/mutated
+    /// objects) = storage_rebate + non_refundable_storage_fee`
 
     #[serde_as]
     #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
@@ -142,16 +147,18 @@ pub mod checked {
         #[schemars(with = "BigInt<u64>")]
         #[serde_as(as = "Readable<BigInt<u64>, _>")]
         pub computation_cost: u64,
-        /// Storage cost, it's the sum of all storage cost for all objects created or mutated.
+        /// Storage cost, it's the sum of all storage cost for all objects
+        /// created or mutated.
         #[schemars(with = "BigInt<u64>")]
         #[serde_as(as = "Readable<BigInt<u64>, _>")]
         pub storage_cost: u64,
-        /// The amount of storage cost refunded to the user for all objects deleted or mutated in the
-        /// transaction.
+        /// The amount of storage cost refunded to the user for all objects
+        /// deleted or mutated in the transaction.
         #[schemars(with = "BigInt<u64>")]
         #[serde_as(as = "Readable<BigInt<u64>, _>")]
         pub storage_rebate: u64,
-        /// The fee for the rebate. The portion of the storage rebate kept by the system.
+        /// The fee for the rebate. The portion of the storage rebate kept by
+        /// the system.
         #[schemars(with = "BigInt<u64>")]
         #[serde_as(as = "Readable<BigInt<u64>, _>")]
         pub non_refundable_storage_fee: u64,
@@ -176,8 +183,9 @@ pub mod checked {
             self.computation_cost + self.storage_cost
         }
 
-        /// Portion of the storage rebate that gets passed on to the transaction sender. The remainder
-        /// will be burned, then re-minted + added to the storage fund at the next epoch change
+        /// Portion of the storage rebate that gets passed on to the transaction
+        /// sender. The remainder will be burned, then re-minted + added
+        /// to the storage fund at the next epoch change
         pub fn sender_rebate(&self, storage_rebate_rate: u64) -> u64 {
             // we round storage rebate such that `>= x.5` goes to x+1 (rounds up) and
             // `< x.5` goes to x (truncates). We replicate `f32/64::round()`
@@ -187,7 +195,8 @@ pub mod checked {
             / BASIS_POINTS) as u64
         }
 
-        /// Get net gas usage, positive number means used gas; negative number means refund.
+        /// Get net gas usage, positive number means used gas; negative number
+        /// means refund.
         pub fn net_gas_usage(&self) -> i64 {
             self.gas_used() as i64 - self.storage_rebate as i64
         }
@@ -225,7 +234,10 @@ pub mod checked {
             write!(
                 f,
                 "computation_cost: {}, storage_cost: {},  storage_rebate: {}, non_refundable_storage_fee: {}",
-                self.computation_cost, self.storage_cost, self.storage_rebate, self.non_refundable_storage_fee,
+                self.computation_cost,
+                self.storage_cost,
+                self.storage_rebate,
+                self.non_refundable_storage_fee,
             )
         }
     }
@@ -245,7 +257,6 @@ pub mod checked {
         }
     }
 
-    //
     // Helper functions to deal with gas coins operations.
     //
 

@@ -2,47 +2,47 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
+use iota_data_ingestion_core::Worker;
+use iota_metrics::{get_metrics, spawn_monitored_task};
+use iota_rpc_api::{CheckpointData, CheckpointTransaction};
+use iota_types::{
+    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
+    effects::{ObjectChange, TransactionEffectsAPI},
+    event::SystemEpochInfoEvent,
+    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+    },
+    object::{Object, Owner},
+    transaction::TransactionDataAPI,
+};
 use itertools::Itertools;
-use iota_types::dynamic_field::DynamicFieldInfo;
+use move_core_types::language_storage::{StructTag, TypeTag};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use move_core_types::language_storage::{StructTag, TypeTag};
-use iota_metrics::{get_metrics, spawn_monitored_task};
-use iota_data_ingestion_core::Worker;
-use iota_rpc_api::{CheckpointData, CheckpointTransaction};
-use iota_types::dynamic_field::DynamicFieldType;
-use iota_types::effects::{ObjectChange, TransactionEffectsAPI};
-use iota_types::event::SystemEpochInfoEvent;
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+use super::{
+    CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
+    tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
 };
-use iota_types::object::Object;
-use iota_types::object::Owner;
-use iota_types::iota_system_state::{get_iota_system_state, IotaSystemStateTrait};
-use iota_types::transaction::TransactionDataAPI;
-
-use crate::errors::IndexerError;
-use crate::handlers::committer::start_tx_checkpoint_commit_task;
-use crate::metrics::IndexerMetrics;
-use crate::models::display::StoredDisplay;
-use crate::models::epoch::{EndOfEpochUpdate, EpochEndInfo, EpochStartInfo, StartOfEpochUpdate};
-use crate::models::obj_indices::StoredObjectVersion;
-use crate::store::{IndexerStore, PgIndexerStore};
-use crate::types::{
-    EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-    IndexedPackage, IndexedTransaction, IndexerResult, TransactionKind, TxIndex,
+use crate::{
+    errors::IndexerError,
+    handlers::committer::start_tx_checkpoint_commit_task,
+    metrics::IndexerMetrics,
+    models::{
+        display::StoredDisplay,
+        epoch::{EndOfEpochUpdate, EpochEndInfo, EpochStartInfo, StartOfEpochUpdate},
+        obj_indices::StoredObjectVersion,
+    },
+    store::{IndexerStore, PgIndexerStore},
+    types::{
+        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
+        IndexedPackage, IndexedTransaction, IndexerResult, TransactionKind, TxIndex,
+    },
 };
-
-use super::tx_processor::EpochEndIndexingObjectStore;
-use super::tx_processor::TxChangesProcessor;
-use super::CheckpointDataToCommit;
-use super::EpochToCommit;
-use super::TransactionObjectChangesToCommit;
 
 const CHECKPOINT_QUEUE_SIZE: usize = 100;
 
@@ -200,9 +200,9 @@ impl CheckpointHandler {
             );
         }
 
-        // At some point while committing data in epoch X - 1, we will encounter a new epoch X. We
-        // want to retrieve X - 2's network total transactions to calculate the number of
-        // transactions that occurred in epoch X - 1.
+        // At some point while committing data in epoch X - 1, we will encounter a new
+        // epoch X. We want to retrieve X - 2's network total transactions to
+        // calculate the number of transactions that occurred in epoch X - 1.
         let first_tx_sequence_number = match system_state_summary.epoch {
             // If first epoch change, this number is 0
             1 => Ok(0),
@@ -383,7 +383,9 @@ impl CheckpointHandler {
             if tx_digest != *sender_signed_data.digest() {
                 return Err(IndexerError::FullNodeReadingError(format!(
                     "Transactions has different ordering from CheckpointContents, for checkpoint {}, Mismatch found at {} v.s. {}",
-                    checkpoint_seq, tx_digest, sender_signed_data.digest()
+                    checkpoint_seq,
+                    tx_digest,
+                    sender_signed_data.digest()
                 )));
             }
 
@@ -622,8 +624,8 @@ impl CheckpointHandler {
     }
 }
 
-/// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic Field or a Dynamic
-/// Object Field based on its type.
+/// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic
+/// Field or a Dynamic Object Field based on its type.
 fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
     // Skip if not a move object
     let Some(move_object) = o.data.try_as_move() else {

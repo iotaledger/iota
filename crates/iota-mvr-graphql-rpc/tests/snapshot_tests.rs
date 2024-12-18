@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fs, path::PathBuf};
+
 use insta::assert_snapshot;
-use std::fs;
-use std::path::PathBuf;
 use iota_mvr_graphql_rpc::server::builder::export_schema;
 
 #[test]

@@ -5,13 +5,13 @@
 use std::fmt::{Display, Formatter};
 
 use anyhow::Result;
+use iota_macros::EnumVariantOrder;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::Identifier,
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
-use iota_macros::EnumVariantOrder;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Hash, Eq, Clone, PartialOrd, Ord)]
 pub struct StructInput {
@@ -55,27 +55,30 @@ pub enum TypeInput {
 }
 
 impl TypeInput {
-    /// Return a canonical string representation of the type. All types are represented using their
-    /// source syntax:
+    /// Return a canonical string representation of the type. All types are
+    /// represented using their source syntax:
     ///
-    /// - "bool", "u8", "u16", "u32", "u64", "u128", "u256", "address", "signer", "vector" for
-    ///   ground types.
+    /// - "bool", "u8", "u16", "u32", "u64", "u128", "u256", "address",
+    ///   "signer", "vector" for ground types.
     ///
-    /// - Structs are represented as fully qualified type names, with or without the prefix "0x"
-    ///   depending on the `with_prefix` flag, e.g. `0x000...0001::string::String` or
+    /// - Structs are represented as fully qualified type names, with or without
+    ///   the prefix "0x" depending on the `with_prefix` flag, e.g.
+    ///   `0x000...0001::string::String` or
     ///   `0x000...000a::m::T<0x000...000a::n::U<u64>>`.
     ///
     /// - Addresses are hex-encoded lowercase values of length 32 (zero-padded).
     ///
-    /// Note: this function is guaranteed to be stable -- suitable for use inside Move native
-    /// functions or the VM. By contrast, this type's `Display` implementation is subject to change
-    /// and should be used inside code that needs to return a stable output (e.g. that might be
+    /// Note: this function is guaranteed to be stable -- suitable for use
+    /// inside Move native functions or the VM. By contrast, this type's
+    /// `Display` implementation is subject to change and should be used
+    /// inside code that needs to return a stable output (e.g. that might be
     /// committed to effects on-chain).
     pub fn to_canonical_string(&self, with_prefix: bool) -> String {
         self.to_canonical_display(with_prefix).to_string()
     }
 
-    /// Return the canonical string representation of the TypeTag conditionally with prefix 0x
+    /// Return the canonical string representation of the TypeTag conditionally
+    /// with prefix 0x
     pub fn to_canonical_display(&self, with_prefix: bool) -> impl std::fmt::Display + '_ {
         struct CanonicalDisplay<'a> {
             data: &'a TypeInput,
@@ -110,8 +113,9 @@ impl TypeInput {
         }
     }
 
-    /// Convert the TypeInput into a TypeTag without checking for validity of identifiers within
-    /// the StructTag. DO NOT USE UNLESS YOU KNOW WHAT YOU ARE DOING AND WHY THIS IS SAFE TO CALL.
+    /// Convert the TypeInput into a TypeTag without checking for validity of
+    /// identifiers within the StructTag. DO NOT USE UNLESS YOU KNOW WHAT
+    /// YOU ARE DOING AND WHY THIS IS SAFE TO CALL.
     ///
     /// # Safety
     ///
@@ -149,8 +153,8 @@ impl TypeInput {
         }
     }
 
-    /// Convert to a `TypeTag` consuming `self`. This can fail if this value includes invalid
-    /// identifiers.
+    /// Convert to a `TypeTag` consuming `self`. This can fail if this value
+    /// includes invalid identifiers.
     pub fn into_type_tag(self) -> Result<TypeTag> {
         use TypeInput as I;
         use TypeTag as T;
@@ -186,7 +190,8 @@ impl TypeInput {
         })
     }
 
-    /// Conversion to a `TypeTag`, which can fail if this value includes invalid identifiers.
+    /// Conversion to a `TypeTag`, which can fail if this value includes invalid
+    /// identifiers.
     pub fn as_type_tag(&self) -> Result<TypeTag> {
         use TypeInput as I;
         use TypeTag as T;
@@ -226,21 +231,24 @@ impl TypeInput {
 impl StructInput {
     /// Return a canonical string representation of the struct.
     ///
-    /// - Structs are represented as fully qualified type names, with or without the prefix "0x"
-    ///   depending on the `with_prefix` flag, e.g. `0x000...0001::string::String` or
+    /// - Structs are represented as fully qualified type names, with or without
+    ///   the prefix "0x" depending on the `with_prefix` flag, e.g.
+    ///   `0x000...0001::string::String` or
     ///   `0x000...000a::m::T<0x000...000a::n::U<u64>>`.
     ///
     /// - Addresses are hex-encoded lowercase values of length 32 (zero-padded).
     ///
-    /// Note: this function is guaranteed to be stable -- suitable for use inside Move native
-    /// functions or the VM. By contrast, this type's `Display` implementation is subject to change
-    /// and should be used inside code that needs to return a stable output (e.g. that might be
+    /// Note: this function is guaranteed to be stable -- suitable for use
+    /// inside Move native functions or the VM. By contrast, this type's
+    /// `Display` implementation is subject to change and should be used
+    /// inside code that needs to return a stable output (e.g. that might be
     /// committed to effects on-chain).
     pub fn to_canonical_string(&self, with_prefix: bool) -> String {
         self.to_canonical_display(with_prefix).to_string()
     }
 
-    /// Implements the canonical string representation of the StructTag with the prefix 0x
+    /// Implements the canonical string representation of the StructTag with the
+    /// prefix 0x
     pub fn to_canonical_display(&self, with_prefix: bool) -> impl std::fmt::Display + '_ {
         struct CanonicalDisplay<'a> {
             data: &'a StructInput,
@@ -261,8 +269,9 @@ impl StructInput {
                     write!(f, "<")?;
                     write!(f, "{}", first_ty.to_canonical_display(self.with_prefix))?;
                     for ty in self.data.type_params.iter().skip(1) {
-                        // Note that unlike Display for StructTag, there is no space between the comma and canonical display.
-                        // This follows the original to_canonical_string() implementation.
+                        // Note that unlike Display for StructTag, there is no space between the
+                        // comma and canonical display. This follows the
+                        // original to_canonical_string() implementation.
                         write!(f, ",{}", ty.to_canonical_display(self.with_prefix))?;
                     }
                     write!(f, ">")?;
@@ -356,8 +365,9 @@ impl Display for TypeInput {
 
 #[cfg(test)]
 mod test {
-    use super::TypeInput;
     use iota_enum_compat_util::*;
+
+    use super::TypeInput;
 
     #[test]
     fn enforce_order_test() {

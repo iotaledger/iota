@@ -2,27 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{sync::Arc, time::Duration};
+
 use fastcrypto::encoding::{Base64, Encoding};
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use iota_graphql_rpc::{
+    client::{ClientError, simple_client::GraphqlQueryVariable},
+    config::{Limits, ServiceConfig},
+    test_infra::cluster::{prep_executor_cluster, start_cluster},
+};
+use iota_types::{
+    DEEPBOOK_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+    digests::ChainIdentifier,
+    gas_coin::GAS,
+    transaction::{CallArg, ObjectArg, TransactionDataAPI},
+};
+use rand::{SeedableRng, rngs::StdRng};
 use serde_json::json;
 use simulacrum::Simulacrum;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_graphql_rpc::client::simple_client::GraphqlQueryVariable;
-use iota_graphql_rpc::client::ClientError;
-use iota_graphql_rpc::config::Limits;
-use iota_graphql_rpc::config::ServiceConfig;
-use iota_graphql_rpc::test_infra::cluster::prep_executor_cluster;
-use iota_graphql_rpc::test_infra::cluster::start_cluster;
-use iota_types::digests::ChainIdentifier;
-use iota_types::gas_coin::GAS;
-use iota_types::transaction::CallArg;
-use iota_types::transaction::ObjectArg;
-use iota_types::transaction::TransactionDataAPI;
-use iota_types::DEEPBOOK_ADDRESS;
-use iota_types::IOTA_FRAMEWORK_ADDRESS;
-use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
 use tempfile::tempdir;
 use tokio::time::sleep;
 
@@ -378,14 +374,12 @@ async fn test_transaction_execution() {
 
 #[tokio::test]
 async fn test_zklogin_sig_verify() {
-    use shared_crypto::intent::Intent;
-    use shared_crypto::intent::IntentMessage;
     use iota_test_transaction_builder::TestTransactionBuilder;
-    use iota_types::base_types::IotaAddress;
-    use iota_types::crypto::Signature;
-    use iota_types::signature::GenericSignature;
-    use iota_types::utils::load_test_vectors;
-    use iota_types::zk_login_authenticator::ZkLoginAuthenticator;
+    use iota_types::{
+        base_types::IotaAddress, crypto::Signature, signature::GenericSignature,
+        utils::load_test_vectors, zk_login_authenticator::ZkLoginAuthenticator,
+    };
+    use shared_crypto::intent::{Intent, IntentMessage};
 
     telemetry_subscribers::init_for_testing();
 
@@ -421,7 +415,8 @@ async fn test_zklogin_sig_verify() {
     let intent_scope = "TRANSACTION_DATA";
     let author = zklogin_addr.to_string();
 
-    // now query the endpoint with a valid tx data bytes and a valid signature with the correct proof for dev env.
+    // now query the endpoint with a valid tx data bytes and a valid signature with
+    // the correct proof for dev env.
     let query = r#"{ verifyZkloginSignature(bytes: $bytes, signature: $signature, intentScope: $intent_scope, author: $author ) { success, errors}}"#;
     let variables = vec![
         GraphqlQueryVariable {
@@ -492,7 +487,8 @@ async fn test_zklogin_sig_verify() {
     assert_eq!(res.get("success").unwrap(), false);
 }
 
-// TODO: add more test cases for transaction execution/dry run in transactional test runner.
+// TODO: add more test cases for transaction execution/dry run in transactional
+// test runner.
 #[tokio::test]
 async fn test_transaction_dry_run() {
     telemetry_subscribers::init_for_testing();
@@ -585,7 +581,8 @@ async fn test_transaction_dry_run() {
     assert!(res.get("results").unwrap().is_array());
 }
 
-// Test dry run where the transaction kind is provided instead of the full transaction.
+// Test dry run where the transaction kind is provided instead of the full
+// transaction.
 #[tokio::test]
 async fn test_transaction_dry_run_with_kind() {
     telemetry_subscribers::init_for_testing();
@@ -649,8 +646,8 @@ async fn test_transaction_dry_run_with_kind() {
     assert!(digest.is_null());
     assert!(res.get("error").unwrap().is_null());
     let sender_read = res.get("transaction").unwrap().get("sender").unwrap();
-    // Since no transaction metadata is provided, we use 0x0 as the sender while dry running the trasanction
-    // in which case the sender is null.
+    // Since no transaction metadata is provided, we use 0x0 as the sender while dry
+    // running the trasanction in which case the sender is null.
     assert!(sender_read.is_null());
     assert!(res.get("results").unwrap().is_array());
 }
@@ -684,15 +681,10 @@ async fn test_dry_run_failed_execution() {
         .test_transaction_builder()
         .await
         // A split coin that goes nowhere -> execution failure
-        .move_call(
-            IOTA_FRAMEWORK_PACKAGE_ID,
-            "coin",
-            "split",
-            vec![
-                CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
-                CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
-            ],
-        )
+        .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "coin", "split", vec![
+            CallArg::Object(ObjectArg::ImmOrOwnedObject(coin)),
+            CallArg::Pure(bcs::to_bytes(&1000u64).unwrap()),
+        ])
         .with_type_args(vec![GAS::type_tag()])
         .build();
     let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
@@ -736,12 +728,13 @@ async fn test_dry_run_failed_execution() {
     // Execution failed so the results are null.
     assert!(res.get("results").unwrap().is_null());
     // Check that the error is not null and contains the error message.
-    assert!(res
-        .get("error")
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .contains("UnusedValueWithoutDrop"));
+    assert!(
+        res.get("error")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .contains("UnusedValueWithoutDrop")
+    );
 }
 
 #[tokio::test]
@@ -779,12 +772,14 @@ async fn test_epoch_live_object_set_digest() {
     let binding = res.response_body().data.clone().into_json().unwrap();
 
     // Check that liveObjectSetDigest is not null
-    assert!(!binding
-        .get("epoch")
-        .unwrap()
-        .get("liveObjectSetDigest")
-        .unwrap()
-        .is_null());
+    assert!(
+        !binding
+            .get("epoch")
+            .unwrap()
+            .get("liveObjectSetDigest")
+            .unwrap()
+            .is_null()
+    );
 }
 
 #[tokio::test]

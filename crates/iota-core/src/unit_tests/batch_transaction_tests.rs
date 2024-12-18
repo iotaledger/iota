@@ -2,21 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
-use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
+use authority_tests::send_and_confirm_transaction;
 use bcs;
 use iota_types::{
+    crypto::{AccountKeyPair, get_key_pair},
     execution_status::ExecutionStatus,
+    object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
-
-use authority_tests::send_and_confirm_transaction;
 use move_core_types::{account_address::AccountAddress, ident_str};
-use iota_types::{
-    crypto::{get_key_pair, AccountKeyPair},
-    object::Owner,
-};
+
+use super::*;
+use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
 
 #[tokio::test]
 async fn test_batch_transaction_ok() -> anyhow::Result<()> {
@@ -61,11 +59,13 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     }
     let data = TransactionData::new_programmable(
         sender,
-        vec![authority_state
-            .get_object(&all_ids[N])
-            .await
-            .unwrap()
-            .compute_object_reference()],
+        vec![
+            authority_state
+                .get_object(&all_ids[N])
+                .await
+                .unwrap()
+                .compute_object_reference(),
+        ],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * (N as u64),
         rgp,
@@ -79,10 +79,12 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         (effects.created().len(), effects.mutated().len()),
         (N, N + 1),
     );
-    assert!(effects
-        .created()
-        .iter()
-        .all(|(_, owner)| owner == &Owner::AddressOwner(sender)));
+    assert!(
+        effects
+            .created()
+            .iter()
+            .all(|(_, owner)| owner == &Owner::AddressOwner(sender))
+    );
     // N of the objects should now be owned by recipient.
     assert_eq!(
         effects
@@ -98,8 +100,9 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
-    // This test tests the case where the last transaction in a batch transaction would fail to execute.
-    // We make sure that the entire batch is rolled back, and only gas is charged.
+    // This test tests the case where the last transaction in a batch transaction
+    // would fail to execute. We make sure that the entire batch is rolled back,
+    // and only gas is charged.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (recipient, _): (_, AccountKeyPair) = get_key_pair();
     const N: usize = 5;
@@ -134,11 +137,13 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         .unwrap();
     let data = TransactionData::new_programmable(
         sender,
-        vec![authority_state
-            .get_object(&all_ids[N])
-            .await
-            .unwrap()
-            .compute_object_reference()],
+        vec![
+            authority_state
+                .get_object(&all_ids[N])
+                .await
+                .unwrap()
+                .compute_object_reference(),
+        ],
         builder.finish(),
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         rgp,
@@ -159,8 +164,8 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
-    // This test creates 10 Move call transactions batch, each with a budget of 5000.
-    // However we provide a gas coin with only 49999 balance.
+    // This test creates 10 Move call transactions batch, each with a budget of
+    // 5000. However we provide a gas coin with only 49999 balance.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (authority_state, package) = init_state_with_ids_and_object_basics([]).await;
     let rgp = authority_state.reference_gas_price_for_testing()?;

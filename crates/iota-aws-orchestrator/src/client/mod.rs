@@ -41,7 +41,8 @@ impl Instance {
         !self.is_active()
     }
 
-    /// Return whether the instance is terminated and in the process of being deleted.
+    /// Return whether the instance is terminated and in the process of being
+    /// deleted.
     pub fn is_terminated(&self) -> bool {
         self.status.to_lowercase() == "terminated"
     }
@@ -77,7 +78,8 @@ pub trait ServerProviderClient: Display {
     where
         I: Iterator<Item = &'a Instance> + Send;
 
-    /// Halt/Stop the specified instances. We may still be billed for stopped instances.
+    /// Halt/Stop the specified instances. We may still be billed for stopped
+    /// instances.
     async fn stop_instances<'a, I>(&self, instance_ids: I) -> CloudProviderResult<()>
     where
         I: Iterator<Item = &'a Instance> + Send;
@@ -87,8 +89,8 @@ pub trait ServerProviderClient: Display {
     where
         S: Into<String> + Serialize + Send;
 
-    /// Delete a specific instance. Calling this function ensures we are no longer billed for
-    /// the specified instance.
+    /// Delete a specific instance. Calling this function ensures we are no
+    /// longer billed for the specified instance.
     async fn delete_instance(&self, instance: Instance) -> CloudProviderResult<()>;
 
     /// Authorize the provided ssh public key to access machines.
@@ -104,9 +106,8 @@ pub mod test_client {
 
     use serde::Serialize;
 
-    use crate::{error::CloudProviderResult, settings::Settings};
-
     use super::{Instance, ServerProviderClient};
+    use crate::{error::CloudProviderResult, settings::Settings};
 
     pub struct TestClient {
         settings: Settings,

@@ -2,29 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
-use crate::writer::ArchiveWriter;
-use crate::{read_manifest, verify_archive_with_local_store, write_manifest, Manifest};
-use anyhow::{anyhow, Context, Result};
+use std::{
+    fs,
+    fs::File,
+    io::Write,
+    num::NonZeroUsize,
+    path::PathBuf,
+    sync::{Arc, atomic::AtomicU64},
+    time::Duration,
+};
+
+use anyhow::{Context, Result, anyhow};
+use iota_config::{
+    node::ArchiveReaderConfig,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+};
+use iota_storage::{FileCompression, StorageFormat, object_store::util::path_to_filesystem};
+use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
+use iota_types::{
+    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
+    storage::{ReadStore, SharedInMemoryStore, SingleCheckpointSharedInMemoryStore},
+};
 use more_asserts as ma;
 use object_store::DynObjectStore;
 use prometheus::Registry;
-use std::fs;
-use std::fs::File;
-use std::io::Write;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_config::node::ArchiveReaderConfig;
-use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_storage::object_store::util::path_to_filesystem;
-use iota_storage::{FileCompression, StorageFormat};
-use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
-use iota_types::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
-use iota_types::storage::{ReadStore, SharedInMemoryStore, SingleCheckpointSharedInMemoryStore};
 use tempfile::tempdir;
+
+use crate::{
+    Manifest, read_manifest,
+    reader::{ArchiveReader, ArchiveReaderMetrics},
+    verify_archive_with_local_store, write_manifest,
+    writer::ArchiveWriter,
+};
 
 struct TestState {
     archive_writer: ArchiveWriter,
@@ -287,14 +296,16 @@ async fn test_verify_archive_with_oneshot_store() -> Result<(), anyhow::Error> {
     );
 
     // Verification should pass
-    assert!(verify_archive_with_local_store(
-        read_store,
-        test_state.remote_store_config.clone(),
-        1,
-        false
-    )
-    .await
-    .is_ok());
+    assert!(
+        verify_archive_with_local_store(
+            read_store,
+            test_state.remote_store_config.clone(),
+            1,
+            false
+        )
+        .await
+        .is_ok()
+    );
     kill.send(())?;
     Ok(())
 }
@@ -361,14 +372,16 @@ async fn test_verify_archive_with_oneshot_store_bad_data() -> Result<(), anyhow:
     );
 
     // Verification should fail
-    assert!(verify_archive_with_local_store(
-        read_store,
-        test_state.remote_store_config.clone(),
-        1,
-        false
-    )
-    .await
-    .is_err());
+    assert!(
+        verify_archive_with_local_store(
+            read_store,
+            test_state.remote_store_config.clone(),
+            1,
+            false
+        )
+        .await
+        .is_err()
+    );
     kill.send(())?;
 
     Ok(())

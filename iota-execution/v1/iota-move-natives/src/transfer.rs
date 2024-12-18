@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::object_runtime::{ObjectRuntime, TransferResult};
-use crate::{
-    get_receiver_object_id, get_tag_and_layouts, object_runtime::object_store::ObjectResult,
-    NativesCostTable,
+use std::collections::VecDeque;
+
+use iota_types::{
+    base_types::{MoveObjectType, ObjectID, SequenceNumber},
+    object::Owner,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -17,28 +18,31 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
-use iota_types::{
-    base_types::{MoveObjectType, ObjectID, SequenceNumber},
-    object::Owner,
+
+use super::object_runtime::{ObjectRuntime, TransferResult};
+use crate::{
+    NativesCostTable, get_receiver_object_id, get_tag_and_layouts,
+    object_runtime::object_store::ObjectResult,
 };
 
 const E_SHARED_NON_NEW_OBJECT: u64 = 0;
 const E_BCS_SERIALIZATION_FAILURE: u64 = 1;
 const E_RECEIVING_OBJECT_TYPE_MISMATCH: u64 = 2;
-// Represents both the case where the object does not exist and the case where the object is not
-// able to be accessed through the parent that is passed-in.
+// Represents both the case where the object does not exist and the case where
+// the object is not able to be accessed through the parent that is passed-in.
 const E_UNABLE_TO_RECEIVE_OBJECT: u64 = 3;
 
 #[derive(Clone, Debug)]
 pub struct TransferReceiveObjectInternalCostParams {
     pub transfer_receive_object_internal_cost_base: InternalGas,
 }
-/***************************************************************************************************
-* native fun receive_object_internal
-* Implementation of the Move native function `receive_object_internal<T: key>(parent: &mut UID, rec: Receiver<T>): T`
-*   gas cost: transfer_receive_object_internal_cost_base |  covers various fixed costs in the oper
-**************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun receive_object_internal
+/// Implementation of the Move native function `receive_object_internal<T:
+/// key>(parent: &mut UID, rec: Receiver<T>): T`   gas cost:
+/// transfer_receive_object_internal_cost_base |  covers various fixed costs in
+/// the oper *******************************************************************
+/// ****************************
 
 pub fn receive_object_internal(
     context: &mut NativeContext,
@@ -90,14 +94,14 @@ pub fn receive_object_internal(
             return Ok(NativeResult::err(
                 context.gas_used(),
                 E_UNABLE_TO_RECEIVE_OBJECT,
-            ))
+            ));
         }
         Ok(Some(ObjectResult::Loaded(gv))) => gv,
         Ok(Some(ObjectResult::MismatchedType)) => {
             return Ok(NativeResult::err(
                 context.gas_used(),
                 E_RECEIVING_OBJECT_TYPE_MISMATCH,
-            ))
+            ));
         }
         Err(x) => return Err(x),
     };
@@ -109,11 +113,12 @@ pub fn receive_object_internal(
 pub struct TransferInternalCostParams {
     pub transfer_transfer_internal_cost_base: InternalGas,
 }
-/***************************************************************************************************
-* native fun transfer_impl
-* Implementation of the Move native function `transfer_impl<T: key>(obj: T, recipient: address)`
-*   gas cost: transfer_transfer_internal_cost_base                  |  covers various fixed costs in the oper
-**************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun transfer_impl
+/// Implementation of the Move native function `transfer_impl<T: key>(obj: T,
+/// recipient: address)`   gas cost: transfer_transfer_internal_cost_base
+/// |  covers various fixed costs in the oper **********************************
+/// *************************************************************
 pub fn transfer_internal(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -147,11 +152,12 @@ pub fn transfer_internal(
 pub struct TransferFreezeObjectCostParams {
     pub transfer_freeze_object_cost_base: InternalGas,
 }
-/***************************************************************************************************
-* native fun freeze_object
-* Implementation of the Move native function `freeze_object<T: key>(obj: T)`
-*   gas cost: transfer_freeze_object_cost_base                  |  covers various fixed costs in the oper
-**************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun freeze_object
+/// Implementation of the Move native function `freeze_object<T: key>(obj: T)`
+///   gas cost: transfer_freeze_object_cost_base                  |  covers
+/// various fixed costs in the oper ********************************************
+/// ***************************************************
 pub fn freeze_object(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,
@@ -183,11 +189,12 @@ pub fn freeze_object(
 pub struct TransferShareObjectCostParams {
     pub transfer_share_object_cost_base: InternalGas,
 }
-/***************************************************************************************************
-* native fun share_object
-* Implementation of the Move native function `share_object<T: key>(obj: T)`
-*   gas cost: transfer_share_object_cost_base                  |  covers various fixed costs in the oper
-**************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun share_object
+/// Implementation of the Move native function `share_object<T: key>(obj: T)`
+///   gas cost: transfer_share_object_cost_base                  |  covers
+/// various fixed costs in the oper ********************************************
+/// ***************************************************
 pub fn share_object(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,

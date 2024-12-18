@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_bytecode_verifier_meter::Scope;
-use prometheus::Registry;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
     time::Instant,
 };
+
 use iota_adapter::adapter::run_metered_move_bytecode_verifier;
 use iota_config::verifier_signing_config::VerifierSigningConfig;
 use iota_framework::BuiltInFramework;
@@ -19,6 +18,8 @@ use iota_types::{
     metrics::BytecodeVerifierMetrics,
 };
 use iota_verifier::meter::IotaVerifierMeter;
+use move_bytecode_verifier_meter::Scope;
+use prometheus::Registry;
 
 fn build(path: &Path) -> IotaResult<CompiledPackage> {
     let mut config = iota_move_build::BuildConfig::new_for_testing();

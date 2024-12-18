@@ -4,11 +4,12 @@
 
 use std::path::PathBuf;
 
-#[cfg(feature = "benchmark")]
-use crate::benchmark::BenchmarkArgs;
-use crate::IndexerArgs;
 use clap::Subcommand;
 use iota_indexer_alt_framework::{db::DbArgs, ingestion::ClientArgs};
+
+use crate::IndexerArgs;
+#[cfg(feature = "benchmark")]
+use crate::benchmark::BenchmarkArgs;
 
 #[derive(clap::Parser, Debug, Clone)]
 pub struct Args {
@@ -38,8 +39,9 @@ pub enum Command {
     /// Output the contents of the default configuration to STDOUT.
     GenerateConfig,
 
-    /// Combine the configuration held across multiple files into one and output it to STDOUT. When
-    /// two configurations set the same field, the last write wins.
+    /// Combine the configuration held across multiple files into one and output
+    /// it to STDOUT. When two configurations set the same field, the last
+    /// write wins.
     MergeConfigs {
         /// Path to a TOML file to be merged
         #[arg(long, required = true, action = clap::ArgAction::Append)]
@@ -54,9 +56,10 @@ pub enum Command {
         skip_migrations: bool,
     },
 
-    /// Run the benchmark. It will load ingestion data from the given path and run the pipelines.
-    /// The first and last checkpoint will be determined automatically based on the ingestion data.
-    /// Note that the indexer will not be bootstrapped from genesis, and hence will
+    /// Run the benchmark. It will load ingestion data from the given path and
+    /// run the pipelines. The first and last checkpoint will be determined
+    /// automatically based on the ingestion data. Note that the indexer
+    /// will not be bootstrapped from genesis, and hence will
     /// skip any pipelines that rely on genesis data.
     #[cfg(feature = "benchmark")]
     Benchmark {

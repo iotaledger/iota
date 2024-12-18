@@ -2,20 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::account_address::AccountAddress;
-use proptest::arbitrary::*;
-use proptest::prelude::*;
-
-use crate::type_arg_fuzzer::{gen_type_tag, pt_for_tags};
-use proptest::collection::vec;
-use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress};
-
-use iota_types::digests::ObjectDigest;
-use iota_types::transaction::{
-    GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    digests::ObjectDigest,
+    transaction::{
+        GasData, TransactionData, TransactionDataV1, TransactionExpiration, TransactionKind,
+    },
 };
+use move_core_types::account_address::AccountAddress;
+use proptest::{arbitrary::*, collection::vec, prelude::*};
 
-use crate::account_universe::{gas_budget_selection_strategy, gas_price_selection_strategy};
+use crate::{
+    account_universe::{gas_budget_selection_strategy, gas_price_selection_strategy},
+    type_arg_fuzzer::{gen_type_tag, pt_for_tags},
+};
 
 const MAX_NUM_GAS_OBJS: usize = 1024_usize;
 
@@ -86,10 +86,10 @@ pub struct TransactionDataGenBuilder<
 }
 
 impl<
-        K: Strategy<Value = TransactionKind>,
-        G: Strategy<Value = GasData>,
-        E: Strategy<Value = TransactionExpiration>,
-    > TransactionDataGenBuilder<K, G, E>
+    K: Strategy<Value = TransactionKind>,
+    G: Strategy<Value = GasData>,
+    E: Strategy<Value = TransactionExpiration>,
+> TransactionDataGenBuilder<K, G, E>
 {
     pub fn new(sender: IotaAddress) -> Self {
         Self {

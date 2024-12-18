@@ -5,9 +5,11 @@
 use std::sync::Arc;
 
 use super::error::Result;
-use crate::committee::Committee;
-use crate::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
-use crate::storage::ReadStore;
+use crate::{
+    committee::Committee,
+    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
+    storage::ReadStore,
+};
 
 pub trait WriteStore: ReadStore {
     fn insert_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()>;

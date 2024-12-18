@@ -2,15 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{str::FromStr, sync::Arc};
+
 use clap::*;
-use std::str::FromStr;
-use std::sync::Arc;
-use iota_storage::http_key_value_store::*;
-use iota_storage::key_value_store::TransactionKeyValueStore;
-use iota_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use iota_types::base_types::ObjectID;
-use iota_types::digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest};
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_storage::{
+    http_key_value_store::*, key_value_store::TransactionKeyValueStore,
+    key_value_store_metrics::KeyValueStoreMetrics,
+};
+use iota_types::{
+    base_types::ObjectID,
+    digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest},
+    messages_checkpoint::CheckpointSequenceNumber,
+};
 
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]

@@ -2,37 +2,44 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::Node;
-use anyhow::Result;
-use futures::future::try_join_all;
-use rand::rngs::OsRng;
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::num::NonZeroUsize;
-use std::time::Duration;
 use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    num::NonZeroUsize,
     ops,
     path::{Path, PathBuf},
+    time::Duration,
 };
-use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
 
-use iota_config::node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange};
-use iota_config::{ExecutionCacheConfig, NodeConfig};
+use anyhow::Result;
+use futures::future::try_join_all;
+use iota_config::{
+    ExecutionCacheConfig, NodeConfig,
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+};
 use iota_macros::nondeterministic;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::ProtocolVersion;
-use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig};
-use iota_swarm_config::network_config::NetworkConfig;
-use iota_swarm_config::network_config_builder::{
-    CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV2EnabledConfig,
-    SupportedProtocolVersionsCallback,
+use iota_swarm_config::{
+    genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig},
+    network_config::NetworkConfig,
+    network_config_builder::{
+        CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV2EnabledConfig,
+        SupportedProtocolVersionsCallback,
+    },
+    node_config_builder::FullnodeConfigBuilder,
 };
-use iota_swarm_config::node_config_builder::FullnodeConfigBuilder;
-use iota_types::base_types::AuthorityName;
-use iota_types::object::Object;
-use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+use iota_types::{
+    base_types::AuthorityName,
+    object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
+    traffic_control::{PolicyConfig, RemoteFirewallConfig},
+};
+use rand::rngs::OsRng;
 use tempfile::TempDir;
 use tracing::info;
+
+use super::Node;
 
 pub struct SwarmBuilder<R = OsRng> {
     rng: R,
@@ -128,9 +135,11 @@ impl<R> SwarmBuilder<R> {
 
     /// Set the directory that should be used by the Swarm for any on-disk data.
     ///
-    /// If a directory is provided, it will not be cleaned up when the Swarm is dropped.
+    /// If a directory is provided, it will not be cleaned up when the Swarm is
+    /// dropped.
     ///
-    /// Defaults to using a temporary directory that will be cleaned up when the Swarm is dropped.
+    /// Defaults to using a temporary directory that will be cleaned up when the
+    /// Swarm is dropped.
     pub fn dir<P: Into<PathBuf>>(mut self, dir: P) -> Self {
         self.dir = Some(dir.into());
         self
@@ -475,7 +484,8 @@ impl Swarm {
         Ok(())
     }
 
-    /// Return the path to the directory where this Swarm's on-disk data is kept.
+    /// Return the path to the directory where this Swarm's on-disk data is
+    /// kept.
     pub fn dir(&self) -> &Path {
         self.dir.as_ref()
     }
@@ -486,7 +496,8 @@ impl Swarm {
     }
 
     /// Return a mutable reference to this Swarm's `NetworkConfig`.
-    // TODO: It's not ideal to mutate network config. We should consider removing this.
+    // TODO: It's not ideal to mutate network config. We should consider removing
+    // this.
     pub fn config_mut(&mut self) -> &mut NetworkConfig {
         &mut self.network_config
     }
@@ -503,9 +514,10 @@ impl Swarm {
         self.nodes.get_mut(name)
     }
 
-    /// Return an iterator over shared references of all nodes that are set up as validators.
-    /// This means that they have a consensus config. This however doesn't mean this validator is
-    /// currently active (i.e. it's not necessarily in the validator set at the moment).
+    /// Return an iterator over shared references of all nodes that are set up
+    /// as validators. This means that they have a consensus config. This
+    /// however doesn't mean this validator is currently active (i.e. it's
+    /// not necessarily in the validator set at the moment).
     pub fn validator_nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes
             .values()
@@ -583,8 +595,9 @@ impl AsRef<Path> for SwarmDirectory {
 
 #[cfg(test)]
 mod test {
-    use super::Swarm;
     use std::num::NonZeroUsize;
+
+    use super::Swarm;
 
     #[tokio::test]
     async fn launch() {

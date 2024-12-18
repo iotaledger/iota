@@ -81,8 +81,10 @@ impl CostTable {
 }
 
 /// The  `GasCost` tracks:
-/// - instruction cost: how much time/computational power is needed to perform the instruction
-/// - memory cost: how much memory is required for the instruction, and storage overhead
+/// - instruction cost: how much time/computational power is needed to perform
+///   the instruction
+/// - memory cost: how much memory is required for the instruction, and storage
+///   overhead
 /// - stack height: how high is the stack growing (regardless of size in bytes)
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GasCost {

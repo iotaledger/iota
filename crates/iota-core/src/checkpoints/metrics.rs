@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use iota_metrics::histogram::Histogram as IotaHistogram;
 use prometheus::{
+    Histogram, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry, Histogram, IntCounter, IntCounterVec, IntGauge, IntGaugeVec,
-    Registry,
+    register_int_gauge_with_registry,
 };
-use std::sync::Arc;
 
 pub struct CheckpointMetrics {
     pub last_certified_checkpoint: IntGauge,

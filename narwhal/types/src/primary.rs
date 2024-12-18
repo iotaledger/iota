@@ -2,15 +2,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{
-    error::{DagError, DagResult},
-    serde::NarwhalBitmap,
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
+    fmt,
+    time::{Duration, SystemTime},
 };
+
 use config::{AuthorityIdentifier, Committee, Epoch, Stake, WorkerCache, WorkerId};
 use crypto::{
-    to_intent_message, AggregateSignature, AggregateSignatureBytes,
-    NarwhalAuthorityAggregateSignature, NarwhalAuthoritySignature, NetworkPublicKey, PublicKey,
-    Signature,
+    AggregateSignature, AggregateSignatureBytes, NarwhalAuthorityAggregateSignature,
+    NarwhalAuthoritySignature, NetworkPublicKey, PublicKey, Signature, to_intent_message,
 };
 use derive_builder::Builder;
 use enum_dispatch::enum_dispatch;
@@ -20,22 +21,19 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 use indexmap::IndexMap;
+use iota_protocol_config::ProtocolConfig;
 use iota_util_mem::MallocSizeOf;
 use once_cell::sync::OnceCell;
 use proptest_derive::Arbitrary;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt,
-};
-use std::{
-    collections::{HashMap, HashSet},
-    time::{Duration, SystemTime},
-};
-use iota_protocol_config::ProtocolConfig;
 use tracing::warn;
+
+use crate::{
+    error::{DagError, DagResult},
+    serde::NarwhalBitmap,
+};
 
 /// The round number.
 pub type Round = u64;
@@ -296,15 +294,11 @@ pub fn validate_batch_version(
 ) -> anyhow::Result<()> {
     // We will only accept BatchV2 from the network.
     match batch {
-        Batch::V1(_) => {
-            Err(anyhow::anyhow!(format!(
-                    "Received {batch:?} but network is at {:?} and this batch version is no longer supported",
-                    protocol_config.version
-                )))
-        }
-        Batch::V2(_) => {
-            Ok(())
-        }
+        Batch::V1(_) => Err(anyhow::anyhow!(format!(
+            "Received {batch:?} but network is at {:?} and this batch version is no longer supported",
+            protocol_config.version
+        ))),
+        Batch::V2(_) => Ok(()),
     }
 }
 
@@ -588,13 +582,10 @@ impl HeaderV1 {
 
     pub fn validate(&self, committee: &Committee, worker_cache: &WorkerCache) -> DagResult<()> {
         // Ensure the header is from the correct epoch.
-        ensure!(
-            self.epoch == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: self.epoch
-            }
-        );
+        ensure!(self.epoch == committee.epoch(), DagError::InvalidEpoch {
+            expected: committee.epoch(),
+            received: self.epoch
+        });
 
         // Ensure the header digest is well formed.
         ensure!(
@@ -683,8 +674,8 @@ impl Hash<{ crypto::DIGEST_LENGTH }> for HeaderV1 {
     }
 }
 
-/// A Vote on a Header is a claim by the voting authority that all payloads and the full history
-/// of Certificates included in the Header are available.
+/// A Vote on a Header is a claim by the voting authority that all payloads and
+/// the full history of Certificates included in the Header are available.
 #[derive(Clone, Serialize, Deserialize)]
 #[enum_dispatch(VoteAPI)]
 pub enum Vote {
@@ -923,7 +914,8 @@ impl Certificate {
         }
     }
 
-    /// This function requires that certificate was verified against given committee
+    /// This function requires that certificate was verified against given
+    /// committee
     pub fn signed_authorities(&self, committee: &Committee) -> Vec<PublicKey> {
         match self {
             Certificate::V1(certificate) => certificate.signed_authorities(committee),
@@ -1145,7 +1137,8 @@ impl CertificateV1 {
         }))
     }
 
-    /// This function requires that certificate was verified against given committee
+    /// This function requires that certificate was verified against given
+    /// committee
     pub fn signed_authorities(&self, committee: &Committee) -> Vec<PublicKey> {
         assert_eq!(committee.epoch(), self.epoch());
         let (_stake, pks) = self.signed_by(committee);
@@ -1181,13 +1174,10 @@ impl CertificateV1 {
         worker_cache: &WorkerCache,
     ) -> DagResult<Certificate> {
         // Ensure the header is from the correct epoch.
-        ensure!(
-            self.epoch() == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: self.epoch()
-            }
-        );
+        ensure!(self.epoch() == committee.epoch(), DagError::InvalidEpoch {
+            expected: committee.epoch(),
+            received: self.epoch()
+        });
 
         // Genesis certificates are always valid.
         if self.round() == 0 && Self::genesis(committee).contains(&self) {
@@ -1411,7 +1401,8 @@ impl CertificateV2 {
         }))
     }
 
-    /// This function requires that certificate was verified against given committee
+    /// This function requires that certificate was verified against given
+    /// committee
     pub fn signed_authorities(&self, committee: &Committee) -> Vec<PublicKey> {
         assert_eq!(committee.epoch(), self.epoch());
         let (_stake, pks) = self.signed_by(committee);
@@ -1447,13 +1438,10 @@ impl CertificateV2 {
         worker_cache: &WorkerCache,
     ) -> DagResult<Certificate> {
         // Ensure the header is from the correct epoch.
-        ensure!(
-            self.epoch() == committee.epoch(),
-            DagError::InvalidEpoch {
-                expected: committee.epoch(),
-                received: self.epoch()
-            }
-        );
+        ensure!(self.epoch() == committee.epoch(), DagError::InvalidEpoch {
+            expected: committee.epoch(),
+            received: self.epoch()
+        });
 
         // Genesis certificates are always valid.
         if self.round() == 0 && Self::genesis(committee).contains(&self) {
@@ -1512,17 +1500,18 @@ impl CertificateV2 {
     }
 }
 
-// Certificate version is validated against network protocol version. If CertificateV2
-// is being used then the cert will also be marked as Unverifed as this certificate
-// is assumed to be received from the network. This SignatureVerificationState is
-// why the modified certificate is being returned.
+// Certificate version is validated against network protocol version. If
+// CertificateV2 is being used then the cert will also be marked as Unverifed as
+// this certificate is assumed to be received from the network. This
+// SignatureVerificationState is why the modified certificate is being returned.
 pub fn validate_received_certificate_version(
     mut certificate: Certificate,
     protocol_config: &ProtocolConfig,
 ) -> anyhow::Result<Certificate> {
-    // If network has advanced to using version 28, which sets narwhal_certificate_v2
-    // to true, we will start using CertificateV2 locally and so we will only accept
-    // CertificateV2 from the network. Otherwise CertificateV1 is used.
+    // If network has advanced to using version 28, which sets
+    // narwhal_certificate_v2 to true, we will start using CertificateV2 locally
+    // and so we will only accept CertificateV2 from the network. Otherwise
+    // CertificateV1 is used.
     match certificate {
         Certificate::V1(_) => {
             // CertificateV1 does not have a concept of aggregated signature state
@@ -1702,7 +1691,8 @@ pub struct SendCertificateResponse {
     pub accepted: bool,
 }
 
-/// Used by the primary to request a vote from other primaries on newly produced headers.
+/// Used by the primary to request a vote from other primaries on newly produced
+/// headers.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RequestVoteRequest {
     pub header: Header,
@@ -1724,10 +1714,12 @@ pub struct RequestVoteResponse {
 /// Used by the primary to fetch certificates from other primaries.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FetchCertificatesRequest {
-    /// The exclusive lower bound is a round number where each primary should return certificates above that.
-    /// This corresponds to the GC round at the requestor.
+    /// The exclusive lower bound is a round number where each primary should
+    /// return certificates above that. This corresponds to the GC round at
+    /// the requestor.
     pub exclusive_lower_bound: Round,
-    /// This contains per authority serialized RoaringBitmap for the round diffs between
+    /// This contains per authority serialized RoaringBitmap for the round diffs
+    /// between
     /// - rounds of certificates to be skipped from the response and
     /// - the GC round.
     ///
@@ -1798,7 +1790,8 @@ pub struct FetchCertificatesResponse {
     pub certificates: Vec<Certificate>,
 }
 
-/// Used by the primary to request that the worker sync the target missing batches.
+/// Used by the primary to request that the worker sync the target missing
+/// batches.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkerSynchronizeMessage {
     pub digests: Vec<BatchDigest>,
@@ -1809,8 +1802,8 @@ pub struct WorkerSynchronizeMessage {
     pub is_certified: bool,
 }
 
-/// Used by the primary to request that the worker fetch the missing batches and reply
-/// with all of the content.
+/// Used by the primary to request that the worker fetch the missing batches and
+/// reply with all of the content.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FetchBatchesRequest {
     pub digests: HashSet<BatchDigest>,
@@ -1902,10 +1895,12 @@ impl From<&Vote> for VoteInfo {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Batch, BatchAPI, BatchV2, MetadataAPI, MetadataV1, Timestamp, VersionedMetadata};
     use std::time::Duration;
+
     use test_utils::latest_protocol_version;
     use tokio::time::sleep;
+
+    use crate::{Batch, BatchAPI, BatchV2, MetadataAPI, MetadataV1, Timestamp, VersionedMetadata};
 
     #[tokio::test]
     async fn test_elapsed() {

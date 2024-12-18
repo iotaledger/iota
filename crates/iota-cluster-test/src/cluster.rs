@@ -2,32 +2,37 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::config::{ClusterTestOpt, Env};
+use std::{net::SocketAddr, path::Path};
+
 use async_trait::async_trait;
-use std::net::SocketAddr;
-use std::path::Path;
-use iota_config::local_ip_utils::get_available_port;
-use iota_config::Config;
-use iota_config::{PersistedConfig, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG};
-use iota_graphql_rpc::config::{ConnectionConfig, ServiceConfig};
-use iota_graphql_rpc::test_infra::cluster::start_graphql_server_with_fn_rpc;
+use iota_config::{
+    Config, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
+    local_ip_utils::get_available_port,
+};
+use iota_graphql_rpc::{
+    config::{ConnectionConfig, ServiceConfig},
+    test_infra::cluster::start_graphql_server_with_fn_rpc,
+};
 use iota_indexer::test_utils::{
     start_indexer_jsonrpc_for_testing, start_indexer_writer_for_testing,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_pg_temp_db::TempDb;
-use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
-use iota_sdk::wallet_context::WalletContext;
+use iota_sdk::{
+    iota_client_config::{IotaClientConfig, IotaEnv},
+    wallet_context::WalletContext,
+};
 use iota_swarm::memory::Swarm;
-use iota_swarm_config::genesis_config::GenesisConfig;
-use iota_swarm_config::network_config::NetworkConfig;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::KeypairTraits;
-use iota_types::crypto::IotaKeyPair;
-use iota_types::crypto::{get_key_pair, AccountKeyPair};
+use iota_swarm_config::{genesis_config::GenesisConfig, network_config::NetworkConfig};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
+};
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
+
+use super::config::{ClusterTestOpt, Env};
 
 const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.iota.io:443";
 const STAGING_FAUCET_ADDR: &str = "https://faucet.staging.iota.io:443";
@@ -224,7 +229,8 @@ impl Cluster for LocalNewCluster {
         // This cluster has fullnode handle, safe to unwrap
         let fullnode_url = test_cluster.fullnode_handle.rpc_url.clone();
 
-        // TODO: with TestCluster supporting indexer backed rpc as well, we can remove the indexer related logic here.
+        // TODO: with TestCluster supporting indexer backed rpc as well, we can remove
+        // the indexer related logic here.
         let mut cancellation_tokens = vec![];
         let (database, indexer_url, graphql_url) = if options.with_indexer_and_graphql {
             let database = TempDb::new()?;
@@ -238,9 +244,9 @@ impl Cluster for LocalNewCluster {
                 None,
                 None,
                 Some(data_ingestion_path.path().to_path_buf()),
-                None, /* cancel */
-                None, /* start_checkpoint */
-                None, /* end_checkpoint */
+                None, // cancel
+                None, // start_checkpoint
+                None, // end_checkpoint
             )
             .await;
             cancellation_tokens.push(writer_token.drop_guard());
@@ -250,7 +256,7 @@ impl Cluster for LocalNewCluster {
                 pg_address.clone(),
                 fullnode_url.clone(),
                 indexer_jsonrpc_address.clone(),
-                None, /* cancel */
+                None, // cancel
             )
             .await;
             cancellation_tokens.push(reader_token.drop_guard());
@@ -267,7 +273,8 @@ impl Cluster for LocalNewCluster {
             start_graphql_server_with_fn_rpc(
                 graphql_connection_config.clone(),
                 Some(fullnode_url.clone()),
-                /* cancellation_token */ None,
+                // cancellation_token
+                None,
                 ServiceConfig::test_defaults(),
             )
             .await;

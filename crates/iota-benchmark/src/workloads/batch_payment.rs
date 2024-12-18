@@ -2,28 +2,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::drivers::Interval;
-use crate::in_memory_wallet::InMemoryWallet;
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::payload::Payload;
-use crate::workloads::workload::{ExpectedFailureType, Workload, STORAGE_COST_PER_COIN};
-use crate::workloads::workload::{WorkloadBuilder, ESTIMATED_COMPUTATION_COST};
-use crate::workloads::{Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams};
-use crate::{ExecutionEffects, ValidatorProxy};
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
-use std::collections::HashMap;
-use std::sync::Arc;
 use iota_core::test_utils::make_pay_iota_transaction;
-use iota_types::base_types::{ObjectID, SequenceNumber};
-use iota_types::digests::ObjectDigest;
-use iota_types::gas_coin::NANOS_PER_IOTA;
-use iota_types::object::Owner;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     crypto::get_key_pair,
+    digests::ObjectDigest,
+    gas_coin::NANOS_PER_IOTA,
+    object::Owner,
     transaction::Transaction,
 };
 use tracing::{debug, error};
+
+use crate::{
+    ExecutionEffects, ValidatorProxy,
+    drivers::Interval,
+    in_memory_wallet::InMemoryWallet,
+    system_state_observer::SystemStateObserver,
+    workloads::{
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+        payload::Payload,
+        workload::{
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, STORAGE_COST_PER_COIN, Workload,
+            WorkloadBuilder,
+        },
+    },
+};
 
 /// Value of each address's "primary coin" in nanos. The first transaction gives
 /// each address a coin worth PRIMARY_COIN_VALUE, and all subsequent transfers
@@ -40,8 +46,8 @@ pub struct BatchPaymentTestPayload {
     state: InMemoryWallet,
     /// total number of payments made, to be used in reporting batch TPS
     num_payments: usize,
-    /// address of the first sender. important because in the beginning, only one address has any coins.
-    /// after the first tx, any address can send
+    /// address of the first sender. important because in the beginning, only
+    /// one address has any coins. after the first tx, any address can send
     first_sender: IotaAddress,
     system_state_observer: Arc<SystemStateObserver>,
 }
@@ -73,7 +79,11 @@ impl Payload for BatchPaymentTestPayload {
     }
 
     fn make_transaction(&mut self) -> Transaction {
-        let addrs = self.state.addresses().cloned().collect::<Vec<IotaAddress>>();
+        let addrs = self
+            .state
+            .addresses()
+            .cloned()
+            .collect::<Vec<IotaAddress>>();
         let num_recipients = addrs.len();
         let sender = if self.num_payments == 0 {
             // first tx--use the address that has gas
@@ -85,7 +95,8 @@ impl Payload for BatchPaymentTestPayload {
             debug!("New sender sending gas {}...", addr);
             addr
         };
-        // we're only using gas objects in this benchmark, so safe to assume everything owned by an address is a gas object
+        // we're only using gas objects in this benchmark, so safe to assume everything
+        // owned by an address is a gas object
         let gas_obj = self.state.gas(&sender).unwrap();
         debug!("Gas ID being used for tx {gas_obj:#?}");
         let amount = if self.num_payments == 0 {

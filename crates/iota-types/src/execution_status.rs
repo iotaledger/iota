@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::IotaAddress;
-use crate::ObjectID;
+use std::fmt::{self, Display, Formatter};
+
+use iota_macros::EnumVariantOrder;
 use move_binary_format::file_format::{CodeOffset, TypeParameterIndex};
 use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
-use std::fmt::{self, Display, Formatter};
-use iota_macros::EnumVariantOrder;
 use thiserror::Error;
+
+use crate::{ObjectID, base_types::IotaAddress};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_status_tests.rs"]
@@ -41,9 +42,7 @@ impl fmt::Display for CongestedObjects {
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, EnumVariantOrder)]
 pub enum ExecutionFailureStatus {
-    //
     // General transaction errors
-    //
     #[error("Insufficient Gas.")]
     InsufficientGas,
     #[error("Invalid Gas Object. Possibly not address-owned or possibly not a IOTA coin.")]
@@ -71,17 +70,13 @@ pub enum ExecutionFailureStatus {
     #[error("Circular Object Ownership, including object {object}.")]
     CircularObjectOwnership { object: ObjectID },
 
-    //
     // Coin errors
-    //
     #[error("Insufficient coin balance for operation.")]
     InsufficientCoinBalance,
     #[error("The coin balance overflows u64")]
     CoinBalanceOverflow,
 
-    //
     // Publish/Upgrade errors
-    //
     #[error(
         "Publish Error, Non-zero Address. \
         The modules in the package must have their self-addresses set to zero."
@@ -94,7 +89,6 @@ pub enum ExecutionFailureStatus {
     )]
     IotaMoveVerificationError,
 
-    //
     // Errors from the Move VM
     //
     // Indicates an error from a non-abort instruction
@@ -113,9 +107,7 @@ pub enum ExecutionFailureStatus {
     #[error("MOVE VM INVARIANT VIOLATION.")]
     VMInvariantViolation,
 
-    //
     // Programmable Transaction Errors
-    //
     #[error("Function Not Found.")]
     FunctionNotFound,
     #[error(
@@ -153,7 +145,6 @@ pub enum ExecutionFailureStatus {
     #[error("Invalid Transfer Object, object does not have public transfer.")]
     InvalidTransferObject,
 
-    //
     // Post-execution errors
     //
     // Indicates the effects from the transaction are too large

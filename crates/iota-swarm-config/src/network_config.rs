@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_config::{Config, NodeConfig, genesis};
+use iota_types::{
+    committee::CommitteeWithNetworkMetadata, crypto::AccountKeyPair, multiaddr::Multiaddr,
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use iota_config::{genesis, Config, NodeConfig};
-use iota_types::committee::CommitteeWithNetworkMetadata;
-use iota_types::crypto::AccountKeyPair;
-use iota_types::multiaddr::Multiaddr;
 
-/// This is a config that is used for testing or local use as it contains the config and keys for
-/// all validators
+/// This is a config that is used for testing or local use as it contains the
+/// config and keys for all validators
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NetworkConfig {

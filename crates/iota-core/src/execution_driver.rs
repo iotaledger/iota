@@ -7,28 +7,27 @@ use std::{
     time::Duration,
 };
 
-use iota_metrics::{monitored_scope, spawn_monitored_task};
-use rand::{
-    rngs::{OsRng, StdRng},
-    Rng, SeedableRng,
-};
 use iota_macros::fail_point_async;
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_protocol_config::Chain;
+use rand::{
+    Rng, SeedableRng,
+    rngs::{OsRng, StdRng},
+};
 use tokio::{
-    sync::{mpsc::UnboundedReceiver, oneshot, Semaphore},
+    sync::{Semaphore, mpsc::UnboundedReceiver, oneshot},
     time::sleep,
 };
-use tracing::{error, error_span, info, trace, Instrument};
+use tracing::{Instrument, error, error_span, info, trace};
 
-use crate::authority::AuthorityState;
-use crate::transaction_manager::PendingCertificate;
+use crate::{authority::AuthorityState, transaction_manager::PendingCertificate};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_driver_tests.rs"]
 mod execution_driver_tests;
 
-// Execution should not encounter permanent failures, so any failure can and needs
-// to be retried.
+// Execution should not encounter permanent failures, so any failure can and
+// needs to be retried.
 pub const EXECUTION_MAX_ATTEMPTS: u32 = 10;
 const EXECUTION_FAILURE_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const QUEUEING_DELAY_SAMPLING_RATIO: f64 = 0.05;
@@ -87,14 +86,15 @@ pub async fn execution_process(
         let authority = if let Some(authority) = authority_state.upgrade() {
             authority
         } else {
-            // Terminate the execution if authority has already shutdown, even if there can be more
-            // items in rx_ready_certificates.
+            // Terminate the execution if authority has already shutdown, even if there can
+            // be more items in rx_ready_certificates.
             info!("Authority state has shutdown. Exiting ...");
             return;
         };
         authority.metrics.execution_driver_dispatch_queue.dec();
 
-        // TODO: Ideally execution_driver should own a copy of epoch store and recreate each epoch.
+        // TODO: Ideally execution_driver should own a copy of epoch store and recreate
+        // each epoch.
         let epoch_store = authority.load_epoch_store_one_call_per_task();
 
         let digest = *certificate.digest();
@@ -130,7 +130,8 @@ pub async fn execution_process(
 
         authority.metrics.execution_rate_tracker.lock().record();
 
-        // Certificate execution can take significant time, so run it in a separate task.
+        // Certificate execution can take significant time, so run it in a separate
+        // task.
         let epoch_store_clone = epoch_store.clone();
         spawn_monitored_task!(epoch_store.within_alive_epoch(async move {
             let _scope = monitored_scope("ExecutionDriver::task");

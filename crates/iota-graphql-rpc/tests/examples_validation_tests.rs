@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Context, Result};
-use std::cmp::max;
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::PathBuf;
-use iota_graphql_rpc::config::Limits;
-use iota_graphql_rpc::test_infra::cluster::{prep_executor_cluster, ExecutorCluster};
+use std::{cmp::max, collections::BTreeMap, fs, path::PathBuf};
+
+use anyhow::{Context, Result, anyhow};
+use iota_graphql_rpc::{
+    config::Limits,
+    test_infra::cluster::{ExecutorCluster, prep_executor_cluster},
+};
 
 struct Example {
     contents: String,
@@ -49,13 +49,10 @@ fn good_examples() -> Result<BTreeMap<String, Example>> {
                     .to_str()
                     .ok_or_else(|| anyhow!("Generating name from {}", path.display()))?;
 
-                queries.insert(
-                    name.to_string(),
-                    Example {
-                        contents,
-                        path: Some(path),
-                    },
-                );
+                queries.insert(name.to_string(), Example {
+                    contents,
+                    path: Some(path),
+                });
             }
         }
     }
@@ -65,34 +62,22 @@ fn good_examples() -> Result<BTreeMap<String, Example>> {
 
 fn bad_examples() -> BTreeMap<String, Example> {
     BTreeMap::from_iter([
-        (
-            "multiple_queries".to_string(),
-            Example {
-                contents: "{ chainIdentifier } { chainIdentifier }".to_string(),
-                path: None,
-            },
-        ),
-        (
-            "malformed".to_string(),
-            Example {
-                contents: "query { }}".to_string(),
-                path: None,
-            },
-        ),
-        (
-            "invalid".to_string(),
-            Example {
-                contents: "djewfbfo".to_string(),
-                path: None,
-            },
-        ),
-        (
-            "empty".to_string(),
-            Example {
-                contents: "     ".to_string(),
-                path: None,
-            },
-        ),
+        ("multiple_queries".to_string(), Example {
+            contents: "{ chainIdentifier } { chainIdentifier }".to_string(),
+            path: None,
+        }),
+        ("malformed".to_string(), Example {
+            contents: "query { }}".to_string(),
+            path: None,
+        }),
+        ("invalid".to_string(), Example {
+            contents: "djewfbfo".to_string(),
+            path: None,
+        }),
+        ("empty".to_string(), Example {
+            contents: "     ".to_string(),
+            path: None,
+        }),
     ])
 }
 

@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use diesel::prelude::*;
+
 use crate::{
     schema::{
         event_emit_module, event_emit_package, event_senders, event_struct_instantiation,
@@ -9,7 +11,6 @@ use crate::{
     },
     types::EventIndex,
 };
-use diesel::prelude::*;
 
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = event_emit_package)]

@@ -2,7 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::NativesCostTable;
+use std::collections::VecDeque;
+
+use iota_types::iota_system_state::iota_system_state_inner_v1::ValidatorMetadataV1;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -10,20 +12,23 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
-use iota_types::iota_system_state::iota_system_state_inner_v1::ValidatorMetadataV1;
+
+use crate::NativesCostTable;
 
 #[derive(Clone, Debug)]
 pub struct ValidatorValidateMetadataBcsCostParams {
     pub validator_validate_metadata_cost_base: InternalGas,
     pub validator_validate_metadata_data_cost_per_byte: InternalGas,
 }
-/***************************************************************************************************
- * native fun validate_metadata_bcs
- * Implementation of the Move native function `validate_metadata_bcs(metadata: vector<u8>)`
- *   gas cost: validator_validate_metadata_cost_base           | fixed cosrs
- *              + validator_validate_metadata_data_cost_per_byte * metadata_bytes.len()   | assume cost is proportional to size
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun validate_metadata_bcs
+/// Implementation of the Move native function `validate_metadata_bcs(metadata:
+/// vector<u8>)`   gas cost: validator_validate_metadata_cost_base           |
+/// fixed cosrs
+///              + validator_validate_metadata_data_cost_per_byte *
+///                metadata_bytes.len()   | assume cost is proportional to size
+/// ****************************************************************************
+/// *******************
 pub fn validate_metadata_bcs(
     context: &mut NativeContext,
     ty_args: Vec<Type>,

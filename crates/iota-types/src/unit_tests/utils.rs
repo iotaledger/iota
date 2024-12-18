@@ -2,31 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::crypto::{Signer, IotaKeyPair};
-use crate::multisig::{MultiSig, MultiSigPublicKey};
-use crate::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use crate::transaction::{SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER};
-use crate::IotaAddress;
-use crate::{
-    base_types::{dbg_addr, ObjectID},
-    committee::Committee,
-    crypto::{
-        get_key_pair, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, DefaultHash, Signature, SignatureScheme,
-    },
-    object::Object,
-    signature::GenericSignature,
-    transaction::{Transaction, TransactionData},
-    zk_login_authenticator::ZkLoginAuthenticator,
-};
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::hash::HashFunction;
-use fastcrypto::traits::KeyPair as KeypairTraits;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use std::collections::BTreeMap;
+
+use fastcrypto::{ed25519::Ed25519KeyPair, hash::HashFunction, traits::KeyPair as KeypairTraits};
+use rand::{SeedableRng, rngs::StdRng};
 use serde::Deserialize;
 use shared_crypto::intent::{Intent, IntentMessage};
-use std::collections::BTreeMap;
+
+use crate::{
+    IotaAddress,
+    base_types::{ObjectID, dbg_addr},
+    committee::Committee,
+    crypto::{
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, DefaultHash, IotaKeyPair,
+        Signature, SignatureScheme, Signer, get_key_pair, get_key_pair_from_rng,
+    },
+    multisig::{MultiSig, MultiSigPublicKey},
+    object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    signature::GenericSignature,
+    transaction::{
+        SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+    },
+    zk_login_authenticator::ZkLoginAuthenticator,
+};
 
 #[derive(Deserialize)]
 pub struct TestData {
@@ -54,8 +53,10 @@ where
     for _ in 0..num {
         let (_, inner_authority_key): (_, AuthorityKeyPair) = get_key_pair_from_rng(rand);
         authorities.insert(
-            /* address */ AuthorityPublicKeyBytes::from(inner_authority_key.public()),
-            /* voting right */ 1,
+            // address
+            AuthorityPublicKeyBytes::from(inner_authority_key.public()),
+            // voting right
+            1,
         );
         keys.push(inner_authority_key);
     }
@@ -130,16 +131,16 @@ mod zk_login {
     use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
     use shared_crypto::intent::PersonalMessage;
 
-    use crate::{crypto::PublicKey, zk_login_util::get_zklogin_inputs};
-
     use super::*;
+    use crate::{crypto::PublicKey, zk_login_util::get_zklogin_inputs};
     pub static DEFAULT_ADDRESS_SEED: &str =
         "20794788559620669596206457022966176986688727876128223628113916380927502737911";
     pub static SHORT_ADDRESS_SEED: &str =
         "380704556853533152350240698167704405529973457670972223618755249929828551006";
 
     pub fn load_test_vectors(path: &str) -> Vec<(IotaKeyPair, PublicKey, ZkLoginInputs)> {
-        // read in test files that has a list of matching zklogin_inputs and its ephemeral private keys.
+        // read in test files that has a list of matching zklogin_inputs and its
+        // ephemeral private keys.
         let file = std::fs::File::open(path).expect("Unable to open file");
 
         let test_datum: Vec<TestData> = serde_json::from_reader(file).unwrap();
@@ -236,10 +237,9 @@ mod zk_login {
         let authenticator =
             GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(proof, 10, s.clone()));
 
-        let tx = Transaction::new(SenderSignedData::new(
-            tx.transaction_data().clone(),
-            vec![authenticator.clone()],
-        ));
+        let tx = Transaction::new(SenderSignedData::new(tx.transaction_data().clone(), vec![
+            authenticator.clone(),
+        ]));
         (data.execution_parts().1, tx, authenticator)
     }
 
@@ -280,10 +280,9 @@ mod zk_login {
 
         // Any 2 of 3 signatures verifies ok.
         let multi_sig1 = MultiSig::combine(vec![sig1, sig2], multisig_pk).unwrap();
-        Transaction::new(SenderSignedData::new(
-            tx.transaction_data().clone(),
-            vec![GenericSignature::MultiSig(multi_sig1)],
-        ))
+        Transaction::new(SenderSignedData::new(tx.transaction_data().clone(), vec![
+            GenericSignature::MultiSig(multi_sig1),
+        ]))
     }
 }
 pub use zk_login::*;

@@ -2,26 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::metrics::WatchdogMetrics;
-use crate::pagerduty::{Body, CreateIncident, Incident, Pagerduty, Service};
-use crate::query_runner::{QueryRunner, SnowflakeQueryRunner};
-use crate::SecurityWatchdogConfig;
+use std::{any::Any, collections::BTreeMap, fs::File, io::Read, sync::Arc};
+
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use prometheus::{IntGauge, Registry};
 use serde::{Deserialize, Serialize};
-use std::any::Any;
-use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::Read;
-use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::{error, info};
 use uuid::Uuid;
 
+use crate::{
+    SecurityWatchdogConfig,
+    metrics::WatchdogMetrics,
+    pagerduty::{Body, CreateIncident, Incident, Pagerduty, Service},
+    query_runner::{QueryRunner, SnowflakeQueryRunner},
+};
+
 const NANOS_PER_IOTA: i128 = 1_000_000_000;
 
-// MonitoringEntry is an enum that represents the types of monitoring entries that can be scheduled.
+// MonitoringEntry is an enum that represents the types of monitoring entries
+// that can be scheduled.
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 enum MonitoringEntry {
@@ -29,9 +30,10 @@ enum MonitoringEntry {
     WalletMonitoringEntry(WalletMonitoringEntry),
 }
 
-// MetricPublishingEntry is a struct that represents the configuration for a job which runs a sql
-// query on a cron schedule and publishes metrics if the output is outside expected thresholds. Alerts
-// could be set on the metric dashboard in grafana if needed
+// MetricPublishingEntry is a struct that represents the configuration for a job
+// which runs a sql query on a cron schedule and publishes metrics if the output
+// is outside expected thresholds. Alerts could be set on the metric dashboard
+// in grafana if needed
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MetricPublishingEntry {
     name: String,
@@ -43,8 +45,9 @@ pub struct MetricPublishingEntry {
     timed_exact_limits: BTreeMap<DateTime<Utc>, f64>,
 }
 
-// WalletMonitoringEntry is a struct that represents the configuration of a job which monitors wallet balances.
-// It creates pagerduty incidents based on the given SQL query and cron schedule.
+// WalletMonitoringEntry is a struct that represents the configuration of a job
+// which monitors wallet balances. It creates pagerduty incidents based on the
+// given SQL query and cron schedule.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WalletMonitoringEntry {
     name: String,

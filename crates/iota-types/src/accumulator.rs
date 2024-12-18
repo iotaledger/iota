@@ -5,10 +5,10 @@ pub type Accumulator = fastcrypto::hash::EllipticCurveMultisetHash;
 
 #[cfg(test)]
 mod tests {
-    use crate::accumulator::Accumulator;
-    use crate::base_types::ObjectDigest;
     use fastcrypto::hash::MultisetHash;
     use rand::seq::SliceRandom;
+
+    use crate::{accumulator::Accumulator, base_types::ObjectDigest};
 
     #[test]
     fn test_accumulator() {
@@ -31,7 +31,8 @@ mod tests {
         a2.insert(ref1);
         assert_eq!(a1, a2);
 
-        // Accumulator is not a set, and inserting the same element twice will change the result.
+        // Accumulator is not a set, and inserting the same element twice will change
+        // the result.
         a2.insert(ref3);
         assert_ne!(a1, a2);
         a2.remove(ref3);

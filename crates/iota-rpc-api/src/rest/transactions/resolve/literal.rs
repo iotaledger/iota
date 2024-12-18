@@ -4,21 +4,18 @@
 
 use std::collections::HashMap;
 
-use super::NormalizedPackage;
-use crate::Result;
-use crate::RpcServiceError;
+use iota_sdk_types::types::{Command, ObjectId, unresolved::Value};
+use iota_types::{
+    MOVE_STDLIB_ADDRESS,
+    base_types::{
+        ObjectID, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME, STD_OPTION_MODULE_NAME,
+        STD_OPTION_STRUCT_NAME, STD_UTF8_MODULE_NAME, STD_UTF8_STRUCT_NAME,
+    },
+};
 use move_binary_format::normalized::Type;
-use iota_sdk_types::types::unresolved::Value;
-use iota_sdk_types::types::Command;
-use iota_sdk_types::types::ObjectId;
-use iota_types::base_types::ObjectID;
-use iota_types::base_types::STD_ASCII_MODULE_NAME;
-use iota_types::base_types::STD_ASCII_STRUCT_NAME;
-use iota_types::base_types::STD_OPTION_MODULE_NAME;
-use iota_types::base_types::STD_OPTION_STRUCT_NAME;
-use iota_types::base_types::STD_UTF8_MODULE_NAME;
-use iota_types::base_types::STD_UTF8_STRUCT_NAME;
-use iota_types::MOVE_STDLIB_ADDRESS;
+
+use super::NormalizedPackage;
+use crate::{Result, RpcServiceError};
 
 pub(super) fn resolve_literal(
     called_packages: &HashMap<ObjectId, NormalizedPackage>,
@@ -47,7 +44,7 @@ fn determine_literal_type(
                 return Err(RpcServiceError::new(
                     axum::http::StatusCode::BAD_REQUEST,
                     "unable to resolve literal as it is used as multiple different types across commands",
-                ))
+                ));
             }
             None => {
                 *maybe_type = Some(ty);
@@ -191,7 +188,7 @@ fn resolve_as_bool(buf: &mut Vec<u8>, value: &Value) -> Result<()> {
             return Err(RpcServiceError::new(
                 axum::http::StatusCode::BAD_REQUEST,
                 "literal cannot be resolved into type bool",
-            ))
+            ));
         }
     };
 
@@ -234,7 +231,7 @@ where
                     "literal cannot be resolved into type {}",
                     std::any::type_name::<T>()
                 ),
-            ))
+            ));
         }
     };
 
@@ -256,7 +253,7 @@ fn resolve_as_address(buf: &mut Vec<u8>, value: &Value) -> Result<()> {
             return Err(RpcServiceError::new(
                 axum::http::StatusCode::BAD_REQUEST,
                 "literal cannot be resolved into type address",
-            ))
+            ));
         }
     };
 
@@ -274,7 +271,7 @@ fn resolve_as_string(buf: &mut Vec<u8>, value: &Value) -> Result<()> {
             return Err(RpcServiceError::new(
                 axum::http::StatusCode::BAD_REQUEST,
                 "literal cannot be resolved into string",
-            ))
+            ));
         }
     };
 
@@ -327,9 +324,10 @@ fn resolve_as_vector(buf: &mut Vec<u8>, type_: &Type, value: &Value) -> Result<(
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use move_binary_format::normalized::Type;
     use move_core_types::{account_address::AccountAddress, u256::U256};
+
+    use super::*;
 
     fn test_resolve_literal(ty: Type, value: Value, expected: Option<Vec<u8>>) {
         let mut buf = Vec::new();

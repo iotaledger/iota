@@ -2,39 +2,42 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::{
-    file_format::{AbilitySet, Bytecode, FunctionDefinition, SignatureToken, Visibility},
-    CompiledModule,
-};
-use move_bytecode_utils::format_signature_token;
-use move_vm_config::verifier::VerifierConfig;
-use iota_types::randomness_state::is_mutable_random;
 use iota_types::{
-    base_types::{TxContext, TxContextKind, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind},
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
-    move_package::{is_test_fun, FnInfoMap},
+    move_package::{FnInfoMap, is_test_fun},
+    randomness_state::is_mutable_random,
     transfer::Receiving,
-    IOTA_FRAMEWORK_ADDRESS,
 };
+use move_binary_format::{
+    CompiledModule,
+    file_format::{AbilitySet, Bytecode, FunctionDefinition, SignatureToken, Visibility},
+};
+use move_bytecode_utils::format_signature_token;
+use move_vm_config::verifier::VerifierConfig;
 
-use crate::{verification_failure, INIT_FN_NAME};
+use crate::{INIT_FN_NAME, verification_failure};
 
-/// Checks valid rules rules for entry points, both for module initialization and transactions
+/// Checks valid rules rules for entry points, both for module initialization
+/// and transactions
 ///
 /// For module initialization
 /// - The existence of the function is optional
 /// - The function must have the name specified by `INIT_FN_NAME`
 /// - The function must have `Visibility::Private`
 /// - The function can have at most two parameters:
-///   - mandatory &mut TxContext or &TxContext (see `is_tx_context`) in the last position
-///   - optional one-time witness type (see one_time_witness verifier pass) passed by value in the first
+///   - mandatory &mut TxContext or &TxContext (see `is_tx_context`) in the last
 ///     position
+///   - optional one-time witness type (see one_time_witness verifier pass)
+///     passed by value in the first position
 ///
 /// For transaction entry points
 /// - The function must have `is_entry` true
-/// - The function may have a &mut TxContext or &TxContext (see `is_tx_context`) parameter
+/// - The function may have a &mut TxContext or &TxContext (see `is_tx_context`)
+///   parameter
 ///   - The transaction context parameter must be the last parameter
 /// - The function cannot have any return values
 pub fn verify_module(
@@ -42,8 +45,8 @@ pub fn verify_module(
     fn_info_map: &FnInfoMap,
     verifier_config: &VerifierConfig,
 ) -> Result<(), ExecutionError> {
-    // When verifying test functions, a check preventing explicit calls to init functions is
-    // disabled.
+    // When verifying test functions, a check preventing explicit calls to init
+    // functions is disabled.
 
     for func_def in &module.function_defs {
         let handle = module.function_handle_at(func_def.function);
@@ -150,10 +153,11 @@ fn verify_init_function(module: &CompiledModule, fdef: &FunctionDefinition) -> R
         ));
     }
 
-    // Checking only the last (and possibly the only) parameter here. If there are two parameters,
-    // then the first parameter must be of a one-time witness type and must be passed by value. This
-    // is checked by the verifier for pass one-time witness value (one_time_witness_verifier) -
-    // please see the description of this pass for additional details.
+    // Checking only the last (and possibly the only) parameter here. If there are
+    // two parameters, then the first parameter must be of a one-time witness
+    // type and must be passed by value. This is checked by the verifier for
+    // pass one-time witness value (one_time_witness_verifier) - please see the
+    // description of this pass for additional details.
     if TxContext::kind(module, &parameters[parameters.len() - 1]) != TxContextKind::None {
         Ok(())
     } else {
@@ -226,8 +230,8 @@ fn verify_param_type(
     param: &SignatureToken,
     verifier_config: &VerifierConfig,
 ) -> Result<(), String> {
-    // Only `iota::iota_system` is allowed to expose entry functions that accept a mutable clock
-    // parameter.
+    // Only `iota::iota_system` is allowed to expose entry functions that accept a
+    // mutable clock parameter.
     if Clock::is_mutable(view, param) {
         return Err(format!(
             "Invalid entry point parameter type. Clock must be passed by immutable reference. got: \
@@ -236,8 +240,8 @@ fn verify_param_type(
         ));
     }
 
-    // Only `iota::iota_system` is allowed to expose entry functions that accept a mutable Random
-    // parameter.
+    // Only `iota::iota_system` is allowed to expose entry functions that accept a
+    // mutable Random parameter.
     if verifier_config.reject_mutable_random_on_entry_functions && is_mutable_random(view, param) {
         return Err(format!(
             "Invalid entry point parameter type. Random must be passed by immutable reference. got: \

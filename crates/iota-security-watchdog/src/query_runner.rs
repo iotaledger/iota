@@ -2,30 +2,35 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::SecurityWatchdogConfig;
+use std::{any::Any, collections::HashMap};
+
 use anyhow::anyhow;
-use arrow_array::cast::AsArray;
-use arrow_array::types::{
-    Decimal128Type, Float16Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type,
-    Int8Type, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+use arrow_array::{
+    Array, Float32Array, RecordBatch,
+    cast::AsArray,
+    types::{
+        Decimal128Type, Float16Type, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type,
+        Int64Type, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
+    },
 };
-use arrow_array::{Array, Float32Array, RecordBatch};
 use lexical_util::num::AsPrimitive;
 use snowflake_api::{QueryResult, SnowflakeApi};
-use std::any::Any;
-use std::collections::HashMap;
 use tracing::info;
+
+use crate::SecurityWatchdogConfig;
 
 pub type Row = HashMap<String, Box<dyn Any + Send>>;
 
 #[async_trait::async_trait]
 pub trait QueryRunner: Send + Sync + 'static {
-    /// Asynchronously runs the given SQL query and returns the result as a floating-point number.
-    /// Only the first row and first column in returned, so it is important that users of this trait
-    /// use it for a query which returns only a single floating point result
+    /// Asynchronously runs the given SQL query and returns the result as a
+    /// floating-point number. Only the first row and first column in
+    /// returned, so it is important that users of this trait use it for a
+    /// query which returns only a single floating point result
     async fn run_single_entry(&self, query: &str) -> anyhow::Result<f64>;
 
-    /// Asynchronously runs the given SQL query and returns the result as a vector of rows.
+    /// Asynchronously runs the given SQL query and returns the result as a
+    /// vector of rows.
     async fn run(&self, query: &str) -> anyhow::Result<Vec<Row>>;
 }
 
@@ -80,7 +85,8 @@ pub struct SnowflakeQueryRunner {
 }
 
 impl SnowflakeQueryRunner {
-    /// Creates a new `SnowflakeQueryRunner` with the specified connection parameters.
+    /// Creates a new `SnowflakeQueryRunner` with the specified connection
+    /// parameters.
     ///
     /// # Arguments
     /// * `account_identifier` - Snowflake account identifier.
@@ -143,7 +149,8 @@ impl SnowflakeQueryRunner {
         Ok(api)
     }
 
-    /// Parses the result of a Snowflake query from a `Vec<RecordBatch>` into a single `f64` value.
+    /// Parses the result of a Snowflake query from a `Vec<RecordBatch>` into a
+    /// single `f64` value.
     fn parse(&self, res: Vec<RecordBatch>) -> anyhow::Result<f64> {
         let value = res
             .first()

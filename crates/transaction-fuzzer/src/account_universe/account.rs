@@ -8,12 +8,12 @@
 
 use std::sync::Arc;
 
-use proptest::prelude::*;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
-    crypto::{get_key_pair, AccountKeyPair},
+    base_types::{IotaAddress, ObjectID},
+    crypto::{AccountKeyPair, get_key_pair},
     object::Object,
 };
+use proptest::prelude::*;
 
 use crate::executor::Executor;
 
@@ -89,9 +89,9 @@ impl AccountCurrent {
         }
     }
 
-    // TODO: Use this to get around the fact that we need to update object refs in the
-    // executor..figure out a better way to do this other than just creating a gas object for each
-    // transaction.
+    // TODO: Use this to get around the fact that we need to update object refs in
+    // the executor..figure out a better way to do this other than just creating
+    // a gas object for each transaction.
     pub fn new_gas_object(&mut self, exec: &mut Executor) -> Object {
         // We just create a new gas object for this transaction
         let gas_object_id = ObjectID::random();

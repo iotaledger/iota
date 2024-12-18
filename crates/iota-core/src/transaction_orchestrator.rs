@@ -2,50 +2,57 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/*
-Transaction Orchestrator is a Node component that utilizes Quorum Driver to
-submit transactions to validators for finality, and proactively executes
-finalized transactions locally, when possible.
-*/
+// Transaction Orchestrator is a Node component that utilizes Quorum Driver to
+// submit transactions to validators for finality, and proactively executes
+// finalized transactions locally, when possible.
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::AuthorityState;
-use crate::authority_aggregator::AuthorityAggregator;
-use crate::authority_client::{AuthorityAPI, NetworkAuthorityClient};
-use crate::quorum_driver::reconfig_observer::{OnsiteReconfigObserver, ReconfigObserver};
-use crate::quorum_driver::{QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics};
-use futures::future::{select, Either, Future};
-use futures::FutureExt;
+use std::{net::SocketAddr, ops::Deref, path::Path, sync::Arc, time::Duration};
+
+use futures::{
+    FutureExt,
+    future::{Either, Future, select},
+};
 use iota_common::sync::notify_read::NotifyRead;
-use iota_metrics::{add_server_timing, spawn_logged_monitored_task, spawn_monitored_task};
-use iota_metrics::{TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX};
-use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
+use iota_metrics::{
+    TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, add_server_timing,
+    spawn_logged_monitored_task, spawn_monitored_task,
+};
+use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
+use iota_types::{
+    base_types::TransactionDigest,
+    error::{IotaError, IotaResult},
+    iota_system_state::IotaSystemState,
+    quorum_driver_types::{
+        ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
+        FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
+        QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
+    },
+    transaction::{TransactionData, VerifiedTransaction},
+    transaction_executor::SimulateTransactionResult,
+};
 use prometheus::{
+    Histogram, Registry,
+    core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge},
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry, Histogram, Registry,
+    register_int_gauge_with_registry,
 };
-use std::net::SocketAddr;
-use std::ops::Deref;
-use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
-use iota_types::base_types::TransactionDigest;
-use iota_types::error::{IotaError, IotaResult};
-use iota_types::quorum_driver_types::{
-    ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
-    FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
-    QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
+use tokio::{
+    sync::broadcast::{Receiver, error::RecvError},
+    task::JoinHandle,
+    time::timeout,
 };
-use iota_types::iota_system_state::IotaSystemState;
-use iota_types::transaction::{TransactionData, VerifiedTransaction};
-use iota_types::transaction_executor::SimulateTransactionResult;
-use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::broadcast::Receiver;
-use tokio::task::JoinHandle;
-use tokio::time::timeout;
-use tracing::{debug, error, error_span, info, instrument, warn, Instrument};
+use tracing::{Instrument, debug, error, error_span, info, instrument, warn};
+
+use crate::{
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority_aggregator::AuthorityAggregator,
+    authority_client::{AuthorityAPI, NetworkAuthorityClient},
+    quorum_driver::{
+        QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
+        reconfig_observer::{OnsiteReconfigObserver, ReconfigObserver},
+    },
+};
 
 // How long to wait for local execution (including parents) before a timeout
 // is returned to client.
@@ -191,7 +198,8 @@ where
         Ok((response, executed_locally))
     }
 
-    // Utilize the handle_certificate_v3 validator api to request input/output objects
+    // Utilize the handle_certificate_v3 validator api to request input/output
+    // objects
     #[instrument(name = "tx_orchestrator_execute_transaction_v3", level = "trace", skip_all,
                  fields(tx_digest = ?request.transaction.digest()))]
     pub async fn execute_transaction_v3(
@@ -222,8 +230,8 @@ where
     }
 
     // TODO check if tx is already executed on this node.
-    // Note: since EffectsCert is not stored today, we need to gather that from validators
-    // (and maybe store it for caching purposes)
+    // Note: since EffectsCert is not stored today, we need to gather that from
+    // validators (and maybe store it for caching purposes)
     pub async fn execute_transaction_impl(
         &self,
         epoch_store: &AuthorityPerEpochStore,
@@ -315,10 +323,11 @@ where
                 .submit_transaction_no_ticket(request.clone(), client_addr)
                 .await?;
         }
-        // It's possible that the transaction effects is already stored in DB at this point.
-        // So we also subscribe to that. If we hear from `effects_await` first, it means
-        // the ticket misses the previous notification, and we want to ask quorum driver
-        // to form a certificate for us again, to serve this request.
+        // It's possible that the transaction effects is already stored in DB at this
+        // point. So we also subscribe to that. If we hear from `effects_await`
+        // first, it means the ticket misses the previous notification, and we
+        // want to ask quorum driver to form a certificate for us again, to
+        // serve this request.
         let cache_reader = self.validator_state.get_transaction_cache_reader().clone();
         let qd = self.clone_quorum_driver();
         Ok(async move {
@@ -488,8 +497,8 @@ where
                 // requires a migration.
                 let tx = tx.into_inner();
                 let tx_digest = *tx.digest();
-                // It's not impossible we fail to enqueue a task but that's not the end of world.
-                // TODO(william) correctly extract client_addr from logs
+                // It's not impossible we fail to enqueue a task but that's not the end of
+                // world. TODO(william) correctly extract client_addr from logs
                 if let Err(err) = quorum_driver
                     .submit_transaction_no_ticket(
                         ExecuteTransactionRequestV3 {
@@ -514,7 +523,8 @@ where
                     }
                 }
             }
-            // Transactions will be cleaned up in loop_execute_finalized_tx_locally() after they
+            // Transactions will be cleaned up in
+            // loop_execute_finalized_tx_locally() after they
             // produce effects.
         });
     }

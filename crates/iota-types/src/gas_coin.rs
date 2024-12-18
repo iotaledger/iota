@@ -2,6 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    convert::{TryFrom, TryInto},
+    fmt::{Display, Formatter},
+};
+
 use move_core_types::{
     annotated_value::MoveStructLayout,
     ident_str,
@@ -9,17 +14,15 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
-use std::convert::{TryFrom, TryInto};
-use std::fmt::{Display, Formatter};
 
 use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
     balance::Balance,
     base_types::{ObjectID, SequenceNumber},
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind},
     id::UID,
     object::{Data, MoveObject, Object},
-    IOTA_FRAMEWORK_ADDRESS,
 };
 
 /// The number of Nanos per Iota token
@@ -28,7 +31,8 @@ pub const NANOS_PER_IOTA: u64 = 1_000_000_000;
 /// Total supply denominated in Iota
 pub const TOTAL_SUPPLY_IOTA: u64 = 10_000_000_000;
 
-// Note: cannot use checked arithmetic here since `const unwrap` is still unstable.
+// Note: cannot use checked arithmetic here since `const unwrap` is still
+// unstable.
 /// Total supply denominated in Nanos
 pub const TOTAL_SUPPLY_NANOS: u64 = TOTAL_SUPPLY_IOTA * NANOS_PER_IOTA;
 
@@ -85,12 +89,14 @@ mod checked {
             Coin::type_(TypeTag::Struct(Box::new(GAS::type_())))
         }
 
-        /// Return `true` if `s` is the type of a gas coin (i.e., 0x2::coin::Coin<0x2::iota::IOTA>)
+        /// Return `true` if `s` is the type of a gas coin (i.e.,
+        /// 0x2::coin::Coin<0x2::iota::IOTA>)
         pub fn is_gas_coin(s: &StructTag) -> bool {
             Coin::is_coin(s) && s.type_params.len() == 1 && GAS::is_gas_type(&s.type_params[0])
         }
 
-        /// Return `true` if `s` is the type of a gas balance (i.e., 0x2::balance::Balance<0x2::iota::IOTA>)
+        /// Return `true` if `s` is the type of a gas balance (i.e.,
+        /// 0x2::balance::Balance<0x2::iota::IOTA>)
         pub fn is_gas_balance(s: &StructTag) -> bool {
             Balance::is_balance(s)
                 && s.type_params.len() == 1

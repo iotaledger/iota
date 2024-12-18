@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Discovery, SignedNodeInfo, State, MAX_PEERS_TO_SEND};
-use anemo::{Request, Response};
-use rand::seq::IteratorRandom;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
+
+use anemo::{Request, Response};
+use rand::seq::IteratorRandom;
+use serde::{Deserialize, Serialize};
+
+use super::{Discovery, MAX_PEERS_TO_SEND, SignedNodeInfo, State};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GetKnownPeersResponseV2 {
@@ -53,7 +55,8 @@ impl Discovery for Server {
                 .collect::<HashMap<_, _>>();
 
             if known_peers.len() <= MAX_PEERS_TO_SEND {
-                // Fill the remaining space with other peers, randomly sampling at most MAX_PEERS_TO_SEND
+                // Fill the remaining space with other peers, randomly sampling at most
+                // MAX_PEERS_TO_SEND
                 for info in state
                     .known_peers
                     .values()

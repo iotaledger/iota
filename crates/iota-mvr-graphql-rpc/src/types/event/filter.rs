@@ -2,19 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use async_graphql::*;
+
 use crate::types::{
     digest::Digest,
     iota_address::IotaAddress,
     type_filter::{ModuleFilter, TypeFilter},
 };
-use async_graphql::*;
 
 #[derive(InputObject, Clone, Default)]
 pub(crate) struct EventFilter {
     /// Filter down to events from transactions sent by this address.
     pub sender: Option<IotaAddress>,
 
-    /// Filter down to the events from this transaction (given by its transaction digest).
+    /// Filter down to the events from this transaction (given by its
+    /// transaction digest).
     pub transaction_digest: Option<Digest>,
 
     // Enhancement (post-MVP)
@@ -27,7 +29,8 @@ pub(crate) struct EventFilter {
     ///
     /// Modules can be filtered by their package, or package::module.
     /// We currently do not support filtering by emitting module and event type
-    /// at the same time so if both are provided in one filter, the query will error.
+    /// at the same time so if both are provided in one filter, the query will
+    /// error.
     pub emitting_module: Option<ModuleFilter>,
 
     /// This field is used to specify the type of event emitted.

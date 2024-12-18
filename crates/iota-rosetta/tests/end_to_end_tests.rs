@@ -2,24 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use serde_json::json;
-use std::num::NonZeroUsize;
-use std::time::Duration;
+use std::{num::NonZeroUsize, time::Duration};
 
-use rosetta_client::start_rosetta_test_server;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_keys::keystore::AccountKeystore;
-use iota_rosetta::operations::Operations;
-use iota_rosetta::types::Currencies;
-use iota_rosetta::types::{
-    AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, Currency, NetworkIdentifier,
-    SubAccount, SubAccountType, IotaEnv,
+use iota_rosetta::{
+    CoinMetadataCache,
+    operations::Operations,
+    types::{
+        AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, Currencies, Currency,
+        IotaEnv, NetworkIdentifier, SubAccount, SubAccountType,
+    },
 };
-use iota_rosetta::CoinMetadataCache;
 use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::utils::to_sender_signed_transaction;
+use iota_types::{
+    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
+};
+use rosetta_client::start_rosetta_test_server;
+use serde_json::json;
 use test_cluster::TestClusterBuilder;
 
 use crate::rosetta_client::RosettaEndpoint;

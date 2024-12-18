@@ -2,17 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::proof::{Proof, ProofTarget, TransactionProof};
-
 use anyhow::anyhow;
 use iota_rpc_api::{CheckpointData, CheckpointTransaction};
 use iota_types::effects::TransactionEffectsAPI;
 
+use crate::proof::{Proof, ProofTarget, TransactionProof};
+
 /// Construct a proof from the given checkpoint data and proof targets.
 ///
-/// Only minimal cheaper checks are performed to ensure the proof is valid. If you need guaranteed
-/// validity consider calling `verify_proof` function on the constructed proof. It either returns
-/// `Ok` with a proof, or `Err` with a description of the error.
+/// Only minimal cheaper checks are performed to ensure the proof is valid. If
+/// you need guaranteed validity consider calling `verify_proof` function on the
+/// constructed proof. It either returns `Ok` with a proof, or `Err` with a
+/// description of the error.
 pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::Result<Proof> {
     let checkpoint_summary = data.checkpoint_summary.clone();
     let mut this_proof = Proof {
@@ -21,7 +22,8 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
         contents_proof: None,
     };
 
-    // Do a minimal check that the given checkpoint data is consistent with the committee
+    // Do a minimal check that the given checkpoint data is consistent with the
+    // committee
     if let Some(committee) = &this_proof.targets.committee {
         // Check we have the correct epoch
         if this_proof.checkpoint_summary.epoch() + 1 != committee.epoch {
@@ -34,8 +36,9 @@ pub fn construct_proof(targets: ProofTarget, data: &CheckpointData) -> anyhow::R
         }
     }
 
-    // If proof targets include objects or events, we need to include the contents proof
-    // Need to ensure that all targets refer to the same transaction first of all
+    // If proof targets include objects or events, we need to include the contents
+    // proof Need to ensure that all targets refer to the same transaction first
+    // of all
     let object_tx = this_proof
         .targets
         .objects

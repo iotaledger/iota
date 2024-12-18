@@ -8,10 +8,10 @@ use bytes::Bytes;
 use consensus_config::AuthorityIndex;
 use iota_macros::fail_point;
 use typed_store::{
+    Map as _,
     metrics::SamplingInterval,
     reopen,
-    rocks::{default_db_options, open_cf_opts, DBMap, MetricConf, ReadWriteOptions},
-    Map as _,
+    rocks::{DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts},
 };
 
 use super::{CommitInfo, Store, WriteBatch};
@@ -45,8 +45,8 @@ impl RocksDBStore {
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str) -> Self {
-        // Consensus data has high write throughput (all transactions) and is rarely read
-        // (only during recovery and when helping peers catch up).
+        // Consensus data has high write throughput (all transactions) and is rarely
+        // read (only during recovery and when helping peers catch up).
         let db_options = default_db_options().optimize_db_for_write_throughput(2);
         let mut metrics_conf = MetricConf::new("consensus");
         metrics_conf.read_sample_interval = SamplingInterval::new(Duration::from_secs(60), 0);
@@ -99,45 +99,42 @@ impl Store for RocksDBStore {
         for block in write_batch.blocks {
             let block_ref = block.reference();
             batch
-                .insert_batch(
-                    &self.blocks,
-                    [(
-                        (block_ref.round, block_ref.author, block_ref.digest),
-                        block.serialized(),
-                    )],
-                )
+                .insert_batch(&self.blocks, [(
+                    (block_ref.round, block_ref.author, block_ref.digest),
+                    block.serialized(),
+                )])
                 .map_err(ConsensusError::RocksDBFailure)?;
             batch
-                .insert_batch(
-                    &self.digests_by_authorities,
-                    [((block_ref.author, block_ref.round, block_ref.digest), ())],
-                )
+                .insert_batch(&self.digests_by_authorities, [(
+                    (block_ref.author, block_ref.round, block_ref.digest),
+                    (),
+                )])
                 .map_err(ConsensusError::RocksDBFailure)?;
             for vote in block.commit_votes() {
                 batch
-                    .insert_batch(
-                        &self.commit_votes,
-                        [((vote.index, vote.digest, block_ref), ())],
-                    )
+                    .insert_batch(&self.commit_votes, [(
+                        (vote.index, vote.digest, block_ref),
+                        (),
+                    )])
                     .map_err(ConsensusError::RocksDBFailure)?;
             }
         }
 
         for commit in write_batch.commits {
             batch
-                .insert_batch(
-                    &self.commits,
-                    [((commit.index(), commit.digest()), commit.serialized())],
-                )
+                .insert_batch(&self.commits, [(
+                    (commit.index(), commit.digest()),
+                    commit.serialized(),
+                )])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
 
         for (commit_ref, commit_info) in write_batch.commit_info {
             batch
-                .insert_batch(
-                    &self.commit_info,
-                    [((commit_ref.index, commit_ref.digest), commit_info)],
-                )
+                .insert_batch(&self.commit_info, [(
+                    (commit_ref.index, commit_ref.digest),
+                    commit_info,
+                )])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
 
@@ -213,9 +210,10 @@ impl Store for RocksDBStore {
         Ok(blocks)
     }
 
-    // The method returns the last `num_of_rounds` rounds blocks by author in round ascending order.
-    // When a `before_round` is defined then the blocks of round `<=before_round` are returned. If not
-    // then the max value for round will be used as cut off.
+    // The method returns the last `num_of_rounds` rounds blocks by author in round
+    // ascending order. When a `before_round` is defined then the blocks of
+    // round `<=before_round` are returned. If not then the max value for round
+    // will be used as cut off.
     fn scan_last_blocks_by_author(
         &self,
         author: AuthorityIndex,

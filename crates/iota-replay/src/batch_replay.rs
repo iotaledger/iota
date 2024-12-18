@@ -2,23 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::replay::{ExecutionSandboxState, LocalExec};
-use crate::types::ReplayEngineError;
-use futures::future::join_all;
-use futures::FutureExt;
-use parking_lot::Mutex;
-use std::collections::VecDeque;
-use std::path::PathBuf;
-use std::sync::atomic::AtomicUsize;
-use std::sync::Arc;
+use std::{
+    collections::VecDeque,
+    path::PathBuf,
+    sync::{Arc, atomic::AtomicUsize},
+};
+
+use futures::{FutureExt, future::join_all};
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_types::base_types::TransactionDigest;
+use parking_lot::Mutex;
 use tokio::time::Instant;
 use tracing::{error, info};
 
-/// Given a list of transaction digests, replay them in parallel using `num_tasks` tasks.
-/// If `terminate_early` is true, the replay will terminate early if any transaction fails;
-/// otherwise it will try to finish all transactions.
+use crate::{
+    replay::{ExecutionSandboxState, LocalExec},
+    types::ReplayEngineError,
+};
+
+/// Given a list of transaction digests, replay them in parallel using
+/// `num_tasks` tasks. If `terminate_early` is true, the replay will terminate
+/// early if any transaction fails; otherwise it will try to finish all
+/// transactions.
 pub async fn batch_replay(
     tx_digests: impl Iterator<Item = TransactionDigest>,
     num_tasks: u64,

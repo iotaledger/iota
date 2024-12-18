@@ -1,20 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use super::cluster::{new_wallet_context_from_cluster, Cluster};
+use std::{collections::HashMap, env, sync::Arc};
+
 use async_trait::async_trait;
 use fastcrypto::encoding::{Encoding, Hex};
-use std::collections::HashMap;
-use std::env;
-use std::sync::Arc;
 use iota_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, Faucet, FaucetConfig, FaucetResponse,
     SimpleFaucet,
 };
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::KeypairTraits;
-use tracing::{debug, info, info_span, Instrument};
+use iota_types::{base_types::IotaAddress, crypto::KeypairTraits};
+use tracing::{Instrument, debug, info, info_span};
 use uuid::Uuid;
+
+use super::cluster::{Cluster, new_wallet_context_from_cluster};
 
 pub struct FaucetClientFactory;
 

@@ -7,15 +7,13 @@ use std::collections::{BTreeMap, HashMap};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::tap::TapFallible;
 use tokio_util::sync::CancellationToken;
-use tracing::instrument;
-use tracing::{error, info};
-
-use crate::metrics::IndexerMetrics;
-use crate::models::raw_checkpoints::StoredRawCheckpoint;
-use crate::store::IndexerStore;
-use crate::types::IndexerResult;
+use tracing::{error, info, instrument};
 
 use super::{CheckpointDataToCommit, CommitterTables, CommitterWatermark, EpochToCommit};
+use crate::{
+    metrics::IndexerMetrics, models::raw_checkpoints::StoredRawCheckpoint, store::IndexerStore,
+    types::IndexerResult,
+};
 
 pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 
@@ -60,8 +58,8 @@ where
             batch.push(checkpoint);
             next_checkpoint_sequence_number += 1;
             let epoch_number_option = epoch.as_ref().map(|epoch| epoch.new_epoch_id());
-            // The batch will consist of contiguous checkpoints and at most one epoch boundary at
-            // the end.
+            // The batch will consist of contiguous checkpoints and at most one epoch
+            // boundary at the end.
             if batch.len() == checkpoint_commit_batch_size || epoch.is_some() {
                 commit_checkpoints(&state, batch, epoch, &metrics, mvr_mode).await;
                 batch = vec![];
@@ -97,9 +95,10 @@ where
     Ok(())
 }
 
-/// Writes indexed checkpoint data to the database, and then update watermark upper bounds and
-/// metrics. Expects `indexed_checkpoint_batch` to be non-empty, and contain contiguous checkpoints.
-/// There can be at most one epoch boundary at the end. If an epoch boundary is detected,
+/// Writes indexed checkpoint data to the database, and then update watermark
+/// upper bounds and metrics. Expects `indexed_checkpoint_batch` to be
+/// non-empty, and contain contiguous checkpoints. There can be at most one
+/// epoch boundary at the end. If an epoch boundary is detected,
 /// epoch-partitioned tables must be advanced.
 // Unwrap: Caller needs to make sure indexed_checkpoint_batch is not empty
 #[instrument(skip_all, fields(
@@ -216,8 +215,8 @@ async fn commit_checkpoints<S>(
 
     let is_epoch_end = epoch.is_some();
 
-    // On epoch boundary, we need to modify the existing partitions' upper bound, and introduce a
-    // new partition for incoming data for the upcoming epoch.
+    // On epoch boundary, we need to modify the existing partitions' upper bound,
+    // and introduce a new partition for incoming data for the upcoming epoch.
     if let Some(epoch_data) = epoch {
         state
             .advance_epoch(epoch_data)
@@ -241,7 +240,8 @@ async fn commit_checkpoints<S>(
         .expect("Persisting data into DB should not fail.");
 
     if is_epoch_end {
-        // The epoch has advanced so we update the configs for the new protocol version, if it has changed.
+        // The epoch has advanced so we update the configs for the new protocol version,
+        // if it has changed.
         let chain_id = state
             .get_chain_identifier()
             .await
@@ -283,8 +283,9 @@ async fn commit_checkpoints<S>(
         tx_count as f64
             / (committer_watermark.checkpoint_hi_inclusive - first_checkpoint_seq + 1) as f64,
     );
-    // 1000.0 is not necessarily the batch size, it's to roughly map average tx commit latency to [0.1, 1] seconds,
-    // which is well covered by DB_COMMIT_LATENCY_SEC_BUCKETS.
+    // 1000.0 is not necessarily the batch size, it's to roughly map average tx
+    // commit latency to [0.1, 1] seconds, which is well covered by
+    // DB_COMMIT_LATENCY_SEC_BUCKETS.
     metrics
         .thousand_transaction_avg_db_commit_latency
         .observe(elapsed * 1000.0 / tx_count as f64);

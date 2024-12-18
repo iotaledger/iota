@@ -7,27 +7,29 @@ pub mod nodefw_client;
 pub mod nodefw_test_server;
 pub mod policies;
 
+use std::{
+    fmt::Debug,
+    fs,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    ops::Add,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime},
+};
+
 use dashmap::DashMap;
 use fs::File;
+use iota_metrics::spawn_monitored_task;
+use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig, Weight};
 use prometheus::IntGauge;
-use std::fs;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::ops::Add;
-use std::sync::Arc;
+use rand::Rng;
+use tokio::sync::{mpsc, mpsc::error::TrySendError};
+use tracing::{debug, error, info, trace, warn};
 
 use self::metrics::TrafficControllerMetrics;
-use crate::traffic_controller::nodefw_client::{BlockAddress, BlockAddresses, NodeFWClient};
-use crate::traffic_controller::policies::{
-    Policy, PolicyResponse, TrafficControlPolicy, TrafficTally,
+use crate::traffic_controller::{
+    nodefw_client::{BlockAddress, BlockAddresses, NodeFWClient},
+    policies::{Policy, PolicyResponse, TrafficControlPolicy, TrafficTally},
 };
-use iota_metrics::spawn_monitored_task;
-use rand::Rng;
-use std::fmt::Debug;
-use std::time::{Duration, Instant, SystemTime};
-use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig, Weight};
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::TrySendError;
-use tracing::{debug, error, info, trace, warn};
 
 pub const METRICS_INTERVAL_SECS: u64 = 2;
 pub const DEFAULT_DRAIN_TIMEOUT_SECS: u64 = 300;
@@ -171,8 +173,9 @@ impl TrafficController {
                 Err(TrySendError::Full(_)) => {
                     warn!("TrafficController tally channel full, dropping tally");
                     self.metrics.tally_channel_overflow.inc();
-                    // TODO: once we've verified this doesn't happen under normal
-                    // conditions, we can consider dropping the request itself given
+                    // TODO: once we've verified this doesn't happen under
+                    // normal conditions, we can consider
+                    // dropping the request itself given
                     // that clearly the system is overloaded
                 }
                 Err(TrySendError::Closed(_)) => {
@@ -434,8 +437,7 @@ async fn handle_error_tally(
     }
     trace!(
         "Handling error_type {:?} from client {:?}",
-        error_type,
-        tally.direct,
+        error_type, tally.direct,
     );
     metrics
         .tally_error_types
@@ -801,24 +803,27 @@ impl TrafficSim {
             per_client_tps * (num_clients as usize) * duration.as_secs() as usize
         );
         println!("Num actual requests: {}", metrics.num_requests);
-        // This reflects the number of requests that were blocked, but note that once a client
-        // is added to the blocklist, all subsequent requests from that client are blocked
-        // until ttl is expired.
+        // This reflects the number of requests that were blocked, but note that once a
+        // client is added to the blocklist, all subsequent requests from that
+        // client are blocked until ttl is expired.
         println!("Num blocked requests: {}", metrics.num_blocked);
-        // This metric on the other hand reflects the number of times a client was added to the blocklist
-        // and thus can be compared an the expectation based on the policy block threshold and ttl
+        // This metric on the other hand reflects the number of times a client was added
+        // to the blocklist and thus can be compared an the expectation based on
+        // the policy block threshold and ttl
         println!(
             "Num times added to blocklist: {}",
             metrics.num_blocklist_adds
         );
-        // This averages the duration for the first request to be blocked across all clients,
-        // which is useful for understanding if the policy is rate limiting based on expectation
+        // This averages the duration for the first request to be blocked across all
+        // clients, which is useful for understanding if the policy is rate
+        // limiting based on expectation
         let avg_first_block_time = metrics
             .time_to_first_block
             .map(|ttf| ttf / num_clients as u32);
         println!("Average time to first block: {:?}", avg_first_block_time);
-        // This is the time it took for the first request to be blocked across all clients,
-        // and is instead more useful for understanding false positives in terms of rate and magnitude.
+        // This is the time it took for the first request to be blocked across all
+        // clients, and is instead more useful for understanding false positives
+        // in terms of rate and magnitude.
         println!(
             "Absolute time to first block (across all clients): {:?}",
             metrics.abs_time_to_first_block

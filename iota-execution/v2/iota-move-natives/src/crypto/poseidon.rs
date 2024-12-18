@@ -1,23 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::object_runtime::ObjectRuntime;
-use crate::NativesCostTable;
+use std::{collections::VecDeque, ops::Mul};
+
 use fastcrypto_zkp::bn254::poseidon::poseidon_bytes;
 use move_binary_format::errors::PartialVMResult;
-use move_core_types::gas_algebra::InternalGas;
-use move_core_types::vm_status::StatusCode;
+use move_core_types::{gas_algebra::InternalGas, vm_status::StatusCode};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
-use move_vm_types::natives::function::PartialVMError;
 use move_vm_types::{
     loaded_data::runtime_types::Type,
-    natives::function::NativeResult,
+    natives::function::{NativeResult, PartialVMError},
     pop_arg,
     values::{Value, VectorRef},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
-use std::ops::Mul;
+
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 pub const NON_CANONICAL_INPUT: u64 = 0;
 pub const NOT_SUPPORTED_ERROR: u64 = 1;
@@ -38,12 +36,16 @@ pub struct PoseidonBN254CostParams {
     pub poseidon_bn254_data_cost_per_block: Option<InternalGas>,
 }
 
-/***************************************************************************************************
- * native fun poseidon_bn254
- * Implementation of the Move native function `poseidon::poseidon_bn254_internal(data: &vector<vector<u8>>): vector<u8>
- *   gas cost: poseidon_bn254_cost_base                           | base cost for function call and fixed opers
- *              + poseidon_bn254_data_cost_per_block * num_inputs | cost depends on number of inputs
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun poseidon_bn254
+/// Implementation of the Move native function
+/// `poseidon::poseidon_bn254_internal(data: &vector<vector<u8>>): vector<u8>
+///   gas cost: poseidon_bn254_cost_base                           | base cost
+/// for function call and fixed opers
+///              + poseidon_bn254_data_cost_per_block * num_inputs | cost
+///                depends on number of inputs
+/// ****************************************************************************
+/// *******************
 pub fn poseidon_bn254_internal(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -104,11 +106,11 @@ pub fn poseidon_bn254_internal(
         .collect::<Result<Vec<_>, _>>()?;
 
     match poseidon_bytes(&field_elements) {
-        Ok(result) => Ok(NativeResult::ok(
-            context.gas_used(),
-            smallvec![Value::vector_u8(result)],
-        )),
-        // This is also checked in the poseidon_bn254 move function but to be sure we handle it here also.
+        Ok(result) => Ok(NativeResult::ok(context.gas_used(), smallvec![
+            Value::vector_u8(result)
+        ])),
+        // This is also checked in the poseidon_bn254 move function but to be sure we handle it here
+        // also.
         Err(_) => Ok(NativeResult::err(context.gas_used(), NON_CANONICAL_INPUT)),
     }
 }

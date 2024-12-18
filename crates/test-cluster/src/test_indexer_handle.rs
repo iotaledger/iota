@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
+
 use iota_config::local_ip_utils::new_local_tcp_socket_for_testing_string;
 use iota_indexer::test_utils::{
     start_indexer_jsonrpc_for_testing, start_indexer_writer_for_testing,
@@ -12,6 +11,7 @@ use iota_indexer::test_utils::{
 use iota_json_rpc_api::ReadApiClient;
 use iota_pg_temp_db::TempDb;
 use iota_sdk::{IotaClient, IotaClientBuilder};
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use tempfile::TempDir;
 use tokio::time::sleep;
 

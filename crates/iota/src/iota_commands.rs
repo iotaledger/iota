@@ -2,64 +2,71 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::client_commands::IotaClientCommands;
-use crate::console::start_console;
-use crate::fire_drill::{run_fire_drill, FireDrill};
-use crate::genesis_ceremony::{run, Ceremony};
-use crate::keytool::KeyToolCommand;
-use crate::validator_commands::IotaValidatorCommand;
-use anyhow::{anyhow, bail, ensure, Context};
+use std::{
+    fs, io,
+    io::{Write, stderr, stdout},
+    net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
-use move_analyzer::analyzer;
-use move_package::BuildConfig;
-use rand::rngs::OsRng;
-use std::io::{stderr, stdout, Write};
-use std::net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr};
-use std::num::NonZeroUsize;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::{fs, io};
-use iota_bridge::config::BridgeCommitteeConfig;
-use iota_bridge::metrics::BridgeMetrics;
-use iota_bridge::iota_client::IotaBridgeClient;
-use iota_bridge::iota_transaction_builder::build_committee_register_transaction;
-use iota_config::node::Genesis;
-use iota_config::p2p::SeedPeer;
-use iota_config::{
-    genesis_blob_exists, iota_config_dir, Config, PersistedConfig, FULL_NODE_DB_PATH,
-    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_NETWORK_CONFIG,
+use iota_bridge::{
+    config::BridgeCommitteeConfig, iota_client::IotaBridgeClient,
+    iota_transaction_builder::build_committee_register_transaction, metrics::BridgeMetrics,
 };
 use iota_config::{
-    IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
+    Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
+    IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
+    PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis, p2p::SeedPeer,
 };
-use iota_faucet::{create_wallet_context, start_faucet, AppState, FaucetConfig, SimpleFaucet};
-use iota_indexer::test_utils::{
-    start_indexer_jsonrpc_for_testing, start_indexer_writer_for_testing,
-};
-
+use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
 use iota_graphql_rpc::{
     config::{ConnectionConfig, ServiceConfig},
     test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
-
-use iota_keys::keypair_file::read_key;
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+use iota_indexer::test_utils::{
+    start_indexer_jsonrpc_for_testing, start_indexer_writer_for_testing,
+};
+use iota_keys::{
+    keypair_file::read_key,
+    keystore::{AccountKeystore, FileBasedKeystore, Keystore},
+};
 use iota_move::{self, execute_move_command};
 use iota_move_build::IotaPackageHooks;
-use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
-use iota_sdk::wallet_context::WalletContext;
+use iota_sdk::{
+    iota_client_config::{IotaClientConfig, IotaEnv},
+    wallet_context::WalletContext,
+};
 use iota_swarm::memory::Swarm;
-use iota_swarm_config::genesis_config::{GenesisConfig, DEFAULT_NUMBER_OF_AUTHORITIES};
-use iota_swarm_config::network_config::NetworkConfig;
-use iota_swarm_config::network_config_builder::ConfigBuilder;
-use iota_swarm_config::node_config_builder::FullnodeConfigBuilder;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{SignatureScheme, IotaKeyPair, ToFromBytes};
+use iota_swarm_config::{
+    genesis_config::{DEFAULT_NUMBER_OF_AUTHORITIES, GenesisConfig},
+    network_config::NetworkConfig,
+    network_config_builder::ConfigBuilder,
+    node_config_builder::FullnodeConfigBuilder,
+};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{IotaKeyPair, SignatureScheme, ToFromBytes},
+};
+use move_analyzer::analyzer;
+use move_package::BuildConfig;
+use rand::rngs::OsRng;
 use tempfile::tempdir;
-use tracing;
-use tracing::info;
+use tracing::{self, info};
+
+use crate::{
+    client_commands::IotaClientCommands,
+    console::start_console,
+    fire_drill::{FireDrill, run_fire_drill},
+    genesis_ceremony::{Ceremony, run},
+    keytool::KeyToolCommand,
+    validator_commands::IotaValidatorCommand,
+};
 
 const CONCURRENCY_LIMIT: usize = 30;
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
@@ -73,11 +80,12 @@ const DEFAULT_INDEXER_PORT: u16 = 9124;
 
 #[derive(Args)]
 pub struct IndexerArgs {
-    /// Start an indexer with default host and port: 0.0.0.0:9124. This flag accepts also a port,
-    /// a host, or both (e.g., 0.0.0.0:9124).
-    /// When providing a specific value, please use the = sign between the flag and value:
-    /// `--with-indexer=6124` or `--with-indexer=0.0.0.0`, or `--with-indexer=0.0.0.0:9124`
-    /// The indexer will be started in writer mode and reader mode.
+    /// Start an indexer with default host and port: 0.0.0.0:9124. This flag
+    /// accepts also a port, a host, or both (e.g., 0.0.0.0:9124).
+    /// When providing a specific value, please use the = sign between the flag
+    /// and value: `--with-indexer=6124` or `--with-indexer=0.0.0.0`, or
+    /// `--with-indexer=0.0.0.0:9124` The indexer will be started in writer
+    /// mode and reader mode.
     #[clap(long,
             default_missing_value = "0.0.0.0:9124",
             num_args = 0..=1,
@@ -86,12 +94,13 @@ pub struct IndexerArgs {
         )]
     with_indexer: Option<String>,
 
-    /// Start a GraphQL server with default host and port: 0.0.0.0:9125. This flag accepts also a
-    /// port, a host, or both (e.g., 0.0.0.0:9125).
-    /// When providing a specific value, please use the = sign between the flag and value:
-    /// `--with-graphql=6124` or `--with-graphql=0.0.0.0`, or `--with-graphql=0.0.0.0:9125`
-    /// Note that GraphQL requires a running indexer, which will be enabled by default if the
-    /// `--with-indexer` flag is not set.
+    /// Start a GraphQL server with default host and port: 0.0.0.0:9125. This
+    /// flag accepts also a port, a host, or both (e.g., 0.0.0.0:9125).
+    /// When providing a specific value, please use the = sign between the flag
+    /// and value: `--with-graphql=6124` or `--with-graphql=0.0.0.0`, or
+    /// `--with-graphql=0.0.0.0:9125` Note that GraphQL requires a running
+    /// indexer, which will be enabled by default if the `--with-indexer`
+    /// flag is not set.
     #[clap(
             long,
             default_missing_value = "0.0.0.0:9125",
@@ -140,48 +149,57 @@ impl IndexerArgs {
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]
 pub enum IotaCommand {
-    /// Start a local network in two modes: saving state between re-runs and not saving state
-    /// between re-runs. Please use (--help) to see the full description.
+    /// Start a local network in two modes: saving state between re-runs and not
+    /// saving state between re-runs. Please use (--help) to see the full
+    /// description.
     ///
-    /// By default, iota start will start a local network from the genesis blob that exists in
-    /// the Iota config default dir or in the config_dir that was passed. If the default directory
-    /// does not exist and the config_dir is not passed, it will generate a new default directory,
+    /// By default, iota start will start a local network from the genesis blob
+    /// that exists in the Iota config default dir or in the config_dir that
+    /// was passed. If the default directory does not exist and the
+    /// config_dir is not passed, it will generate a new default directory,
     /// generate the genesis blob, and start the network.
     ///
     /// Note that if you want to start an indexer, Postgres DB is required.
     ///
-    /// ProtocolConfig parameters can be overridden individually by setting env variables as
-    /// follows:
+    /// ProtocolConfig parameters can be overridden individually by setting env
+    /// variables as follows:
     /// - IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE=1
-    /// - Then, to configure an override, use the prefix `IOTA_PROTOCOL_CONFIG_OVERRIDE_`
-    ///   along with the parameter name. For example, to increase the interval between
-    ///   checkpoint creation to >1/s, you might set:
+    /// - Then, to configure an override, use the prefix
+    ///   `IOTA_PROTOCOL_CONFIG_OVERRIDE_` along with the parameter name. For
+    ///   example, to increase the interval between checkpoint creation to >1/s,
+    ///   you might set:
     ///   IOTA_PROTOCOL_CONFIG_OVERRIDE_min_checkpoint_interval_ms=1000
     ///
-    /// Note that ProtocolConfig parameters must match between all nodes, or the network
-    /// may break. Changing these values outside of local networks is very dangerous.
+    /// Note that ProtocolConfig parameters must match between all nodes, or the
+    /// network may break. Changing these values outside of local networks
+    /// is very dangerous.
     #[clap(name = "start", verbatim_doc_comment)]
     Start {
-        /// Config directory that will be used to store network config, node db, keystore
-        /// iota genesis -f --with-faucet generates a genesis config that can be used to start this
-        /// process. Use with caution as the `-f` flag will overwrite the existing config directory.
-        /// We can use any config dir that is generated by the `iota genesis`.
+        /// Config directory that will be used to store network config, node db,
+        /// keystore iota genesis -f --with-faucet generates a genesis
+        /// config that can be used to start this process. Use with
+        /// caution as the `-f` flag will overwrite the existing config
+        /// directory. We can use any config dir that is generated by
+        /// the `iota genesis`.
         #[clap(long = "network.config")]
         config_dir: Option<std::path::PathBuf>,
 
-        /// A new genesis is created each time this flag is set, and state is not persisted between
-        /// runs. Only use this flag when you want to start the network from scratch every time you
+        /// A new genesis is created each time this flag is set, and state is
+        /// not persisted between runs. Only use this flag when you want
+        /// to start the network from scratch every time you
         /// run this command.
         ///
-        /// To run with persisted state, do not pass this flag and use the `iota genesis` command
-        /// to generate a genesis that can be used to start the network with.
+        /// To run with persisted state, do not pass this flag and use the `iota
+        /// genesis` command to generate a genesis that can be used to
+        /// start the network with.
         #[clap(long)]
         force_regenesis: bool,
 
-        /// Start a faucet with default host and port: 0.0.0.0:9123. This flag accepts also a
-        /// port, a host, or both (e.g., 0.0.0.0:9123).
-        /// When providing a specific value, please use the = sign between the flag and value:
-        /// `--with-faucet=6124` or `--with-faucet=0.0.0.0`, or `--with-faucet=0.0.0.0:9123`
+        /// Start a faucet with default host and port: 0.0.0.0:9123. This flag
+        /// accepts also a port, a host, or both (e.g., 0.0.0.0:9123).
+        /// When providing a specific value, please use the = sign between the
+        /// flag and value: `--with-faucet=6124` or
+        /// `--with-faucet=0.0.0.0`, or `--with-faucet=0.0.0.0:9123`
         #[clap(
             long,
             default_missing_value = "0.0.0.0:9123",
@@ -198,14 +216,16 @@ pub enum IotaCommand {
         #[clap(long, default_value = "9000")]
         fullnode_rpc_port: u16,
 
-        /// Set the epoch duration. Can only be used when `--force-regenesis` flag is passed or if
-        /// there's no genesis config and one will be auto-generated. When this flag is not set but
-        /// `--force-regenesis` is set, the epoch duration will be set to 60 seconds.
+        /// Set the epoch duration. Can only be used when `--force-regenesis`
+        /// flag is passed or if there's no genesis config and one will
+        /// be auto-generated. When this flag is not set but
+        /// `--force-regenesis` is set, the epoch duration will be set to 60
+        /// seconds.
         #[clap(long)]
         epoch_duration_ms: Option<u64>,
 
-        /// Make the fullnode dump executed checkpoints as files to this directory. This is
-        /// incompatible with --no-full-node.
+        /// Make the fullnode dump executed checkpoints as files to this
+        /// directory. This is incompatible with --no-full-node.
         ///
         /// If --with-indexer is set, this defaults to a temporary directory.
         #[clap(long, value_name = "DATA_INGESTION_DIR")]
@@ -214,8 +234,9 @@ pub enum IotaCommand {
         /// Start the network without a fullnode
         #[clap(long = "no-full-node")]
         no_full_node: bool,
-        /// Set the number of validators in the network. If a genesis was already generated with a
-        /// specific number of validators, this will not override it; the user should recreate the
+        /// Set the number of validators in the network. If a genesis was
+        /// already generated with a specific number of validators, this
+        /// will not override it; the user should recreate the
         /// genesis with the desired number of validators.
         #[clap(long)]
         committee_size: Option<usize>,
@@ -266,7 +287,7 @@ pub enum IotaCommand {
     KeyTool {
         #[clap(long)]
         keystore_path: Option<PathBuf>,
-        ///Return command outputs in json format
+        /// Return command outputs in json format
         #[clap(long, global = true)]
         json: bool,
         /// Subcommands.
@@ -276,14 +297,16 @@ pub enum IotaCommand {
     /// Start Iota interactive console.
     #[clap(name = "console")]
     Console {
-        /// Sets the file storing the state of our user accounts (an empty one will be created if missing)
+        /// Sets the file storing the state of our user accounts (an empty one
+        /// will be created if missing)
         #[clap(long = "client.config")]
         config: Option<PathBuf>,
     },
     /// Client for interacting with the Iota network.
     #[clap(name = "client")]
     Client {
-        /// Sets the file storing the state of our user accounts (an empty one will be created if missing)
+        /// Sets the file storing the state of our user accounts (an empty one
+        /// will be created if missing)
         #[clap(long = "client.config")]
         config: Option<PathBuf>,
         #[clap(subcommand)]
@@ -297,7 +320,8 @@ pub enum IotaCommand {
     /// A tool for validators and validator candidates.
     #[clap(name = "validator")]
     Validator {
-        /// Sets the file storing the state of our user accounts (an empty one will be created if missing)
+        /// Sets the file storing the state of our user accounts (an empty one
+        /// will be created if missing)
         #[clap(long = "client.config")]
         config: Option<PathBuf>,
         #[clap(subcommand)]
@@ -315,8 +339,9 @@ pub enum IotaCommand {
         /// Path to a package which the command should be run with respect to.
         #[clap(long = "path", short = 'p', global = true)]
         package_path: Option<PathBuf>,
-        /// Sets the file storing the state of our user accounts (an empty one will be created if missing)
-        /// Only used when the `--dump-bytecode-as-base64` is set.
+        /// Sets the file storing the state of our user accounts (an empty one
+        /// will be created if missing) Only used when the
+        /// `--dump-bytecode-as-base64` is set.
         #[clap(long = "client.config")]
         config: Option<PathBuf>,
         /// Package build options
@@ -504,10 +529,11 @@ impl IotaCommand {
                         } else {
                             // `iota move build` does not ordinarily require a network connection.
                             // The exception is when --dump-bytecode-as-base64 is specified: In this
-                            // case, we should resolve the correct addresses for the respective chain
-                            // (e.g., testnet, mainnet) from the Move.lock under automated address management.
-                            let config =
-                                client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
+                            // case, we should resolve the correct addresses for the respective
+                            // chain (e.g., testnet, mainnet) from the
+                            // Move.lock under automated address management.
+                            let config = client_config
+                                .unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
                             prompt_if_no_config(&config, false).await?;
                             let context = WalletContext::new(&config, None, None)?;
                             if let Err(e) = context.get_client().await?.check_api_version() {
@@ -667,8 +693,8 @@ async fn start(
 
     let mut swarm_builder = Swarm::builder();
 
-    // If this is set, then no data will be persisted between runs, and a new genesis will be
-    // generated each run.
+    // If this is set, then no data will be persisted between runs, and a new
+    // genesis will be generated each run.
     let config_dir = if force_regenesis {
         let committee_size = match committee_size {
             Some(x) => NonZeroUsize::new(x),
@@ -682,9 +708,10 @@ async fn start(
         swarm_builder = swarm_builder.with_epoch_duration_ms(epoch_duration_ms);
         tempdir()?.into_path()
     } else {
-        // If the config path looks like a YAML file, it is treated as if it is the network.yaml
-        // overriding the network.yaml found in the iota config directory. Otherwise it is treated as
-        // the iota config directory for backwards compatibility with `iota-test-validator`.
+        // If the config path looks like a YAML file, it is treated as if it is the
+        // network.yaml overriding the network.yaml found in the iota config
+        // directory. Otherwise it is treated as the iota config directory for
+        // backwards compatibility with `iota-test-validator`.
         let (network_config_path, iota_config_path) = match config {
             Some(config)
                 if config.is_file()
@@ -785,8 +812,8 @@ async fn start(
     };
 
     // the indexer requires to set the fullnode's data ingestion directory
-    // note that this overrides the default configuration that is set when running the genesis
-    // command, which sets data_ingestion_dir to None.
+    // note that this overrides the default configuration that is set when running
+    // the genesis command, which sets data_ingestion_dir to None.
     if with_indexer.is_some() && data_ingestion_dir.is_none() {
         data_ingestion_dir = Some(tempdir()?.into_path())
     }
@@ -836,8 +863,8 @@ async fn start(
             // We ensured above that this is set to something if --with-indexer is set
             data_ingestion_dir,
             None,
-            None, /* start_checkpoint */
-            None, /* end_checkpoint */
+            None, // start_checkpoint
+            None, // end_checkpoint
         )
         .await;
         info!("Indexer started in writer mode");
@@ -1001,16 +1028,23 @@ async fn genesis(
                 }
             } else {
                 fs::remove_dir_all(iota_config_dir).map_err(|err| {
-                    anyhow!(err)
-                        .context(format!("Cannot remove Iota config dir {:?}", iota_config_dir))
+                    anyhow!(err).context(format!(
+                        "Cannot remove Iota config dir {:?}",
+                        iota_config_dir
+                    ))
                 })?;
                 fs::create_dir(iota_config_dir).map_err(|err| {
-                    anyhow!(err)
-                        .context(format!("Cannot create Iota config dir {:?}", iota_config_dir))
+                    anyhow!(err).context(format!(
+                        "Cannot create Iota config dir {:?}",
+                        iota_config_dir
+                    ))
                 })?;
             }
         } else if files.len() != 2 || !client_path.exists() || !keystore_path.exists() {
-            bail!("Cannot run genesis with non-empty Iota config directory {}, please use the --force/-f option to remove the existing configuration", iota_config_dir.to_str().unwrap());
+            bail!(
+                "Cannot run genesis with non-empty Iota config directory {}, please use the --force/-f option to remove the existing configuration",
+                iota_config_dir.to_str().unwrap()
+            );
         }
     }
 
@@ -1170,8 +1204,9 @@ async fn genesis(
         client_config.active_address = active_address;
     }
 
-    // On windows, using 0.0.0.0 will usually yield in an networking error. This localnet ip
-    // address must bind to 127.0.0.1 if the default 0.0.0.0 is used.
+    // On windows, using 0.0.0.0 will usually yield in an networking error. This
+    // localnet ip address must bind to 127.0.0.1 if the default 0.0.0.0 is
+    // used.
     let localnet_ip =
         if fullnode_config.json_rpc_address.ip() == IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)) {
             "127.0.0.1".to_string()
@@ -1215,7 +1250,10 @@ async fn prompt_if_no_config(
             }),
             None => {
                 if accept_defaults {
-                    print!("Creating config file [{:?}] with default (devnet) Full node server and ed25519 key scheme.", wallet_conf_path);
+                    print!(
+                        "Creating config file [{:?}] with default (devnet) Full node server and ed25519 key scheme.",
+                        wallet_conf_path
+                    );
                 } else {
                     print!(
                         "Config file [{:?}] doesn't exist, do you want to connect to a Iota Full node server [y/N]?",
@@ -1281,7 +1319,9 @@ async fn prompt_if_no_config(
             let key_scheme = if accept_defaults {
                 SignatureScheme::ED25519
             } else {
-                println!("Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):");
+                println!(
+                    "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):"
+                );
                 match SignatureScheme::from_flag(read_line()?.trim()) {
                     Ok(s) => s,
                     Err(e) => return Err(anyhow!("{e}")),
@@ -1316,7 +1356,8 @@ fn read_line() -> Result<String, anyhow::Error> {
     Ok(s.trim_end().to_string())
 }
 
-/// Parse the input string into a SocketAddr, with a default port if none is provided.
+/// Parse the input string into a SocketAddr, with a default port if none is
+/// provided.
 pub fn parse_host_port(
     input: String,
     default_port_if_missing: u16,

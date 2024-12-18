@@ -2,28 +2,37 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::fs;
-use std::fs::File;
-use std::io::BufReader;
-use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    fs,
+    fs::File,
+    io::BufReader,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use clap::Parser;
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::traits::EncodeDecodeBase64;
-use serde_json::{json, Value};
-use iota_config::{iota_config_dir, Config, NodeConfig, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME};
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    traits::EncodeDecodeBase64,
+};
+use iota_config::{
+    Config, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME, NodeConfig, iota_config_dir,
+};
 use iota_node::IotaNode;
-use iota_rosetta::types::{CurveType, PrefundedAccount, IotaEnv};
-use iota_rosetta::{RosettaOfflineServer, RosettaOnlineServer, IOTA};
+use iota_rosetta::{
+    IOTA, RosettaOfflineServer, RosettaOnlineServer,
+    types::{CurveType, IotaEnv, PrefundedAccount},
+};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{KeypairTraits, IotaKeyPair, ToFromBytes};
-use tracing::info;
-use tracing::log::warn;
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{IotaKeyPair, KeypairTraits, ToFromBytes},
+};
+use serde_json::{Value, json};
+use tracing::{info, log::warn};
 
 #[derive(Parser)]
 #[clap(name = "iota-rosetta", rename_all = "kebab-case", author, version)]
@@ -194,16 +203,18 @@ async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
         {
             Ok(client) => return client,
             Err(e) => {
-                warn!("Error connecting to Iota RPC server [{rpc_address}]: {e}, retrying in 5 seconds.");
+                warn!(
+                    "Error connecting to Iota RPC server [{rpc_address}]: {e}, retrying in 5 seconds."
+                );
                 tokio::time::sleep(Duration::from_millis(5000)).await;
             }
         }
     }
 }
 
-/// This method reads the keypairs from the Iota keystore to create the PrefundedAccount objects,
-/// PrefundedAccount will be written to the rosetta-cli config file for testing.
-///
+/// This method reads the keypairs from the Iota keystore to create the
+/// PrefundedAccount objects, PrefundedAccount will be written to the
+/// rosetta-cli config file for testing.
 fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::Error> {
     let reader = BufReader::new(File::open(path).unwrap());
     let kp_strings: Vec<String> = serde_json::from_reader(reader).unwrap();

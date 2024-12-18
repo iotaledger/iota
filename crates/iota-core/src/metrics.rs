@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::VecDeque,
+    default::Default,
+    sync::atomic::{AtomicU64, Ordering},
+};
+
 use parking_lot::Mutex;
-use std::collections::VecDeque;
-use std::default::Default;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
-use tokio::time::Duration;
-use tokio::time::Instant;
+use tokio::time::{Duration, Instant};
 
 pub struct LatencyObserver {
     data: Mutex<LatencyObserverInner>,
@@ -63,9 +64,10 @@ impl Default for LatencyObserver {
     }
 }
 
-/// RateTracker tracks events in a rolling window, and calculates the rate of events.
-/// Internally, the tracker divides the tracking window into multiple BIN_DURATION,
-/// and counts events in each BIN_DURATION in a fixed sized buffer.
+/// RateTracker tracks events in a rolling window, and calculates the rate of
+/// events. Internally, the tracker divides the tracking window into multiple
+/// BIN_DURATION, and counts events in each BIN_DURATION in a fixed sized
+/// buffer.
 pub struct RateTracker {
     // Counts the number of events by bins. Each bin is BIN_DURATION long within window_duration.
     // The size of the buffer = window_duration / BIN_DURATION.
@@ -86,7 +88,8 @@ pub struct RateTracker {
 const BIN_DURATION: Duration = Duration::from_millis(100);
 
 impl RateTracker {
-    /// Create a new RateTracker to track event rate (events/seconds) in `window_duration`.
+    /// Create a new RateTracker to track event rate (events/seconds) in
+    /// `window_duration`.
     pub fn new(window_duration: Duration) -> Self {
         assert!(window_duration > BIN_DURATION);
         let total_bins = (window_duration.as_millis() / BIN_DURATION.as_millis()) as usize;
@@ -128,8 +131,9 @@ impl RateTracker {
         (now.duration_since(self.start_time).as_millis() / BIN_DURATION.as_millis()) as u64
     }
 
-    // Updates the rolling window to accommodate the time of interests, `now`. That is, remove any
-    // event counts happened prior to (`now` - `window_duration`).
+    // Updates the rolling window to accommodate the time of interests, `now`. That
+    // is, remove any event counts happened prior to (`now` -
+    // `window_duration`).
     fn update_window(&mut self, now: Instant) {
         let current_bin_index = self.get_bin_index(now);
         if self.global_bin_index >= current_bin_index {
@@ -138,8 +142,8 @@ impl RateTracker {
         }
 
         for bin_index in (self.global_bin_index + 1)..=current_bin_index {
-            // Time has elapsed from global_bin_index to current_bin_index. Clear all the buffer
-            // counter associated with them.
+            // Time has elapsed from global_bin_index to current_bin_index. Clear all the
+            // buffer counter associated with them.
             let index_in_buffer = bin_index as usize % self.total_bins;
             self.event_buffer[index_in_buffer] = 0;
         }
@@ -149,12 +153,10 @@ impl RateTracker {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use rand::rngs::StdRng;
-    use rand::Rng;
-    use rand::SeedableRng;
+    use rand::{Rng, SeedableRng, rngs::StdRng};
     use tokio::time::advance;
+
+    use super::*;
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_rate_tracker_basic() {
@@ -224,7 +226,8 @@ mod tests {
         assert_eq!(tracker.rate(), 0.0);
     }
 
-    // Tests that events happened prior to tracking window shouldn't affect the rate.
+    // Tests that events happened prior to tracking window shouldn't affect the
+    // rate.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_rate_tracker_outside_of_window() {
         let mut tracker = RateTracker::new(Duration::from_secs(1));

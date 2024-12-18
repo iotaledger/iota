@@ -4,20 +4,17 @@
 
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::http_client::HttpClient;
-use jsonrpsee::RpcModule;
-
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::{WriteApiClient, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_open_rpc::Module;
-use iota_types::base_types::IotaAddress;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::iota_serde::BigInt;
+use iota_types::{
+    base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
+};
+use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
 
 use crate::types::IotaTransactionBlockResponseWithOptions;
 

@@ -10,19 +10,19 @@ use std::{
 
 use consensus_config::AuthorityIndex;
 use parking_lot::RwLock;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 
 use crate::{
+    CommittedSubDag,
     block::{
-        genesis_blocks, BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, Round, Slot, TestBlock,
-        VerifiedBlock,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, Round, Slot, TestBlock, VerifiedBlock,
+        genesis_blocks,
     },
-    commit::{CommitDigest, TrustedCommit, DEFAULT_WAVE_LENGTH},
+    commit::{CommitDigest, DEFAULT_WAVE_LENGTH, TrustedCommit},
     context::Context,
     dag_state::DagState,
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
-    CommittedSubDag,
 };
 
 /// DagBuilder API
@@ -46,19 +46,22 @@ use crate::{
 /// Persisting to DagState by Layer
 /// ```
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
-///    dag_builder.context.clone(),
-///    Arc::new(MemStore::new()),
+///     dag_builder.context.clone(),
+///     Arc::new(MemStore::new()),
 /// )));
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let dag_builder = DagBuilder::new(context);
-/// dag_builder.layer(1).build().persist_layers(dag_state.clone()); // persist the layer
+/// dag_builder
+///     .layer(1)
+///     .build()
+///     .persist_layers(dag_state.clone()); // persist the layer
 /// ```
 ///
 /// Persisting entire DAG to DagState
 /// ```
 /// let dag_state = Arc::new(RwLock::new(DagState::new(
-///    dag_builder.context.clone(),
-///    Arc::new(MemStore::new()),
+///     dag_builder.context.clone(),
+///     Arc::new(MemStore::new()),
 /// )));
 /// let context = Arc::new(Context::new_for_test(4).0);
 /// let dag_builder = DagBuilder::new(context);
@@ -474,9 +477,10 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
-    // Should be called when building a leader round. Will ensure leader block is missing.
-    // A list of specified leader offsets can be provided to skip those leaders.
-    // If none are provided all potential leaders for the round will be skipped.
+    // Should be called when building a leader round. Will ensure leader block is
+    // missing. A list of specified leader offsets can be provided to skip those
+    // leaders. If none are provided all potential leaders for the round will be
+    // skipped.
     pub fn no_leader_block(mut self, specified_leader_offsets: Vec<u32>) -> Self {
         self.no_leader_block = true;
         self.specified_leader_block_offsets = Some(specified_leader_offsets);
@@ -484,9 +488,10 @@ impl<'a> LayerBuilder<'a> {
     }
 
     // Should be called when building a voting round. Will ensure vote is missing.
-    // A list of specified leader offsets can be provided to skip those leader links.
-    // If none are provided all potential leaders for the round will be skipped.
-    // note: configuration is terminal and layer will be built after this call.
+    // A list of specified leader offsets can be provided to skip those leader
+    // links. If none are provided all potential leaders for the round will be
+    // skipped. note: configuration is terminal and layer will be built after
+    // this call.
     pub fn no_leader_link(
         mut self,
         leader_round: Round,
@@ -508,7 +513,8 @@ impl<'a> LayerBuilder<'a> {
         self
     }
 
-    // Multiple blocks will be created for the specified authorities at the layer round.
+    // Multiple blocks will be created for the specified authorities at the layer
+    // round.
     pub fn equivocate(mut self, equivocations: usize) -> Self {
         // authorities must be specified for this to apply
         assert!(self.specified_authorities.is_some());
@@ -569,7 +575,10 @@ impl<'a> LayerBuilder<'a> {
     }
 
     pub fn persist_layers(&self, dag_state: Arc<RwLock<DagState>>) {
-        assert!(!self.blocks.is_empty(), "Called to persist layers although no blocks have been created. Make sure you have called build before.");
+        assert!(
+            !self.blocks.is_empty(),
+            "Called to persist layers although no blocks have been created. Make sure you have called build before."
+        );
         dag_state.write().accept_blocks(self.blocks.clone());
     }
 
@@ -635,7 +644,8 @@ impl<'a> LayerBuilder<'a> {
         unimplemented!("configure_random_weak_links");
     }
 
-    // Layer round misses link to leader, but other blocks are fully connected with ancestors.
+    // Layer round misses link to leader, but other blocks are fully connected with
+    // ancestors.
     fn configure_no_leader_links(
         &mut self,
         authorities: Vec<AuthorityIndex>,

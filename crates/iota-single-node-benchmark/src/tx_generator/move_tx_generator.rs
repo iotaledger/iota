@@ -2,14 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::mock_account::Account;
-use crate::tx_generator::TxGenerator;
-use move_core_types::identifier::Identifier;
 use std::collections::HashMap;
+
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress};
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::transaction::{CallArg, ObjectArg, Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, ObjectArg, Transaction},
+};
+use move_core_types::identifier::Identifier;
+
+use crate::{mock_account::Account, tx_generator::TxGenerator};
 
 pub struct MoveTxGenerator {
     move_package: ObjectID,
@@ -54,7 +57,8 @@ impl TxGenerator for MoveTxGenerator {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             // Step 1: transfer `num_transfers` objects.
-            // First object in the gas_objects is the gas object and we are not transferring it.
+            // First object in the gas_objects is the gas object and we are not transferring
+            // it.
             for i in 1..=self.num_transfers {
                 let object = account.gas_objects[i as usize];
                 if self.use_native_transfer {

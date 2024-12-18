@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashSet, sync::Arc};
+
 use iota_protocol_config::ProtocolConfig;
-use iota_types::storage::BackingStore;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress, TxContext},
+    base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -16,6 +16,7 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     metrics::LimitsMetrics,
+    storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
 };
 

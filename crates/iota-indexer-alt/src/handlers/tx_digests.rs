@@ -8,7 +8,7 @@ use anyhow::Result;
 use diesel_async::RunQueryDsl;
 use iota_indexer_alt_framework::{
     db,
-    pipeline::{concurrent::Handler, Processor},
+    pipeline::{Processor, concurrent::Handler},
 };
 use iota_types::full_checkpoint_content::CheckpointData;
 

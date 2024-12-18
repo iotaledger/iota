@@ -6,17 +6,15 @@ pub mod indexer;
 pub mod models;
 pub mod schema;
 
-use dotenvy::dotenv;
-use std::env;
+use std::{env, time::Duration};
 
 use diesel::{ConnectionError, ConnectionResult};
-use diesel_async::pooled_connection::bb8::Pool;
-use diesel_async::pooled_connection::AsyncDieselConnectionManager;
-use diesel_async::pooled_connection::ManagerConfig;
-use diesel_async::AsyncPgConnection;
-use futures_util::future::BoxFuture;
-use futures_util::FutureExt;
-use std::time::Duration;
+use diesel_async::{
+    AsyncPgConnection,
+    pooled_connection::{AsyncDieselConnectionManager, ManagerConfig, bb8::Pool},
+};
+use dotenvy::dotenv;
+use futures_util::{FutureExt, future::BoxFuture};
 
 pub type PgConnectionPool =
     diesel_async::pooled_connection::bb8::Pool<diesel_async::AsyncPgConnection>;
@@ -70,8 +68,8 @@ fn root_certs() -> rustls::RootCertStore {
     }
 }
 
-/// Skip performing any verification of a server's cert in order to temporarily match the default
-/// behavior of libpq
+/// Skip performing any verification of a server's cert in order to temporarily
+/// match the default behavior of libpq
 #[derive(Debug)]
 struct SkipServerCertCheck;
 

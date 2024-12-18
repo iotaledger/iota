@@ -2,27 +2,29 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::crypto::PublicKey;
-use crate::signature_verification::VerifiedDigestCache;
-use crate::{
-    base_types::{EpochId, IotaAddress},
-    crypto::{DefaultHash, Signature, SignatureScheme, IotaSignature},
-    digests::ZKLoginInputsDigest,
-    error::{IotaError, IotaResult},
-    signature::{AuthenticatorTrait, VerifyParams},
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
 };
+
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
-use fastcrypto_zkp::bn254::zk_login::JwkId;
-use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, JWK};
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
-use fastcrypto_zkp::bn254::{zk_login::ZkLoginInputs, zk_login_api::verify_zk_login};
+use fastcrypto_zkp::bn254::{
+    zk_login::{JWK, JwkId, OIDCProvider, ZkLoginInputs},
+    zk_login_api::{ZkLoginEnv, verify_zk_login},
+};
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentMessage;
-use std::hash::Hash;
-use std::hash::Hasher;
-use std::sync::Arc;
+
+use crate::{
+    base_types::{EpochId, IotaAddress},
+    crypto::{DefaultHash, IotaSignature, PublicKey, Signature, SignatureScheme},
+    digests::ZKLoginInputsDigest,
+    error::{IotaError, IotaResult},
+    signature::{AuthenticatorTrait, VerifyParams},
+    signature_verification::VerifiedDigestCache,
+};
 #[cfg(test)]
 #[path = "unit_tests/zk_login_authenticator_test.rs"]
 mod zk_login_authenticator_test;
@@ -51,7 +53,8 @@ struct ZkLoginCachingParams {
 impl ZkLoginAuthenticator {
     /// The caching key for zklogin signature, it is the hash of bcs bytes of
     /// ZkLoginInputs || max_epoch || flagged_pk_bytes. If any of these fields
-    /// change, zklogin signature is re-verified without using the caching result.
+    /// change, zklogin signature is re-verified without using the caching
+    /// result.
     fn get_caching_params(&self) -> ZkLoginCachingParams {
         let mut extended_pk_bytes = vec![self.user_signature.scheme().flag()];
         extended_pk_bytes.extend(self.user_signature.public_key_bytes());
@@ -125,8 +128,10 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         epoch: EpochId,
         max_epoch_upper_bound_delta: Option<u64>,
     ) -> IotaResult {
-        // the checks here ensure that `current_epoch + max_epoch_upper_bound_delta >= self.max_epoch >= current_epoch`.
-        // 1. if the config for upper bound is set, ensure that the max epoch in signature is not larger than epoch + upper_bound.
+        // the checks here ensure that `current_epoch + max_epoch_upper_bound_delta >=
+        // self.max_epoch >= current_epoch`.
+        // 1. if the config for upper bound is set, ensure that the max epoch in
+        //    signature is not larger than epoch + upper_bound.
         if let Some(delta) = max_epoch_upper_bound_delta {
             let max_epoch_upper_bound = epoch + delta;
             if self.get_max_epoch() > max_epoch_upper_bound {
@@ -153,7 +158,8 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         Ok(())
     }
 
-    /// Verify an intent message of a transaction with an zk login authenticator.
+    /// Verify an intent message of a transaction with an zk login
+    /// authenticator.
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
@@ -166,7 +172,8 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
     {
         // Always evaluate the unpadded address derivation.
         if author != IotaAddress::try_from_unpadded(&self.inputs)? {
-            // If the verify_legacy_zklogin_address flag is set, also evaluate the padded address derivation.
+            // If the verify_legacy_zklogin_address flag is set, also evaluate the padded
+            // address derivation.
             if !aux_verify_data.verify_legacy_zklogin_address
                 || author != IotaAddress::try_from_padded(&self.inputs)?
             {
@@ -174,8 +181,9 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
             }
         }
 
-        // Only when supported_providers list is not empty, we check if the provider is supported. Otherwise,
-        // we just use the JWK map to check if its supported.
+        // Only when supported_providers list is not empty, we check if the provider is
+        // supported. Otherwise, we just use the JWK map to check if its
+        // supported.
         if !aux_verify_data.supported_providers.is_empty()
             && !aux_verify_data.supported_providers.contains(
                 &OIDCProvider::from_iss(self.inputs.get_iss()).map_err(|_| {
@@ -190,7 +198,8 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
             });
         }
 
-        // Verify the ephemeral signature over the intent message of the transaction data.
+        // Verify the ephemeral signature over the intent message of the transaction
+        // data.
         self.user_signature.verify_secure(
             intent_msg,
             author,
@@ -284,11 +293,7 @@ impl AddressSeed {
         }
 
         // If the value is '0' then just return a slice of length 1 of the final byte
-        if buf.is_empty() {
-            &self.0[31..]
-        } else {
-            buf
-        }
+        if buf.is_empty() { &self.0[31..] } else { buf }
     }
 
     pub fn padded(&self) -> &[u8] {
@@ -354,9 +359,10 @@ impl<'de> Deserialize<'de> for AddressSeed {
 mod test {
     use std::str::FromStr;
 
-    use super::AddressSeed;
     use num_bigint::BigUint;
     use proptest::prelude::*;
+
+    use super::AddressSeed;
 
     #[test]
     fn unpadded_slice() {

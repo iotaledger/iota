@@ -2,23 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::displays::Pretty;
-use crate::replay::LocalExec;
-use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
-use move_core_types::language_storage::TypeTag;
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
+use std::{
+    fmt::{Display, Formatter},
+    sync::Arc,
+};
+
 use iota_execution::Executor;
-use iota_types::execution::ExecutionResult;
-use iota_types::object::bounded_visitor::BoundedVisitor;
-use iota_types::transaction::CallArg::Pure;
-use iota_types::transaction::{
-    write_sep, Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
+use iota_types::{
+    execution::ExecutionResult,
+    object::bounded_visitor::BoundedVisitor,
+    transaction::{
+        Argument, CallArg, CallArg::Pure, Command, ObjectArg, ProgrammableMoveCall,
+        ProgrammableTransaction, write_sep,
+    },
+};
+use move_core_types::{
+    annotated_value::{MoveTypeLayout, MoveValue},
+    language_storage::TypeTag,
 };
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
+    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
+
+use crate::{displays::Pretty, replay::LocalExec};
 
 pub struct FullPTB {
     pub ptb: ProgrammableTransaction,
@@ -30,8 +37,9 @@ pub struct ResolvedResults {
     pub return_values: Vec<MoveValue>,
 }
 
-/// These Display implementations provide alternate displays that are used to format info contained
-/// in these Structs when calling the CLI replay command with an additional provided flag.
+/// These Display implementations provide alternate displays that are used to
+/// format info contained in these Structs when calling the CLI replay command
+/// with an additional provided flag.
 impl<'a> Display for Pretty<'a, FullPTB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(full_ptb) = self;

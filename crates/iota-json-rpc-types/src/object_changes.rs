@@ -2,17 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt::{Display, Formatter, Result};
+
+use iota_types::{
+    base_types::{IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber},
+    iota_serde::{IotaStructTag, SequenceNumber as AsSequenceNumber},
+    object::Owner,
+};
 use move_core_types::language_storage::StructTag;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::fmt::{Display, Formatter, Result};
-use iota_types::base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber, IotaAddress};
-use iota_types::object::Owner;
-use iota_types::iota_serde::SequenceNumber as AsSequenceNumber;
-use iota_types::iota_serde::IotaStructTag;
 
-/// ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object information.
+/// ObjectChange are derived from the object mutations in the TransactionEffect
+/// to provide richer object information.
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -198,7 +201,12 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Recipient: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id, sender, recipient, object_type, u64::from(*version), digest
+                    object_id,
+                    sender,
+                    recipient,
+                    object_type,
+                    u64::from(*version),
+                    digest
                 )
             }
             ObjectChange::Mutated {
@@ -213,7 +221,12 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id, sender, owner, object_type, u64::from(*version), digest
+                    object_id,
+                    sender,
+                    owner,
+                    object_type,
+                    u64::from(*version),
+                    digest
                 )
             }
             ObjectChange::Deleted {
@@ -225,7 +238,10 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ ObjectType: {} \n │ Version: {}\n └──",
-                    object_id, sender, object_type, u64::from(*version)
+                    object_id,
+                    sender,
+                    object_type,
+                    u64::from(*version)
                 )
             }
             ObjectChange::Wrapped {
@@ -237,7 +253,10 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ ObjectType: {} \n │ Version: {}\n └──",
-                    object_id, sender, object_type, u64::from(*version)
+                    object_id,
+                    sender,
+                    object_type,
+                    u64::from(*version)
                 )
             }
             ObjectChange::Created {
@@ -251,7 +270,12 @@ impl Display for ObjectChange {
                 write!(
                     f,
                     " ┌──\n │ ObjectID: {}\n │ Sender: {} \n │ Owner: {}\n │ ObjectType: {} \n │ Version: {}\n │ Digest: {}\n └──",
-                    object_id, sender, owner, object_type, u64::from(*version), digest
+                    object_id,
+                    sender,
+                    owner,
+                    object_type,
+                    u64::from(*version),
+                    digest
                 )
             }
         }

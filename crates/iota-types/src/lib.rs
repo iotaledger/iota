@@ -8,21 +8,24 @@
     rust_2021_compatibility
 )]
 
-use base_types::{SequenceNumber, IotaAddress};
-use move_binary_format::file_format::{AbilitySet, SignatureToken};
-use move_binary_format::CompiledModule;
+use base_types::{IotaAddress, ObjectID, SequenceNumber};
+pub use iota_network_stack::multiaddr;
+use move_binary_format::{
+    CompiledModule,
+    file_format::{AbilitySet, SignatureToken},
+};
 use move_bytecode_utils::resolve_struct;
-use move_core_types::language_storage::ModuleId;
-use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+use move_core_types::{
+    account_address::AccountAddress,
+    language_storage::{ModuleId, StructTag},
+};
 pub use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 use object::OBJECT_START_VERSION;
 
-use base_types::ObjectID;
-
-pub use iota_network_stack::multiaddr;
-
-use crate::base_types::{RESOLVED_ASCII_STR, RESOLVED_UTF8_STR};
-use crate::{base_types::RESOLVED_STD_OPTION, id::RESOLVED_IOTA_ID};
+use crate::{
+    base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
+    id::RESOLVED_IOTA_ID,
+};
 
 #[macro_use]
 pub mod error;
@@ -58,6 +61,9 @@ pub mod governance;
 pub mod id;
 pub mod in_memory_storage;
 pub mod inner_temporary_store;
+pub mod iota_sdk_types_conversions;
+pub mod iota_serde;
+pub mod iota_system_state;
 pub mod layout_resolver;
 pub mod message_envelope;
 pub mod messages_checkpoint;
@@ -77,9 +83,6 @@ pub mod randomness_state;
 pub mod signature;
 pub mod signature_verification;
 pub mod storage;
-pub mod iota_sdk_types_conversions;
-pub mod iota_serde;
-pub mod iota_system_state;
 pub mod supported_protocol_versions;
 pub mod traffic_control;
 pub mod transaction;
@@ -139,11 +142,14 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 
 /// Parses `s` as an address. Valid formats for addresses are:
 ///
-/// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x" prefix.
-/// - One of a number of pre-defined named addresses: std, iota, iota_system, deepbook.
+/// - A 256bit number, encoded in decimal, or hexadecimal with a leading "0x"
+///   prefix.
+/// - One of a number of pre-defined named addresses: std, iota, iota_system,
+///   deepbook.
 ///
-/// Parsing succeeds if and only if `s` matches one of these formats exactly, with no remaining
-/// suffix. This function is intended for use within the authority codebases.
+/// Parsing succeeds if and only if `s` matches one of these formats exactly,
+/// with no remaining suffix. This function is intended for use within the
+/// authority codebases.
 pub fn parse_iota_address(s: &str) -> anyhow::Result<IotaAddress> {
     use move_core_types::parsing::address::ParsedAddress;
     Ok(ParsedAddress::parse(s)?
@@ -151,35 +157,39 @@ pub fn parse_iota_address(s: &str) -> anyhow::Result<IotaAddress> {
         .into())
 }
 
-/// Parse `s` as a Module ID: An address (see `parse_iota_address`), followed by `::`, and then a
-/// module name (an identifier). Parsing succeeds if and only if `s` matches this format exactly,
-/// with no remaining input. This function is intended for use within the authority codebases.
+/// Parse `s` as a Module ID: An address (see `parse_iota_address`), followed by
+/// `::`, and then a module name (an identifier). Parsing succeeds if and only
+/// if `s` matches this format exactly, with no remaining input. This function
+/// is intended for use within the authority codebases.
 pub fn parse_iota_module_id(s: &str) -> anyhow::Result<ModuleId> {
     use move_core_types::parsing::types::ParsedModuleId;
     ParsedModuleId::parse(s)?.into_module_id(&resolve_address)
 }
 
-/// Parse `s` as a fully-qualified name: A Module ID (see `parse_iota_module_id`), followed by `::`,
-/// and then an identifier (for the module member). Parsing succeeds if and only if `s` matches this
-/// format exactly, with no remaining input. This function is intended for use within the authority
-/// codebases.
+/// Parse `s` as a fully-qualified name: A Module ID (see
+/// `parse_iota_module_id`), followed by `::`, and then an identifier (for the
+/// module member). Parsing succeeds if and only if `s` matches this
+/// format exactly, with no remaining input. This function is intended for use
+/// within the authority codebases.
 pub fn parse_iota_fq_name(s: &str) -> anyhow::Result<(ModuleId, String)> {
     use move_core_types::parsing::types::ParsedFqName;
     ParsedFqName::parse(s)?.into_fq_name(&resolve_address)
 }
 
-/// Parse `s` as a struct type: A fully-qualified name, optionally followed by a list of type
-/// parameters (types -- see `parse_iota_type_tag`, separated by commas, surrounded by angle
-/// brackets). Parsing succeeds if and only if `s` matches this format exactly, with no remaining
-/// input. This function is intended for use within the authority codebase.
+/// Parse `s` as a struct type: A fully-qualified name, optionally followed by a
+/// list of type parameters (types -- see `parse_iota_type_tag`, separated by
+/// commas, surrounded by angle brackets). Parsing succeeds if and only if `s`
+/// matches this format exactly, with no remaining input. This function is
+/// intended for use within the authority codebase.
 pub fn parse_iota_struct_tag(s: &str) -> anyhow::Result<StructTag> {
     use move_core_types::parsing::types::ParsedStructType;
     ParsedStructType::parse(s)?.into_struct_tag(&resolve_address)
 }
 
-/// Parse `s` as a type: Either a struct type (see `parse_iota_struct_tag`), a primitive type, or a
-/// vector with a type parameter. Parsing succeeds if and only if `s` matches this format exactly,
-/// with no remaining input. This function is intended for use within the authority codebase.
+/// Parse `s` as a type: Either a struct type (see `parse_iota_struct_tag`), a
+/// primitive type, or a vector with a type parameter. Parsing succeeds if and
+/// only if `s` matches this format exactly, with no remaining input. This
+/// function is intended for use within the authority codebase.
 pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
     use move_core_types::parsing::types::ParsedType;
     ParsedType::parse(s)?.into_type_tag(&resolve_address)
@@ -320,8 +330,9 @@ fn is_object_struct(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use expect_test::expect;
+
+    use super::*;
 
     #[test]
     fn test_parse_iota_numeric_address() {
@@ -368,8 +379,9 @@ mod tests {
         let expected = expect!["0x2::iota::IOTA"];
         expected.assert_eq(&result.to_string());
 
-        let expected =
-            expect!["0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"];
+        let expected = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
@@ -383,8 +395,9 @@ mod tests {
         let expected = expect!["0x2::iota::IOTA"];
         expected.assert_eq(&result.to_string());
 
-        let expected =
-            expect!["0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"];
+        let expected = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
@@ -396,7 +409,9 @@ mod tests {
         let expected = expect!["0x2::coin::COIN<0x2::iota::IOTA>"];
         expected.assert_eq(&result.to_string());
 
-        let expected = expect!["0x0000000000000000000000000000000000000000000000000000000000000002::coin::COIN<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"];
+        let expected = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::coin::COIN<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
@@ -408,20 +423,25 @@ mod tests {
         let expected = expect!["0x2::coin::COIN<0x2::iota::IOTA>"];
         expected.assert_eq(&result.to_string());
 
-        let expected = expect!["0x0000000000000000000000000000000000000000000000000000000000000002::coin::COIN<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"];
+        let expected = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::coin::COIN<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
     #[test]
     fn test_complex_struct_tag_with_short_addr() {
-        let result =
-            parse_iota_struct_tag("0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>")
-                .expect("should not error");
+        let result = parse_iota_struct_tag(
+            "0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>",
+        )
+        .expect("should not error");
 
         let expected = expect!["0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>"];
         expected.assert_eq(&result.to_string());
 
-        let expected = expect!["0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>>>"];
+        let expected = expect![
+            "0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>>>"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
@@ -433,7 +453,9 @@ mod tests {
         let expected = expect!["0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>"];
         expected.assert_eq(&result.to_string());
 
-        let expected = expect!["0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>>>"];
+        let expected = expect![
+            "0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>>>"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
@@ -449,7 +471,9 @@ mod tests {
         ];
         expected.assert_eq(&result.to_string());
 
-        let expected = expect!["0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x000000000000000000000000000000000000000000000000000000000000dee9::custodian_v2::Account<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"];
+        let expected = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x000000000000000000000000000000000000000000000000000000000000dee9::custodian_v2::Account<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 
@@ -465,7 +489,9 @@ mod tests {
         ];
         expected.assert_eq(&result.to_string());
 
-        let expected = expect!["0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x000000000000000000000000000000000000000000000000000000000000dee9::custodian_v2::Account<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"];
+        let expected = expect![
+            "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<address,0x000000000000000000000000000000000000000000000000000000000000dee9::custodian_v2::Account<0x0000000000000000000000000000000000000000000000000000000000000234::coin::COIN>>"
+        ];
         expected.assert_eq(&result.to_canonical_string(/* with_prefix */ true));
     }
 }

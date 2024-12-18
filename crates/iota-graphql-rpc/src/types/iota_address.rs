@@ -4,11 +4,12 @@
 
 use std::str::FromStr;
 
-use crate::error::Error;
 use async_graphql::*;
+use iota_types::base_types::{IotaAddress as NativeIotaAddress, ObjectID};
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
-use iota_types::base_types::{ObjectID, IotaAddress as NativeIotaAddress};
+
+use crate::error::Error;
 
 const IOTA_ADDRESS_LENGTH: usize = 32;
 
@@ -33,7 +34,10 @@ pub(crate) enum FromStrError {
 
 #[derive(thiserror::Error, Debug, Eq, PartialEq)]
 pub(crate) enum FromVecError {
-    #[error("Expected IotaAddress with {} bytes, received {0}", IOTA_ADDRESS_LENGTH)]
+    #[error(
+        "Expected IotaAddress with {} bytes, received {0}",
+        IOTA_ADDRESS_LENGTH
+    )]
     WrongLength(usize),
 }
 
@@ -162,8 +166,9 @@ impl std::fmt::Display for IotaAddress {
     }
 }
 
-/// Parse a `IotaAddress` from its stored representation.  Failure is an internal error: the
-/// database should never contain a malformed address (containing the wrong number of bytes).
+/// Parse a `IotaAddress` from its stored representation.  Failure is an
+/// internal error: the database should never contain a malformed address
+/// (containing the wrong number of bytes).
 pub(crate) fn addr(bytes: impl AsRef<[u8]>) -> Result<IotaAddress, Error> {
     IotaAddress::from_bytes(bytes.as_ref()).map_err(|e| {
         let bytes = bytes.as_ref().to_vec();
@@ -173,8 +178,9 @@ pub(crate) fn addr(bytes: impl AsRef<[u8]>) -> Result<IotaAddress, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use async_graphql::Value;
+
+    use super::*;
 
     const STR_ADDRESS: &str = "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const ARR_ADDRESS: [u8; IOTA_ADDRESS_LENGTH] = [

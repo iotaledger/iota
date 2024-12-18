@@ -2,23 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use nonempty::NonEmpty;
-use shared_crypto::intent::Intent;
+use std::{hash::Hash, sync::Arc};
 
-use crate::committee::EpochId;
-use crate::digests::ZKLoginInputsDigest;
-use crate::error::{IotaError, IotaResult};
-use crate::signature::VerifyParams;
-use crate::transaction::{SenderSignedData, TransactionDataAPI};
 use lru::LruCache;
+use nonempty::NonEmpty;
 use parking_lot::RwLock;
 use prometheus::IntCounter;
-use std::hash::Hash;
-use std::sync::Arc;
+use shared_crypto::intent::Intent;
 
-// Cache up to 20000 verified certs. We will need to tune this number in the future - a decent
-// guess to start with is that it should be 10-20 times larger than peak transactions per second,
-// on the assumption that we should see most certs twice within about 10-20 seconds at most: Once via RPC, once via consensus.
+use crate::{
+    committee::EpochId,
+    digests::ZKLoginInputsDigest,
+    error::{IotaError, IotaResult},
+    signature::VerifyParams,
+    transaction::{SenderSignedData, TransactionDataAPI},
+};
+
+// Cache up to 20000 verified certs. We will need to tune this number in the
+// future - a decent guess to start with is that it should be 10-20 times larger
+// than peak transactions per second, on the assumption that we should see most
+// certs twice within about 10-20 seconds at most: Once via RPC, once via
+// consensus.
 const VERIFIED_CERTIFICATE_CACHE_SIZE: usize = 20000;
 
 pub struct VerifiedDigestCache<D> {
@@ -95,7 +99,8 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
         inner.clear();
     }
 
-    // Initialize an empty cache when the cache is not needed (in testing scenarios, graphql and rosetta initialization).
+    // Initialize an empty cache when the cache is not needed (in testing scenarios,
+    // graphql and rosetta initialization).
     pub fn new_empty() -> Self {
         Self::new(
             IntCounter::new("test_cache_hits", "test cache hits").unwrap(),
@@ -105,7 +110,8 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
     }
 }
 
-/// Does crypto validation for a transaction which may be user-provided, or may be from a checkpoint.
+/// Does crypto validation for a transaction which may be user-provided, or may
+/// be from a checkpoint.
 pub fn verify_sender_signed_data_message_signatures(
     txn: &SenderSignedData,
     current_epoch: EpochId,
@@ -115,7 +121,8 @@ pub fn verify_sender_signed_data_message_signatures(
     let intent_message = txn.intent_message();
     assert_eq!(intent_message.intent, Intent::iota_transaction());
 
-    // 1. System transactions do not require signatures. User-submitted transactions are verified not to
+    // 1. System transactions do not require signatures. User-submitted transactions
+    //    are verified not to
     // be system transactions before this point
     if intent_message.value.is_system_tx() {
         return Ok(());

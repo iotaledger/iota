@@ -2,19 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
 use iota_json_rpc_types::{DelegatedStake, IotaCommittee, ValidatorApys};
 use iota_open_rpc_macros::open_rpc;
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::iota_serde::BigInt;
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    iota_serde::BigInt,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 #[open_rpc(namespace = "iotax", tag = "Governance Read API")]
 #[rpc(server, client, namespace = "iotax")]
 pub trait GovernanceReadApi {
-    /// Return one or more [DelegatedStake]. If a Stake was withdrawn its status will be Unstaked.
+    /// Return one or more [DelegatedStake]. If a Stake was withdrawn its status
+    /// will be Unstaked.
     #[method(name = "getStakesByIds")]
     async fn get_stakes_by_ids(
         &self,

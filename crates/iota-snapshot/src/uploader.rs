@@ -2,29 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::writer::StateSnapshotWriterV1;
+use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
+
 use anyhow::Result;
 use bytes::Bytes;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_core::{
+    authority::authority_store_tables::AuthorityPerpetualTables,
+    checkpoints::CheckpointStore,
+    db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
+};
+use iota_storage::{
+    FileCompression,
+    object_store::util::{
+        find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem, put,
+        run_manifest_update_loop,
+    },
+};
+use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
 use object_store::DynObjectStore;
 use prometheus::{
-    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
-    Registry,
+    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use iota_core::checkpoints::CheckpointStore;
-use iota_core::db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER};
-use iota_storage::object_store::util::{
-    find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem, put,
-    run_manifest_update_loop,
-};
-use iota_storage::FileCompression;
-use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
 use tracing::{debug, error, info};
+
+use crate::writer::StateSnapshotWriterV1;
 
 pub struct StateSnapshotUploaderMetrics {
     pub first_missing_state_snapshot_epoch: IntGauge,
@@ -56,7 +59,8 @@ pub struct StateSnapshotUploader {
     db_checkpoint_path: PathBuf,
     /// Store on local disk where db checkpoints are written to
     db_checkpoint_store: Arc<DynObjectStore>,
-    /// Checkpoint store; needed to fetch epoch state commitments for verification
+    /// Checkpoint store; needed to fetch epoch state commitments for
+    /// verification
     checkpoint_store: Arc<CheckpointStore>,
     /// Directory path on local disk where state snapshots are staged for upload
     staging_path: PathBuf,

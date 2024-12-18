@@ -8,13 +8,14 @@ use async_trait::async_trait;
 use consensus_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use consensus_core::{CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority};
 use fastcrypto::ed25519;
-use iota_metrics::{RegistryID, RegistryService};
-use prometheus::Registry;
 use iota_config::NodeConfig;
+use iota_metrics::{RegistryID, RegistryService};
 use iota_protocol_config::ConsensusNetwork;
 use iota_types::{
-    committee::EpochId, iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
+    committee::EpochId,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
+use prometheus::Registry;
 use tokio::sync::Mutex;
 use tracing::info;
 
@@ -54,7 +55,8 @@ pub struct MysticetiManager {
 
 impl MysticetiManager {
     /// NOTE: Mysticeti protocol key uses Ed25519 instead of BLS.
-    /// But for security, the protocol keypair must be different from the network keypair.
+    /// But for security, the protocol keypair must be different from the
+    /// network keypair.
     pub fn new(
         protocol_keypair: ed25519::Ed25519KeyPair,
         network_keypair: ed25519::Ed25519KeyPair,
@@ -149,9 +151,12 @@ impl ConsensusManagerTrait for MysticetiManager {
             CommitConsumer::new(consensus_handler.last_processed_subdag_index() as CommitIndex);
         let monitor = commit_consumer.monitor();
 
-        // If there is a previous consumer monitor, it indicates that the consensus engine has been restarted, due to an epoch change. However, that on its
-        // own doesn't tell us much whether it participated on an active epoch or an old one. We need to check if it has handled any commits to determine this.
-        // If indeed any commits did happen, then we assume that node did participate on previous run.
+        // If there is a previous consumer monitor, it indicates that the consensus
+        // engine has been restarted, due to an epoch change. However, that on its
+        // own doesn't tell us much whether it participated on an active epoch or an old
+        // one. We need to check if it has handled any commits to determine this.
+        // If indeed any commits did happen, then we assume that node did participate on
+        // previous run.
         let participated_on_previous_run =
             if let Some(previous_monitor) = self.consumer_monitor.swap(Some(monitor.clone())) {
                 previous_monitor.highest_handled_commit() > 0
@@ -159,10 +164,13 @@ impl ConsensusManagerTrait for MysticetiManager {
                 false
             };
 
-        // Increment the boot counter only if the consensus successfully participated in the previous run.
-        // This is typical during normal epoch changes, where the node restarts as expected, and the boot counter is incremented to prevent amnesia recovery on the next start.
-        // If the node is recovering from a restore process and catching up across multiple epochs, it won't handle any commits until it reaches the last active epoch.
-        // In this scenario, we do not increment the boot counter, as we need amnesia recovery to run.
+        // Increment the boot counter only if the consensus successfully participated in
+        // the previous run. This is typical during normal epoch changes, where
+        // the node restarts as expected, and the boot counter is incremented to prevent
+        // amnesia recovery on the next start. If the node is recovering from a
+        // restore process and catching up across multiple epochs, it won't handle any
+        // commits until it reaches the last active epoch. In this scenario, we
+        // do not increment the boot counter, as we need amnesia recovery to run.
         let mut boot_counter = self.boot_counter.lock().await;
         if participated_on_previous_run {
             *boot_counter += 1;
@@ -227,7 +235,8 @@ impl ConsensusManagerTrait for MysticetiManager {
         // Stop consensus submissions.
         self.client.clear();
 
-        // swap with empty to ensure there is no other reference to authority and we can safely do Arc unwrap
+        // swap with empty to ensure there is no other reference to authority and we can
+        // safely do Arc unwrap
         let r = self.authority.swap(None).unwrap();
         let Ok((authority, registry_id)) = Arc::try_unwrap(r) else {
             panic!("Failed to retrieve the mysticeti authority");

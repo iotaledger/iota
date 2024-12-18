@@ -4,9 +4,10 @@
 
 //! Module for conversions between iota-core types and iota-sdk types
 //!
-//! For now this module makes heavy use of the `bcs_convert_impl` macro to implement the `From` trait
-//! for converting between core and external sdk types, relying on the fact that the BCS format of
-//! these types are strictly identical. As time goes on we'll slowly hand implement these impls
+//! For now this module makes heavy use of the `bcs_convert_impl` macro to
+//! implement the `From` trait for converting between core and external sdk
+//! types, relying on the fact that the BCS format of these types are strictly
+//! identical. As time goes on we'll slowly hand implement these impls
 //! directly to avoid going through the BCS machinery.
 
 use fastcrypto::traits::ToFromBytes;

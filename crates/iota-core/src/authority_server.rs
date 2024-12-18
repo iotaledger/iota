@@ -3,70 +3,66 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use async_trait::async_trait;
-use fastcrypto::traits::KeyPair;
-use iota_metrics::spawn_monitored_task;
-use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
-use prometheus::{
-    register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, Histogram, IntCounter, IntCounterVec, Registry,
-};
 use std::{
     io,
     net::{IpAddr, SocketAddr},
     sync::Arc,
     time::SystemTime,
 };
+
+use anyhow::Result;
+use async_trait::async_trait;
+use fastcrypto::traits::KeyPair;
+use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
+use iota_metrics::spawn_monitored_task;
 use iota_network::{
     api::{Validator, ValidatorServer},
     tonic,
 };
-use iota_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
-use iota_types::messages_grpc::{
-    HandleCertificateRequestV3, HandleCertificateResponseV3, HandleTransactionResponseV2,
-};
-use iota_types::messages_grpc::{
-    HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
-    SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
-};
-use iota_types::messages_grpc::{
-    HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
-};
-use iota_types::multiaddr::Multiaddr;
-use iota_types::iota_system_state::IotaSystemState;
-use iota_types::traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight};
-use iota_types::{effects::TransactionEffectsAPI, messages_grpc::HandleTransactionRequestV2};
-use iota_types::{error::*, transaction::*};
+use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use iota_types::{
+    effects::TransactionEffectsAPI,
+    error::*,
     fp_ensure,
+    iota_system_state::IotaSystemState,
     messages_checkpoint::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     },
+    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
+    messages_grpc::{
+        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
+        HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
+        HandleTransactionRequestV2, HandleTransactionResponse, HandleTransactionResponseV2,
+        ObjectInfoRequest, ObjectInfoResponse, SubmitCertificateResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse,
+    },
+    multiaddr::Multiaddr,
+    traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight},
+    transaction::*,
+};
+use nonempty::{NonEmpty, nonempty};
+use prometheus::{
+    Histogram, IntCounter, IntCounterVec, Registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
 };
 use tap::TapFallible;
 use tokio::task::JoinHandle;
-use tonic::metadata::{Ascii, MetadataValue};
-use tracing::{error, error_span, info, Instrument};
+use tonic::{
+    metadata::{Ascii, MetadataValue},
+    transport::server::TcpConnectInfo,
+};
+use tracing::{Instrument, error, error_span, info};
 
 use crate::{
-    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    consensus_adapter::{
+        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+    },
     mysticeti_adapter::LazyMysticetiClient,
+    traffic_controller::{
+        TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
+    },
 };
-use crate::{
-    authority::AuthorityState,
-    consensus_adapter::{ConsensusAdapter, ConsensusAdapterMetrics},
-    traffic_controller::parse_ip,
-    traffic_controller::policies::TrafficTally,
-    traffic_controller::TrafficController,
-};
-use crate::{
-    consensus_adapter::ConnectionMonitorStatusForTests,
-    traffic_controller::metrics::TrafficControllerMetrics,
-};
-use nonempty::{nonempty, NonEmpty};
-use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
-use tonic::transport::server::TcpConnectInfo;
 
 #[cfg(test)]
 #[path = "unit_tests/server_tests.rs"]
@@ -444,13 +440,14 @@ impl ValidatorService {
 
         transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
-        // When authority is overloaded and decide to reject this tx, we still lock the object
-        // and ask the client to retry in the future. This is because without locking, the
-        // input objects can be locked by a different tx in the future, however, the input objects
-        // may already be locked by this tx in other validators. This can cause non of the txes
-        // to have enough quorum to form a certificate, causing the objects to be locked for
-        // the entire epoch. By doing locking but pushback, retrying transaction will have
-        // higher chance to succeed.
+        // When authority is overloaded and decide to reject this tx, we still lock the
+        // object and ask the client to retry in the future. This is because
+        // without locking, the input objects can be locked by a different tx in
+        // the future, however, the input objects may already be locked by this
+        // tx in other validators. This can cause non of the txes to have enough
+        // quorum to form a certificate, causing the objects to be locked for
+        // the entire epoch. By doing locking but pushback, retrying transaction will
+        // have higher chance to succeed.
         let mut validator_pushback_error = None;
         let overload_check_res = state.check_system_overload(
             &*consensus_adapter,
@@ -495,8 +492,8 @@ impl ValidatorService {
             })?;
 
         if let Some(error) = validator_pushback_error {
-            // TODO: right now, we still sign the txn, but just don't return it. We can also skip signing
-            // to save more CPU.
+            // TODO: right now, we still sign the txn, but just don't return it. We can also
+            // skip signing to save more CPU.
             return Err(error.into());
         }
 
@@ -654,7 +651,8 @@ impl ValidatorService {
                 &self.metrics.submit_certificate_consensus_latency
             }
         } else {
-            // `soft_bundle_validity_check` ensured that all certificates contain shared objects.
+            // `soft_bundle_validity_check` ensured that all certificates contain shared
+            // objects.
             &self
                 .metrics
                 .handle_soft_bundle_certificates_consensus_latency
@@ -662,9 +660,10 @@ impl ValidatorService {
 
         let _metrics_guard = metrics.start_timer();
 
-        // 1) Check if the certificate is already executed.
-        //    This is only needed when we have only one certificate (not a soft bundle).
-        //    When multiple certificates are provided, we will either submit all of them or none of them to consensus.
+        // 1) Check if the certificate is already executed. This is only needed when we
+        //    have only one certificate (not a soft bundle). When multiple certificates
+        //    are provided, we will either submit all of them or none of them to
+        //    consensus.
         if certificates.len() == 1 {
             let tx_digest = *certificates[0].digest();
 
@@ -786,8 +785,9 @@ impl ValidatorService {
             }
 
             // 3) All transactions are sent to consensus (at least by some authorities)
-            // For certs with shared objects this will wait until either timeout or we have heard back from consensus.
-            // For certs with owned objects this will return without waiting for certificate to be sequenced.
+            // For certs with shared objects this will wait until either timeout or we have
+            // heard back from consensus. For certs with owned objects this will
+            // return without waiting for certificate to be sequenced.
             // For uncertified transactions this will wait for fast path processing.
             // First do quick dirty non-async check.
             if !epoch_store.all_external_consensus_messages_processed(
@@ -799,8 +799,9 @@ impl ValidatorService {
                     Some(&reconfiguration_lock),
                     epoch_store,
                 )?;
-                // Do not wait for the result, because the transaction might have already executed.
-                // Instead, check or wait for the existence of certificate effects below.
+                // Do not wait for the result, because the transaction might
+                // have already executed. Instead, check or wait
+                // for the existence of certificate effects below.
             }
         }
 
@@ -828,7 +829,8 @@ impl ValidatorService {
             return Ok((None, Weight::zero()));
         }
 
-        // 4) Execute the certificates immediately if they contain only owned object transactions,
+        // 4) Execute the certificates immediately if they contain only owned object
+        //    transactions,
         // or wait for the execution results if it contains shared objects.
         let responses = futures::future::try_join_all(consensus_transactions.into_iter().map(
             |tx| async move {
@@ -1010,9 +1012,10 @@ impl ValidatorService {
 
         // Soft Bundle MUST be enabled both in protocol config and local node config.
         //
-        // The local node config is by default enabled, but can be turned off by the node operator.
-        // This acts an extra safety measure where a validator node have the choice to turn this feature off,
-        // without having to upgrade the entire network.
+        // The local node config is by default enabled, but can be turned off by the
+        // node operator. This acts an extra safety measure where a validator
+        // node have the choice to turn this feature off, without having to
+        // upgrade the entire network.
         fp_ensure!(
             protocol_config.soft_bundle() && node_config.enable_soft_bundle,
             IotaError::UnsupportedFeatureError {
@@ -1037,9 +1040,11 @@ impl ValidatorService {
             .into()
         );
 
-        // We set the soft bundle max size to be half of the consensus max transactions in block size. We do this to account for
-        // serialization overheads and to ensure that the soft bundle is not too large when is attempted to be posted via consensus.
-        // Although half the block size is on the extreme side, it's should be good enough for now.
+        // We set the soft bundle max size to be half of the consensus max transactions
+        // in block size. We do this to account for serialization overheads and
+        // to ensure that the soft bundle is not too large when is attempted to be
+        // posted via consensus. Although half the block size is on the extreme
+        // side, it's should be good enough for now.
         let soft_bundle_max_size_bytes =
             protocol_config.consensus_max_transactions_in_block_bytes() / 2;
         fp_ensure!(
@@ -1087,9 +1092,10 @@ impl ValidatorService {
             }
         }
 
-        // For Soft Bundle, if at this point we know at least one certificate has already been processed,
-        // reject the entire bundle.  Otherwise, submit all certificates in one request.
-        // This is not a strict check as there may be race conditions where one or more certificates are
+        // For Soft Bundle, if at this point we know at least one certificate has
+        // already been processed, reject the entire bundle.  Otherwise, submit
+        // all certificates in one request. This is not a strict check as there
+        // may be race conditions where one or more certificates are
         // already being processed by another actor, and we could not know it.
         fp_ensure!(
             !epoch_store.is_any_tx_certs_consensus_message_processed(certificates.iter())?,
@@ -1268,10 +1274,7 @@ impl ValidatorService {
                                     "x-forwarded-for header value of {:?} contains {} values, but {} hops were specified. \
                                     Expected at least {} values. Please correctly set the `x-forwarded-for` value under \
                                     `client-id-source` in the node config.",
-                                    header_contents,
-                                    contents_len,
-                                    num_hops,
-                                    contents_len,
+                                    header_contents, contents_len, num_hops, contents_len,
                                 );
                                 self.metrics.client_id_source_config_mismatch.inc();
                                 return None;
@@ -1281,10 +1284,7 @@ impl ValidatorService {
                                 error!(
                                     "x-forwarded-for header value of {:?} contains {} values, but {} hops were specificed. \
                                     Expected at least {} values. Skipping traffic controller request handling.",
-                                    header_contents,
-                                    contents_len,
-                                    num_hops,
-                                    contents_len,
+                                    header_contents, contents_len, num_hops, contents_len,
                                 );
                                 return None;
                             };
@@ -1309,7 +1309,9 @@ impl ValidatorService {
                     do_header_parse(op)
                 } else {
                     self.metrics.forwarded_header_not_included.inc();
-                    error!("x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type");
+                    error!(
+                        "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
+                    );
                     None
                 }
             }
@@ -1417,11 +1419,13 @@ impl Validator for ValidatorService {
     ) -> Result<tonic::Response<HandleTransactionResponse>, tonic::Status> {
         let validator_service = self.clone();
 
-        // Spawns a task which handles the transaction. The task will unconditionally continue
-        // processing in the event that the client connection is dropped.
+        // Spawns a task which handles the transaction. The task will unconditionally
+        // continue processing in the event that the client connection is
+        // dropped.
         spawn_monitored_task!(async move {
             // NB: traffic tally wrapping handled within the task rather than on task exit
-            // to prevent an attacker from subverting traffic control by severing the connection
+            // to prevent an attacker from subverting traffic control by severing the
+            // connection
             handle_with_decoration!(validator_service, transaction_impl, request)
         })
         .await
@@ -1434,11 +1438,13 @@ impl Validator for ValidatorService {
     ) -> Result<tonic::Response<HandleTransactionResponseV2>, tonic::Status> {
         let validator_service = self.clone();
 
-        // Spawns a task which handles the transaction. The task will unconditionally continue
-        // processing in the event that the client connection is dropped.
+        // Spawns a task which handles the transaction. The task will unconditionally
+        // continue processing in the event that the client connection is
+        // dropped.
         spawn_monitored_task!(async move {
             // NB: traffic tally wrapping handled within the task rather than on task exit
-            // to prevent an attacker from subverting traffic control by severing the connection
+            // to prevent an attacker from subverting traffic control by severing the
+            // connection
             handle_with_decoration!(validator_service, transaction_v2_impl, request)
         })
         .await
@@ -1451,11 +1457,13 @@ impl Validator for ValidatorService {
     ) -> Result<tonic::Response<SubmitCertificateResponse>, tonic::Status> {
         let validator_service = self.clone();
 
-        // Spawns a task which handles the certificate. The task will unconditionally continue
-        // processing in the event that the client connection is dropped.
+        // Spawns a task which handles the certificate. The task will unconditionally
+        // continue processing in the event that the client connection is
+        // dropped.
         spawn_monitored_task!(async move {
             // NB: traffic tally wrapping handled within the task rather than on task exit
-            // to prevent an attacker from subverting traffic control by severing the connection.
+            // to prevent an attacker from subverting traffic control by severing the
+            // connection.
             handle_with_decoration!(validator_service, submit_certificate_impl, request)
         })
         .await

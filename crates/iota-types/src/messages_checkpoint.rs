@@ -2,53 +2,55 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::accumulator::Accumulator;
-use crate::base_types::{
-    random_object_ref, ExecutionData, ExecutionDigests, VerifiedExecutionData,
+use std::{
+    fmt::{Debug, Display, Formatter},
+    slice::Iter,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use crate::committee::{EpochId, ProtocolVersion, StakeUnit};
-use crate::crypto::{
-    default_hash, get_key_pair, AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo,
-    AuthoritySignInfoTrait, AuthorityStrongQuorumSignInfo, RandomnessRound,
-};
-use crate::digests::Digest;
-use crate::effects::{TestEffectsBuilder, TransactionEffectsAPI};
-use crate::error::IotaResult;
-use crate::gas::GasCostSummary;
-use crate::message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope};
-use crate::signature::GenericSignature;
-use crate::storage::ReadStore;
-use crate::iota_serde::AsProtocolVersion;
-use crate::iota_serde::BigInt;
-use crate::iota_serde::Readable;
-use crate::transaction::{Transaction, TransactionData};
-use crate::{base_types::AuthorityName, committee::Committee, error::IotaError};
+
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_metrics::histogram::Histogram as IotaHistogram;
+use iota_protocol_config::ProtocolConfig;
 use once_cell::sync::OnceCell;
 use prometheus::Histogram;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use shared_crypto::intent::{Intent, IntentScope};
-use std::fmt::{Debug, Display, Formatter};
-use std::slice::Iter;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use iota_protocol_config::ProtocolConfig;
 use tap::TapFallible;
 use tracing::warn;
 
-pub use crate::digests::CheckpointContentsDigest;
-pub use crate::digests::CheckpointDigest;
+pub use crate::digests::{CheckpointContentsDigest, CheckpointDigest};
+use crate::{
+    accumulator::Accumulator,
+    base_types::{
+        AuthorityName, ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref,
+    },
+    committee::{Committee, EpochId, ProtocolVersion, StakeUnit},
+    crypto::{
+        AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
+        AuthorityStrongQuorumSignInfo, RandomnessRound, default_hash, get_key_pair,
+    },
+    digests::Digest,
+    effects::{TestEffectsBuilder, TransactionEffectsAPI},
+    error::{IotaError, IotaResult},
+    gas::GasCostSummary,
+    iota_serde::{AsProtocolVersion, BigInt, Readable},
+    message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
+    signature::GenericSignature,
+    storage::ReadStore,
+    transaction::{Transaction, TransactionData},
+};
 
 pub type CheckpointSequenceNumber = u64;
 pub type CheckpointTimestamp = u64;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointRequest {
-    /// if a sequence number is specified, return the checkpoint with that sequence number;
-    /// otherwise if None returns the latest authenticated checkpoint stored.
+    /// if a sequence number is specified, return the checkpoint with that
+    /// sequence number; otherwise if None returns the latest authenticated
+    /// checkpoint stored.
     pub sequence_number: Option<CheckpointSequenceNumber>,
     // A flag, if true also return the contents of the
     // checkpoint besides the meta-data.
@@ -57,9 +59,10 @@ pub struct CheckpointRequest {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointRequestV2 {
-    /// if a sequence number is specified, return the checkpoint with that sequence number;
-    /// otherwise if None returns the latest checkpoint stored (authenticated or pending,
-    /// depending on the value of `certified` flag)
+    /// if a sequence number is specified, return the checkpoint with that
+    /// sequence number; otherwise if None returns the latest checkpoint
+    /// stored (authenticated or pending, depending on the value of
+    /// `certified` flag)
     pub sequence_number: Option<CheckpointSequenceNumber>,
     // A flag, if true also return the contents of the
     // checkpoint besides the meta-data.
@@ -100,7 +103,8 @@ pub struct CheckpointResponseV2 {
 
 // The constituent parts of checkpoints, signed and certified
 
-/// The Sha256 digest of an EllipticCurveMultisetHash committing to the live object set.
+/// The Sha256 digest of an EllipticCurveMultisetHash committing to the live
+/// object set.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 pub struct ECMHLiveObjectSetDigest {
     #[schemars(with = "[u8; 32]")]
@@ -139,17 +143,18 @@ impl From<ECMHLiveObjectSetDigest> for CheckpointCommitment {
 pub struct EndOfEpochData {
     /// next_epoch_committee is `Some` if and only if the current checkpoint is
     /// the last checkpoint of an epoch.
-    /// Therefore next_epoch_committee can be used to pick the last checkpoint of an epoch,
-    /// which is often useful to get epoch level summary stats like total gas cost of an epoch,
-    /// or the total number of transactions from genesis to the end of an epoch.
-    /// The committee is stored as a vector of validator pub key and stake pairs. The vector
+    /// Therefore next_epoch_committee can be used to pick the last checkpoint
+    /// of an epoch, which is often useful to get epoch level summary stats
+    /// like total gas cost of an epoch, or the total number of transactions
+    /// from genesis to the end of an epoch. The committee is stored as a
+    /// vector of validator pub key and stake pairs. The vector
     /// should be sorted based on the Committee data structure.
     #[schemars(with = "Vec<(AuthorityName, BigInt<u64>)>")]
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
     pub next_epoch_committee: Vec<(AuthorityName, StakeUnit)>,
 
-    /// The protocol version that is in effect during the epoch that starts immediately after this
-    /// checkpoint.
+    /// The protocol version that is in effect during the epoch that starts
+    /// immediately after this checkpoint.
     #[schemars(with = "AsProtocolVersion")]
     #[serde_as(as = "Readable<AsProtocolVersion, _>")]
     pub next_epoch_protocol_version: ProtocolVersion,
@@ -162,30 +167,32 @@ pub struct EndOfEpochData {
 pub struct CheckpointSummary {
     pub epoch: EpochId,
     pub sequence_number: CheckpointSequenceNumber,
-    /// Total number of transactions committed since genesis, including those in this
-    /// checkpoint.
+    /// Total number of transactions committed since genesis, including those in
+    /// this checkpoint.
     pub network_total_transactions: u64,
     pub content_digest: CheckpointContentsDigest,
     pub previous_digest: Option<CheckpointDigest>,
-    /// The running total gas costs of all transactions included in the current epoch so far
-    /// until this checkpoint.
+    /// The running total gas costs of all transactions included in the current
+    /// epoch so far until this checkpoint.
     pub epoch_rolling_gas_cost_summary: GasCostSummary,
 
     /// Timestamp of the checkpoint - number of milliseconds from the Unix epoch
-    /// Checkpoint timestamps are monotonic, but not strongly monotonic - subsequent
-    /// checkpoints can have same timestamp if they originate from the same underlining consensus commit
+    /// Checkpoint timestamps are monotonic, but not strongly monotonic -
+    /// subsequent checkpoints can have same timestamp if they originate
+    /// from the same underlining consensus commit
     pub timestamp_ms: CheckpointTimestamp,
 
-    /// Commitments to checkpoint-specific state (e.g. txns in checkpoint, objects read/written in
-    /// checkpoint).
+    /// Commitments to checkpoint-specific state (e.g. txns in checkpoint,
+    /// objects read/written in checkpoint).
     pub checkpoint_commitments: Vec<CheckpointCommitment>,
 
     /// Present only on the final checkpoint of the epoch.
     pub end_of_epoch_data: Option<EndOfEpochData>,
 
-    /// CheckpointSummary is not an evolvable structure - it must be readable by any version of the
-    /// code. Therefore, in order to allow extensions to be added to CheckpointSummary, we allow
-    /// opaque data to be added to checkpoints which can be deserialized based on the current
+    /// CheckpointSummary is not an evolvable structure - it must be readable by
+    /// any version of the code. Therefore, in order to allow extensions to
+    /// be added to CheckpointSummary, we allow opaque data to be added to
+    /// checkpoints which can be deserialized based on the current
     /// protocol version.
     ///
     /// This is implemented with BCS-serialized `CheckpointVersionSpecificData`.
@@ -242,13 +249,10 @@ impl CheckpointSummary {
     }
 
     pub fn verify_epoch(&self, epoch: EpochId) -> IotaResult {
-        fp_ensure!(
-            self.epoch == epoch,
-            IotaError::WrongEpoch {
-                expected_epoch: epoch,
-                actual_epoch: self.epoch,
-            }
-        );
+        fp_ensure!(self.epoch == epoch, IotaError::WrongEpoch {
+            expected_epoch: epoch,
+            actual_epoch: self.epoch,
+        });
         Ok(())
     }
 
@@ -353,7 +357,14 @@ impl CertifiedCheckpointSummary {
             let content_digest = *contents.digest();
             fp_ensure!(
                 content_digest == self.data().content_digest,
-                IotaError::GenericAuthorityError{error:format!("Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions", self.data(), content_digest, contents.size())}
+                IotaError::GenericAuthorityError {
+                    error: format!(
+                        "Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions",
+                        self.data(),
+                        content_digest,
+                        contents.size()
+                    )
+                }
             );
         }
 
@@ -395,7 +406,8 @@ impl VerifiedCheckpoint {
     }
 }
 
-/// This is a message validators publish to consensus in order to sign checkpoint
+/// This is a message validators publish to consensus in order to sign
+/// checkpoint
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointSignatureMessage {
     pub summary: SignedCheckpointSummary,
@@ -413,9 +425,9 @@ pub enum CheckpointContents {
 }
 
 /// CheckpointContents are the transactions included in an upcoming checkpoint.
-/// They must have already been causally ordered. Since the causal order algorithm
-/// is the same among validators, we expect all honest validators to come up with
-/// the same order for each checkpoint content.
+/// They must have already been causally ordered. Since the causal order
+/// algorithm is the same among validators, we expect all honest validators to
+/// come up with the same order for each checkpoint content.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CheckpointContentsV1 {
     #[serde(skip)]
@@ -541,8 +553,8 @@ impl CheckpointContents {
     }
 }
 
-/// Same as CheckpointContents, but contains full contents of all Transactions and
-/// TransactionEffects associated with the checkpoint.
+/// Same as CheckpointContents, but contains full contents of all Transactions
+/// and TransactionEffects associated with the checkpoint.
 // NOTE: This data structure is used for state sync of checkpoints. Therefore we attempt
 // to estimate its size in CheckpointBuilder in order to limit the maximum serialized
 // size of a checkpoint sent over the network. If this struct is modified,
@@ -609,8 +621,9 @@ impl FullCheckpointContents {
         self.transactions.iter()
     }
 
-    /// Verifies that this checkpoint's digest matches the given digest, and that all internal
-    /// Transaction and TransactionEffects digests are consistent.
+    /// Verifies that this checkpoint's digest matches the given digest, and
+    /// that all internal Transaction and TransactionEffects digests are
+    /// consistent.
     pub fn verify_digests(&self, digest: CheckpointContentsDigest) -> Result<()> {
         let self_digest = *self.checkpoint_contents().digest();
         fp_ensure!(
@@ -740,7 +753,8 @@ impl VerifiedCheckpointContents {
     }
 }
 
-/// Holds data in CheckpointSummary that is serialized into the `version_specific_data` field.
+/// Holds data in CheckpointSummary that is serialized into the
+/// `version_specific_data` field.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CheckpointVersionSpecificData {
     V1(CheckpointVersionSpecificDataV1),
@@ -768,20 +782,22 @@ impl CheckpointVersionSpecificData {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckpointVersionSpecificDataV1 {
-    /// Lists the rounds for which RandomnessStateUpdate transactions are present in the checkpoint.
+    /// Lists the rounds for which RandomnessStateUpdate transactions are
+    /// present in the checkpoint.
     pub randomness_rounds: Vec<RandomnessRound>,
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::digests::{ConsensusCommitDigest, TransactionDigest, TransactionEffectsDigest};
-    use crate::transaction::VerifiedTransaction;
     use fastcrypto::traits::KeyPair;
-    use rand::prelude::StdRng;
-    use rand::SeedableRng;
+    use rand::{SeedableRng, prelude::StdRng};
 
     use super::*;
-    use crate::utils::make_committee_key;
+    use crate::{
+        digests::{ConsensusCommitDigest, TransactionDigest, TransactionEffectsDigest},
+        transaction::VerifiedTransaction,
+        utils::make_committee_key,
+    };
 
     // TODO use the file name as a seed
     const RNG_SEED: [u8; 32] = [
@@ -868,9 +884,11 @@ mod tests {
             CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("Cert is OK");
 
         // Signature is correct on proposal, and with same transactions
-        assert!(checkpoint_cert
-            .verify_with_contents(&committee, Some(&set))
-            .is_ok());
+        assert!(
+            checkpoint_cert
+                .verify_with_contents(&committee, Some(&set))
+                .is_ok()
+        );
 
         // Make a bad proposal
         let signed_checkpoints: Vec<_> = keys
@@ -914,9 +932,10 @@ mod tests {
         )
     }
 
-    // Generate a CheckpointSummary from the input transaction digest. All the other fields in the generated
-    // CheckpointSummary will be the same. The generated CheckpointSummary can be used to test how input
-    // transaction digest affects CheckpointSummary.
+    // Generate a CheckpointSummary from the input transaction digest. All the other
+    // fields in the generated CheckpointSummary will be the same. The generated
+    // CheckpointSummary can be used to test how input transaction digest
+    // affects CheckpointSummary.
     fn generate_test_checkpoint_summary_from_digest(
         digest: TransactionDigest,
     ) -> CheckpointSummary {
@@ -937,10 +956,12 @@ mod tests {
         )
     }
 
-    // Tests that ConsensusCommitPrologue with different consensus commit digest will result in different checkpoint content.
+    // Tests that ConsensusCommitPrologue with different consensus commit digest
+    // will result in different checkpoint content.
     #[test]
     fn test_checkpoint_summary_with_different_consensus_digest() {
-        // First, tests that same consensus commit digest will produce the same checkpoint content.
+        // First, tests that same consensus commit digest will produce the same
+        // checkpoint content.
         {
             let t1 = VerifiedTransaction::new_consensus_commit_prologue_v3(
                 1,
@@ -961,7 +982,8 @@ mod tests {
             assert_eq!(c1.digest(), c2.digest());
         }
 
-        // Next, tests that different consensus commit digests will produce the different checkpoint contents.
+        // Next, tests that different consensus commit digests will produce the
+        // different checkpoint contents.
         {
             let t1 = VerifiedTransaction::new_consensus_commit_prologue_v3(
                 1,

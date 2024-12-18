@@ -2,56 +2,69 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fmt::Write;
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    fmt::Write,
+};
 
-use super::available_range::AvailableRange;
-use super::balance::{self, Balance};
-use super::big_int::BigInt;
-use super::coin::Coin;
-use super::coin_metadata::CoinMetadata;
-use super::cursor::{self, Page, RawPaginated, ScanLimited, Target};
-use super::digest::Digest;
-use super::display::{Display, DisplayEntry};
-use super::dynamic_field::{DynamicField, DynamicFieldName};
-use super::move_object::MoveObject;
-use super::move_package::MovePackage;
-use super::owner::OwnerImpl;
-use super::stake::StakedIota;
-use super::iota_address::addr;
-use super::iotans_registration::{DomainFormat, IotaNSRegistration};
-use super::transaction_block;
-use super::transaction_block::TransactionBlockFilter;
-use super::type_filter::{ExactTypeFilter, TypeFilter};
-use super::uint53::UInt53;
-use super::{owner::Owner, iota_address::IotaAddress, transaction_block::TransactionBlock};
-use crate::connection::ScanConnection;
-use crate::consistency::{build_objects_query, Checkpointed, View};
-use crate::data::package_resolver::PackageResolver;
-use crate::data::{DataLoader, Db, DbConnection, QueryExecutor};
-use crate::error::Error;
-use crate::raw_query::RawQuery;
-use crate::types::base64::Base64;
-use crate::types::intersect;
-use crate::{filter, or_filter};
-use async_graphql::connection::{CursorType, Edge};
-use async_graphql::dataloader::Loader;
-use async_graphql::{connection::Connection, *};
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    dataloader::Loader,
+    *,
+};
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, SelectableHelper};
 use diesel_async::scoped_futures::ScopedFutureExt;
-use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
-use move_core_types::language_storage::StructTag;
-use serde::{Deserialize, Serialize};
-use iota_indexer::models::obj_indices::StoredObjectVersion;
-use iota_indexer::models::objects::{StoredFullHistoryObject, StoredHistoryObject};
-use iota_indexer::schema::{full_objects_history, objects_version};
-use iota_indexer::types::ObjectStatus as NativeObjectStatus;
-use iota_indexer::types::OwnerType;
-use iota_types::object::bounded_visitor::BoundedVisitor;
-use iota_types::object::{
-    MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
+use iota_indexer::{
+    models::{
+        obj_indices::StoredObjectVersion,
+        objects::{StoredFullHistoryObject, StoredHistoryObject},
+    },
+    schema::{full_objects_history, objects_version},
+    types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
-use iota_types::TypeTag;
+use iota_types::{
+    TypeTag,
+    object::{
+        MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
+        bounded_visitor::BoundedVisitor,
+    },
+};
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveTypeLayout},
+    language_storage::StructTag,
+};
+use serde::{Deserialize, Serialize};
+
+use super::{
+    available_range::AvailableRange,
+    balance::{self, Balance},
+    big_int::BigInt,
+    coin::Coin,
+    coin_metadata::CoinMetadata,
+    cursor::{self, Page, RawPaginated, ScanLimited, Target},
+    digest::Digest,
+    display::{Display, DisplayEntry},
+    dynamic_field::{DynamicField, DynamicFieldName},
+    iota_address::{IotaAddress, addr},
+    iotans_registration::{DomainFormat, IotaNSRegistration},
+    move_object::MoveObject,
+    move_package::MovePackage,
+    owner::{Owner, OwnerImpl},
+    stake::StakedIota,
+    transaction_block,
+    transaction_block::{TransactionBlock, TransactionBlockFilter},
+    type_filter::{ExactTypeFilter, TypeFilter},
+    uint53::UInt53,
+};
+use crate::{
+    connection::ScanConnection,
+    consistency::{Checkpointed, View, build_objects_query},
+    data::{DataLoader, Db, DbConnection, QueryExecutor, package_resolver::PackageResolver},
+    error::Error,
+    filter, or_filter,
+    raw_query::RawQuery,
+    types::{base64::Base64, intersect},
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Object {
@@ -62,14 +75,16 @@ pub(crate) struct Object {
     pub checkpoint_viewed_at: u64,
     /// Root parent object version for dynamic fields.
     ///
-    /// This enables consistent dynamic field reads in the case of chained dynamic object fields,
-    /// e.g., `Parent -> DOF1 -> DOF2`. In such cases, the object versions may end up like
-    /// `Parent >= DOF1, DOF2` but `DOF1 < DOF2`. Thus, database queries for dynamic fields must
+    /// This enables consistent dynamic field reads in the case of chained
+    /// dynamic object fields, e.g., `Parent -> DOF1 -> DOF2`. In such
+    /// cases, the object versions may end up like `Parent >= DOF1, DOF2`
+    /// but `DOF1 < DOF2`. Thus, database queries for dynamic fields must
     /// bound the object versions by the version of the root object of the tree.
     ///
-    /// Essentially, lamport timestamps of objects are updated for all top-level mutable objects
-    /// provided as inputs to a transaction as well as any mutated dynamic child objects. However,
-    /// any dynamic child objects that were loaded but not actually mutated don't end up having
+    /// Essentially, lamport timestamps of objects are updated for all top-level
+    /// mutable objects provided as inputs to a transaction as well as any
+    /// mutated dynamic child objects. However, any dynamic child objects
+    /// that were loaded but not actually mutated don't end up having
     /// their versions updated.
     root_version: u64,
 }
@@ -80,8 +95,8 @@ pub(crate) struct ObjectImpl<'o>(pub &'o Object);
 #[derive(Clone, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum ObjectKind {
-    /// An object loaded from serialized data, such as the contents of a transaction that hasn't
-    /// been indexed yet.
+    /// An object loaded from serialized data, such as the contents of a
+    /// transaction that hasn't been indexed yet.
     NotIndexed(NativeObject),
     /// An object fetched from the index.
     Indexed(NativeObject, StoredHistoryObject),
@@ -92,8 +107,8 @@ pub(crate) enum ObjectKind {
 #[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
 #[graphql(name = "ObjectKind")]
 pub enum ObjectStatus {
-    /// The object is loaded from serialized data, such as the contents of a transaction that hasn't
-    /// been indexed yet.
+    /// The object is loaded from serialized data, such as the contents of a
+    /// transaction that hasn't been indexed yet.
     NotIndexed,
     /// The object is fetched from the index.
     Indexed,
@@ -109,19 +124,21 @@ pub(crate) struct ObjectRef {
     pub digest: Digest,
 }
 
-/// Constrains the set of objects returned. All filters are optional, and the resulting set of
-/// objects are ones whose
+/// Constrains the set of objects returned. All filters are optional, and the
+/// resulting set of objects are ones whose
 ///
 /// - Type matches the `type` filter,
 /// - AND, whose owner matches the `owner` filter,
-/// - AND, whose ID is in `objectIds` OR whose ID and version is in `objectKeys`.
+/// - AND, whose ID is in `objectIds` OR whose ID and version is in
+///   `objectKeys`.
 #[derive(InputObject, Default, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct ObjectFilter {
-    /// Filter objects by their type's `package`, `package::module`, or their fully qualified type
-    /// name.
+    /// Filter objects by their type's `package`, `package::module`, or their
+    /// fully qualified type name.
     ///
-    /// Generic types can be queried by either the generic type name, e.g. `0x2::coin::Coin`, or by
-    /// the full type name, such as `0x2::coin::Coin<0x2::iota::IOTA>`.
+    /// Generic types can be queried by either the generic type name, e.g.
+    /// `0x2::coin::Coin`, or by the full type name, such as
+    /// `0x2::coin::Coin<0x2::iota::IOTA>`.
     pub type_: Option<TypeFilter>,
 
     /// Filter for live objects by their current owners.
@@ -130,7 +147,8 @@ pub(crate) struct ObjectFilter {
     /// Filter for live objects by their IDs.
     pub object_ids: Option<Vec<IotaAddress>>,
 
-    /// Filter for live or potentially historical objects by their ID and version.
+    /// Filter for live or potentially historical objects by their ID and
+    /// version.
     pub object_keys: Option<Vec<ObjectKey>>,
 }
 
@@ -149,26 +167,28 @@ pub(crate) enum ObjectOwner {
     Address(AddressOwner),
 }
 
-/// An immutable object is an object that can't be mutated, transferred, or deleted.
-/// Immutable objects have no owner, so anyone can use them.
+/// An immutable object is an object that can't be mutated, transferred, or
+/// deleted. Immutable objects have no owner, so anyone can use them.
 #[derive(SimpleObject, Clone)]
 pub(crate) struct Immutable {
     #[graphql(name = "_")]
     dummy: Option<bool>,
 }
 
-/// A shared object is an object that is shared using the 0x2::transfer::share_object function.
-/// Unlike owned objects, once an object is shared, it stays mutable and is accessible by anyone.
+/// A shared object is an object that is shared using the
+/// 0x2::transfer::share_object function. Unlike owned objects, once an object
+/// is shared, it stays mutable and is accessible by anyone.
 #[derive(SimpleObject, Clone)]
 pub(crate) struct Shared {
     initial_shared_version: UInt53,
 }
 
-/// If the object's owner is a Parent, this object is part of a dynamic field (it is the value of
-/// the dynamic field, or the intermediate Field object itself), and it is owned by another object.
+/// If the object's owner is a Parent, this object is part of a dynamic field
+/// (it is the value of the dynamic field, or the intermediate Field object
+/// itself), and it is owned by another object.
 ///
-/// Although its owner is guaranteed to be an object, it is exposed as an Owner, as the parent
-/// object could be wrapped and therefore not directly accessible.
+/// Although its owner is guaranteed to be an object, it is exposed as an Owner,
+/// as the parent object could be wrapped and therefore not directly accessible.
 #[derive(SimpleObject, Clone)]
 pub(crate) struct Parent {
     parent: Option<Owner>,
@@ -176,7 +196,8 @@ pub(crate) struct Parent {
 
 /// An address-owned object is owned by a specific 32-byte address that is
 /// either an account address (derived from a particular signature scheme) or
-/// an object ID. An address-owned object is accessible only to its owner and no others.
+/// an object ID. An address-owned object is accessible only to its owner and no
+/// others.
 #[derive(SimpleObject, Clone)]
 pub(crate) struct AddressOwner {
     owner: Option<Owner>,
@@ -190,8 +211,9 @@ pub(crate) enum ObjectLookup {
     },
 
     UnderParent {
-        /// The parent version to be used as an upper bound for the query. Look for the latest
-        /// version of a child object whose version is less than or equal to this upper bound.
+        /// The parent version to be used as an upper bound for the query. Look
+        /// for the latest version of a child object whose version is
+        /// less than or equal to this upper bound.
         parent_version: u64,
         /// The checkpoint sequence number at which this was viewed at.
         checkpoint_viewed_at: u64,
@@ -207,8 +229,9 @@ pub(crate) enum ObjectLookup {
 
 pub(crate) type Cursor = cursor::BcsCursor<HistoricalObjectCursor>;
 
-/// The inner struct for the `Object`'s cursor. The `object_id` is used as the cursor, while the
-/// `checkpoint_viewed_at` sets the consistent upper bound for the cursor.
+/// The inner struct for the `Object`'s cursor. The `object_id` is used as the
+/// cursor, while the `checkpoint_viewed_at` sets the consistent upper bound for
+/// the cursor.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct HistoricalObjectCursor {
     #[serde(rename = "o")]
@@ -218,8 +241,8 @@ pub(crate) struct HistoricalObjectCursor {
     checkpoint_viewed_at: u64,
 }
 
-/// Interface implemented by on-chain values that are addressable by an ID (also referred to as its
-/// address). This includes Move objects and packages.
+/// Interface implemented by on-chain values that are addressable by an ID (also
+/// referred to as its address). This includes Move objects and packages.
 #[allow(clippy::duplicated_attributes)]
 #[derive(Interface)]
 #[graphql(
@@ -282,9 +305,9 @@ pub(crate) enum IObject {
     IotaNSRegistration(IotaNSRegistration),
 }
 
-/// `DataLoader` key for fetching an `Object` at a specific version, constrained by a consistency
-/// cursor (if that version was created after the checkpoint the query is viewing at, then it will
-/// fail).
+/// `DataLoader` key for fetching an `Object` at a specific version, constrained
+/// by a consistency cursor (if that version was created after the checkpoint
+/// the query is viewing at, then it will fail).
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct HistoricalKey {
     id: IotaAddress,
@@ -292,9 +315,10 @@ struct HistoricalKey {
     checkpoint_viewed_at: u64,
 }
 
-/// `DataLoader` key for fetching the latest version of an object whose parent object has version
-/// `parent_version`, as of `checkpoint_viewed_at`. This look-up can fail to find a valid object if
-/// the key is not self-consistent, for example if the `parent_version` is set to a higher version
+/// `DataLoader` key for fetching the latest version of an object whose parent
+/// object has version `parent_version`, as of `checkpoint_viewed_at`. This
+/// look-up can fail to find a valid object if the key is not self-consistent,
+/// for example if the `parent_version` is set to a higher version
 /// than the object's actual parent as of `checkpoint_viewed_at`.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct ParentVersionKey {
@@ -303,7 +327,8 @@ struct ParentVersionKey {
     checkpoint_viewed_at: u64,
 }
 
-/// `DataLoader` key for fetching the latest version of an object as of a given checkpoint.
+/// `DataLoader` key for fetching the latest version of an object as of a given
+/// checkpoint.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct LatestAtKey {
     id: IotaAddress,
@@ -318,9 +343,10 @@ struct PointLookupKey {
     version: u64,
 }
 
-/// An object in Iota is a package (set of Move bytecode modules) or object (typed data structure
-/// with fields) with additional metadata detailing its id, version, transaction digest, owner
-/// field indicating how this object can be accessed.
+/// An object in Iota is a package (set of Move bytecode modules) or object
+/// (typed data structure with fields) with additional metadata detailing its
+/// id, version, transaction digest, owner field indicating how this object can
+/// be accessed.
 #[Object]
 impl Object {
     pub(crate) async fn address(&self) -> IotaAddress {
@@ -342,8 +368,8 @@ impl Object {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::iota::IOTA`.
+    /// Total balance of all coins with marker type owned by this object. If
+    /// type is not supplied, it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -368,7 +394,8 @@ impl Object {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -397,7 +424,8 @@ impl Object {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this object.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// object.
     pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
@@ -406,8 +434,8 @@ impl Object {
         OwnerImpl::from(self).default_iotans_name(ctx, format).await
     }
 
-    /// The IotaNSRegistration NFTs owned by this object. These grant the owner the capability to
-    /// manage the associated domain.
+    /// The IotaNSRegistration NFTs owned by this object. These grant the owner
+    /// the capability to manage the associated domain.
     pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
@@ -425,18 +453,21 @@ impl Object {
         ObjectImpl(self).version().await
     }
 
-    /// The current status of the object as read from the off-chain store. The possible states are:
-    /// NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or
-    /// system package upgrade transaction. LIVE, the version returned is the most recent for the
-    /// object, and it is not deleted or wrapped at that version. HISTORICAL, the object was
-    /// referenced at a specific version or checkpoint, so is fetched from historical tables and may
-    /// not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or
-    /// wrapped and only partial information can be loaded."
+    /// The current status of the object as read from the off-chain store. The
+    /// possible states are: NOT_INDEXED, the object is loaded from
+    /// serialized data, such as the contents of a genesis or system package
+    /// upgrade transaction. LIVE, the version returned is the most recent for
+    /// the object, and it is not deleted or wrapped at that version.
+    /// HISTORICAL, the object was referenced at a specific version or
+    /// checkpoint, so is fetched from historical tables and may not be the
+    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
+    /// or wrapped and only partial information can be loaded."
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(self).status().await
     }
 
-    /// 32-byte hash that identifies the object's current contents, encoded as a Base58 string.
+    /// 32-byte hash that identifies the object's current contents, encoded as a
+    /// Base58 string.
     pub(crate) async fn digest(&self) -> Option<String> {
         ObjectImpl(self).digest().await
     }
@@ -455,32 +486,38 @@ impl Object {
         ObjectImpl(self).previous_transaction_block(ctx).await
     }
 
-    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
-    /// recalculated based on the present storage gas price.
+    /// The amount of IOTA we would rebate if this object gets deleted or
+    /// mutated. This number is recalculated based on the present storage
+    /// gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(self).storage_rebate().await
     }
 
     /// The transaction blocks that sent objects to this object.
     ///
-    /// `scanLimit` restricts the number of candidate transactions scanned when gathering a page of
-    /// results. It is required for queries that apply more than two complex filters (on function,
-    /// kind, sender, recipient, input object, changed object, or ids), and can be at most
+    /// `scanLimit` restricts the number of candidate transactions scanned when
+    /// gathering a page of results. It is required for queries that apply
+    /// more than two complex filters (on function, kind, sender, recipient,
+    /// input object, changed object, or ids), and can be at most
     /// `serviceConfig.maxScanLimit`.
     ///
-    /// When the scan limit is reached the page will be returned even if it has fewer than `first`
-    /// results when paginating forward (`last` when paginating backwards). If there are more
-    /// transactions to scan, `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
-    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set to the last
-    /// transaction that was scanned as opposed to the last (or first) transaction in the page.
+    /// When the scan limit is reached the page will be returned even if it has
+    /// fewer than `first` results when paginating forward (`last` when
+    /// paginating backwards). If there are more transactions to scan,
+    /// `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
+    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
+    /// to the last transaction that was scanned as opposed to the last (or
+    /// first) transaction in the page.
     ///
-    /// Requesting the next (or previous) page after this cursor will resume the search, scanning
-    /// the next `scanLimit` many transactions in the direction of pagination, and so on until all
-    /// transactions in the scanning range have been visited.
+    /// Requesting the next (or previous) page after this cursor will resume the
+    /// search, scanning the next `scanLimit` many transactions in the
+    /// direction of pagination, and so on until all transactions in the
+    /// scanning range have been visited.
     ///
-    /// By default, the scanning range includes all transactions known to GraphQL, but it can be
-    /// restricted by the `after` and `before` cursors, and the `beforeCheckpoint`,
-    /// `afterCheckpoint` and `atCheckpoint` filters.
+    /// By default, the scanning range includes all transactions known to
+    /// GraphQL, but it can be restricted by the `after` and `before`
+    /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
+    /// `atCheckpoint` filters.
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -501,19 +538,19 @@ impl Object {
         ObjectImpl(self).bcs().await
     }
 
-    /// The set of named templates defined on-chain for the type of this object, to be handled
-    /// off-chain. The server substitutes data from the object into these templates to generate a
-    /// display string per template.
+    /// The set of named templates defined on-chain for the type of this object,
+    /// to be handled off-chain. The server substitutes data from the object
+    /// into these templates to generate a display string per template.
     async fn display(&self, ctx: &Context<'_>) -> Result<Option<Vec<DisplayEntry>>> {
         ObjectImpl(self).display(ctx).await
     }
 
-    /// Access a dynamic field on an object using its name. Names are arbitrary Move values whose
-    /// type have `copy`, `drop`, and `store`, and are specified using their type, and their BCS
-    /// contents, Base64 encoded.
+    /// Access a dynamic field on an object using its name. Names are arbitrary
+    /// Move values whose type have `copy`, `drop`, and `store`, and are
+    /// specified using their type, and their BCS contents, Base64 encoded.
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     async fn dynamic_field(
         &self,
         ctx: &Context<'_>,
@@ -524,13 +561,14 @@ impl Object {
             .await
     }
 
-    /// Access a dynamic object field on an object using its name. Names are arbitrary Move values
-    /// whose type have `copy`, `drop`, and `store`, and are specified using their type, and their
-    /// BCS contents, Base64 encoded. The value of a dynamic object field can also be accessed
+    /// Access a dynamic object field on an object using its name. Names are
+    /// arbitrary Move values whose type have `copy`, `drop`, and `store`,
+    /// and are specified using their type, and their BCS contents, Base64
+    /// encoded. The value of a dynamic object field can also be accessed
     /// off-chain directly via its address (e.g. using `Query.object`).
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     async fn dynamic_object_field(
         &self,
         ctx: &Context<'_>,
@@ -543,8 +581,8 @@ impl Object {
 
     /// The dynamic fields and dynamic object fields on an object.
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     async fn dynamic_fields(
         &self,
         ctx: &Context<'_>,
@@ -690,8 +728,8 @@ impl ObjectImpl<'_> {
         })
     }
 
-    /// `display` is part of the `IMoveObject` interface, but is implemented on `ObjectImpl` to
-    /// allow for a convenience function on `Object`.
+    /// `display` is part of the `IMoveObject` interface, but is implemented on
+    /// `ObjectImpl` to allow for a convenience function on `Object`.
     pub(crate) async fn display(&self, ctx: &Context<'_>) -> Result<Option<Vec<DisplayEntry>>> {
         let Some(native) = self.0.native_impl() else {
             return Ok(None);
@@ -719,17 +757,20 @@ impl ObjectImpl<'_> {
 }
 
 impl Object {
-    /// Construct a GraphQL object from a native object, without its stored (indexed) counterpart.
+    /// Construct a GraphQL object from a native object, without its stored
+    /// (indexed) counterpart.
     ///
-    /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this `Object` was
-    /// constructed in. This is stored on `Object` so that when viewing that entity's state, it will
-    /// be as if it was read at the same checkpoint.
+    /// `checkpoint_viewed_at` represents the checkpoint sequence number at
+    /// which this `Object` was constructed in. This is stored on `Object`
+    /// so that when viewing that entity's state, it will be as if it was
+    /// read at the same checkpoint.
     ///
-    /// `root_version` represents the version of the root object in some nested chain of dynamic
-    /// fields. This should typically be left `None`, unless the object(s) being resolved is a
-    /// dynamic field, or if `root_version` has been explicitly set for this object. If None, then
-    /// we use [`version_for_dynamic_fields`] to infer a root version to then propagate from this
-    /// object down to its dynamic fields.
+    /// `root_version` represents the version of the root object in some nested
+    /// chain of dynamic fields. This should typically be left `None`,
+    /// unless the object(s) being resolved is a dynamic field, or if
+    /// `root_version` has been explicitly set for this object. If None, then
+    /// we use [`version_for_dynamic_fields`] to infer a root version to then
+    /// propagate from this object down to its dynamic fields.
     pub(crate) fn from_native(
         address: IotaAddress,
         native: NativeObject,
@@ -748,9 +789,10 @@ impl Object {
 
     /// Creates a ObjectKind::Serialized object from `SerializedObject` type,
     /// which is an optional BCS serialized object.
-    /// If the serialized object is None, then the object is marked as WrappedOrDeleted.
-    /// The `checkpoint_viewed_at` is the checkpoint sequence number at which this object was viewed.
-    /// The `root_version` is the root parent object version for dynamic fields.
+    /// If the serialized object is None, then the object is marked as
+    /// WrappedOrDeleted. The `checkpoint_viewed_at` is the checkpoint
+    /// sequence number at which this object was viewed. The `root_version`
+    /// is the root parent object version for dynamic fields.
     pub(crate) fn new_serialized(
         object_id: IotaAddress,
         version: u64,
@@ -785,9 +827,10 @@ impl Object {
 
     /// Query the database for a `page` of objects, optionally `filter`-ed.
     ///
-    /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this page was
-    /// queried for. Each entity returned in the connection will inherit this checkpoint, so that
-    /// when viewing that entity's state, it will be as if it was read at the same checkpoint.
+    /// `checkpoint_viewed_at` represents the checkpoint sequence number at
+    /// which this page was queried for. Each entity returned in the
+    /// connection will inherit this checkpoint, so that when viewing that
+    /// entity's state, it will be as if it was read at the same checkpoint.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
@@ -797,19 +840,22 @@ impl Object {
         Self::paginate_subtype(db, page, filter, checkpoint_viewed_at, Ok).await
     }
 
-    /// Query the database for a `page` of some sub-type of Object. The page uses the bytes of an
-    /// Object ID and the checkpoint when the query was made as the cursor, and can optionally be
-    /// further `filter`-ed. The subtype is created using the `downcast` function, which is allowed
+    /// Query the database for a `page` of some sub-type of Object. The page
+    /// uses the bytes of an Object ID and the checkpoint when the query was
+    /// made as the cursor, and can optionally be further `filter`-ed. The
+    /// subtype is created using the `downcast` function, which is allowed
     /// to fail, if the downcast has failed.
     ///
-    /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this page was
-    /// queried for. Each entity returned in the connection will inherit this checkpoint, so that
-    /// when viewing that entity's state, it will be as if it was read at the same checkpoint.
+    /// `checkpoint_viewed_at` represents the checkpoint sequence number at
+    /// which this page was queried for. Each entity returned in the
+    /// connection will inherit this checkpoint, so that when viewing that
+    /// entity's state, it will be as if it was read at the same checkpoint.
     ///
-    /// If a `Page<Cursor>` is also provided, then this function will defer to the
-    /// `checkpoint_viewed_at` in the cursors. Otherwise, use the value from the parameter, or set
-    /// to None. This is so that paginated queries are consistent with the previous query that
-    /// created the cursor.
+    /// If a `Page<Cursor>` is also provided, then this function will defer to
+    /// the `checkpoint_viewed_at` in the cursors. Otherwise, use the value
+    /// from the parameter, or set to None. This is so that paginated
+    /// queries are consistent with the previous query that created the
+    /// cursor.
     pub(crate) async fn paginate_subtype<T: OutputType>(
         db: &Db,
         page: Page<Cursor>,
@@ -817,9 +863,10 @@ impl Object {
         checkpoint_viewed_at: u64,
         downcast: impl Fn(Object) -> Result<T, Error>,
     ) -> Result<Connection<String, T>, Error> {
-        // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if they are
-        // consistent. Otherwise, use the value from the parameter, or set to None. This is so that
-        // paginated queries are consistent with the previous query that created the cursor.
+        // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if
+        // they are consistent. Otherwise, use the value from the parameter, or
+        // set to None. This is so that paginated queries are consistent with
+        // the previous query that created the cursor.
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
@@ -851,8 +898,8 @@ impl Object {
 
         let mut conn: Connection<String, T> = Connection::new(prev, next);
         for stored in results {
-            // To maintain consistency, the returned cursor should have the same upper-bound as the
-            // checkpoint found on the cursor.
+            // To maintain consistency, the returned cursor should have the same upper-bound
+            // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let object =
                 Object::try_from_stored_history_object(stored, checkpoint_viewed_at, None)?;
@@ -869,8 +916,8 @@ impl Object {
         }
     }
 
-    /// Look-up the latest version of an object whose version is less than or equal to its parent's
-    /// version, as of a given checkpoint.
+    /// Look-up the latest version of an object whose version is less than or
+    /// equal to its parent's version, as of a given checkpoint.
     pub(crate) fn under_parent(parent_version: u64, checkpoint_viewed_at: u64) -> ObjectLookup {
         ObjectLookup::UnderParent {
             parent_version,
@@ -933,9 +980,9 @@ impl Object {
         }
     }
 
-    /// Query for a singleton object identified by its type. Note: the object is assumed to be a
-    /// singleton (we either find at least one object with this type and then return it, or return
-    /// nothing).
+    /// Query for a singleton object identified by its type. Note: the object is
+    /// assumed to be a singleton (we either find at least one object with
+    /// this type and then return it, or return nothing).
     pub(crate) async fn query_singleton(
         db: &Db,
         type_: StructTag,
@@ -951,15 +998,17 @@ impl Object {
         Ok(connection.edges.into_iter().next().map(|edge| edge.node))
     }
 
-    /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this `Object` was
-    /// constructed in. This is stored on `Object` so that when viewing that entity's state, it will
-    /// be as if it was read at the same checkpoint.
+    /// `checkpoint_viewed_at` represents the checkpoint sequence number at
+    /// which this `Object` was constructed in. This is stored on `Object`
+    /// so that when viewing that entity's state, it will be as if it was
+    /// read at the same checkpoint.
     ///
-    /// `root_version` represents the version of the root object in some nested chain of dynamic
-    /// fields. This should typically be left `None`, unless the object(s) being resolved is a
-    /// dynamic field, or if `root_version` has been explicitly set for this object. If None, then
-    /// we use [`version_for_dynamic_fields`] to infer a root version to then propagate from this
-    /// object down to its dynamic fields.
+    /// `root_version` represents the version of the root object in some nested
+    /// chain of dynamic fields. This should typically be left `None`,
+    /// unless the object(s) being resolved is a dynamic field, or if
+    /// `root_version` has been explicitly set for this object. If None, then
+    /// we use [`version_for_dynamic_fields`] to infer a root version to then
+    /// propagate from this object down to its dynamic fields.
     pub(crate) fn try_from_stored_history_object(
         history_object: StoredHistoryObject,
         checkpoint_viewed_at: u64,
@@ -1005,21 +1054,25 @@ impl Object {
     }
 }
 
-/// We're deliberately choosing to use a child object's version as the root here, and letting the
-/// caller override it with the actual root object's version if it has access to it.
+/// We're deliberately choosing to use a child object's version as the root
+/// here, and letting the caller override it with the actual root object's
+/// version if it has access to it.
 ///
-/// Using the child object's version as the root means that we're seeing the dynamic field tree
-/// under this object at the state resulting from the transaction that produced this version.
+/// Using the child object's version as the root means that we're seeing the
+/// dynamic field tree under this object at the state resulting from the
+/// transaction that produced this version.
 ///
-/// See [`Object::root_version`] for more details on parent/child object version mechanics.
+/// See [`Object::root_version`] for more details on parent/child object version
+/// mechanics.
 fn version_for_dynamic_fields(native: &NativeObject) -> u64 {
     native.as_inner().version().into()
 }
 
 impl ObjectFilter {
-    /// Try to create a filter whose results are the intersection of objects in `self`'s results and
-    /// objects in `other`'s results. This may not be possible if the resulting filter is
-    /// inconsistent in some way (e.g. a filter that requires one field to be two different values
+    /// Try to create a filter whose results are the intersection of objects in
+    /// `self`'s results and objects in `other`'s results. This may not be
+    /// possible if the resulting filter is inconsistent in some way (e.g. a
+    /// filter that requires one field to be two different values
     /// simultaneously).
     pub(crate) fn intersect(self, other: ObjectFilter) -> Option<Self> {
         macro_rules! intersect {
@@ -1028,8 +1081,8 @@ impl ObjectFilter {
             };
         }
 
-        // Treat `object_ids` and `object_keys` as a single filter on IDs, and optionally versions,
-        // and compute the intersection of that.
+        // Treat `object_ids` and `object_keys` as a single filter on IDs, and
+        // optionally versions, and compute the intersection of that.
         let keys = intersect::field(self.keys(), other.keys(), |k, l| {
             let mut combined = BTreeMap::new();
 
@@ -1039,15 +1092,17 @@ impl ObjectFilter {
                 }
             }
 
-            // If the intersection is empty, it means, there were some ID or Key filters in both
-            // `self` and `other`, but they don't overlap, so the final result is inconsistent.
+            // If the intersection is empty, it means, there were some ID or Key filters in
+            // both `self` and `other`, but they don't overlap, so the final
+            // result is inconsistent.
             (!combined.is_empty()).then_some(combined)
         })?;
 
-        // Extract the ID and Key filters back out. At this point, we know that if there were ID/Key
-        // filters in both `self` and `other`, then they intersected to form a consistent set of
-        // constraints, so it is safe to interpret the lack of any ID/Key filters respectively as a
-        // lack of that kind of constraint, rather than a constraint on the empty set.
+        // Extract the ID and Key filters back out. At this point, we know that if there
+        // were ID/Key filters in both `self` and `other`, then they intersected
+        // to form a consistent set of constraints, so it is safe to interpret
+        // the lack of any ID/Key filters respectively as a lack of that kind of
+        // constraint, rather than a constraint on the empty set.
 
         let object_ids = {
             let partition: Vec<_> = keys
@@ -1082,9 +1137,9 @@ impl ObjectFilter {
         })
     }
 
-    /// Extract the Object ID and Key filters into one combined map from Object IDs in this filter,
-    /// to the versions they should have (or None if the filter mentions the ID but no version for
-    /// it).
+    /// Extract the Object ID and Key filters into one combined map from Object
+    /// IDs in this filter, to the versions they should have (or None if the
+    /// filter mentions the ID but no version for it).
     fn keys(&self) -> Option<BTreeMap<IotaAddress, Option<u64>>> {
         if self.object_keys.is_none() && self.object_ids.is_none() {
             return None;
@@ -1101,7 +1156,8 @@ impl ObjectFilter {
         ))
     }
 
-    /// Applies ObjectFilter to the input `RawQuery` and returns a new `RawQuery`.
+    /// Applies ObjectFilter to the input `RawQuery` and returns a new
+    /// `RawQuery`.
     pub(crate) fn apply(&self, mut query: RawQuery) -> RawQuery {
         // Start by applying the filters on IDs and/or keys because they are combined as
         // a disjunction, while the remaining queries are conjunctions.
@@ -1252,7 +1308,8 @@ impl Loader<HistoricalKey> for Db {
             .map(|key| (key.id.into_vec(), key.version as i64))
             .collect();
 
-        // Maps from (object_id, version) to sequence_number in the object_versions table.
+        // Maps from (object_id, version) to sequence_number in the object_versions
+        // table.
         let object_versions: HashMap<_, _> = self
             .execute(move |conn| {
                 async {
@@ -1262,8 +1319,9 @@ impl Loader<HistoricalKey> for Db {
                             .into_boxed();
 
                         for (id, version) in id_versions.iter().cloned() {
-                            // TODO: consider using something other than `or_filter` to avoid returning
-                            // all results when `id_versions` is empty. It is mitigated today by the
+                            // TODO: consider using something other than `or_filter` to avoid
+                            // returning all results when `id_versions`
+                            // is empty. It is mitigated today by the
                             // early return above.
                             query = query
                                 .or_filter(v::object_id.eq(id).and(v::object_version.eq(version)));
@@ -1284,9 +1342,9 @@ impl Loader<HistoricalKey> for Db {
             .filter(|key| {
                 object_versions
                     .get(&(key.id.into_vec(), key.version as i64))
-                    // Filter by key's checkpoint viewed at here. Doing this in memory because it should be
-                    // quite rare that this query actually filters something, but encoding it in SQL is
-                    // complicated.
+                    // Filter by key's checkpoint viewed at here. Doing this in memory because it
+                    // should be quite rare that this query actually filters
+                    // something, but encoding it in SQL is complicated.
                     .is_some_and(|&seq| key.checkpoint_viewed_at >= seq as u64)
             })
             .collect();
@@ -1326,8 +1384,8 @@ impl Loader<ParentVersionKey> for Db {
         &self,
         keys: &[ParentVersionKey],
     ) -> Result<HashMap<ParentVersionKey, Object>, Error> {
-        // Group keys by checkpoint viewed at and parent version -- we'll issue a separate query for
-        // each group.
+        // Group keys by checkpoint viewed at and parent version -- we'll issue a
+        // separate query for each group.
         #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy)]
         struct GroupKey {
             checkpoint_viewed_at: u64,
@@ -1434,7 +1492,8 @@ impl Loader<LatestAtKey> for Db {
     type Error = Error;
 
     async fn load(&self, keys: &[LatestAtKey]) -> Result<HashMap<LatestAtKey, Object>, Error> {
-        // Group keys by checkpoint viewed at -- we'll issue a separate query for each group.
+        // Group keys by checkpoint viewed at -- we'll issue a separate query for each
+        // group.
         let mut keys_by_cursor_and_parent_version: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
 
         for key in keys {
@@ -1536,8 +1595,9 @@ impl Loader<PointLookupKey> for Db {
                             .into_boxed();
 
                         for (id, version) in id_versions.iter() {
-                            // TODO: consider using something other than `or_filter` to avoid returning
-                            // all results when `id_versions` is empty. It is mitigated today by the
+                            // TODO: consider using something other than `or_filter` to avoid
+                            // returning all results when `id_versions`
+                            // is empty. It is mitigated today by the
                             // early return above.
                             query = query.or_filter(
                                 f::object_id
@@ -1615,8 +1675,9 @@ pub(crate) async fn deserialize_move_struct(
         return Err(Error::Internal("Object is not a move struct".to_string()));
     };
 
-    // TODO (annotated-visitor): Use custom visitors for extracting a dynamic field, and for
-    // creating a GraphQL MoveValue directly (not via an annotated visitor).
+    // TODO (annotated-visitor): Use custom visitors for extracting a dynamic field,
+    // and for creating a GraphQL MoveValue directly (not via an annotated
+    // visitor).
     let move_struct = BoundedVisitor::deserialize_struct(contents, &layout).map_err(|e| {
         Error::Internal(format!(
             "Error deserializing move struct for type {}: {e}",
@@ -1627,9 +1688,10 @@ pub(crate) async fn deserialize_move_struct(
     Ok((struct_tag, move_struct))
 }
 
-/// Constructs a raw query to fetch objects from the database. Objects are filtered out if they
-/// satisfy the criteria but have a later version in the same checkpoint. If object keys are
-/// provided, or no filters are specified at all, then this final condition is not applied.
+/// Constructs a raw query to fetch objects from the database. Objects are
+/// filtered out if they satisfy the criteria but have a later version in the
+/// same checkpoint. If object keys are provided, or no filters are specified at
+/// all, then this final condition is not applied.
 fn objects_query(filter: &ObjectFilter, range: AvailableRange, page: &Page<Cursor>) -> RawQuery
 where
 {
@@ -1692,8 +1754,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
+    use super::*;
 
     #[test]
     fn test_owner_filter_intersection() {

@@ -3,29 +3,37 @@
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
-use crate::blob::BlobIter;
-use anyhow::{anyhow, Result};
+use std::{
+    fs,
+    fs::File,
+    io,
+    io::{BufReader, Read, Write},
+    ops::Range,
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
+
+use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::StreamExt;
+use iota_types::{
+    committee::Committee,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
+    },
+    storage::WriteStore,
+};
 use itertools::Itertools;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use std::fs::File;
-use std::io::{BufReader, Read, Write};
-use std::ops::Range;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::{fs, io};
-use iota_types::committee::Committee;
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
-};
-use iota_types::storage::WriteStore;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::debug;
+
+use crate::blob::BlobIter;
 
 pub mod blob;
 pub mod http_key_value_store;
@@ -310,12 +318,13 @@ fn hard_link(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::hard_link;
     use tempfile::TempDir;
-    use typed_store::rocks::DBMap;
-    use typed_store::rocks::ReadWriteOptions;
-    use typed_store::rocks::{open_cf, MetricConf};
-    use typed_store::{reopen, Map};
+    use typed_store::{
+        Map, reopen,
+        rocks::{DBMap, MetricConf, ReadWriteOptions, open_cf},
+    };
+
+    use crate::hard_link;
 
     #[tokio::test]
     pub async fn test_db_hard_link() -> anyhow::Result<()> {
@@ -328,12 +337,9 @@ mod tests {
         const FIRST_CF: &str = "First_CF";
         const SECOND_CF: &str = "Second_CF";
 
-        let db_a = open_cf(
-            input_path,
-            None,
-            MetricConf::new("test_db_hard_link_1"),
-            &[FIRST_CF, SECOND_CF],
-        )
+        let db_a = open_cf(input_path, None, MetricConf::new("test_db_hard_link_1"), &[
+            FIRST_CF, SECOND_CF,
+        ])
         .unwrap();
 
         let (db_map_1, db_map_2) = reopen!(&db_a, FIRST_CF;<i32, String>, SECOND_CF;<i32, String>);
@@ -356,12 +362,16 @@ mod tests {
 
         let (db_map_1, db_map_2) = reopen!(&db_b, FIRST_CF;<i32, String>, SECOND_CF;<i32, String>);
         for i in 1..100 {
-            assert!(db_map_1
-                .contains_key(&i)
-                .expect("Failed to call contains key"));
-            assert!(db_map_2
-                .contains_key(&i)
-                .expect("Failed to call contains key"));
+            assert!(
+                db_map_1
+                    .contains_key(&i)
+                    .expect("Failed to call contains key")
+            );
+            assert!(
+                db_map_2
+                    .contains_key(&i)
+                    .expect("Failed to call contains key")
+            );
         }
 
         Ok(())

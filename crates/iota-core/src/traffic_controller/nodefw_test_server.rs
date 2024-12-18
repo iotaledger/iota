@@ -2,18 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::traffic_controller::nodefw_client::{BlockAddress, BlockAddresses};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
+
 use axum::{
+    Json, Router,
     extract::State,
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
-use std::time::{Duration, SystemTime};
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-use tokio::sync::{Mutex, Notify};
-use tokio::task::JoinHandle;
+use tokio::{
+    sync::{Mutex, Notify},
+    task::JoinHandle,
+};
+
+use crate::traffic_controller::nodefw_client::{BlockAddress, BlockAddresses};
 
 #[derive(Clone)]
 struct AppState {

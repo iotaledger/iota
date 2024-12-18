@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fs::create_dir_all, io::Write, path::Path};
+
 use clap::Parser;
 use move_cli::base::new;
 use move_package::source_package::layout::SourcePackageLayout;
-use std::{fs::create_dir_all, io::Write, path::Path};
 
 const IOTA_PKG_NAME: &str = "Iota";
 
-// Use testnet by default. Probably want to add options to make this configurable later
+// Use testnet by default. Probably want to add options to make this
+// configurable later
 const IOTA_PKG_PATH: &str = "{ git = \"https://github.com/iotaledger/iota.git\", subdir = \"crates/iota-framework/packages/iota-framework\", rev = \"framework/testnet\" }";
 
 #[derive(Parser)]

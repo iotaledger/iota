@@ -2,17 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::cluster::new_wallet_context_from_cluster;
+use iota_keys::keystore::AccountKeystore;
+use iota_sdk::{IotaClient, IotaClientBuilder, wallet_context::WalletContext};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{KeypairTraits, Signature},
+    transaction::TransactionData,
+};
+use shared_crypto::intent::Intent;
+use tracing::{Instrument, info, info_span};
 
 use super::Cluster;
-use shared_crypto::intent::Intent;
-use iota_keys::keystore::AccountKeystore;
-use iota_sdk::wallet_context::WalletContext;
-use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{KeypairTraits, Signature};
-use iota_types::transaction::TransactionData;
-use tracing::{info, info_span, Instrument};
+use crate::cluster::new_wallet_context_from_cluster;
 
 pub struct WalletClient {
     wallet_context: WalletContext,

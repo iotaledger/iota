@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
+use async_trait::async_trait;
 use futures::future::try_join_all;
 use iota_sdk::IotaClient;
 
 use crate::payload::{GetReferenceGasPrice, ProcessPayload, RpcCommandProcessor, SignerInfo};
-use async_trait::async_trait;
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a GetReferenceGasPrice> for RpcCommandProcessor {

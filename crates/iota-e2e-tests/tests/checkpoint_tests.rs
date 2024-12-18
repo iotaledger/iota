@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::time::Duration;
-use iota_macros::register_fail_point;
-use iota_macros::register_fail_point_if;
-use iota_macros::sim_test;
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
+
+use iota_macros::{register_fail_point, register_fail_point_if, sim_test};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use test_cluster::TestClusterBuilder;
 
@@ -47,9 +48,9 @@ async fn basic_checkpoints_integration_test() {
 async fn test_checkpoint_split_brain() {
     #[cfg(msim)]
     {
-        // this test intentionally halts the network by causing a fork, so we cannot panic on
-        // loss of liveness
-        use iota_core::authority::{init_checkpoint_timeout_config, CheckpointTimeoutConfig};
+        // this test intentionally halts the network by causing a fork, so we cannot
+        // panic on loss of liveness
+        use iota_core::authority::{CheckpointTimeoutConfig, init_checkpoint_timeout_config};
         init_checkpoint_timeout_config(CheckpointTimeoutConfig {
             warning_timeout: Duration::from_secs(2),
             panic_timeout: None,

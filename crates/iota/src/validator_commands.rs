@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, bail, Result};
-use move_core_types::ident_str;
 use std::{
     collections::{BTreeMap, HashSet},
     fmt::{self, Debug, Display, Formatter, Write},
@@ -11,56 +9,58 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
-use iota_genesis_builder::validator_info::GenesisValidatorInfo;
-use url::{ParseError, Url};
 
-use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
-    crypto::{AuthorityPublicKey, NetworkPublicKey, Signable, DEFAULT_EPOCH_ID},
-    dynamic_field::Field,
-    multiaddr::Multiaddr,
-    object::Owner,
-    iota_system_state::{
-        iota_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
-        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
-    },
-    IOTA_SYSTEM_PACKAGE_ID,
-};
-use tap::tap::TapOptional;
-
-use crate::fire_drill::get_gas_obj_ref;
+use anyhow::{Result, anyhow, bail};
 use clap::*;
 use colored::Colorize;
-use fastcrypto::traits::ToFromBytes;
 use fastcrypto::{
     encoding::{Base64, Encoding},
-    traits::KeyPair,
+    traits::{KeyPair, ToFromBytes},
 };
-use serde::Serialize;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use iota_bridge::metrics::BridgeMetrics;
-use iota_bridge::iota_client::IotaClient as IotaBridgeClient;
-use iota_bridge::iota_transaction_builder::{
-    build_committee_register_transaction, build_committee_update_url_transaction,
+use iota_bridge::{
+    iota_client::IotaClient as IotaBridgeClient,
+    iota_transaction_builder::{
+        build_committee_register_transaction, build_committee_update_url_transaction,
+    },
+    metrics::BridgeMetrics,
 };
+use iota_genesis_builder::validator_info::GenesisValidatorInfo;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
-        read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
-        write_authority_keypair_to_file, write_keypair_to_file,
+        read_authority_keypair_from_file, read_key, read_keypair_from_file,
+        read_network_keypair_from_file, write_authority_keypair_to_file, write_keypair_to_file,
     },
+    keystore::AccountKeystore,
 };
-use iota_keys::{keypair_file::read_key, keystore::AccountKeystore};
-use iota_sdk::wallet_context::WalletContext;
-use iota_sdk::IotaClient;
-use iota_types::crypto::{
-    generate_proof_of_possession, get_authority_key_pair, AuthorityPublicKeyBytes,
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
+        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
+        generate_proof_of_possession, get_authority_key_pair,
+    },
+    dynamic_field::Field,
+    iota_system_state::{
+        iota_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    },
+    multiaddr::Multiaddr,
+    object::Owner,
+    transaction::{CallArg, ObjectArg, Transaction, TransactionData},
 };
-use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, SignatureScheme, IotaKeyPair};
-use iota_types::transaction::{CallArg, ObjectArg, Transaction, TransactionData};
+use move_core_types::ident_str;
+use serde::Serialize;
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
+use tap::tap::TapOptional;
+use url::{ParseError, Url};
+
+use crate::fire_drill::get_gas_obj_ref;
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -117,9 +117,10 @@ pub enum IotaValidatorCommand {
     /// Update gas price that is used to calculate Reference Gas Price
     #[clap(name = "update-gas-price")]
     UpdateGasPrice {
-        /// Optional when sender is the validator itself and it holds the Cap object.
-        /// Required when sender is not the validator itself.
-        /// Validator's OperationCap ID can be found by using the `display-metadata` subcommand.
+        /// Optional when sender is the validator itself and it holds the Cap
+        /// object. Required when sender is not the validator itself.
+        /// Validator's OperationCap ID can be found by using the
+        /// `display-metadata` subcommand.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: Option<ObjectID>,
         #[clap(name = "gas-price")]
@@ -131,9 +132,10 @@ pub enum IotaValidatorCommand {
     /// Report or un-report a validator.
     #[clap(name = "report-validator")]
     ReportValidator {
-        /// Optional when sender is reporter validator itself and it holds the Cap object.
-        /// Required when sender is not the reporter validator itself.
-        /// Validator's OperationCap ID can be found by using the `display-metadata` subcommand.
+        /// Optional when sender is reporter validator itself and it holds the
+        /// Cap object. Required when sender is not the reporter
+        /// validator itself. Validator's OperationCap ID can be found
+        /// by using the `display-metadata` subcommand.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: Option<ObjectID>,
         /// The Iota Address of the validator is being reported or un-reported
@@ -147,7 +149,8 @@ pub enum IotaValidatorCommand {
         gas_budget: Option<u64>,
     },
     /// Serialize the payload that is used to generate Proof of Possession.
-    /// This is useful to take the payload offline for an Authority protocol keypair to sign.
+    /// This is useful to take the payload offline for an Authority protocol
+    /// keypair to sign.
     #[clap(name = "serialize-payload-pop")]
     SerializePayloadForPoP {
         /// Authority account address encoded in hex with 0x prefix.
@@ -157,12 +160,14 @@ pub enum IotaValidatorCommand {
         #[clap(name = "protocol-public-key", long)]
         protocol_public_key: AuthorityPublicKeyBytes,
     },
-    /// Print out the serialized data of a transaction that sets the gas price quote for a validator.
+    /// Print out the serialized data of a transaction that sets the gas price
+    /// quote for a validator.
     DisplayGasPriceUpdateRawTxn {
         /// Address of the transaction sender.
         #[clap(name = "sender-address", long)]
         sender_address: IotaAddress,
-        /// Object ID of a validator's OperationCap, used for setting gas price and reportng validators.
+        /// Object ID of a validator's OperationCap, used for setting gas price
+        /// and reportng validators.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: ObjectID,
         /// Gas price to be set to.
@@ -545,7 +550,10 @@ impl IotaValidatorCommand {
                 {
                     bail!("Address {} is not in the committee", address);
                 }
-                println!("Starting bridge committee registration for Iota validator: {address}, with bridge public key: {} and url: {}", ecdsa_keypair.public, bridge_authority_url);
+                println!(
+                    "Starting bridge committee registration for Iota validator: {address}, with bridge public key: {} and url: {}",
+                    ecdsa_keypair.public, bridge_authority_url
+                );
                 let iota_rpc_url = &context.config.get_active_env().unwrap().rpc;
                 let bridge_metrics = Arc::new(BridgeMetrics::new_for_testing());
                 let bridge_client = IotaBridgeClient::new(iota_rpc_url, bridge_metrics).await?;
@@ -720,8 +728,9 @@ async fn get_cap_object_ref(
         let (status, summary) = get_validator_summary(&iota_client, validator_address)
             .await?
             .ok_or_else(|| anyhow::anyhow!("{} is not a validator.", validator_address))?;
-        // TODO we should allow validator to perform this operation even though the Cap is not at hand.
-        // But for now we need to make sure the cap is owned by the sender.
+        // TODO we should allow validator to perform this operation even though the Cap
+        // is not at hand. But for now we need to make sure the cap is owned by
+        // the sender.
         let cap_object_id = summary.operation_cap_id;
         let resp = iota_client
             .read_api()
@@ -798,7 +807,10 @@ async fn get_validator_summary_from_cap_id(
 ) -> anyhow::Result<(ValidatorStatus, IotaValidatorSummary)> {
     let resp = client
         .read_api()
-        .get_object_with_options(operation_cap_id, IotaObjectDataOptions::default().with_bcs())
+        .get_object_with_options(
+            operation_cap_id,
+            IotaObjectDataOptions::default().with_bcs(),
+        )
         .await?;
     let bcs = resp.move_object_bcs().ok_or_else(|| {
         anyhow::anyhow!(
@@ -948,7 +960,8 @@ impl Display for IotaValidatorCommandResponse {
 pub fn write_transaction_response(
     response: &IotaTransactionBlockResponse,
 ) -> Result<String, fmt::Error> {
-    // we requested with for full_content, so the following content should be available.
+    // we requested with for full_content, so the following content should be
+    // available.
     let success = response.status_ok().unwrap();
     let lines = vec![
         String::from("----- Transaction Digest ----"),
@@ -1084,7 +1097,8 @@ async fn get_pending_candidate_summary(
         )
         .await?;
     for resp in resps {
-        // We always expect an objectId from the response as one of data/error should be included.
+        // We always expect an objectId from the response as one of data/error should be
+        // included.
         let object_id = resp.object_id()?;
         let bcs = resp.move_object_bcs().ok_or_else(|| {
             anyhow::anyhow!(
@@ -1135,7 +1149,8 @@ pub enum MetadataUpdate {
         #[clap(name = "worker-key-path")]
         file: PathBuf,
     },
-    /// Update Protocol Public Key and Proof and Possession. Effectuate from next epoch.
+    /// Update Protocol Public Key and Proof and Possession. Effectuate from
+    /// next epoch.
     ProtocolPubKey {
         #[clap(name = "protocol-key-path")]
         file: PathBuf,
@@ -1299,5 +1314,8 @@ async fn check_status(
     if allowed_status.contains(&status) {
         return Ok(status);
     }
-    bail!("Validator {validator_address} is {:?}, this operation is not supported in this tool or prohibited.", status)
+    bail!(
+        "Validator {validator_address} is {:?}, this operation is not supported in this tool or prohibited.",
+        status
+    )
 }

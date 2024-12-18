@@ -2,12 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::Registry;
-use std::net::{IpAddr, SocketAddr};
-use std::sync::{Arc, Weak};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::{Arc, Weak},
+};
+
 use iota_config::NodeConfig;
 use iota_node::{IotaNode, IotaNodeHandle};
 use iota_types::base_types::ConciseableName;
+use prometheus::Registry;
 use tokio::sync::watch;
 use tracing::{info, trace};
 
@@ -25,7 +28,8 @@ struct ContainerHandle {
     node_id: iota_simulator::task::NodeId,
 }
 
-/// When dropped, stop and wait for the node running in this Container to completely shutdown.
+/// When dropped, stop and wait for the node running in this Container to
+/// completely shutdown.
 impl Drop for Container {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
@@ -92,14 +96,14 @@ impl Container {
         Some(IotaNodeHandle::new(self.node_watch.borrow().upgrade()?))
     }
 
-    /// Check to see that the Node is still alive by checking if the receiving side of the
-    /// `cancel_sender` has been dropped.
-    ///
+    /// Check to see that the Node is still alive by checking if the receiving
+    /// side of the `cancel_sender` has been dropped.
     pub fn is_alive(&self) -> bool {
         if let Some(cancel_sender) = &self.cancel_sender {
-            // unless the node is deleted, it keeps a reference to its start up function, which
-            // keeps 1 receiver alive. If the node is actually running, the cloned receiver will
-            // also be alive, and receiver count will be 2.
+            // unless the node is deleted, it keeps a reference to its start up function,
+            // which keeps 1 receiver alive. If the node is actually running,
+            // the cloned receiver will also be alive, and receiver count will
+            // be 2.
             cancel_sender.receiver_count() > 1
         } else {
             false

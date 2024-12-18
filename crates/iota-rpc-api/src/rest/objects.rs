@@ -2,25 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::{GetObjectOptions, ObjectResponse};
+use axum::extract::{Path, Query, State};
+use iota_sdk_types::types::{Object, ObjectId, TypeTag, Version};
+use iota_types::{
+    iota_sdk_types_conversions::{SdkTypeConversionError, type_tag_core_to_sdk},
+    storage::{DynamicFieldIndexInfo, DynamicFieldKey},
+};
+use serde::{Deserialize, Serialize};
+use tap::Pipe;
+
 use crate::{
+    Result, RpcService, RpcServiceError,
     reader::StateReader,
     response::ResponseContent,
-    rest::accept::AcceptFormat,
-    rest::openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
-    rest::Page,
-    Result, RpcService, RpcServiceError,
+    rest::{
+        Page,
+        accept::AcceptFormat,
+        openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
+    },
+    types::{GetObjectOptions, ObjectResponse},
 };
-use axum::extract::Query;
-use axum::extract::{Path, State};
-use serde::{Deserialize, Serialize};
-use iota_sdk_types::types::{Object, ObjectId, TypeTag, Version};
-use iota_types::iota_sdk_types_conversions::type_tag_core_to_sdk;
-use iota_types::{
-    storage::{DynamicFieldIndexInfo, DynamicFieldKey},
-    iota_sdk_types_conversions::SdkTypeConversionError,
-};
-use tap::Pipe;
 
 pub struct GetObject;
 
@@ -176,7 +177,7 @@ async fn list_dynamic_fields(
             return Err(RpcServiceError::new(
                 axum::http::StatusCode::BAD_REQUEST,
                 "invalid accept type",
-            ))
+            ));
         }
     }
 
@@ -190,8 +191,8 @@ async fn list_dynamic_fields(
         .collect::<Result<Vec<_>, _>>()?;
 
     let cursor = if dynamic_fields.len() > limit {
-        // SAFETY: We've already verified that object_keys is greater than limit, which is
-        // gaurenteed to be >= 1.
+        // SAFETY: We've already verified that object_keys is greater than limit, which
+        // is gaurenteed to be >= 1.
         dynamic_fields
             .pop()
             .unwrap()
@@ -232,9 +233,10 @@ pub struct DynamicFieldInfo {
     pub field_id: ObjectId,
     pub dynamic_field_type: DynamicFieldType,
     pub name_type: TypeTag,
-    //TODO fix the json format of this type to be base64 encoded
+    // TODO fix the json format of this type to be base64 encoded
     pub name_value: Vec<u8>,
-    /// ObjectId of the child object when `dynamic_field_type == DynamicFieldType::Object`
+    /// ObjectId of the child object when `dynamic_field_type ==
+    /// DynamicFieldType::Object`
     pub dynamic_object_id: Option<ObjectId>,
 }
 

@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{BigTableClient, KeyValueStoreWriter, TransactionData};
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_types::full_checkpoint_content::CheckpointData;
+
+use crate::{BigTableClient, KeyValueStoreWriter, TransactionData};
 
 pub struct KvWorker {
     pub client: BigTableClient,

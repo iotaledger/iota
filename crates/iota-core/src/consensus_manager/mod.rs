@@ -1,29 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::consensus_adapter::{BlockStatusReceiver, ConsensusClient};
-use crate::consensus_handler::ConsensusHandlerInitializer;
-use crate::consensus_manager::mysticeti_manager::MysticetiManager;
-use crate::consensus_validator::IotaTxValidator;
-use crate::mysticeti_adapter::LazyMysticetiClient;
+use std::{
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::traits::KeyPair as _;
-use iota_metrics::RegistryService;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use iota_config::{ConsensusConfig, NodeConfig};
+use iota_metrics::RegistryService;
 use iota_protocol_config::ProtocolVersion;
-use iota_types::committee::EpochId;
-use iota_types::error::IotaResult;
-use iota_types::messages_consensus::ConsensusTransaction;
-use tokio::sync::{Mutex, MutexGuard};
-use tokio::time::{sleep, timeout};
+use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use tokio::{
+    sync::{Mutex, MutexGuard},
+    time::{sleep, timeout},
+};
 use tracing::info;
+
+use crate::{
+    authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    consensus_adapter::{BlockStatusReceiver, ConsensusClient},
+    consensus_handler::ConsensusHandlerInitializer,
+    consensus_manager::mysticeti_manager::MysticetiManager,
+    consensus_validator::IotaTxValidator,
+    mysticeti_adapter::LazyMysticetiClient,
+};
 
 pub mod mysticeti_manager;
 
@@ -163,8 +169,9 @@ impl ConsensusManagerTrait for ConsensusManager {
     }
 }
 
-/// A ConsensusClient that can be updated internally at any time. This usually happening during epoch
-/// change where a client is set after the new consensus is started for the new epoch.
+/// A ConsensusClient that can be updated internally at any time. This usually
+/// happening during epoch change where a client is set after the new consensus
+/// is started for the new epoch.
 #[derive(Default)]
 pub struct UpdatableConsensusClient {
     // An extra layer of Arc<> is needed as required by ArcSwapAny.
@@ -309,7 +316,10 @@ impl Drop for RunningLockGuard<'_> {
         match *self.state_guard {
             // consensus was running and now will have to be marked as shutdown
             Running::True(epoch, version) => {
-                tracing::info!("Consensus shutdown for epoch {epoch:?} & protocol version {version:?} is complete - took {} seconds", self.start.elapsed().as_secs_f64());
+                tracing::info!(
+                    "Consensus shutdown for epoch {epoch:?} & protocol version {version:?} is complete - took {} seconds",
+                    self.start.elapsed().as_secs_f64()
+                );
 
                 self.metrics
                     .shutdown_latency
@@ -320,10 +330,11 @@ impl Drop for RunningLockGuard<'_> {
             // consensus was not running and now will be marked as started
             Running::False => {
                 tracing::info!(
-                "Starting up consensus for epoch {} & protocol version {:?} is complete - took {} seconds",
-                self.epoch.unwrap(),
-                self.protocol_version.unwrap(),
-                self.start.elapsed().as_secs_f64());
+                    "Starting up consensus for epoch {} & protocol version {:?} is complete - took {} seconds",
+                    self.epoch.unwrap(),
+                    self.protocol_version.unwrap(),
+                    self.start.elapsed().as_secs_f64()
+                );
 
                 self.metrics
                     .start_latency

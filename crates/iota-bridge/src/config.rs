@@ -2,41 +2,43 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abi::EthBridgeConfig;
-use crate::crypto::BridgeAuthorityKeyPair;
-use crate::error::BridgeError;
-use crate::eth_client::EthClient;
-use crate::metered_eth_provider::new_metered_eth_provider;
-use crate::metered_eth_provider::MeteredEthHttpProvier;
-use crate::metrics::BridgeMetrics;
-use crate::iota_client::IotaClient;
-use crate::types::{is_route_valid, BridgeAction};
-use crate::utils::get_eth_contract_addresses;
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
+
 use anyhow::anyhow;
-use ethers::providers::Middleware;
-use ethers::types::Address as EthAddress;
-use futures::{future, StreamExt};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use std::collections::BTreeMap;
-use std::collections::HashSet;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
+use ethers::{providers::Middleware, types::Address as EthAddress};
+use futures::{StreamExt, future};
 use iota_config::Config;
 use iota_json_rpc_types::Coin;
 use iota_keys::keypair_file::read_key;
-use iota_sdk::apis::CoinReadApi;
-use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder};
-use iota_types::base_types::ObjectRef;
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::bridge::BridgeChainId;
-use iota_types::crypto::KeypairTraits;
-use iota_types::crypto::{get_key_pair_from_rng, NetworkKeyPair, IotaKeyPair};
-use iota_types::digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier};
-use iota_types::event::EventID;
-use iota_types::object::Owner;
+use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder, apis::CoinReadApi};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    bridge::BridgeChainId,
+    crypto::{IotaKeyPair, KeypairTraits, NetworkKeyPair, get_key_pair_from_rng},
+    digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier},
+    event::EventID,
+    object::Owner,
+};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use tracing::info;
+
+use crate::{
+    abi::EthBridgeConfig,
+    crypto::BridgeAuthorityKeyPair,
+    error::BridgeError,
+    eth_client::EthClient,
+    iota_client::IotaClient,
+    metered_eth_provider::{MeteredEthHttpProvier, new_metered_eth_provider},
+    metrics::BridgeMetrics,
+    types::{BridgeAction, is_route_valid},
+    utils::get_eth_contract_addresses,
+};
 
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -52,15 +54,16 @@ pub struct EthConfig {
     /// It is required when `run_client` is true. Usually this is
     /// the block number when the bridge contracts are deployed.
     /// When BridgeNode starts, it reads the contract watermark from storage.
-    /// If the watermark is not found, it will start from this fallback block number.
-    /// If the watermark is found, it will start from the watermark.
+    /// If the watermark is not found, it will start from this fallback block
+    /// number. If the watermark is found, it will start from the watermark.
     /// this v.s.`eth_contracts_start_block_override`:
     pub eth_contracts_start_block_fallback: Option<u64>,
     /// The starting block for EthSyncer to monitor eth contracts. It overrides
-    /// the watermark in storage. This is useful when we want to reprocess the events
-    /// from a specific block number.
-    /// Note: this field has to be reset after starting the BridgeNode, otherwise it will
-    /// reprocess the events from this block number every time it starts.
+    /// the watermark in storage. This is useful when we want to reprocess the
+    /// events from a specific block number.
+    /// Note: this field has to be reset after starting the BridgeNode,
+    /// otherwise it will reprocess the events from this block number every
+    /// time it starts.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub eth_contracts_start_block_override: Option<u64>,
 }
@@ -74,22 +77,25 @@ pub struct IotaConfig {
     /// The expected BridgeChainId on Iota side.
     pub iota_bridge_chain_id: u8,
     /// Path of the file where bridge client key (any IotaKeyPair) is stored.
-    /// If `run_client` is true, and this is None, then use `bridge_authority_key_path` as client key.
+    /// If `run_client` is true, and this is None, then use
+    /// `bridge_authority_key_path` as client key.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bridge_client_key_path: Option<PathBuf>,
-    /// The gas object to use for paying for gas fees for the client. It needs to
-    /// be owned by the address associated with bridge client key. If not set
-    /// and `run_client` is true, it will query and use the gas object with highest
-    /// amount for the account.
+    /// The gas object to use for paying for gas fees for the client. It needs
+    /// to be owned by the address associated with bridge client key. If not
+    /// set and `run_client` is true, it will query and use the gas object
+    /// with highest amount for the account.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bridge_client_gas_object: Option<ObjectID>,
     /// Override the last processed EventID for bridge module `bridge`.
-    /// When set, IotaSyncer will start from this cursor (exclusively) instead of the one in storage.
-    /// If the cursor is not found in storage or override, the query will start from genesis.
-    /// Key: iota module, Value: last processed EventID (tx_digest, event_seq).
-    /// Note 1: This field should be rarely used. Only use it when you understand how to follow up.
-    /// Note 2: the EventID needs to be valid, namely it must exist and matches the filter.
-    /// Otherwise, it will miss one event because of fullnode Event query semantics.
+    /// When set, IotaSyncer will start from this cursor (exclusively) instead
+    /// of the one in storage. If the cursor is not found in storage or
+    /// override, the query will start from genesis. Key: iota module,
+    /// Value: last processed EventID (tx_digest, event_seq). Note 1: This
+    /// field should be rarely used. Only use it when you understand how to
+    /// follow up. Note 2: the EventID needs to be valid, namely it must
+    /// exist and matches the filter. Otherwise, it will miss one event
+    /// because of fullnode Event query semantics.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub iota_bridge_module_last_processed_event_id_override: Option<EventID>,
 }
@@ -110,7 +116,8 @@ pub struct BridgeNodeConfig {
     /// Path of the client storage. Required when `run_client` is true.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub db_path: Option<PathBuf>,
-    /// A list of approved governance actions. Action in this list will be signed when requested by client.
+    /// A list of approved governance actions. Action in this list will be
+    /// signed when requested by client.
     pub approved_governance_actions: Vec<BridgeAction>,
     /// Iota configuration
     pub iota: IotaConfig,
@@ -170,8 +177,9 @@ impl BridgeNodeConfig {
 
         // we do this check here instead of `prepare_for_iota` below because
         // that is only called when `run_client` is true.
-        let iota_client =
-            Arc::new(IotaClient::<IotaSdkClient>::new(&self.iota.iota_rpc_url, metrics.clone()).await?);
+        let iota_client = Arc::new(
+            IotaClient::<IotaSdkClient>::new(&self.iota.iota_rpc_url, metrics.clone()).await?,
+        );
         let bridge_committee = iota_client
             .get_bridge_committee()
             .await
@@ -237,7 +245,8 @@ impl BridgeNodeConfig {
             eth_client: eth_client.clone(),
             db_path,
             eth_contracts,
-            // in `prepare_for_eth` we check if this is None when `run_client` is true. Safe to unwrap here.
+            // in `prepare_for_eth` we check if this is None when `run_client` is true. Safe to
+            // unwrap here.
             eth_contracts_start_block_fallback: self
                 .eth
                 .eth_contracts_start_block_fallback
@@ -388,7 +397,12 @@ impl BridgeNodeConfig {
             .get_gas_data_panic_if_not_gas(gas_object_id)
             .await;
         if owner != Owner::AddressOwner(client_iota_address) {
-            return Err(anyhow!("Gas object {:?} is not owned by bridge client key's associated iota address {:?}, but {:?}", gas_object_id, client_iota_address, owner));
+            return Err(anyhow!(
+                "Gas object {:?} is not owned by bridge client key's associated iota address {:?}, but {:?}",
+                gas_object_id,
+                client_iota_address,
+                owner
+            ));
         }
         let balance = gas_coin.value();
         metrics.gas_coin_balance.set(balance as i64);
@@ -408,7 +422,8 @@ pub struct BridgeServerConfig {
     pub metrics_port: u16,
     pub iota_client: Arc<IotaClient<IotaSdkClient>>,
     pub eth_client: Arc<EthClient<MeteredEthHttpProvier>>,
-    /// A list of approved governance actions. Action in this list will be signed when requested by client.
+    /// A list of approved governance actions. Action in this list will be
+    /// signed when requested by client.
     pub approved_governance_actions: Vec<BridgeAction>,
 }
 

@@ -2,45 +2,52 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::IndexerConfig;
-use crate::eth_bridge_indexer::{
-    EthDataMapper, EthFinalizedSyncDatasource, EthSubscriptionDatasource,
+use std::{
+    fmt::{Display, Formatter},
+    str::FromStr,
+    sync::Arc,
 };
-use crate::metrics::BridgeIndexerMetrics;
-use crate::models::GovernanceAction as DBGovernanceAction;
-use crate::models::TokenTransferData as DBTokenTransferData;
-use crate::models::{IotaErrorTransactions, TokenTransfer as DBTokenTransfer};
-use crate::postgres_manager::PgPool;
-use crate::storage::PgBridgePersistent;
-use crate::iota_bridge_indexer::IotaBridgeDataMapper;
-use ethers::providers::{Http, Provider};
-use ethers::types::Address as EthAddress;
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
-use std::sync::Arc;
-use strum_macros::Display;
-use iota_bridge::eth_client::EthClient;
-use iota_bridge::metered_eth_provider::MeteredEthHttpProvier;
-use iota_bridge::metrics::BridgeMetrics;
-use iota_bridge::utils::get_eth_contract_addresses;
+
+use ethers::{
+    providers::{Http, Provider},
+    types::Address as EthAddress,
+};
+use iota_bridge::{
+    eth_client::EthClient, metered_eth_provider::MeteredEthHttpProvier, metrics::BridgeMetrics,
+    utils::get_eth_contract_addresses,
+};
 use iota_data_ingestion_core::DataIngestionMetrics;
-use iota_indexer_builder::indexer_builder::{BackfillStrategy, Datasource, Indexer, IndexerBuilder};
-use iota_indexer_builder::metrics::IndexerMetricProvider;
-use iota_indexer_builder::progress::{
-    OutOfOrderSaveAfterDurationPolicy, ProgressSavingPolicy, SaveAfterDurationPolicy,
+use iota_indexer_builder::{
+    indexer_builder::{BackfillStrategy, Datasource, Indexer, IndexerBuilder},
+    iota_datasource::IotaCheckpointDatasource,
+    metrics::IndexerMetricProvider,
+    progress::{OutOfOrderSaveAfterDurationPolicy, ProgressSavingPolicy, SaveAfterDurationPolicy},
 };
-use iota_indexer_builder::iota_datasource::IotaCheckpointDatasource;
 use iota_sdk::IotaClientBuilder;
 use iota_types::base_types::{IotaAddress, TransactionDigest};
+use strum_macros::Display;
+
+use crate::{
+    config::IndexerConfig,
+    eth_bridge_indexer::{EthDataMapper, EthFinalizedSyncDatasource, EthSubscriptionDatasource},
+    iota_bridge_indexer::IotaBridgeDataMapper,
+    metrics::BridgeIndexerMetrics,
+    models::{
+        GovernanceAction as DBGovernanceAction, IotaErrorTransactions,
+        TokenTransfer as DBTokenTransfer, TokenTransferData as DBTokenTransferData,
+    },
+    postgres_manager::PgPool,
+    storage::PgBridgePersistent,
+};
 
 pub mod config;
+pub mod iota_transaction_handler;
+pub mod iota_transaction_queries;
 pub mod metrics;
 pub mod models;
 pub mod postgres_manager;
 pub mod schema;
 pub mod storage;
-pub mod iota_transaction_handler;
-pub mod iota_transaction_queries;
 pub mod types;
 
 pub mod eth_bridge_indexer;

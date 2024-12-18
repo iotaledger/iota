@@ -6,18 +6,23 @@ use std::net::{IpAddr, SocketAddr};
 
 use anyhow::Result;
 use fastcrypto::traits::KeyPair;
-use rand::{rngs::StdRng, SeedableRng};
-use serde::{Deserialize, Serialize};
-use iota_config::genesis::{GenesisCeremonyParameters, TokenAllocation};
-use iota_config::node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE};
-use iota_config::{local_ip_utils, Config};
-use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{
-    generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-    AuthorityPublicKeyBytes, NetworkKeyPair, NetworkPublicKey, PublicKey, IotaKeyPair,
+use iota_config::{
+    Config,
+    genesis::{GenesisCeremonyParameters, TokenAllocation},
+    local_ip_utils,
+    node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_types::multiaddr::Multiaddr;
+use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
+        NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
+    },
+    multiaddr::Multiaddr,
+};
+use rand::{SeedableRng, rngs::StdRng};
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 // All information needed to build a NodeConfig for a state sync fullnode.
@@ -99,10 +104,11 @@ pub struct ValidatorGenesisConfigBuilder {
     account_key_pair: Option<AccountKeyPair>,
     ip: Option<String>,
     gas_price: Option<u64>,
-    /// If set, the validator will use deterministic addresses based on the port offset.
-    /// This is useful for benchmarking.
+    /// If set, the validator will use deterministic addresses based on the port
+    /// offset. This is useful for benchmarking.
     port_offset: Option<u16>,
-    /// Whether to use a specific p2p listen ip address. This is useful for testing on AWS.
+    /// Whether to use a specific p2p listen ip address. This is useful for
+    /// testing on AWS.
     p2p_listen_ip_address: Option<IpAddr>,
 }
 
@@ -296,8 +302,8 @@ const DEFAULT_NUMBER_OF_ACCOUNT: usize = 5;
 pub const DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT: usize = 5;
 
 impl GenesisConfig {
-    /// A predictable rng seed used to generate benchmark configs. This seed may also be needed
-    /// by other crates (e.g. the load generators).
+    /// A predictable rng seed used to generate benchmark configs. This seed may
+    /// also be needed by other crates (e.g. the load generators).
     pub const BENCHMARKS_RNG_SEED: u64 = 0;
     /// Port offset for benchmarks' genesis configs.
     pub const BENCHMARKS_PORT_OFFSET: u16 = 2000;
@@ -350,12 +356,15 @@ impl GenesisConfig {
         }
     }
 
-    /// Generate a genesis config allowing to easily bootstrap a network for benchmarking purposes. This
-    /// function is ultimately used to print the genesis blob and all validators configs. All keys and
-    /// parameters are predictable to facilitate benchmarks orchestration. Only the main ip addresses of
-    /// the validators are specified (as those are often dictated by the cloud provider hosing the testbed).
+    /// Generate a genesis config allowing to easily bootstrap a network for
+    /// benchmarking purposes. This function is ultimately used to print the
+    /// genesis blob and all validators configs. All keys and parameters are
+    /// predictable to facilitate benchmarks orchestration. Only the main ip
+    /// addresses of the validators are specified (as those are often
+    /// dictated by the cloud provider hosing the testbed).
     pub fn new_for_benchmarks(ips: &[String]) -> Self {
-        // Set the validator's configs. They should be the same across multiple runs to ensure reproducibility.
+        // Set the validator's configs. They should be the same across multiple runs to
+        // ensure reproducibility.
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         let validator_config_info: Vec<_> = ips
             .iter()
@@ -377,15 +386,16 @@ impl GenesisConfig {
 
                 AccountConfig {
                     address: Some(gas_address),
-                    // Generate one genesis gas object per validator (this seems a good rule of thumb to produce
-                    // enough gas objects for most types of benchmarks).
+                    // Generate one genesis gas object per validator (this seems a good rule of
+                    // thumb to produce enough gas objects for most types of
+                    // benchmarks).
                     gas_amounts: vec![Self::BENCHMARK_GAS_AMOUNT; 5],
                 }
             })
             .collect();
 
-        // Benchmarks require a deterministic genesis. Every validator locally generates it own
-        // genesis; it is thus important they have the same parameters.
+        // Benchmarks require a deterministic genesis. Every validator locally generates
+        // it own genesis; it is thus important they have the same parameters.
         let parameters = GenesisCeremonyParameters {
             chain_start_timestamp_ms: 0,
             epoch_duration_ms: Self::BENCHMARK_EPOCH_DURATION_MS,
@@ -401,9 +411,10 @@ impl GenesisConfig {
         }
     }
 
-    /// Generate a predictable and fixed key that will own all gas objects used for benchmarks.
-    /// This function may be called by other parts of the codebase (e.g. load generators) to
-    /// get the same keypair used for genesis (hence the importance of the seedable rng).
+    /// Generate a predictable and fixed key that will own all gas objects used
+    /// for benchmarks. This function may be called by other parts of the
+    /// codebase (e.g. load generators) to get the same keypair used for
+    /// genesis (hence the importance of the seedable rng).
     pub fn benchmark_gas_keys(n: usize) -> Vec<IotaKeyPair> {
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         (0..n)

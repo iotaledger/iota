@@ -5,8 +5,7 @@
 use std::str::FromStr;
 
 use async_graphql::*;
-use fastcrypto::encoding::Base64 as FastCryptoBase64;
-use fastcrypto::encoding::Encoding as FastCryptoEncoding;
+use fastcrypto::encoding::{Base64 as FastCryptoBase64, Encoding as FastCryptoEncoding};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Base64(pub(crate) Vec<u8>);
@@ -59,8 +58,9 @@ impl From<Vec<u8>> for Base64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use async_graphql::Value;
+
+    use super::*;
 
     fn assert_input_value_error<T, U>(result: Result<T, InputValueError<U>>) {
         match result {

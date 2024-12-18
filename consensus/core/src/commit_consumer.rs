@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::{Arc, RwLock};
-use tokio::sync::watch;
 
-use iota_metrics::monitored_mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use iota_metrics::monitored_mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::watch;
 
 use crate::{CommitIndex, CommittedSubDag, TransactionIndex, VerifiedBlock};
 

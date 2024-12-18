@@ -2,29 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bank::BenchmarkBank;
-use crate::options::Opts;
-use crate::util::get_ed25519_keypair_from_keystore;
-use crate::{FullNodeProxy, LocalValidatorAggregatorProxy, ValidatorProxy};
-use anyhow::{anyhow, bail, Context, Result};
+use std::{path::PathBuf, sync::Arc, thread::JoinHandle, time::Duration};
+
+use anyhow::{Context, Result, anyhow, bail};
+use iota_swarm_config::genesis_config::AccountConfig;
+use iota_types::{
+    base_types::{ConciseableName, IotaAddress, ObjectID},
+    crypto::{AccountKeyPair, deterministic_random_account_key},
+    gas_coin::TOTAL_SUPPLY_NANOS,
+    object::Owner,
+};
 use prometheus::Registry;
 use rand::seq::SliceRandom;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::thread::JoinHandle;
-use std::time::Duration;
-use iota_swarm_config::genesis_config::AccountConfig;
-use iota_types::base_types::ConciseableName;
-use iota_types::base_types::ObjectID;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{deterministic_random_account_key, AccountKeyPair};
-use iota_types::gas_coin::TOTAL_SUPPLY_NANOS;
-use iota_types::object::Owner;
 use test_cluster::TestClusterBuilder;
-use tokio::runtime::Builder;
-use tokio::sync::{oneshot, Barrier};
-use tokio::time::sleep;
+use tokio::{
+    runtime::Builder,
+    sync::{Barrier, oneshot},
+    time::sleep,
+};
 use tracing::info;
+
+use crate::{
+    FullNodeProxy, LocalValidatorAggregatorProxy, ValidatorProxy, bank::BenchmarkBank,
+    options::Opts, util::get_ed25519_keypair_from_keystore,
+};
 
 pub enum Env {
     // Mode where benchmark in run on a validator cluster that gets spun up locally
@@ -101,7 +102,8 @@ impl Env {
                 let cluster = TestClusterBuilder::new()
                     .with_accounts(vec![AccountConfig {
                         address: Some(primary_gas_owner),
-                        // We can't use TOTAL_SUPPLY_NANOS because we need to account for validator stakes in genesis allocation.
+                        // We can't use TOTAL_SUPPLY_NANOS because we need to account for validator
+                        // stakes in genesis allocation.
                         gas_amounts: vec![TOTAL_SUPPLY_NANOS / 2],
                     }])
                     .with_num_validators(committee_size)
@@ -225,7 +227,8 @@ impl Env {
                 .await?;
             gas_objects.sort_by_key(|&(gas, _)| std::cmp::Reverse(gas));
 
-            // TODO: Merge all owned gas objects into one and use that as the primary gas object.
+            // TODO: Merge all owned gas objects into one and use that as the primary gas
+            // object.
             let (balance, primary_gas_obj) = gas_objects
                 .iter()
                 .max_by_key(|(balance, _)| balance)

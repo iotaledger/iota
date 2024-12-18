@@ -12,12 +12,14 @@ use tracing::debug;
 
 use crate::authority::AuthorityMetrics;
 
-/// Updates list of authorities that are deemed to have low reputation scores by consensus
-/// these may be lagging behind the network, byzantine, or not reliably participating for any reason.
-/// The algorithm is flagging as low scoring authorities all the validators that have the lowest scores
-/// up to the defined protocol_config.consensus_bad_nodes_stake_threshold. This is done to align the
-/// submission side with the consensus leader election schedule. Practically we don't want to submit
-/// transactions for sequencing to validators that have low scores and are not part of the leader
+/// Updates list of authorities that are deemed to have low reputation scores by
+/// consensus these may be lagging behind the network, byzantine, or not
+/// reliably participating for any reason. The algorithm is flagging as low
+/// scoring authorities all the validators that have the lowest scores up to the
+/// defined protocol_config.consensus_bad_nodes_stake_threshold. This is done to
+/// align the submission side with the consensus leader election schedule.
+/// Practically we don't want to submit transactions for sequencing to
+/// validators that have low scores and are not part of the leader
 /// schedule since the chances of getting them sequenced are lower.
 pub(crate) fn update_low_scoring_authorities(
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
@@ -27,14 +29,19 @@ pub(crate) fn update_low_scoring_authorities(
     metrics: &Arc<AuthorityMetrics>,
     consensus_bad_nodes_stake_threshold: u64,
 ) {
-    assert!((0..=33).contains(&consensus_bad_nodes_stake_threshold), "The bad_nodes_stake_threshold should be in range [0 - 33], out of bounds parameter detected {}", consensus_bad_nodes_stake_threshold);
+    assert!(
+        (0..=33).contains(&consensus_bad_nodes_stake_threshold),
+        "The bad_nodes_stake_threshold should be in range [0 - 33], out of bounds parameter detected {}",
+        consensus_bad_nodes_stake_threshold
+    );
 
     let Some(reputation_scores) = reputation_score_sorted_desc else {
         return;
     };
 
-    // We order the authorities by score ascending order in the exact same way as the reputation
-    // scores do - so we keep complete alignment between implementations
+    // We order the authorities by score ascending order in the exact same way as
+    // the reputation scores do - so we keep complete alignment between
+    // implementations
     let scores_per_authority_order_asc: Vec<_> = reputation_scores
         .into_iter()
         .rev() // we reverse so we get them in asc order
@@ -86,9 +93,9 @@ mod tests {
     use std::{collections::HashMap, sync::Arc};
 
     use arc_swap::ArcSwap;
-    use consensus_config::{local_committee_and_keys, Committee as ConsensusCommittee};
-    use prometheus::Registry;
+    use consensus_config::{Committee as ConsensusCommittee, local_committee_and_keys};
     use iota_types::{committee::Committee, crypto::AuthorityPublicKeyBytes};
+    use prometheus::Registry;
 
     use crate::{authority::AuthorityMetrics, scoring_decision::update_low_scoring_authorities};
 
@@ -102,7 +109,8 @@ mod tests {
         let low_scoring = Arc::new(ArcSwap::from_pointee(HashMap::new()));
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
-        // there is a low outlier in the non zero scores, exclude it as well as down nodes
+        // there is a low outlier in the non zero scores, exclude it as well as down
+        // nodes
         let authorities_by_score_desc = vec![
             (1, 390_u64),
             (0, 350_u64),

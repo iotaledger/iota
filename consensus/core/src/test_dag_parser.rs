@@ -6,13 +6,13 @@ use std::{collections::HashSet, sync::Arc};
 
 use consensus_config::AuthorityIndex;
 use nom::{
+    IResult,
     branch::alt,
-    bytes::complete::{tag, take_while1, take_while_m_n},
+    bytes::complete::{tag, take_while_m_n, take_while1},
     character::complete::{char, digit1, multispace0, multispace1, space0, space1},
     combinator::{map_res, opt},
     multi::{many0, separated_list0},
     sequence::{delimited, preceded, terminated, tuple},
-    IResult,
 };
 
 use crate::{
@@ -129,8 +129,9 @@ fn parse_specified_connections<'a>(
     // case 1: all authorities; [*]
     // case 2: specific included authorities; [A0, B0, C0]
     // case 3: specific excluded authorities;  [-A0]
-    // case 4: mixed all authorities + specific included/excluded authorities; [*, A0]
-    // TODO: case 5: byzantine case of multiple blocks per slot; [*]; timestamp=1
+    // case 4: mixed all authorities + specific included/excluded authorities; [*,
+    // A0] TODO: case 5: byzantine case of multiple blocks per slot; [*];
+    // timestamp=1
     let (input, authors_and_connections) = many0(parse_author_and_connections)(input)?;
 
     let mut output = Vec::new();
@@ -259,7 +260,8 @@ fn parse_slot(input: &str) -> IResult<&str, Slot> {
     Ok((input, Slot::new(round, authority)))
 }
 
-// Helper function to convert a string representation (e.g., 'A' or '[26]') to an AuthorityIndex
+// Helper function to convert a string representation (e.g., 'A' or '[26]') to
+// an AuthorityIndex
 fn str_to_authority_index(input: &str) -> Option<AuthorityIndex> {
     if input.starts_with('[') && input.ends_with(']') && input.len() > 2 {
         input[1..input.len() - 1]
@@ -481,7 +483,8 @@ mod tests {
         assert_eq!(actual_author, expected_authority);
         assert_eq!(actual_connections, ["*", "A0", "-B0"]);
 
-        // TODO: case 5: byzantine case of multiple blocks per slot; [*]; timestamp=1
+        // TODO: case 5: byzantine case of multiple blocks per slot; [*];
+        // timestamp=1
     }
 
     #[tokio::test]

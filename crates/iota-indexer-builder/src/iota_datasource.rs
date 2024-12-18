@@ -2,25 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::indexer_builder::{DataSender, Datasource};
-use crate::metrics::IndexerMetricProvider;
-use crate::Task;
+use std::{path::PathBuf, sync::Arc};
+
 use anyhow::Error;
 use async_trait::async_trait;
-use iota_metrics::{metered_channel, spawn_monitored_task};
-use prometheus::IntGauge;
-use std::path::PathBuf;
-use std::sync::Arc;
 use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, Worker, WorkerPool,
 };
+use iota_metrics::{metered_channel, spawn_monitored_task};
 use iota_sdk::IotaClient;
-use iota_types::full_checkpoint_content::CheckpointData as IotaCheckpointData;
-use iota_types::full_checkpoint_content::CheckpointTransaction;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use tokio::sync::oneshot;
-use tokio::sync::oneshot::Sender;
-use tokio::task::JoinHandle;
+use iota_types::{
+    full_checkpoint_content::{CheckpointData as IotaCheckpointData, CheckpointTransaction},
+    messages_checkpoint::CheckpointSequenceNumber,
+};
+use prometheus::IntGauge;
+use tokio::{
+    sync::{oneshot, oneshot::Sender},
+    task::JoinHandle,
+};
+
+use crate::{
+    Task,
+    indexer_builder::{DataSender, Datasource},
+    metrics::IndexerMetricProvider,
+};
 
 const BACKFILL_TASK_INGESTION_READER_BATCH_SIZE: usize = 300;
 const LIVE_TASK_INGESTION_READER_BATCH_SIZE: usize = 10;
@@ -69,7 +74,8 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
             exit_checkpoint: task.target_checkpoint,
             exit_sender: Some(exit_sender),
         };
-        // The max concurrnecy of checkpoint to fetch at the same time for ingestion framework
+        // The max concurrnecy of checkpoint to fetch at the same time for ingestion
+        // framework
         let ingestion_reader_batch_size = if task.is_live_task {
             // Live task uses smaller number to be cost effective
             LIVE_TASK_INGESTION_READER_BATCH_SIZE

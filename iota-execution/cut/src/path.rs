@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -19,12 +19,13 @@ pub(crate) enum Error {
     Symlink(PathBuf),
 }
 
-/// Normalize the representation of `path` by eliminating redundant `.` components and applying `..`
-/// components.  Does not access the filesystem (e.g. to resolve symlinks or test for file
-/// existence), unlike `std::fs::canonicalize`.
+/// Normalize the representation of `path` by eliminating redundant `.`
+/// components and applying `..` components.  Does not access the filesystem
+/// (e.g. to resolve symlinks or test for file existence), unlike
+/// `std::fs::canonicalize`.
 ///
-/// Fails if the normalized path attempts to access the parent of a root directory or volume
-/// prefix.  Returns the normalized path on success.
+/// Fails if the normalized path attempts to access the parent of a root
+/// directory or volume prefix.  Returns the normalized path on success.
 pub(crate) fn normalize_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
     use std::path::Component as C;
 
@@ -61,9 +62,10 @@ pub(crate) fn normalize_path<P: AsRef<Path>>(path: P) -> Result<PathBuf> {
     Ok(stack.iter().collect())
 }
 
-/// Return the path to `dst` relative to `src`.  If `src` is a file, the path is relative to the
-/// directory that contains it, while if it is a directory, the path is relative to it.  Returns
-/// an error if either `src` or `dst` do not exist.
+/// Return the path to `dst` relative to `src`.  If `src` is a file, the path is
+/// relative to the directory that contains it, while if it is a directory, the
+/// path is relative to it.  Returns an error if either `src` or `dst` do not
+/// exist.
 pub(crate) fn path_relative_to<P, Q>(src: P, dst: Q) -> io::Result<PathBuf>
 where
     P: AsRef<Path>,
@@ -99,7 +101,8 @@ where
         stack.push(C::ParentDir)
     }
 
-    // (3) Push extension directory components (moving into directories unique to `ext`)
+    // (3) Push extension directory components (moving into directories unique to
+    // `ext`)
     for comp in d_comps {
         stack.push(comp)
     }
@@ -112,7 +115,8 @@ where
     Ok(stack.into_iter().collect())
 }
 
-/// Returns the shortest prefix of `path` that doesn't exist, or `None` if `path` already exists.
+/// Returns the shortest prefix of `path` that doesn't exist, or `None` if
+/// `path` already exists.
 pub(crate) fn shortest_new_prefix(path: impl AsRef<Path>) -> Option<PathBuf> {
     if path.as_ref().exists() {
         return None;
@@ -132,8 +136,9 @@ pub(crate) fn shortest_new_prefix(path: impl AsRef<Path>) -> Option<PathBuf> {
     Some(path)
 }
 
-/// Recursively copy the contents of `src` to `dst`.  Fails if `src` transitively contains a
-/// symlink.  Only copies paths that pass the `keep` predicate.
+/// Recursively copy the contents of `src` to `dst`.  Fails if `src`
+/// transitively contains a symlink.  Only copies paths that pass the `keep`
+/// predicate.
 pub(crate) fn deep_copy<P, Q, K>(src: P, dst: Q, keep: &mut K) -> Result<()>
 where
     P: AsRef<Path>,
@@ -214,8 +219,8 @@ mod tests {
         let toml = cut.join("Cargo.toml");
         let src = cut.join("src");
 
-        // Paths relative to files will be relative to their directory, whereas paths relative to
-        // directories will not.
+        // Paths relative to files will be relative to their directory, whereas paths
+        // relative to directories will not.
         assert_eq!(path_relative_to(&toml, &src).unwrap(), PathBuf::from("src"));
         assert_eq!(
             path_relative_to(&src, &toml).unwrap(),
@@ -229,8 +234,8 @@ mod tests {
         let src = cut.join("src");
         let repo_root = cut.join("../..");
 
-        // Paths relative to files will be relative to their directory, whereas paths relative to
-        // directories will not.
+        // Paths relative to files will be relative to their directory, whereas paths
+        // relative to directories will not.
         assert_eq!(path_relative_to(&cut, &src).unwrap(), PathBuf::from("src"));
         assert_eq!(path_relative_to(&src, &cut).unwrap(), PathBuf::from(".."));
 
@@ -344,8 +349,8 @@ mod tests {
         // Filtering a file gets rid of its (empty) parent
         deep_copy(&src, dst.join("cpy-3"), &mut |p| !p.ends_with("quy")).unwrap();
 
-        // Because qux is now empty, it also doesn't exist in the copy, even though we only
-        // explicitly filtered `quy`.
+        // Because qux is now empty, it also doesn't exist in the copy, even though we
+        // only explicitly filtered `quy`.
         assert_eq!(read("cpy-3/foo"), "bar");
         assert!(!dst.join("cpy-3/baz/qux").exists());
         assert_eq!(read("cpy-3/baz/quz"), "xyzzy");

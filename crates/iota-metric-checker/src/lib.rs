@@ -141,8 +141,9 @@ fn unix_seconds_to_timestamp_string(unix_seconds: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use chrono::TimeZone;
+
+    use super::*;
 
     struct MockNowProvider;
 

@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
+use iota_types::TypeTag;
 use move_binary_format::errors::VMError;
 use move_core_types::account_address::AccountAddress;
-use iota_types::TypeTag;
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]

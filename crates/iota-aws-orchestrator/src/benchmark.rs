@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{faults::FaultsType, measurement::MeasurementsCollection};
 
@@ -107,7 +107,8 @@ pub enum LoadType {
     Search {
         /// The initial load to test (and use a baseline).
         starting_load: usize,
-        /// The maximum number of iterations before converging on a breaking point.
+        /// The maximum number of iterations before converging on a breaking
+        /// point.
         max_iterations: usize,
     },
 }
@@ -199,13 +200,14 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         self
     }
 
-    /// Detects whether the latest benchmark parameters run the system out of capacity.
+    /// Detects whether the latest benchmark parameters run the system out of
+    /// capacity.
     fn out_of_capacity(
         last_result: &MeasurementsCollection<T>,
         new_result: &MeasurementsCollection<T>,
     ) -> bool {
-        // We consider the system is out of capacity if the latency increased by over 5x with
-        // respect to the latest run.
+        // We consider the system is out of capacity if the latency increased by over 5x
+        // with respect to the latest run.
         let threshold = last_result.aggregate_average_latency() * 5;
         let high_latency = new_result.aggregate_average_latency() > threshold;
 
@@ -216,8 +218,8 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         high_latency || no_throughput_increase
     }
 
-    /// Register a new benchmark measurements collection. These results are used to determine
-    /// whether the system reached its breaking point.
+    /// Register a new benchmark measurements collection. These results are used
+    /// to determine whether the system reached its breaking point.
     pub fn register_result(&mut self, result: MeasurementsCollection<T>) {
         self.next_load = match &mut self.load_type {
             LoadType::Fixed(loads) => {
@@ -275,12 +277,11 @@ pub mod test {
 
     use serde::{Deserialize, Serialize};
 
+    use super::{BenchmarkParametersGenerator, BenchmarkType, LoadType};
     use crate::{
         measurement::{Measurement, MeasurementsCollection},
         settings::Settings,
     };
-
-    use super::{BenchmarkParametersGenerator, BenchmarkType, LoadType};
 
     /// Mock benchmark type for unit tests.
     #[derive(

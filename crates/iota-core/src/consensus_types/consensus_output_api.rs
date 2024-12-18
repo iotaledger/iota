@@ -30,7 +30,8 @@ pub(crate) trait ConsensusCommitAPI: Display {
     /// Returns a unique global index for each committed sub-dag.
     fn commit_sub_dag_index(&self) -> u64;
 
-    /// Returns all accepted and rejected transactions per block in the commit in deterministic order.
+    /// Returns all accepted and rejected transactions per block in the commit
+    /// in deterministic order.
     fn transactions(&self) -> Vec<(AuthorityIndex, Vec<ParsedTransaction>)>;
 
     /// Returns the digest of consensus output.
@@ -83,8 +84,9 @@ impl ConsensusCommitAPI for consensus_core::CommittedSubDag {
 
     fn consensus_digest(&self, protocol_config: &ProtocolConfig) -> ConsensusCommitDigest {
         if protocol_config.mysticeti_use_committed_subdag_digest() {
-            // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a iota-core space object.
-            // We assume they always have the same format.
+            // We port CommitDigest, a consensus space object, into ConsensusCommitDigest, a
+            // iota-core space object. We assume they always have the same
+            // format.
             static_assertions::assert_eq_size!(ConsensusCommitDigest, CommitDigest);
             ConsensusCommitDigest::new(self.commit_ref.digest.into_inner())
         } else {

@@ -2,19 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::payload::Payload;
-use crate::workloads::{Gas, GasCoinConfig};
-use crate::ValidatorProxy;
+use std::{str::FromStr, sync::Arc};
+
 use anyhow::anyhow;
 use async_trait::async_trait;
-use rand::distributions::{Distribution, Standard};
-use rand::Rng;
-use std::str::FromStr;
-use std::sync::Arc;
+use iota_types::gas_coin::NANOS_PER_IOTA;
+use rand::{
+    Rng,
+    distributions::{Distribution, Standard},
+};
 use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
-use iota_types::gas_coin::NANOS_PER_IOTA;
+
+use crate::{
+    ValidatorProxy,
+    system_state_observer::SystemStateObserver,
+    workloads::{Gas, GasCoinConfig, payload::Payload},
+};
 
 // This is the maximum gas we will transfer from primary coin into any gas coin
 // for running the benchmark
@@ -88,14 +92,16 @@ pub trait WorkloadBuilder<T: Payload + ?Sized>: Send + Sync + std::fmt::Debug {
     async fn build(&self, init_gas: Vec<Gas>, payload_gas: Vec<Gas>) -> Box<dyn Workload<T>>;
 }
 
-/// A Workload is used to generate multiple payloads during setup phase with `make_test_payloads()`
-/// which are added to a local queue. We execute transactions (the queue is drained based on the
-/// target qps i.e. for 100 tps, the queue will be popped 100 times every second) with those payloads
-/// and generate new payloads (which are enqueued back to the queue) with the returned effects. The
-/// total number of payloads to generate depends on how much transaction throughput we want and the
-/// maximum number of transactions we want to have in flight. For instance, for a 100 target_qps and
-/// in_flight_ratio of 5, a maximum of 500 transactions is expected to be in flight and that many
-/// payloads are created.
+/// A Workload is used to generate multiple payloads during setup phase with
+/// `make_test_payloads()` which are added to a local queue. We execute
+/// transactions (the queue is drained based on the target qps i.e. for 100 tps,
+/// the queue will be popped 100 times every second) with those payloads
+/// and generate new payloads (which are enqueued back to the queue) with the
+/// returned effects. The total number of payloads to generate depends on how
+/// much transaction throughput we want and the maximum number of transactions
+/// we want to have in flight. For instance, for a 100 target_qps and
+/// in_flight_ratio of 5, a maximum of 500 transactions is expected to be in
+/// flight and that many payloads are created.
 #[async_trait]
 pub trait Workload<T: Payload + ?Sized>: Send + Sync + std::fmt::Debug {
     async fn init(

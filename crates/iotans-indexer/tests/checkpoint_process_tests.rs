@@ -12,15 +12,16 @@ const TEST_REGISTRY_TABLE_ID: &str =
 const TEST_NAME_RECORD_TYPE: &str = "0x2::dynamic_field::Field<0x22fa05f21b1ad71442491220bb9338f7b7095fe35000ef88d5400d28523bdd93::domain::Domain,0x22fa05f21b1ad71442491220bb9338f7b7095fe35000ef88d5400d28523bdd93::name_record::NameRecord>";
 const TEST_SUBDOMAIN_REGISTRATION_TYPE: &str = "0x22fa05f21b1ad71442491220bb9338f7b7095fe35000ef88d5400d28523bdd93::subdomain_registration::SubDomainRegistration";
 
-/// For our test policy, we have a few checkpoints that contain some data additions, deletions, replacements
+/// For our test policy, we have a few checkpoints that contain some data
+/// additions, deletions, replacements
 ///
-/// Checkpoint 22279187: Adds 3 different names (1 SLD, 1 leaf, 1 node). Deletes none.
-/// Checkpoint 22279365: Removes 1 leaf name. Adds 1 leaf name.
-/// Checkpoint 22279496: Replaces the name added on `22279365` (new.test.iota) by removing it and then adding it as a node name.
-/// Checkpoint 22279944: Adds `remove.test.iota`.
-/// Checkpoint 22280030: Adds `remove.test.iota` as a replacement (the previous one expired!).
-///                      [This was only simulated using a dummy contract and cannot happen in realistic scenarios.]
-///
+/// Checkpoint 22279187: Adds 3 different names (1 SLD, 1 leaf, 1 node). Deletes
+/// none. Checkpoint 22279365: Removes 1 leaf name. Adds 1 leaf name.
+/// Checkpoint 22279496: Replaces the name added on `22279365` (new.test.iota)
+/// by removing it and then adding it as a node name. Checkpoint 22279944: Adds
+/// `remove.test.iota`. Checkpoint 22280030: Adds `remove.test.iota` as a
+/// replacement (the previous one expired!).                      [This was only
+/// simulated using a dummy contract and cannot happen in realistic scenarios.]
 #[test]
 fn process_22279187_checkpoint() {
     let checkpoint = read_checkpoint_from_file(include_bytes!("data/22279187.chk"));

@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{net::SocketAddr, time::Duration};
+
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use serde_with::DurationSeconds;
-use std::{net::SocketAddr, time::Duration};
+use serde_with::{DurationSeconds, serde_as};
 use tracing::error;
 use url::Url;
 
@@ -20,13 +20,15 @@ pub struct ProxyConfig {
     pub execution_peer: PeerConfig,
     pub read_peer: PeerConfig,
     /// Maximum number of idle connections to keep in the connection pool.
-    /// When set, this limits the number of connections that remain open but unused,
-    /// helping to conserve system resources.
+    /// When set, this limits the number of connections that remain open but
+    /// unused, helping to conserve system resources.
     #[serde(default = "default_max_idle_connections")]
     pub max_idle_connections: usize,
     /// Idle timeout for connections in the connection pool.
-    /// This should be set to a value less than the keep-alive timeout of the server to avoid sending requests to a closed connection.
-    /// if your you expect iota-edge-proxy to receive a small number of requests per second, you should set this to a higher value.
+    /// This should be set to a value less than the keep-alive timeout of the
+    /// server to avoid sending requests to a closed connection. if your you
+    /// expect iota-edge-proxy to receive a small number of requests per second,
+    /// you should set this to a higher value.
     #[serde_as(as = "DurationSeconds")]
     #[serde(default = "default_idle_timeout")]
     pub idle_timeout_seconds: Duration,

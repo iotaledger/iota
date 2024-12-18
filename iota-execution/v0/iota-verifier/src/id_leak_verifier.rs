@@ -13,6 +13,20 @@
 //! 2. Written into a mutable reference
 //! 3. Added to a vector
 //! 4. Passed to a function cal::;
+use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
+
+use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    clock::CLOCK_MODULE_NAME,
+    error::{ExecutionError, VMMVerifierErrorSubStatusCode},
+    id::OBJECT_MODULE_NAME,
+    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
+};
+#[cfg(msim)]
+use iota_types::{
+    authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME, coin::COIN_MODULE_NAME,
+    randomness_state::RANDOMNESS_MODULE_NAME,
+};
 use move_abstract_stack::AbstractStack;
 use move_binary_format::{
     errors::PartialVMError,
@@ -28,24 +42,10 @@ use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::{
     account_address::AccountAddress, ident_str, identifier::IdentStr, vm_status::StatusCode,
 };
-use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
-use iota_types::{
-    clock::CLOCK_MODULE_NAME,
-    error::{ExecutionError, VMMVerifierErrorSubStatusCode},
-    id::OBJECT_MODULE_NAME,
-    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
-    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
-};
-
-#[cfg(msim)]
-use iota_types::{
-    authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME, coin::COIN_MODULE_NAME,
-    randomness_state::RANDOMNESS_MODULE_NAME,
-};
 
 use crate::{
-    check_for_verifier_timeout, to_verification_timeout_error, verification_failure,
-    TEST_SCENARIO_MODULE_NAME,
+    TEST_SCENARIO_MODULE_NAME, check_for_verifier_timeout, to_verification_timeout_error,
+    verification_failure,
 };
 pub(crate) const JOIN_BASE_COST: u128 = 10;
 pub(crate) const JOIN_PER_LOCAL_COST: u128 = 5;
@@ -84,10 +84,11 @@ const IOTA_CLOCK_CREATE: FunctionIdent = (
     ident_str!("create"),
 );
 
-// Note: the authenticator/randomness objects should never exist when v0 execution is being used.
-// However, object_deletion_tests.rs forcibly sets the execution version to 0, so we need
-// to handle this case. Since that test only runs in the simulator we can special case it with
-// cfg(msim) so that we don't risk breaking release builds.
+// Note: the authenticator/randomness objects should never exist when v0
+// execution is being used. However, object_deletion_tests.rs forcibly sets the
+// execution version to 0, so we need to handle this case. Since that test only
+// runs in the simulator we can special case it with cfg(msim) so that we don't
+// risk breaking release builds.
 #[cfg(msim)]
 const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
     &IOTA_FRAMEWORK_ADDRESS,
@@ -297,8 +298,8 @@ impl<'a> TransferFunctions for IDLeakAnalysis<'a> {
     ) -> Result<(), PartialVMError> {
         execute_inner(self, state, bytecode, index, meter)?;
         // invariant: the stack should be empty at the end of the block
-        // If it is not, something is wrong with the implementation, so throw an invariant
-        // violation
+        // If it is not, something is wrong with the implementation, so throw an
+        // invariant violation
         if index == last_index && !self.stack.is_empty() {
             let msg = "Invalid stack transitions. Non-zero stack size at the end of the block"
                 .to_string();
@@ -354,8 +355,9 @@ fn pack(
     verifier: &mut IDLeakAnalysis,
     struct_def: &StructDefinition,
 ) -> Result<(), PartialVMError> {
-    // When packing, an object whose struct type has key ability must have the first field as
-    // "id". That fields must come from one of the functions that creates a new UID.
+    // When packing, an object whose struct type has key ability must have the first
+    // field as "id". That fields must come from one of the functions that
+    // creates a new UID.
     let handle = verifier
         .binary_view
         .datatype_handle_at(struct_def.struct_handle);

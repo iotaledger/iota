@@ -2,25 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    env,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+    sync::Arc,
+};
+
 use anyhow::Result;
 use clap::*;
-use iota_metrics::start_prometheus_server;
-use std::env;
-use std::net::IpAddr;
-use std::net::{Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
-use std::sync::Arc;
 use iota_config::Config;
 use iota_data_ingestion_core::DataIngestionMetrics;
-use iota_deepbook_indexer::config::IndexerConfig;
-use iota_deepbook_indexer::metrics::DeepBookIndexerMetrics;
-use iota_deepbook_indexer::postgres_manager::get_connection_pool;
-use iota_deepbook_indexer::server::run_server;
-use iota_deepbook_indexer::iota_deepbook_indexer::PgDeepbookPersistent;
-use iota_deepbook_indexer::iota_deepbook_indexer::IotaDeepBookDataMapper;
-use iota_indexer_builder::indexer_builder::IndexerBuilder;
-use iota_indexer_builder::progress::{OutOfOrderSaveAfterDurationPolicy, ProgressSavingPolicy};
-use iota_indexer_builder::iota_datasource::IotaCheckpointDatasource;
+use iota_deepbook_indexer::{
+    config::IndexerConfig,
+    iota_deepbook_indexer::{IotaDeepBookDataMapper, PgDeepbookPersistent},
+    metrics::DeepBookIndexerMetrics,
+    postgres_manager::get_connection_pool,
+    server::run_server,
+};
+use iota_indexer_builder::{
+    indexer_builder::IndexerBuilder,
+    iota_datasource::IotaCheckpointDatasource,
+    progress::{OutOfOrderSaveAfterDurationPolicy, ProgressSavingPolicy},
+};
+use iota_metrics::start_prometheus_server;
 use iota_sdk::IotaClientBuilder;
 use iota_types::base_types::ObjectID;
 use tracing::info;

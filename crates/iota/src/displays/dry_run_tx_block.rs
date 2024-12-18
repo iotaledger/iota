@@ -2,16 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{client_commands::estimate_gas_budget_from_gas_cost, displays::Pretty};
 use std::fmt::{Display, Formatter};
+
 use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, ObjectChange, IotaTransactionBlockDataAPI,
-    IotaTransactionBlockEffectsAPI,
+    DryRunTransactionBlockResponse, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
+    ObjectChange,
 };
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
+    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
 };
+
+use crate::{client_commands::estimate_gas_budget_from_gas_cost, displays::Pretty};
 impl<'a> Display for Pretty<'a, DryRunTransactionBlockResponse> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let Pretty(response) = self;

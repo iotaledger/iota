@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_rpc_api::client::sdk::Client;
-use iota_rpc_api::client::Client as CoreClient;
-use iota_rpc_api::ObjectResponse;
+use iota_rpc_api::{
+    ObjectResponse,
+    client::{Client as CoreClient, sdk::Client},
+};
 use iota_sdk_types::types::Object;
 use test_cluster::TestClusterBuilder;
 
@@ -37,7 +38,10 @@ async fn get_object() {
         // Make sure list works with json
         let _object = client
             .get(url)
-            .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_JSON)
+            .header(
+                reqwest::header::ACCEPT,
+                iota_rpc_api::rest::APPLICATION_JSON,
+            )
             .send()
             .await
             .unwrap()
@@ -45,8 +49,8 @@ async fn get_object() {
             .await
             .unwrap();
 
-        // TODO remove this once the BCS format is no longer supported by the rest endpoint and clients
-        // wanting binary have migrated to grpc
+        // TODO remove this once the BCS format is no longer supported by the rest
+        // endpoint and clients wanting binary have migrated to grpc
         let bytes = client
             .get(url)
             .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_BCS)

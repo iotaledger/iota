@@ -1,23 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+    iter,
+    num::NonZeroUsize,
+    sync::Arc,
+};
+
+use config::AuthorityIdentifier;
 use fastcrypto::hash::Hash;
+use iota_common::sync::notify_read::NotifyRead;
+use iota_macros::fail_point;
+use iota_metrics::{RegistryID, RegistryService};
 use lru::LruCache;
 use parking_lot::Mutex;
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use std::collections::HashMap;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use std::{cmp::Ordering, collections::BTreeMap, iter};
-use iota_macros::fail_point;
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use store::{Map, TypedStoreError::RocksDBError, rocks::DBMap};
 use tap::Tap;
+use types::{Certificate, CertificateDigest, Round};
 
 use crate::StoreResult;
-use config::AuthorityIdentifier;
-use iota_common::sync::notify_read::NotifyRead;
-use iota_metrics::{RegistryID, RegistryService};
-use store::{rocks::DBMap, Map, TypedStoreError::RocksDBError};
-use types::{Certificate, CertificateDigest, Round};
 
 pub struct CertificateStoreCacheMetrics {
     // Prometheus RegistryService for the metrics
@@ -56,18 +60,19 @@ impl CertificateStoreCacheMetrics {
     }
 }
 
-/// A cache trait to be used as temporary in-memory store when accessing the underlying
-/// certificate_store. Using the cache allows to skip rocksdb access giving us benefits
-/// both on less disk access (when value not in db's cache) and also avoiding any additional
-/// deserialization costs.
+/// A cache trait to be used as temporary in-memory store when accessing the
+/// underlying certificate_store. Using the cache allows to skip rocksdb access
+/// giving us benefits both on less disk access (when value not in db's cache)
+/// and also avoiding any additional deserialization costs.
 pub trait Cache {
     fn write(&self, certificate: Certificate);
     fn write_all(&self, certificate: Vec<Certificate>);
     fn read(&self, digest: &CertificateDigest) -> Option<Certificate>;
 
-    /// Returns the certificates by performing a look up in the cache. The method is expected to
-    /// always return a result for every provided digest (when found will be Some, None otherwise)
-    /// and in the same order.
+    /// Returns the certificates by performing a look up in the cache. The
+    /// method is expected to always return a result for every provided
+    /// digest (when found will be Some, None otherwise) and in the same
+    /// order.
     fn read_all(
         &self,
         digests: Vec<CertificateDigest>,
@@ -76,7 +81,7 @@ pub trait Cache {
     /// Checks existence of one or more digests.
     fn contains(&self, digest: &CertificateDigest) -> bool;
     fn multi_contains<'a>(&self, digests: impl Iterator<Item = &'a CertificateDigest>)
-        -> Vec<bool>;
+    -> Vec<bool>;
 
     fn remove(&self, digest: &CertificateDigest);
     fn remove_all(&self, digests: Vec<CertificateDigest>);
@@ -121,8 +126,8 @@ impl Cache for CertificateStoreCache {
         }
     }
 
-    /// Fetches the certificate for the provided digest. This method will update the LRU record
-    /// and mark it as "last accessed".
+    /// Fetches the certificate for the provided digest. This method will update
+    /// the LRU record and mark it as "last accessed".
     fn read(&self, digest: &CertificateDigest) -> Option<Certificate> {
         let mut guard = self.cache.lock();
         guard
@@ -131,8 +136,8 @@ impl Cache for CertificateStoreCache {
             .tap(|v| self.report_result(v.is_some()))
     }
 
-    /// Fetches the certificates for the provided digests. This method will update the LRU records
-    /// and mark them as "last accessed".
+    /// Fetches the certificates for the provided digests. This method will
+    /// update the LRU records and mark them as "last accessed".
     fn read_all(
         &self,
         digests: Vec<CertificateDigest>,
@@ -200,16 +205,19 @@ pub struct CertificateStore<T: Cache = CertificateStoreCache> {
     /// Holds the certificates by their digest id
     certificates_by_id: DBMap<CertificateDigest, Certificate>,
     /// A secondary index that keeps the certificate digest ids
-    /// by the certificate rounds. Certificate origin is used to produce unique keys.
-    /// This helps us to perform range requests based on rounds. We avoid storing again the
-    /// certificate here to not waste space. To dereference we use the certificates_by_id storage.
+    /// by the certificate rounds. Certificate origin is used to produce unique
+    /// keys. This helps us to perform range requests based on rounds. We
+    /// avoid storing again the certificate here to not waste space. To
+    /// dereference we use the certificates_by_id storage.
     certificate_id_by_round: DBMap<(Round, AuthorityIdentifier), CertificateDigest>,
     /// A secondary index that keeps the certificate digest ids
-    /// by the certificate origins. Certificate rounds are used to produce unique keys.
-    /// This helps us to perform range requests based on rounds. We avoid storing again the
-    /// certificate here to not waste space. To dereference we use the certificates_by_id storage.
+    /// by the certificate origins. Certificate rounds are used to produce
+    /// unique keys. This helps us to perform range requests based on
+    /// rounds. We avoid storing again the certificate here to not waste
+    /// space. To dereference we use the certificates_by_id storage.
     certificate_id_by_origin: DBMap<(AuthorityIdentifier, Round), CertificateDigest>,
-    /// The pub/sub to notify for a write that happened for a certificate digest id
+    /// The pub/sub to notify for a write that happened for a certificate digest
+    /// id
     notify_subscribers: Arc<NotifyRead<CertificateDigest, Certificate>>,
     /// An LRU cache to keep recent certificates
     cache: Arc<T>,
@@ -269,9 +277,9 @@ impl<T: Cache> CertificateStore<T> {
         result
     }
 
-    /// Inserts multiple certificates in the storage. This is an atomic operation.
-    /// In the end it notifies any subscribers that are waiting to hear for the
-    /// value.
+    /// Inserts multiple certificates in the storage. This is an atomic
+    /// operation. In the end it notifies any subscribers that are waiting
+    /// to hear for the value.
     pub fn write_all(
         &self,
         certificates: impl IntoIterator<Item = Certificate>,
@@ -520,7 +528,8 @@ impl<T: Cache> CertificateStore<T> {
             }
         }
 
-        // Fetch all those certificates from main storage, return an error if any one is missing.
+        // Fetch all those certificates from main storage, return an error if any one is
+        // missing.
         self.certificates_by_id
             .multi_get(digests.clone())?
             .into_iter()
@@ -646,8 +655,9 @@ impl<T: Cache> CertificateStore<T> {
         Ok(None)
     }
 
-    /// Retrieves the next round number bigger than the given round for the origin.
-    /// Returns None if there is no more local certificate from the origin with bigger round.
+    /// Retrieves the next round number bigger than the given round for the
+    /// origin. Returns None if there is no more local certificate from the
+    /// origin with bigger round.
     pub fn next_round_number(
         &self,
         origin: AuthorityIdentifier,
@@ -688,25 +698,26 @@ impl<T: Cache> CertificateStore<T> {
 
 #[cfg(test)]
 mod test {
-    use crate::certificate_store::CertificateStore;
-    use crate::{Cache, CertificateStoreCache};
+    use std::{
+        collections::{BTreeSet, HashSet},
+        num::NonZeroUsize,
+        time::Instant,
+    };
+
     use config::AuthorityIdentifier;
     use fastcrypto::hash::Hash;
     use futures::future::join_all;
-    use std::num::NonZeroUsize;
-    use std::{
-        collections::{BTreeSet, HashSet},
-        time::Instant,
-    };
-    use store::rocks::MetricConf;
     use store::{
         reopen,
-        rocks::{open_cf, DBMap, ReadWriteOptions},
+        rocks::{DBMap, MetricConf, ReadWriteOptions, open_cf},
     };
-    use test_utils::{latest_protocol_version, temp_dir, CommitteeFixture};
+    use test_utils::{CommitteeFixture, latest_protocol_version, temp_dir};
     use types::{Certificate, CertificateAPI, CertificateDigest, HeaderAPI, Round};
 
-    /// An implementation that basically disables the caching functionality when used for CertificateStore.
+    use crate::{Cache, CertificateStoreCache, certificate_store::CertificateStore};
+
+    /// An implementation that basically disables the caching functionality when
+    /// used for CertificateStore.
     #[derive(Clone)]
     struct NoCache {}
 
@@ -787,16 +798,11 @@ mod test {
         const CERTIFICATE_ID_BY_ROUND_CF: &str = "certificate_id_by_round";
         const CERTIFICATE_ID_BY_ORIGIN_CF: &str = "certificate_id_by_origin";
 
-        let rocksdb = open_cf(
-            path,
-            None,
-            MetricConf::default(),
-            &[
-                CERTIFICATES_CF,
-                CERTIFICATE_ID_BY_ROUND_CF,
-                CERTIFICATE_ID_BY_ORIGIN_CF,
-            ],
-        )
+        let rocksdb = open_cf(path, None, MetricConf::default(), &[
+            CERTIFICATES_CF,
+            CERTIFICATE_ID_BY_ROUND_CF,
+            CERTIFICATE_ID_BY_ORIGIN_CF,
+        ])
         .expect("Cannot open database");
 
         reopen!(&rocksdb,
@@ -900,8 +906,8 @@ mod test {
         // store them in both main and secondary index
         store.write_all(certs.clone()).unwrap();
 
-        // AND if running with cache, just remove a few items to ensure that they'll be fetched
-        // from storage
+        // AND if running with cache, just remove a few items to ensure that they'll be
+        // fetched from storage
         store.cache.remove(&ids[0]);
         store.cache.remove(&ids[3]);
         store.cache.remove(&ids[9]);

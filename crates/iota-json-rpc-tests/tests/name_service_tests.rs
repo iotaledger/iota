@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
+
 use iota_json_rpc::name_service::{self, Domain};
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
 };
 

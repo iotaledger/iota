@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{FileFormat, ParquetSchema};
 use anyhow::Result;
-use serde::Serialize;
 use iota_types::base_types::EpochId;
+use serde::Serialize;
+
+use crate::{FileFormat, ParquetSchema};
 
 pub mod csv_writer;
 pub mod parquet_writer;

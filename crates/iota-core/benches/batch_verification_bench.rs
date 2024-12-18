@@ -2,23 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use criterion::*;
-
-use itertools::Itertools as _;
-use rand::prelude::*;
-use rand::seq::SliceRandom;
-
-use futures::future::join_all;
-use prometheus::Registry;
 use std::sync::Arc;
-use iota_core::test_utils::{make_cert_with_large_committee, make_dummy_tx};
-use iota_types::committee::Committee;
-use iota_types::crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair};
-use iota_types::transaction::CertifiedTransaction;
 
+use criterion::*;
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
-use iota_core::signature_verifier::*;
-use iota_types::signature_verification::VerifiedDigestCache;
+use futures::future::join_all;
+use iota_core::{
+    signature_verifier::*,
+    test_utils::{make_cert_with_large_committee, make_dummy_tx},
+};
+use iota_types::{
+    committee::Committee,
+    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
+    signature_verification::VerifiedDigestCache,
+    transaction::CertifiedTransaction,
+};
+use itertools::Itertools as _;
+use prometheus::Registry;
+use rand::{prelude::*, seq::SliceRandom};
 fn gen_certs(
     committee: &Committee,
     key_pairs: &[AuthorityKeyPair],
@@ -112,8 +113,8 @@ fn batch_verification_bench(c: &mut Criterion) {
     let (committee, key_pairs) = Committee::new_simple_test_committee_of_size(100);
 
     let mut group = c.benchmark_group("batch_verify");
-    // throughput improvements mostly level off at a batch size of 32, and latency starts getting
-    // pretty significant at that point.
+    // throughput improvements mostly level off at a batch size of 32, and latency
+    // starts getting pretty significant at that point.
     for batch_size in [1, 4, 16, 32, 64] {
         for num_errors in [0, 1] {
             let mut certs = gen_certs(&committee, &key_pairs, batch_size);

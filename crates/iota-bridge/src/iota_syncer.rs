@@ -5,21 +5,22 @@
 //! The IotaSyncer module is responsible for synchronizing Events emitted
 //! on Iota blockchain from concerned modules of bridge package 0x9.
 
-use crate::{
-    error::BridgeResult,
-    metrics::BridgeMetrics,
-    retry_with_max_elapsed_time,
-    iota_client::{IotaClient, IotaClientInner},
-};
-use iota_metrics::spawn_logged_monitored_task;
 use std::{collections::HashMap, sync::Arc};
+
 use iota_json_rpc_types::IotaEvent;
-use iota_types::BRIDGE_PACKAGE_ID;
-use iota_types::{event::EventID, Identifier};
+use iota_metrics::spawn_logged_monitored_task;
+use iota_types::{BRIDGE_PACKAGE_ID, Identifier, event::EventID};
 use tokio::{
     sync::Notify,
     task::JoinHandle,
     time::{self, Duration},
+};
+
+use crate::{
+    error::BridgeResult,
+    iota_client::{IotaClient, IotaClientInner},
+    metrics::BridgeMetrics,
+    retry_with_max_elapsed_time,
 };
 
 const IOTA_EVENTS_CHANNEL_SIZE: usize = 1000;
@@ -116,7 +117,9 @@ where
                     iota_client_clone.get_latest_checkpoint_sequence_number(),
                     Duration::from_secs(120)
                 ) else {
-                    tracing::error!("Failed to query latest checkpoint sequence number from iota client after retry");
+                    tracing::error!(
+                        "Failed to query latest checkpoint sequence number from iota client after retry"
+                    );
                     continue;
                 };
                 last_synced_iota_checkpoints_metric.set(latest_checkpoint_sequence_number as i64);
@@ -136,8 +139,9 @@ where
             let len = events.data.len();
             if len != 0 {
                 if !events.has_next_page {
-                    // If this is the last page, it means we have processed all events up to the latest checkpoint
-                    // We can then update the latest checkpoint metric.
+                    // If this is the last page, it means we have processed all events up to the
+                    // latest checkpoint We can then update the latest
+                    // checkpoint metric.
                     notify.notify_one();
                 }
                 events_sender
@@ -155,13 +159,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::{iota_client::IotaClient, iota_mock_client::IotaMockClient};
-    use prometheus::Registry;
     use iota_json_rpc_types::EventPage;
-    use iota_types::{digests::TransactionDigest, event::EventID, Identifier};
+    use iota_types::{Identifier, digests::TransactionDigest, event::EventID};
+    use prometheus::Registry;
     use tokio::time::timeout;
+
+    use super::*;
+    use crate::{iota_client::IotaClient, iota_mock_client::IotaMockClient};
 
     #[tokio::test]
     async fn test_iota_syncer_basic() -> anyhow::Result<()> {
@@ -236,7 +240,8 @@ mod tests {
         let module_bar_events_1 = EventPage {
             data: vec![event_2.clone()],
             next_cursor: Some(event_2.id),
-            has_next_page: true, // Set to true so that the syncer will not update the last synced checkpoint
+            has_next_page: true, /* Set to true so that the syncer will not update the last
+                                  * synced checkpoint */
         };
         add_event_response(&mock, module_bar.clone(), event_2.id, empty_events.clone());
 

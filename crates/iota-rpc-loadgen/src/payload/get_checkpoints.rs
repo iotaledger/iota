@@ -2,21 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::payload::validation::check_transactions;
-use crate::payload::{GetCheckpoints, ProcessPayload, RpcCommandProcessor, SignerInfo};
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashSet;
 use futures::future::join_all;
-use itertools::Itertools;
-use std::sync::Arc;
-
-use crate::payload::checkpoint_utils::get_latest_checkpoint_stats;
 use iota_json_rpc_types::CheckpointId;
 use iota_types::base_types::TransactionDigest;
+use itertools::Itertools;
 use tokio::sync::Mutex;
-use tracing::log::warn;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, log::warn};
+
+use crate::payload::{
+    GetCheckpoints, ProcessPayload, RpcCommandProcessor, SignerInfo,
+    checkpoint_utils::get_latest_checkpoint_stats, validation::check_transactions,
+};
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a GetCheckpoints> for RpcCommandProcessor {
@@ -125,7 +126,10 @@ impl<'a> ProcessPayload<'a, &'a GetCheckpoints> for RpcCommandProcessor {
                     // ignore the None value because it's warned above
                     let eq = x.is_none() || x.as_ref().unwrap() == &valid_checkpoint;
                     if !eq {
-                        error!("getCheckpoint {seq} has a different result between the {valid_checkpoint_idx}th and {i}th URL {:?} {:?}", x, checkpoints[valid_checkpoint_idx])
+                        error!(
+                            "getCheckpoint {seq} has a different result between the {valid_checkpoint_idx}th and {i}th URL {:?} {:?}",
+                            x, checkpoints[valid_checkpoint_idx]
+                        )
                     }
                 }
             }

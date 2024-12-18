@@ -2,13 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use iota_types::base_types::ObjectRef;
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use iota_types::inner_temporary_store::{InnerTemporaryStore, WrittenObjects};
-use iota_types::storage::{MarkerValue, ObjectKey};
-use iota_types::transaction::{TransactionDataAPI, VerifiedTransaction};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
+
+use iota_types::{
+    base_types::ObjectRef,
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
+    storage::{MarkerValue, ObjectKey},
+    transaction::{TransactionDataAPI, VerifiedTransaction},
+};
 
 /// TransactionOutputs
 pub struct TransactionOutputs {
@@ -25,7 +30,8 @@ pub struct TransactionOutputs {
 }
 
 impl TransactionOutputs {
-    // Convert InnerTemporaryStore + Effects into the exact set of updates to the store
+    // Convert InnerTemporaryStore + Effects into the exact set of updates to the
+    // store
     pub fn build_transaction_outputs(
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
@@ -55,9 +61,10 @@ impl TransactionOutputs {
             .cloned()
             .filter(|obj_ref| modified_at.contains(&(obj_ref.0, obj_ref.1)));
 
-        // We record any received or deleted objects since they could be pruned, and smear shared
-        // object deletions in the marker table. For deleted entries in the marker table we need to
-        // make sure we don't accidentally overwrite entries.
+        // We record any received or deleted objects since they could be pruned, and
+        // smear shared object deletions in the marker table. For deleted
+        // entries in the marker table we need to make sure we don't
+        // accidentally overwrite entries.
         let markers: Vec<_> = {
             let received = received_objects
                 .clone()
@@ -75,10 +82,10 @@ impl TransactionOutputs {
                 }
             });
 
-            // We "smear" shared deleted objects in the marker table to allow for proper sequencing
-            // of transactions that are submitted after the deletion of the shared object.
-            // NB: that we do _not_ smear shared objects that were taken immutably in the
-            // transaction.
+            // We "smear" shared deleted objects in the marker table to allow for proper
+            // sequencing of transactions that are submitted after the deletion
+            // of the shared object. NB: that we do _not_ smear shared objects
+            // that were taken immutably in the transaction.
             let smeared_objects = effects.deleted_mutably_accessed_shared_objects();
             let shared_smears = smeared_objects.into_iter().map(move |object_id| {
                 (

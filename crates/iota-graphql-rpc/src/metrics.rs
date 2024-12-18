@@ -6,10 +6,10 @@ use std::{sync::Arc, time::Duration};
 
 use async_graphql::{PathSegment, ServerError};
 use prometheus::{
+    Gauge, Histogram, HistogramVec, IntCounter, IntCounterVec, Registry,
     register_gauge_with_registry, register_histogram_vec_with_registry,
     register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry, Gauge, Histogram, HistogramVec, IntCounter, IntCounterVec,
-    Registry,
+    register_int_counter_with_registry,
 };
 
 use crate::error::code;
@@ -61,7 +61,8 @@ pub(crate) struct DBMetrics {
 
 #[derive(Clone)]
 pub(crate) struct RequestMetrics {
-    /// The number of nodes for the input query that passed the query limits check
+    /// The number of nodes for the input query that passed the query limits
+    /// check
     pub input_nodes: Histogram,
     /// The number of nodes in the result
     pub output_nodes: Histogram,
@@ -85,8 +86,8 @@ pub(crate) struct RequestMetrics {
 
 #[derive(Clone)]
 pub(crate) struct AppMetrics {
-    /// The time it takes for the non-mainnet graphql service to resolve the mvr object from
-    /// mainnet.
+    /// The time it takes for the non-mainnet graphql service to resolve the mvr
+    /// object from mainnet.
     pub external_mvr_resolution_latency: Histogram,
 }
 
@@ -132,8 +133,9 @@ impl Metrics {
         self.request_metrics.num_queries.inc();
     }
 
-    /// Use this function to increment the number of errors per path and per error type.
-    /// The error type is detected automatically from the passed errors.
+    /// Use this function to increment the number of errors per path and per
+    /// error type. The error type is detected automatically from the passed
+    /// errors.
     pub(crate) fn inc_errors(&self, errors: &[ServerError]) {
         for err in errors {
             if let Some(ext) = &err.extensions {

@@ -2,27 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::test_adapter::{FakeID, IotaTestAdapter};
 use anyhow::{bail, ensure};
-use clap;
-use clap::{Args, Parser};
-use move_compiler::editions::Flavor;
-use move_core_types::parsing::{
-    parser::Parser as MoveCLParser,
-    parser::{parse_u256, parse_u64},
-    values::ValueToken,
-    values::{ParsableValue, ParsedValue},
+use clap::{self, Args, Parser};
+use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
+use iota_types::{
+    base_types::{IotaAddress, SequenceNumber},
+    move_package::UpgradePolicy,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{Argument, CallArg, ObjectArg},
 };
-use move_core_types::runtime_value::{MoveStruct, MoveValue};
-use move_core_types::u256::U256;
+use move_compiler::editions::Flavor;
+use move_core_types::{
+    parsing::{
+        parser::{Parser as MoveCLParser, parse_u64, parse_u256},
+        values::{ParsableValue, ParsedValue, ValueToken},
+    },
+    runtime_value::{MoveStruct, MoveValue},
+    u256::U256,
+};
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::tasks::{RunCommand, SyntaxChoice};
-use iota_graphql_rpc::test_infra::cluster::SnapshotLagConfig;
-use iota_types::base_types::{SequenceNumber, IotaAddress};
-use iota_types::move_package::UpgradePolicy;
-use iota_types::object::{Object, Owner};
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::transaction::{Argument, CallArg, ObjectArg};
+
+use crate::test_adapter::{FakeID, IotaTestAdapter};
 
 pub const IOTA_ARGS_LONG: &str = "iota-args";
 
@@ -70,8 +72,8 @@ pub struct IotaInitArgs {
     pub snapshot_config: SnapshotLagConfig,
     #[clap(long = "flavor")]
     pub flavor: Option<Flavor>,
-    /// The number of epochs to keep in the database. Epochs outside of this range will be pruned by
-    /// the indexer.
+    /// The number of epochs to keep in the database. Epochs outside of this
+    /// range will be pruned by the indexer.
     #[clap(long = "epochs-to-keep")]
     pub epochs_to_keep: Option<u64>,
 }
@@ -231,9 +233,11 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("transfer-object", matches)) => {
                 IotaSubcommand::TransferObject(TransferObjectCommand::from_arg_matches(matches)?)
             }
-            Some(("consensus-commit-prologue", matches)) => IotaSubcommand::ConsensusCommitPrologue(
-                ConsensusCommitPrologueCommand::from_arg_matches(matches)?,
-            ),
+            Some(("consensus-commit-prologue", matches)) => {
+                IotaSubcommand::ConsensusCommitPrologue(
+                    ConsensusCommitPrologueCommand::from_arg_matches(matches)?,
+                )
+            }
             Some(("programmable", matches)) => IotaSubcommand::ProgrammableTransaction(
                 ProgrammableTransactionCommand::from_arg_matches(matches)?,
             ),
@@ -246,9 +250,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("set-address", matches)) => {
                 IotaSubcommand::SetAddress(SetAddressCommand::from_arg_matches(matches)?)
             }
-            Some(("create-checkpoint", matches)) => {
-                IotaSubcommand::CreateCheckpoint(CreateCheckpointCommand::from_arg_matches(matches)?)
-            }
+            Some(("create-checkpoint", matches)) => IotaSubcommand::CreateCheckpoint(
+                CreateCheckpointCommand::from_arg_matches(matches)?,
+            ),
             Some(("advance-epoch", matches)) => {
                 IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand::from_arg_matches(matches)?)
             }
@@ -569,7 +573,10 @@ impl ParsableValue for IotaExtraValueArgs {
             ))
         } else {
             Ok(IotaValue::MoveValue(MoveValue::Vector(
-                elems.into_iter().map(IotaValue::assert_move_value).collect(),
+                elems
+                    .into_iter()
+                    .map(IotaValue::assert_move_value)
+                    .collect(),
             )))
         }
     }
@@ -609,9 +616,11 @@ fn parse_fake_id(s: &str) -> anyhow::Result<FakeID> {
 
 fn parse_policy(x: &str) -> anyhow::Result<u8> {
     Ok(match x {
-            "compatible" => UpgradePolicy::COMPATIBLE,
-            "additive" => UpgradePolicy::ADDITIVE,
-            "dep_only" => UpgradePolicy::DEP_ONLY,
-        _ => bail!("Invalid upgrade policy {x}. Policy must be one of 'compatible', 'additive', or 'dep_only'")
+        "compatible" => UpgradePolicy::COMPATIBLE,
+        "additive" => UpgradePolicy::ADDITIVE,
+        "dep_only" => UpgradePolicy::DEP_ONLY,
+        _ => bail!(
+            "Invalid upgrade policy {x}. Policy must be one of 'compatible', 'additive', or 'dep_only'"
+        ),
     })
 }

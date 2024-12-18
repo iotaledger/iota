@@ -5,25 +5,25 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::annotated_value::MoveDatatypeLayout;
-use move_core_types::annotated_value::MoveValue;
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::StructTag;
+use move_core_types::{
+    account_address::AccountAddress,
+    annotated_value::{MoveDatatypeLayout, MoveValue},
+    ident_str,
+    identifier::{IdentStr, Identifier},
+    language_storage::StructTag,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde_with::serde_as;
-use serde_with::Bytes;
+use serde_with::{Bytes, serde_as};
 
-use crate::base_types::{ObjectID, IotaAddress, TransactionDigest};
-use crate::error::{IotaError, IotaResult};
-use crate::object::bounded_visitor::BoundedVisitor;
-use crate::iota_serde::BigInt;
-use crate::iota_serde::Readable;
-use crate::IOTA_SYSTEM_ADDRESS;
+use crate::{
+    IOTA_SYSTEM_ADDRESS,
+    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    error::{IotaError, IotaResult},
+    iota_serde::{BigInt, Readable},
+    object::bounded_visitor::BoundedVisitor,
+};
 
 /// A universal Iota event type encapsulating different types of events
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +39,8 @@ pub struct EventEnvelope {
     /// Move event's json value
     pub parsed_json: Value,
 }
-/// Unique ID of a Iota Event, the ID is a combination of transaction digest and event seq number.
+/// Unique ID of a Iota Event, the ID is a combination of transaction digest and
+/// event seq number.
 #[serde_as]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash)]
 #[serde(rename_all = "camelCase")]

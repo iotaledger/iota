@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::sim_test;
-use iota_rpc_api::client::sdk::Client;
-use iota_rpc_api::client::Client as CoreClient;
-use iota_rpc_api::CheckpointResponse;
+use iota_rpc_api::{
+    CheckpointResponse,
+    client::{Client as CoreClient, sdk::Client},
+};
 use iota_sdk_types::types::SignedCheckpointSummary;
 use test_cluster::TestClusterBuilder;
 
@@ -37,7 +38,10 @@ async fn list_checkpoint() {
     // Make sure list works with json
     let _checkpoints = client
         .get(&url)
-        .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_JSON)
+        .header(
+            reqwest::header::ACCEPT,
+            iota_rpc_api::rest::APPLICATION_JSON,
+        )
         .send()
         .await
         .unwrap()
@@ -45,10 +49,11 @@ async fn list_checkpoint() {
         .await
         .unwrap();
 
-    // TODO remove this once the BCS format is no longer supported by the rest endpoint and clients
-    // wanting binary have migrated to grpc
+    // TODO remove this once the BCS format is no longer supported by the rest
+    // endpoint and clients wanting binary have migrated to grpc
     //
-    // Make sure list works with BCS and the old format of only a SignedCheckpoint with no contents
+    // Make sure list works with BCS and the old format of only a SignedCheckpoint
+    // with no contents
     let bytes = client
         .get(&url)
         .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_BCS)
@@ -102,8 +107,8 @@ async fn get_full_checkpoint() {
         latest.checkpoint.sequence_number
     );
 
-    // TODO remove this once the BCS format is no longer supported by the rest endpoint and clients
-    // wanting binary have migrated to grpc
+    // TODO remove this once the BCS format is no longer supported by the rest
+    // endpoint and clients wanting binary have migrated to grpc
     let bytes = client
         .get(&url)
         .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_BCS)

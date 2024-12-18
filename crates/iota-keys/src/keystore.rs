@@ -2,26 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::key_derive::{derive_key_pair_from_path, generate_new_key};
-use crate::random_names::{random_name, random_names};
-use anyhow::{anyhow, bail, ensure, Context};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt::{Display, Formatter, Write},
+    fs,
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+};
+
+use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
-use rand::{rngs::StdRng, SeedableRng};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{
+        EncodeDecodeBase64, IotaKeyPair, PublicKey, Signature, SignatureScheme, enum_dispatch,
+        get_key_pair_from_rng,
+    },
+};
+use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use shared_crypto::intent::{Intent, IntentMessage};
-use std::collections::{BTreeMap, HashSet};
-use std::fmt::Write;
-use std::fmt::{Display, Formatter};
-use std::fs;
-use std::fs::File;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::get_key_pair_from_rng;
-use iota_types::crypto::{
-    enum_dispatch, EncodeDecodeBase64, PublicKey, Signature, SignatureScheme, IotaKeyPair,
+
+use crate::{
+    key_derive::{derive_key_pair_from_path, generate_new_key},
+    random_names::{random_name, random_names},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -32,11 +39,13 @@ pub enum Keystore {
 }
 #[enum_dispatch]
 pub trait AccountKeystore: Send + Sync {
-    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair) -> Result<(), anyhow::Error>;
+    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair)
+    -> Result<(), anyhow::Error>;
     fn keys(&self) -> Vec<PublicKey>;
     fn get_key(&self, address: &IotaAddress) -> Result<&IotaKeyPair, anyhow::Error>;
 
-    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8]) -> Result<Signature, signature::Error>;
+    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8])
+    -> Result<Signature, signature::Error>;
 
     fn sign_secure<T>(
         &self,
@@ -195,7 +204,11 @@ impl<'de> Deserialize<'de> for FileBasedKeystore {
 }
 
 impl AccountKeystore for FileBasedKeystore {
-    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &IotaAddress,
+        msg: &[u8],
+    ) -> Result<Signature, signature::Error> {
         Ok(Signature::new_hashed(
             msg,
             self.keys.get(address).ok_or_else(|| {
@@ -220,22 +233,24 @@ impl AccountKeystore for FileBasedKeystore {
         ))
     }
 
-    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair) -> Result<(), anyhow::Error> {
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        keypair: IotaKeyPair,
+    ) -> Result<(), anyhow::Error> {
         let address: IotaAddress = (&keypair.public()).into();
         let alias = self.create_alias(alias)?;
-        self.aliases.insert(
-            address,
-            Alias {
-                alias,
-                public_key_base64: keypair.public().encode_base64(),
-            },
-        );
+        self.aliases.insert(address, Alias {
+            alias,
+            public_key_base64: keypair.public().encode_base64(),
+        });
         self.keys.insert(address, keypair);
         self.save()?;
         Ok(())
     }
 
-    /// Return an array of `Alias`, consisting of every alias and its corresponding public key.
+    /// Return an array of `Alias`, consisting of every alias and its
+    /// corresponding public key.
     fn aliases(&self) -> Vec<&Alias> {
         self.aliases.values().collect()
     }
@@ -244,7 +259,8 @@ impl AccountKeystore for FileBasedKeystore {
         self.aliases.iter().collect::<Vec<_>>()
     }
 
-    /// Return an array of `Alias`, consisting of every alias and its corresponding public key.
+    /// Return an array of `Alias`, consisting of every alias and its
+    /// corresponding public key.
     fn aliases_mut(&mut self) -> Vec<&mut Alias> {
         self.aliases.values_mut().collect()
     }
@@ -253,8 +269,8 @@ impl AccountKeystore for FileBasedKeystore {
         self.keys.values().map(|key| key.public()).collect()
     }
 
-    /// This function returns an error if the provided alias already exists. If the alias
-    /// has not already been used, then it returns the alias.
+    /// This function returns an error if the provided alias already exists. If
+    /// the alias has not already been used, then it returns the alias.
     /// If no alias has been passed, it will generate a new alias.
     fn create_alias(&self, alias: Option<String>) -> Result<String, anyhow::Error> {
         match alias {
@@ -373,13 +389,10 @@ impl FileBasedKeystore {
                 .zip(names)
                 .map(|((iota_address, ikp), alias)| {
                     let public_key_base64 = ikp.public().encode_base64();
-                    (
-                        *iota_address,
-                        Alias {
-                            alias,
-                            public_key_base64,
-                        },
-                    )
+                    (*iota_address, Alias {
+                        alias,
+                        public_key_base64,
+                    })
                 })
                 .collect::<BTreeMap<_, _>>();
             let aliases_store = serde_json::to_string_pretty(&aliases.values().collect::<Vec<_>>())
@@ -423,8 +436,9 @@ impl FileBasedKeystore {
     }
 
     /// Keys saved as Base64 with 33 bytes `flag || privkey` ($BASE64_STR).
-    /// To see Bech32 format encoding, use `iota keytool export $IOTA_ADDRESS` where
-    /// $IOTA_ADDRESS can be found with `iota keytool list`. Or use `iota keytool convert $BASE64_STR`
+    /// To see Bech32 format encoding, use `iota keytool export $IOTA_ADDRESS`
+    /// where $IOTA_ADDRESS can be found with `iota keytool list`. Or use
+    /// `iota keytool convert $BASE64_STR`
     pub fn save_keystore(&self) -> Result<(), anyhow::Error> {
         if let Some(path) = &self.path {
             let store = serde_json::to_string_pretty(
@@ -458,7 +472,11 @@ pub struct InMemKeystore {
 }
 
 impl AccountKeystore for InMemKeystore {
-    fn sign_hashed(&self, address: &IotaAddress, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &IotaAddress,
+        msg: &[u8],
+    ) -> Result<Signature, signature::Error> {
         Ok(Signature::new_hashed(
             msg,
             self.keys.get(address).ok_or_else(|| {
@@ -483,7 +501,11 @@ impl AccountKeystore for InMemKeystore {
         ))
     }
 
-    fn add_key(&mut self, alias: Option<String>, keypair: IotaKeyPair) -> Result<(), anyhow::Error> {
+    fn add_key(
+        &mut self,
+        alias: Option<String>,
+        keypair: IotaKeyPair,
+    ) -> Result<(), anyhow::Error> {
         let address: IotaAddress = (&keypair.public()).into();
         let alias = alias.unwrap_or_else(|| {
             random_name(
@@ -542,8 +564,8 @@ impl AccountKeystore for InMemKeystore {
             .map(|x| x.0)
     }
 
-    /// This function returns an error if the provided alias already exists. If the alias
-    /// has not already been used, then it returns the alias.
+    /// This function returns an error if the provided alias already exists. If
+    /// the alias has not already been used, then it returns the alias.
     /// If no alias has been passed, it will generate a new alias.
     fn create_alias(&self, alias: Option<String>) -> Result<String, anyhow::Error> {
         match alias {
@@ -589,13 +611,10 @@ impl InMemKeystore {
             .zip(random_names(HashSet::new(), keys.len()))
             .map(|((iota_address, ikp), alias)| {
                 let public_key_base64 = ikp.public().encode_base64();
-                (
-                    *iota_address,
-                    Alias {
-                        alias,
-                        public_key_base64,
-                    },
-                )
+                (*iota_address, Alias {
+                    alias,
+                    public_key_base64,
+                })
             })
             .collect::<BTreeMap<_, _>>();
 

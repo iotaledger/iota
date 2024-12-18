@@ -2,16 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Context, Result};
+use std::{env, fs, path::PathBuf, sync::Arc};
 
+use anyhow::{Context, Result, anyhow};
 use clap::*;
-use object_store::aws::AmazonS3Builder;
-use object_store::{ClientOptions, DynObjectStore};
+use object_store::{ClientOptions, DynObjectStore, aws::AmazonS3Builder};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::{env, fs};
 use tracing::info;
 
 /// Object-store type.
@@ -30,7 +27,8 @@ pub enum ObjectStoreType {
 #[derive(Default, Debug, Clone, Deserialize, Serialize, Args)]
 #[serde(rename_all = "kebab-case")]
 pub struct ObjectStoreConfig {
-    /// Which object storage to use. If not specified, defaults to local file system.
+    /// Which object storage to use. If not specified, defaults to local file
+    /// system.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[arg(value_enum)]
     pub object_store: Option<ObjectStoreType>,
@@ -179,8 +177,7 @@ impl ObjectStoreConfig {
         )))
     }
     fn new_gcs(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
-        use object_store::gcp::GoogleCloudStorageBuilder;
-        use object_store::limit::LimitStore;
+        use object_store::{gcp::GoogleCloudStorageBuilder, limit::LimitStore};
 
         info!(bucket=?self.bucket, object_store_type="GCS", "Object Store");
 
@@ -211,8 +208,7 @@ impl ObjectStoreConfig {
         )))
     }
     fn new_azure(&self) -> Result<Arc<DynObjectStore>, anyhow::Error> {
-        use object_store::azure::MicrosoftAzureBuilder;
-        use object_store::limit::LimitStore;
+        use object_store::{azure::MicrosoftAzureBuilder, limit::LimitStore};
 
         info!(bucket=?self.bucket, account=?self.azure_storage_account,
           object_store_type="Azure", "Object Store");

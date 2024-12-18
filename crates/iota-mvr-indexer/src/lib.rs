@@ -7,24 +7,24 @@ use std::time::Duration;
 
 use anyhow::Result;
 use config::JsonRpcConfig;
+use errors::IndexerError;
+use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
+use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
+use iota_metrics::spawn_monitored_task;
 use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
-use iota_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use system_package_task::SystemPackageTask;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-use iota_json_rpc::ServerType;
-use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle};
-use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
-
-use crate::apis::{
-    CoinReadApi, ExtendedApi, GovernanceReadApi, IndexerApi, MoveUtilsApi, ReadApi,
-    TransactionBuilderApi, WriteApi,
+use crate::{
+    apis::{
+        CoinReadApi, ExtendedApi, GovernanceReadApi, IndexerApi, MoveUtilsApi, ReadApi,
+        TransactionBuilderApi, WriteApi,
+    },
+    indexer_reader::IndexerReader,
 };
-use crate::indexer_reader::IndexerReader;
-use errors::IndexerError;
 
 pub mod apis;
 pub mod backfill;

@@ -2,36 +2,43 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::net::IpAddr;
-use std::time::SystemTime;
-use std::{net::SocketAddr, sync::Arc};
-use iota_types::traffic_control::RemoteFirewallConfig;
-
-use axum::extract::{ConnectInfo, Json, State};
-use axum::response::Response;
-use futures::StreamExt;
-use hyper::header::HeaderValue;
-use hyper::HeaderMap;
-use jsonrpsee::core::server::helpers::BoundedSubscriptions;
-use jsonrpsee::core::server::helpers::MethodResponse;
-use jsonrpsee::core::server::helpers::MethodSink;
-use jsonrpsee::core::server::rpc_module::MethodKind;
-use jsonrpsee::server::logger::{self, TransportProtocol};
-use jsonrpsee::server::RandomIntegerIdProvider;
-use jsonrpsee::types::error::{ErrorCode, BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT_SUPPORTED_MSG};
-use jsonrpsee::types::{ErrorObject, Id, InvalidRequest, Params, Request};
-use jsonrpsee::{core::server::rpc_module::Methods, server::logger::Logger};
-use serde_json::value::RawValue;
-use iota_core::traffic_controller::{
-    metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally, TrafficController,
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::SystemTime,
 };
-use iota_json_rpc_api::TRANSACTION_EXECUTION_CLIENT_ERROR_CODE;
-use iota_types::traffic_control::ClientIdSource;
-use iota_types::traffic_control::{PolicyConfig, Weight};
+
+use axum::{
+    extract::{ConnectInfo, Json, State},
+    response::Response,
+};
+use futures::StreamExt;
+use hyper::{HeaderMap, header::HeaderValue};
+use iota_core::traffic_controller::{
+    TrafficController, metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally,
+};
+use iota_json_rpc_api::{
+    CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
+};
+use iota_types::traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight};
+use jsonrpsee::{
+    core::server::{
+        helpers::{BoundedSubscriptions, MethodResponse, MethodSink},
+        rpc_module::{MethodKind, Methods},
+    },
+    server::{
+        RandomIntegerIdProvider,
+        logger::{self, Logger, TransportProtocol},
+    },
+    types::{
+        ErrorObject, Id, InvalidRequest, Params, Request,
+        error::{BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT_SUPPORTED_MSG, ErrorCode},
+    },
+};
+use serde_json::value::RawValue;
 use tracing::error;
 
 use crate::routing_layer::RpcRouter;
-use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 
 pub const MAX_RESPONSE_SIZE: u32 = 2 << 30;
 const TOO_MANY_REQUESTS_MSG: &str = "Too many requests";
@@ -165,23 +172,23 @@ async fn process_raw_request<L: Logger>(
                     let header_contents = header_val.split(',').map(str::trim).collect::<Vec<_>>();
                     if num_hops == 0 {
                         error!(
-                                "x-forwarded-for: 0 specified. x-forwarded-for contents: {:?}. Please assign nonzero value for \
+                            "x-forwarded-for: 0 specified. x-forwarded-for contents: {:?}. Please assign nonzero value for \
                                 number of hops here, or use `socket-addr` client-id-source type if requests are not being proxied \
                                 to this node. Skipping traffic controller request handling.",
-                                header_contents,
-                            );
+                            header_contents,
+                        );
                         return None;
                     }
                     let contents_len = header_contents.len();
                     let Some(client_ip) = header_contents.get(contents_len - num_hops) else {
                         error!(
-                                "x-forwarded-for header value of {:?} contains {} values, but {} hops were specificed. \
+                            "x-forwarded-for header value of {:?} contains {} values, but {} hops were specificed. \
                                 Expected {} values. Skipping traffic controller request handling.",
-                                header_contents,
-                                contents_len,
-                                num_hops,
-                                num_hops + 1,
-                            );
+                            header_contents,
+                            contents_len,
+                            num_hops,
+                            num_hops + 1,
+                        );
                         return None;
                     };
                     parse_ip(client_ip)
@@ -196,7 +203,9 @@ async fn process_raw_request<L: Logger>(
             } else if let Some(header) = headers.get("X-Forwarded-For") {
                 do_header_parse(header)
             } else {
-                error!("x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type");
+                error!(
+                    "x-forwarded-for header not present for request despite node configuring x-forwarded-for tracking type"
+                );
                 None
             }
         }
@@ -355,8 +364,8 @@ async fn process_request<L: Logger>(
     response
 }
 
-/// Figure out if this is a sufficiently complete request that we can extract an [`Id`] out of, or just plain
-/// unparsable garbage.
+/// Figure out if this is a sufficiently complete request that we can extract an
+/// [`Id`] out of, or just plain unparsable garbage.
 pub fn prepare_error(data: &str) -> (Id<'_>, ErrorCode) {
     match serde_json::from_str::<InvalidRequest>(data) {
         Ok(InvalidRequest { id }) => (id, ErrorCode::InvalidRequest),
@@ -376,8 +385,8 @@ pub(crate) struct CallData<'a, L: Logger> {
 pub mod ws {
     use axum::{
         extract::{
-            ws::{Message, WebSocket},
             WebSocketUpgrade,
+            ws::{Message, WebSocket},
         },
         response::Response,
     };
@@ -406,7 +415,8 @@ pub mod ws {
 
     // A WebSocket handler that echos any message it receives.
     //
-    // This one we'll be integration testing so it can be written in the regular way.
+    // This one we'll be integration testing so it can be written in the regular
+    // way.
     pub async fn ws_json_rpc_upgrade<L: Logger>(
         ws: WebSocketUpgrade,
         State(service): State<JsonRpcService<L>>,

@@ -5,26 +5,24 @@
 #[cfg(not(msim))]
 use std::str::FromStr;
 
-use move_core_types::identifier::Identifier;
 use iota_json::{call_args, type_args};
-use iota_json_rpc_types::IotaTransactionBlockResponseQuery;
-use iota_json_rpc_types::TransactionFilter;
+use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, TransactionBlockBytes,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, TransactionBlockBytes,
+    TransactionFilter,
 };
 use iota_macros::sim_test;
-use iota_types::base_types::ObjectID;
-use iota_types::gas_coin::GAS;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::transaction::Command;
-use iota_types::transaction::SenderSignedData;
-use iota_types::transaction::TransactionData;
-use iota_types::IOTA_FRAMEWORK_ADDRESS;
+use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
+    base_types::ObjectID,
+    gas_coin::GAS,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{Command, SenderSignedData, TransactionData},
+};
+use move_core_types::identifier::Identifier;
 use test_cluster::TestClusterBuilder;
-
-use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 
 #[sim_test]
 async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
@@ -79,26 +77,27 @@ async fn test_get_transaction_block() -> Result<(), anyhow::Error> {
         tx_responses.push(response);
     }
 
-    // TODO(chris): re-enable after rewriting get_transactions_in_range_deprecated with query_transactions
-    // test get_transaction_batch
+    // TODO(chris): re-enable after rewriting get_transactions_in_range_deprecated
+    // with query_transactions test get_transaction_batch
     // let batch_responses: Vec<IotaTransactionBlockResponse> = http_client
-    //     .multi_get_transaction_blocks(tx, Some(IotaTransactionBlockResponseOptions::new()))
-    //     .await?;
+    //     .multi_get_transaction_blocks(tx,
+    // Some(IotaTransactionBlockResponseOptions::new()))     .await?;
 
     // assert_eq!(5, batch_responses.len());
 
     // for r in batch_responses.iter().skip(1) {
     //     assert!(tx_responses
     //         .iter()
-    //         .any(|resp| matches!(resp, IotaTransactionBlockResponse {digest, ..} if *digest == r.digest)))
-    // }
+    //         .any(|resp| matches!(resp, IotaTransactionBlockResponse {digest, ..}
+    // if *digest == r.digest))) }
 
     // // test get_transaction
     // for tx_digest in tx {
     //     let response: IotaTransactionBlockResponse = http_client
     //         .get_transaction_block(
     //             tx_digest,
-    //             Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
+    //             
+    // Some(IotaTransactionBlockResponseOptions::new().with_raw_input()),
     //         )
     //         .await?;
     //     assert!(tx_responses.iter().any(
@@ -330,7 +329,10 @@ async fn test_get_fullnode_transaction() -> Result<(), anyhow::Error> {
     for tx_resp in tx.data {
         let response: IotaTransactionBlockResponse = client
             .read_api()
-            .get_transaction_with_options(tx_resp.digest, IotaTransactionBlockResponseOptions::new())
+            .get_transaction_with_options(
+                tx_resp.digest,
+                IotaTransactionBlockResponseOptions::new(),
+            )
             .await
             .unwrap();
         assert_eq!(tx_resp.digest, response.digest);
@@ -428,7 +430,8 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         )
         .await
         .unwrap();
-    // match with None function, the DB should have 2 records, but both points to the same tx
+    // match with None function, the DB should have 2 records, but both points to
+    // the same tx
     let filter = TransactionFilter::MoveFunction {
         package: package_id,
         module: Some("pay".to_string()),
@@ -440,7 +443,8 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         .query_transaction_blocks(move_call_query, None, Some(20), true)
         .await
         .unwrap();
-    // verify that only 1 tx is returned and no IotaRpcInputError::ContainsDuplicates error
+    // verify that only 1 tx is returned and no
+    // IotaRpcInputError::ContainsDuplicates error
     assert_eq!(1, tx.data.len());
     Ok(())
 }

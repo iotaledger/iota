@@ -2,6 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::VecDeque;
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{
     gas_algebra::InternalGas,
@@ -13,7 +15,6 @@ use move_vm_types::{
     loaded_data::runtime_types::Type, natives::function::NativeResult, values::Value,
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
 
 use crate::NativesCostTable;
 
@@ -24,11 +25,13 @@ pub(crate) fn is_otw_struct(
 ) -> bool {
     let has_one_bool_field = matches!(struct_layout.0.as_slice(), [MoveTypeLayout::Bool]);
 
-    // If a struct type has the same name as the module that defines it but capitalized, and it has
-    // a single field of type bool, it means that it's a one-time witness type. The remaining
-    // properties of a one-time witness type are checked in the one_time_witness_verifier pass in
-    // the Iota bytecode verifier (a type with this name and with a single bool field that does not
-    // have all the remaining properties of a one-time witness type will cause a verifier error).
+    // If a struct type has the same name as the module that defines it but
+    // capitalized, and it has a single field of type bool, it means that it's a
+    // one-time witness type. The remaining properties of a one-time witness
+    // type are checked in the one_time_witness_verifier pass in
+    // the Iota bytecode verifier (a type with this name and with a single bool
+    // field that does not have all the remaining properties of a one-time
+    // witness type will cause a verifier error).
     matches!(
         type_tag,
         TypeTag::Struct(struct_tag) if
@@ -45,13 +48,18 @@ pub struct TypesIsOneTimeWitnessCostParams {
     pub types_is_one_time_witness_type_tag_cost_per_byte: InternalGas,
     pub types_is_one_time_witness_type_cost_per_byte: InternalGas,
 }
-/***************************************************************************************************
- * native fun is_one_time_witness
- * Implementation of the Move native function `is_one_time_witness<T: drop>(_: &T): bool`
- *   gas cost: types_is_one_time_witness_cost_base                        | base cost as this can be expensive oper
- *              + types_is_one_time_witness_type_tag_cost_per_byte * type_tag.size()        | cost per byte of converting type to type tag
- *              + types_is_one_time_witness_type_cost_per_byte * ty.size()                  | cost per byte of converting type to type layout
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun is_one_time_witness
+/// Implementation of the Move native function `is_one_time_witness<T: drop>(_:
+/// &T): bool`   gas cost: types_is_one_time_witness_cost_base
+/// | base cost as this can be expensive oper
+///              + types_is_one_time_witness_type_tag_cost_per_byte *
+///                type_tag.size()        | cost per byte of converting type to
+///                type tag
+///              + types_is_one_time_witness_type_cost_per_byte * ty.size()
+///                | cost per byte of converting type to type layout
+/// ****************************************************************************
+/// *******************
 pub fn is_one_time_witness(
     context: &mut NativeContext,
     mut ty_args: Vec<Type>,

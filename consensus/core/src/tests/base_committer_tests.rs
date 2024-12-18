@@ -282,7 +282,8 @@ async fn indirect_commit() {
         .take(context.committee.quorum_threshold() as usize)
         .collect();
 
-    // The validators not part of the f+1 above will not certify the leader of wave 1.
+    // The validators not part of the f+1 above will not certify the leader of wave
+    // 1.
     let connections_without_votes_for_leader_1 = context
         .committee
         .authorities()
@@ -332,12 +333,13 @@ async fn indirect_commit() {
     };
 
     // Quick Summary:
-    // Leader of wave 2 or C6 has the necessary votes/certs to be directly committed.
-    // Then, when we get to the leader of wave 1 or D3, we see that we cannot direct commit
-    // and it is marked as undecided. But this time we have a committed anchor so we
-    // check if there is a certified link from the anchor (c6) to the undecided leader
-    // (d3). There is a certified link through A5 with votes A4,B4,C4. So we can mark
-    // this leader as committed indirectly.
+    // Leader of wave 2 or C6 has the necessary votes/certs to be directly
+    // committed. Then, when we get to the leader of wave 1 or D3, we see that
+    // we cannot direct commit and it is marked as undecided. But this time we
+    // have a committed anchor so we check if there is a certified link from the
+    // anchor (c6) to the undecided leader (d3). There is a certified link
+    // through A5 with votes A4,B4,C4. So we can mark this leader as committed
+    // indirectly.
 
     // Ensure we commit the leader of wave 1 indirectly with the committed leader
     // of wave 2 as the anchor.
@@ -520,8 +522,8 @@ async fn undecided() {
         references_leader_round_wave_1,
     )];
 
-    // Also to ensure we have < 2f+1 blames, we take less then that for connections (votes)
-    // without the leader of wave 1.
+    // Also to ensure we have < 2f+1 blames, we take less then that for connections
+    // (votes) without the leader of wave 1.
     let connections_without_leader_wave_1: Vec<_> = authorities
         .take((context.committee.quorum_threshold() - 1) as usize)
         .map(|authority| (authority.0, references_without_leader_wave_1.clone()))
@@ -569,8 +571,9 @@ async fn undecided() {
 }
 
 // This test scenario has one authority that is acting in a byzantine manner. It
-// will be sending multiple different blocks to different validators for a round.
-// The commit rule should handle this and correctly commit the expected blocks.
+// will be sending multiple different blocks to different validators for a
+// round. The commit rule should handle this and correctly commit the expected
+// blocks.
 #[tokio::test]
 async fn test_byzantine_direct_commit() {
     telemetry_subscribers::init_for_testing();
@@ -593,7 +596,8 @@ async fn test_byzantine_direct_commit() {
 
     // Add blocks to reach voting round of wave 4
     let voting_round_wave_4 = leader_round_wave_4 + 1;
-    // This includes a "good vote" from validator C which is acting as a byzantine validator
+    // This includes a "good vote" from validator C which is acting as a byzantine
+    // validator
     let good_references_voting_round_wave_4 = build_dag(
         context.clone(),
         dag_state.clone(),
@@ -620,7 +624,8 @@ async fn test_byzantine_direct_commit() {
         .filter(|x| x.author != leader_wave_4.authority)
         .collect();
 
-    // Accept these references/blocks as ancestors from decision round blocks in dag state
+    // Accept these references/blocks as ancestors from decision round blocks in dag
+    // state
     let byzantine_block_c13_1 = VerifiedBlock::new_for_test(
         TestBlock::new(13, 2)
             .set_ancestors(references_without_leader_round_wave_4.clone())
@@ -651,9 +656,10 @@ async fn test_byzantine_direct_commit() {
         .write()
         .accept_block(byzantine_block_c13_3.clone());
 
-    // Ancestors of decision blocks in round 14 should include multiple byzantine non-votes C13
-    // but there are enough good votes to prevent a skip. Additionally only one of the non-votes
-    // per authority should be counted so we should not skip leader A12.
+    // Ancestors of decision blocks in round 14 should include multiple byzantine
+    // non-votes C13 but there are enough good votes to prevent a skip.
+    // Additionally only one of the non-votes per authority should be counted so
+    // we should not skip leader A12.
     let decision_block_a14 = VerifiedBlock::new_for_test(
         TestBlock::new(14, 0)
             .set_ancestors(good_references_voting_round_wave_4.clone())
@@ -707,10 +713,11 @@ async fn test_byzantine_direct_commit() {
 
     // DagState Update:
     // - We have A13, B13, D13 & C13 as good votes in the voting round of wave 4
-    // - We have 3 byzantine C13 nonvotes that we received as ancestors from decision
-    //   round blocks from B, C, & D.
-    // - We have  B14, C14 & D14 that include this byzantine nonvote and A14 from the
-    //   decision round. But all of these blocks also have good votes from A, B, C & D.
+    // - We have 3 byzantine C13 nonvotes that we received as ancestors from
+    //   decision round blocks from B, C, & D.
+    // - We have  B14, C14 & D14 that include this byzantine nonvote and A14 from
+    //   the decision round. But all of these blocks also have good votes from A, B,
+    //   C & D.
     // Expect a successful direct commit.
 
     tracing::info!("Try direct commit for leader {leader_wave_4}");
@@ -724,8 +731,9 @@ async fn test_byzantine_direct_commit() {
     };
 }
 
-// TODO: Add test for indirect commit with a certified link through a byzantine validator.
+// TODO: Add test for indirect commit with a certified link through a byzantine
+// validator.
 
-// TODO: add basic tests for multi leader & pipeline. More tests will be added to
-// throughly test pipelining and multileader once universal committer lands so
-// these tests may not be necessary here.
+// TODO: add basic tests for multi leader & pipeline. More tests will be added
+// to throughly test pipelining and multileader once universal committer lands
+// so these tests may not be necessary here.

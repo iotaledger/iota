@@ -2,19 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use enum_dispatch::enum_dispatch;
 use std::collections::HashMap;
 
-use crate::base_types::{AuthorityName, EpochId, IotaAddress};
-use crate::committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit};
-use crate::crypto::{AuthorityPublicKey, NetworkPublicKey};
-use crate::multiaddr::Multiaddr;
-use anemo::types::{PeerAffinity, PeerInfo};
-use anemo::PeerId;
+use anemo::{
+    PeerId,
+    types::{PeerAffinity, PeerInfo},
+};
 use consensus_config::{Authority, Committee as ConsensusCommittee};
-use serde::{Deserialize, Serialize};
+use enum_dispatch::enum_dispatch;
 use iota_protocol_config::ProtocolVersion;
+use serde::{Deserialize, Serialize};
 use tracing::{error, warn};
+
+use crate::{
+    base_types::{AuthorityName, EpochId, IotaAddress},
+    committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit},
+    crypto::{AuthorityPublicKey, NetworkPublicKey},
+    multiaddr::Multiaddr,
+};
 
 #[enum_dispatch]
 pub trait EpochStartSystemStateTrait {
@@ -33,13 +38,15 @@ pub trait EpochStartSystemStateTrait {
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
 }
 
-/// This type captures the minimum amount of information from IotaSystemState needed by a validator
-/// to run the protocol. This allows us to decouple from the actual IotaSystemState type, and hence
-/// do not need to evolve it when we upgrade the IotaSystemState type.
-/// Evolving EpochStartSystemState is also a lot easier in that we could add optional fields
-/// and fill them with None for older versions. When we absolutely must delete fields, we could
-/// also add new db tables to store the new version. This is OK because we only store one copy of
-/// this as part of EpochStartConfiguration for the most recent epoch in the db.
+/// This type captures the minimum amount of information from IotaSystemState
+/// needed by a validator to run the protocol. This allows us to decouple from
+/// the actual IotaSystemState type, and hence do not need to evolve it when we
+/// upgrade the IotaSystemState type. Evolving EpochStartSystemState is also a
+/// lot easier in that we could add optional fields and fill them with None for
+/// older versions. When we absolutely must delete fields, we could also add new
+/// db tables to store the new version. This is OK because we only store one
+/// copy of this as part of EpochStartConfiguration for the most recent epoch in
+/// the db.
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[enum_dispatch(EpochStartSystemStateTrait)]
 pub enum EpochStartSystemState {
@@ -155,14 +162,11 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .map(|validator| {
                 (
                     validator.authority_name(),
-                    (
-                        validator.voting_power,
-                        NetworkMetadata {
-                            network_address: validator.iota_net_address.clone(),
-                            narwhal_primary_address: validator.narwhal_primary_address.clone(),
-                            network_public_key: Some(validator.narwhal_network_pubkey.clone()),
-                        },
-                    ),
+                    (validator.voting_power, NetworkMetadata {
+                        network_address: validator.iota_net_address.clone(),
+                        narwhal_primary_address: validator.narwhal_primary_address.clone(),
+                        network_public_key: Some(validator.narwhal_network_pubkey.clone()),
+                    }),
                 )
             })
             .collect();
@@ -184,7 +188,8 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         for validator in self.active_validators.iter() {
             authorities.push(Authority {
                 stake: validator.voting_power as consensus_config::Stake,
-                // TODO(mysticeti): Add EpochStartValidatorInfoV2 with new field for mysticeti address.
+                // TODO(mysticeti): Add EpochStartValidatorInfoV2 with new field for mysticeti
+                // address.
                 address: validator.narwhal_primary_address.clone(),
                 hostname: validator.hostname.clone(),
                 authority_key: consensus_config::AuthorityPublicKey::new(
@@ -199,8 +204,9 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             });
         }
 
-        // Sort the authorities by their protocol (public) key in ascending order, same as the order
-        // in the Iota committee returned from get_iota_committee().
+        // Sort the authorities by their protocol (public) key in ascending order, same
+        // as the order in the Iota committee returned from
+        // get_iota_committee().
         authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
 
         for ((i, mysticeti_authority), iota_authority_name) in authorities
@@ -292,16 +298,19 @@ impl EpochStartValidatorInfoV1 {
 
 #[cfg(test)]
 mod test {
-    use crate::base_types::IotaAddress;
-    use crate::committee::CommitteeTrait;
-    use crate::crypto::{get_key_pair, AuthorityKeyPair, NetworkKeyPair};
-    use crate::iota_system_state::epoch_start_iota_system_state::{
-        EpochStartSystemStateTrait, EpochStartSystemStateV1, EpochStartValidatorInfoV1,
-    };
     use fastcrypto::traits::KeyPair;
     use iota_network_stack::Multiaddr;
-    use rand::thread_rng;
     use iota_protocol_config::ProtocolVersion;
+    use rand::thread_rng;
+
+    use crate::{
+        base_types::IotaAddress,
+        committee::CommitteeTrait,
+        crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
+        iota_system_state::epoch_start_iota_system_state::{
+            EpochStartSystemStateTrait, EpochStartSystemStateV1, EpochStartValidatorInfoV1,
+        },
+    };
 
     #[test]
     fn test_iota_and_mysticeti_committee_are_same() {

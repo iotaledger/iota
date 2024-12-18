@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use anyhow::Result;
-use std::sync::Mutex;
-use std::sync::MutexGuard;
+use std::sync::{Mutex, MutexGuard};
+
+use anyhow::{Result, anyhow};
 use iota_config::NodeConfig;
 use iota_node::IotaNodeHandle;
-use iota_types::base_types::AuthorityName;
-use iota_types::base_types::ConciseableName;
-use iota_types::crypto::KeypairTraits;
+use iota_types::{
+    base_types::{AuthorityName, ConciseableName},
+    crypto::KeypairTraits,
+};
 use tap::TapFallible;
 use tracing::{error, info};
 
@@ -18,10 +18,11 @@ use super::container::Container;
 
 /// A handle to an in-memory Iota Node.
 ///
-/// Each Node is attempted to run in isolation from each other by running them in their own tokio
-/// runtime in a separate thread. By doing this we can ensure that all asynchronous tasks
-/// associated with a Node are able to be stopped when desired (either when a Node is dropped or
-/// explicitly stopped by calling [`Node::stop`]) by simply dropping that Node's runtime.
+/// Each Node is attempted to run in isolation from each other by running them
+/// in their own tokio runtime in a separate thread. By doing this we can ensure
+/// that all asynchronous tasks associated with a Node are able to be stopped
+/// when desired (either when a Node is dropped or explicitly stopped by calling
+/// [`Node::stop`]) by simply dropping that Node's runtime.
 #[derive(Debug)]
 pub struct Node {
     container: Mutex<Option<Container>>,
@@ -32,8 +33,8 @@ pub struct Node {
 impl Node {
     /// Create a new Node from the provided `NodeConfig`.
     ///
-    /// The Node is returned without being started. See [`Node::spawn`] or [`Node::start`] for how to
-    /// start the node.
+    /// The Node is returned without being started. See [`Node::spawn`] or
+    /// [`Node::start`] for how to start the node.
     ///
     /// [`NodeConfig`]: iota_config::NodeConfig
     pub fn new(config: NodeConfig) -> Self {

@@ -5,14 +5,15 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, Attribute, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Meta,
-    MetaList, MetaNameValue, NestedMeta,
+    Attribute, Data, DataStruct, DeriveInput, Fields, FieldsNamed, Meta, MetaList, MetaNameValue,
+    NestedMeta, parse_macro_input,
 };
 
-/// Attribute macro to be applied to config-based structs. It ensures that the struct derives serde
-/// traits, and `Debug`, that all fields are renamed with "kebab case", and adds a `#[serde(default
-/// = ...)]` implementation for each field that ensures that if the field is not present during
-/// deserialization, it is replaced with its default value, from the `Default` implementation for
+/// Attribute macro to be applied to config-based structs. It ensures that the
+/// struct derives serde traits, and `Debug`, that all fields are renamed with
+/// "kebab case", and adds a `#[serde(default = ...)]` implementation for each
+/// field that ensures that if the field is not present during deserialization,
+/// it is replaced with its default value, from the `Default` implementation for
 /// the config struct.
 #[allow(non_snake_case)]
 #[proc_macro_attribute]
@@ -42,7 +43,8 @@ pub fn DefaultConfig(_attr: TokenStream, input: TokenStream) -> TokenStream {
         panic!("Default configs must have named fields.");
     };
 
-    // Extract field names once to avoid having to check for their existence multiple times.
+    // Extract field names once to avoid having to check for their existence
+    // multiple times.
     let fields_with_names: Vec<_> = named
         .iter()
         .map(|field| {
@@ -113,7 +115,8 @@ pub fn DefaultConfig(_attr: TokenStream, input: TokenStream) -> TokenStream {
     })
 }
 
-/// Find the attribute that corresponds to a `#[cfg(...)]` annotation, if it exists.
+/// Find the attribute that corresponds to a `#[cfg(...)]` annotation, if it
+/// exists.
 fn extract_cfg(attrs: &[Attribute]) -> Option<&Attribute> {
     attrs.iter().find(|attr| {
         let meta = attr.parse_meta().ok();

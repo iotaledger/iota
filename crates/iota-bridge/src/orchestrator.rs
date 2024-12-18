@@ -3,27 +3,32 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! `BridgeOrchestrator` is the component that:
-//! 1. monitors Iota and Ethereum events with the help of `IotaSyncer` and `EthSyncer`
+//! 1. monitors Iota and Ethereum events with the help of `IotaSyncer` and
+//!    `EthSyncer`
 //! 2. updates WAL table and cursor tables
 //! 2. hands actions to `BridgeExecutor` for execution
 
-use crate::abi::EthBridgeEvent;
-use crate::action_executor::{
-    submit_to_executor, BridgeActionExecutionWrapper, BridgeActionExecutorTrait,
-};
-use crate::error::BridgeError;
-use crate::events::IotaBridgeEvent;
-use crate::metrics::BridgeMetrics;
-use crate::storage::BridgeOrchestratorTables;
-use crate::iota_client::{IotaClient, IotaClientInner};
-use crate::types::EthLog;
-use ethers::types::Address as EthAddress;
-use iota_metrics::spawn_logged_monitored_task;
 use std::sync::Arc;
+
+use ethers::types::Address as EthAddress;
 use iota_json_rpc_types::IotaEvent;
+use iota_metrics::spawn_logged_monitored_task;
 use iota_types::Identifier;
 use tokio::task::JoinHandle;
 use tracing::{error, info};
+
+use crate::{
+    abi::EthBridgeEvent,
+    action_executor::{
+        BridgeActionExecutionWrapper, BridgeActionExecutorTrait, submit_to_executor,
+    },
+    error::BridgeError,
+    events::IotaBridgeEvent,
+    iota_client::{IotaClient, IotaClientInner},
+    metrics::BridgeMetrics,
+    storage::BridgeOrchestratorTables,
+    types::EthLog,
+};
 
 pub struct BridgeOrchestrator<C> {
     _iota_client: Arc<IotaClient<C>>,
@@ -125,7 +130,8 @@ where
                 .filter_map(|iota_event| {
                     match IotaBridgeEvent::try_from_iota_event(iota_event) {
                         Ok(bridge_event) => Some(bridge_event),
-                        // On testnet some early bridge transactions could have zero value (before we disallow it in Move)
+                        // On testnet some early bridge transactions could have zero value (before
+                        // we disallow it in Move)
                         Err(BridgeError::ZeroValueBridgeTransfer(_)) => {
                             error!("Zero value bridge transfer: {:?}", iota_event);
                             None
@@ -170,7 +176,11 @@ where
             }
 
             if !actions.is_empty() {
-                info!("Received {} actions from Iota: {:?}", actions.len(), actions);
+                info!(
+                    "Received {} actions from Iota: {:?}",
+                    actions.len(),
+                    actions
+                );
                 metrics
                     .iota_watcher_received_actions
                     .inc_by(actions.len() as u64);
@@ -265,7 +275,8 @@ where
                 store
                     .insert_pending_actions(&actions)
                     .expect("Store operation should not fail");
-                // Execution will remove the pending actions from DB when the action is completed.
+                // Execution will remove the pending actions from DB when the action is
+                // completed.
                 for action in actions {
                     submit_to_executor(&executor_tx, action)
                         .await
@@ -283,18 +294,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        test_utils::{get_test_eth_to_iota_bridge_action, get_test_log_and_action},
-        types::BridgeActionDigest,
-    };
-    use ethers::types::{Address as EthAddress, TxHash};
-    use prometheus::Registry;
     use std::str::FromStr;
 
+    use ethers::types::{Address as EthAddress, TxHash};
+    use prometheus::Registry;
+
     use super::*;
-    use crate::events::init_all_struct_tags;
-    use crate::test_utils::get_test_iota_to_eth_bridge_action;
-    use crate::{events::tests::get_test_iota_event_and_action, iota_mock_client::IotaMockClient};
+    use crate::{
+        events::{init_all_struct_tags, tests::get_test_iota_event_and_action},
+        iota_mock_client::IotaMockClient,
+        test_utils::{
+            get_test_eth_to_iota_bridge_action, get_test_iota_to_eth_bridge_action,
+            get_test_log_and_action,
+        },
+        types::BridgeActionDigest,
+    };
 
     #[tokio::test]
     async fn test_iota_watcher_task() {
@@ -365,8 +379,10 @@ mod tests {
     #[tokio::test]
     async fn test_eth_watcher_task() {
         // Note: this test may fail because of the following reasons:
-        // 1. Log and BridgeAction returned from `get_test_log_and_action` are not in sync
-        // 2. Log returned from `get_test_log_and_action` is not parseable log (not abigen!, check abi.rs)
+        // 1. Log and BridgeAction returned from `get_test_log_and_action` are not in
+        //    sync
+        // 2. Log returned from `get_test_log_and_action` is not parseable log (not
+        //    abigen!, check abi.rs)
 
         let (
             _iota_events_tx,
@@ -439,7 +455,8 @@ mod tests {
     }
 
     #[tokio::test]
-    /// Test that when orchestrator starts, all pending actions are sent to executor
+    /// Test that when orchestrator starts, all pending actions are sent to
+    /// executor
     async fn test_resume_actions_in_pending_logs() {
         let (
             _iota_events_tx,
@@ -562,7 +579,8 @@ mod tests {
         )
     }
 
-    /// A `BridgeActionExecutorTrait` implementation that only tracks the submitted actions.
+    /// A `BridgeActionExecutorTrait` implementation that only tracks the
+    /// submitted actions.
     struct MockExecutor {
         requested_transactions_tx: tokio::sync::broadcast::Sender<BridgeActionDigest>,
     }
@@ -586,14 +604,13 @@ mod tests {
             Vec<tokio::task::JoinHandle<()>>,
             iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
         ) {
-            let (tx, mut rx) =
-                iota_metrics::metered_channel::channel::<BridgeActionExecutionWrapper>(
-                    100,
-                    &iota_metrics::get_metrics()
-                        .unwrap()
-                        .channel_inflight
-                        .with_label_values(&["unit_test_mock_executor"]),
-                );
+            let (tx, mut rx) = iota_metrics::metered_channel::channel::<BridgeActionExecutionWrapper>(
+                100,
+                &iota_metrics::get_metrics()
+                    .unwrap()
+                    .channel_inflight
+                    .with_label_values(&["unit_test_mock_executor"]),
+            );
 
             let handles = tokio::spawn(async move {
                 while let Some(action) = rx.recv().await {

@@ -4,7 +4,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use iota_common::debug_fatal;
-use iota_metrics::monitored_mpsc::{channel, Receiver, Sender};
+use iota_metrics::monitored_mpsc::{Receiver, Sender, channel};
 use parking_lot::Mutex;
 use tap::tap::TapFallible;
 use thiserror::Error;
@@ -12,29 +12,33 @@ use tokio::sync::oneshot;
 use tracing::{error, warn};
 
 use crate::{
+    Round,
     block::{BlockRef, Transaction, TransactionIndex},
     context::Context,
-    Round,
 };
 
-/// The maximum number of transactions pending to the queue to be pulled for block proposal
+/// The maximum number of transactions pending to the queue to be pulled for
+/// block proposal
 const MAX_PENDING_TRANSACTIONS: usize = 2_000;
 
-/// The guard acts as an acknowledgment mechanism for the inclusion of the transactions to a block.
-/// When its last transaction is included to a block then `included_in_block_ack` will be signalled.
-/// If the guard is dropped without getting acknowledged that means the transactions have not been
+/// The guard acts as an acknowledgment mechanism for the inclusion of the
+/// transactions to a block. When its last transaction is included to a block
+/// then `included_in_block_ack` will be signalled. If the guard is dropped
+/// without getting acknowledged that means the transactions have not been
 /// included to a block and the consensus is shutting down.
 pub(crate) struct TransactionsGuard {
     // Holds a list of transactions to be included in the block.
-    // A TransactionsGuard may be partially consumed by `TransactionConsumer`, in which case, this holds the remaining transactions.
+    // A TransactionsGuard may be partially consumed by `TransactionConsumer`, in which case, this
+    // holds the remaining transactions.
     transactions: Vec<Transaction>,
 
     included_in_block_ack: oneshot::Sender<(BlockRef, oneshot::Receiver<BlockStatus>)>,
 }
 
-/// The TransactionConsumer is responsible for fetching the next transactions to be included for the block proposals.
-/// The transactions are submitted to a channel which is shared between the TransactionConsumer and the TransactionClient
-/// and are pulled every time the `next` method is called.
+/// The TransactionConsumer is responsible for fetching the next transactions to
+/// be included for the block proposals. The transactions are submitted to a
+/// channel which is shared between the TransactionConsumer and the
+/// TransactionClient and are pulled every time the `next` method is called.
 pub(crate) struct TransactionConsumer {
     context: Arc<Context>,
     tx_receiver: Receiver<TransactionsGuard>,
@@ -47,11 +51,14 @@ pub(crate) struct TransactionConsumer {
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[allow(unused)]
 pub enum BlockStatus {
-    /// The block has been sequenced as part of a committed sub dag. That means that any transaction that has been included in the block
+    /// The block has been sequenced as part of a committed sub dag. That means
+    /// that any transaction that has been included in the block
     /// has been committed as well.
     Sequenced(BlockRef),
-    /// The block has been garbage collected and will never be committed. Any transactions that have been included in the block should also
-    /// be considered as impossible to be committed as part of this block and might need to be retried
+    /// The block has been garbage collected and will never be committed. Any
+    /// transactions that have been included in the block should also
+    /// be considered as impossible to be committed as part of this block and
+    /// might need to be retried
     GarbageCollected(BlockRef),
 }
 
@@ -79,10 +86,12 @@ impl TransactionConsumer {
         }
     }
 
-    // Attempts to fetch the next transactions that have been submitted for sequence. Respects the `max_transactions_in_block_bytes`
+    // Attempts to fetch the next transactions that have been submitted for
+    // sequence. Respects the `max_transactions_in_block_bytes`
     // and `max_num_transactions_in_block` parameters specified via protocol config.
-    // This returns one or more transactions to be included in the block and a callback to acknowledge the inclusion of those transactions.
-    // Also returns a `LimitReached` enum to indicate which limit type has been reached.
+    // This returns one or more transactions to be included in the block and a
+    // callback to acknowledge the inclusion of those transactions. Also returns
+    // a `LimitReached` enum to indicate which limit type has been reached.
     pub(crate) fn next(&mut self) -> (Vec<Transaction>, Box<dyn FnOnce(BlockRef)>, LimitReached) {
         let mut transactions = Vec::new();
         let mut acks = Vec::new();
@@ -90,8 +99,9 @@ impl TransactionConsumer {
         let mut limit_reached = LimitReached::AllTransactionsIncluded;
 
         // Handle one batch of incoming transactions from TransactionGuard.
-        // The method will return `None` if all the transactions can be included in the block. Otherwise none of the transactions will be
-        // included in the block and the method will return the TransactionGuard.
+        // The method will return `None` if all the transactions can be included in the
+        // block. Otherwise none of the transactions will be included in the
+        // block and the method will return the TransactionGuard.
         let mut handle_txs = |t: TransactionsGuard| -> Option<TransactionsGuard> {
             let transactions_bytes =
                 t.transactions.iter().map(|t| t.data().len()).sum::<usize>() as u64;
@@ -116,12 +126,16 @@ impl TransactionConsumer {
 
         if let Some(t) = self.pending_transactions.take() {
             if let Some(pending_transactions) = handle_txs(t) {
-                debug_fatal!("Previously pending transaction(s) should fit into an empty block! Dropping: {:?}", pending_transactions.transactions);
+                debug_fatal!(
+                    "Previously pending transaction(s) should fit into an empty block! Dropping: {:?}",
+                    pending_transactions.transactions
+                );
             }
         }
 
         // Until we have reached the limit for the pull.
-        // We may have already reached limit in the first iteration above, in which case we stop immediately.
+        // We may have already reached limit in the first iteration above, in which case
+        // we stop immediately.
         while self.pending_transactions.is_none() {
             if let Ok(t) = self.tx_receiver.try_recv() {
                 self.pending_transactions = handle_txs(t);
@@ -146,8 +160,10 @@ impl TransactionConsumer {
                             .or_default()
                             .push(status_tx);
                     } else {
-                        // When gc is not enabled, then report directly the block as sequenced while tx is acknowledged for inclusion.
-                        // As blocks can never get garbage collected it is there is actually no meaning to do otherwise and also is safer for edge cases.
+                        // When gc is not enabled, then report directly the block as sequenced while
+                        // tx is acknowledged for inclusion. As blocks can
+                        // never get garbage collected it is there is actually no meaning to do
+                        // otherwise and also is safer for edge cases.
                         status_tx.send(BlockStatus::Sequenced(block_ref)).ok();
                     }
 
@@ -158,9 +174,12 @@ impl TransactionConsumer {
         )
     }
 
-    /// Notifies all the transaction submitters who are waiting to receive an update on the status of the block.
-    /// The `committed_blocks` are the blocks that have been committed and the `gc_round` is the round up to which the blocks have been garbage collected.
-    /// First we'll notify for all the committed blocks, and then for all the blocks that have been garbage collected.
+    /// Notifies all the transaction submitters who are waiting to receive an
+    /// update on the status of the block. The `committed_blocks` are the
+    /// blocks that have been committed and the `gc_round` is the round up to
+    /// which the blocks have been garbage collected. First we'll notify for
+    /// all the committed blocks, and then for all the blocks that have been
+    /// garbage collected.
     pub(crate) fn notify_own_blocks_status(
         &self,
         committed_blocks: Vec<BlockRef>,
@@ -176,7 +195,8 @@ impl TransactionConsumer {
             }
         }
 
-        // Now notify everyone <= gc_round that their block has been garbage collected and clean up the entries
+        // Now notify everyone <= gc_round that their block has been garbage collected
+        // and clean up the entries
         while let Some((block_ref, subscribers)) = block_status_subscribers.pop_first() {
             if block_ref.round <= gc_round {
                 subscribers.into_iter().for_each(|s| {
@@ -258,13 +278,15 @@ impl TransactionClient {
         )
     }
 
-    /// Submits a list of transactions to be sequenced. The method returns when all the transactions have been successfully included
+    /// Submits a list of transactions to be sequenced. The method returns when
+    /// all the transactions have been successfully included
     /// to next proposed blocks.
     pub async fn submit(
         &self,
         transactions: Vec<Vec<u8>>,
     ) -> Result<(BlockRef, oneshot::Receiver<BlockStatus>), ClientError> {
-        // TODO: Support returning the block refs for transactions that span multiple blocks
+        // TODO: Support returning the block refs for transactions that span multiple
+        // blocks
         let included_in_block = self.submit_no_wait(transactions).await?;
         included_in_block
             .await
@@ -273,14 +295,19 @@ impl TransactionClient {
     }
 
     /// Submits a list of transactions to be sequenced.
-    /// If any transaction's length exceeds `max_transaction_size`, no transaction will be submitted.
-    /// That shouldn't be the common case as sizes should be aligned between consensus and client. The method returns
-    /// a receiver to wait on until the transactions has been included in the next block to get proposed. The consumer should
-    /// wait on it to consider as inclusion acknowledgement. If the receiver errors then consensus is shutting down and transaction
-    /// has not been included to any block.
-    /// If multiple transactions are submitted, the method will attempt to bundle them together in a single block. If the total size of
-    /// the transactions exceeds `max_transactions_in_block_bytes`, no transaction will be submitted and an error will be returned instead.
-    /// Similar if transactions exceed `max_transactions_in_block_count` an error will be returned.
+    /// If any transaction's length exceeds `max_transaction_size`, no
+    /// transaction will be submitted. That shouldn't be the common case as
+    /// sizes should be aligned between consensus and client. The method returns
+    /// a receiver to wait on until the transactions has been included in the
+    /// next block to get proposed. The consumer should wait on it to
+    /// consider as inclusion acknowledgement. If the receiver errors then
+    /// consensus is shutting down and transaction has not been included to
+    /// any block. If multiple transactions are submitted, the method will
+    /// attempt to bundle them together in a single block. If the total size of
+    /// the transactions exceeds `max_transactions_in_block_bytes`, no
+    /// transaction will be submitted and an error will be returned instead.
+    /// Similar if transactions exceed `max_transactions_in_block_count` an
+    /// error will be returned.
     pub(crate) async fn submit_no_wait(
         &self,
         transactions: Vec<Vec<u8>>,
@@ -326,18 +353,19 @@ impl TransactionClient {
     }
 }
 
-/// `TransactionVerifier` implementation is supplied by Iota to validate transactions in a block,
-/// before acceptance of the block.
+/// `TransactionVerifier` implementation is supplied by Iota to validate
+/// transactions in a block, before acceptance of the block.
 #[async_trait::async_trait]
 pub trait TransactionVerifier: Send + Sync + 'static {
     /// Determines if this batch of transactions is valid.
     /// Fails if any one of the transactions is invalid.
     fn verify_batch(&self, batch: &[&[u8]]) -> Result<(), ValidationError>;
 
-    /// Returns indices of transactions to reject, validator error over transactions.
-    /// Currently only uncertified user transactions can be rejected. The rest of transactions
-    /// are implicitly voted to be accepted.
-    /// When the result is an error, the whole block should be rejected from local DAG instead.
+    /// Returns indices of transactions to reject, validator error over
+    /// transactions. Currently only uncertified user transactions can be
+    /// rejected. The rest of transactions are implicitly voted to be
+    /// accepted. When the result is an error, the whole block should be
+    /// rejected from local DAG instead.
     async fn verify_and_vote_batch(
         &self,
         batch: &[&[u8]],
@@ -374,16 +402,18 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use consensus_config::AuthorityIndex;
-    use futures::{stream::FuturesUnordered, StreamExt};
+    use futures::{StreamExt, stream::FuturesUnordered};
     use iota_protocol_config::ProtocolConfig;
     use tokio::time::timeout;
 
-    use crate::transaction::NoopTransactionVerifier;
     use crate::{
         block::{BlockDigest, BlockRef},
         block_verifier::SignedBlockVerifier,
         context::Context,
-        transaction::{BlockStatus, LimitReached, TransactionClient, TransactionConsumer},
+        transaction::{
+            BlockStatus, LimitReached, NoopTransactionVerifier, TransactionClient,
+            TransactionConsumer,
+        },
     };
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -462,7 +492,8 @@ mod tests {
                 .expect("Shouldn't submit successfully transaction");
             included_in_block_waiters.push(w);
 
-            // Every 2 transactions simulate the creation of a new block and acknowledge the inclusion of the transactions
+            // Every 2 transactions simulate the creation of a new block and acknowledge the
+            // inclusion of the transactions
             if i % 2 == 0 {
                 let (transactions, ack_transactions, _limit_reached) = consumer.next();
                 assert_eq!(transactions.len(), 2);
@@ -482,7 +513,8 @@ mod tests {
             block_status_waiters.push((block_ref, block_status_waiter));
         }
 
-        // Now acknowledge the commit of the blocks 6, 8, 10 and set gc_round = 5, which should trigger the garbage collection of blocks 1..=5
+        // Now acknowledge the commit of the blocks 6, 8, 10 and set gc_round = 5, which
+        // should trigger the garbage collection of blocks 1..=5
         let gc_round = 5;
         consumer.notify_own_blocks_status(
             vec![
@@ -493,7 +525,8 @@ mod tests {
             gc_round,
         );
 
-        // Now iterate over all the block status waiters. Everyone should have been notified.
+        // Now iterate over all the block status waiters. Everyone should have been
+        // notified.
         for (block_ref, waiter) in block_status_waiters {
             let block_status = waiter.await.expect("Block status waiter shouldn't fail");
 
@@ -531,7 +564,8 @@ mod tests {
                 .expect("Shouldn't submit successfully transaction");
             included_in_block_waiters.push(w);
 
-            // Every 2 transactions simulate the creation of a new block and acknowledge the inclusion of the transactions
+            // Every 2 transactions simulate the creation of a new block and acknowledge the
+            // inclusion of the transactions
             if i % 2 == 0 {
                 let (transactions, ack_transactions, _limit_reached) = consumer.next();
                 assert_eq!(transactions.len(), 2);
@@ -551,7 +585,8 @@ mod tests {
             block_status_waiters.push((block_ref, block_status_waiter));
         }
 
-        // Now iterate over all the block status waiters. Everyone should have been notified and everyone should be considered sequenced.
+        // Now iterate over all the block status waiters. Everyone should have been
+        // notified and everyone should be considered sequenced.
         for (_block_ref, waiter) in block_status_waiters {
             let block_status = waiter.await.expect("Block status waiter shouldn't fail");
             assert!(matches!(block_status, BlockStatus::Sequenced(_)));
@@ -685,7 +720,8 @@ mod tests {
         }
 
         // now pull the transactions from the consumer.
-        // we expect all transactions are fetched in order, not missing any, and not exceeding the size limit.
+        // we expect all transactions are fetched in order, not missing any, and not
+        // exceeding the size limit.
         let mut all_acks: Vec<Box<dyn FnOnce(BlockRef)>> = Vec::new();
         let mut batch_index = 0;
         while !consumer.is_empty() {
@@ -705,14 +741,16 @@ mod tests {
                 context.protocol_config.max_transactions_in_block_bytes()
             );
 
-            // first batch should contain all transactions from 0..10. The softbundle it is to big to fit as well, so it's parked.
+            // first batch should contain all transactions from 0..10. The softbundle it is
+            // to big to fit as well, so it's parked.
             if batch_index == 0 {
                 assert_eq!(transactions.len(), 10);
                 for (i, transaction) in transactions.iter().enumerate() {
                     let t: String = bcs::from_bytes(transaction.data()).unwrap();
                     assert_eq!(format!("transaction {}", i).to_string(), t);
                 }
-            // second batch will contain the soft bundle and the additional last transaction.
+            // second batch will contain the soft bundle and the additional last
+            // transaction.
             } else if batch_index == 1 {
                 assert_eq!(transactions.len(), 6);
                 for (i, transaction) in transactions.iter().enumerate() {
@@ -742,7 +780,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_over_max_block_size_and_validate_block_size() {
-        // submit transactions individually so we make sure that we have reached the block size limit of 10
+        // submit transactions individually so we make sure that we have reached the
+        // block size limit of 10
         {
             let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.set_consensus_max_transaction_size_bytes_for_testing(100);
@@ -785,7 +824,8 @@ mod tests {
             );
         }
 
-        // submit transactions individually so we make sure that we have reached the block size bytes 300
+        // submit transactions individually so we make sure that we have reached the
+        // block size bytes 300
         {
             let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
                 config.set_consensus_max_transaction_size_bytes_for_testing(100);

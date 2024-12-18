@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use serde::{Deserialize, Serialize};
+
+use super::IDOperation;
 use crate::{
     base_types::VersionDigest,
     digests::ObjectDigest,
     object::{Object, Owner},
 };
-use serde::{Deserialize, Serialize};
-
-use super::IDOperation;
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub struct EffectsObjectChange {
@@ -21,8 +21,8 @@ pub struct EffectsObjectChange {
     pub(crate) output_state: ObjectOut,
 
     /// Whether this object ID is created or deleted in this transaction.
-    /// This information isn't required by the protocol but is useful for providing more detailed
-    /// semantics on object changes.
+    /// This information isn't required by the protocol but is useful for
+    /// providing more detailed semantics on object changes.
     pub(crate) id_operation: IDOperation,
 }
 

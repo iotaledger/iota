@@ -2,32 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::{Display, Formatter};
-use std::net::SocketAddr;
-use std::str::FromStr;
+use std::{
+    fmt::{Display, Formatter},
+    net::SocketAddr,
+    str::FromStr,
+};
 
 use fastcrypto::encoding::{Encoding, Hex};
+use iota_config::local_ip_utils;
+use iota_keys::keystore::{AccountKeystore, Keystore};
+use iota_rosetta::{
+    RosettaOfflineServer, RosettaOnlineServer,
+    operations::Operations,
+    types::{
+        AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier,
+        ConstructionCombineRequest, ConstructionCombineResponse, ConstructionMetadataRequest,
+        ConstructionMetadataResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
+        ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
+        Currencies, IotaEnv, NetworkIdentifier, Signature, SignatureType, SubAccount,
+        SubAccountType, TransactionIdentifierResponse,
+    },
+};
+use iota_sdk::IotaClient;
+use iota_types::{base_types::IotaAddress, crypto::IotaSignature};
 use reqwest::Client;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use tokio::task::JoinHandle;
-
-use iota_config::local_ip_utils;
-use iota_keys::keystore::AccountKeystore;
-use iota_keys::keystore::Keystore;
-use iota_rosetta::operations::Operations;
-use iota_rosetta::types::{
-    AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, ConstructionCombineRequest,
-    ConstructionCombineResponse, ConstructionMetadataRequest, ConstructionMetadataResponse,
-    ConstructionPayloadsRequest, ConstructionPayloadsResponse, ConstructionPreprocessRequest,
-    ConstructionPreprocessResponse, ConstructionSubmitRequest, Currencies, NetworkIdentifier,
-    Signature, SignatureType, SubAccount, SubAccountType, IotaEnv, TransactionIdentifierResponse,
-};
-use iota_rosetta::{RosettaOfflineServer, RosettaOnlineServer};
-use iota_sdk::IotaClient;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::IotaSignature;
 
 pub async fn start_rosetta_test_server(client: IotaClient) -> (RosettaClient, Vec<JoinHandle<()>>) {
     let online_server = RosettaOnlineServer::new(IotaEnv::LocalNet, client);
@@ -50,10 +51,10 @@ pub async fn start_rosetta_test_server(client: IotaClient) -> (RosettaClient, Ve
 
     // allow rosetta to process the genesis block.
     tokio::task::yield_now().await;
-    (
-        RosettaClient::new(port, offline_port),
-        vec![online_handle, offline_handle],
-    )
+    (RosettaClient::new(port, offline_port), vec![
+        online_handle,
+        offline_handle,
+    ])
 }
 
 pub struct RosettaClient {
@@ -72,7 +73,8 @@ impl RosettaClient {
         }
     }
 
-    // Used to print port, when keeping test running by waiting for online server handle.
+    // Used to print port, when keeping test running by waiting for online server
+    // handle.
     #[allow(dead_code)]
     pub fn online_port(&self) -> u16 {
         self.online_port
@@ -127,27 +129,21 @@ impl RosettaClient {
         println!("Preprocess : {preprocess:?}");
         // Metadata
         let metadata: ConstructionMetadataResponse = self
-            .call(
-                RosettaEndpoint::Metadata,
-                &ConstructionMetadataRequest {
-                    network_identifier: network_identifier.clone(),
-                    options: preprocess.options,
-                    public_keys: vec![],
-                },
-            )
+            .call(RosettaEndpoint::Metadata, &ConstructionMetadataRequest {
+                network_identifier: network_identifier.clone(),
+                options: preprocess.options,
+                public_keys: vec![],
+            })
             .await;
         println!("Metadata : {metadata:?}");
         // Payload
         let payloads: ConstructionPayloadsResponse = self
-            .call(
-                RosettaEndpoint::Payloads,
-                &ConstructionPayloadsRequest {
-                    network_identifier: network_identifier.clone(),
-                    operations: operations.clone(),
-                    metadata: Some(metadata.metadata),
-                    public_keys: vec![],
-                },
-            )
+            .call(RosettaEndpoint::Payloads, &ConstructionPayloadsRequest {
+                network_identifier: network_identifier.clone(),
+                operations: operations.clone(),
+                metadata: Some(metadata.metadata),
+                public_keys: vec![],
+            })
             .await;
         println!("Payload : {payloads:?}");
         // Combine
@@ -157,30 +153,24 @@ impl RosettaClient {
         let signature = keystore.sign_hashed(&signer, &bytes).unwrap();
         let public_key = keystore.get_key(&signer).unwrap().public();
         let combine: ConstructionCombineResponse = self
-            .call(
-                RosettaEndpoint::Combine,
-                &ConstructionCombineRequest {
-                    network_identifier: network_identifier.clone(),
-                    unsigned_transaction: payloads.unsigned_transaction,
-                    signatures: vec![Signature {
-                        signing_payload: signing_payload.clone(),
-                        public_key: public_key.into(),
-                        signature_type: SignatureType::Ed25519,
-                        hex_bytes: Hex::from_bytes(IotaSignature::signature_bytes(&signature)),
-                    }],
-                },
-            )
+            .call(RosettaEndpoint::Combine, &ConstructionCombineRequest {
+                network_identifier: network_identifier.clone(),
+                unsigned_transaction: payloads.unsigned_transaction,
+                signatures: vec![Signature {
+                    signing_payload: signing_payload.clone(),
+                    public_key: public_key.into(),
+                    signature_type: SignatureType::Ed25519,
+                    hex_bytes: Hex::from_bytes(IotaSignature::signature_bytes(&signature)),
+                }],
+            })
             .await;
         println!("Combine : {combine:?}");
         // Submit
         let submit = self
-            .call(
-                RosettaEndpoint::Submit,
-                &ConstructionSubmitRequest {
-                    network_identifier,
-                    signed_transaction: combine.signed_transaction,
-                },
-            )
+            .call(RosettaEndpoint::Submit, &ConstructionSubmitRequest {
+                network_identifier,
+                signed_transaction: combine.signed_transaction,
+            })
             .await;
         println!("Submit : {submit:?}");
         submit

@@ -2,16 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ValidatorProxy;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use tokio::sync::oneshot::Sender;
-use tokio::sync::watch;
-use tokio::sync::watch::Receiver;
-use tokio::time;
-use tokio::time::Instant;
+use tokio::{
+    sync::{oneshot::Sender, watch, watch::Receiver},
+    time,
+    time::Instant,
+};
 use tracing::{error, info};
+
+use crate::ValidatorProxy;
 
 #[derive(Debug, Clone)]
 pub struct SystemState {

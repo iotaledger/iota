@@ -2,20 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::benchmark_context::BenchmarkContext;
-use crate::mock_account::Account;
-use crate::tx_generator::TxGenerator;
+use std::{collections::BTreeMap, fs, path::PathBuf};
+
+use iota_move_build::{BuildConfig, CompiledPackage};
+use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
+use iota_types::{
+    base_types::ObjectID,
+    transaction::{DEFAULT_VALIDATOR_GAS_PRICE, Transaction},
+};
 use move_package::source_package::manifest_parser::parse_move_manifest_from_file;
 use move_symbol_pool::Symbol;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::PathBuf;
-use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
-use iota_types::base_types::ObjectID;
-use iota_types::transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
 use tracing::info;
+
+use crate::{
+    benchmark_context::BenchmarkContext, mock_account::Account, tx_generator::TxGenerator,
+};
 
 pub struct PackagePublishTxGenerator {
     compiled_package: CompiledPackage,

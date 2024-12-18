@@ -29,8 +29,9 @@ impl ThresholdClock {
         }
     }
 
-    /// Add the block references that have been successfully processed and advance the round accordingly. If the round
-    /// has indeed advanced then the new round is returned, otherwise None is returned.
+    /// Add the block references that have been successfully processed and
+    /// advance the round accordingly. If the round has indeed advanced then
+    /// the new round is returned, otherwise None is returned.
     pub(crate) fn add_blocks(&mut self, blocks: Vec<BlockRef>) -> Option<Round> {
         let previous_round = self.round;
         for block_ref in blocks {
@@ -79,9 +80,10 @@ impl ThresholdClock {
 
 #[cfg(test)]
 mod tests {
+    use consensus_config::AuthorityIndex;
+
     use super::*;
     use crate::block::BlockDigest;
-    use consensus_config::AuthorityIndex;
 
     #[tokio::test]
     async fn test_threshold_clock_add_block() {

@@ -2,21 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use parking_lot::RwLock;
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use iota_types::base_types::ObjectID;
-use iota_types::committee::{Committee, EpochId};
-use iota_types::error::{IotaError, IotaResult};
-use typed_store::rocks::{default_db_options, DBMap, DBOptions, MetricConf};
-use typed_store::rocksdb::Options;
-use typed_store::traits::{TableSummary, TypedStoreDebug};
-
-use typed_store::DBMapUtils;
-use typed_store::Map;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use iota_macros::nondeterministic;
+use iota_types::{
+    base_types::ObjectID,
+    committee::{Committee, EpochId},
+    error::{IotaError, IotaResult},
+};
+use parking_lot::RwLock;
+use typed_store::{
+    DBMapUtils, Map,
+    rocks::{DBMap, DBOptions, MetricConf, default_db_options},
+    rocksdb::Options,
+    traits::{TableSummary, TypedStoreDebug},
+};
 
 pub struct CommitteeStore {
     tables: CommitteeStoreTables,
@@ -70,7 +74,8 @@ impl CommitteeStore {
 
     pub fn insert_new_committee(&self, new_committee: &Committee) -> IotaResult {
         if let Some(old_committee) = self.get_committee(&new_committee.epoch)? {
-            // If somehow we already have this committee in the store, they must be the same.
+            // If somehow we already have this committee in the store, they must be the
+            // same.
             assert_eq!(&*old_committee, new_committee);
         } else {
             self.tables
@@ -107,7 +112,8 @@ impl CommitteeStore {
             .unwrap()
             .1
     }
-    /// Return the committee specified by `epoch`. If `epoch` is `None`, return the latest committee.
+    /// Return the committee specified by `epoch`. If `epoch` is `None`, return
+    /// the latest committee.
     // todo - make use of cache or remove this method
     pub fn get_or_latest_committee(&self, epoch: Option<EpochId>) -> IotaResult<Committee> {
         Ok(match epoch {

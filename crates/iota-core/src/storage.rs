@@ -2,46 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    committee::{Committee, EpochId},
+    digests::TransactionEventsDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    messages_checkpoint::{
+        CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
+        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+    },
+    object::Object,
+    storage::{
+        AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
+        ObjectStore, ReadStore, RpcIndexes, RpcStateReader, WriteStore,
+        error::{Error as StorageError, Result},
+    },
+    transaction::VerifiedTransaction,
+};
 use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
-use std::sync::Arc;
-use iota_types::base_types::ObjectID;
-use iota_types::base_types::IotaAddress;
-use iota_types::base_types::TransactionDigest;
-use iota_types::committee::Committee;
-use iota_types::committee::EpochId;
-use iota_types::digests::TransactionEventsDigest;
-use iota_types::effects::{TransactionEffects, TransactionEvents};
-use iota_types::messages_checkpoint::CheckpointContentsDigest;
-use iota_types::messages_checkpoint::CheckpointDigest;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use iota_types::messages_checkpoint::EndOfEpochData;
-use iota_types::messages_checkpoint::FullCheckpointContents;
-use iota_types::messages_checkpoint::VerifiedCheckpoint;
-use iota_types::messages_checkpoint::VerifiedCheckpointContents;
-use iota_types::object::Object;
-use iota_types::storage::error::Error as StorageError;
-use iota_types::storage::error::Result;
-use iota_types::storage::AccountOwnedObjectInfo;
-use iota_types::storage::CoinInfo;
-use iota_types::storage::DynamicFieldIndexInfo;
-use iota_types::storage::DynamicFieldKey;
-use iota_types::storage::ObjectStore;
-use iota_types::storage::RpcIndexes;
-use iota_types::storage::RpcStateReader;
-use iota_types::storage::WriteStore;
-use iota_types::storage::{ObjectKey, ReadStore};
-use iota_types::transaction::VerifiedTransaction;
 use tap::Pipe;
 
-use crate::authority::AuthorityState;
-use crate::checkpoints::CheckpointStore;
-use crate::epoch::committee_store::CommitteeStore;
-use crate::execution_cache::ExecutionCacheTraitPointers;
-use crate::rpc_index::CoinIndexInfo;
-use crate::rpc_index::OwnerIndexInfo;
-use crate::rpc_index::OwnerIndexKey;
-use crate::rpc_index::RpcIndexStore;
+use crate::{
+    authority::AuthorityState,
+    checkpoints::CheckpointStore,
+    epoch::committee_store::CommitteeStore,
+    execution_cache::ExecutionCacheTraitPointers,
+    rpc_index::{CoinIndexInfo, OwnerIndexInfo, OwnerIndexKey, RpcIndexStore},
+};
 
 #[derive(Clone)]
 pub struct RocksDbStore {
@@ -161,9 +151,10 @@ impl ReadStore for RocksDbStore {
 
         // Otherwise gather it from the individual components.
         // Note we can't insert the constructed contents into `full_checkpoint_content`,
-        // because it needs to be inserted along with `checkpoint_sequence_by_contents_digest`
-        // and `checkpoint_content`. However at this point it's likely we don't know the
-        // corresponding sequence number yet.
+        // because it needs to be inserted along with
+        // `checkpoint_sequence_by_contents_digest` and `checkpoint_content`.
+        // However at this point it's likely we don't know the corresponding
+        // sequence number yet.
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .expect("db error")
@@ -344,10 +335,9 @@ impl RestReadStore {
     }
 
     fn index(&self) -> iota_types::storage::error::Result<&RpcIndexStore> {
-        self.state
-            .rpc_index
-            .as_deref()
-            .ok_or_else(|| iota_types::storage::error::Error::custom("rest index store is disabled"))
+        self.state.rpc_index.as_deref().ok_or_else(|| {
+            iota_types::storage::error::Error::custom("rest index store is disabled")
+        })
     }
 }
 

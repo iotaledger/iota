@@ -2,48 +2,49 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::HashSet,
+    env,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+    str::FromStr,
+    sync::Arc,
+};
+
 use anyhow::Result;
 use clap::*;
 use ethers::types::Address as EthAddress;
-use prometheus::Registry;
-use std::collections::HashSet;
-use std::env;
-use std::net::IpAddr;
-use std::net::{Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::sync::Arc;
-use iota_bridge::eth_client::EthClient;
-use iota_bridge::metered_eth_provider::{new_metered_eth_provider, MeteredEthHttpProvier};
-use iota_bridge::iota_bridge_watchdog::Observable;
-use iota_bridge::iota_client::IotaBridgeClient;
-use iota_bridge::utils::get_eth_contract_addresses;
+use iota_bridge::{
+    eth_client::EthClient,
+    iota_bridge_watchdog::{
+        BridgeWatchDog, Observable,
+        eth_bridge_status::EthBridgeStatus,
+        eth_vault_balance::{EthereumVaultBalance, VaultAsset},
+        iota_bridge_status::IotaBridgeStatus,
+        metrics::WatchdogMetrics,
+    },
+    iota_client::IotaBridgeClient,
+    metered_eth_provider::{MeteredEthHttpProvier, new_metered_eth_provider},
+    metrics::BridgeMetrics,
+    utils::get_eth_contract_addresses,
+};
+use iota_bridge_indexer::{
+    config::IndexerConfig,
+    create_eth_subscription_indexer, create_eth_sync_indexer, create_iota_indexer,
+    iota_transaction_handler::handle_iota_transactions_loop,
+    iota_transaction_queries::start_iota_tx_polling_task,
+    metrics::BridgeIndexerMetrics,
+    postgres_manager::{get_connection_pool, read_iota_progress_store},
+};
 use iota_config::Config;
+use iota_data_ingestion_core::DataIngestionMetrics;
+use iota_metrics::{
+    metered_channel::channel, spawn_logged_monitored_task, start_prometheus_server,
+};
+use iota_sdk::IotaClientBuilder;
+use prometheus::Registry;
 use tokio::task::JoinHandle;
 use tracing::info;
-
-use iota_metrics::metered_channel::channel;
-use iota_metrics::spawn_logged_monitored_task;
-use iota_metrics::start_prometheus_server;
-
-use iota_bridge::metrics::BridgeMetrics;
-use iota_bridge::iota_bridge_watchdog::{
-    eth_bridge_status::EthBridgeStatus,
-    eth_vault_balance::{EthereumVaultBalance, VaultAsset},
-    metrics::WatchdogMetrics,
-    iota_bridge_status::IotaBridgeStatus,
-    BridgeWatchDog,
-};
-use iota_bridge_indexer::config::IndexerConfig;
-use iota_bridge_indexer::metrics::BridgeIndexerMetrics;
-use iota_bridge_indexer::postgres_manager::{get_connection_pool, read_iota_progress_store};
-use iota_bridge_indexer::iota_transaction_handler::handle_iota_transactions_loop;
-use iota_bridge_indexer::iota_transaction_queries::start_iota_tx_polling_task;
-use iota_bridge_indexer::{
-    create_eth_subscription_indexer, create_eth_sync_indexer, create_iota_indexer,
-};
-use iota_data_ingestion_core::DataIngestionMetrics;
-use iota_sdk::IotaClientBuilder;
 
 #[derive(Parser, Clone, Debug)]
 struct Args {
@@ -132,7 +133,8 @@ async fn main() -> Result<()> {
     )
     .await?;
 
-    // Wait for tasks in `tasks` to finish. Return when anyone of them returns an error.
+    // Wait for tasks in `tasks` to finish. Return when anyone of them returns an
+    // error.
     futures::future::try_join_all(tasks).await?;
     unreachable!("Indexer tasks finished unexpectedly");
 }

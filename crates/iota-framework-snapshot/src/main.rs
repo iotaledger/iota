@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-use std::fs;
-use std::path::PathBuf;
+use std::{env, fs, path::PathBuf};
+
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_framework_snapshot::update_bytecode_snapshot_manifest;
 use iota_protocol_config::ProtocolVersion;

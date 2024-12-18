@@ -6,30 +6,34 @@ mod response_ext;
 pub use response_ext::ResponseExt;
 
 pub mod sdk;
-use sdk::BoxError;
-
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber},
+    effects::{TransactionEffects, TransactionEvents},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
+    object::Object,
+    transaction::Transaction,
+};
 pub use reqwest;
+use sdk::BoxError;
 use tap::Pipe;
 use tonic::metadata::MetadataMap;
 
-use crate::proto::node::node_client::NodeClient;
-use crate::proto::node::{
-    ExecuteTransactionResponse, GetCheckpointResponse, GetFullCheckpointResponse, GetObjectResponse,
+use crate::{
+    proto::{
+        TryFromProtoError,
+        node::{
+            ExecuteTransactionResponse, GetCheckpointResponse, GetFullCheckpointResponse,
+            GetObjectResponse, node_client::NodeClient,
+        },
+        types::Bcs,
+    },
+    types::ExecuteTransactionOptions,
 };
-use crate::proto::types::Bcs;
-use crate::proto::TryFromProtoError;
-use crate::types::ExecuteTransactionOptions;
-use iota_types::base_types::{ObjectID, SequenceNumber};
-use iota_types::effects::{TransactionEffects, TransactionEvents};
-use iota_types::full_checkpoint_content::CheckpointData;
-use iota_types::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber};
-use iota_types::object::Object;
-use iota_types::transaction::Transaction;
 
 pub type Result<T, E = tonic::Status> = std::result::Result<T, E>;
 
-use tonic::transport::channel::ClientTlsConfig;
-use tonic::Status;
+use tonic::{Status, transport::channel::ClientTlsConfig};
 
 #[derive(Clone)]
 pub struct Client {
@@ -229,7 +233,8 @@ pub struct TransactionExecutionResponse {
     pub balance_changes: Option<Vec<iota_sdk_types::types::BalanceChange>>,
 }
 
-/// Attempts to parse `CertifiedCheckpointSummary` from the bcs fields in `GetCheckpointResponse`
+/// Attempts to parse `CertifiedCheckpointSummary` from the bcs fields in
+/// `GetCheckpointResponse`
 fn certified_checkpoint_summary_try_from_proto(
     summary_bcs: Option<Bcs>,
     signature: Option<crate::proto::types::ValidatorAggregatedSignature>,
@@ -253,7 +258,8 @@ fn certified_checkpoint_summary_try_from_proto(
     ))
 }
 
-/// Attempts to parse `CheckpointData` from the bcs fields in `GetFullCheckpointResponse`
+/// Attempts to parse `CheckpointData` from the bcs fields in
+/// `GetFullCheckpointResponse`
 fn checkpoint_data_try_from_proto(
     GetFullCheckpointResponse {
         summary_bcs,
@@ -346,7 +352,8 @@ fn object_try_from_proto(object_bcs: Option<Bcs>) -> Result<Object, TryFromProto
         .map_err(TryFromProtoError::from_error)
 }
 
-/// Attempts to parse `TransactionExecutionResponse` from the fields in `TransactionExecutionResponse`
+/// Attempts to parse `TransactionExecutionResponse` from the fields in
+/// `TransactionExecutionResponse`
 fn execute_transaction_response_try_from_proto(
     ExecuteTransactionResponse {
         finality,

@@ -3,19 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use iota_indexer::backfill::backfill_runner::BackfillRunner;
-use iota_indexer::config::{Command, RetentionConfig, UploadOptions};
-use iota_indexer::database::ConnectionPool;
-use iota_indexer::db::setup_postgres::clear_database;
-use iota_indexer::db::{
-    check_db_migration_consistency, check_prunable_tables_valid, reset_database, run_migrations,
+use iota_indexer::{
+    backfill::backfill_runner::BackfillRunner,
+    config::{Command, RetentionConfig, UploadOptions},
+    database::ConnectionPool,
+    db::{
+        check_db_migration_consistency, check_prunable_tables_valid, reset_database,
+        run_migrations, setup_postgres::clear_database,
+    },
+    indexer::Indexer,
+    metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
+    restorer::formal_snapshot::IndexerFormalSnapshotRestorer,
+    store::PgIndexerStore,
 };
-use iota_indexer::indexer::Indexer;
-use iota_indexer::metrics::{
-    spawn_connection_pool_metric_collector, start_prometheus_server, IndexerMetrics,
-};
-use iota_indexer::restorer::formal_snapshot::IndexerFormalSnapshotRestorer;
-use iota_indexer::store::PgIndexerStore;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
@@ -27,7 +27,9 @@ async fn main() -> anyhow::Result<()> {
     let _guard = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .init();
-    warn!("WARNING: Iota indexer is still experimental and we expect occasional breaking changes that require backfills.");
+    warn!(
+        "WARNING: Iota indexer is still experimental and we expect occasional breaking changes that require backfills."
+    );
 
     let (_registry_service, registry) = start_prometheus_server(opts.metrics_address)?;
     iota_metrics::init_metrics(&registry);
@@ -48,13 +50,16 @@ async fn main() -> anyhow::Result<()> {
             upload_options,
             mvr_mode,
         } => {
-            // Make sure to run all migrations on startup, and also serve as a compatibility check.
+            // Make sure to run all migrations on startup, and also serve as a compatibility
+            // check.
             run_migrations(pool.dedicated_connection().await?).await?;
 
             let retention_config = if mvr_mode {
-                warn!("Indexer in MVR mode is configured to prune `objects_history` to 2 epochs. The other tables have a 2000 epoch retention.");
+                warn!(
+                    "Indexer in MVR mode is configured to prune `objects_history` to 2 epochs. The other tables have a 2000 epoch retention."
+                );
                 Some(RetentionConfig {
-                    epochs_to_keep: 2000, // epochs, roughly 5+ years. We really just care about pruning `objects_history` per the default 2 epochs.
+                    epochs_to_keep: 2000, /* epochs, roughly 5+ years. We really just care about pruning `objects_history` per the default 2 epochs. */
                     overrides: Default::default(),
                 })
             } else {

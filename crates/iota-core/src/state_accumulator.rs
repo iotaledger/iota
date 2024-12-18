@@ -2,30 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use itertools::Itertools;
-use iota_metrics::monitored_scope;
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
-use serde::Serialize;
-use iota_protocol_config::ProtocolConfig;
-use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber};
-use iota_types::committee::EpochId;
-use iota_types::digests::{ObjectDigest, TransactionDigest};
-use iota_types::in_memory_storage::InMemoryStorage;
-use iota_types::storage::{ObjectKey, ObjectStore};
-use tracing::debug;
-
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use fastcrypto::hash::MultisetHash;
-use iota_types::accumulator::Accumulator;
-use iota_types::effects::TransactionEffects;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::error::IotaResult;
-use iota_types::messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest};
+use iota_metrics::monitored_scope;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    accumulator::Accumulator,
+    base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    committee::EpochId,
+    digests::{ObjectDigest, TransactionDigest},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::IotaResult,
+    in_memory_storage::InMemoryStorage,
+    messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest},
+    storage::{ObjectKey, ObjectStore},
+};
+use itertools::Itertools;
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use serde::Serialize;
+use tracing::debug;
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store_tables::LiveObject;
+use crate::authority::{
+    authority_per_epoch_store::AuthorityPerEpochStore, authority_store_tables::LiveObject,
+};
 
 pub struct StateAccumulatorMetrics {
     inconsistent_state: IntGauge,
@@ -61,8 +64,9 @@ pub struct StateAccumulatorV2 {
 }
 
 pub trait AccumulatorStore: ObjectStore + Send + Sync {
-    /// This function is only called in older protocol versions, and should no longer be used.
-    /// It creates an explicit dependency to tombstones which is not desired.
+    /// This function is only called in older protocol versions, and should no
+    /// longer be used. It creates an explicit dependency to tombstones
+    /// which is not desired.
     fn get_object_ref_prior_to_key_deprecated(
         &self,
         object_id: &ObjectID,
@@ -104,7 +108,9 @@ impl AccumulatorStore for InMemoryStorage {
         _object_id: &ObjectID,
         _version: VersionNumber,
     ) -> IotaResult<Option<ObjectRef>> {
-        unreachable!("get_object_ref_prior_to_key is only called by accumulate_effects_v1, while InMemoryStorage is used by testing and genesis only, which always uses latest protocol ")
+        unreachable!(
+            "get_object_ref_prior_to_key is only called by accumulate_effects_v1, while InMemoryStorage is used by testing and genesis only, which always uses latest protocol "
+        )
     }
 
     fn get_root_state_accumulator_for_epoch(
@@ -198,8 +204,9 @@ where
             .collect::<Vec<ObjectDigest>>(),
     );
 
-    // insert wrapped tombstones. We use a custom struct in order to contain the tombstone
-    // against the object id and sequence number, as the tombstone by itself is not unique.
+    // insert wrapped tombstones. We use a custom struct in order to contain the
+    // tombstone against the object id and sequence number, as the tombstone by
+    // itself is not unique.
     acc.insert_all(
         effects
             .iter()
@@ -239,9 +246,9 @@ where
         .collect();
 
     // Collect keys from modified_at_versions to remove from the accumulator.
-    // Filter all unwrapped objects (from unwrapped or unwrapped_then_deleted effects)
-    // as these were inserted into the accumulator as a WrappedObject. Will handle these
-    // separately.
+    // Filter all unwrapped objects (from unwrapped or unwrapped_then_deleted
+    // effects) as these were inserted into the accumulator as a WrappedObject.
+    // Will handle these separately.
     let modified_at_version_keys: Vec<ObjectKey> = effects
         .iter()
         .flat_map(|fx| {
@@ -277,9 +284,9 @@ where
     // removed as WrappedObject using the last sequence number it was tombstoned
     // against. Since this happened in a past transaction, and the child object may
     // have been modified since (and hence its sequence number incremented), we
-    // seek the version prior to the unwrapped version from the objects table directly.
-    // If the tombstone is not found, then assume this is a newly created wrapped object hence
-    // we don't expect to find it in the table.
+    // seek the version prior to the unwrapped version from the objects table
+    // directly. If the tombstone is not found, then assume this is a newly
+    // created wrapped object hence we don't expect to find it in the table.
     let wrapped_objects_to_remove: Vec<WrappedObject> = all_unwrapped
         .iter()
         .filter_map(|(_tx_digest, id, seq_num)| {
@@ -422,7 +429,8 @@ impl StateAccumulator {
         .set(is_inconsistent_state as i64);
     }
 
-    /// Accumulates the effects of a single checkpoint and persists the accumulator.
+    /// Accumulates the effects of a single checkpoint and persists the
+    /// accumulator.
     pub fn accumulate_checkpoint(
         &self,
         effects: Vec<TransactionEffects>,
@@ -500,7 +508,8 @@ impl StateAccumulator {
         }
     }
 
-    /// Returns the result of accumulating the live object set, without side effects
+    /// Returns the result of accumulating the live object set, without side
+    /// effects
     pub fn accumulate_live_object_set(&self, include_wrapped_tombstone: bool) -> Accumulator {
         match self {
             StateAccumulator::V1(impl_v1) => Self::accumulate_live_object_set_impl(
@@ -516,7 +525,8 @@ impl StateAccumulator {
         }
     }
 
-    /// Accumulates given effects and returns the accumulator without side effects.
+    /// Accumulates given effects and returns the accumulator without side
+    /// effects.
     pub fn accumulate_effects(
         &self,
         effects: Vec<TransactionEffects>,
@@ -576,10 +586,10 @@ impl StateAccumulatorV1 {
         Self { store, metrics }
     }
 
-    /// Unions all checkpoint accumulators at the end of the epoch to generate the
-    /// root state hash and persists it to db. This function is idempotent. Can be called on
-    /// non-consecutive epochs, e.g. to accumulate epoch 3 after having last
-    /// accumulated epoch 1.
+    /// Unions all checkpoint accumulators at the end of the epoch to generate
+    /// the root state hash and persists it to db. This function is
+    /// idempotent. Can be called on non-consecutive epochs, e.g. to
+    /// accumulate epoch 3 after having last accumulated epoch 1.
     pub async fn accumulate_epoch(
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
@@ -678,12 +688,13 @@ impl StateAccumulatorV2 {
             checkpoint_seq_num
         );
 
-        // For the last checkpoint of the epoch, this function will be called once by the
-        // checkpoint builder, and again by checkpoint executor.
+        // For the last checkpoint of the epoch, this function will be called once by
+        // the checkpoint builder, and again by checkpoint executor.
         //
-        // Normally this is fine, since the notify_read_running_root(checkpoint_seq_num - 1) will
-        // work normally. But if there is only one checkpoint in the epoch, that call will hang
-        // forever, since the previous checkpoint belongs to the previous epoch.
+        // Normally this is fine, since the notify_read_running_root(checkpoint_seq_num
+        // - 1) will work normally. But if there is only one checkpoint in the
+        // epoch, that call will hang forever, since the previous checkpoint
+        // belongs to the previous epoch.
         if epoch_store
             .get_running_root_accumulator(&checkpoint_seq_num)?
             .is_some()
@@ -723,8 +734,9 @@ impl StateAccumulatorV2 {
                     prev_acc
                 }
             } else {
-                // Rare edge case where we manage to somehow lag in checkpoint execution from genesis
-                // such that the end of epoch checkpoint is built before we execute any checkpoints.
+                // Rare edge case where we manage to somehow lag in checkpoint execution from
+                // genesis such that the end of epoch checkpoint is built before
+                // we execute any checkpoints.
                 assert_eq!(
                     epoch_store.epoch(),
                     0,

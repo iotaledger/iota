@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use iota_types::base_types::TransactionDigest;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::effects::{InputSharedObject, TransactionEffects};
-use iota_types::storage::ObjectKey;
+
+use iota_types::{
+    base_types::TransactionDigest,
+    effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
+    storage::ObjectKey,
+};
 use tracing::trace;
 
 pub struct CausalOrder {
@@ -20,9 +22,11 @@ impl CausalOrder {
     /// Returned list has effects that
     ///
     /// (a) Causally sorted
-    /// (b) Have deterministic order between transactions that are not causally dependent
+    /// (b) Have deterministic order between transactions that are not causally
+    /// dependent
     ///
-    /// The order of result list does not depend on order of effects in the supplied vector
+    /// The order of result list does not depend on order of effects in the
+    /// supplied vector
     pub fn causal_sort(effects: Vec<TransactionEffects>) -> Vec<TransactionEffects> {
         let mut this = Self::from_vec(effects);
         while let Some(item) = this.pop_first() {
@@ -56,7 +60,8 @@ impl CausalOrder {
 
         while let Some(state) = states.last_mut() {
             if let Some(new_state) = state.process(self) {
-                // This is essentially a 'recursive call' but using heap instead of stack to store state
+                // This is essentially a 'recursive call' but using heap instead of stack to
+                // store state
                 states.push(new_state);
             } else {
                 // Done with current state, remove it
@@ -88,29 +93,34 @@ impl TransactionDependencies {
     }
 }
 
-/// Supplies TransactionDependencies tree with additional edges from transactions
-/// that write shared locks object to transactions that read previous version of this object.
+/// Supplies TransactionDependencies tree with additional edges from
+/// transactions that write shared locks object to transactions that read
+/// previous version of this object.
 ///
-/// With RWLocks we can have multiple transaction that depend on shared object version N - many read
-/// transactions and single write transaction. Those transactions depend on transaction that has written N,
-/// but they do not depend on each other. And specifically, transaction that reads N and writes N+1
-/// does not depend on read-only transactions that also read N.
+/// With RWLocks we can have multiple transaction that depend on shared object
+/// version N - many read transactions and single write transaction. Those
+/// transactions depend on transaction that has written N, but they do not
+/// depend on each other. And specifically, transaction that reads N and writes
+/// N+1 does not depend on read-only transactions that also read N.
 ///
-/// We do not add such read transactions to TransactionEffects of shared object write transactions
-/// for next version to make sure TransactionEffects are not grow too large
-/// (and because you do not need read transactions to replay write transaction for next version).
+/// We do not add such read transactions to TransactionEffects of shared object
+/// write transactions for next version to make sure TransactionEffects are not
+/// grow too large (and because you do not need read transactions to replay
+/// write transaction for next version).
 ///
-/// However, when building checkpoints we supply transaction dependency tree with additional dependency edges to
-/// make it look like write transaction for next version causally depends on transactions that read
-/// previous versions, for two reasons:
+/// However, when building checkpoints we supply transaction dependency tree
+/// with additional dependency edges to make it look like write transaction for
+/// next version causally depends on transactions that read previous versions,
+/// for two reasons:
 ///
-/// (1) Without this addition we could have peculiar checkpoints where transaction reading
-/// version N appears after transaction that overwritten this object with version N+1.
-/// This does not affect how transaction is executed, but it is not something one would expect in
-/// causally ordered list.
+/// (1) Without this addition we could have peculiar checkpoints where
+/// transaction reading version N appears after transaction that overwritten
+/// this object with version N+1. This does not affect how transaction is
+/// executed, but it is not something one would expect in causally ordered list.
 ///
-/// (2) On the practical side it will allow to simplify pruner as it can now just tail checkpoints
-/// and delete objects in order they appear in TransactionEffects::modified_at_versions in checkpoint.
+/// (2) On the practical side it will allow to simplify pruner as it can now
+/// just tail checkpoints and delete objects in order they appear in
+/// TransactionEffects::modified_at_versions in checkpoint.
 struct RWLockDependencyBuilder {
     read_version: HashMap<ObjectKey, Vec<TransactionDigest>>,
     overwrite_versions: HashMap<TransactionDigest, Vec<ObjectKey>>,
@@ -147,7 +157,12 @@ impl RWLockDependencyBuilder {
                         .entry(*effect.transaction_digest())
                         .or_default()
                         .push(ObjectKey(oid, version)),
-                    InputSharedObject::Cancelled(..) => (), // TODO: confirm that consensus_commit_prologue is always at the beginning of the checkpoint, so that cancelled txn don't need to worry about dependency.
+                    InputSharedObject::Cancelled(..) => (), /* TODO: confirm that
+                                                             * consensus_commit_prologue is
+                                                             * always at the beginning of the
+                                                             * checkpoint, so that cancelled txn
+                                                             * don't need to worry about
+                                                             * dependency. */
                 }
             }
         }
@@ -172,8 +187,7 @@ impl RWLockDependencyBuilder {
             for dep in reads {
                 trace!(
                     "Assuming additional dependency when constructing checkpoint {:?} -> {:?}",
-                    digest,
-                    *dep
+                    digest, *dep
                 );
                 v.insert(*dep);
             }
@@ -211,10 +225,12 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
+    use iota_types::{
+        base_types::{ObjectDigest, ObjectID, SequenceNumber},
+        effects::TransactionEffects,
+    };
+
     use super::*;
-    use iota_types::base_types::ObjectDigest;
-    use iota_types::base_types::{ObjectID, SequenceNumber};
-    use iota_types::effects::TransactionEffects;
 
     #[test]
     pub fn test_causal_order() {
@@ -263,7 +279,7 @@ mod tests {
         let r = extract(CausalOrder::causal_sort(vec![e5, e2, e3]));
         assert_eq!(r.len(), 3);
         assert_eq!(*r.get(2).unwrap(), 3); // [3] is the last
-                                           // both [5] and [2] are present (but order is not fixed)
+        // both [5] and [2] are present (but order is not fixed)
         assert!(r.contains(&5));
         assert!(r.contains(&2));
     }

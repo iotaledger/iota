@@ -1,25 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{consumer::ProtobufDecoder, peers::IotaNodeProvider};
+use std::sync::Arc;
+
 use axum::{
     async_trait,
-    body::Body,
-    body::Bytes,
+    body::{Body, Bytes},
     extract::{Extension, FromRequest},
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
 };
-use axum_extra::headers::{ContentLength, ContentType};
-use axum_extra::typed_header::TypedHeader;
+use axum_extra::{
+    headers::{ContentLength, ContentType},
+    typed_header::TypedHeader,
+};
 use bytes::Buf;
 use hyper::header::CONTENT_ENCODING;
-use once_cell::sync::Lazy;
-use prometheus::{proto::MetricFamily, register_counter_vec, CounterVec};
-use std::sync::Arc;
 use iota_tls::TlsConnectionInfo;
+use once_cell::sync::Lazy;
+use prometheus::{CounterVec, proto::MetricFamily, register_counter_vec};
 use tracing::error;
+
+use crate::{consumer::ProtobufDecoder, peers::IotaNodeProvider};
 
 static MIDDLEWARE_OPS: Lazy<CounterVec> = Lazy::new(|| {
     register_counter_vec!(

@@ -2,18 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashSet, fmt::Debug};
+
 use futures::future::join_all;
-use itertools::Itertools;
-use std::collections::HashSet;
-use std::fmt::Debug;
 use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::IotaClient;
 use iota_types::base_types::{ObjectID, TransactionDigest};
-use tracing::error;
-use tracing::log::warn;
+use itertools::Itertools;
+use tracing::{error, log::warn};
 
 const LOADGEN_QUERY_MAX_RESULT_LIMIT: usize = 25;
 
@@ -29,21 +28,27 @@ where
     if let Some((vec_index, v)) = entities.iter().enumerate().find(|(_, v)| v.len() != length) {
         error!(
             "Entity: {} lengths do not match at index {}: first vec has length {} vs vec {} has length {}",
-            entity_name, vec_index, length, vec_index, v.len()
+            entity_name,
+            vec_index,
+            length,
+            vec_index,
+            v.len()
         );
         return;
     }
 
     // Iterate through all indices (from 0 to length - 1) of the inner vectors.
     for i in 0..length {
-        // Create an iterator that produces references to elements at position i in each inner vector of entities.
+        // Create an iterator that produces references to elements at position i in each
+        // inner vector of entities.
         let mut iter = entities.iter().map(|v| &v[i]);
 
         // Compare first against rest of the iter (other inner vectors)
         if let Some(first) = iter.next() {
             for (j, other) in iter.enumerate() {
                 if first != other {
-                    // Example error: Entity: ExampleEntity mismatch at index 2: expected: 3, received ExampleEntity[1]: 4
+                    // Example error: Entity: ExampleEntity mismatch at index 2: expected: 3,
+                    // received ExampleEntity[1]: 4
                     error!(
                         "Entity: {} mismatch at index {}: expected: {:?}, received {}: {:?}",
                         entity_name,
@@ -70,7 +75,8 @@ pub(crate) async fn check_transactions(
                 .read_api()
                 .multi_get_transactions_with_options(
                     digests.to_vec(),
-                    IotaTransactionBlockResponseOptions::full_content(), // todo(Will) support options for this
+                    IotaTransactionBlockResponseOptions::full_content(), /* todo(Will) support
+                                                                          * options for this */
                 )
                 .await
         }))

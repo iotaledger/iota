@@ -16,11 +16,13 @@ pub mod workload_configuration;
 
 use std::sync::Arc;
 
-use crate::drivers::Interval;
-use crate::workloads::payload::Payload;
-use iota_types::base_types::{ObjectRef, IotaAddress};
-use iota_types::crypto::AccountKeyPair;
+use iota_types::{
+    base_types::{IotaAddress, ObjectRef},
+    crypto::AccountKeyPair,
+};
 use workload::*;
+
+use crate::{drivers::Interval, workloads::payload::Payload};
 
 pub type GroupID = u32;
 

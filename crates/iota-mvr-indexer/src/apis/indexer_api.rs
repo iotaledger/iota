@@ -3,31 +3,33 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::types::SubscriptionEmptyError;
-use jsonrpsee::types::SubscriptionResult;
-use jsonrpsee::{RpcModule, SubscriptionSink};
-use tap::TapFallible;
-
-use iota_json_rpc::name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError};
-use iota_json_rpc::IotaRpcModule;
-use iota_json_rpc_api::{cap_page_limit, IndexerApiServer};
+use iota_json_rpc::{
+    IotaRpcModule,
+    name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError},
+};
+use iota_json_rpc_api::{IndexerApiServer, cap_page_limit};
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, IotaObjectResponse,
-    IotaObjectResponseQuery, IotaTransactionBlockResponseQuery, TransactionBlocksPage,
-    TransactionFilter,
+    DynamicFieldPage, EventFilter, EventPage, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
 use iota_open_rpc::Module;
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::digests::TransactionDigest;
-use iota_types::dynamic_field::{DynamicFieldName, Field};
-use iota_types::error::IotaObjectResponseError;
-use iota_types::event::EventID;
-use iota_types::object::ObjectRead;
-use iota_types::TypeTag;
+use iota_types::{
+    TypeTag,
+    base_types::{IotaAddress, ObjectID},
+    digests::TransactionDigest,
+    dynamic_field::{DynamicFieldName, Field},
+    error::IotaObjectResponseError,
+    event::EventID,
+    object::ObjectRead,
+};
+use jsonrpsee::{
+    RpcModule, SubscriptionSink,
+    core::RpcResult,
+    types::{SubscriptionEmptyError, SubscriptionResult},
+};
+use tap::TapFallible;
 
-use crate::indexer_reader::IndexerReader;
-use crate::IndexerError;
+use crate::{IndexerError, indexer_reader::IndexerReader};
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,
@@ -311,7 +313,8 @@ impl IndexerApiServer for IndexerApi {
         // gather the requests to fetch in the multi_get_objs.
         let mut requests = vec![record_id];
 
-        // we only want to fetch both the child and the parent if the domain is a subdomain.
+        // we only want to fetch both the child and the parent if the domain is a
+        // subdomain.
         if domain.is_subdomain() {
             requests.push(parent_record_id);
         }
@@ -406,7 +409,8 @@ impl IndexerApiServer for IndexerApi {
             .resolve_name_service_address(domain_name.clone())
             .await?;
 
-        // If we do not have a resolved address, we do not include the domain in the result.
+        // If we do not have a resolved address, we do not include the domain in the
+        // result.
         if resolved_address.is_none() {
             return Ok(result);
         }

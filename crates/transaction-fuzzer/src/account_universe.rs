@@ -6,11 +6,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::executor::{ExecutionResult, Executor};
+use std::{fmt, sync::Arc};
+
+use iota_types::{storage::ObjectStore, transaction::Transaction};
 use once_cell::sync::Lazy;
 use proptest::{prelude::*, strategy::Union};
-use std::{fmt, sync::Arc};
-use iota_types::{storage::ObjectStore, transaction::Transaction};
+
+use crate::executor::{ExecutionResult, Executor};
 
 mod account;
 mod helpers;
@@ -50,15 +52,17 @@ pub fn default_num_transactions() -> usize {
 
 /// Represents any sort of transaction that can be done in an account universe.
 pub trait AUTransactionGen: fmt::Debug {
-    /// Applies this transaction onto the universe, updating balances within the universe as
-    /// necessary. Returns a signed transaction that can be run on the VM and the execution status.
+    /// Applies this transaction onto the universe, updating balances within the
+    /// universe as necessary. Returns a signed transaction that can be run
+    /// on the VM and the execution status.
     fn apply(
         &self,
         universe: &mut AccountUniverse,
         exec: &mut Executor,
     ) -> (Transaction, ExecutionResult);
 
-    /// Creates an arced version of this transaction, suitable for dynamic dispatch.
+    /// Creates an arced version of this transaction, suitable for dynamic
+    /// dispatch.
     fn arced(self) -> Arc<dyn AUTransactionGen>
     where
         Self: 'static + Sized,
@@ -77,14 +81,15 @@ impl AUTransactionGen for Arc<dyn AUTransactionGen> {
     }
 }
 
-/// Returns a [`Strategy`] that provides a variety of balances (or transfer amounts) over a roughly
-/// logarithmic distribution.
+/// Returns a [`Strategy`] that provides a variety of balances (or transfer
+/// amounts) over a roughly logarithmic distribution.
 pub fn log_balance_strategy(min_balance: u64, max_balance: u64) -> impl Strategy<Value = u64> {
-    // The logarithmic distribution is modeled by uniformly picking from ranges of powers of 2.
+    // The logarithmic distribution is modeled by uniformly picking from ranges of
+    // powers of 2.
     assert!(max_balance >= min_balance, "minimum to make sense");
     let mut strategies = vec![];
-    // Balances below and around the minimum are interesting but don't cover *every* power of 2,
-    // just those starting from the minimum.
+    // Balances below and around the minimum are interesting but don't cover *every*
+    // power of 2, just those starting from the minimum.
     let mut lower_bound: u64 = 0;
     let mut upper_bound: u64 = min_balance;
     loop {

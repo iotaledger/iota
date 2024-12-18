@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use async_graphql::{
+    Positioned, ServerResult,
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextParseQuery},
     parser::types::{Directive, ExecutableDocument, Selection},
-    Positioned, ServerResult,
 };
 use async_graphql_value::Variables;
 use async_trait::async_trait;
@@ -16,8 +16,8 @@ use crate::error::{code, graphql_error_at_pos};
 
 const ALLOWED_DIRECTIVES: [&str; 2] = ["include", "skip"];
 
-/// Extension factory to add a check that all the directives used in the query are accepted and
-/// understood by the service.
+/// Extension factory to add a check that all the directives used in the query
+/// are accepted and understood by the service.
 pub(crate) struct DirectiveChecker;
 
 struct DirectiveCheckerExt;

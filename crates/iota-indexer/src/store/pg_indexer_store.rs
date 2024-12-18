@@ -2,71 +2,77 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
-use std::io::Cursor;
-use std::time::Duration;
+use core::result::Result::Ok;
+use std::{
+    collections::{BTreeMap, HashMap},
+    io::Cursor,
+    time::Duration,
+};
 
 use async_trait::async_trait;
-use core::result::Result::Ok;
 use csv::{ReaderBuilder, Writer};
-use diesel::dsl::{max, min};
-use diesel::ExpressionMethods;
-use diesel::OptionalExtension;
-use diesel::QueryDsl;
+use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl,
+    dsl::{max, min},
+    upsert::excluded,
+};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use futures::future::Either;
-use itertools::Itertools;
-use object_store::path::Path;
-use strum::IntoEnumIterator;
-use iota_types::base_types::ObjectID;
-use tap::TapFallible;
-use tracing::{info, warn};
-
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_protocol_config::ProtocolConfig;
 use iota_storage::object_store::util::put;
-
-use crate::config::UploadOptions;
-use crate::database::ConnectionPool;
-use crate::errors::{Context, IndexerError};
-use crate::handlers::pruner::PrunableTable;
-use crate::handlers::TransactionObjectChangesToCommit;
-use crate::handlers::{CommitterWatermark, EpochToCommit};
-use crate::metrics::IndexerMetrics;
-use crate::models::checkpoints::StoredChainIdentifier;
-use crate::models::checkpoints::StoredCheckpoint;
-use crate::models::checkpoints::StoredCpTx;
-use crate::models::display::StoredDisplay;
-use crate::models::epoch::StoredEpochInfo;
-use crate::models::epoch::{StoredFeatureFlag, StoredProtocolConfig};
-use crate::models::events::StoredEvent;
-use crate::models::obj_indices::StoredObjectVersion;
-use crate::models::objects::{
-    StoredDeletedObject, StoredFullHistoryObject, StoredHistoryObject, StoredObject,
-    StoredObjectSnapshot,
+use iota_types::{
+    base_types::ObjectID,
+    digests::{ChainIdentifier, CheckpointDigest},
 };
-use crate::models::packages::StoredPackage;
-use crate::models::transactions::StoredTransaction;
-use crate::models::watermarks::StoredWatermark;
-use crate::schema::{
-    chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
-    event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
-    event_struct_package, events, feature_flags, full_objects_history, objects, objects_history,
-    objects_snapshot, objects_version, packages, protocol_configs, pruner_cp_watermark,
-    raw_checkpoints, transactions, tx_affected_addresses, tx_affected_objects, tx_calls_fun,
-    tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_input_objects, tx_kinds,
-    watermarks,
+use itertools::Itertools;
+use object_store::path::Path;
+use strum::IntoEnumIterator;
+use tap::TapFallible;
+use tracing::{info, warn};
+
+use super::{
+    IndexerStore,
+    pg_partition_manager::{EpochPartitionData, PgPartitionManager},
 };
-use crate::store::{read_with_retry, transaction_with_retry};
-use crate::types::{EventIndex, IndexedDeletedObject, IndexedObject};
-use crate::types::{IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex};
-
-use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
-use super::IndexerStore;
-
-use crate::models::raw_checkpoints::StoredRawCheckpoint;
-use diesel::upsert::excluded;
-use iota_types::digests::{ChainIdentifier, CheckpointDigest};
+use crate::{
+    config::UploadOptions,
+    database::ConnectionPool,
+    errors::{Context, IndexerError},
+    handlers::{
+        CommitterWatermark, EpochToCommit, TransactionObjectChangesToCommit, pruner::PrunableTable,
+    },
+    metrics::IndexerMetrics,
+    models::{
+        checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
+        display::StoredDisplay,
+        epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
+        events::StoredEvent,
+        obj_indices::StoredObjectVersion,
+        objects::{
+            StoredDeletedObject, StoredFullHistoryObject, StoredHistoryObject, StoredObject,
+            StoredObjectSnapshot,
+        },
+        packages::StoredPackage,
+        raw_checkpoints::StoredRawCheckpoint,
+        transactions::StoredTransaction,
+        watermarks::StoredWatermark,
+    },
+    schema::{
+        chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
+        event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
+        event_struct_package, events, feature_flags, full_objects_history, objects,
+        objects_history, objects_snapshot, objects_version, packages, protocol_configs,
+        pruner_cp_watermark, raw_checkpoints, transactions, tx_affected_addresses,
+        tx_affected_objects, tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects,
+        tx_digests, tx_input_objects, tx_kinds, watermarks,
+    },
+    store::{read_with_retry, transaction_with_retry},
+    types::{
+        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
+        IndexedPackage, IndexedTransaction, TxIndex,
+    },
+};
 
 #[macro_export]
 macro_rules! chunk {
@@ -149,7 +155,8 @@ impl PgIndexerStore {
         use diesel_async::RunQueryDsl;
 
         let mut connection = self.pool.get().await?;
-        // We start indexing from the next protocol version after the latest one stored in the db.
+        // We start indexing from the next protocol version after the latest one stored
+        // in the db.
         let start = protocol_configs::table
             .select(max(protocol_configs::protocol_version))
             .first::<Option<i64>>(&mut connection)
@@ -686,8 +693,8 @@ impl PgIndexerStore {
             return Ok(());
         };
 
-        // If the first checkpoint has sequence number 0, we need to persist the digest as
-        // chain identifier.
+        // If the first checkpoint has sequence number 0, we need to persist the digest
+        // as chain identifier.
         if first_checkpoint.sequence_number == 0 {
             let checkpoint_digest = first_checkpoint.checkpoint_digest.into_inner().to_vec();
             self.persist_protocol_configs_and_feature_flags(checkpoint_digest.clone())
@@ -1615,8 +1622,7 @@ impl PgIndexerStore {
 
         transaction_with_retry(&self.pool, PG_DB_COMMIT_SLEEP_DURATION, |conn| {
             async {
-                use diesel::dsl::sql;
-                use diesel::query_dsl::methods::FilterDsl;
+                use diesel::{dsl::sql, query_dsl::methods::FilterDsl};
 
                 diesel::insert_into(watermarks::table)
                     .values(lower_bound_updates)
@@ -1657,8 +1663,8 @@ impl PgIndexerStore {
     async fn get_watermarks(&self) -> Result<(Vec<StoredWatermark>, i64), IndexerError> {
         use diesel_async::RunQueryDsl;
 
-        // read_only transaction, otherwise this will block and get blocked by write transactions to
-        // the same table.
+        // read_only transaction, otherwise this will block and get blocked by write
+        // transactions to the same table.
         read_with_retry(&self.pool, PG_DB_COMMIT_SLEEP_DURATION, |conn| {
             async {
                 let stored = watermarks::table
@@ -2140,17 +2146,18 @@ impl IndexerStore for PgIndexerStore {
             ))),
         }?;
 
-        // NOTE: for disaster recovery, min_cp is the min cp of the current epoch, which is likely
-        // partially pruned already. min_prunable_cp is the min cp to be pruned.
-        // By std::cmp::max, we will resume the pruning process from the next checkpoint, instead of
-        // the first cp of the current epoch.
+        // NOTE: for disaster recovery, min_cp is the min cp of the current epoch, which
+        // is likely partially pruned already. min_prunable_cp is the min cp to
+        // be pruned. By std::cmp::max, we will resume the pruning process from
+        // the next checkpoint, instead of the first cp of the current epoch.
         let min_prunable_cp = self.get_min_prunable_checkpoint().await?;
         min_cp = std::cmp::max(min_cp, min_prunable_cp);
         for cp in min_cp..=max_cp {
             // NOTE: the order of pruning tables is crucial:
             // 1. prune tx_* tables;
             // 2. prune event_* tables;
-            // 3. then prune pruner_cp_watermark table, which is the checkpoint pruning watermark table and also tx seq source
+            // 3. then prune pruner_cp_watermark table, which is the checkpoint pruning
+            //    watermark table and also tx seq source
             // of a checkpoint to prune tx_* tables;
             // 4. lastly prune checkpoints table, because wait_for_graphql_checkpoint_pruned
             // uses this table as the pruning watermark table.
@@ -2261,8 +2268,8 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    /// Persist protocol configs and feature flags until the protocol version for the latest epoch
-    /// we have stored in the db, inclusive.
+    /// Persist protocol configs and feature flags until the protocol version
+    /// for the latest epoch we have stored in the db, inclusive.
     async fn persist_protocol_configs_and_feature_flags(
         &self,
         chain_id: Vec<u8>,
@@ -2282,7 +2289,8 @@ impl IndexerStore for PgIndexerStore {
             start_version, end_version
         );
 
-        // Gather all protocol configs and feature flags for all versions between start and end.
+        // Gather all protocol configs and feature flags for all versions between start
+        // and end.
         for version in start_version..=end_version {
             let protocol_configs = ProtocolConfig::get_for_version_if_supported(
                 (version as u64).into(),
@@ -2317,7 +2325,8 @@ impl IndexerStore for PgIndexerStore {
         }
 
         // Now insert all of them into the db.
-        // TODO: right now the size of these updates is manageable but later we may consider batching.
+        // TODO: right now the size of these updates is manageable but later we may
+        // consider batching.
         transaction_with_retry(&self.pool, PG_DB_COMMIT_SLEEP_DURATION, |conn| {
             async {
                 for config_chunk in all_configs.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
@@ -2415,9 +2424,10 @@ fn make_objects_history_to_commit(
 }
 
 // Partition object changes into deletions and mutations,
-// within partition of mutations or deletions, retain the latest with highest version;
-// For overlappings of mutations and deletions, only keep one with higher version.
-// This is necessary b/c after this step, DB commit will be done in parallel and not in order.
+// within partition of mutations or deletions, retain the latest with highest
+// version; For overlappings of mutations and deletions, only keep one with
+// higher version. This is necessary b/c after this step, DB commit will be done
+// in parallel and not in order.
 fn retain_latest_indexed_objects(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
 ) -> (Vec<IndexedObject>, Vec<IndexedDeletedObject>) {

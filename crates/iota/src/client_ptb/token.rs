@@ -8,7 +8,8 @@ use std::fmt;
 pub struct Lexeme<'t>(
     /// The kind of lexeme.
     pub Token,
-    /// Slice from source that identifies this lexeme (among other instances of this token).
+    /// Slice from source that identifies this lexeme (among other instances of
+    /// this token).
     pub &'t str,
 );
 
@@ -50,13 +51,14 @@ pub enum Token {
     /// End of input.
     Eof,
 
-    /// Special tokens for unexpected lexer states that the parser should error on.
+    /// Special tokens for unexpected lexer states that the parser should error
+    /// on.
     Unexpected,
     UnfinishedString,
     EarlyEof,
 
-    // The following tokens are special -- they consume multiple shell tokens, to ensure we capture
-    // the path for a publish or an upgrade command.
+    // The following tokens are special -- they consume multiple shell tokens, to ensure we
+    // capture the path for a publish or an upgrade command.
     /// --publish \<shell-token\>
     Publish,
     /// --upgraded \<shell-token\>
@@ -70,7 +72,8 @@ impl<'l> Lexeme<'l> {
         matches!(self.0, T::Unexpected | T::UnfinishedString | T::EarlyEof)
     }
 
-    /// Returns true if this is the kind of lexeme that finishes the token stream.
+    /// Returns true if this is the kind of lexeme that finishes the token
+    /// stream.
     pub fn is_terminal(&self) -> bool {
         self.is_error() || self.0 == Token::Eof
     }

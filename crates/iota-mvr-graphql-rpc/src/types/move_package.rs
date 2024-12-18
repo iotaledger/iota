@@ -4,40 +4,47 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use super::balance::{self, Balance};
-use super::base64::Base64;
-use super::big_int::BigInt;
-use super::coin::Coin;
-use super::cursor::{BcsCursor, JsonCursor, Page, RawPaginated, ScanLimited, Target};
-use super::move_module::MoveModule;
-use super::move_object::MoveObject;
-use super::object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus};
-use super::owner::OwnerImpl;
-use super::stake::StakedIota;
-use super::iota_address::IotaAddress;
-use super::iotans_registration::{DomainFormat, IotaNSRegistration};
-use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
-use super::type_filter::ExactTypeFilter;
-use super::uint53::UInt53;
-use crate::connection::ScanConnection;
-use crate::consistency::{Checkpointed, ConsistentNamedCursor};
-use crate::data::{DataLoader, Db, DbConnection, QueryExecutor};
-use crate::error::Error;
-use crate::raw_query::RawQuery;
-use crate::types::iota_address::addr;
-use crate::{filter, query};
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::dataloader::Loader;
-use async_graphql::*;
-use diesel::prelude::QueryableByName;
-use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, Selectable};
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    dataloader::Loader,
+    *,
+};
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, Selectable,
+    prelude::QueryableByName,
+};
 use diesel_async::scoped_futures::ScopedFutureExt;
+use iota_indexer::{models::objects::StoredFullHistoryObject, schema::packages};
+use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
+use iota_types::{is_system_package, move_package::MovePackage as NativeMovePackage, object::Data};
 use serde::{Deserialize, Serialize};
-use iota_indexer::models::objects::StoredFullHistoryObject;
-use iota_indexer::schema::packages;
-use iota_package_resolver::{error::Error as PackageCacheError, Package as ParsedMovePackage};
-use iota_types::is_system_package;
-use iota_types::{move_package::MovePackage as NativeMovePackage, object::Data};
+
+use super::{
+    balance::{self, Balance},
+    base64::Base64,
+    big_int::BigInt,
+    coin::Coin,
+    cursor::{BcsCursor, JsonCursor, Page, RawPaginated, ScanLimited, Target},
+    iota_address::IotaAddress,
+    iotans_registration::{DomainFormat, IotaNSRegistration},
+    move_module::MoveModule,
+    move_object::MoveObject,
+    object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+    owner::OwnerImpl,
+    stake::StakedIota,
+    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+    type_filter::ExactTypeFilter,
+    uint53::UInt53,
+};
+use crate::{
+    connection::ScanConnection,
+    consistency::{Checkpointed, ConsistentNamedCursor},
+    data::{DataLoader, Db, DbConnection, QueryExecutor},
+    error::Error,
+    filter, query,
+    raw_query::RawQuery,
+    types::iota_address::addr,
+};
 
 #[derive(Clone)]
 pub(crate) struct MovePackage {
@@ -49,56 +56,64 @@ pub(crate) struct MovePackage {
     pub native: NativeMovePackage,
 }
 
-/// Filter for paginating `MovePackage`s that were created within a range of checkpoints.
+/// Filter for paginating `MovePackage`s that were created within a range of
+/// checkpoints.
 #[derive(InputObject, Debug, Default, Clone)]
 pub(crate) struct MovePackageCheckpointFilter {
-    /// Fetch packages that were published strictly after this checkpoint. Omitting this fetches
-    /// packages published since genesis.
+    /// Fetch packages that were published strictly after this checkpoint.
+    /// Omitting this fetches packages published since genesis.
     pub after_checkpoint: Option<UInt53>,
 
-    /// Fetch packages that were published strictly before this checkpoint. Omitting this fetches
-    /// packages published up to the latest checkpoint (inclusive).
+    /// Fetch packages that were published strictly before this checkpoint.
+    /// Omitting this fetches packages published up to the latest checkpoint
+    /// (inclusive).
     pub before_checkpoint: Option<UInt53>,
 }
 
 /// Filter for paginating versions of a given `MovePackage`.
 #[derive(InputObject, Debug, Default, Clone)]
 pub(crate) struct MovePackageVersionFilter {
-    /// Fetch versions of this package that are strictly newer than this version. Omitting this
-    /// fetches versions since the original version.
+    /// Fetch versions of this package that are strictly newer than this
+    /// version. Omitting this fetches versions since the original version.
     pub after_version: Option<UInt53>,
 
-    /// Fetch versions of this package that are strictly older than this version. Omitting this
-    /// fetches versions up to the latest version (inclusive).
+    /// Fetch versions of this package that are strictly older than this
+    /// version. Omitting this fetches versions up to the latest version
+    /// (inclusive).
     pub before_version: Option<UInt53>,
 }
 
-/// Filter for a point query of a MovePackage, supporting querying different versions of a package
-/// by their version. Note that different versions of the same user package exist at different IDs
-/// to each other, so this is different from looking up the historical version of an object.
+/// Filter for a point query of a MovePackage, supporting querying different
+/// versions of a package by their version. Note that different versions of the
+/// same user package exist at different IDs to each other, so this is different
+/// from looking up the historical version of an object.
 pub(crate) enum PackageLookup {
-    /// Get the package at the given address, if it was created before the given checkpoint.
+    /// Get the package at the given address, if it was created before the given
+    /// checkpoint.
     ById { checkpoint_viewed_at: u64 },
 
-    /// Get the package whose original ID matches the storage ID of the package at the given
-    /// address, but whose version is `version`.
+    /// Get the package whose original ID matches the storage ID of the package
+    /// at the given address, but whose version is `version`.
     Versioned {
         version: u64,
         checkpoint_viewed_at: u64,
     },
 
-    /// Get the package whose original ID matches the storage ID of the package at the given
-    /// address, but that has the max version at the given checkpoint.
+    /// Get the package whose original ID matches the storage ID of the package
+    /// at the given address, but that has the max version at the given
+    /// checkpoint.
     Latest { checkpoint_viewed_at: u64 },
 }
 
-/// Information used by a package to link to a specific version of its dependency.
+/// Information used by a package to link to a specific version of its
+/// dependency.
 #[derive(SimpleObject)]
 struct Linkage {
     /// The ID on-chain of the first version of the dependency.
     original_id: IotaAddress,
 
-    /// The ID on-chain of the version of the dependency that this package depends on.
+    /// The ID on-chain of the version of the dependency that this package
+    /// depends on.
     upgraded_id: IotaAddress,
 
     /// The version of the dependency that this package depends on.
@@ -119,8 +134,8 @@ struct TypeOrigin {
     defining_id: IotaAddress,
 }
 
-/// A wrapper around the stored representation of a package, used to implement pagination-related
-/// traits.
+/// A wrapper around the stored representation of a package, used to implement
+/// pagination-related traits.
 #[derive(Selectable, QueryableByName)]
 #[diesel(table_name = packages)]
 struct StoredHistoryPackage {
@@ -135,13 +150,14 @@ pub(crate) struct MovePackageDowncastError;
 pub(crate) type CModule = JsonCursor<ConsistentNamedCursor>;
 pub(crate) type Cursor = BcsCursor<PackageCursor>;
 
-/// The inner struct for the `MovePackage` cursor. The package is identified by the checkpoint it
-/// was created in, its original ID, and its version, and the `checkpoint_viewed_at` specifies the
-/// checkpoint snapshot that the data came from.
+/// The inner struct for the `MovePackage` cursor. The package is identified by
+/// the checkpoint it was created in, its original ID, and its version, and the
+/// `checkpoint_viewed_at` specifies the checkpoint snapshot that the data came
+/// from.
 ///
-/// The cursor includes the checkpoint the package was created in as well, so that when we paginate
-/// through all the packages on-chain, if we pause half way through, we can pick back up based on
-/// the checkpoint we've seen so far.
+/// The cursor includes the checkpoint the package was created in as well, so
+/// that when we paginate through all the packages on-chain, if we pause half
+/// way through, we can pick back up based on the checkpoint we've seen so far.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct PackageCursor {
     pub checkpoint_sequence_number: u64,
@@ -150,28 +166,32 @@ pub(crate) struct PackageCursor {
     pub checkpoint_viewed_at: u64,
 }
 
-/// `DataLoader` key for fetching the storage ID of the (user) package that shares an original (aka
-/// runtime) ID with the package stored at `package_id`, and whose version is `version`.
+/// `DataLoader` key for fetching the storage ID of the (user) package that
+/// shares an original (aka runtime) ID with the package stored at `package_id`,
+/// and whose version is `version`.
 ///
-/// Note that this is different from looking up the historical version of an object -- the query
-/// returns the ID of the package (each version of a user package is at a different ID) -- and it
-/// does not work for system packages (whose versions do all reside under the same ID).
+/// Note that this is different from looking up the historical version of an
+/// object -- the query returns the ID of the package (each version of a user
+/// package is at a different ID) -- and it does not work for system packages
+/// (whose versions do all reside under the same ID).
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct PackageVersionKey {
     address: IotaAddress,
     version: u64,
 }
 
-/// `DataLoader` key for fetching the latest version of a user package: The package with the largest
-/// version whose original ID matches the original ID of the package at `address`.
+/// `DataLoader` key for fetching the latest version of a user package: The
+/// package with the largest version whose original ID matches the original ID
+/// of the package at `address`.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct LatestKey {
     address: IotaAddress,
     checkpoint_viewed_at: u64,
 }
 
-/// A MovePackage is a kind of Move object that represents code that has been published on chain.
-/// It exposes information about its modules, type definitions, functions, and dependencies.
+/// A MovePackage is a kind of Move object that represents code that has been
+/// published on chain. It exposes information about its modules, type
+/// definitions, functions, and dependencies.
 #[Object]
 impl MovePackage {
     pub(crate) async fn address(&self) -> IotaAddress {
@@ -180,8 +200,8 @@ impl MovePackage {
 
     /// Objects owned by this package, optionally `filter`-ed.
     ///
-    /// Note that objects owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that objects owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn objects(
         &self,
         ctx: &Context<'_>,
@@ -196,11 +216,11 @@ impl MovePackage {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this package. If type is not supplied,
-    /// it defaults to `0x2::iota::IOTA`.
+    /// Total balance of all coins with marker type owned by this package. If
+    /// type is not supplied, it defaults to `0x2::iota::IOTA`.
     ///
-    /// Note that coins owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that coins owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -211,8 +231,8 @@ impl MovePackage {
 
     /// The balances of all coin types owned by this package.
     ///
-    /// Note that coins owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that coins owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn balances(
         &self,
         ctx: &Context<'_>,
@@ -228,10 +248,11 @@ impl MovePackage {
 
     /// The coin objects owned by this package.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::iota::IOTA`.
     ///
-    /// Note that coins owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that coins owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -248,8 +269,8 @@ impl MovePackage {
 
     /// The `0x3::staking_pool::StakedIota` objects owned by this package.
     ///
-    /// Note that objects owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that objects owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
@@ -263,7 +284,8 @@ impl MovePackage {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this object.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// object.
     pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
@@ -274,11 +296,11 @@ impl MovePackage {
             .await
     }
 
-    /// The IotaNSRegistration NFTs owned by this package. These grant the owner the capability to
-    /// manage the associated domain.
+    /// The IotaNSRegistration NFTs owned by this package. These grant the owner
+    /// the capability to manage the associated domain.
     ///
-    /// Note that objects owned by a package are inaccessible, because packages are immutable and
-    /// cannot be owned by an address.
+    /// Note that objects owned by a package are inaccessible, because packages
+    /// are immutable and cannot be owned by an address.
     pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
@@ -296,18 +318,21 @@ impl MovePackage {
         ObjectImpl(&self.super_).version().await
     }
 
-    /// The current status of the object as read from the off-chain store. The possible states are:
-    /// NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or
-    /// system package upgrade transaction. LIVE, the version returned is the most recent for the
-    /// object, and it is not deleted or wrapped at that version. HISTORICAL, the object was
-    /// referenced at a specific version or checkpoint, so is fetched from historical tables and may
-    /// not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or
-    /// wrapped and only partial information can be loaded."
+    /// The current status of the object as read from the off-chain store. The
+    /// possible states are: NOT_INDEXED, the object is loaded from
+    /// serialized data, such as the contents of a genesis or system package
+    /// upgrade transaction. LIVE, the version returned is the most recent for
+    /// the object, and it is not deleted or wrapped at that version.
+    /// HISTORICAL, the object was referenced at a specific version or
+    /// checkpoint, so is fetched from historical tables and may not be the
+    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
+    /// or wrapped and only partial information can be loaded."
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
 
-    /// 32-byte hash that identifies the package's contents, encoded as a Base58 string.
+    /// 32-byte hash that identifies the package's contents, encoded as a Base58
+    /// string.
     pub(crate) async fn digest(&self) -> Option<String> {
         ObjectImpl(&self.super_).digest().await
     }
@@ -328,11 +353,12 @@ impl MovePackage {
             .await
     }
 
-    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
-    /// recalculated based on the present storage gas price.
+    /// The amount of IOTA we would rebate if this object gets deleted or
+    /// mutated. This number is recalculated based on the present storage
+    /// gas price.
     ///
-    /// Note that packages cannot be deleted or mutated, so this number is provided purely for
-    /// reference.
+    /// Note that packages cannot be deleted or mutated, so this number is
+    /// provided purely for reference.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_).storage_rebate().await
     }
@@ -341,24 +367,29 @@ impl MovePackage {
     ///
     /// Note that objects that have been sent to a package become inaccessible.
     ///
-    /// `scanLimit` restricts the number of candidate transactions scanned when gathering a page of
-    /// results. It is required for queries that apply more than two complex filters (on function,
-    /// kind, sender, recipient, input object, changed object, or ids), and can be at most
+    /// `scanLimit` restricts the number of candidate transactions scanned when
+    /// gathering a page of results. It is required for queries that apply
+    /// more than two complex filters (on function, kind, sender, recipient,
+    /// input object, changed object, or ids), and can be at most
     /// `serviceConfig.maxScanLimit`.
     ///
-    /// When the scan limit is reached the page will be returned even if it has fewer than `first`
-    /// results when paginating forward (`last` when paginating backwards). If there are more
-    /// transactions to scan, `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
-    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set to the last
-    /// transaction that was scanned as opposed to the last (or first) transaction in the page.
+    /// When the scan limit is reached the page will be returned even if it has
+    /// fewer than `first` results when paginating forward (`last` when
+    /// paginating backwards). If there are more transactions to scan,
+    /// `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
+    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
+    /// to the last transaction that was scanned as opposed to the last (or
+    /// first) transaction in the page.
     ///
-    /// Requesting the next (or previous) page after this cursor will resume the search, scanning
-    /// the next `scanLimit` many transactions in the direction of pagination, and so on until all
-    /// transactions in the scanning range have been visited.
+    /// Requesting the next (or previous) page after this cursor will resume the
+    /// search, scanning the next `scanLimit` many transactions in the
+    /// direction of pagination, and so on until all transactions in the
+    /// scanning range have been visited.
     ///
-    /// By default, the scanning range includes all transactions known to GraphQL, but it can be
-    /// restricted by the `after` and `before` cursors, and the `beforeCheckpoint`,
-    /// `afterCheckpoint` and `atCheckpoint` filters.
+    /// By default, the scanning range includes all transactions known to
+    /// GraphQL, but it can be restricted by the `after` and `before`
+    /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
+    /// `atCheckpoint` filters.
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -379,8 +410,8 @@ impl MovePackage {
         ObjectImpl(&self.super_).bcs().await
     }
 
-    /// Fetch another version of this package (the package that shares this package's original ID,
-    /// but has the specified `version`).
+    /// Fetch another version of this package (the package that shares this
+    /// package's original ID, but has the specified `version`).
     async fn package_at_version(
         &self,
         ctx: &Context<'_>,
@@ -395,9 +426,9 @@ impl MovePackage {
         .extend()
     }
 
-    /// Fetch all versions of this package (packages that share this package's original ID),
-    /// optionally bounding the versions exclusively from below with `afterVersion`, or from above
-    /// with `beforeVersion`.
+    /// Fetch all versions of this package (packages that share this package's
+    /// original ID), optionally bounding the versions exclusively from
+    /// below with `afterVersion`, or from above with `beforeVersion`.
     async fn package_versions(
         &self,
         ctx: &Context<'_>,
@@ -420,8 +451,8 @@ impl MovePackage {
         .extend()
     }
 
-    /// Fetch the latest version of this package (the package with the highest `version` that shares
-    /// this packages's original ID)
+    /// Fetch the latest version of this package (the package with the highest
+    /// `version` that shares this packages's original ID)
     async fn latest_package(&self, ctx: &Context<'_>) -> Result<MovePackage> {
         Ok(MovePackage::query(
             ctx,
@@ -433,8 +464,8 @@ impl MovePackage {
         .ok_or_else(|| Error::Internal("No latest version found".to_string()))?)
     }
 
-    /// A representation of the module called `name` in this package, including the
-    /// structs and functions it defines.
+    /// A representation of the module called `name` in this package, including
+    /// the structs and functions it defines.
     async fn module(&self, name: String) -> Result<Option<MoveModule>> {
         self.module_impl(&name).extend()
     }
@@ -499,15 +530,12 @@ impl MovePackage {
                 c: checkpoint_viewed_at,
             })
             .encode_cursor();
-            connection.edges.push(Edge::new(
-                cursor,
-                MoveModule {
-                    storage_id: self.super_.address,
-                    native: native.clone(),
-                    parsed: parsed.clone(),
-                    checkpoint_viewed_at,
-                },
-            ))
+            connection.edges.push(Edge::new(cursor, MoveModule {
+                storage_id: self.super_.address,
+                native: native.clone(),
+                parsed: parsed.clone(),
+                checkpoint_viewed_at,
+            }))
         }
 
         if connection.edges.is_empty() {
@@ -560,8 +588,9 @@ impl MovePackage {
         Ok(Some(bcs.into()))
     }
 
-    /// BCS representation of the package's modules.  Modules appear as a sequence of pairs (module
-    /// name, followed by module bytes), in alphabetic order by module name.
+    /// BCS representation of the package's modules.  Modules appear as a
+    /// sequence of pairs (module name, followed by module bytes), in
+    /// alphabetic order by module name.
     async fn module_bcs(&self) -> Result<Option<Base64>> {
         let bcs = bcs::to_bytes(self.native.serialized_module_map())
             .map_err(|_| {
@@ -579,8 +608,8 @@ impl MovePackage {
             .map_err(|e| Error::Internal(format!("Error reading package: {e}")))
     }
 
-    /// This package was viewed at a snapshot of the chain state at this checkpoint (identified by
-    /// its sequence number).
+    /// This package was viewed at a snapshot of the chain state at this
+    /// checkpoint (identified by its sequence number).
     fn checkpoint_viewed_at_impl(&self) -> u64 {
         self.super_.checkpoint_viewed_at
     }
@@ -612,9 +641,9 @@ impl MovePackage {
         }
     }
 
-    /// Look-up a specific version of the package, identified by the storage ID of any version of
-    /// the package, and the desired version (the actual object loaded might be at a different
-    /// object ID).
+    /// Look-up a specific version of the package, identified by the storage ID
+    /// of any version of the package, and the desired version (the actual
+    /// object loaded might be at a different object ID).
     pub(crate) fn by_version(version: u64, checkpoint_viewed_at: u64) -> PackageLookup {
         PackageLookup::Versioned {
             version,
@@ -622,8 +651,8 @@ impl MovePackage {
         }
     }
 
-    /// Look-up the package that shares the same original ID as the package at `address`, but has
-    /// the latest version, as of the given checkpoint.
+    /// Look-up the package that shares the same original ID as the package at
+    /// `address`, but has the latest version, as of the given checkpoint.
     pub(crate) fn latest_at(checkpoint_viewed_at: u64) -> PackageLookup {
         PackageLookup::Latest {
             checkpoint_viewed_at,
@@ -690,17 +719,20 @@ impl MovePackage {
         })?))
     }
 
-    /// Query the database for a `page` of Move packages. The Page uses the checkpoint sequence
-    /// number the package was created at, its original ID, and its version as the cursor. The query
-    /// can optionally be filtered by a bound on the checkpoints the packages were created in.
+    /// Query the database for a `page` of Move packages. The Page uses the
+    /// checkpoint sequence number the package was created at, its original
+    /// ID, and its version as the cursor. The query can optionally be
+    /// filtered by a bound on the checkpoints the packages were created in.
     ///
-    /// The `checkpoint_viewed_at` parameter represents the checkpoint sequence number at which this
-    /// page was queried. Each entity returned in the connection will inherit this checkpoint, so
-    /// that when viewing that entity's state, it will be as if it is being viewed at this
+    /// The `checkpoint_viewed_at` parameter represents the checkpoint sequence
+    /// number at which this page was queried. Each entity returned in the
+    /// connection will inherit this checkpoint, so that when viewing that
+    /// entity's state, it will be as if it is being viewed at this
     /// checkpoint.
     ///
-    /// The cursors in `page` may also include checkpoint viewed at fields. If these are set, they
-    /// take precedence over the checkpoint that pagination is being conducted in.
+    /// The cursors in `page` may also include checkpoint viewed at fields. If
+    /// these are set, they take precedence over the checkpoint that
+    /// pagination is being conducted in.
     pub(crate) async fn paginate_by_checkpoint(
         db: &Db,
         page: Page<Cursor>,
@@ -759,7 +791,8 @@ impl MovePackage {
 
         let mut conn = Connection::new(prev, next);
 
-        // The "checkpoint viewed at" sets a consistent upper bound for the nested queries.
+        // The "checkpoint viewed at" sets a consistent upper bound for the nested
+        // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let package = MovePackage::try_from_serialized(stored.object, checkpoint_viewed_at)?;
@@ -769,19 +802,23 @@ impl MovePackage {
         Ok(conn)
     }
 
-    /// Query the database for a `page` of Move packages. The Page uses the checkpoint sequence
-    /// number the package was created at, its original ID, and its version as the cursor. The query
-    /// is filtered by the ID of a package and will only return packages from the same family
-    /// (sharing the same original ID as the package whose ID was given), and can optionally be
-    /// filtered by an upper and lower bound on package version.
+    /// Query the database for a `page` of Move packages. The Page uses the
+    /// checkpoint sequence number the package was created at, its original
+    /// ID, and its version as the cursor. The query is filtered by the ID
+    /// of a package and will only return packages from the same family
+    /// (sharing the same original ID as the package whose ID was given), and
+    /// can optionally be filtered by an upper and lower bound on package
+    /// version.
     ///
-    /// The `checkpoint_viewed_at` parameter represents the checkpoint sequence number at which this
-    /// page was queried. Each entity returned in the connection will inherit this checkpoint, so
-    /// that when viewing that entity's state, it will be as if it is being viewed at this
+    /// The `checkpoint_viewed_at` parameter represents the checkpoint sequence
+    /// number at which this page was queried. Each entity returned in the
+    /// connection will inherit this checkpoint, so that when viewing that
+    /// entity's state, it will be as if it is being viewed at this
     /// checkpoint.
     ///
-    /// The cursors in `page` may also include checkpoint viewed at fields. If these are set, they
-    /// take precedence over the checkpoint that pagination is being conducted in.
+    /// The cursors in `page` may also include checkpoint viewed at fields. If
+    /// these are set, they take precedence over the checkpoint that
+    /// pagination is being conducted in.
     pub(crate) async fn paginate_by_version(
         db: &Db,
         page: Page<Cursor>,
@@ -811,7 +848,8 @@ impl MovePackage {
 
         let mut conn = Connection::new(prev, next);
 
-        // The "checkpoint viewed at" sets a consistent upper bound for the nested queries.
+        // The "checkpoint viewed at" sets a consistent upper bound for the nested
+        // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
             let package = MovePackage::try_from_serialized(stored.object, checkpoint_viewed_at)?;
@@ -821,9 +859,10 @@ impl MovePackage {
         Ok(conn)
     }
 
-    /// `checkpoint_viewed_at` points to the checkpoint snapshot that this `MovePackage` came from.
-    /// This is stored in the `MovePackage` so that related fields from the package are read from
-    /// the same checkpoint (consistently).
+    /// `checkpoint_viewed_at` points to the checkpoint snapshot that this
+    /// `MovePackage` came from. This is stored in the `MovePackage` so that
+    /// related fields from the package are read from the same checkpoint
+    /// (consistently).
     pub(crate) fn try_from_serialized(
         history_object: StoredFullHistoryObject,
         checkpoint_viewed_at: u64,
@@ -1068,17 +1107,20 @@ impl TryFrom<&Object> for MovePackage {
     }
 }
 
-/// Query for fetching all the versions of a system package (assumes that `package` has already been
-/// verified as a system package). This is a `full_objects_history` query disguised as a package query.
+/// Query for fetching all the versions of a system package (assumes that
+/// `package` has already been verified as a system package). This is a
+/// `full_objects_history` query disguised as a package query.
 ///
-/// We do this because the `packages` table contains only one entry per package ID. For the system
-/// packages, this is the latest version of the package (for user packages, there is only one entry
-/// per package ID anyway as each version of a package gets its own ID).
+/// We do this because the `packages` table contains only one entry per package
+/// ID. For the system packages, this is the latest version of the package (for
+/// user packages, there is only one entry per package ID anyway as each version
+/// of a package gets its own ID).
 fn system_package_version_query(
     package: IotaAddress,
     filter: Option<MovePackageVersionFilter>,
 ) -> RawQuery {
-    // Query uses a left join to force the query planner to use `objects_version` in the outer loop.
+    // Query uses a left join to force the query planner to use `objects_version` in
+    // the outer loop.
     let mut q = query!(
         r#"
             SELECT
@@ -1123,8 +1165,8 @@ fn system_package_version_query(
     q
 }
 
-/// Query for fetching all the versions of a non-system package (assumes that `package` has already
-/// been verified as a system package)
+/// Query for fetching all the versions of a non-system package (assumes that
+/// `package` has already been verified as a system package)
 fn user_package_version_query(
     package: IotaAddress,
     filter: Option<MovePackageVersionFilter>,

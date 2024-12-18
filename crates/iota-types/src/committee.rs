@@ -3,23 +3,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::base_types::*;
-use crate::crypto::{
-    random_committee_key_pairs_of_size, AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey,
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    fmt::{Display, Formatter, Write},
+    hash::{Hash, Hasher},
 };
-use crate::error::{IotaError, IotaResult};
-use crate::multiaddr::Multiaddr;
+
 use fastcrypto::traits::KeyPair;
-use once_cell::sync::OnceCell;
-use rand::rngs::{StdRng, ThreadRng};
-use rand::seq::SliceRandom;
-use rand::{Rng, SeedableRng};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fmt::Write;
-use std::fmt::{Display, Formatter};
-use std::hash::{Hash, Hasher};
 pub use iota_protocol_config::ProtocolVersion;
+use once_cell::sync::OnceCell;
+use rand::{
+    Rng, SeedableRng,
+    rngs::{StdRng, ThreadRng},
+    seq::SliceRandom,
+};
+use serde::{Deserialize, Serialize};
+
+use super::base_types::*;
+use crate::{
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey, random_committee_key_pairs_of_size,
+    },
+    error::{IotaError, IotaResult},
+    multiaddr::Multiaddr,
+};
 
 pub type EpochId = u64;
 
@@ -30,17 +37,19 @@ pub type StakeUnit = u64;
 
 pub type CommitteeDigest = [u8; 32];
 
-// The voting power, quorum threshold and max voting power are defined in the `voting_power.move` module.
-// We're following the very same convention in the validator binaries.
+// The voting power, quorum threshold and max voting power are defined in the
+// `voting_power.move` module. We're following the very same convention in the
+// validator binaries.
 
-/// Set total_voting_power as 10_000 by convention. Individual voting powers can be interpreted
-/// as easily understandable basis points (e.g., voting_power: 100 = 1%, voting_power: 1 = 0.01%).
-/// Fixing the total voting power allows clients to hardcode the quorum threshold and total_voting power rather
+/// Set total_voting_power as 10_000 by convention. Individual voting powers can
+/// be interpreted as easily understandable basis points (e.g., voting_power:
+/// 100 = 1%, voting_power: 1 = 0.01%). Fixing the total voting power allows
+/// clients to hardcode the quorum threshold and total_voting power rather
 /// than recomputing these.
 pub const TOTAL_VOTING_POWER: StakeUnit = 10_000;
 
-/// Quorum threshold for our fixed voting power--any message signed by this much voting power can be trusted
-/// up to BFT assumptions
+/// Quorum threshold for our fixed voting power--any message signed by this much
+/// voting power can be trusted up to BFT assumptions
 pub const QUORUM_THRESHOLD: StakeUnit = 6_667;
 
 /// Validity threshold defined by f+1
@@ -76,9 +85,9 @@ impl Committee {
         }
     }
 
-    /// Normalize the given weights to TOTAL_VOTING_POWER and create the committee.
-    /// Used for testing only: a production system is using the voting weights
-    /// of the Iota System object.
+    /// Normalize the given weights to TOTAL_VOTING_POWER and create the
+    /// committee. Used for testing only: a production system is using the
+    /// voting weights of the Iota System object.
     pub fn new_for_testing_with_normalized_voting_power(
         epoch: EpochId,
         mut voting_weights: BTreeMap<AuthorityName, StakeUnit>,
@@ -228,7 +237,8 @@ impl Committee {
             .is_ok()
     }
 
-    /// Derive a seed deterministically from the transaction digest and shuffle the validators.
+    /// Derive a seed deterministically from the transaction digest and shuffle
+    /// the validators.
     pub fn shuffle_by_stake_from_tx_digest(
         &self,
         tx_digest: &TransactionDigest,
@@ -259,7 +269,8 @@ impl Committee {
         (committee, key_pairs)
     }
 
-    /// Generate a simple committee with 4 validators each with equal voting stake of 1.
+    /// Generate a simple committee with 4 validators each with equal voting
+    /// stake of 1.
     pub fn new_simple_test_committee() -> (Self, Vec<AuthorityKeyPair>) {
         Self::new_simple_test_committee_of_size(4)
     }
@@ -414,9 +425,10 @@ impl Display for CommitteeWithNetworkMetadata {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::crypto::{get_key_pair, AuthorityKeyPair};
     use fastcrypto::traits::KeyPair;
+
+    use super::*;
+    use crate::crypto::{AuthorityKeyPair, get_key_pair};
 
     #[test]
     fn test_shuffle_by_weight() {

@@ -8,31 +8,34 @@
 // be marked as a breaking change and reviewers should be aware of this.
 //
 // Owners and operators of production configuration files can add themselves to
-// .github/CODEOWNERS for the corresponding snapshot tests, so they can get notified
-// of changes. PRs that modifies snapshot files should wait for reviews from
-// code owners (if any) before merging.
+// .github/CODEOWNERS for the corresponding snapshot tests, so they can get
+// notified of changes. PRs that modifies snapshot files should wait for reviews
+// from code owners (if any) before merging.
 //
 // To review snapshot changes, and fix snapshot differences,
 // 0. Install cargo-insta
 // 1. Run `cargo insta test --review` under `./iota-config`.
 // 2. Review, accept or reject changes.
 
+use std::num::NonZeroUsize;
+
 use fastcrypto::traits::KeyPair;
 use insta::assert_yaml_snapshot;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-use std::num::NonZeroUsize;
-use iota_config::genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder};
-use iota_config::node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE};
-use iota_genesis_builder::validator_info::ValidatorInfo;
-use iota_genesis_builder::Builder;
-use iota_swarm_config::genesis_config::GenesisConfig;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{
-    generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-    NetworkKeyPair, IotaKeyPair,
+use iota_config::{
+    genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
+    node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_types::multiaddr::Multiaddr;
+use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
+use iota_swarm_config::genesis_config::GenesisConfig;
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{
+        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
+        generate_proof_of_possession, get_key_pair_from_rng,
+    },
+    multiaddr::Multiaddr,
+};
+use rand::{SeedableRng, rngs::StdRng};
 
 #[test]
 #[cfg_attr(msim, ignore)]
@@ -97,9 +100,11 @@ fn populated_genesis_snapshot_matches() {
         .add_validator_signature(&key)
         .build();
     assert_yaml_snapshot!(genesis.iota_system_wrapper_object());
-    assert_yaml_snapshot!(genesis
-        .iota_system_object()
-        .into_genesis_version_for_tooling());
+    assert_yaml_snapshot!(
+        genesis
+            .iota_system_object()
+            .into_genesis_version_for_tooling()
+    );
     assert_yaml_snapshot!(genesis.clock());
     // Serialized `genesis` is not static and cannot be snapshot tested.
 }
@@ -107,8 +112,11 @@ fn populated_genesis_snapshot_matches() {
 #[test]
 #[cfg_attr(msim, ignore)]
 fn network_config_snapshot_matches() {
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-    use std::path::PathBuf;
+    use std::{
+        net::{IpAddr, Ipv4Addr, SocketAddr},
+        path::PathBuf,
+    };
+
     use iota_swarm_config::network_config_builder::ConfigBuilder;
 
     let temp_dir = tempfile::tempdir().unwrap();

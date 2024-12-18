@@ -14,8 +14,8 @@ use crate::config::Version;
 
 pub(crate) static VERSION_HEADER: HeaderName = HeaderName::from_static("x-iota-rpc-version");
 
-/// Mark every outgoing response with a header indicating the precise version of the RPC that was
-/// used (including the patch version and sha).
+/// Mark every outgoing response with a header indicating the precise version of
+/// the RPC that was used (including the patch version and sha).
 pub(crate) async fn set_version_middleware(
     State(version): State<Version>,
     request: Request<Body>,
@@ -34,17 +34,18 @@ pub(crate) async fn set_version_middleware(
 mod tests {
     use std::net::SocketAddr;
 
+    use axum::{Router, body::Body, middleware, routing::get};
+    use http::StatusCode;
+    use iota_metrics;
+    use tokio_util::sync::CancellationToken;
+    use tower::ServiceExt;
+
     use super::*;
     use crate::{
         config::{ConnectionConfig, ServiceConfig, Version},
         metrics::Metrics,
         server::builder::AppState,
     };
-    use axum::{body::Body, middleware, routing::get, Router};
-    use http::StatusCode;
-    use iota_metrics;
-    use tokio_util::sync::CancellationToken;
-    use tower::ServiceExt;
 
     fn metrics() -> Metrics {
         let binding_address: SocketAddr = "0.0.0.0:9185".parse().unwrap();

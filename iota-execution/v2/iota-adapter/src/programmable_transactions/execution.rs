@@ -6,17 +6,46 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use crate::execution_mode::ExecutionMode;
-    use crate::execution_value::{
-        CommandKind, ExecutionState, ObjectContents, ObjectValue, RawValueType, Value,
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        fmt,
+        sync::Arc,
     };
-    use crate::gas_charger::GasCharger;
+
+    use iota_move_natives::object_runtime::ObjectRuntime;
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::{
+        IOTA_FRAMEWORK_ADDRESS,
+        base_types::{
+            IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
+            RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
+            TxContextKind,
+        },
+        coin::Coin,
+        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
+        execution_config_utils::to_binary_config,
+        execution_status::{CommandArgumentError, PackageUpgradeError},
+        id::{RESOLVED_IOTA_ID, UID},
+        metrics::LimitsMetrics,
+        move_package::{
+            MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
+            normalize_deserialized_modules,
+        },
+        storage::{PackageObject, get_package_objects},
+        transaction::{Argument, Command, ProgrammableMoveCall, ProgrammableTransaction},
+        transfer::RESOLVED_RECEIVING_STRUCT,
+    };
+    use iota_verifier::{
+        INIT_FN_NAME,
+        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
+    };
     use move_binary_format::{
+        CompiledModule,
         compatibility::{Compatibility, InclusionCheck},
         errors::{Location, PartialVMResult, VMResult},
         file_format::{AbilitySet, CodeOffset, FunctionDefinitionIndex, LocalIndex, Visibility},
         file_format_common::VERSION_6,
-        normalized, CompiledModule,
+        normalized,
     };
     use move_core_types::{
         account_address::AccountAddress,
@@ -29,42 +58,18 @@ mod checked {
         session::{LoadedFunctionInstantiation, SerializedReturnValues},
     };
     use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
-    use serde::{de::DeserializeSeed, Deserialize};
-    use std::{
-        collections::{BTreeMap, BTreeSet},
-        fmt,
-        sync::Arc,
-    };
-    use iota_move_natives::object_runtime::ObjectRuntime;
-    use iota_protocol_config::ProtocolConfig;
-    use iota_types::execution_config_utils::to_binary_config;
-    use iota_types::execution_status::{CommandArgumentError, PackageUpgradeError};
-    use iota_types::storage::{get_package_objects, PackageObject};
-    use iota_types::{
-        base_types::{
-            MoveObjectType, ObjectID, IotaAddress, TxContext, TxContextKind, RESOLVED_ASCII_STR,
-            RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
-        },
-        coin::Coin,
-        error::{command_argument_error, ExecutionError, ExecutionErrorKind},
-        id::{RESOLVED_IOTA_ID, UID},
-        metrics::LimitsMetrics,
-        move_package::{
-            normalize_deserialized_modules, MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt,
-            UpgradeTicket,
-        },
-        transaction::{Argument, Command, ProgrammableMoveCall, ProgrammableTransaction},
-        transfer::RESOLVED_RECEIVING_STRUCT,
-        IOTA_FRAMEWORK_ADDRESS,
-    };
-    use iota_verifier::{
-        private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
-        INIT_FN_NAME,
-    };
+    use serde::{Deserialize, de::DeserializeSeed};
     use tracing::instrument;
 
-    use crate::adapter::substitute_package_id;
-    use crate::programmable_transactions::context::*;
+    use crate::{
+        adapter::substitute_package_id,
+        execution_mode::ExecutionMode,
+        execution_value::{
+            CommandKind, ExecutionState, ObjectContents, ObjectValue, RawValueType, Value,
+        },
+        gas_charger::GasCharger,
+        programmable_transactions::context::*,
+    };
 
     pub fn execute<Mode: ExecutionMode>(
         protocol_config: &ProtocolConfig,
@@ -92,7 +97,8 @@ mod checked {
                 let object_runtime: &ObjectRuntime = context.object_runtime();
                 // We still need to record the loaded child objects for replay
                 let loaded_runtime_objects = object_runtime.loaded_runtime_objects();
-                // we do not save the wrapped objects since on error, they should not be modified
+                // we do not save the wrapped objects since on error, they should not be
+                // modified
                 drop(context);
                 state_view.save_loaded_runtime_objects(loaded_runtime_objects);
                 return Err(err.with_command_index(idx));
@@ -134,8 +140,8 @@ mod checked {
                     );
                 };
 
-                // SAFETY: Preserving existing behaviour for identifier deserialization within type
-                // tags and inputs.
+                // SAFETY: Preserving existing behaviour for identifier deserialization within
+                // type tags and inputs.
                 let tag = unsafe { tag.into_type_tag_unchecked() };
 
                 let elem_ty = context
@@ -164,8 +170,8 @@ mod checked {
                 let mut arg_iter = args.into_iter().enumerate();
                 let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
                     Some(tag) => {
-                        // SAFETY: Preserving existing behaviour for identifier deserialization within type
-                        // tags and inputs.
+                        // SAFETY: Preserving existing behaviour for identifier deserialization
+                        // within type tags and inputs.
                         let tag = unsafe { tag.into_type_tag_unchecked() };
 
                         let elem_ty = context
@@ -237,8 +243,9 @@ mod checked {
                         let new_coin_id = context.fresh_id()?;
                         let new_coin = coin.split(amount, UID::new(new_coin_id))?;
                         let coin_type = obj.type_.clone();
-                        // safe because we are propagating the coin type, and relying on the internal
-                        // invariant that coin values have a coin type
+                        // safe because we are propagating the coin type, and relying on the
+                        // internal invariant that coin values have a coin
+                        // type
                         let new_coin = unsafe { ObjectValue::coin(coin_type, new_coin) };
                         Ok(Value::Object(new_coin))
                     })
@@ -302,8 +309,8 @@ mod checked {
                 // Convert type arguments to `Type`s
                 let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
                 for (ix, type_arg) in type_arguments.into_iter().enumerate() {
-                    // SAFETY: Preserving existing behaviour for identifier deserialization within type
-                    // tags and inputs.
+                    // SAFETY: Preserving existing behaviour for identifier deserialization within
+                    // type tags and inputs.
                     let type_arg = unsafe { type_arg.into_type_tag_unchecked() };
 
                     let ty = context
@@ -321,7 +328,8 @@ mod checked {
                     &function,
                     loaded_type_arguments,
                     arguments,
-                    /* is_init */ false,
+                    // is_init
+                    false,
                 );
 
                 context.linkage_view.reset_linkage();
@@ -356,7 +364,8 @@ mod checked {
         arguments: Vec<Argument>,
         is_init: bool,
     ) -> Result<Vec<Value>, ExecutionError> {
-        // check that the function is either an entry function or a valid public function
+        // check that the function is either an entry function or a valid public
+        // function
         let LoadedFunctionInfo {
             kind,
             signature,
@@ -392,11 +401,12 @@ mod checked {
 
         context.take_user_events(module_id, index, last_instr)?;
 
-        // save the link context because calls to `make_value` below can set new ones, and we don't want
-        // it to be clobbered.
+        // save the link context because calls to `make_value` below can set new ones,
+        // and we don't want it to be clobbered.
         let saved_linkage = context.linkage_view.steal_linkage();
-        // write back mutable inputs. We also update if they were used in non entry Move calls
-        // though we do not care for immutable usages of objects or other values
+        // write back mutable inputs. We also update if they were used in non entry Move
+        // calls though we do not care for immutable usages of objects or other
+        // values
         let used_in_non_entry_move_call = kind == FunctionKind::NonEntry;
         let res = write_back_results::<Mode>(
             context,
@@ -438,7 +448,8 @@ mod checked {
             .map(|(bytes, kind)| {
                 // only non entry functions have return values
                 make_value(
-                    context, kind, bytes, /* used_in_non_entry_move_call */ true,
+                    context, kind, bytes, // used_in_non_entry_move_call
+                    true,
                 )
             })
             .collect()
@@ -471,8 +482,8 @@ mod checked {
         })
     }
 
-    /// Publish Move modules and call the init functions.  Returns an `UpgradeCap` for the newly
-    /// published package on success.
+    /// Publish Move modules and call the init functions.  Returns an
+    /// `UpgradeCap` for the newly published package on success.
     fn execute_move_publish<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
@@ -489,9 +500,9 @@ mod checked {
 
         let mut modules = deserialize_modules::<Mode>(context, &module_bytes)?;
 
-        // It should be fine that this does not go through ExecutionContext::fresh_id since the Move
-        // runtime does not to know about new packages created, since Move objects and Move packages
-        // cannot interact
+        // It should be fine that this does not go through ExecutionContext::fresh_id
+        // since the Move runtime does not to know about new packages created,
+        // since Move objects and Move packages cannot interact
         let runtime_id = if Mode::packages_are_predefined() {
             // do not calculate or substitute id for predefined packages
             (*modules[0].self_id().address()).into()
@@ -511,7 +522,8 @@ mod checked {
         // and if there is an error of any kind (verification or module init) we
         // remove it.
         // The call to `pop_last_package` later is fine because we cannot re-enter and
-        // the last package we pushed is the one we are verifying and running the init from
+        // the last package we pushed is the one we are verifying and running the init
+        // from
         context.linkage_view.set_linkage(&package)?;
         context.write_package(package);
         let res = publish_and_verify_modules(context, runtime_id, &modules)
@@ -529,15 +541,18 @@ mod checked {
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
             vec![Value::Object(context.make_object_value(
                 UpgradeCap::type_().into(),
-                /* has_public_transfer */ true,
-                /* used_in_non_entry_move_call */ false,
+                // has_public_transfer
+                true,
+                // used_in_non_entry_move_call
+                false,
                 &bcs::to_bytes(cap).unwrap(),
             )?)]
         };
         Ok(values)
     }
 
-    /// Upgrade a Move package.  Returns an `UpgradeReceipt` for the upgraded package on success.
+    /// Upgrade a Move package.  Returns an `UpgradeReceipt` for the upgraded
+    /// package on success.
     fn execute_move_upgrade<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_bytes: Vec<Vec<u8>>,
@@ -574,7 +589,8 @@ mod checked {
             })?
         };
 
-        // Make sure the passed-in package ID matches the package ID in the `upgrade_ticket`.
+        // Make sure the passed-in package ID matches the package ID in the
+        // `upgrade_ticket`.
         if current_package_id != upgrade_ticket.package.bytes {
             return Err(ExecutionError::from_kind(
                 ExecutionErrorKind::PackageUpgradeError {
@@ -601,14 +617,16 @@ mod checked {
             ));
         }
 
-        // Check that this package ID points to a package and get the package we're upgrading.
+        // Check that this package ID points to a package and get the package we're
+        // upgrading.
         let current_package = fetch_package(context, &upgrade_ticket.package.bytes)?;
 
         let mut modules = deserialize_modules::<Mode>(context, &module_bytes)?;
         let runtime_id = current_package.move_package().original_package_id();
         substitute_package_id(&mut modules, runtime_id)?;
 
-        // Upgraded packages share their predecessor's runtime ID but get a new storage ID.
+        // Upgraded packages share their predecessor's runtime ID but get a new storage
+        // ID.
         let storage_id = context.tx_context.fresh_id();
 
         let dependencies = fetch_packages(context, &dep_ids)?;
@@ -748,9 +766,10 @@ mod checked {
         }
     }
 
-    /***************************************************************************************************
-     * Move execution
-     **************************************************************************************************/
+    /// ****************************************************************************
+    /// ********************* Move execution
+    /// ****************************************************************************
+    /// *******************
 
     fn vm_move_call(
         context: &mut ExecutionContext<'_, '_, '_>,
@@ -840,8 +859,8 @@ mod checked {
 
         // run the Iota verifier
         for module in modules {
-            // Run Iota bytecode verifier, which runs some additional checks that assume the Move
-            // bytecode verifier has passed.
+            // Run Iota bytecode verifier, which runs some additional checks that assume the
+            // Move bytecode verifier has passed.
             iota_verifier::verifier::iota_verify_module_unmetered(
                 module,
                 &BTreeMap::new(),
@@ -878,7 +897,8 @@ mod checked {
                 INIT_FN_NAME,
                 vec![],
                 vec![],
-                /* is_init */ true,
+                // is_init
+                true,
             )?;
 
             assert_invariant!(
@@ -890,9 +910,10 @@ mod checked {
         Ok(())
     }
 
-    /***************************************************************************************************
-     * Move signatures
-     **************************************************************************************************/
+    /// ****************************************************************************
+    /// ********************* Move signatures
+    /// ****************************************************************************
+    /// *******************
 
     /// Helper marking what function we are invoking
     #[derive(PartialEq, Eq, Clone, Copy)]
@@ -903,7 +924,8 @@ mod checked {
         Init,
     }
 
-    /// Used to remember type information about a type when resolving the signature
+    /// Used to remember type information about a type when resolving the
+    /// signature
     enum ValueKind {
         Object {
             type_: MoveObjectType,
@@ -921,7 +943,8 @@ mod checked {
         return_value_kinds: Vec<ValueKind>,
         /// Definition index of the function
         index: FunctionDefinitionIndex,
-        /// The length of the function used for setting error information, or 0 if native
+        /// The length of the function used for setting error information, or 0
+        /// if native
         last_instr: CodeOffset,
     }
 
@@ -1055,8 +1078,8 @@ mod checked {
         })
     }
 
-    /// Checks that the non-entry function does not return references. And marks the return values
-    /// as object or non-object return values
+    /// Checks that the non-entry function does not return references. And marks
+    /// the return values as object or non-object return values
     fn check_non_entry_signature<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         _module_id: &ModuleId,
@@ -1078,7 +1101,7 @@ mod checked {
                     Type::Reference(_) | Type::MutableReference(_) => {
                         return Err(ExecutionError::from_kind(
                             ExecutionErrorKind::InvalidPublicFunctionReturnType { idx: idx as u16 },
-                        ))
+                        ));
                     }
                     t => t,
                 };
@@ -1157,13 +1180,13 @@ mod checked {
 
     type ArgInfo = (
         TxContextKind,
-        /* mut ref */
+        // mut ref
         Vec<(LocalIndex, ValueKind)>,
         Vec<Vec<u8>>,
     );
 
-    /// Serializes the arguments into BCS values for Move. Performs the necessary type checking for
-    /// each value
+    /// Serializes the arguments into BCS values for Move. Performs the
+    /// necessary type checking for each value
     fn build_move_args<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         module_id: &ModuleId,
@@ -1178,9 +1201,10 @@ mod checked {
             Some(t) => is_tx_context(context, t)?,
             None => TxContextKind::None,
         };
-        // an init function can have one or two arguments, with the last one always being of type
-        // &mut TxContext and the additional (first) one representing a one time witness type (see
-        // one_time_witness verifier pass for additional explanation)
+        // an init function can have one or two arguments, with the last one always
+        // being of type &mut TxContext and the additional (first) one
+        // representing a one time witness type (see one_time_witness verifier
+        // pass for additional explanation)
         let has_one_time_witness = function_kind == FunctionKind::Init && parameters.len() == 2;
         let has_tx_context = tx_ctx_kind != TxContextKind::None;
         let num_args = args.len() + (has_one_time_witness as usize) + (has_tx_context as usize);
@@ -1205,12 +1229,13 @@ mod checked {
             module: module_id.name(),
             function,
         };
-        // an init function can have one or two arguments, with the last one always being of type
-        // &mut TxContext and the additional (first) one representing a one time witness type (see
-        // one_time_witness verifier pass for additional explanation)
+        // an init function can have one or two arguments, with the last one always
+        // being of type &mut TxContext and the additional (first) one
+        // representing a one time witness type (see one_time_witness verifier
+        // pass for additional explanation)
         if has_one_time_witness {
-            // one time witness type is a struct with a single bool filed which in bcs is encoded as
-            // 0x01
+            // one time witness type is a struct with a single bool filed which in bcs is
+            // encoded as 0x01
             let bcs_true_value = bcs::to_bytes(&true).unwrap();
             serialized_args.push(bcs_true_value)
         }
@@ -1339,7 +1364,8 @@ mod checked {
                     }
                 }
 
-                // Now make sure the param type is a struct instantiation of the receiving struct
+                // Now make sure the param type is a struct instantiation of the receiving
+                // struct
                 let Type::DatatypeInstantiation(struct_inst) = param_ty else {
                     return Err(command_argument_error(
                         CommandArgumentError::TypeMismatch,
@@ -1373,8 +1399,8 @@ mod checked {
         )
     }
 
-    // Returns Some(kind) if the type is a reference to the TxnContext. kind being Mutable with
-    // a MutableReference, and Immutable otherwise.
+    // Returns Some(kind) if the type is a reference to the TxnContext. kind being
+    // Mutable with a MutableReference, and Immutable otherwise.
     // Returns None for all other types
     pub fn is_tx_context(
         context: &mut ExecutionContext<'_, '_, '_>,
@@ -1406,7 +1432,8 @@ mod checked {
         })
     }
 
-    /// Returns Some(layout) iff it is a primitive, an ID, a String, or an option/vector of a valid type
+    /// Returns Some(layout) iff it is a primitive, an ID, a String, or an
+    /// option/vector of a valid type
     fn primitive_serialization_layout(
         context: &mut ExecutionContext<'_, '_, '_>,
         param_ty: &Type,
@@ -1461,13 +1488,14 @@ mod checked {
         })
     }
 
-    /***************************************************************************************************
-     * Special serialization formats
-     **************************************************************************************************/
+    /// ****************************************************************************
+    /// ********************* Special serialization formats
+    /// ****************************************************************************
+    /// *******************
 
     /// Special enum for values that need additional validation, in other words
-    /// There is validation to do on top of the BCS layout. Currently only needed for
-    /// strings
+    /// There is validation to do on top of the BCS layout. Currently only
+    /// needed for strings
     #[derive(Debug)]
     pub enum PrimitiveArgumentLayout {
         /// An option
@@ -1490,9 +1518,9 @@ mod checked {
     }
 
     impl PrimitiveArgumentLayout {
-        /// returns true iff all BCS compatible bytes are actually values for this type.
-        /// For example, this function returns false for Option and Strings since they need additional
-        /// validation.
+        /// returns true iff all BCS compatible bytes are actually values for
+        /// this type. For example, this function returns false for
+        /// Option and Strings since they need additional validation.
         pub fn bcs_only(&self) -> bool {
             match self {
                 // have additional restrictions past BCS
@@ -1514,9 +1542,11 @@ mod checked {
         }
     }
 
-    /// Checks the bytes against the `SpecialArgumentLayout` using `bcs`. It does not actually generate
-    /// the deserialized value, only walks the bytes. While not necessary if the layout does not contain
-    /// special arguments (e.g. Option or String) we check the BCS bytes for predictability
+    /// Checks the bytes against the `SpecialArgumentLayout` using `bcs`. It
+    /// does not actually generate the deserialized value, only walks the
+    /// bytes. While not necessary if the layout does not contain
+    /// special arguments (e.g. Option or String) we check the BCS bytes for
+    /// predictability
     pub fn bcs_argument_validate(
         bytes: &[u8],
         idx: u16,
@@ -1559,8 +1589,8 @@ mod checked {
                 PrimitiveArgumentLayout::Vector(layout) => {
                     deserializer.deserialize_seq(VectorElementVisitor(layout))
                 }
-                // primitive move value cases, which are hit to make sure the correct number of bytes
-                // are removed for elements of an option/vector
+                // primitive move value cases, which are hit to make sure the correct number of
+                // bytes are removed for elements of an option/vector
                 PrimitiveArgumentLayout::Bool => {
                     deserializer.deserialize_bool(serde::de::IgnoredAny)?;
                     Ok(())

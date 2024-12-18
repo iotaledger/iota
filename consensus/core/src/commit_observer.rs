@@ -10,35 +10,38 @@ use tokio::time::Instant;
 use tracing::{debug, info};
 
 use crate::{
+    CommitConsumer, CommittedSubDag,
     block::{BlockAPI, VerifiedBlock},
-    commit::{load_committed_subdag_from_store, CommitAPI, CommitIndex},
+    commit::{CommitAPI, CommitIndex, load_committed_subdag_from_store},
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
     storage::Store,
-    CommitConsumer, CommittedSubDag,
 };
 
 /// Role of CommitObserver
 /// - Called by core when try_commit() returns newly committed leaders.
-/// - The newly committed leaders are sent to commit observer and then commit observer
-///     gets subdags for each leader via the commit interpreter (linearizer)
-/// - The committed subdags are sent as consensus output via an unbounded tokio channel.
+/// - The newly committed leaders are sent to commit observer and then commit
+///   observer gets subdags for each leader via the commit interpreter
+///   (linearizer)
+/// - The committed subdags are sent as consensus output via an unbounded tokio
+///   channel.
 ///
-/// No back pressure mechanism is needed as backpressure is handled as input into
-/// consensus.
+/// No back pressure mechanism is needed as backpressure is handled as input
+/// into consensus.
 ///
-/// - Commit metadata including index is persisted in store, before the CommittedSubDag
-///     is sent to the consumer.
-/// - When CommitObserver is initialized a last processed commit index can be used
-///     to ensure any missing commits are re-sent.
+/// - Commit metadata including index is persisted in store, before the
+///   CommittedSubDag is sent to the consumer.
+/// - When CommitObserver is initialized a last processed commit index can be
+///   used to ensure any missing commits are re-sent.
 pub(crate) struct CommitObserver {
     context: Arc<Context>,
     /// Component to deterministically collect subdags for committed leaders.
     commit_interpreter: Linearizer,
-    /// An unbounded channel to send committed sub-dags to the consumer of consensus output.
+    /// An unbounded channel to send committed sub-dags to the consumer of
+    /// consensus output.
     sender: UnboundedSender<CommittedSubDag>,
     /// Persistent storage for blocks, commits and other consensus data.
     store: Arc<dyn Store>,
@@ -113,18 +116,25 @@ impl CommitObserver {
 
             assert!(last_commit_index >= last_processed_commit_index);
             if last_commit_index == last_processed_commit_index {
-                debug!("Nothing to recover for commit observer as commit index {last_commit_index} = {last_processed_commit_index} last processed index");
+                debug!(
+                    "Nothing to recover for commit observer as commit index {last_commit_index} = {last_processed_commit_index} last processed index"
+                );
                 return;
             }
         };
 
-        // We should not send the last processed commit again, so last_processed_commit_index+1
+        // We should not send the last processed commit again, so
+        // last_processed_commit_index+1
         let unsent_commits = self
             .store
             .scan_commits(((last_processed_commit_index + 1)..=CommitIndex::MAX).into())
             .expect("Scanning commits should not fail");
 
-        info!("Recovering commit observer after index {last_processed_commit_index} with last commit {} and {} unsent commits", last_commit.map(|c|c.index()).unwrap_or_default(), unsent_commits.len());
+        info!(
+            "Recovering commit observer after index {last_processed_commit_index} with last commit {} and {} unsent commits",
+            last_commit.map(|c| c.index()).unwrap_or_default(),
+            unsent_commits.len()
+        );
 
         // Resend all the committed subdags to the consensus output channel
         // for all the commits above the last processed index.

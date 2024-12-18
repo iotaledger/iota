@@ -4,16 +4,16 @@
 
 use std::num::NonZeroUsize;
 
-use prometheus::Registry;
+use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
+use iota_config::{
+    node::ArchiveReaderConfig,
+    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
+};
 use iota_types::digests::CheckpointDigest;
+use prometheus::Registry;
 use tracing::info;
 
-use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
-use iota_config::node::ArchiveReaderConfig;
-use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-
-use crate::errors::IndexerError;
-use crate::types::IndexerResult;
+use crate::{errors::IndexerError, types::IndexerResult};
 
 #[derive(Clone, Debug)]
 pub struct RestoreCheckpointInfo {

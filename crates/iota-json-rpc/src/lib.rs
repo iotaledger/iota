@@ -2,38 +2,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-use std::net::SocketAddr;
-use std::str::FromStr;
+use std::{env, net::SocketAddr, str::FromStr};
 
 use axum::body::Body;
-use hyper::header::HeaderName;
-use hyper::header::HeaderValue;
-use hyper::Method;
-use hyper::Request;
-use jsonrpsee::RpcModule;
-use prometheus::Registry;
-use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
-use iota_types::traffic_control::PolicyConfig;
-use iota_types::traffic_control::RemoteFirewallConfig;
-use tokio::runtime::Handle;
-use tokio_util::sync::CancellationToken;
-use tower_http::cors::{AllowOrigin, CorsLayer};
-use tower_http::trace::TraceLayer;
-use tracing::info;
-
 pub use balance_changes::*;
-pub use object_changes::*;
+use hyper::{
+    Method, Request,
+    header::{HeaderName, HeaderValue},
+};
 pub use iota_config::node::ServerType;
+use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
 use iota_json_rpc_api::{
     CLIENT_REQUEST_METHOD_HEADER, CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER,
     CLIENT_TARGET_API_VERSION_HEADER,
 };
 use iota_open_rpc::{Module, Project};
+use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
+use jsonrpsee::RpcModule;
+pub use object_changes::*;
+use prometheus::Registry;
+use tokio::runtime::Handle;
+use tokio_util::sync::CancellationToken;
+use tower_http::{
+    cors::{AllowOrigin, CorsLayer},
+    trace::TraceLayer,
+};
+use tracing::info;
 
-use crate::error::Error;
-use crate::metrics::MetricsLogger;
-use crate::routing_layer::RpcRouter;
+use crate::{error::Error, metrics::MetricsLogger, routing_layer::RpcRouter};
 
 pub mod authority_state;
 pub mod axum_router;

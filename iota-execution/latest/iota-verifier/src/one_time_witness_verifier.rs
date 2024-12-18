@@ -2,47 +2,52 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A module can define a one-time witness type, that is a type that is instantiated only once, and
-//! this property is enforced by the system. We define a one-time witness type as a struct type that
-//! has the same name as the module that defines it but with all the letters capitalized, and
-//! possessing certain special properties specified below (please note that by convention, "regular"
-//! struct type names are expressed in camel case).  In other words, if a module defines a struct
-//! type whose name is the same as the module name, this type MUST possess these special properties,
-//! otherwise the module definition will be considered invalid and will be rejected by the
+//! A module can define a one-time witness type, that is a type that is
+//! instantiated only once, and this property is enforced by the system. We
+//! define a one-time witness type as a struct type that has the same name as
+//! the module that defines it but with all the letters capitalized, and
+//! possessing certain special properties specified below (please note that by
+//! convention, "regular" struct type names are expressed in camel case).  In
+//! other words, if a module defines a struct type whose name is the same as the
+//! module name, this type MUST possess these special properties, otherwise the
+//! module definition will be considered invalid and will be rejected by the
 //! validator:
 //!
 //! - it has only one ability: drop
-//! - it has only one arbitrarily named field of type boolean (since Move structs cannot be empty)
+//! - it has only one arbitrarily named field of type boolean (since Move
+//!   structs cannot be empty)
 //! - its definition does not involve type parameters
-//! - its only instance in existence is passed as an argument to the module initializer
+//! - its only instance in existence is passed as an argument to the module
+//!   initializer
 //! - it is never instantiated anywhere in its defining module
+use iota_types::{
+    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
+    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
+    bridge::BRIDGE_SUPPORTED_ASSET,
+    error::ExecutionError,
+    move_package::{FnInfoMap, is_test_fun},
+};
 use move_binary_format::file_format::{
     Ability, AbilitySet, Bytecode, CompiledModule, DatatypeHandle, FunctionDefinition,
     FunctionHandle, SignatureToken, StructDefinition,
 };
 use move_core_types::{ident_str, language_storage::ModuleId};
-use iota_types::bridge::BRIDGE_SUPPORTED_ASSET;
-use iota_types::{
-    base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
-    error::ExecutionError,
-    move_package::{is_test_fun, FnInfoMap},
-    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
-};
 
-use crate::{verification_failure, INIT_FN_NAME};
+use crate::{INIT_FN_NAME, verification_failure};
 
 pub fn verify_module(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
 ) -> Result<(), ExecutionError> {
-    // When verifying test functions, a check preventing by-hand instantiation of one-time withess
-    // is disabled
+    // When verifying test functions, a check preventing by-hand instantiation of
+    // one-time withess is disabled
 
-    // In Iota's framework code there is an exception to the one-time witness type rule - we have a
-    // IOTA type in the iota module but it is instantiated outside of the module initializer (in fact,
-    // the module has no initializer). The reason for it is that the IOTA coin is only instantiated
-    // during genesis. It is easiest to simply special-case this module particularly that this is
-    // framework code and thus deemed correct.
+    // In Iota's framework code there is an exception to the one-time witness type
+    // rule - we have a IOTA type in the iota module but it is instantiated
+    // outside of the module initializer (in fact, the module has no
+    // initializer). The reason for it is that the IOTA coin is only instantiated
+    // during genesis. It is easiest to simply special-case this module particularly
+    // that this is framework code and thus deemed correct.
     let self_id = module.self_id();
 
     if ModuleId::new(IOTA_FRAMEWORK_ADDRESS, ident_str!("iota").to_owned()) == self_id {
@@ -65,10 +70,11 @@ pub fn verify_module(
         let struct_handle = module.datatype_handle_at(def.struct_handle);
         let struct_name = module.identifier_at(struct_handle.name).as_str();
         if mod_name.to_ascii_uppercase() == struct_name {
-            // one-time witness candidate's type name must be the same as capitalized module name
+            // one-time witness candidate's type name must be the same as capitalized module
+            // name
             if let Ok(field_count) = def.declared_field_count() {
-                // checks if the struct is non-native (and if it isn't then that's why unwrap below
-                // is safe)
+                // checks if the struct is non-native (and if it isn't then that's why unwrap
+                // below is safe)
                 if field_count == 1 && def.field(0).unwrap().signature.0 == SignatureToken::Bool {
                     // a single boolean field means that we found a one-time witness candidate -
                     // make sure that the remaining properties hold
@@ -89,19 +95,20 @@ pub fn verify_module(
         let fn_name = module.identifier_at(fn_handle.name);
         if fn_name == INIT_FN_NAME {
             if let Some((candidate_name, candidate_handle, _)) = one_time_witness_candidate {
-                // only verify if init function conforms to one-time witness type requirements if we
-                // have a one-time witness type candidate
+                // only verify if init function conforms to one-time witness type requirements
+                // if we have a one-time witness type candidate
                 verify_init_one_time_witness(module, fn_handle, candidate_name, candidate_handle)
                     .map_err(verification_failure)?;
             } else {
-                // if there is no one-time witness type candidate than the init function should have
-                // only one parameter of TxContext type
+                // if there is no one-time witness type candidate than the init function should
+                // have only one parameter of TxContext type
                 verify_init_single_param(module, fn_handle).map_err(verification_failure)?;
             }
         }
         if let Some((candidate_name, _, def)) = one_time_witness_candidate {
-            // only verify lack of one-time witness type instantiations if we have a one-time
-            // witness type candidate and if instantiation does not happen in test code
+            // only verify lack of one-time witness type instantiations if we have a
+            // one-time witness type candidate and if instantiation does not
+            // happen in test code
 
             if !is_test_fun(fn_name, module, fn_info_map) {
                 verify_no_instantiations(module, fn_def, candidate_name, def)
@@ -113,8 +120,8 @@ pub fn verify_module(
     Ok(())
 }
 
-// Verifies all required properties of a one-time witness type candidate (that is a type whose name
-// is the same as the name of a module but capitalized)
+// Verifies all required properties of a one-time witness type candidate (that
+// is a type whose name is the same as the name of a module but capitalized)
 fn verify_one_time_witness(
     module: &CompiledModule,
     candidate_name: &str,
@@ -141,7 +148,8 @@ fn verify_one_time_witness(
     Ok(())
 }
 
-/// Checks if this module's `init` function conformant with the one-time witness type
+/// Checks if this module's `init` function conformant with the one-time witness
+/// type
 fn verify_init_one_time_witness(
     module: &CompiledModule,
     fn_handle: &FunctionHandle,
@@ -150,8 +158,8 @@ fn verify_init_one_time_witness(
 ) -> Result<(), String> {
     let fn_sig = module.signature_at(fn_handle.parameters);
     if fn_sig.len() != 2 || !is_one_time_witness(module, &fn_sig.0[0], candidate_handle) {
-        // check only the first parameter - the other one is checked in entry_points verification
-        // pass
+        // check only the first parameter - the other one is checked in entry_points
+        // verification pass
         return Err(format!(
             "init function of a module containing one-time witness type candidate must have \
              {}::{} as the first parameter (a struct which has no fields or a single field of type \
@@ -173,7 +181,8 @@ fn is_one_time_witness(
     matches!(tok, SignatureToken::Datatype(idx) if view.datatype_handle_at(*idx) == candidate_handle)
 }
 
-/// Checks if this module's `init` function has a single parameter of TxContext type only
+/// Checks if this module's `init` function has a single parameter of TxContext
+/// type only
 fn verify_init_single_param(
     module: &CompiledModule,
     fn_handle: &FunctionHandle,
@@ -198,7 +207,8 @@ fn verify_init_single_param(
     Ok(())
 }
 
-/// Checks if this module function does not contain instantiation of the one-time witness type
+/// Checks if this module function does not contain instantiation of the
+/// one-time witness type
 fn verify_no_instantiations(
     module: &CompiledModule,
     fn_def: &FunctionDefinition,
@@ -213,8 +223,8 @@ fn verify_no_instantiations(
             Bytecode::Pack(idx) => idx,
             _ => continue,
         };
-        // unwrap is safe below since we know we are getting a struct out of a module (see
-        // definition of struct_def_at)
+        // unwrap is safe below since we know we are getting a struct out of a module
+        // (see definition of struct_def_at)
         if module.struct_def_at(*struct_def_idx) == struct_def {
             let fn_handle = module.function_handle_at(fn_def.function);
             let fn_name = module.identifier_at(fn_handle.name);

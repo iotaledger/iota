@@ -2,40 +2,45 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::middleware::{self, Next};
-use std::collections::BTreeMap;
-use std::fmt;
-use std::net::TcpListener;
-use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
-use std::{ffi::OsString, fs, path::Path, process::Command};
-use tokio::sync::oneshot::Sender;
+use std::{
+    collections::BTreeMap,
+    ffi::OsString,
+    fmt, fs,
+    net::TcpListener,
+    path::{Path, PathBuf},
+    process::Command,
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 
 use anyhow::{anyhow, bail};
-use axum::extract::{Query, State};
-use axum::response::{IntoResponse, Response};
-use axum::routing::get;
-use axum::Extension;
-use axum::{Json, Router};
-use hyper::http::{HeaderName, HeaderValue, Method};
-use hyper::{HeaderMap, StatusCode};
+use axum::{
+    Extension, Json, Router,
+    extract::{Query, State},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
+    routing::get,
+};
+use hyper::{
+    HeaderMap, StatusCode,
+    http::{HeaderName, HeaderValue, Method},
+};
 use iota_metrics::RegistryService;
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use serde::{Deserialize, Serialize};
-use tower::ServiceBuilder;
-use tracing::{debug, info};
-use url::Url;
-
+use iota_move::manage_package::resolve_lock_file_path;
+use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_sdk::{
+    IotaClientBuilder, rpc_types::IotaTransactionBlockEffects, types::base_types::ObjectID,
+};
+use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use move_core_types::account_address::AccountAddress;
 use move_package::{BuildConfig as MoveBuildConfig, LintFlag};
 use move_symbol_pool::Symbol;
-use iota_move::manage_package::resolve_lock_file_path;
-use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::rpc_types::IotaTransactionBlockEffects;
-use iota_sdk::types::base_types::ObjectID;
-use iota_sdk::IotaClientBuilder;
-use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use serde::{Deserialize, Serialize};
+use tokio::sync::oneshot::Sender;
+use tower::ServiceBuilder;
+use tracing::{debug, info};
+use url::Url;
 
 pub const HOST_PORT_ENV: &str = "HOST_PORT";
 pub const IOTA_SOURCE_VALIDATION_VERSION_HEADER: &str = "x-iota-source-validation-version";
@@ -97,8 +102,9 @@ pub struct DirectorySource {
 #[derive(Clone, Deserialize, Debug)]
 pub struct Package {
     pub path: String,
-    /// Optional object ID to watch for upgrades. For framework packages, this is an address like 0x2.
-    /// For non-framework packages this is an upgrade cap (possibly wrapped).
+    /// Optional object ID to watch for upgrades. For framework packages, this
+    /// is an address like 0x2. For non-framework packages this is an
+    /// upgrade cap (possibly wrapped).
     pub watch: Option<ObjectID>,
 }
 
@@ -126,16 +132,12 @@ pub enum Network {
 
 impl fmt::Display for Network {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Network::Mainnet => "mainnet",
-                Network::Testnet => "testnet",
-                Network::Devnet => "devnet",
-                Network::Localnet => "localnet",
-            }
-        )
+        write!(f, "{}", match self {
+            Network::Mainnet => "mainnet",
+            Network::Testnet => "testnet",
+            Network::Devnet => "devnet",
+            Network::Localnet => "localnet",
+        })
     }
 }
 
@@ -143,7 +145,8 @@ impl fmt::Display for Network {
 pub type SourceLookup = BTreeMap<Symbol, SourceInfo>;
 /// Map addresses to module names and sources.
 pub type AddressLookup = BTreeMap<AccountAddress, SourceLookup>;
-/// Top-level lookup that maps network to sources for corresponding on-chain networks.
+/// Top-level lookup that maps network to sources for corresponding on-chain
+/// networks.
 pub type NetworkLookup = BTreeMap<Network, AddressLookup>;
 
 pub async fn verify_package(
@@ -166,7 +169,7 @@ pub async fn verify_package(
     config.silence_warnings = true;
     let build_config = BuildConfig {
         config,
-        run_bytecode_verifier: false, /* no need to run verifier if code is on-chain */
+        run_bytecode_verifier: false, // no need to run verifier if code is on-chain
         print_diags_to_stderr: false,
         chain_id: Some(chain_id),
     };
@@ -216,7 +219,8 @@ pub fn repo_name_from_url(url: &str) -> anyhow::Result<String> {
 }
 
 #[derive(Debug)]
-/// Represents a sequence of git commands to clone a repository and sparsely checkout Move packages within.
+/// Represents a sequence of git commands to clone a repository and sparsely
+/// checkout Move packages within.
 pub struct CloneCommand {
     /// git args
     args: Vec<Vec<OsString>>,
@@ -302,7 +306,8 @@ impl CloneCommand {
     }
 }
 
-/// Clones repositories and checks out packages as per `config` at the directory `dir`.
+/// Clones repositories and checks out packages as per `config` at the directory
+/// `dir`.
 pub async fn clone_repositories(repos: Vec<&RepositorySource>, dir: &Path) -> anyhow::Result<()> {
     let mut tasks = vec![];
     for p in &repos {
@@ -333,7 +338,7 @@ pub async fn initialize(
     for s in &config.packages {
         match s {
             PackageSource::Repository(r) => repos.push(r),
-            PackageSource::Directory(_) => (), /* skip cloning */
+            PackageSource::Directory(_) => (), // skip cloning
         }
     }
     clone_repositories(repos, dir).await?;
@@ -349,13 +354,10 @@ pub async fn sources_list(sources: &NetworkLookup) -> NetworkLookup {
         for (address, symbols) in addresses {
             let mut symbol_map = SourceLookup::new();
             for (symbol, source_info) in symbols {
-                symbol_map.insert(
-                    *symbol,
-                    SourceInfo {
-                        path: source_info.path.file_name().unwrap().into(),
-                        source: None,
-                    },
-                );
+                symbol_map.insert(*symbol, SourceInfo {
+                    path: source_info.path.file_name().unwrap().into(),
+                    source: None,
+                });
             }
             address_map.insert(*address, symbol_map);
         }
@@ -421,10 +423,12 @@ pub async fn verify_packages(config: &Config, dir: &Path) -> anyhow::Result<Netw
     Ok(lookup)
 }
 
-// A thread that monitors on-chain transactions for package upgrades. `config` specifies which packages
-// to watch. `app_state` contains the map of sources returned by the server. In particular, `watch_for_upgrades`
-// invalidates (i.e., clears) the sources returned by the serve when we observe a package upgrade, so that we do not
-// falsely report outdated sources for a package. Pass an optional `channel` to observe the upgrade transaction(s).
+// A thread that monitors on-chain transactions for package upgrades. `config`
+// specifies which packages to watch. `app_state` contains the map of sources
+// returned by the server. In particular, `watch_for_upgrades` invalidates
+// (i.e., clears) the sources returned by the serve when we observe a package
+// upgrade, so that we do not falsely report outdated sources for a package.
+// Pass an optional `channel` to observe the upgrade transaction(s).
 // The `channel` parameter exists for testing.
 pub async fn watch_for_upgrades(
     _packages: Vec<PackageSource>,
@@ -432,7 +436,9 @@ pub async fn watch_for_upgrades(
     _network: Network,
     _channel: Option<Sender<IotaTransactionBlockEffects>>,
 ) -> anyhow::Result<()> {
-    Err(anyhow!("Fatal: JsonRPC Subscriptions no longer supported. Reimplement without using subscriptions."))
+    Err(anyhow!(
+        "Fatal: JsonRPC Subscriptions no longer supported. Reimplement without using subscriptions."
+    ))
 }
 
 pub struct AppState {

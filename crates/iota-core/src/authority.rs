@@ -3,79 +3,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::consensus_adapter::ConsensusOverloadChecker;
-use crate::execution_cache::ExecutionCacheTraitPointers;
-use crate::execution_cache::TransactionCacheRead;
-use crate::jsonrpc_index::CoinIndexKey2;
-use crate::rpc_index::RpcIndexStore;
-use crate::transaction_outputs::TransactionOutputs;
-use crate::verify_indexes::verify_indexes;
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    fs,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    pin::Pin,
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+    vec,
+};
+
 use anyhow::anyhow;
 use arc_swap::{ArcSwap, Guard};
 use async_trait::async_trait;
 use authority_per_epoch_store::CertLockGuard;
-use chrono::prelude::*;
-use fastcrypto::encoding::Base58;
-use fastcrypto::encoding::Encoding;
-use fastcrypto::hash::MultisetHash;
-use itertools::Itertools;
-use move_binary_format::binary_config::BinaryConfig;
-use move_binary_format::CompiledModule;
-use move_core_types::annotated_value::MoveStructLayout;
-use move_core_types::language_storage::ModuleId;
-use iota_metrics::{TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX};
-use parking_lot::Mutex;
-use prometheus::{
-    register_histogram_vec_with_registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Histogram,
-    HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
-};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
-use std::time::Duration;
-use std::{
-    collections::{HashMap, HashSet},
-    fs,
-    pin::Pin,
-    sync::Arc,
-    vec,
-};
-use iota_config::node::{AuthorityOverloadConfig, StateDebugDumpConfig};
-use iota_config::NodeConfig;
-use iota_types::crypto::RandomnessRound;
-use iota_types::dynamic_field::visitor as DFV;
-use iota_types::execution_status::ExecutionStatus;
-use iota_types::inner_temporary_store::PackageStoreWithFallback;
-use iota_types::layout_resolver::into_struct_layout;
-use iota_types::layout_resolver::LayoutResolver;
-use iota_types::messages_consensus::{AuthorityCapabilitiesV1, AuthorityCapabilitiesV2};
-use iota_types::object::bounded_visitor::BoundedVisitor;
-use iota_types::transaction_executor::SimulateTransactionResult;
-use tap::{TapFallible, TapOptional};
-use tokio::sync::mpsc::unbounded_channel;
-use tokio::sync::{mpsc, oneshot, RwLock};
-use tokio::task::JoinHandle;
-use tracing::{debug, error, info, instrument, warn};
-
-use self::authority_store::ExecutionLockWriteGuard;
-use self::authority_store_pruner::AuthorityStorePruningMetrics;
 pub use authority_store::{AuthorityStore, ResolverWrapper, UpdateType};
-use iota_metrics::{monitored_scope, spawn_monitored_task};
-
-use crate::jsonrpc_index::IndexStore;
-use crate::jsonrpc_index::{CoinInfo, ObjectIndexChanges};
-use iota_common::debug_fatal;
-use once_cell::sync::OnceCell;
-use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
+use chrono::prelude::*;
+use fastcrypto::{
+    encoding::{Base58, Encoding},
+    hash::MultisetHash,
+};
 use iota_archival::reader::ArchiveReaderBalancer;
-use iota_config::genesis::Genesis;
-use iota_config::node::{DBCheckpointConfig, ExpensiveSafetyCheckConfig};
+use iota_common::debug_fatal;
+use iota_config::{
+    NodeConfig,
+    genesis::Genesis,
+    node::{
+        AuthorityOverloadConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
+        StateDebugDumpConfig,
+    },
+};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_json_rpc_types::{
     DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent, IotaMoveValue,
@@ -83,94 +42,131 @@ use iota_json_rpc_types::{
     IotaTransactionBlockEvents, TransactionFilter,
 };
 use iota_macros::{fail_point, fail_point_async, fail_point_if};
-use iota_storage::key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait};
-use iota_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use iota_types::authenticator_state::get_authenticator_state;
-use iota_types::committee::{EpochId, ProtocolVersion};
-use iota_types::crypto::{default_hash, AuthoritySignInfo, Signer};
-use iota_types::deny_list_v1::check_coin_deny_list_v1;
-use iota_types::digests::ChainIdentifier;
-use iota_types::digests::TransactionEventsDigest;
-use iota_types::dynamic_field::{DynamicFieldInfo, DynamicFieldName};
-use iota_types::effects::{
-    InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
-    TransactionEvents, VerifiedSignedTransactionEffects,
+use iota_metrics::{
+    TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
-use iota_types::error::{ExecutionError, UserInputError};
-use iota_types::event::{Event, EventID};
-use iota_types::executable_transaction::VerifiedExecutableTransaction;
-use iota_types::gas::{GasCostSummary, IotaGasStatus};
-use iota_types::inner_temporary_store::{
-    InnerTemporaryStore, ObjectMap, TemporaryModuleResolver, TxCoins, WrittenObjects,
+use iota_storage::{
+    key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
+    key_value_store_metrics::KeyValueStoreMetrics,
 };
-use iota_types::message_envelope::Message;
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointContentsDigest,
-    CheckpointDigest, CheckpointRequest, CheckpointRequestV2, CheckpointResponse,
-    CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
-    CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
-};
-use iota_types::messages_grpc::{
-    HandleTransactionResponse, LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind,
-    ObjectInfoResponse, TransactionInfoRequest, TransactionInfoResponse, TransactionStatus,
-};
-use iota_types::metrics::{BytecodeVerifierMetrics, LimitsMetrics};
-use iota_types::object::{MoveObject, Owner, PastObjectRead, OBJECT_START_VERSION};
-use iota_types::storage::{
-    BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
-};
-use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
-use iota_types::iota_system_state::IotaSystemStateTrait;
-use iota_types::iota_system_state::{get_iota_system_state, IotaSystemState};
-use iota_types::supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions};
-use iota_types::{
-    base_types::*,
-    committee::Committee,
-    crypto::AuthoritySignature,
-    error::{IotaError, IotaResult},
-    object::{Object, ObjectRead},
-    transaction::*,
-    IOTA_SYSTEM_ADDRESS,
-};
-use iota_types::{is_system_package, TypeTag};
-use typed_store::TypedStoreError;
-
-use crate::authority::authority_per_epoch_store::{AuthorityPerEpochStore, CertTxGuard};
-use crate::authority::authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner;
-use crate::authority::authority_store::{ExecutionLockReadGuard, ObjectLockStatus};
-use crate::authority::authority_store_pruner::{
-    AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING,
-};
-use crate::authority::epoch_start_configuration::EpochStartConfigTrait;
-use crate::authority::epoch_start_configuration::EpochStartConfiguration;
-use crate::checkpoints::CheckpointStore;
-use crate::epoch::committee_store::CommitteeStore;
-use crate::execution_cache::{
-    CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI, ExecutionCacheWrite,
-    ObjectCacheRead, StateSyncAPI,
-};
-use crate::execution_driver::execution_process;
-use crate::metrics::LatencyObserver;
-use crate::metrics::RateTracker;
-use crate::module_cache_metrics::ResolverMetrics;
-use crate::overload_monitor::{overload_monitor_accept_tx, AuthorityOverloadInfo};
-use crate::stake_aggregator::StakeAggregator;
-use crate::state_accumulator::{AccumulatorStore, StateAccumulator, WrappedObject};
-use crate::subscription_handler::SubscriptionHandler;
-use crate::transaction_input_loader::TransactionInputLoader;
-use crate::transaction_manager::TransactionManager;
-
-#[cfg(msim)]
-pub use crate::checkpoints::checkpoint_executor::{
-    init_checkpoint_timeout_config, CheckpointTimeoutConfig,
-};
-
-use crate::authority_client::NetworkAuthorityClient;
-use crate::validator_tx_finalizer::ValidatorTxFinalizer;
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
-use iota_types::deny_list_v2::check_coin_deny_list_v2_during_signing;
-use iota_types::execution_config_utils::to_binary_config;
+use iota_types::{
+    IOTA_SYSTEM_ADDRESS, TypeTag,
+    authenticator_state::get_authenticator_state,
+    base_types::*,
+    committee::{Committee, EpochId, ProtocolVersion},
+    crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
+    deny_list_v1::check_coin_deny_list_v1,
+    deny_list_v2::check_coin_deny_list_v2_during_signing,
+    digests::{ChainIdentifier, TransactionEventsDigest},
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
+    effects::{
+        InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
+        TransactionEvents, VerifiedSignedTransactionEffects,
+    },
+    error::{ExecutionError, IotaError, IotaResult, UserInputError},
+    event::{Event, EventID},
+    executable_transaction::VerifiedExecutableTransaction,
+    execution_config_utils::to_binary_config,
+    execution_status::ExecutionStatus,
+    gas::{GasCostSummary, IotaGasStatus},
+    inner_temporary_store::{
+        InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
+        WrittenObjects,
+    },
+    iota_system_state::{
+        IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
+    },
+    is_system_package,
+    layout_resolver::{LayoutResolver, into_struct_layout},
+    message_envelope::Message,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents,
+        CheckpointContentsDigest, CheckpointDigest, CheckpointRequest, CheckpointRequestV2,
+        CheckpointResponse, CheckpointResponseV2, CheckpointSequenceNumber, CheckpointSummary,
+        CheckpointSummaryResponse, CheckpointTimestamp, ECMHLiveObjectSetDigest,
+        VerifiedCheckpoint,
+    },
+    messages_consensus::{AuthorityCapabilitiesV1, AuthorityCapabilitiesV2},
+    messages_grpc::{
+        HandleTransactionResponse, LayoutGenerationOption, ObjectInfoRequest,
+        ObjectInfoRequestKind, ObjectInfoResponse, TransactionInfoRequest, TransactionInfoResponse,
+        TransactionStatus,
+    },
+    metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+    object::{
+        MoveObject, OBJECT_START_VERSION, Object, ObjectRead, Owner, PastObjectRead,
+        bounded_visitor::BoundedVisitor,
+    },
+    storage::{
+        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
+    },
+    supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions},
+    transaction::*,
+    transaction_executor::SimulateTransactionResult,
+};
+use itertools::Itertools;
+use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
+use move_core_types::{annotated_value::MoveStructLayout, language_storage::ModuleId};
+use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
+use prometheus::{
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    register_histogram_vec_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
+};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
+use tap::{TapFallible, TapOptional};
+use tokio::{
+    sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
+    task::JoinHandle,
+};
+use tracing::{debug, error, info, instrument, warn};
+use typed_store::TypedStoreError;
+
+use self::{
+    authority_store::ExecutionLockWriteGuard, authority_store_pruner::AuthorityStorePruningMetrics,
+};
+#[cfg(msim)]
+pub use crate::checkpoints::checkpoint_executor::{
+    CheckpointTimeoutConfig, init_checkpoint_timeout_config,
+};
+use crate::{
+    authority::{
+        authority_per_epoch_store::{AuthorityPerEpochStore, CertTxGuard},
+        authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
+        authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
+        authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
+        epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
+    },
+    authority_client::NetworkAuthorityClient,
+    checkpoints::CheckpointStore,
+    consensus_adapter::ConsensusOverloadChecker,
+    epoch::committee_store::CommitteeStore,
+    execution_cache::{
+        CheckpointCache, ExecutionCacheCommit, ExecutionCacheReconfigAPI,
+        ExecutionCacheTraitPointers, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI,
+        TransactionCacheRead,
+    },
+    execution_driver::execution_process,
+    jsonrpc_index::{CoinIndexKey2, CoinInfo, IndexStore, ObjectIndexChanges},
+    metrics::{LatencyObserver, RateTracker},
+    module_cache_metrics::ResolverMetrics,
+    overload_monitor::{AuthorityOverloadInfo, overload_monitor_accept_tx},
+    rpc_index::RpcIndexStore,
+    stake_aggregator::StakeAggregator,
+    state_accumulator::{AccumulatorStore, StateAccumulator, WrappedObject},
+    subscription_handler::SubscriptionHandler,
+    transaction_input_loader::TransactionInputLoader,
+    transaction_manager::TransactionManager,
+    transaction_outputs::TransactionOutputs,
+    validator_tx_finalizer::ValidatorTxFinalizer,
+    verify_indexes::verify_indexes,
+};
 
 #[cfg(test)]
 #[path = "unit_tests/authority_tests.rs"]
@@ -766,11 +762,11 @@ impl AuthorityMetrics {
 }
 
 /// a Trait object for `Signer` that is:
-/// - Pin, i.e. confined to one place in memory (we don't want to copy private keys).
+/// - Pin, i.e. confined to one place in memory (we don't want to copy private
+///   keys).
 /// - Sync, i.e. can be safely shared between threads.
 ///
 /// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
-///
 pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
 
 pub struct AuthorityState {
@@ -787,9 +783,10 @@ pub struct AuthorityState {
     epoch_store: ArcSwap<AuthorityPerEpochStore>,
 
     /// This lock denotes current 'execution epoch'.
-    /// Execution acquires read lock, checks certificate epoch and holds it until all writes are complete.
-    /// Reconfiguration acquires write lock, changes the epoch and revert all transactions
-    /// from previous epoch that are executed but did not make into checkpoint.
+    /// Execution acquires read lock, checks certificate epoch and holds it
+    /// until all writes are complete. Reconfiguration acquires write lock,
+    /// changes the epoch and revert all transactions from previous epoch
+    /// that are executed but did not make into checkpoint.
     execution_lock: RwLock<EpochId>,
 
     pub indexes: Option<Arc<IndexStore>>,
@@ -822,10 +819,12 @@ pub struct AuthorityState {
     pub validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
 }
 
-/// The authority state encapsulates all state, drives execution, and ensures safety.
+/// The authority state encapsulates all state, drives execution, and ensures
+/// safety.
 ///
-/// Note the authority operations can be accessed through a read ref (&) and do not
-/// require &mut. Internally a database is synchronized through a mutex lock.
+/// Note the authority operations can be accessed through a read ref (&) and do
+/// not require &mut. Internally a database is synchronized through a mutex
+/// lock.
 ///
 /// Repeating valid commands should produce no changes and return no error.
 impl AuthorityState {
@@ -886,15 +885,16 @@ impl AuthorityState {
             epoch_store.epoch(),
         )?;
 
-        let (_gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
-            epoch_store.protocol_config(),
-            epoch_store.reference_gas_price(),
-            tx_data,
-            input_objects,
-            &receiving_objects,
-            &self.metrics.bytecode_verifier_metrics,
-            &self.config.verifier_signing_config,
-        )?;
+        let (_gas_status, checked_input_objects) =
+            iota_transaction_checks::check_transaction_input(
+                epoch_store.protocol_config(),
+                epoch_store.reference_gas_price(),
+                tx_data,
+                input_objects,
+                &receiving_objects,
+                &self.metrics.bytecode_verifier_metrics,
+                &self.config.verifier_signing_config,
+            )?;
 
         if epoch_store.coin_deny_list_v1_enabled() {
             check_coin_deny_list_v1(
@@ -917,8 +917,9 @@ impl AuthorityState {
         Ok(checked_input_objects)
     }
 
-    /// This is a private method and should be kept that way. It doesn't check whether
-    /// the provided transaction is a system transaction, and hence can only be called internally.
+    /// This is a private method and should be kept that way. It doesn't check
+    /// whether the provided transaction is a system transaction, and hence
+    /// can only be called internally.
     #[instrument(level = "trace", skip_all)]
     async fn handle_transaction_impl(
         &self,
@@ -948,8 +949,8 @@ impl AuthorityState {
 
         // Check and write locks, to signed transaction, into the database
         // The call to self.set_transaction_lock checks the lock is not conflicting,
-        // and returns ConflictingTransaction error in case there is a lock on a different
-        // existing transaction.
+        // and returns ConflictingTransaction error in case there is a lock on a
+        // different existing transaction.
         self.get_cache_writer()
             .acquire_transaction_locks(
                 epoch_store,
@@ -1016,8 +1017,9 @@ impl AuthorityState {
         }
     }
 
-    /// When Ok, returns None if the transaction has not been executed, and returns
-    /// (TransactionEffects, TransactionEvents) if the transaction has been executed.
+    /// When Ok, returns None if the transaction has not been executed, and
+    /// returns (TransactionEffects, TransactionEvents) if the transaction
+    /// has been executed.
     #[instrument(level = "trace", skip_all)]
     pub async fn handle_transaction_v2(
         &self,
@@ -1139,16 +1141,18 @@ impl AuthorityState {
 
         self.metrics.total_cert_attempts.inc();
 
-        // TODO(fastpath): use a separate function to check if a transaction should be executed in fastpath.
+        // TODO(fastpath): use a separate function to check if a transaction should be
+        // executed in fastpath.
         if !certificate.contains_shared_object() {
-            // Shared object transactions need to be sequenced by the consensus before enqueueing
-            // for execution, done in AuthorityPerEpochStore::handle_consensus_transaction().
-            // For owned object transactions, they can be enqueued for execution immediately.
+            // Shared object transactions need to be sequenced by the consensus before
+            // enqueueing for execution, done in
+            // AuthorityPerEpochStore::handle_consensus_transaction(). For owned
+            // object transactions, they can be enqueued for execution immediately.
             self.enqueue_certificates_for_execution(vec![certificate.clone()], epoch_store);
         }
 
-        // tx could be reverted when epoch ends, so we must be careful not to return a result
-        // here after the epoch ends.
+        // tx could be reverted when epoch ends, so we must be careful not to return a
+        // result here after the epoch ends.
         epoch_store
             .within_alive_epoch(self.notify_read_effects(*certificate.digest()))
             .await
@@ -1167,10 +1171,10 @@ impl AuthorityState {
         let _metrics_guard = self.metrics.await_transaction_latency.start_timer();
         debug!("await_transaction");
 
-        // TODO(fastpath): Add handling for transactions rejected by Mysticeti fast path.
-        // TODO(fastpath): Can an MFP transaction be reverted after epoch ends? If so,
-        // same warning as above applies: We must be careful not to return a result
-        // here after the epoch ends.
+        // TODO(fastpath): Add handling for transactions rejected by Mysticeti fast
+        // path. TODO(fastpath): Can an MFP transaction be reverted after epoch
+        // ends? If so, same warning as above applies: We must be careful not to
+        // return a result here after the epoch ends.
         epoch_store
             .within_alive_epoch(self.notify_read_effects(digest))
             .await
@@ -1182,11 +1186,14 @@ impl AuthorityState {
     ///
     /// Guarantees that
     /// - If input objects are available, return no permanent failure.
-    /// - Execution and output commit are atomic. i.e. outputs are only written to storage,
-    /// on successful execution; crashed execution has no observable effect and can be retried.
+    /// - Execution and output commit are atomic. i.e. outputs are only written
+    ///   to storage,
+    /// on successful execution; crashed execution has no observable effect and
+    /// can be retried.
     ///
-    /// It is caller's responsibility to ensure input objects are available and locks are set.
-    /// If this cannot be satisfied by the caller, execute_certificate() should be called instead.
+    /// It is caller's responsibility to ensure input objects are available and
+    /// locks are set. If this cannot be satisfied by the caller,
+    /// execute_certificate() should be called instead.
     ///
     /// Should only be called within iota-core.
     #[instrument(level = "trace", skip_all)]
@@ -1205,8 +1212,8 @@ impl AuthorityState {
         // prevent concurrent executions of the same tx.
         let tx_guard = epoch_store.acquire_tx_guard(certificate).await?;
 
-        // The cert could have been processed by a concurrent attempt of the same cert, so check if
-        // the effects have already been written.
+        // The cert could have been processed by a concurrent attempt of the same cert,
+        // so check if the effects have already been written.
         if let Some(effects) = self
             .get_transaction_cache_reader()
             .get_executed_effects(tx_digest)
@@ -1219,10 +1226,10 @@ impl AuthorityState {
             self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
 
         if expected_effects_digest.is_none() {
-            // We could be re-executing a previously executed but uncommitted transaction, perhaps after
-            // restarting with a new binary. In this situation, if we have published an effects signature,
-            // we must be sure not to equivocate.
-            // TODO: read from cache instead of DB
+            // We could be re-executing a previously executed but uncommitted transaction,
+            // perhaps after restarting with a new binary. In this situation, if
+            // we have published an effects signature, we must be sure not to
+            // equivocate. TODO: read from cache instead of DB
             expected_effects_digest = epoch_store.get_signed_effects_digest(tx_digest)?;
         }
 
@@ -1258,8 +1265,9 @@ impl AuthorityState {
         )
     }
 
-    /// Test only wrapper for `try_execute_immediately()` above, useful for checking errors if the
-    /// pre-conditions are not satisfied, and executing change epoch transactions.
+    /// Test only wrapper for `try_execute_immediately()` above, useful for
+    /// checking errors if the pre-conditions are not satisfied, and
+    /// executing change epoch transactions.
     pub async fn try_execute_for_test(
         &self,
         certificate: &VerifiedCertificate,
@@ -1294,9 +1302,9 @@ impl AuthorityState {
     }
 
     /// This function captures the required state to debug a forked transaction.
-    /// The dump is written to a file in dir `path`, with name prefixed by the transaction digest.
-    /// NOTE: Since this info escapes the validator context,
-    /// make sure not to leak any private info here
+    /// The dump is written to a file in dir `path`, with name prefixed by the
+    /// transaction digest. NOTE: Since this info escapes the validator
+    /// context, make sure not to leak any private info here
     pub(crate) fn debug_dump_transaction_state(
         &self,
         tx_digest: &TransactionDigest,
@@ -1347,10 +1355,11 @@ impl AuthorityState {
         let execution_guard = self
             .execution_lock_for_executable_transaction(certificate)
             .await;
-        // Any caller that verifies the signatures on the certificate will have already checked the
-        // epoch. But paths that don't verify sigs (e.g. execution from checkpoint, reading from db)
-        // present the possibility of an epoch mismatch. If this cert is not finalzied in previous
-        // epoch, then it's invalid.
+        // Any caller that verifies the signatures on the certificate will have already
+        // checked the epoch. But paths that don't verify sigs (e.g. execution
+        // from checkpoint, reading from db) present the possibility of an epoch
+        // mismatch. If this cert is not finalzied in previous epoch, then it's
+        // invalid.
         let execution_guard = match execution_guard {
             Ok(execution_guard) => execution_guard,
             Err(err) => {
@@ -1358,8 +1367,9 @@ impl AuthorityState {
                 return Err(err);
             }
         };
-        // Since we obtain a reference to the epoch store before taking the execution lock, it's
-        // possible that reconfiguration has happened and they no longer match.
+        // Since we obtain a reference to the epoch store before taking the execution
+        // lock, it's possible that reconfiguration has happened and they no
+        // longer match.
         if *execution_guard != epoch_store.epoch() {
             tx_guard.release();
             info!("The epoch of the execution_guard doesn't match the epoch store");
@@ -1369,10 +1379,11 @@ impl AuthorityState {
             });
         }
 
-        // Errors originating from prepare_certificate may be transient (failure to read locks) or
-        // non-transient (transaction input is invalid, move vm errors). However, all errors from
-        // this function occur before we have written anything to the db, so we commit the tx
-        // guard and rely on the client to retry the tx (if it was transient).
+        // Errors originating from prepare_certificate may be transient (failure to read
+        // locks) or non-transient (transaction input is invalid, move vm
+        // errors). However, all errors from this function occur before we have
+        // written anything to the db, so we commit the tx guard and rely on the
+        // client to retry the tx (if it was transient).
         let (inner_temporary_store, effects, execution_error_opt) = match self.prepare_certificate(
             &execution_guard,
             certificate,
@@ -1444,7 +1455,8 @@ impl AuthorityState {
             }
             epoch_store.update_authenticator_state(auth_state);
 
-            // double check that the signature verifier always matches the authenticator state
+            // double check that the signature verifier always matches the authenticator
+            // state
             if cfg!(debug_assertions) {
                 let authenticator_state = get_authenticator_state(self.get_object_store())
                     .expect("Read cannot fail")
@@ -1497,8 +1509,10 @@ impl AuthorityState {
 
         let output_keys = inner_temporary_store.get_output_keys(effects);
 
-        // Only need to sign effects if we are a validator, and if the executed_in_epoch_table is not yet enabled.
-        // TODO: once executed_in_epoch_table is enabled everywhere, we can remove the code below entirely.
+        // Only need to sign effects if we are a validator, and if the
+        // executed_in_epoch_table is not yet enabled. TODO: once
+        // executed_in_epoch_table is enabled everywhere, we can remove the code below
+        // entirely.
         let should_sign_effects =
             self.is_validator(epoch_store) && !epoch_store.executed_in_epoch_table_enabled();
 
@@ -1523,8 +1537,9 @@ impl AuthorityState {
                 error!(?tx_digest, "tx post processing failed: {e}");
             });
 
-        // The insertion to epoch_store is not atomic with the insertion to the perpetual store. This is OK because
-        // we insert to the epoch store first. And during lookups we always look up in the perpetual store first.
+        // The insertion to epoch_store is not atomic with the insertion to the
+        // perpetual store. This is OK because we insert to the epoch store
+        // first. And during lookups we always look up in the perpetual store first.
         epoch_store.insert_tx_key_and_effects_signature(
             &tx_key,
             tx_digest,
@@ -1605,15 +1620,17 @@ impl AuthorityState {
         );
     }
 
-    /// prepare_certificate validates the transaction input, and executes the certificate,
-    /// returning effects, output objects, events, etc.
+    /// prepare_certificate validates the transaction input, and executes the
+    /// certificate, returning effects, output objects, events, etc.
     ///
-    /// It reads state from the db (both owned and shared locks), but it has no side effects.
+    /// It reads state from the db (both owned and shared locks), but it has no
+    /// side effects.
     ///
-    /// It can be generally understood that a failure of prepare_certificate indicates a
-    /// non-transient error, e.g. the transaction input is somehow invalid, the correct
-    /// locks are not held, etc. However, this is not entirely true, as a transient db read error
-    /// may also cause this function to fail.
+    /// It can be generally understood that a failure of prepare_certificate
+    /// indicates a non-transient error, e.g. the transaction input is
+    /// somehow invalid, the correct locks are not held, etc. However, this
+    /// is not entirely true, as a transient db read error may also cause
+    /// this function to fail.
     #[instrument(level = "trace", skip_all)]
     fn prepare_certificate(
         &self,
@@ -1630,11 +1647,13 @@ impl AuthorityState {
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
         let prepare_certificate_start_time = tokio::time::Instant::now();
 
-        // TODO: We need to move this to a more appropriate place to avoid redundant checks.
+        // TODO: We need to move this to a more appropriate place to avoid redundant
+        // checks.
         let tx_data = certificate.data().transaction_data();
         tx_data.validity_check(epoch_store.protocol_config())?;
 
-        // The cost of partially re-auditing a transaction before execution is tolerated.
+        // The cost of partially re-auditing a transaction before execution is
+        // tolerated.
         let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
             certificate,
             input_objects,
@@ -2087,7 +2106,8 @@ impl AuthorityState {
         let price = gas_price.unwrap_or(reference_gas_price);
         let budget = gas_budget.unwrap_or(max_tx_gas);
         let owner = gas_sponsor.unwrap_or(sender);
-        // Payment might be empty here, but it's fine we'll have to deal with it later after reading all the input objects.
+        // Payment might be empty here, but it's fine we'll have to deal with it later
+        // after reading all the input objects.
         let payment = gas_objects.unwrap_or_default();
         let transaction = TransactionData::V1(TransactionDataV1 {
             kind: transaction_kind.clone(),
@@ -2145,8 +2165,9 @@ impl AuthorityState {
         };
 
         let (gas_status, checked_input_objects) = if skip_checks {
-            // If we are skipping checks, then we call the check_dev_inspect_input function which will perform
-            // only lightweight checks on the transaction input. And if the gas field is empty, that means we will
+            // If we are skipping checks, then we call the check_dev_inspect_input function
+            // which will perform only lightweight checks on the transaction
+            // input. And if the gas field is empty, that means we will
             // use the dummy gas object so we need to add it to the input objects vector.
             if transaction.gas().is_empty() {
                 input_objects.push(ObjectReadResult::new(
@@ -2169,8 +2190,9 @@ impl AuthorityState {
 
             (gas_status, checked_input_objects)
         } else {
-            // If we are not skipping checks, then we call the check_transaction_input function and its dummy gas
-            // variant which will perform full fledged checks just like a real transaction execution.
+            // If we are not skipping checks, then we call the check_transaction_input
+            // function and its dummy gas variant which will perform full
+            // fledged checks just like a real transaction execution.
             if transaction.gas().is_empty() {
                 iota_transaction_checks::check_transaction_input_with_given_gas(
                     epoch_store.protocol_config(),
@@ -2210,7 +2232,8 @@ impl AuthorityState {
             self.get_backing_store().as_ref(),
             protocol_config,
             self.metrics.limits_metrics.clone(),
-            /* expensive checks */ false,
+            // expensive checks
+            false,
             self.config.certificate_deny_config.certificate_deny_set(),
             &epoch_store.epoch_start_config().epoch_data().epoch_id(),
             epoch_store
@@ -2327,7 +2350,7 @@ impl AuthorityState {
             let cur_stake = (**committee).weight(&self.name);
             if cur_stake > 0 {
                 FAIL_STATE.with_borrow_mut(|fail_state| {
-                    //let (&mut failing_stake, &mut failing_validators) = fail_state;
+                    // let (&mut failing_stake, &mut failing_validators) = fail_state;
                     if fail_state.0 < committee.validity_threshold() {
                         fail_state.0 += cur_stake;
                         fail_state.1.insert(self.name);
@@ -2385,16 +2408,23 @@ impl AuthorityState {
 
         for (oref, owner, kind) in effects.all_changed_objects() {
             let id = &oref.0;
-            // For mutated objects, retrieve old owner and delete old index if there is a owner change.
+            // For mutated objects, retrieve old owner and delete old index if there is a
+            // owner change.
             if let WriteKind::Mutate = kind {
                 let Some(old_version) = modified_at_version.get(id) else {
-                    panic!("tx_digest={:?}, error processing object owner index, cannot find modified at version for mutated object [{id}].", tx_digest);
+                    panic!(
+                        "tx_digest={:?}, error processing object owner index, cannot find modified at version for mutated object [{id}].",
+                        tx_digest
+                    );
                 };
                 // When we process the index, the latest object hasn't been written yet so
                 // the old object must be present.
                 let Some(old_object) = self.get_object_store().get_object_by_key(id, *old_version)
                 else {
-                    panic!("tx_digest={:?}, error processing object owner index, cannot find owner for object {:?} at version {:?}", tx_digest, id, old_version);
+                    panic!(
+                        "tx_digest={:?}, error processing object owner index, cannot find owner for object {:?} at version {:?}",
+                        tx_digest, id, old_version
+                    );
                 };
                 if old_object.owner != owner {
                     match old_object.owner {
@@ -2411,34 +2441,48 @@ impl AuthorityState {
 
             match owner {
                 Owner::AddressOwner(addr) => {
-                    // TODO: We can remove the object fetching after we added ObjectType to TransactionEffects
+                    // TODO: We can remove the object fetching after we added ObjectType to
+                    // TransactionEffects
                     let new_object = written.get(id).unwrap_or_else(
                         || panic!("tx_digest={:?}, error processing object owner index, written does not contain object {:?}", tx_digest, id)
                     );
-                    assert_eq!(new_object.version(), oref.1, "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}", tx_digest, id, new_object.version(), oref.1);
+                    assert_eq!(
+                        new_object.version(),
+                        oref.1,
+                        "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
+                        tx_digest,
+                        id,
+                        new_object.version(),
+                        oref.1
+                    );
 
                     let type_ = new_object
                         .type_()
                         .map(|type_| ObjectType::Struct(type_.clone()))
                         .unwrap_or(ObjectType::Package);
 
-                    new_owners.push((
-                        (addr, *id),
-                        ObjectInfo {
-                            object_id: *id,
-                            version: oref.1,
-                            digest: oref.2,
-                            type_,
-                            owner,
-                            previous_transaction: *effects.transaction_digest(),
-                        },
-                    ));
+                    new_owners.push(((addr, *id), ObjectInfo {
+                        object_id: *id,
+                        version: oref.1,
+                        digest: oref.2,
+                        type_,
+                        owner,
+                        previous_transaction: *effects.transaction_digest(),
+                    }));
                 }
                 Owner::ObjectOwner(owner) => {
                     let new_object = written.get(id).unwrap_or_else(
                         || panic!("tx_digest={:?}, error processing object owner index, written does not contain object {:?}", tx_digest, id)
                     );
-                    assert_eq!(new_object.version(), oref.1, "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}", tx_digest, id, new_object.version(), oref.1);
+                    assert_eq!(
+                        new_object.version(),
+                        oref.1,
+                        "tx_digest={:?} error processing object owner index, object {:?} from written has mismatched version. Actual: {}, expected: {}",
+                        tx_digest,
+                        id,
+                        new_object.version(),
+                        oref.1
+                    );
 
                     let Some(df_info) = self
                         .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
@@ -2528,7 +2572,8 @@ impl AuthorityState {
             },
 
             DFV::ValueMetadata::DynamicObjectField(object_id) => {
-                // Find the actual object from storage using the object id obtained from the wrapper.
+                // Find the actual object from storage using the object id obtained from the
+                // wrapper.
 
                 // Try to find the object in the written objects first.
                 let (version, digest, object_type) = if let Some(object) = written.get(&object_id) {
@@ -2994,7 +3039,8 @@ impl AuthorityState {
         &self.transaction_manager
     }
 
-    /// Adds transactions / certificates to transaction manager for ordered execution.
+    /// Adds transactions / certificates to transaction manager for ordered
+    /// execution.
     pub fn enqueue_transactions_for_execution(
         &self,
         txns: Vec<VerifiedExecutableTransaction>,
@@ -3085,9 +3131,10 @@ impl AuthorityState {
         }
     }
 
-    /// Acquires the execution lock for the duration of a transaction signing request.
-    /// This prevents reconfiguration from starting until we are finished handling the signing request.
-    /// Otherwise, in-memory lock state could be cleared (by `ObjectLocks::clear_cached_locks`)
+    /// Acquires the execution lock for the duration of a transaction signing
+    /// request. This prevents reconfiguration from starting until we are
+    /// finished handling the signing request. Otherwise, in-memory lock
+    /// state could be cleared (by `ObjectLocks::clear_cached_locks`)
     /// while we are attempting to acquire locks for the transaction.
     pub async fn execution_lock_for_signing(&self) -> ExecutionLockReadGuard {
         self.execution_lock.read().await
@@ -3184,17 +3231,19 @@ impl AuthorityState {
 
     /// Advance the epoch store to the next epoch for testing only.
     /// This only manually sets all the places where we have the epoch number.
-    /// It doesn't properly reconfigure the node, hence should be only used for testing.
+    /// It doesn't properly reconfigure the node, hence should be only used for
+    /// testing.
     pub async fn reconfigure_for_testing(&self) {
         let mut execution_lock = self.execution_lock_for_reconfiguration().await;
         let epoch_store = self.epoch_store_for_testing().clone();
         let protocol_config = epoch_store.protocol_config().clone();
-        // The current protocol config used in the epoch store may have been overridden and diverged from
-        // the protocol config definitions. That override may have now been dropped when the initial guard was dropped.
-        // We reapply the override before creating the new epoch store, to make sure that
+        // The current protocol config used in the epoch store may have been overridden
+        // and diverged from the protocol config definitions. That override may
+        // have now been dropped when the initial guard was dropped. We reapply
+        // the override before creating the new epoch store, to make sure that
         // the new epoch store has the same protocol config as the current one.
-        // Since this is for testing only, we mostly like to keep the protocol config the same
-        // across epochs.
+        // Since this is for testing only, we mostly like to keep the protocol config
+        // the same across epochs.
         let _guard =
             ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
         let new_epoch_store = epoch_store.new_at_next_epoch_for_testing(
@@ -3209,8 +3258,9 @@ impl AuthorityState {
         *execution_lock = new_epoch;
     }
 
-    /// This is a temporary method to be used when we enable simplified_unwrap_then_delete.
-    /// It re-accumulates state hash for the new epoch if simplified_unwrap_then_delete is enabled.
+    /// This is a temporary method to be used when we enable
+    /// simplified_unwrap_then_delete. It re-accumulates state hash for the
+    /// new epoch if simplified_unwrap_then_delete is enabled.
     #[instrument(level = "error", skip_all)]
     fn maybe_reaccumulate_state_hash(
         &self,
@@ -3245,7 +3295,8 @@ impl AuthorityState {
                 panic!("{}", err);
             } else {
                 // We cannot panic in production yet because it is known that there are some
-                // inconsistencies in testnet. We will enable this once we make it balanced again in testnet.
+                // inconsistencies in testnet. We will enable this once we make it balanced
+                // again in testnet.
                 warn!("Iota conservation consistency check failed: {}", err);
             }
         } else {
@@ -3370,11 +3421,12 @@ impl AuthorityState {
         Ok(())
     }
 
-    /// Load the current epoch store. This can change during reconfiguration. To ensure that
-    /// we never end up accessing different epoch stores in a single task, we need to make sure
-    /// that this is called once per task. Each call needs to be carefully audited to ensure it is
-    /// the case. This also means we should minimize the number of call-sites. Only call it when
-    /// there is no way to obtain it from somewhere else.
+    /// Load the current epoch store. This can change during reconfiguration. To
+    /// ensure that we never end up accessing different epoch stores in a
+    /// single task, we need to make sure that this is called once per task.
+    /// Each call needs to be carefully audited to ensure it is
+    /// the case. This also means we should minimize the number of call-sites.
+    /// Only call it when there is no way to obtain it from somewhere else.
     pub fn load_epoch_store_one_call_per_task(&self) -> Guard<Arc<AuthorityPerEpochStore>> {
         self.epoch_store.load()
     }
@@ -3896,7 +3948,9 @@ impl AuthorityState {
     }
 
     #[cfg(msim)]
-    pub fn get_highest_pruned_checkpoint_for_testing(&self) -> IotaResult<CheckpointSequenceNumber> {
+    pub fn get_highest_pruned_checkpoint_for_testing(
+        &self,
+    ) -> IotaResult<CheckpointSequenceNumber> {
         self.database_for_testing()
             .perpetual_tables
             .get_highest_pruned_checkpoint()
@@ -4035,7 +4089,7 @@ impl AuthorityState {
     ) -> IotaResult<Vec<IotaEvent>> {
         let index_store = self.get_indexes()?;
 
-        //Get the tx_num from tx_digest
+        // Get the tx_num from tx_digest
         let (tx_num, event_num) = if let Some(cursor) = cursor.as_ref() {
             let tx_seq = index_store.get_transaction_seq(&cursor.tx_digest)?.ok_or(
                 IotaError::TransactionNotFound {
@@ -4089,7 +4143,7 @@ impl AuthorityState {
                     error: UserInputError::Unsupported(
                         "'Any' queries are not supported by the fullnode.".to_string(),
                     ),
-                })
+                });
             }
         };
 
@@ -4212,9 +4266,10 @@ impl AuthorityState {
                     TransactionStatus::Executed(cert_sig, effects.into_inner(), events),
                 )));
             } else {
-                // The read of effects and read of transaction are not atomic. It's possible that we reverted
-                // the transaction (during epoch change) in between the above two reads, and we end up
-                // having effects but not transaction. In this case, we just fall through.
+                // The read of effects and read of transaction are not atomic. It's possible
+                // that we reverted the transaction (during epoch change) in
+                // between the above two reads, and we end up having effects but
+                // not transaction. In this case, we just fall through.
                 debug!(tx_digest=?transaction_digest, "Signed effects exist but no transaction found");
             }
         }
@@ -4227,9 +4282,9 @@ impl AuthorityState {
         }
     }
 
-    /// Get the signed effects of the given transaction. If the effects was signed in a previous
-    /// epoch, re-sign it so that the caller is able to form a cert of the effects in the current
-    /// epoch.
+    /// Get the signed effects of the given transaction. If the effects was
+    /// signed in a previous epoch, re-sign it so that the caller is able to
+    /// form a cert of the effects in the current epoch.
     #[instrument(level = "trace", skip_all)]
     pub fn get_signed_effects_and_maybe_resign(
         &self,
@@ -4267,14 +4322,17 @@ impl AuthorityState {
                 // - The tx makes it into final checkpoint.
                 // - 2 validators go away and are replaced in the new epoch.
                 // - The new epoch begins.
-                // - The quorum driver cannot complete the partial effects cert from the previous epoch,
-                //   because it may not be able to reach either of the 2 former validators.
-                // - But, if the 2 validators that stayed are willing to re-sign the effects in the new
-                //   epoch, the QD can make a new effects cert and return it to the client.
+                // - The quorum driver cannot complete the partial effects cert from the
+                //   previous epoch, because it may not be able to reach either of the 2 former
+                //   validators.
+                // - But, if the 2 validators that stayed are willing to re-sign the effects in
+                //   the new epoch, the QD can make a new effects cert and return it to the
+                //   client.
                 //
-                // This is a considered a short-term workaround. Eventually, Quorum Driver should be able
-                // to return either an effects certificate, -or- a proof of inclusion in a checkpoint. In
-                // the case above, the Quorum Driver would return a proof of inclusion in the final
+                // This is a considered a short-term workaround. Eventually, Quorum Driver
+                // should be able to return either an effects certificate, -or-
+                // a proof of inclusion in a checkpoint. In the case above, the
+                // Quorum Driver would return a proof of inclusion in the final
                 // checkpoint, and this code would no longer be necessary.
                 debug!(
                     ?tx_digest,
@@ -4342,13 +4400,17 @@ impl AuthorityState {
         Some((input_coin_objects, written_coin_objects))
     }
 
-    /// Get the TransactionEnvelope that currently locks the given object, if any.
-    /// Since object locks are only valid for one epoch, we also need the epoch_id in the query.
-    /// Returns UserInputError::ObjectNotFound if no lock records for the given object can be found.
-    /// Returns UserInputError::ObjectVersionUnavailableForConsumption if the object record is at a different version.
-    /// Returns Some(VerifiedEnvelope) if the given ObjectRef is locked by a certain transaction.
-    /// Returns None if the a lock record is initialized for the given ObjectRef but not yet locked by any transaction,
-    ///     or cannot find the transaction in transaction table, because of data race etc.
+    /// Get the TransactionEnvelope that currently locks the given object, if
+    /// any. Since object locks are only valid for one epoch, we also need
+    /// the epoch_id in the query. Returns UserInputError::ObjectNotFound if
+    /// no lock records for the given object can be found.
+    /// Returns UserInputError::ObjectVersionUnavailableForConsumption if the
+    /// object record is at a different version.
+    /// Returns Some(VerifiedEnvelope) if the given ObjectRef is locked by a
+    /// certain transaction. Returns None if the a lock record is
+    /// initialized for the given ObjectRef but not yet locked by any
+    /// transaction,     or cannot find the transaction in transaction
+    /// table, because of data race etc.
     #[instrument(level = "trace", skip_all)]
     pub async fn get_transaction_lock(
         &self,
@@ -4386,13 +4448,14 @@ impl AuthorityState {
     }
 
     /// Ordinarily, protocol upgrades occur when 2f + 1 + (f *
-    /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps) vote for the upgrade.
+    /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps) vote for the
+    /// upgrade.
     ///
-    /// This method can be used to dynamic adjust the amount of buffer. If set to 0, the upgrade
-    /// will go through with only 2f+1 votes.
+    /// This method can be used to dynamic adjust the amount of buffer. If set
+    /// to 0, the upgrade will go through with only 2f+1 votes.
     ///
-    /// IMPORTANT: If this is used, it must be used on >=2f+1 validators (all should have the same
-    /// value), or you risk halting the chain.
+    /// IMPORTANT: If this is used, it must be used on >=2f+1 validators (all
+    /// should have the same value), or you risk halting the chain.
     pub fn set_override_protocol_upgrade_buffer_stake(
         &self,
         expected_epoch: EpochId,
@@ -4426,8 +4489,9 @@ impl AuthorityState {
         epoch_store.clear_override_protocol_upgrade_buffer_stake()
     }
 
-    /// Get the set of system packages that are compiled in to this build, if those packages are
-    /// compatible with the current versions of those packages on-chain.
+    /// Get the set of system packages that are compiled in to this build, if
+    /// those packages are compatible with the current versions of those
+    /// packages on-chain.
     pub async fn get_available_system_packages(
         &self,
         binary_config: &BinaryConfig,
@@ -4466,19 +4530,22 @@ impl AuthorityState {
         results
     }
 
-    /// Return the new versions, module bytes, and dependencies for the packages that have been
-    /// committed to for a framework upgrade, in `system_packages`.  Loads the module contents from
-    /// the binary, and performs the following checks:
+    /// Return the new versions, module bytes, and dependencies for the packages
+    /// that have been committed to for a framework upgrade, in
+    /// `system_packages`.  Loads the module contents from the binary, and
+    /// performs the following checks:
     ///
-    /// - Whether its contents matches what is on-chain already, in which case no upgrade is
-    ///   required, and its contents are omitted from the output.
-    /// - Whether the contents in the binary can form a package whose digest matches the input,
-    ///   meaning the framework will be upgraded, and this authority can satisfy that upgrade, in
-    ///   which case the contents are included in the output.
+    /// - Whether its contents matches what is on-chain already, in which case
+    ///   no upgrade is required, and its contents are omitted from the output.
+    /// - Whether the contents in the binary can form a package whose digest
+    ///   matches the input, meaning the framework will be upgraded, and this
+    ///   authority can satisfy that upgrade, in which case the contents are
+    ///   included in the output.
     ///
-    /// If the current version of the framework can't be loaded, the binary does not contain the
-    /// bytes for that framework ID, or the resulting package fails the digest check, `None` is
-    /// returned indicating that this authority cannot run the upgrade that the network voted on.
+    /// If the current version of the framework can't be loaded, the binary does
+    /// not contain the bytes for that framework ID, or the resulting
+    /// package fails the digest check, `None` is returned indicating that
+    /// this authority cannot run the upgrade that the network voted on.
     async fn get_system_package_bytes(
         &self,
         system_packages: Vec<ObjectRef>,
@@ -4563,8 +4630,8 @@ impl AuthorityState {
             buffer_stake_bps = 10000;
         }
 
-        // For each validator, gather the protocol version and system packages that it would like
-        // to upgrade to in the next epoch.
+        // For each validator, gather the protocol version and system packages that it
+        // would like to upgrade to in the next epoch.
         let mut desired_upgrades: Vec<_> = capabilities
             .into_iter()
             .filter_map(|mut cap| {
@@ -4583,15 +4650,16 @@ impl AuthorityState {
                 );
 
                 // A validator that only supports the current protocol version is also voting
-                // against any change, because framework upgrades always require a protocol version
-                // bump.
+                // against any change, because framework upgrades always require a protocol
+                // version bump.
                 cap.supported_protocol_versions
                     .is_version_supported(proposed_protocol_version)
                     .then_some((cap.available_system_packages, cap.authority))
             })
             .collect();
 
-        // There can only be one set of votes that have a majority, find one if it exists.
+        // There can only be one set of votes that have a majority, find one if it
+        // exists.
         desired_upgrades.sort();
         desired_upgrades
             .into_iter()
@@ -4650,8 +4718,8 @@ impl AuthorityState {
             buffer_stake_bps = 10000;
         }
 
-        // For each validator, gather the protocol version and system packages that it would like
-        // to upgrade to in the next epoch.
+        // For each validator, gather the protocol version and system packages that it
+        // would like to upgrade to in the next epoch.
         let mut desired_upgrades: Vec<_> = capabilities
             .into_iter()
             .filter_map(|mut cap| {
@@ -4670,15 +4738,16 @@ impl AuthorityState {
                 );
 
                 // A validator that only supports the current protocol version is also voting
-                // against any change, because framework upgrades always require a protocol version
-                // bump.
+                // against any change, because framework upgrades always require a protocol
+                // version bump.
                 cap.supported_protocol_versions
                     .get_version_digest(proposed_protocol_version)
                     .map(|digest| (digest, cap.available_system_packages, cap.authority))
             })
             .collect();
 
-        // There can only be one set of votes that have a majority, find one if it exists.
+        // There can only be one set of votes that have a majority, find one if it
+        // exists.
         desired_upgrades.sort();
         desired_upgrades
             .into_iter()
@@ -4894,16 +4963,18 @@ impl AuthorityState {
         Some(tx)
     }
 
-    /// Creates and execute the advance epoch transaction to effects without committing it to the database.
-    /// The effects of the change epoch tx are only written to the database after a certified checkpoint has been
+    /// Creates and execute the advance epoch transaction to effects without
+    /// committing it to the database. The effects of the change epoch tx
+    /// are only written to the database after a certified checkpoint has been
     /// formed and executed by CheckpointExecutor.
     ///
-    /// When a framework upgraded has been decided on, but the validator does not have the new
-    /// versions of the packages locally, the validator cannot form the ChangeEpochTx. In this case
-    /// it returns Err, indicating that the checkpoint builder should give up trying to make the
-    /// final checkpoint. As long as the network is able to create a certified checkpoint (which
-    /// should be ensured by the capabilities vote), it will arrive via state sync and be executed
-    /// by CheckpointExecutor.
+    /// When a framework upgraded has been decided on, but the validator does
+    /// not have the new versions of the packages locally, the validator
+    /// cannot form the ChangeEpochTx. In this case it returns Err,
+    /// indicating that the checkpoint builder should give up trying to make the
+    /// final checkpoint. As long as the network is able to create a certified
+    /// checkpoint (which should be ensured by the capabilities vote), it
+    /// will arrive via state sync and be executed by CheckpointExecutor.
     #[instrument(level = "error", skip_all)]
     pub async fn create_and_execute_advance_epoch_tx(
         &self,
@@ -4957,8 +5028,9 @@ impl AuthorityState {
                 )
             };
 
-        // since system packages are created during the current epoch, they should abide by the
-        // rules of the current epoch, including the current epoch's max Move binary format version
+        // since system packages are created during the current epoch, they should abide
+        // by the rules of the current epoch, including the current epoch's max
+        // Move binary format version
         let config = epoch_store.protocol_config();
         let binary_config = to_binary_config(config);
         let Some(next_epoch_system_package_bytes) = self
@@ -4972,12 +5044,13 @@ impl AuthorityState {
             );
             // the checkpoint builder will keep retrying forever when it hits this error.
             // Eventually, one of two things will happen:
-            // - The operator will upgrade this binary to one that has the new packages locally,
-            //   and this function will succeed.
-            // - The final checkpoint will be certified by other validators, we will receive it via
-            //   state sync, and execute it. This will upgrade the framework packages, reconfigure,
-            //   and most likely shut down in the new epoch (this validator likely doesn't support
-            //   the new protocol version, or else it should have had the packages.)
+            // - The operator will upgrade this binary to one that has the new packages
+            //   locally, and this function will succeed.
+            // - The final checkpoint will be certified by other validators, we will receive
+            //   it via state sync, and execute it. This will upgrade the framework
+            //   packages, reconfigure, and most likely shut down in the new epoch (this
+            //   validator likely doesn't support the new protocol version, or else it
+            //   should have had the packages.)
             return Err(anyhow!(
                 "missing system packages: cannot form ChangeEpochTx"
             ));
@@ -5035,8 +5108,9 @@ impl AuthorityState {
         fail_point_async!("change_epoch_tx_delay");
         let tx_lock = epoch_store.acquire_tx_lock(tx_digest).await;
 
-        // The tx could have been executed by state sync already - if so simply return an error.
-        // The checkpoint builder will shortly be terminated by reconfiguration anyway.
+        // The tx could have been executed by state sync already - if so simply return
+        // an error. The checkpoint builder will shortly be terminated by
+        // reconfiguration anyway.
         if self
             .get_transaction_cache_reader()
             .is_tx_already_executed(tx_digest)
@@ -5051,13 +5125,13 @@ impl AuthorityState {
             .execution_lock_for_executable_transaction(&executable_tx)
             .await?;
 
-        // We must manually assign the shared object versions to the transaction before executing it.
-        // This is because we do not sequence end-of-epoch transactions through consensus.
+        // We must manually assign the shared object versions to the transaction before
+        // executing it. This is because we do not sequence end-of-epoch
+        // transactions through consensus.
         epoch_store
-            .assign_shared_object_versions_idempotent(
-                self.get_object_cache_reader().as_ref(),
-                &[executable_tx.clone()],
-            )
+            .assign_shared_object_versions_idempotent(self.get_object_cache_reader().as_ref(), &[
+                executable_tx.clone(),
+            ])
             .await?;
 
         let input_objects =
@@ -5068,9 +5142,9 @@ impl AuthorityState {
         let system_obj = get_iota_system_state(&temporary_store.written)
             .expect("change epoch tx must write to system object");
 
-        // We must write tx and effects to the state sync tables so that state sync is able to
-        // deliver to the transaction to CheckpointExecutor after it is included in a certified
-        // checkpoint.
+        // We must write tx and effects to the state sync tables so that state sync is
+        // able to deliver to the transaction to CheckpointExecutor after it is
+        // included in a certified checkpoint.
         self.get_state_sync_store()
             .insert_transaction_and_effects(&tx, &effects);
 
@@ -5085,7 +5159,8 @@ impl AuthorityState {
     }
 
     /// This function is called at the very end of the epoch.
-    /// This step is required before updating new epoch in the db and calling reopen_epoch_db.
+    /// This step is required before updating new epoch in the db and calling
+    /// reopen_epoch_db.
     #[instrument(level = "error", skip_all)]
     async fn revert_uncommitted_epoch_transactions(
         &self,
@@ -5094,12 +5169,14 @@ impl AuthorityState {
         {
             let state = epoch_store.get_reconfig_state_write_lock_guard();
             if state.should_accept_user_certs() {
-                // Need to change this so that consensus adapter do not accept certificates from user.
-                // This can happen if our local validator did not initiate epoch change locally,
-                // but 2f+1 nodes already concluded the epoch.
+                // Need to change this so that consensus adapter do not accept certificates from
+                // user. This can happen if our local validator did not initiate
+                // epoch change locally, but 2f+1 nodes already concluded the
+                // epoch.
                 //
                 // This lock is essentially a barrier for
-                // `epoch_store.pending_consensus_certificates` table we are reading on the line after this block
+                // `epoch_store.pending_consensus_certificates` table we are reading on the line
+                // after this block
                 epoch_store.close_user_certs(state);
             }
             // lock is dropped here
@@ -5112,7 +5189,10 @@ impl AuthorityState {
         );
         for digest in pending_certificates {
             if epoch_store.is_transaction_executed_in_checkpoint(&digest)? {
-                info!("Not reverting pending consensus transaction {:?} - it was included in checkpoint", digest);
+                info!(
+                    "Not reverting pending consensus transaction {:?} - it was included in checkpoint",
+                    digest
+                );
                 continue;
             }
             info!("Reverting {:?} at the end of epoch", digest);
@@ -5173,7 +5253,8 @@ impl AuthorityState {
             .unwrap();
     }
 
-    /// NOTE: this function is only to be used for fuzzing and testing. Never use in prod
+    /// NOTE: this function is only to be used for fuzzing and testing. Never
+    /// use in prod
     pub async fn insert_objects_unsafe_for_testing_only(&self, objects: &[Object]) -> IotaResult {
         self.get_reconfig_api().bulk_insert_genesis_objects(objects);
         self.get_object_cache_reader()
@@ -5252,12 +5333,14 @@ impl RandomnessRoundReceiver {
 
         let authority_state = self.authority_state.clone();
         spawn_monitored_task!(async move {
-            // Wait for transaction execution in a separate task, to avoid deadlock in case of
-            // out-of-order randomness generation. (Each RandomnessStateUpdate depends on the
-            // output of the RandomnessStateUpdate from the previous round.)
+            // Wait for transaction execution in a separate task, to avoid deadlock in case
+            // of out-of-order randomness generation. (Each
+            // RandomnessStateUpdate depends on the output of the
+            // RandomnessStateUpdate from the previous round.)
             //
-            // We set a very long timeout so that in case this gets stuck for some reason, the
-            // validator will eventually crash rather than continuing in a zombie mode.
+            // We set a very long timeout so that in case this gets stuck for some reason,
+            // the validator will eventually crash rather than continuing in a
+            // zombie mode.
             const RANDOMNESS_STATE_UPDATE_EXECUTION_TIMEOUT: Duration = Duration::from_secs(300);
             let result = tokio::time::timeout(
                 RANDOMNESS_STATE_UPDATE_EXECUTION_TIMEOUT,
@@ -5271,9 +5354,13 @@ impl RandomnessRoundReceiver {
                 Err(_) => {
                     if cfg!(debug_assertions) {
                         // Crash on randomness update execution timeout in debug builds.
-                        panic!("randomness state update transaction execution timed out at epoch {epoch}, round {round}");
+                        panic!(
+                            "randomness state update transaction execution timed out at epoch {epoch}, round {round}"
+                        );
                     }
-                    warn!("randomness state update transaction execution timed out at epoch {epoch}, round {round}");
+                    warn!(
+                        "randomness state update transaction execution timed out at epoch {epoch}, round {round}"
+                    );
                     // Continue waiting as long as necessary in non-debug builds.
                     authority_state
                         .get_transaction_cache_reader()
@@ -5284,9 +5371,13 @@ impl RandomnessRoundReceiver {
 
             let effects = effects.pop().expect("should return effects");
             if *effects.status() != ExecutionStatus::Success {
-                panic!("failed to execute randomness state update transaction at epoch {epoch}, round {round}: {effects:?}");
+                panic!(
+                    "failed to execute randomness state update transaction at epoch {epoch}, round {round}: {effects:?}"
+                );
             }
-            debug!("successfully executed randomness state update transaction at epoch {epoch}, round {round}");
+            debug!(
+                "successfully executed randomness state update transaction at epoch {epoch}, round {round}"
+            );
         });
     }
 }
@@ -5439,12 +5530,17 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
 
 #[cfg(msim)]
 pub mod framework_injection {
-    use move_binary_format::CompiledModule;
-    use std::collections::BTreeMap;
-    use std::{cell::RefCell, collections::BTreeSet};
+    use std::{
+        cell::RefCell,
+        collections::{BTreeMap, BTreeSet},
+    };
+
     use iota_framework::{BuiltInFramework, SystemPackage};
-    use iota_types::base_types::{AuthorityName, ObjectID};
-    use iota_types::is_system_package;
+    use iota_types::{
+        base_types::{AuthorityName, ObjectID},
+        is_system_package,
+    };
+    use move_binary_format::CompiledModule;
 
     type FrameworkOverrideConfig = BTreeMap<ObjectID, PackageOverrideConfig>;
 
@@ -5523,7 +5619,8 @@ pub mod framework_injection {
                 .dependencies()
                 .to_vec()
         } else {
-            // Assume that entirely new injected packages depend on all existing system packages.
+            // Assume that entirely new injected packages depend on all existing system
+            // packages.
             BuiltInFramework::all_package_ids()
         };
         Some(SystemPackage {
@@ -5627,7 +5724,8 @@ impl NodeStateDump {
                 }
                 InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::MutateDeleted(..)
-                | InputSharedObject::Cancelled(..) => (), // TODO: consider record congested objects.
+                | InputSharedObject::Cancelled(..) => (), /* TODO: consider record congested
+                                                           * objects. */
             }
         }
 
@@ -5648,8 +5746,9 @@ impl NodeStateDump {
             }
         }
 
-        // Packages read at runtime, which were not previously loaded into the temoorary store
-        // Some packages may be fetched at runtime and wont show up in input objects
+        // Packages read at runtime, which were not previously loaded into the temoorary
+        // store Some packages may be fetched at runtime and wont show up in
+        // input objects
         let mut runtime_reads = Vec::new();
         for obj in inner_temporary_store
             .runtime_packages_loaded_from_db

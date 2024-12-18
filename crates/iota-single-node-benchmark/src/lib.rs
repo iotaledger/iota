@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::benchmark_context::BenchmarkContext;
-use crate::command::Component;
-use crate::workload::Workload;
+use crate::{benchmark_context::BenchmarkContext, command::Component, workload::Workload};
 
 pub(crate) mod benchmark_context;
 pub mod command;
@@ -16,8 +14,8 @@ pub mod workload;
 
 /// Benchmark a given workload on a specified component.
 /// The different kinds of workloads and components can be found in command.rs.
-/// \checkpoint_size represents both the size of a consensus commit, and size of a checkpoint
-/// if we are benchmarking the checkpoint.
+/// \checkpoint_size represents both the size of a consensus commit, and size of
+/// a checkpoint if we are benchmarking the checkpoint.
 pub async fn run_benchmark(
     workload: Workload,
     component: Component,

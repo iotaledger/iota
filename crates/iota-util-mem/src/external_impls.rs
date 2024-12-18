@@ -80,8 +80,8 @@ impl<K: MallocSizeOf, V: MallocSizeOf, S> MallocShallowSizeOf for indexmap::Inde
     }
 }
 impl<K: MallocSizeOf, V: MallocSizeOf, S> MallocSizeOf for indexmap::IndexMap<K, V, S> {
-    // This only produces a rough estimate of IndexMap size, because we cannot access private
-    // fields to measure them precisely.
+    // This only produces a rough estimate of IndexMap size, because we cannot
+    // access private fields to measure them precisely.
     fn size_of(&self, ops: &mut crate::MallocSizeOfOps) -> usize {
         let mut n = self.shallow_size_of(ops);
         if let (Some(k), Some(v)) = (K::constant_size(), V::constant_size()) {
@@ -97,8 +97,8 @@ impl<K: MallocSizeOf, V: MallocSizeOf, S> MallocSizeOf for indexmap::IndexMap<K,
 
 // roaring
 impl MallocSizeOf for roaring::RoaringBitmap {
-    // This only produces a rough estimate of RoaringBitmap size, because we cannot access private
-    // fields to measure them precisely.
+    // This only produces a rough estimate of RoaringBitmap size, because we cannot
+    // access private fields to measure them precisely.
     fn size_of(&self, _ops: &mut crate::MallocSizeOfOps) -> usize {
         self.serialized_size()
     }

@@ -2,37 +2,35 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::ReplayEngineError;
-use crate::types::EPOCH_CHANGE_STRUCT_TAG;
+use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
+
 use async_trait::async_trait;
 use futures::future::join_all;
+use iota_core::authority::NodeStateDump;
+use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
+use iota_json_rpc_types::{
+    EventFilter, IotaEvent, IotaGetPastObjectRequest, IotaObjectData, IotaObjectDataOptions,
+    IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
+};
+use iota_sdk::IotaClient;
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    digests::TransactionDigest,
+    object::Object,
+    transaction::{
+        EndOfEpochTransactionKind, SenderSignedData, TransactionDataAPI, TransactionKind,
+    },
+};
 use lru::LruCache;
 use move_core_types::language_storage::StructTag;
 use parking_lot::RwLock;
 use rand::Rng;
-use std::collections::BTreeMap;
-use std::num::NonZeroUsize;
-use std::str::FromStr;
-use iota_core::authority::NodeStateDump;
-use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use iota_json_rpc_types::EventFilter;
-use iota_json_rpc_types::IotaEvent;
-use iota_json_rpc_types::IotaGetPastObjectRequest;
-use iota_json_rpc_types::IotaObjectData;
-use iota_json_rpc_types::IotaObjectDataOptions;
-use iota_json_rpc_types::IotaObjectResponse;
-use iota_json_rpc_types::IotaPastObjectResponse;
-use iota_json_rpc_types::IotaTransactionBlockResponse;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
-use iota_sdk::IotaClient;
-use iota_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
-use iota_types::digests::TransactionDigest;
-use iota_types::object::Object;
-use iota_types::transaction::SenderSignedData;
-use iota_types::transaction::TransactionDataAPI;
-use iota_types::transaction::{EndOfEpochTransactionKind, TransactionKind};
 
-/// This trait defines the interfaces for fetching data from some local or remote store
+use crate::types::{EPOCH_CHANGE_STRUCT_TAG, ReplayEngineError};
+
+/// This trait defines the interfaces for fetching data from some local or
+/// remote store
 #[async_trait]
 pub(crate) trait DataFetcher {
     #![allow(implied_bounds_entailment)]
@@ -110,8 +108,8 @@ impl Fetchers {
     pub fn into_remote(self) -> RemoteFetcher {
         match self {
             Fetchers::Remote(q) => {
-                // Since `into_remote` is called when we use this fetcher to create a new fetcher,
-                // we should clear the cache to avoid using stale data.
+                // Since `into_remote` is called when we use this fetcher to create a new
+                // fetcher, we should clear the cache to avoid using stale data.
                 q.clear_cache_for_new_task();
                 q
             }
@@ -616,7 +614,9 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
             version: r.version,
             digest: r.digest,
         }),
-        IotaPastObjectResponse::ObjectNotExists(id) => Err(ReplayEngineError::ObjectNotExist { id }),
+        IotaPastObjectResponse::ObjectNotExists(id) => {
+            Err(ReplayEngineError::ObjectNotExist { id })
+        }
         IotaPastObjectResponse::VersionNotFound(id, version) => {
             Err(ReplayEngineError::ObjectVersionNotFound { id, version })
         }

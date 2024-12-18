@@ -2,13 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::encoding::{Base58, Base64};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 pub use balance_changes::*;
-pub use object_changes::*;
-use serde_with::serde_as;
+use fastcrypto::encoding::{Base58, Base64};
 pub use iota_checkpoint::*;
 pub use iota_coin::*;
 pub use iota_event::*;
@@ -19,6 +14,10 @@ pub use iota_object::*;
 pub use iota_protocol::*;
 pub use iota_transaction::*;
 use iota_types::base_types::ObjectID;
+pub use object_changes::*;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 #[cfg(test)]
 #[path = "unit_tests/rpc_types_tests.rs"]
@@ -26,7 +25,6 @@ mod rpc_types_tests;
 
 mod balance_changes;
 mod displays;
-mod object_changes;
 mod iota_checkpoint;
 mod iota_coin;
 mod iota_event;
@@ -36,11 +34,12 @@ mod iota_move;
 mod iota_object;
 mod iota_protocol;
 mod iota_transaction;
+mod object_changes;
 
 pub type DynamicFieldPage = Page<DynamicFieldInfo, ObjectID>;
 /// `next_cursor` points to the last item in the page;
-/// Reading with `next_cursor` will start from the next item after `next_cursor` if
-/// `next_cursor` is `Some`, otherwise it will start from the first item.
+/// Reading with `next_cursor` will start from the next item after `next_cursor`
+/// if `next_cursor` is `Some`, otherwise it will start from the first item.
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Page<T, C> {
@@ -173,7 +172,8 @@ impl From<MaybeTaggedBcsName> for BcsName {
             MaybeTaggedBcsName::Tagged(TaggedBcsName::Base64 { bcs_name }) => bcs_name,
         };
 
-        // Bytes are already decoded, force into Base64 variant to avoid serializing to base58
+        // Bytes are already decoded, force into Base64 variant to avoid serializing to
+        // base58
         Self::Base64 { bcs_name }
     }
 }

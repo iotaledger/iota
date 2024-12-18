@@ -5,12 +5,13 @@
 use std::sync::Arc;
 
 use iota_sdk_types::types::{
-    CheckpointSequenceNumber, EpochId, SignedTransaction, ValidatorCommittee,
+    CheckpointSequenceNumber, EpochId, Object, ObjectId, SignedTransaction, ValidatorCommittee,
+    Version,
 };
-use iota_sdk_types::types::{Object, ObjectId, Version};
-use iota_types::storage::error::{Error as StorageError, Result};
-use iota_types::storage::ObjectStore;
-use iota_types::storage::RpcStateReader;
+use iota_types::storage::{
+    ObjectStore, RpcStateReader,
+    error::{Error as StorageError, Result},
+};
 use tap::Pipe;
 
 use crate::Direction;
@@ -73,8 +74,9 @@ impl StateReader {
         iota_sdk_types::types::TransactionEffects,
         Option<iota_sdk_types::types::TransactionEvents>,
     )> {
-        use super::rest::transactions::TransactionNotFoundError;
         use iota_types::effects::TransactionEffectsAPI;
+
+        use super::rest::transactions::TransactionNotFoundError;
 
         let transaction_digest = digest.into();
 

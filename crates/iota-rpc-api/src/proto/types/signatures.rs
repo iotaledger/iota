@@ -1,8 +1,8 @@
-use super::TryFromProtoError;
 use bytes::{BufMut, BytesMut};
 use tap::Pipe;
 
-//
+use super::TryFromProtoError;
+
 // ValidatorAggregatedSignature
 //
 
@@ -48,7 +48,6 @@ impl TryFrom<&super::ValidatorAggregatedSignature>
     }
 }
 
-//
 // RoaringBitmap
 //
 
@@ -84,7 +83,6 @@ impl TryFrom<&super::RoaringBitmap> for roaring::RoaringBitmap {
     }
 }
 
-//
 // ValidatorCommitteeMember
 //
 
@@ -114,7 +112,6 @@ impl TryFrom<&super::ValidatorCommitteeMember> for iota_sdk_types::types::Valida
     }
 }
 
-//
 // ValidatorCommittee
 //
 
@@ -145,7 +142,6 @@ impl TryFrom<&super::ValidatorCommittee> for iota_sdk_types::types::ValidatorCom
     }
 }
 
-//
 // Bn254FieldElement
 //
 
@@ -173,7 +169,6 @@ impl TryFrom<&super::Bn254FieldElement> for iota_sdk_types::types::Bn254FieldEle
     }
 }
 
-//
 // CircomG1
 //
 
@@ -213,7 +208,6 @@ impl TryFrom<&super::CircomG1> for iota_sdk_types::types::CircomG1 {
     }
 }
 
-//
 // CircomG2
 //
 
@@ -273,7 +267,6 @@ impl TryFrom<&super::CircomG2> for iota_sdk_types::types::CircomG2 {
     }
 }
 
-//
 // ZkLoginClaim
 //
 
@@ -306,7 +299,6 @@ impl TryFrom<&super::ZkLoginClaim> for iota_sdk_types::types::Claim {
     }
 }
 
-//
 // ZkLoginProof
 //
 
@@ -344,7 +336,6 @@ impl TryFrom<&super::ZkLoginProof> for iota_sdk_types::types::ZkLoginProof {
     }
 }
 
-//
 // ZkLoginInputs
 //
 
@@ -395,7 +386,6 @@ impl TryFrom<&super::ZkLoginInputs> for iota_sdk_types::types::ZkLoginInputs {
     }
 }
 
-//
 // ZkLoginAuthenticator
 //
 
@@ -435,7 +425,6 @@ impl TryFrom<&super::ZkLoginAuthenticator> for iota_sdk_types::types::ZkLoginAut
     }
 }
 
-//
 // ZkLoginPublicIdentifier
 //
 
@@ -471,7 +460,6 @@ impl TryFrom<&super::ZkLoginPublicIdentifier> for iota_sdk_types::types::ZkLogin
     }
 }
 
-//
 // SignatureScheme
 //
 
@@ -501,7 +489,7 @@ impl TryFrom<&super::SignatureScheme> for iota_sdk_types::types::SignatureScheme
             Unknown => {
                 return Err(TryFromProtoError::missing(
                     "unknown SignatureScheme variant",
-                ))
+                ));
             }
             Ed25519 => Self::Ed25519,
             Secp256k1 => Self::Secp256k1,
@@ -515,7 +503,6 @@ impl TryFrom<&super::SignatureScheme> for iota_sdk_types::types::SignatureScheme
     }
 }
 
-//
 // SimpleSignature
 //
 
@@ -549,11 +536,12 @@ impl TryFrom<&super::SimpleSignature> for iota_sdk_types::types::SimpleSignature
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::SimpleSignature) -> Result<Self, Self::Error> {
-        use super::SignatureScheme::*;
-        use iota_sdk_types::types::{Ed25519PublicKey, Ed25519Signature};
         use iota_sdk_types::types::{
-            Secp256k1PublicKey, Secp256k1Signature, Secp256r1PublicKey, Secp256r1Signature,
+            Ed25519PublicKey, Ed25519Signature, Secp256k1PublicKey, Secp256k1Signature,
+            Secp256r1PublicKey, Secp256r1Signature,
         };
+
+        use super::SignatureScheme::*;
 
         let signature = value
             .signature
@@ -580,14 +568,13 @@ impl TryFrom<&super::SimpleSignature> for iota_sdk_types::types::SimpleSignature
             Unknown | Multisig | Bls12381 | Zklogin | Passkey => {
                 return Err(TryFromProtoError::from_error(
                     "invalid or unknown signature scheme",
-                ))
+                ));
             }
         }
         .pipe(Ok)
     }
 }
 
-//
 // PasskeyAuthenticator
 //
 
@@ -629,14 +616,14 @@ impl TryFrom<&super::PasskeyAuthenticator> for iota_sdk_types::types::PasskeyAut
     }
 }
 
-//
 // MultisigMemberPublicKey
 //
 
 impl From<&iota_sdk_types::types::MultisigMemberPublicKey> for super::MultisigMemberPublicKey {
     fn from(value: &iota_sdk_types::types::MultisigMemberPublicKey) -> Self {
-        use super::multisig_member_public_key::Scheme;
         use iota_sdk_types::types::MultisigMemberPublicKey::*;
+
+        use super::multisig_member_public_key::Scheme;
 
         let scheme = match value {
             Ed25519(public_key) => Scheme::Ed25519(public_key.as_bytes().to_vec().into()),
@@ -655,8 +642,9 @@ impl TryFrom<&super::MultisigMemberPublicKey> for iota_sdk_types::types::Multisi
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::MultisigMemberPublicKey) -> Result<Self, Self::Error> {
-        use super::multisig_member_public_key::Scheme;
         use iota_sdk_types::types::{Ed25519PublicKey, Secp256k1PublicKey, Secp256r1PublicKey};
+
+        use super::multisig_member_public_key::Scheme;
 
         match value
             .scheme
@@ -676,7 +664,6 @@ impl TryFrom<&super::MultisigMemberPublicKey> for iota_sdk_types::types::Multisi
     }
 }
 
-//
 // MultisigMember
 //
 
@@ -707,7 +694,6 @@ impl TryFrom<&super::MultisigMember> for iota_sdk_types::types::MultisigMember {
     }
 }
 
-//
 // MultisigCommittee
 //
 
@@ -738,14 +724,14 @@ impl TryFrom<&super::MultisigCommittee> for iota_sdk_types::types::MultisigCommi
     }
 }
 
-//
 // MultisigMemberSignature
 //
 
 impl From<&iota_sdk_types::types::MultisigMemberSignature> for super::MultisigMemberSignature {
     fn from(value: &iota_sdk_types::types::MultisigMemberSignature) -> Self {
-        use super::multisig_member_signature::Signature;
         use iota_sdk_types::types::MultisigMemberSignature::*;
+
+        use super::multisig_member_signature::Signature;
 
         let signature = match value {
             Ed25519(signautre) => Signature::Ed25519(signautre.as_bytes().to_vec().into()),
@@ -764,8 +750,9 @@ impl TryFrom<&super::MultisigMemberSignature> for iota_sdk_types::types::Multisi
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::MultisigMemberSignature) -> Result<Self, Self::Error> {
-        use super::multisig_member_signature::Signature;
         use iota_sdk_types::types::{Ed25519Signature, Secp256k1Signature, Secp256r1Signature};
+
+        use super::multisig_member_signature::Signature;
 
         match value
             .signature
@@ -787,7 +774,6 @@ impl TryFrom<&super::MultisigMemberSignature> for iota_sdk_types::types::Multisi
     }
 }
 
-//
 // MultisigAggregatedSignature
 //
 
@@ -840,14 +826,14 @@ impl TryFrom<&super::MultisigAggregatedSignature>
     }
 }
 
-//
 // UserSignature
 //
 
 impl From<iota_sdk_types::types::UserSignature> for super::UserSignature {
     fn from(value: iota_sdk_types::types::UserSignature) -> Self {
-        use super::user_signature::Signature;
         use iota_sdk_types::types::UserSignature::*;
+
+        use super::user_signature::Signature;
 
         let signature = match value {
             Simple(simple) => Signature::Simple(simple.into()),

@@ -9,42 +9,56 @@ pub mod writer;
 #[cfg(test)]
 mod tests;
 
-use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
-use anyhow::{anyhow, Result};
+use std::{
+    fs,
+    io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write},
+    num::NonZeroUsize,
+    ops::Range,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, Instant},
+};
+
+use anyhow::{Result, anyhow};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use indicatif::{ProgressBar, ProgressStyle};
-use num_enum::IntoPrimitive;
-use num_enum::TryFromPrimitive;
+use iota_config::{
+    genesis::Genesis, node::ArchiveReaderConfig, object_storage_config::ObjectStoreConfig,
+};
+use iota_storage::{
+    SHA3_BYTES,
+    blob::{Blob, BlobEncoding},
+    compute_sha3_checksum, compute_sha3_checksum_for_bytes,
+    object_store::{
+        ObjectStoreGetExt, ObjectStorePutExt,
+        util::{get, put},
+    },
+};
+use iota_types::{
+    base_types::ExecutionData,
+    messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents},
+    storage::{SingleCheckpointSharedInMemoryStore, WriteStore},
+};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::{BufWriter, Cursor, Read, Seek, SeekFrom, Write};
-use std::num::NonZeroUsize;
-use std::ops::Range;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use iota_config::genesis::Genesis;
-use iota_config::node::ArchiveReaderConfig;
-use iota_config::object_storage_config::ObjectStoreConfig;
-use iota_storage::blob::{Blob, BlobEncoding};
-use iota_storage::object_store::util::{get, put};
-use iota_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
-use iota_storage::{compute_sha3_checksum, compute_sha3_checksum_for_bytes, SHA3_BYTES};
-use iota_types::base_types::ExecutionData;
-use iota_types::messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents};
-use iota_types::storage::{SingleCheckpointSharedInMemoryStore, WriteStore};
 use tracing::{error, info};
 
+use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
+
 #[allow(rustdoc::invalid_html_tags)]
-/// Checkpoints and summaries are persisted as blob files. Files are committed to local store
-/// by duration or file size. Committed files are synced with the remote store continuously. Files are
-/// optionally compressed with the zstd compression format. Filenames follow the format
-/// <checkpoint_seq_num>.<suffix> where `checkpoint_seq_num` is the first checkpoint present in that
-/// file. MANIFEST is the index and source of truth for all files present in the archive.
+/// Checkpoints and summaries are persisted as blob files. Files are committed
+/// to local store by duration or file size. Committed files are synced with the
+/// remote store continuously. Files are optionally compressed with the zstd
+/// compression format. Filenames follow the format <checkpoint_seq_num>.
+/// <suffix> where `checkpoint_seq_num` is the first checkpoint present in that
+/// file. MANIFEST is the index and source of truth for all files present in the
+/// archive.
 ///
 /// State Archival Directory Layout
 ///  - archive/
@@ -64,34 +78,34 @@ use tracing::{error, info};
 ///        - ...
 ///
 /// Blob File Disk Format
-///┌──────────────────────────────┐
-///│       magic <4 byte>         │
-///├──────────────────────────────┤
-///│  storage format <1 byte>     │
+/// ┌──────────────────────────────┐
+/// │       magic <4 byte>         │
+/// ├──────────────────────────────┤
+/// │  storage format <1 byte>     │
 // ├──────────────────────────────┤
-///│    file compression <1 byte> │
+/// │    file compression <1 byte> │
 // ├──────────────────────────────┤
-///│ ┌──────────────────────────┐ │
-///│ │         Blob 1           │ │
-///│ ├──────────────────────────┤ │
-///│ │          ...             │ │
-///│ ├──────────────────────────┤ │
-///│ │        Blob N            │ │
-///│ └──────────────────────────┘ │
-///└──────────────────────────────┘
+/// │ ┌──────────────────────────┐ │
+/// │ │         Blob 1           │ │
+/// │ ├──────────────────────────┤ │
+/// │ │          ...             │ │
+/// │ ├──────────────────────────┤ │
+/// │ │        Blob N            │ │
+/// │ └──────────────────────────┘ │
+/// └──────────────────────────────┘
 /// Blob
-///┌───────────────┬───────────────────┬──────────────┐
-///│ len <uvarint> │ encoding <1 byte> │ data <bytes> │
-///└───────────────┴───────────────────┴──────────────┘
+/// ┌───────────────┬───────────────────┬──────────────┐
+/// │ len <uvarint> │ encoding <1 byte> │ data <bytes> │
+/// └───────────────┴───────────────────┴──────────────┘
 ///
 /// MANIFEST File Disk Format
-///┌──────────────────────────────┐
-///│        magic<4 byte>         │
-///├──────────────────────────────┤
-///│   serialized manifest        │
-///├──────────────────────────────┤
-///│      sha3 <32 bytes>         │
-///└──────────────────────────────┘
+/// ┌──────────────────────────────┐
+/// │        magic<4 byte>         │
+/// ├──────────────────────────────┤
+/// │   serialized manifest        │
+/// ├──────────────────────────────┤
+/// │      sha3 <32 bytes>         │
+/// └──────────────────────────────┘
 pub const CHECKPOINT_FILE_MAGIC: u32 = 0x0000DEAD;
 pub const SUMMARY_FILE_MAGIC: u32 = 0x0000CAFE;
 const MANIFEST_FILE_MAGIC: u32 = 0x00C0FFEE;
@@ -181,9 +195,11 @@ impl Manifest {
                     .filter(|f| f.file_type == FileType::CheckpointSummary)
                     .collect();
                 summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
-                assert!(summary_files
-                    .windows(2)
-                    .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end));
+                assert!(
+                    summary_files
+                        .windows(2)
+                        .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
+                );
                 assert_eq!(summary_files.first().unwrap().checkpoint_seq_range.start, 0);
                 summary_files
                     .iter()

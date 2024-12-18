@@ -12,39 +12,40 @@
 //! to saturate the CPU with executor tasks (one per checkpoint), each of which
 //! handle scheduling and awaiting checkpoint transaction execution.
 //!
-//! CheckpointExecutor is made recoverable in the event of Node shutdown by way of a watermark,
-//! highest_executed_checkpoint, which is guaranteed to be updated sequentially in order,
-//! despite checkpoints themselves potentially being executed nonsequentially and in parallel.
-//! CheckpointExecutor parallelizes checkpoints of the same epoch as much as possible.
-//! CheckpointExecutor enforces the invariant that if `run` returns successfully, we have reached the
-//! end of epoch. This allows us to use it as a signal for reconfig.
+//! CheckpointExecutor is made recoverable in the event of Node shutdown by way
+//! of a watermark, highest_executed_checkpoint, which is guaranteed to be
+//! updated sequentially in order, despite checkpoints themselves potentially
+//! being executed nonsequentially and in parallel. CheckpointExecutor
+//! parallelizes checkpoints of the same epoch as much as possible.
+//! CheckpointExecutor enforces the invariant that if `run` returns
+//! successfully, we have reached the end of epoch. This allows us to use it as
+//! a signal for reconfig.
 
-use std::path::PathBuf;
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use either::Either;
 use futures::stream::FuturesOrdered;
-use itertools::izip;
-use iota_metrics::spawn_monitored_task;
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::{fail_point, fail_point_async};
-use iota_types::accumulator::Accumulator;
-use iota_types::crypto::RandomnessRound;
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use iota_types::executable_transaction::VerifiedExecutableTransaction;
-use iota_types::inner_temporary_store::PackageStoreWithFallback;
-use iota_types::message_envelope::Message;
-use iota_types::transaction::TransactionKind;
+use iota_metrics::spawn_monitored_task;
 use iota_types::{
+    accumulator::Accumulator,
     base_types::{ExecutionDigests, TransactionDigest, TransactionEffectsDigest},
+    crypto::RandomnessRound,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::IotaResult,
+    executable_transaction::VerifiedExecutableTransaction,
+    inner_temporary_store::PackageStoreWithFallback,
+    message_envelope::Message,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
-    transaction::VerifiedTransaction,
+    transaction::{TransactionDataAPI, TransactionKind, VerifiedTransaction},
 };
-use iota_types::{error::IotaResult, transaction::TransactionDataAPI};
+use itertools::izip;
 use tap::{TapFallible, TapOptional};
 use tokio::{
     sync::broadcast::{self, error::RecvError},
@@ -55,16 +56,17 @@ use tokio_stream::StreamExt;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use self::metrics::CheckpointExecutorMetrics;
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::AuthorityState;
-use crate::checkpoints::checkpoint_executor::data_ingestion_handler::{
-    load_checkpoint_data, store_checkpoint_locally,
-};
-use crate::state_accumulator::StateAccumulator;
-use crate::transaction_manager::TransactionManager;
 use crate::{
-    checkpoints::CheckpointStore,
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    checkpoints::{
+        CheckpointStore,
+        checkpoint_executor::data_ingestion_handler::{
+            load_checkpoint_data, store_checkpoint_locally,
+        },
+    },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    state_accumulator::StateAccumulator,
+    transaction_manager::TransactionManager,
 };
 
 mod data_ingestion_handler;
@@ -90,9 +92,10 @@ pub struct CheckpointTimeoutConfig {
     pub warning_timeout: Duration,
 }
 
-// We use a thread local so that the config can be overridden on a per-test basis. This means
-// that get_scheduling_timeout() can be called multiple times in a multithreaded context, but
-// the function is still very cheap to call so this is okay.
+// We use a thread local so that the config can be overridden on a per-test
+// basis. This means that get_scheduling_timeout() can be called multiple times
+// in a multithreaded context, but the function is still very cheap to call so
+// this is okay.
 thread_local! {
     static SCHEDULING_TIMEOUT: once_cell::sync::OnceCell<CheckpointTimeoutConfig> =
         const { once_cell::sync::OnceCell::new() };
@@ -139,8 +142,9 @@ pub enum StopReason {
 
 pub struct CheckpointExecutor {
     mailbox: broadcast::Receiver<VerifiedCheckpoint>,
-    // TODO: AuthorityState is only needed because we have to call deprecated_insert_finalized_transactions
-    // once that code is fully deprecated we can remove this
+    // TODO: AuthorityState is only needed because we have to call
+    // deprecated_insert_finalized_transactions once that code is fully deprecated we can
+    // remove this
     state: Arc<AuthorityState>,
     checkpoint_store: Arc<CheckpointStore>,
     object_cache_reader: Arc<dyn ObjectCacheRead>,
@@ -190,8 +194,8 @@ impl CheckpointExecutor {
     }
 
     /// Ensure that all checkpoints in the current epoch will be executed.
-    /// We don't technically need &mut on self, but passing it to make sure only one instance is
-    /// running at one time.
+    /// We don't technically need &mut on self, but passing it to make sure only
+    /// one instance is running at one time.
     pub async fn run_epoch(
         &mut self,
         epoch_store: Arc<AuthorityPerEpochStore>,
@@ -229,8 +233,8 @@ impl CheckpointExecutor {
             if epoch_store.epoch() == highest_executed.epoch()
                 && highest_executed.is_last_checkpoint_of_epoch()
             {
-                // We can arrive at this point if we bump the highest_executed_checkpoint watermark, and then
-                // crash before completing reconfiguration.
+                // We can arrive at this point if we bump the highest_executed_checkpoint
+                // watermark, and then crash before completing reconfiguration.
                 info!(seq = ?highest_executed.sequence_number, "final checkpoint of epoch has already been executed");
                 return StopReason::EpochComplete;
             }
@@ -257,9 +261,10 @@ impl CheckpointExecutor {
             let schedule_scope = iota_metrics::monitored_scope("ScheduleCheckpointExecution");
 
             // If we have executed the last checkpoint of the current epoch, stop.
-            // Note: when we arrive here with highest_executed == the final checkpoint of the epoch,
-            // we are in an edge case where highest_executed does not actually correspond to the watermark.
-            // The watermark is only bumped past the epoch final checkpoint after execution of the change
+            // Note: when we arrive here with highest_executed == the final checkpoint of
+            // the epoch, we are in an edge case where highest_executed does not
+            // actually correspond to the watermark. The watermark is only
+            // bumped past the epoch final checkpoint after execution of the change
             // epoch tx, and state accumulation.
             if self
                 .check_epoch_last_checkpoint(epoch_store.clone(), &highest_executed)
@@ -380,8 +385,8 @@ impl CheckpointExecutor {
 
         fail_point!("highest-executed-checkpoint");
 
-        // We store a fixed number of additional FullCheckpointContents after execution is complete
-        // for use in state sync.
+        // We store a fixed number of additional FullCheckpointContents after execution
+        // is complete for use in state sync.
         const NUM_SAVED_FULL_CHECKPOINT_CONTENTS: u64 = 5_000;
         if seq >= NUM_SAVED_FULL_CHECKPOINT_CONTENTS {
             let prune_seq = seq - NUM_SAVED_FULL_CHECKPOINT_CONTENTS;
@@ -423,8 +428,9 @@ impl CheckpointExecutor {
         );
     }
 
-    /// Post processing and plumbing after we executed a checkpoint. This function is guaranteed
-    /// to be called in the order of checkpoint sequence number.
+    /// Post processing and plumbing after we executed a checkpoint. This
+    /// function is guaranteed to be called in the order of checkpoint
+    /// sequence number.
     #[instrument(level = "debug", skip_all)]
     async fn process_executed_checkpoint(
         &self,
@@ -613,9 +619,9 @@ impl CheckpointExecutor {
         .await;
     }
 
-    /// Check whether `checkpoint` is the last checkpoint of the current epoch. If so,
-    /// perform special case logic (execute change_epoch tx, accumulate epoch,
-    /// finalize transactions), then return true.
+    /// Check whether `checkpoint` is the last checkpoint of the current epoch.
+    /// If so, perform special case logic (execute change_epoch tx,
+    /// accumulate epoch, finalize transactions), then return true.
     pub async fn check_epoch_last_checkpoint(
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
@@ -713,8 +719,8 @@ impl CheckpointExecutor {
     }
 }
 
-// Logs within the function are annotated with the checkpoint sequence number and epoch,
-// from schedule_checkpoint().
+// Logs within the function are annotated with the checkpoint sequence number
+// and epoch, from schedule_checkpoint().
 #[instrument(level = "debug", skip_all, fields(seq = ?checkpoint.sequence_number(), epoch = ?epoch_store.epoch()))]
 async fn execute_checkpoint(
     checkpoint: VerifiedCheckpoint,
@@ -732,10 +738,10 @@ async fn execute_checkpoint(
     debug!("Preparing checkpoint for execution",);
     let prepare_start = Instant::now();
 
-    // this function must guarantee that all transactions in the checkpoint are executed before it
-    // returns. This invariant is enforced in two phases:
-    // - First, we filter out any already executed transactions from the checkpoint in
-    //   get_unexecuted_transactions()
+    // this function must guarantee that all transactions in the checkpoint are
+    // executed before it returns. This invariant is enforced in two phases:
+    // - First, we filter out any already executed transactions from the checkpoint
+    //   in get_unexecuted_transactions()
     // - Second, we execute all remaining transactions.
 
     let (execution_digests, all_tx_digests, executable_txns, randomness_rounds) =
@@ -771,9 +777,10 @@ async fn execute_checkpoint(
     )
     .await?;
 
-    // Once execution is complete, we know that any randomness contained in this checkpoint has
-    // been successfully included in a checkpoint certified by quorum of validators.
-    // (RandomnessManager/RandomnessReporter is only present on validators.)
+    // Once execution is complete, we know that any randomness contained in this
+    // checkpoint has been successfully included in a checkpoint certified by
+    // quorum of validators. (RandomnessManager/RandomnessReporter is only
+    // present on validators.)
     if let Some(randomness_reporter) = epoch_store.randomness_reporter() {
         for round in randomness_rounds {
             debug!(
@@ -827,8 +834,7 @@ async fn handle_execution_effects(
                 if checkpoint.sequence_number > highest_seq + 1 {
                     trace!(
                         "Checkpoint {} is still executing. Highest executed = {}",
-                        checkpoint.sequence_number,
-                        highest_seq
+                        checkpoint.sequence_number, highest_seq
                     );
                     continue;
                 }
@@ -849,11 +855,7 @@ async fn handle_execution_effects(
                     .zip(all_tx_digests.clone())
                     .filter_map(
                         |(fx, digest)| {
-                            if fx.is_none() {
-                                Some(digest)
-                            } else {
-                                None
-                            }
+                            if fx.is_none() { Some(digest) } else { None }
                         },
                     )
                     .collect();
@@ -960,7 +962,8 @@ fn extract_end_of_epoch_tx(
 ) -> Option<(ExecutionDigests, VerifiedExecutableTransaction)> {
     checkpoint.end_of_epoch_data.as_ref()?;
 
-    // Last checkpoint must have the end of epoch transaction as the last transaction.
+    // Last checkpoint must have the end of epoch transaction as the last
+    // transaction.
 
     let checkpoint_sequence = checkpoint.sequence_number();
     let execution_digests = checkpoint_store
@@ -991,18 +994,20 @@ fn extract_end_of_epoch_tx(
         *checkpoint_sequence,
     );
 
-    assert!(change_epoch_tx
-        .data()
-        .intent_message()
-        .value
-        .is_end_of_epoch_tx());
+    assert!(
+        change_epoch_tx
+            .data()
+            .intent_message()
+            .value
+            .is_end_of_epoch_tx()
+    );
 
     Some((*digests, change_epoch_tx))
 }
 
-// Given a checkpoint, filter out any already executed transactions, then return the remaining
-// execution digests, transaction digests, transactions to be executed, and randomness rounds
-// (if any) included in the checkpoint.
+// Given a checkpoint, filter out any already executed transactions, then return
+// the remaining execution digests, transaction digests, transactions to be
+// executed, and randomness rounds (if any) included in the checkpoint.
 #[allow(clippy::type_complexity)]
 fn get_unexecuted_transactions(
     checkpoint: VerifiedCheckpoint,
@@ -1041,7 +1046,8 @@ fn get_unexecuted_transactions(
             .collect::<HashMap<_, _>>()
     });
 
-    // Remove the change epoch transaction so that we can special case its execution.
+    // Remove the change epoch transaction so that we can special case its
+    // execution.
     checkpoint.end_of_epoch_data.as_ref().tap_some(|_| {
         let change_epoch_tx_digest = execution_digests
             .pop()
@@ -1063,13 +1069,14 @@ fn get_unexecuted_transactions(
         .version_specific_data(epoch_store.protocol_config())
         .expect("unable to get version_specific_data")
     {
-        // With version-specific data, randomness rounds are stored in checkpoint summary.
+        // With version-specific data, randomness rounds are stored in checkpoint
+        // summary.
         version_specific_data.into_v1().randomness_rounds
     } else {
-        // Before version-specific data, checkpoint batching must be disabled. In this case,
-        // randomness state update tx must be first if it exists, because all other
-        // transactions in a checkpoint that includes a randomness state update are causally
-        // dependent on it.
+        // Before version-specific data, checkpoint batching must be disabled. In this
+        // case, randomness state update tx must be first if it exists, because
+        // all other transactions in a checkpoint that includes a randomness
+        // state update are causally dependent on it.
         assert_eq!(
             0,
             epoch_store
@@ -1177,8 +1184,8 @@ fn get_unexecuted_transactions(
     )
 }
 
-// Logs within the function are annotated with the checkpoint sequence number and epoch,
-// from schedule_checkpoint().
+// Logs within the function are annotated with the checkpoint sequence number
+// and epoch, from schedule_checkpoint().
 #[instrument(level = "debug", skip_all)]
 async fn execute_transactions(
     execution_digests: Vec<ExecutionDigests>,
@@ -1319,8 +1326,9 @@ async fn finalize_checkpoint(
             tx_digests,
         )?;
 
-        // TODO(bmwill) discuss with team a better location for this indexing so that it isn't on
-        // the critical path and the writes to the DB are done in checkpoint order
+        // TODO(bmwill) discuss with team a better location for this indexing so that it
+        // isn't on the critical path and the writes to the DB are done in
+        // checkpoint order
         if let Some(rpc_index) = &state.rpc_index {
             let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
                 PackageStoreWithFallback::new(state.get_backing_package_store(), &checkpoint_data),

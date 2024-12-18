@@ -2,13 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use itertools::Itertools;
 use iota_types::iota_system_state::PoolTokenExchangeRate;
+use itertools::Itertools;
 
-/// Calculate an APY for a validator based on the exchange rates of the staking pool.
+/// Calculate an APY for a validator based on the exchange rates of the staking
+/// pool.
 ///
-/// This is copied from the previous iota-json-rpc/governance_api crate, together with tests, and
-/// slightly altered to return one APY for each call instead of multiple ones.
+/// This is copied from the previous iota-json-rpc/governance_api crate,
+/// together with tests, and slightly altered to return one APY for each call
+/// instead of multiple ones.
 ///
 /// See original code here:
 /// <https://github.com/iotaledger/iota/blob/c3feec3ac3b626bf2fd40c668ba32be9c73e7528/crates/iota-json-rpc/src/governance_api.rs#L280>
@@ -61,7 +63,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use iota_json_rpc::governance_api::ValidatorExchangeRates;
-    use iota_types::base_types::{ObjectID, IotaAddress};
+    use iota_types::base_types::{IotaAddress, ObjectID};
 
     use super::*;
 
@@ -78,15 +80,12 @@ mod tests {
             let address = IotaAddress::random_for_testing_only();
             validator_exchange_rates.insert(
                 address,
-                (
-                    validator,
-                    ValidatorExchangeRates {
-                        address,
-                        pool_id: ObjectID::random(),
-                        active: true,
-                        rates,
-                    },
-                ),
+                (validator, ValidatorExchangeRates {
+                    address,
+                    pool_id: ObjectID::random(),
+                    active: true,
+                    rates,
+                }),
             );
         });
 

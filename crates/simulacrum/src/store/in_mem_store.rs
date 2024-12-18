@@ -2,14 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::CompiledModule;
-use move_bytecode_utils::module_cache::GetModule;
-use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 use std::collections::{BTreeMap, HashMap};
+
 use iota_config::genesis;
-use iota_types::storage::{get_module, load_package_object_from_object_store, PackageObject};
 use iota_types::{
-    base_types::{AuthorityName, ObjectID, SequenceNumber, IotaAddress},
+    base_types::{AuthorityName, IotaAddress, ObjectID, SequenceNumber},
     committee::{Committee, EpochId},
     crypto::{AccountKeyPair, AuthorityKeyPair},
     digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
@@ -20,9 +17,15 @@ use iota_types::{
         VerifiedCheckpoint,
     },
     object::{Object, Owner},
-    storage::{BackingPackageStore, ChildObjectResolver, ObjectStore, ParentSync},
+    storage::{
+        BackingPackageStore, ChildObjectResolver, ObjectStore, PackageObject, ParentSync,
+        get_module, load_package_object_from_object_store,
+    },
     transaction::VerifiedTransaction,
 };
+use move_binary_format::CompiledModule;
+use move_bytecode_utils::module_cache::GetModule;
+use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 
 use super::SimulatorStore;
 

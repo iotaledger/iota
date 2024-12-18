@@ -2,20 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
-use crate::Result;
-use crate::RpcService;
+use crate::{Result, RpcService};
 
 impl RpcService {
     /// Perform a simple health check on the service.
     ///
-    /// The threshold, or delta, between the server's system time and the timestamp in the most
-    /// recently executed checkpoint for which the server is considered to be healthy.
+    /// The threshold, or delta, between the server's system time and the
+    /// timestamp in the most recently executed checkpoint for which the
+    /// server is considered to be healthy.
     ///
-    /// If not provided, the server will be considered healthy if it can simply fetch the latest
-    /// checkpoint from its store.
+    /// If not provided, the server will be considered healthy if it can simply
+    /// fetch the latest checkpoint from its store.
     pub fn health_check(&self, threshold_seconds: Option<u32>) -> Result<()> {
         let summary = self.reader.inner().get_latest_checkpoint()?;
 

@@ -2,13 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::ClientError;
-use async_graphql::{Response, ServerError, Value};
-use reqwest::header::{HeaderMap, HeaderName};
-use reqwest::Response as ReqwestResponse;
-use serde_json::json;
 use std::{collections::BTreeMap, net::SocketAddr};
+
+use async_graphql::{Response, ServerError, Value};
 use iota_graphql_rpc_headers::VERSION_HEADER;
+use reqwest::{
+    Response as ReqwestResponse,
+    header::{HeaderMap, HeaderName},
+};
+use serde_json::json;
+
+use super::ClientError;
 
 #[derive(Debug)]
 pub struct GraphqlResponse {

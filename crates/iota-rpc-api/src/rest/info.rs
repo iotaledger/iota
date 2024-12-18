@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::rest::openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler};
-use crate::types::NodeInfo;
-use crate::{Result, RpcService};
-use axum::extract::State;
-use axum::Json;
+use axum::{Json, extract::State};
 use documented::Documented;
+
+use crate::{
+    Result, RpcService,
+    rest::openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
+    types::NodeInfo,
+};
 
 /// Get basic information about the state of a Node
 #[derive(Documented)]

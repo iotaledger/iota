@@ -7,24 +7,25 @@ use std::{collections::BTreeMap, sync::Arc};
 use tokio::{
     sync::mpsc,
     task::JoinHandle,
-    time::{interval, MissedTickBehavior},
+    time::{MissedTickBehavior, interval},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 
+use super::{Batched, Handler};
 use crate::{
     metrics::IndexerMetrics,
     pipeline::{CommitterConfig, Indexed, WatermarkPart},
 };
 
-use super::{Batched, Handler};
-
-/// Processed values that are waiting to be written to the database. This is an internal type used
-/// by the concurrent collector to hold data it is waiting to send to the committer.
+/// Processed values that are waiting to be written to the database. This is an
+/// internal type used by the concurrent collector to hold data it is waiting to
+/// send to the committer.
 struct Pending<H: Handler> {
     /// Values to be inserted into the database from this checkpoint
     values: Vec<H::Value>,
-    /// The watermark associated with this checkpoint and the part of it that is left to commit
+    /// The watermark associated with this checkpoint and the part of it that is
+    /// left to commit
     watermark: WatermarkPart,
 }
 
@@ -35,8 +36,8 @@ impl<H: Handler> Pending<H> {
         self.values.is_empty()
     }
 
-    /// Adds data from this indexed checkpoint to the `batch`, honoring the handler's bounds on
-    /// chunk size.
+    /// Adds data from this indexed checkpoint to the `batch`, honoring the
+    /// handler's bounds on chunk size.
     fn batch_into(&mut self, batch: &mut Batched<H>) {
         let max_chunk_rows = super::max_chunk_rows::<H>();
         if batch.values.len() + self.values.len() > max_chunk_rows {
@@ -65,20 +66,22 @@ impl<H: Handler> From<Indexed<H>> for Pending<H> {
     }
 }
 
-/// The collector task is responsible for gathering rows into batches which it then sends to a
-/// committer task to write to the database. The task publishes batches in the following
-/// circumstances:
+/// The collector task is responsible for gathering rows into batches which it
+/// then sends to a committer task to write to the database. The task publishes
+/// batches in the following circumstances:
 ///
-/// - If `H::BATCH_SIZE` rows are pending, it will immediately schedule a batch to be gathered.
+/// - If `H::BATCH_SIZE` rows are pending, it will immediately schedule a batch
+///   to be gathered.
 ///
-/// - If after sending one batch there is more data to be sent, it will immediately schedule the
-///   next batch to be gathered (Each batch will contain at most `H::CHUNK_SIZE` rows).
+/// - If after sending one batch there is more data to be sent, it will
+///   immediately schedule the next batch to be gathered (Each batch will
+///   contain at most `H::CHUNK_SIZE` rows).
 ///
-/// - Otherwise, it will check for any data to write out at a regular interval (controlled by
-///   `config.collect_interval()`).
+/// - Otherwise, it will check for any data to write out at a regular interval
+///   (controlled by `config.collect_interval()`).
 ///
-/// This task will shutdown if canceled via the `cancel` token, or if any of its channels are
-/// closed.
+/// This task will shutdown if canceled via the `cancel` token, or if any of its
+/// channels are closed.
 pub(super) fn collector<H: Handler + 'static>(
     config: CommitterConfig,
     checkpoint_lag: Option<u64>,
@@ -88,12 +91,13 @@ pub(super) fn collector<H: Handler + 'static>(
     cancel: CancellationToken,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
-        // The `poll` interval controls the maximum time to wait between collecting batches,
-        // regardless of number of rows pending.
+        // The `poll` interval controls the maximum time to wait between collecting
+        // batches, regardless of number of rows pending.
         let mut poll = interval(config.collect_interval());
         poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        // Data for checkpoints that have been received but not yet ready to be sent to committer due to lag constraint.
+        // Data for checkpoints that have been received but not yet ready to be sent to
+        // committer due to lag constraint.
         let mut received: BTreeMap<u64, Indexed<H>> = BTreeMap::new();
         let checkpoint_lag = checkpoint_lag.unwrap_or_default();
 
@@ -188,8 +192,8 @@ pub(super) fn collector<H: Handler + 'static>(
     })
 }
 
-/// Move all checkpoints from `received` that are within the lag range into `pending`.
-/// Returns the number of rows moved.
+/// Move all checkpoints from `received` that are within the lag range into
+/// `pending`. Returns the number of rows moved.
 fn move_ready_checkpoints<H: Handler>(
     received: &mut BTreeMap<u64, Indexed<H>>,
     pending: &mut BTreeMap<u64, Pending<H>>,
@@ -221,9 +225,8 @@ mod tests {
     use iota_field_count::FieldCount;
     use iota_types::full_checkpoint_content::CheckpointData;
 
-    use crate::{db, pipeline::Processor};
-
     use super::*;
+    use crate::{db, pipeline::Processor};
 
     #[derive(FieldCount)]
     struct Entry;

@@ -2,8 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::body::Body;
-use axum::http::Request;
+use axum::{body::Body, http::Request};
 use tower::ServiceExt;
 
 #[tokio::test]

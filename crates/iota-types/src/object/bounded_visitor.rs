@@ -13,9 +13,10 @@ use move_core_types::{
 use once_cell::sync::Lazy;
 use tracing::info;
 
-/// Visitor to deserialize annotated values or structs, bounding the size budgeted for types and
-/// field names in the output. The visitor does not bound the size of values, because they are
-/// assumed to already be bounded by execution.
+/// Visitor to deserialize annotated values or structs, bounding the size
+/// budgeted for types and field names in the output. The visitor does not bound
+/// the size of values, because they are assumed to already be bounded by
+/// execution.
 pub struct BoundedVisitor {
     /// Budget left to spend on field names and types.
     bound: usize,
@@ -30,28 +31,30 @@ pub enum Error {
     OutOfBudget,
 }
 
-/// Environment variable to override the default budget for deserialization. This can be set at
-/// runtime to change the maximum size of values that can be deserialized.
+/// Environment variable to override the default budget for deserialization.
+/// This can be set at runtime to change the maximum size of values that can be
+/// deserialized.
 const MAX_BOUND_VAR_NAME: &str = "MAX_ANNOTATED_VALUE_SIZE";
 
-/// Default budget for deserialization -- we're okay to spend an extra ~1MiB on types and field
-/// information per value.
+/// Default budget for deserialization -- we're okay to spend an extra ~1MiB on
+/// types and field information per value.
 const DEFAULT_MAX_BOUND: usize = 1024 * 1024;
 
-/// Budget for deserialization into an annotated Move value. This sets the numbers of bytes that we
-/// are willing to spend on field names, type names (etc) when deserializing a Move value into an
-/// annotated Move value.
+/// Budget for deserialization into an annotated Move value. This sets the
+/// numbers of bytes that we are willing to spend on field names, type names
+/// (etc) when deserializing a Move value into an annotated Move value.
 ///
-/// Bounded deserialization is intended for use outside of the validator, and so uses a fixed bound
-/// that needs to be set at startup rather than one that is configured as part of the protocol.
+/// Bounded deserialization is intended for use outside of the validator, and so
+/// uses a fixed bound that needs to be set at startup rather than one that is
+/// configured as part of the protocol.
 ///
-/// If the environment variable `MAX_ANNOTATED_VALUE_SIZE` is unset we default to
-/// `DEFAULT_MAX_BOUND` which allows ~1MiB additional space usage on types and field information
-/// per value.
+/// If the environment variable `MAX_ANNOTATED_VALUE_SIZE` is unset we default
+/// to `DEFAULT_MAX_BOUND` which allows ~1MiB additional space usage on types
+/// and field information per value.
 ///
-/// This is read only once and after that the value is cached. To change this value you will need
-/// to restart the process with the new value set (or the value unset if you wish to use the
-/// `DEFAULT_MAX_BOUND` value).
+/// This is read only once and after that the value is cached. To change this
+/// value you will need to restart the process with the new value set (or the
+/// value unset if you wish to use the `DEFAULT_MAX_BOUND` value).
 static MAX_BOUND: Lazy<usize> = Lazy::new(|| {
     let max_bound_opt = std::env::var(MAX_BOUND_VAR_NAME)
         .ok()
@@ -76,9 +79,9 @@ impl BoundedVisitor {
         Self { bound }
     }
 
-    /// Deserialize `bytes` as a `MoveValue` with layout `layout`. Can fail if the bytes do not
-    /// represent a value with this layout, or if the deserialized value exceeds the field/type size
-    /// budget.
+    /// Deserialize `bytes` as a `MoveValue` with layout `layout`. Can fail if
+    /// the bytes do not represent a value with this layout, or if the
+    /// deserialized value exceeds the field/type size budget.
     pub fn deserialize_value(
         bytes: &[u8],
         layout: &A::MoveTypeLayout,
@@ -87,9 +90,9 @@ impl BoundedVisitor {
         A::MoveValue::visit_deserialize(bytes, layout, &mut visitor)
     }
 
-    /// Deserialize `bytes` as a `MoveStruct` with layout `layout`. Can fail if the bytes do not
-    /// represent a struct with this layout, or if the deserialized struct exceeds the field/type
-    /// size budget.
+    /// Deserialize `bytes` as a `MoveStruct` with layout `layout`. Can fail if
+    /// the bytes do not represent a struct with this layout, or if the
+    /// deserialized struct exceeds the field/type size budget.
     pub fn deserialize_struct(
         bytes: &[u8],
         layout: &A::MoveStructLayout,
@@ -103,7 +106,8 @@ impl BoundedVisitor {
         Ok(struct_)
     }
 
-    /// Deduct `size` from the overall budget. Errors if `size` exceeds the current budget.
+    /// Deduct `size` from the overall budget. Errors if `size` exceeds the
+    /// current budget.
     fn debit(&mut self, size: usize) -> Result<(), Error> {
         if self.bound < size {
             Err(Error::OutOfBudget)
@@ -113,9 +117,10 @@ impl BoundedVisitor {
         }
     }
 
-    /// Deduct the estimated size of `tag` from the overall budget. Errors if its size exceeds the
-    /// current budget. The estimated size is proportional to the representation of that type in
-    /// memory, but does not match its exact size.
+    /// Deduct the estimated size of `tag` from the overall budget. Errors if
+    /// its size exceeds the current budget. The estimated size is
+    /// proportional to the representation of that type in memory, but does
+    /// not match its exact size.
     fn debit_type_size(&mut self, tag: &TypeTag) -> Result<(), Error> {
         use TypeTag as TT;
         let mut frontier = vec![tag];
@@ -302,33 +307,26 @@ impl Default for BoundedVisitor {
 pub(crate) mod tests {
     use std::str::FromStr;
 
-    use super::*;
-
     use expect_test::expect;
     use move_core_types::{identifier::Identifier, language_storage::StructTag};
 
+    use super::*;
+
     #[test]
     fn test_success() {
-        use A::MoveTypeLayout as T;
-        use A::MoveValue as V;
+        use A::{MoveTypeLayout as T, MoveValue as V};
 
-        let type_layout = layout_(
-            "0x0::foo::Bar",
-            vec![
-                ("a", T::U64),
-                ("b", T::Vector(Box::new(T::U64))),
-                ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
-            ],
-        );
+        let type_layout = layout_("0x0::foo::Bar", vec![
+            ("a", T::U64),
+            ("b", T::Vector(Box::new(T::U64))),
+            ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
+        ]);
 
-        let value = value_(
-            "0x0::foo::Bar",
-            vec![
-                ("a", V::U64(42)),
-                ("b", V::Vector(vec![V::U64(43)])),
-                ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
-            ],
-        );
+        let value = value_("0x0::foo::Bar", vec![
+            ("a", V::U64(42)),
+            ("b", V::Vector(vec![V::U64(43)])),
+            ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
+        ]);
 
         let bytes = serialize(value.clone());
 
@@ -339,26 +337,19 @@ pub(crate) mod tests {
 
     #[test]
     fn test_env_variable_override() {
-        use A::MoveTypeLayout as T;
-        use A::MoveValue as V;
+        use A::{MoveTypeLayout as T, MoveValue as V};
 
-        let type_layout = layout_(
-            "0x0::foo::Bar",
-            vec![
-                ("a", T::U64),
-                ("b", T::Vector(Box::new(T::U64))),
-                ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
-            ],
-        );
+        let type_layout = layout_("0x0::foo::Bar", vec![
+            ("a", T::U64),
+            ("b", T::Vector(Box::new(T::U64))),
+            ("c", layout_("0x0::foo::Baz", vec![("d", T::U64)])),
+        ]);
 
-        let value = value_(
-            "0x0::foo::Bar",
-            vec![
-                ("a", V::U64(42)),
-                ("b", V::Vector(vec![V::U64(43)])),
-                ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
-            ],
-        );
+        let value = value_("0x0::foo::Bar", vec![
+            ("a", V::U64(42)),
+            ("b", V::Vector(vec![V::U64(43)])),
+            ("c", value_("0x0::foo::Baz", vec![("d", V::U64(44))])),
+        ]);
 
         let bytes = serialize(value.clone());
 
@@ -377,7 +368,8 @@ pub(crate) mod tests {
         let expect = expect!["Deserialized value too large"];
         expect.assert_eq(&err.to_string());
 
-        // set the value back to what it was before if it was previously set, otherwise unset it.
+        // set the value back to what it was before if it was previously set, otherwise
+        // unset it.
         if let Some(previous_value) = before_value {
             std::env::set_var(MAX_BOUND_VAR_NAME, previous_value);
         } else {
@@ -393,8 +385,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_too_deep() {
-        use A::MoveTypeLayout as T;
-        use A::MoveValue as V;
+        use A::{MoveTypeLayout as T, MoveValue as V};
 
         let mut layout = T::U64;
         let mut value = V::U64(42);
@@ -421,8 +412,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_too_wide() {
-        use A::MoveTypeLayout as T;
-        use A::MoveValue as V;
+        use A::{MoveTypeLayout as T, MoveValue as V};
 
         const WIDTH: usize = 10;
         let mut idents = vec![];
@@ -463,8 +453,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_big_types() {
-        use A::MoveTypeLayout as T;
-        use A::MoveValue as V;
+        use A::{MoveTypeLayout as T, MoveValue as V};
 
         let big_mod_ = "m".repeat(128);
         let big_name = "T".repeat(128);

@@ -1,16 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::authority::AuthorityMetrics;
+use std::{
+    collections::{BTreeMap, VecDeque},
+    num::NonZeroU64,
+    sync::Arc,
+};
+
 use arc_swap::ArcSwap;
-use narwhal_types::TimestampMs;
-use parking_lot::Mutex;
-use std::collections::{BTreeMap, VecDeque};
-use std::num::NonZeroU64;
-use std::sync::Arc;
 use iota_protocol_config::Chain;
 use iota_types::digests::ChainIdentifier;
+use narwhal_types::TimestampMs;
+use parking_lot::Mutex;
 use tracing::{debug, warn};
+
+use crate::authority::AuthorityMetrics;
 
 const DEFAULT_OBSERVATIONS_WINDOW: u64 = 120; // number of observations to use to calculate the past throughput
 const DEFAULT_THROUGHPUT_PROFILE_UPDATE_INTERVAL_SECS: u64 = 60; // seconds that need to pass between two consecutive throughput profile updates
@@ -19,8 +23,9 @@ const DEFAULT_THROUGHPUT_PROFILE_COOL_DOWN_THRESHOLD: u64 = 10; // 10% of throug
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Ord, PartialOrd)]
 pub struct ThroughputProfile {
     pub level: Level,
-    /// The lower range of the throughput that this profile is referring to. For example, if
-    /// `throughput = 1_000`, then for values >= 1_000 this throughput profile applies.
+    /// The lower range of the throughput that this profile is referring to. For
+    /// example, if `throughput = 1_000`, then for values >= 1_000 this
+    /// throughput profile applies.
     pub throughput: u64,
 }
 
@@ -55,7 +60,8 @@ impl From<Level> for usize {
 
 #[derive(Debug)]
 pub struct ThroughputProfileRanges {
-    /// Holds the throughput profiles by the throughput range (upper_throughput, cool_down_threshold)
+    /// Holds the throughput profiles by the throughput range (upper_throughput,
+    /// cool_down_threshold)
     profiles: BTreeMap<u64, ThroughputProfile>,
 }
 
@@ -100,13 +106,10 @@ impl ThroughputProfileRanges {
         }
 
         // By default the Low profile should exist with throughput 0
-        assert_eq!(
-            *p.get(&0).unwrap(),
-            ThroughputProfile {
-                level: Level::Low,
-                throughput: 0
-            }
-        );
+        assert_eq!(*p.get(&0).unwrap(), ThroughputProfile {
+            level: Level::Low,
+            throughput: 0
+        });
 
         Self { profiles: p }
     }
@@ -126,7 +129,8 @@ impl ThroughputProfileRanges {
             .expect("Should contain at least one throughput profile")
             .1
     }
-    /// Resolves the throughput profile that corresponds to the provided throughput.
+    /// Resolves the throughput profile that corresponds to the provided
+    /// throughput.
     pub fn resolve(&self, current_throughput: u64) -> ThroughputProfile {
         let mut iter = self.profiles.iter();
         while let Some((threshold, profile)) = iter.next_back() {
@@ -135,9 +139,13 @@ impl ThroughputProfileRanges {
             }
         }
 
-        warn!("Could not resolve throughput profile for throughput {} - we shouldn't end up here. Fallback to lowest profile as default.", current_throughput);
+        warn!(
+            "Could not resolve throughput profile for throughput {} - we shouldn't end up here. Fallback to lowest profile as default.",
+            current_throughput
+        );
 
-        // If not found, then we should return the lowest possible profile as default to stay on safe side.
+        // If not found, then we should return the lowest possible profile as default to
+        // stay on safe side.
         self.highest_profile()
     }
 }
@@ -174,24 +182,32 @@ pub struct ThroughputProfileEntry {
 struct ConsensusThroughputCalculatorInner {
     observations: VecDeque<(TimestampSecs, u64)>,
     total_transactions: u64,
-    /// The last timestamp that we considered as oldest to calculate the throughput over the observations window.
+    /// The last timestamp that we considered as oldest to calculate the
+    /// throughput over the observations window.
     last_oldest_timestamp: Option<TimestampSecs>,
 }
 
-/// The ConsensusThroughputProfiler is responsible for assigning the right throughput profile by polling
-/// the measured consensus throughput. It is important to rely on the ConsensusThroughputCalculator to measure
-/// throughput as we need to make sure that validators will see an as possible consistent view to assign
-/// the right profile.
+/// The ConsensusThroughputProfiler is responsible for assigning the right
+/// throughput profile by polling the measured consensus throughput. It is
+/// important to rely on the ConsensusThroughputCalculator to measure throughput
+/// as we need to make sure that validators will see an as possible consistent
+/// view to assign the right profile.
 pub struct ConsensusThroughputProfiler {
-    /// The throughput profile will be eligible for update every `throughput_profile_update_interval` seconds.
-    /// A bucketing approach is followed where the throughput timestamp is used in order to calculate on which
-    /// seconds bucket is assigned to. When we detect a change on that bucket then an update is triggered (if a different
-    /// profile is calculated). That allows validators to align on the update timing and ensure they will eventually
-    /// converge as the consensus timestamps are used.
+    /// The throughput profile will be eligible for update every
+    /// `throughput_profile_update_interval` seconds. A bucketing approach
+    /// is followed where the throughput timestamp is used in order to calculate
+    /// on which seconds bucket is assigned to. When we detect a change on
+    /// that bucket then an update is triggered (if a different profile is
+    /// calculated). That allows validators to align on the update timing and
+    /// ensure they will eventually converge as the consensus timestamps are
+    /// used.
     throughput_profile_update_interval: TimestampSecs,
-    /// When current calculated throughput (A) is lower than previous, and the assessed profile is now a lower than previous,
-    /// we'll change to the lower profile only when (A) <= (previous_profile.throughput) * (100 - throughput_profile_cool_down_threshold) / 100.
-    /// Otherwise we'll stick to the previous profile. We want to do that to avoid any jittery behaviour that alternates between two profiles.
+    /// When current calculated throughput (A) is lower than previous, and the
+    /// assessed profile is now a lower than previous, we'll change to the
+    /// lower profile only when (A) <= (previous_profile.throughput) * (100 -
+    /// throughput_profile_cool_down_threshold) / 100. Otherwise we'll stick
+    /// to the previous profile. We want to do that to avoid any jittery
+    /// behaviour that alternates between two profiles.
     throughput_profile_cool_down_threshold: u64,
     /// The profile ranges to use to profile the throughput
     profile_ranges: ThroughputProfileRanges,
@@ -241,8 +257,9 @@ impl ConsensusThroughputProfiler {
         }
     }
 
-    // Return the current throughput level and the corresponding throughput when this was last updated.
-    // If that is not set yet then as default the High profile is returned and the throughput will be None.
+    // Return the current throughput level and the corresponding throughput when
+    // this was last updated. If that is not set yet then as default the High
+    // profile is returned and the throughput will be None.
     pub fn throughput_level(&self) -> (Level, u64) {
         // Update throughput profile if necessary time has passed
         let (throughput, timestamp) = self.calculator.current_throughput();
@@ -251,13 +268,15 @@ impl ConsensusThroughputProfiler {
         (profile.profile.level, profile.throughput)
     }
 
-    // Calculate and update the throughput profile based on the provided throughput. The throughput profile
-    // will only get updated when a different value has been calculated. For example, if the
-    // `last_throughput_profile` is `Low` , and again we calculate it as `Low` based on input, then we'll
-    // not update the profile or the timestamp. We do care to perform updates only when profiles differ.
-    // To ensure that we are protected against throughput profile change fluctuations, we update a
-    // throughput profile every `throughput_profile_update_interval` seconds based on the provided unix timestamps.
-    // The last throughput profile entry is returned.
+    // Calculate and update the throughput profile based on the provided throughput.
+    // The throughput profile will only get updated when a different value has
+    // been calculated. For example, if the `last_throughput_profile` is `Low` ,
+    // and again we calculate it as `Low` based on input, then we'll not update
+    // the profile or the timestamp. We do care to perform updates only when
+    // profiles differ. To ensure that we are protected against throughput
+    // profile change fluctuations, we update a throughput profile every
+    // `throughput_profile_update_interval` seconds based on the provided unix
+    // timestamps. The last throughput profile entry is returned.
     fn update_and_fetch_throughput_profile(
         &self,
         throughput: u64,
@@ -265,8 +284,9 @@ impl ConsensusThroughputProfiler {
     ) -> ThroughputProfileEntry {
         let last_profile = self.last_throughput_profile.load();
 
-        // Skip any processing if provided timestamp is older than the last used one. Also return existing
-        // profile when provided timestamp is 0 - this avoids triggering an immediate update eventually overriding
+        // Skip any processing if provided timestamp is older than the last used one.
+        // Also return existing profile when provided timestamp is 0 - this
+        // avoids triggering an immediate update eventually overriding
         // the default value.
         if timestamp == 0 || timestamp < last_profile.timestamp {
             return **last_profile;
@@ -279,13 +299,14 @@ impl ConsensusThroughputProfiler {
             last_profile.timestamp / self.throughput_profile_update_interval;
 
         // Update only when we minimum time has been passed since last update.
-        // We allow the edge case to update on the same bucket when a different profile has been
-        // computed for the exact same timestamp.
+        // We allow the edge case to update on the same bucket when a different profile
+        // has been computed for the exact same timestamp.
         let should_update_profile = if current_seconds_bucket > last_profile_seconds_bucket
             || (profile != last_profile.profile && last_profile.timestamp == timestamp)
         {
             if profile < last_profile.profile {
-                // If new profile is smaller than previous one, then make sure the cool down threshold is respected.
+                // If new profile is smaller than previous one, then make sure the cool down
+                // threshold is respected.
                 let min_throughput = last_profile
                     .profile
                     .throughput
@@ -319,14 +340,16 @@ impl ConsensusThroughputProfiler {
     }
 }
 
-/// ConsensusThroughputCalculator is calculating the transaction throughput as this is coming out from
-/// consensus. The throughput is calculated using a sliding window approach and leveraging the timestamps
-/// provided by consensus.
+/// ConsensusThroughputCalculator is calculating the transaction throughput as
+/// this is coming out from consensus. The throughput is calculated using a
+/// sliding window approach and leveraging the timestamps provided by consensus.
 pub struct ConsensusThroughputCalculator {
-    /// The number of transaction throughput observations that should be stored within the observations
-    /// vector in the ConsensusThroughputCalculatorInner. Those observations will be used to calculate
-    /// the current transactions throughput. We want to select a number that give us enough observations
-    /// so we better calculate the throughput and protected against spikes. A large enough value though
+    /// The number of transaction throughput observations that should be stored
+    /// within the observations vector in the
+    /// ConsensusThroughputCalculatorInner. Those observations will be used to
+    /// calculate the current transactions throughput. We want to select a
+    /// number that give us enough observations so we better calculate the
+    /// throughput and protected against spikes. A large enough value though
     /// will make us less reactive to throughput changes.
     observations_window: u64,
     inner: Mutex<ConsensusThroughputCalculatorInner>,
@@ -348,22 +371,28 @@ impl ConsensusThroughputCalculator {
         }
     }
 
-    // Adds an observation of the number of transactions that have been sequenced after deduplication
-    // and the corresponding leader timestamp. The observation timestamps should be monotonically
-    // incremented otherwise observation will be ignored.
+    // Adds an observation of the number of transactions that have been sequenced
+    // after deduplication and the corresponding leader timestamp. The
+    // observation timestamps should be monotonically incremented otherwise
+    // observation will be ignored.
     pub fn add_transactions(&self, timestamp_ms: TimestampMs, num_of_transactions: u64) {
         let mut inner = self.inner.lock();
         let timestamp_secs: TimestampSecs = timestamp_ms / 1_000; // lowest bucket we care is seconds
 
         if let Some((front_ts, transactions)) = inner.observations.front_mut() {
-            // First check that the timestamp is monotonically incremented - ignore any observation that is not
-            // later from previous one (it shouldn't really happen).
+            // First check that the timestamp is monotonically incremented - ignore any
+            // observation that is not later from previous one (it shouldn't
+            // really happen).
             if timestamp_secs < *front_ts {
-                warn!("Ignoring observation of transactions:{} as has earlier timestamp than last observation {}s < {}s", num_of_transactions, timestamp_secs, front_ts);
+                warn!(
+                    "Ignoring observation of transactions:{} as has earlier timestamp than last observation {}s < {}s",
+                    num_of_transactions, timestamp_secs, front_ts
+                );
                 return;
             }
 
-            // Not very likely, but if transactions refer to same second we add to the last element.
+            // Not very likely, but if transactions refer to same second we add to the last
+            // element.
             if timestamp_secs == *front_ts {
                 *transactions = transactions.saturating_add(num_of_transactions);
             } else {
@@ -380,15 +409,19 @@ impl ConsensusThroughputCalculator {
         // update total number of transactions in the observations list
         inner.total_transactions = inner.total_transactions.saturating_add(num_of_transactions);
 
-        // If we have more values on our window of max values, remove the last one, and calculate throughput.
-        // If we have the exact same values on our window of max values, then still calculate the throughput to ensure
-        // that we are taking into account the case where the last bucket gets updated because it falls into the same second.
+        // If we have more values on our window of max values, remove the last one, and
+        // calculate throughput. If we have the exact same values on our window
+        // of max values, then still calculate the throughput to ensure
+        // that we are taking into account the case where the last bucket gets updated
+        // because it falls into the same second.
         if inner.observations.len() as u64 >= self.observations_window {
             let last_element_ts = if inner.observations.len() as u64 == self.observations_window {
                 if let Some(ts) = inner.last_oldest_timestamp {
                     ts
                 } else {
-                    warn!("Skip calculation - we still don't have enough elements to pop the last observation");
+                    warn!(
+                        "Skip calculation - we still don't have enough elements to pop the last observation"
+                    );
                     return;
                 }
             } else {
@@ -418,12 +451,16 @@ impl ConsensusThroughputCalculator {
                 self.current_throughput
                     .store(Arc::new((current_throughput, timestamp_secs)));
             } else {
-                warn!("Skip calculating throughput as time period is {}. This is very unlikely to happen, should investigate.", period);
+                warn!(
+                    "Skip calculating throughput as time period is {}. This is very unlikely to happen, should investigate.",
+                    period
+                );
             }
         }
     }
 
-    // Returns the current (live calculated) throughput and the corresponding timestamp of when this got updated.
+    // Returns the current (live calculated) throughput and the corresponding
+    // timestamp of when this got updated.
     pub fn current_throughput(&self) -> (u64, TimestampSecs) {
         *self.current_throughput.load().as_ref()
     }
@@ -431,42 +468,31 @@ impl ConsensusThroughputCalculator {
 
 #[cfg(test)]
 mod tests {
+    use prometheus::Registry;
+
     use super::*;
     use crate::consensus_throughput_calculator::Level::{High, Low};
-    use prometheus::Registry;
 
     #[test]
     pub fn test_throughput_profile_ranges() {
         let ranges = ThroughputProfileRanges::default();
 
-        assert_eq!(
-            ranges.resolve(0),
-            ThroughputProfile {
-                level: Low,
-                throughput: 0
-            }
-        );
-        assert_eq!(
-            ranges.resolve(1_000),
-            ThroughputProfile {
-                level: Low,
-                throughput: 0
-            }
-        );
-        assert_eq!(
-            ranges.resolve(2_000),
-            ThroughputProfile {
-                level: High,
-                throughput: 2_000
-            }
-        );
-        assert_eq!(
-            ranges.resolve(u64::MAX),
-            ThroughputProfile {
-                level: High,
-                throughput: 2_000
-            }
-        );
+        assert_eq!(ranges.resolve(0), ThroughputProfile {
+            level: Low,
+            throughput: 0
+        });
+        assert_eq!(ranges.resolve(1_000), ThroughputProfile {
+            level: Low,
+            throughput: 0
+        });
+        assert_eq!(ranges.resolve(2_000), ThroughputProfile {
+            level: High,
+            throughput: 2_000
+        });
+        assert_eq!(ranges.resolve(u64::MAX), ThroughputProfile {
+            level: High,
+            throughput: 2_000
+        });
     }
 
     #[test]
@@ -484,7 +510,8 @@ mod tests {
         calculator.add_transactions(3000 as TimestampMs, 1_000);
         calculator.add_transactions(4000 as TimestampMs, 1_000);
 
-        // We expect to have a rate of 1K tx/sec with last update timestamp the 4th second
+        // We expect to have a rate of 1K tx/sec with last update timestamp the 4th
+        // second
         assert_eq!(calculator.current_throughput(), (1000, 4));
 
         // We are adding more transactions to get over 2K tx/sec
@@ -492,9 +519,10 @@ mod tests {
         calculator.add_transactions(6_000 as TimestampMs, 2_800);
         assert_eq!(calculator.current_throughput(), (2100, 6));
 
-        // Let's now add 0 transactions after 5 seconds. Since 5 seconds have passed since the last
-        // update and now the transactions are 0 we expect the throughput to be calculate as:
-        // 2800 + 2500 + 0 = 5300 / (15sec - 4sec) = 5300 / 11sec = 481 tx/sec
+        // Let's now add 0 transactions after 5 seconds. Since 5 seconds have passed
+        // since the last update and now the transactions are 0 we expect the
+        // throughput to be calculate as: 2800 + 2500 + 0 = 5300 / (15sec -
+        // 4sec) = 5300 / 11sec = 481 tx/sec
         calculator.add_transactions(15_000 as TimestampMs, 0);
 
         assert_eq!(calculator.current_throughput(), (481, 15));
@@ -507,7 +535,8 @@ mod tests {
         calculator.add_transactions(20_000 as TimestampMs, 0);
         assert_eq!(calculator.current_throughput(), (0, 20));
 
-        // By adding now a few entries with lots of transactions increase again the throughput
+        // By adding now a few entries with lots of transactions increase again the
+        // throughput
         calculator.add_transactions(21_000 as TimestampMs, 1_000);
         calculator.add_transactions(22_000 as TimestampMs, 2_000);
         calculator.add_transactions(23_000 as TimestampMs, 3_100);
@@ -525,19 +554,21 @@ mod tests {
         // adding one observation
         calculator.add_transactions(1_000, 0);
 
-        // Adding observations with same timestamp should fall under the same bucket and won't lead
-        // to throughput update.
+        // Adding observations with same timestamp should fall under the same bucket and
+        // won't lead to throughput update.
         for _ in 0..10 {
             calculator.add_transactions(2_340, 100);
         }
         assert_eq!(calculator.current_throughput(), (0, 0));
 
-        // Adding now one observation on a different second bucket will change throughput
+        // Adding now one observation on a different second bucket will change
+        // throughput
         calculator.add_transactions(5_000, 0);
 
         assert_eq!(calculator.current_throughput(), (250, 5));
 
-        // Updating further the last bucket with more transactions it keeps updating the throughput
+        // Updating further the last bucket with more transactions it keeps updating the
+        // throughput
         calculator.add_transactions(5_000, 400);
         assert_eq!(calculator.current_throughput(), (350, 5));
 
@@ -567,26 +598,28 @@ mod tests {
             ranges,
         );
 
-        // When no transactions exists, the calculator will return by default "High" to err on the
-        // assumption that there is lots of load.
+        // When no transactions exists, the calculator will return by default "High" to
+        // err on the assumption that there is lots of load.
         assert_eq!(profiler.throughput_level(), (High, 0));
 
         calculator.add_transactions(1000 as TimestampMs, 1_000);
         calculator.add_transactions(2000 as TimestampMs, 1_000);
         calculator.add_transactions(3000 as TimestampMs, 1_000);
 
-        // We expect to have a rate of 1K tx/sec, that's < 2K limit , so throughput profile remains to "High" - nothing gets updated
+        // We expect to have a rate of 1K tx/sec, that's < 2K limit , so throughput
+        // profile remains to "High" - nothing gets updated
         assert_eq!(profiler.throughput_level(), (High, 0));
 
-        // We are adding more transactions to get over 2K tx/sec, so throughput profile should now be categorised
-        // as "high"
+        // We are adding more transactions to get over 2K tx/sec, so throughput profile
+        // should now be categorised as "high"
         calculator.add_transactions(4000 as TimestampMs, 2_500);
         calculator.add_transactions(5000 as TimestampMs, 2_800);
         assert_eq!(profiler.throughput_level(), (High, 2100));
 
-        // Let's now add 0 transactions after at least 5 seconds. Since the update should happen every 5 seconds
-        // now the transactions are 0 we expect the throughput to be calculate as:
-        // 2800 + 2800 + 0 = 5300 / 15 - 4sec = 5600 / 11sec = 509 tx/sec
+        // Let's now add 0 transactions after at least 5 seconds. Since the update
+        // should happen every 5 seconds now the transactions are 0 we expect
+        // the throughput to be calculate as: 2800 + 2800 + 0 = 5300 / 15 - 4sec
+        // = 5600 / 11sec = 509 tx/sec
         calculator.add_transactions(7_000 as TimestampMs, 2_800);
         calculator.add_transactions(15_000 as TimestampMs, 0);
 
@@ -600,8 +633,8 @@ mod tests {
 
         assert_eq!(profiler.throughput_level(), (Low, 0));
 
-        // By adding a few entries with lots of transactions for the exact same last timestamp it will
-        // trigger a throughput profile update.
+        // By adding a few entries with lots of transactions for the exact same last
+        // timestamp it will trigger a throughput profile update.
         calculator.add_transactions(20_000 as TimestampMs, 4_000);
         calculator.add_transactions(20_000 as TimestampMs, 4_000);
         calculator.add_transactions(20_000 as TimestampMs, 4_000);
@@ -634,8 +667,9 @@ mod tests {
             ranges,
         );
 
-        // Current setup is `throughput_profile_update_interval` = 5sec, which means that throughput profile
-        // should get updated every 5 seconds (based on the provided unix timestamp).
+        // Current setup is `throughput_profile_update_interval` = 5sec, which means
+        // that throughput profile should get updated every 5 seconds (based on
+        // the provided unix timestamp).
 
         calculator.add_transactions(3_000 as TimestampMs, 2_200);
         calculator.add_transactions(4_000 as TimestampMs, 4_200);
@@ -643,18 +677,21 @@ mod tests {
 
         assert_eq!(profiler.throughput_level(), (High, 2_100));
 
-        // When adding transactions at timestamp 10s the bucket changes and the profile should get updated
+        // When adding transactions at timestamp 10s the bucket changes and the profile
+        // should get updated
         calculator.add_transactions(10_000 as TimestampMs, 1_000);
 
         assert_eq!(profiler.throughput_level(), (Low, 866));
 
-        // Now adding transactions at timestamp 16s the bucket changes and profile should get updated
+        // Now adding transactions at timestamp 16s the bucket changes and profile
+        // should get updated
         calculator.add_transactions(16_000 as TimestampMs, 20_000);
 
         assert_eq!(profiler.throughput_level(), (High, 2333));
 
-        // Keep adding transactions that fall under the same timestamp as the previous one, even though
-        // traffic should be marked as low it doesn't until the bucket of 20s is updated.
+        // Keep adding transactions that fall under the same timestamp as the previous
+        // one, even though traffic should be marked as low it doesn't until the
+        // bucket of 20s is updated.
         calculator.add_transactions(17_000 as TimestampMs, 0);
         calculator.add_transactions(18_000 as TimestampMs, 0);
         calculator.add_transactions(19_000 as TimestampMs, 0);
@@ -688,14 +725,16 @@ mod tests {
             ranges,
         );
 
-        // Adding 4 observations of 3_000 tx/sec, so in the end throughput profile should be flagged as high
+        // Adding 4 observations of 3_000 tx/sec, so in the end throughput profile
+        // should be flagged as high
         for i in 1..=4 {
             calculator.add_transactions(i * 1_000, 3_000);
         }
         assert_eq!(profiler.throughput_level(), (High, 3_000));
 
-        // Now let's add some transactions to bring throughput little bit bellow the upper Low threshold (2000 tx/sec)
-        // but still above the 10% offset which is 1800 tx/sec.
+        // Now let's add some transactions to bring throughput little bit bellow the
+        // upper Low threshold (2000 tx/sec) but still above the 10% offset
+        // which is 1800 tx/sec.
         calculator.add_transactions(5_000, 1_900);
         calculator.add_transactions(6_000, 1_900);
         calculator.add_transactions(7_000, 1_900);
@@ -703,7 +742,8 @@ mod tests {
         assert_eq!(calculator.current_throughput(), (1_900, 7));
         assert_eq!(profiler.throughput_level(), (High, 3_000));
 
-        // Let's bring down more throughput - now the throughput profile should get updated
+        // Let's bring down more throughput - now the throughput profile should get
+        // updated
         calculator.add_transactions(8_000, 1_500);
         calculator.add_transactions(9_000, 1_500);
         calculator.add_transactions(10_000, 1_500);

@@ -94,9 +94,8 @@ mod test {
 
     use tokio::time::sleep;
 
-    use crate::display::status;
-
     use super::{action, config, done, error, header, newline, warn};
+    use crate::display::status;
 
     #[tokio::test]
     #[ignore = "only used to manually check if prints work correctly"]

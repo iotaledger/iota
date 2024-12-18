@@ -30,10 +30,12 @@ pub mod metric_metadata {
         Stateset = 7,
     }
     impl MetricType {
-        /// String value of the enum field names used in the ProtoBuf definition.
+        /// String value of the enum field names used in the ProtoBuf
+        /// definition.
         ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        /// The values are not transformed in any way and thus are considered
+        /// stable (if the ProtoBuf definition does not change) and safe
+        /// for programmatic use.
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 MetricType::Unknown => "UNKNOWN",
@@ -116,7 +118,8 @@ pub struct Histogram {
     /// regular histograms with integer counts, the latter for float
     /// histograms.
     ///
-    /// Count delta of each bucket compared to previous one (or to zero for 1st bucket).
+    /// Count delta of each bucket compared to previous one (or to zero for 1st
+    /// bucket).
     #[prost(sint64, repeated, tag = "9")]
     pub negative_deltas: ::prost::alloc::vec::Vec<i64>,
     /// Absolute count of each bucket.
@@ -129,7 +132,8 @@ pub struct Histogram {
     /// regular histograms with integer counts, the latter for float
     /// histograms.
     ///
-    /// Count delta of each bucket compared to previous one (or to zero for 1st bucket).
+    /// Count delta of each bucket compared to previous one (or to zero for 1st
+    /// bucket).
     #[prost(sint64, repeated, tag = "12")]
     pub positive_deltas: ::prost::alloc::vec::Vec<i64>,
     /// Absolute count of each bucket.
@@ -163,10 +167,12 @@ pub mod histogram {
         Gauge = 3,
     }
     impl ResetHint {
-        /// String value of the enum field names used in the ProtoBuf definition.
+        /// String value of the enum field names used in the ProtoBuf
+        /// definition.
         ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        /// The values are not transformed in any way and thus are considered
+        /// stable (if the ProtoBuf definition does not change) and safe
+        /// for programmatic use.
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 ResetHint::Unknown => "UNKNOWN",
@@ -213,7 +219,8 @@ pub mod histogram {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct BucketSpan {
-    /// Gap to previous span, or starting point for 1st span (which can be negative).
+    /// Gap to previous span, or starting point for 1st span (which can be
+    /// negative).
     #[prost(sint32, tag = "1")]
     pub offset: i32,
     /// Length of consecutive buckets.
@@ -225,7 +232,8 @@ pub struct BucketSpan {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TimeSeries {
     /// For a timeseries to be valid, and for the samples and exemplars
-    /// to be ingested by the remote system properly, the labels field is required.
+    /// to be ingested by the remote system properly, the labels field is
+    /// required.
     #[prost(message, repeated, tag = "1")]
     pub labels: ::prost::alloc::vec::Vec<Label>,
     #[prost(message, repeated, tag = "2")]
@@ -271,10 +279,12 @@ pub mod label_matcher {
         Nre = 3,
     }
     impl Type {
-        /// String value of the enum field names used in the ProtoBuf definition.
+        /// String value of the enum field names used in the ProtoBuf
+        /// definition.
         ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        /// The values are not transformed in any way and thus are considered
+        /// stable (if the ProtoBuf definition does not change) and safe
+        /// for programmatic use.
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 Type::Eq => "EQ",
@@ -345,10 +355,12 @@ pub mod chunk {
         Histogram = 2,
     }
     impl Encoding {
-        /// String value of the enum field names used in the ProtoBuf definition.
+        /// String value of the enum field names used in the ProtoBuf
+        /// definition.
         ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        /// The values are not transformed in any way and thus are considered
+        /// stable (if the ProtoBuf definition does not change) and safe
+        /// for programmatic use.
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 Encoding::Unknown => "UNKNOWN",
@@ -392,11 +404,13 @@ pub struct WriteRequest {
 pub struct ReadRequest {
     #[prost(message, repeated, tag = "1")]
     pub queries: ::prost::alloc::vec::Vec<Query>,
-    /// accepted_response_types allows negotiating the content type of the response.
+    /// accepted_response_types allows negotiating the content type of the
+    /// response.
     ///
-    /// Response types are taken from the list in the FIFO order. If no response type in `accepted_response_types` is
-    /// implemented by server, error is returned.
-    /// For request that do not contain `accepted_response_types` field the SAMPLES response type will be used.
+    /// Response types are taken from the list in the FIFO order. If no response
+    /// type in `accepted_response_types` is implemented by server, error is
+    /// returned. For request that do not contain `accepted_response_types`
+    /// field the SAMPLES response type will be used.
     #[prost(enumeration = "read_request::ResponseType", repeated, tag = "2")]
     pub accepted_response_types: ::prost::alloc::vec::Vec<i32>,
 }
@@ -405,8 +419,9 @@ pub mod read_request {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
     #[repr(i32)]
     pub enum ResponseType {
-        /// Server will return a single ReadResponse message with matched series that includes list of raw samples.
-        /// It's recommended to use streamed response types instead.
+        /// Server will return a single ReadResponse message with matched series
+        /// that includes list of raw samples. It's recommended to use
+        /// streamed response types instead.
         ///
         /// Response headers:
         /// Content-Type: "application/x-protobuf"
@@ -418,15 +433,17 @@ pub mod read_request {
         /// uint32 for CRC32 Castagnoli checksum.
         ///
         /// Response headers:
-        /// Content-Type: "application/x-streamed-protobuf; proto=prometheus.ChunkedReadResponse"
-        /// Content-Encoding: ""
+        /// Content-Type: "application/x-streamed-protobuf;
+        /// proto=prometheus.ChunkedReadResponse" Content-Encoding: ""
         StreamedXorChunks = 1,
     }
     impl ResponseType {
-        /// String value of the enum field names used in the ProtoBuf definition.
+        /// String value of the enum field names used in the ProtoBuf
+        /// definition.
         ///
-        /// The values are not transformed in any way and thus are considered stable
-        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        /// The values are not transformed in any way and thus are considered
+        /// stable (if the ProtoBuf definition does not change) and safe
+        /// for programmatic use.
         pub fn as_str_name(&self) -> &'static str {
             match self {
                 ResponseType::Samples => "SAMPLES",
@@ -470,16 +487,19 @@ pub struct QueryResult {
     #[prost(message, repeated, tag = "1")]
     pub timeseries: ::prost::alloc::vec::Vec<TimeSeries>,
 }
-/// ChunkedReadResponse is a response when response_type equals STREAMED_XOR_CHUNKS.
-/// We strictly stream full series after series, optionally split by time. This means that a single frame can contain
-/// partition of the single series, but once a new series is started to be streamed it means that no more chunks will
-/// be sent for previous one. Series are returned sorted in the same way TSDB block are internally.
+/// ChunkedReadResponse is a response when response_type equals
+/// STREAMED_XOR_CHUNKS. We strictly stream full series after series, optionally
+/// split by time. This means that a single frame can contain partition of the
+/// single series, but once a new series is started to be streamed it means that
+/// no more chunks will be sent for previous one. Series are returned sorted in
+/// the same way TSDB block are internally.
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ChunkedReadResponse {
     #[prost(message, repeated, tag = "1")]
     pub chunked_series: ::prost::alloc::vec::Vec<ChunkedSeries>,
-    /// query_index represents an index of the query from ReadRequest.queries these chunks relates to.
+    /// query_index represents an index of the query from ReadRequest.queries
+    /// these chunks relates to.
     #[prost(int64, tag = "2")]
     pub query_index: i64,
 }

@@ -3,17 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::base_types::IotaAddress;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::iota_serde::BigInt;
+use iota_types::{
+    base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 #[open_rpc(namespace = "iota", tag = "Write API")]
 #[rpc(server, client, namespace = "iota")]

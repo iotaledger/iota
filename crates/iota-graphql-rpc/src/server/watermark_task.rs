@@ -2,27 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::data::{Db, DbConnection, QueryExecutor};
-use crate::error::Error;
-use crate::metrics::Metrics;
-use crate::types::chain_identifier::ChainIdentifier;
+use std::{mem, sync::Arc, time::Duration};
+
 use async_graphql::ServerError;
 use diesel::{
-    query_dsl::positional_order_dsl::PositionalOrderDsl, CombineDsl, ExpressionMethods,
-    OptionalExtension, QueryDsl,
+    CombineDsl, ExpressionMethods, OptionalExtension, QueryDsl,
+    query_dsl::positional_order_dsl::PositionalOrderDsl,
 };
 use diesel_async::scoped_futures::ScopedFutureExt;
-use std::mem;
-use std::sync::Arc;
-use std::time::Duration;
 use iota_indexer::schema::checkpoints;
-use tokio::sync::{watch, RwLock};
-use tokio::time::Interval;
+use tokio::{
+    sync::{RwLock, watch},
+    time::Interval,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
-/// Watermark task that periodically updates the current checkpoint, checkpoint timestamp, and
-/// epoch values.
+use crate::{
+    data::{Db, DbConnection, QueryExecutor},
+    error::Error,
+    metrics::Metrics,
+    types::chain_identifier::ChainIdentifier,
+};
+
+/// Watermark task that periodically updates the current checkpoint, checkpoint
+/// timestamp, and epoch values.
 pub(crate) struct WatermarkTask {
     /// Thread-safe watermark that avoids writer starvation
     watermark: WatermarkLock,
@@ -40,8 +44,8 @@ pub(crate) struct ChainIdentifierLock(pub(crate) Arc<RwLock<ChainIdentifier>>);
 
 pub(crate) type WatermarkLock = Arc<RwLock<Watermark>>;
 
-/// Watermark used by GraphQL queries to ensure cross-query consistency and flag epoch-boundary
-/// changes.
+/// Watermark used by GraphQL queries to ensure cross-query consistency and flag
+/// epoch-boundary changes.
 #[derive(Clone, Copy, Default)]
 pub(crate) struct Watermark {
     /// The inclusive checkpoint upper-bound for the query.
@@ -211,8 +215,8 @@ impl Watermark {
             .await
             .map_err(|e| Error::Internal(format!("Failed to fetch watermark data: {e}")))?
         else {
-            // An empty response from the db is valid when indexer has not written any checkpoints
-            // to the db yet.
+            // An empty response from the db is valid when indexer has not written any
+            // checkpoints to the db yet.
             return Ok(None);
         };
 

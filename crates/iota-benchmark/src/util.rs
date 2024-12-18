@@ -2,19 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::workloads::Gas;
-use crate::ValidatorProxy;
+use std::{path::PathBuf, sync::Arc};
+
 use anyhow::Result;
-use std::path::PathBuf;
-use std::sync::Arc;
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::ObjectRef;
-use iota_types::crypto::{AccountKeyPair, KeypairTraits};
-use iota_types::object::Owner;
-use iota_types::transaction::{Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER};
-use iota_types::utils::to_sender_signed_transaction;
-use iota_types::{base_types::IotaAddress, crypto::IotaKeyPair};
+use iota_types::{
+    base_types::{IotaAddress, ObjectRef},
+    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits},
+    object::Owner,
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData},
+    utils::to_sender_signed_transaction,
+};
+
+use crate::{ValidatorProxy, workloads::Gas};
 
 // This is the maximum gas we will transfer from primary coin into any gas coin
 // for running the benchmark

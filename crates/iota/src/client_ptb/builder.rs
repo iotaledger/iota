@@ -2,60 +2,65 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    client_commands::{compile_package, upgrade_package},
-    client_ptb::{
-        ast::{Argument as PTBArg, ASSIGN, GAS_BUDGET},
-        error::{PTBError, PTBResult, Span, Spanned},
-    },
-    err, error, sp,
-};
+use std::{collections::BTreeMap, path::Path};
+
 use anyhow::Result;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use miette::Severity;
-use move_binary_format::{
-    binary_config::BinaryConfig, file_format::SignatureToken, CompiledModule,
-};
-use move_core_types::parsing::{
-    address::{NumericalAddress, ParsedAddress},
-    parser::NumberFormat,
-};
-use move_core_types::{
-    account_address::AccountAddress, annotated_value::MoveTypeLayout, ident_str,
-};
-use move_package::BuildConfig;
-use std::{collections::BTreeMap, path::Path};
 use iota_json::{is_receiving_argument, primitive_type};
 use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_sdk::apis::ReadApi;
 use iota_types::{
-    base_types::{is_primitive_type_tag, ObjectID, TxContext, TxContextKind},
+    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
+    base_types::{ObjectID, TxContext, TxContextKind, is_primitive_type_tag},
     move_package::MovePackage,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
     transaction::{self as Tx, ObjectArg},
-    Identifier, TypeTag, IOTA_FRAMEWORK_PACKAGE_ID,
 };
+use miette::Severity;
+use move_binary_format::{
+    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+};
+use move_core_types::{
+    account_address::AccountAddress,
+    annotated_value::MoveTypeLayout,
+    ident_str,
+    parsing::{
+        address::{NumericalAddress, ParsedAddress},
+        parser::NumberFormat,
+    },
+};
+use move_package::BuildConfig;
 
 use super::ast::{ModuleAccess as PTBModuleAccess, ParsedPTBCommand, Program};
+use crate::{
+    client_commands::{compile_package, upgrade_package},
+    client_ptb::{
+        ast::{ASSIGN, Argument as PTBArg, GAS_BUDGET},
+        error::{PTBError, PTBResult, Span, Spanned},
+    },
+    err, error, sp,
+};
 
 // ===========================================================================
 // Object Resolution
 // ===========================================================================
-// We need to resolve the same argument in different ways depending on the context in which that
-// argument is used. For example, if we are using an object ID as an argument to a move call that
-// expects an object argument in that position, the object ID should be resolved to an object,
-// whereas if we are using the same object ID as an argument to a pure value, it should be resolved
-// to a pure value (e.g., the object ID itself). The different ways of resolving this is the
-// purpose of the `Resolver` trait -- different contexts will implement this trait in different
-// ways.
+// We need to resolve the same argument in different ways depending on the
+// context in which that argument is used. For example, if we are using an
+// object ID as an argument to a move call that expects an object argument in
+// that position, the object ID should be resolved to an object, whereas if we
+// are using the same object ID as an argument to a pure value, it should be
+// resolved to a pure value (e.g., the object ID itself). The different ways of
+// resolving this is the purpose of the `Resolver` trait -- different contexts
+// will implement this trait in different ways.
 
-/// A resolver is used to resolve arguments to a PTB. Depending on the context, we may resolve
-/// object IDs in different ways -- e.g., in a pure context they should be resolved to a pure
-/// value, whereas in an object context they should be resolved to the appropriate object argument.
+/// A resolver is used to resolve arguments to a PTB. Depending on the context,
+/// we may resolve object IDs in different ways -- e.g., in a pure context they
+/// should be resolved to a pure value, whereas in an object context they should
+/// be resolved to the appropriate object argument.
 #[async_trait]
 trait Resolver<'a>: Send {
     /// Resolve a pure value. This should almost always resolve to a pure value.
@@ -82,9 +87,10 @@ trait Resolver<'a>: Send {
 }
 
 /// A resolver that resolves object IDs to object arguments.
-/// * If `is_receiving` is true, then the object argument will be resolved to a receiving object
-///   argument.
-/// * If `is_mut` is true, then the object argument will be resolved to a mutable object argument.
+/// * If `is_receiving` is true, then the object argument will be resolved to a
+///   receiving object argument.
+/// * If `is_mut` is true, then the object argument will be resolved to a
+///   mutable object argument.
 struct ToObject {
     is_receiving: bool,
     is_mut: bool,
@@ -123,8 +129,8 @@ impl<'a> Resolver<'a> for ToObject {
             .clone()
             .ok_or_else(|| err!(loc, "Unable to get owner info for object {obj_id}"))?;
         let object_ref = obj.object_ref();
-        // Depending on the ownership of the object, we resolve it to different types of object
-        // arguments for the transaction.
+        // Depending on the ownership of the object, we resolve it to different types of
+        // object arguments for the transaction.
         let obj_arg = match owner {
             Owner::AddressOwner(_) if self.is_receiving => ObjectArg::Receiving(object_ref),
             Owner::Immutable | Owner::AddressOwner(_) => ObjectArg::ImmOrOwnedObject(object_ref),
@@ -149,8 +155,8 @@ impl<'a> Resolver<'a> for ToObject {
         builder.ptb.obj(obj_arg).map_err(|e| err!(loc, "{e}"))
     }
 
-    // We always re-resolve object IDs to object arguments if we need it mutably -- we could have
-    // added it earlier as an immutable argument.
+    // We always re-resolve object IDs to object arguments if we need it mutably --
+    // we could have added it earlier as an immutable argument.
     fn re_resolve(&self) -> bool {
         self.is_mut
     }
@@ -199,38 +205,45 @@ impl<'a> Resolver<'a> for ToPure {
 // PTB Builder and PTB Creation
 // ===========================================================================
 
-/// The PTBBuilder struct is the main workhorse that transforms a sequence of `ParsedPTBCommand`s
-/// into an actual PTB that can be run. The main things to keep in mind are that this contains:
-/// - A way to handle identifiers -- note that we "lazily" resolve identifiers to arguments, so
-///   that the first usage of the identifier determines what it is resolved to. If an identifier is
-///   used in multiple positions at different resolutions (e.g., in one place as an object argument,
-///   and in another as a pure value), this will result in an error. This error can be avoided by
-///   creating another identifier for the second usage.
-/// - A way to resolve arguments -- this is done by calling `resolve` on a `PTBArg` and passing in
-///   appropriate context. The context is used to determine how to resolve the argument -- e.g., if
-///   an object ID should be resolved to a pure value or an object argument.
+/// The PTBBuilder struct is the main workhorse that transforms a sequence of
+/// `ParsedPTBCommand`s into an actual PTB that can be run. The main things to
+/// keep in mind are that this contains:
+/// - A way to handle identifiers -- note that we "lazily" resolve identifiers
+///   to arguments, so that the first usage of the identifier determines what it
+///   is resolved to. If an identifier is used in multiple positions at
+///   different resolutions (e.g., in one place as an object argument, and in
+///   another as a pure value), this will result in an error. This error can be
+///   avoided by creating another identifier for the second usage.
+/// - A way to resolve arguments -- this is done by calling `resolve` on a
+///   `PTBArg` and passing in appropriate context. The context is used to
+///   determine how to resolve the argument -- e.g., if an object ID should be
+///   resolved to a pure value or an object argument.
 /// - A way to bind the result of a command to an identifier.
 pub struct PTBBuilder<'a> {
-    /// A map from identifiers to addresses. This is used to support address resolution, and also
-    /// supports external address sources (e.g., keystore).
+    /// A map from identifiers to addresses. This is used to support address
+    /// resolution, and also supports external address sources (e.g.,
+    /// keystore).
     addresses: BTreeMap<String, AccountAddress>,
-    /// A map from identifiers to the file scopes in which they were declared. This is used
-    /// for reporting shadowing warnings.
+    /// A map from identifiers to the file scopes in which they were declared.
+    /// This is used for reporting shadowing warnings.
     identifiers: BTreeMap<String, Vec<Span>>,
-    /// The arguments that we need to resolve. This is a map from identifiers to the argument
-    /// values -- they haven't been resolved to a transaction argument yet.
+    /// The arguments that we need to resolve. This is a map from identifiers to
+    /// the argument values -- they haven't been resolved to a transaction
+    /// argument yet.
     arguments_to_resolve: BTreeMap<String, ArgWithHistory>,
-    /// The arguments that we have resolved. This is a map from identifiers to the actual
-    /// transaction arguments.
+    /// The arguments that we have resolved. This is a map from identifiers to
+    /// the actual transaction arguments.
     resolved_arguments: BTreeMap<String, Tx::Argument>,
     /// Read API for reading objects from chain. Needed for object resolution.
     reader: &'a ReadApi,
-    /// The last command that we have added. This is used to support assignment commands.
+    /// The last command that we have added. This is used to support assignment
+    /// commands.
     last_command: Option<Tx::Argument>,
     /// The actual PTB that we are building up.
     ptb: ProgrammableTransactionBuilder,
-    /// The list of errors that we have built up while processing commands. We do not report errors
-    /// eagerly but instead wait until we have processed all commands to report any errors.
+    /// The list of errors that we have built up while processing commands. We
+    /// do not report errors eagerly but instead wait until we have
+    /// processed all commands to report any errors.
     errors: Vec<PTBError>,
 }
 
@@ -240,8 +253,8 @@ enum ResolvedAccess {
     DottedString(String),
 }
 
-/// Hold a PTB argument, always remembering its most recent state even if it's already been
-/// resolved.
+/// Hold a PTB argument, always remembering its most recent state even if it's
+/// already been resolved.
 #[derive(Debug)]
 enum ArgWithHistory {
     Resolved(Spanned<PTBArg>),
@@ -289,10 +302,11 @@ impl<'a> PTBBuilder<'a> {
         }
     }
 
-    /// Finalize a PTB. If there were errors during the construction of the PTB these are returned
-    /// now. Otherwise, the PTB is finalized and returned.
-    /// If the warn_on_shadowing flag was set, then we will print warnings for any shadowed
-    /// variables that we encountered during the building of the PTB.
+    /// Finalize a PTB. If there were errors during the construction of the PTB
+    /// these are returned now. Otherwise, the PTB is finalized and
+    /// returned. If the warn_on_shadowing flag was set, then we will print
+    /// warnings for any shadowed variables that we encountered during the
+    /// building of the PTB.
     pub fn finish(
         self,
         warn_on_shadowing: bool,
@@ -370,8 +384,9 @@ impl<'a> PTBBuilder<'a> {
         e.push(ident_loc);
     }
 
-    /// Declare a possible address binding. This is used to support address resolution. If the
-    /// `possible_addr` is not an address, then this is a no-op.
+    /// Declare a possible address binding. This is used to support address
+    /// resolution. If the `possible_addr` is not an address, then this is a
+    /// no-op.
     fn declare_possible_address_binding(&mut self, ident: String, possible_addr: &Spanned<PTBArg>) {
         match possible_addr.value {
             PTBArg::Address(addr) => {
@@ -379,9 +394,10 @@ impl<'a> PTBBuilder<'a> {
             }
             PTBArg::Identifier(ref i) => {
                 // We do a one-hop resolution here to see if we can resolve the identifier to an
-                // externally-bound address (i.e., one coming in through the initial environment).
-                // This will also handle direct aliasing of addresses throughout the ptb.
-                // Note that we don't do this recursively so no need to worry about loops/cycles.
+                // externally-bound address (i.e., one coming in through the initial
+                // environment). This will also handle direct aliasing of
+                // addresses throughout the ptb. Note that we don't do this
+                // recursively so no need to worry about loops/cycles.
                 if let Some(addr) = self.addresses.get(i) {
                     self.addresses.insert(ident, *addr);
                 }
@@ -440,8 +456,8 @@ impl<'a> PTBBuilder<'a> {
         .map_err(|e| err!(loc, "{e}"))
     }
 
-    /// Resolves the argument to the move call based on the type information of the function being
-    /// called.
+    /// Resolves the argument to the move call based on the type information of
+    /// the function being called.
     async fn resolve_move_call_arg(
         &mut self,
         view: &CompiledModule,
@@ -451,22 +467,23 @@ impl<'a> PTBBuilder<'a> {
     ) -> PTBResult<Tx::Argument> {
         let layout = primitive_type(view, ty_args, param);
 
-        // If it's a primitive value, see if we've already resolved this argument. Otherwise, we
-        // need to resolve it.
+        // If it's a primitive value, see if we've already resolved this argument.
+        // Otherwise, we need to resolve it.
         if let Some(layout) = layout {
             return self
                 .resolve(loc.wrap(arg), ToPure::new_from_layout(layout))
                 .await;
         }
 
-        // Otherwise it's ambiguous what the value should be, and we need to turn to the signature
-        // to determine it.
+        // Otherwise it's ambiguous what the value should be, and we need to turn to the
+        // signature to determine it.
         let mut is_receiving = false;
         // A value is mutable by default.
         let mut is_mutable = true;
 
-        // traverse the types in the signature to see if the argument is an object argument or not,
-        // and also determine if it's a receiving argument or not.
+        // traverse the types in the signature to see if the argument is an object
+        // argument or not, and also determine if it's a receiving argument or
+        // not.
         for tok in param.preorder_traversal() {
             match tok {
                 SignatureToken::Datatype(..) | SignatureToken::DatatypeInstantiation(..) => {
@@ -499,14 +516,14 @@ impl<'a> PTBBuilder<'a> {
             }
         }
 
-        // Note: need to re-resolve an argument possibly since it may be used immutably first, and
-        // then mutably.
+        // Note: need to re-resolve an argument possibly since it may be used immutably
+        // first, and then mutably.
         self.resolve(loc.wrap(arg), ToObject::new(is_receiving, is_mutable))
             .await
     }
 
-    /// Resolve the arguments to a Move call based on the type information about the function
-    /// being called.
+    /// Resolve the arguments to a Move call based on the type information about
+    /// the function being called.
     async fn resolve_move_call_args(
         &mut self,
         package: MovePackage,
@@ -604,8 +621,9 @@ impl<'a> PTBBuilder<'a> {
         fields: Vec<Spanned<String>>,
     ) -> Spanned<ResolvedAccess> {
         if fields.len() == 1 {
-            // Get the span and value of the field zero'th field. Safe since we just checked the
-            // length above. Since the length is 1, we know that the field is non-empty.
+            // Get the span and value of the field zero'th field. Safe since we just checked
+            // the length above. Since the length is 1, we know that the field
+            // is non-empty.
             let sp!(field_loc, field) = &fields[0];
             if let Ok(n) = field.parse::<u16>() {
                 return field_loc.wrap(ResolvedAccess::ResultAccess(n));
@@ -623,7 +641,8 @@ impl<'a> PTBBuilder<'a> {
         )))
     }
 
-    /// Resolve an argument based on the argument value, and the `resolver` that is passed in.
+    /// Resolve an argument based on the argument value, and the `resolver` that
+    /// is passed in.
     #[async_recursion]
     async fn resolve(
         &mut self,
@@ -673,9 +692,10 @@ impl<'a> PTBBuilder<'a> {
             // Lastly -- look to see if this is an address that has been either declared in scope,
             // or that is coming from an external source (e.g., the keystore).
             PTBArg::Identifier(i) if self.addresses.contains_key(&i) => {
-                // We now have a location for this address (which may have come from the keystore
-                // so we didnt' have an address for it before), so we tag it with its first usage
-                // location put it in the arguments to resolve and resolve away.
+                // We now have a location for this address (which may have come from the
+                // keystore so we didnt' have an address for it before), so we
+                // tag it with its first usage location put it in the arguments
+                // to resolve and resolve away.
                 let addr = self.addresses[&i];
                 let arg = arg_loc.wrap(PTBArg::Address(NumericalAddress::new(
                     addr.into_bytes(),
@@ -690,8 +710,8 @@ impl<'a> PTBBuilder<'a> {
                 ctx.resolve_object_id(self, arg_loc, object_id).await
             }
             PTBArg::VariableAccess(head, fields) => {
-                // Since keystore aliases can contain dots, we need to resolve these/disambiguate
-                // them as best as possible here.
+                // Since keystore aliases can contain dots, we need to resolve
+                // these/disambiguate them as best as possible here.
                 // First: See if structurally we know whether this is a dotted access or a
                 // string(alias) containing dot(s). If there is more than one dotted access, or
                 // if the field(s) are not all numbers, then we assume it's a alias.
@@ -761,7 +781,8 @@ impl<'a> PTBBuilder<'a> {
         }
     }
 
-    /// Fetch the `IotaObjectData` for an object ID -- this is used for object resolution.
+    /// Fetch the `IotaObjectData` for an object ID -- this is used for object
+    /// resolution.
     async fn get_object(&self, object_id: ObjectID, obj_loc: Span) -> PTBResult<IotaObjectData> {
         let res = self
             .reader
@@ -776,8 +797,8 @@ impl<'a> PTBBuilder<'a> {
         Ok(res)
     }
 
-    /// Create a "did you mean" message for an identifier with the context of our different binding
-    /// environments.
+    /// Create a "did you mean" message for an identifier with the context of
+    /// our different binding environments.
     fn did_you_mean_identifier(&self, ident: &str) -> Option<String> {
         let did_you_means = find_did_you_means(
             ident,
@@ -790,8 +811,8 @@ impl<'a> PTBBuilder<'a> {
         display_did_you_mean(did_you_means)
     }
 
-    /// Add a single PTB command to the PTB that we are building up. This is the workhorse of it
-    /// all.
+    /// Add a single PTB command to the PTB that we are building up. This is the
+    /// workhorse of it all.
     async fn handle_command_(
         &mut self,
         cmd_span: Span,
@@ -875,14 +896,11 @@ impl<'a> PTBBuilder<'a> {
                 self.last_command = Some(res);
             }
             ParsedPTBCommand::MoveCall(
-                sp!(
-                    mod_access_loc,
-                    PTBModuleAccess {
-                        address,
-                        module_name,
-                        function_name,
-                    }
-                ),
+                sp!(mod_access_loc, PTBModuleAccess {
+                    address,
+                    module_name,
+                    function_name,
+                }),
                 in_ty_args,
                 args,
             ) => {
@@ -952,8 +970,8 @@ impl<'a> PTBBuilder<'a> {
                     self.reader,
                     build_config.clone(),
                     package_path,
-                    false, /* with_unpublished_dependencies */
-                    false, /* skip_dependency_verification */
+                    false, // with_unpublished_dependencies
+                    false, // skip_dependency_verification
                 )
                 .await;
                 // Restore original ID, then check result.
@@ -1020,8 +1038,8 @@ impl<'a> PTBBuilder<'a> {
                     build_config.clone(),
                     package_path,
                     ObjectID::from_address(upgrade_cap_id.into_inner()),
-                    false, /* with_unpublished_dependencies */
-                    false, /* skip_dependency_verification */
+                    false, // with_unpublished_dependencies
+                    false, // skip_dependency_verification
                     None,
                 )
                 .await;
@@ -1145,8 +1163,8 @@ pub(crate) fn display_did_you_mean<S: AsRef<str> + std::fmt::Display>(
     Some(format!("{preposition}{}?", strs.join(", ")))
 }
 
-// This lint is disabled because it's not good and doesn't look at what you're actually
-// iterating over. This seems to be a common problem with this lint.
+// This lint is disabled because it's not good and doesn't look at what you're
+// actually iterating over. This seems to be a common problem with this lint.
 // See e.g., https://github.com/rust-lang/rust-clippy/issues/6075
 #[allow(clippy::needless_range_loop)]
 fn edit_distance(a: &str, b: &str) -> usize {

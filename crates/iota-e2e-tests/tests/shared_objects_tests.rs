@@ -2,29 +2,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use futures::future::join_all;
-use futures::join;
-use rand::distributions::Distribution;
-use std::net::SocketAddr;
-use std::ops::Deref;
-use std::time::{Duration, SystemTime};
+use std::{
+    net::SocketAddr,
+    ops::Deref,
+    time::{Duration, SystemTime},
+};
+
+use futures::{future::join_all, join};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_core::consensus_adapter::position_submit_certificate;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
-    publish_basics_package, publish_basics_package_and_make_counter, TestTransactionBuilder,
+    TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
 };
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::event::Event;
-use iota_types::execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus};
-use iota_types::messages_grpc::{LayoutGenerationOption, ObjectInfoRequest};
-use iota_types::transaction::{CallArg, ObjectArg};
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    event::Event,
+    execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus},
+    messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
+    transaction::{CallArg, ObjectArg},
+};
+use rand::distributions::Distribution;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
-/// Send a simple shared object transaction to Iota and ensures the client gets back a response.
+/// Send a simple shared object transaction to Iota and ensures the client gets
+/// back a response.
 #[sim_test]
 async fn shared_object_transaction() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -130,8 +135,8 @@ async fn shared_object_deletion_multiple_times() {
     });
     let digests = join_all(submissions).await;
 
-    // Start a new fullnode and let it sync from genesis and wait for us to see all the deletion
-    // transactions.
+    // Start a new fullnode and let it sync from genesis and wait for us to see all
+    // the deletion transactions.
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
@@ -186,8 +191,8 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
         digests.push(*signed.digest());
     }
 
-    // Start a new fullnode and let it sync from genesis and wait for us to see all the deletion
-    // transactions.
+    // Start a new fullnode and let it sync from genesis and wait for us to see all
+    // the deletion transactions.
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
@@ -196,18 +201,20 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
         .await;
 }
 
-/// Test for execution of shared object certs that are sequenced after a shared object is deleted.
-/// The test strategy is:
+/// Test for execution of shared object certs that are sequenced after a shared
+/// object is deleted. The test strategy is:
 /// 0. Inject a random delay just before execution of a transaction.
 /// 1. Create a shared object
-/// 2. Create a delete cert and two increment certs, but do not execute any of them yet.
+/// 2. Create a delete cert and two increment certs, but do not execute any of
+///    them yet.
 /// 3. Execute the delete cert.
 /// 4. Execute the two increment certs.
 ///
-/// The two execution certs should be immediately executable (because they have a missing
-/// input). Therefore validators may execute them in either order. The injected delay ensures that
-/// we will explore all possible orders, and `submit_transaction_to_validators` verifies that we
-/// get the same effects regardless of the order. (checkpoint fork detection will also test this).
+/// The two execution certs should be immediately executable (because they have
+/// a missing input). Therefore validators may execute them in either order. The
+/// injected delay ensures that we will explore all possible orders, and
+/// `submit_transaction_to_validators` verifies that we get the same effects
+/// regardless of the order. (checkpoint fork detection will also test this).
 #[sim_test]
 async fn shared_object_deletion_multi_certs() {
     // cause random delay just before tx is executed
@@ -309,8 +316,8 @@ async fn shared_object_deletion_multi_certs() {
         .await;
 }
 
-/// End-to-end shared transaction test for a Iota validator. It does not test the client or wallet,
-/// but tests the end-to-end flow from Iota to consensus.
+/// End-to-end shared transaction test for a Iota validator. It does not test
+/// the client or wallet, but tests the end-to-end flow from Iota to consensus.
 #[sim_test]
 async fn call_shared_object_contract() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -341,28 +348,28 @@ async fn call_shared_object_contract() {
     for gas in objects {
         // Ensure the value of the counter is `0`.
         let transaction = TestTransactionBuilder::new(sender, gas, rgp)
-            .move_call(
-                package_id,
-                "counter",
-                "assert_value",
-                vec![
-                    CallArg::Object(counter_object_arg_imm),
-                    CallArg::Pure(0u64.to_le_bytes().to_vec()),
-                ],
-            )
+            .move_call(package_id, "counter", "assert_value", vec![
+                CallArg::Object(counter_object_arg_imm),
+                CallArg::Pure(0u64.to_le_bytes().to_vec()),
+            ])
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
             .await
             .effects
             .unwrap();
-        // Check that all reads must depend on the creation of the counter, but not to any previous reads.
-        assert!(effects
-            .dependencies()
-            .contains(&counter_creation_transaction));
-        assert!(prev_assert_value_txs
-            .iter()
-            .all(|tx| { !effects.dependencies().contains(tx) }));
+        // Check that all reads must depend on the creation of the counter, but not to
+        // any previous reads.
+        assert!(
+            effects
+                .dependencies()
+                .contains(&counter_creation_transaction)
+        );
+        assert!(
+            prev_assert_value_txs
+                .iter()
+                .all(|tx| { !effects.dependencies().contains(tx) })
+        );
         prev_assert_value_txs.push(*effects.transaction_digest());
     }
 
@@ -378,35 +385,36 @@ async fn call_shared_object_contract() {
         .effects
         .unwrap();
     let increment_transaction = *effects.transaction_digest();
-    assert!(effects
-        .dependencies()
-        .contains(&counter_creation_transaction));
-    // Previously executed assert_value transaction(s) are not a dependency because they took immutable reference to shared object
-    assert!(prev_assert_value_txs
-        .iter()
-        .all(|tx| { !effects.dependencies().contains(tx) }));
+    assert!(
+        effects
+            .dependencies()
+            .contains(&counter_creation_transaction)
+    );
+    // Previously executed assert_value transaction(s) are not a dependency because
+    // they took immutable reference to shared object
+    assert!(
+        prev_assert_value_txs
+            .iter()
+            .all(|tx| { !effects.dependencies().contains(tx) })
+    );
 
     // assert_value can take both mutable and immutable references
-    // it is allowed to pass mutable shared object arg to move call taking immutable reference
+    // it is allowed to pass mutable shared object arg to move call taking immutable
+    // reference
     let mut assert_value_mut_transaction = None;
     for imm in [true, false] {
         // Ensure the value of the counter is `1`.
         let transaction = test_cluster
             .test_transaction_builder()
             .await
-            .move_call(
-                package_id,
-                "counter",
-                "assert_value",
-                vec![
-                    CallArg::Object(if imm {
-                        counter_object_arg_imm
-                    } else {
-                        counter_object_arg
-                    }),
-                    CallArg::Pure(1u64.to_le_bytes().to_vec()),
-                ],
-            )
+            .move_call(package_id, "counter", "assert_value", vec![
+                CallArg::Object(if imm {
+                    counter_object_arg_imm
+                } else {
+                    counter_object_arg
+                }),
+                CallArg::Pure(1u64.to_le_bytes().to_vec()),
+            ])
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
@@ -422,16 +430,14 @@ async fn call_shared_object_contract() {
 
     let assert_value_mut_transaction = assert_value_mut_transaction.unwrap();
 
-    // And last check - attempt to send increment transaction with immutable reference
+    // And last check - attempt to send increment transaction with immutable
+    // reference
     let transaction = test_cluster
         .test_transaction_builder()
         .await
-        .move_call(
-            package_id,
-            "counter",
-            "increment",
-            vec![CallArg::Object(counter_object_arg_imm)],
-        )
+        .move_call(package_id, "counter", "increment", vec![CallArg::Object(
+            counter_object_arg_imm,
+        )])
         .build();
     let effects = test_cluster
         .wallet
@@ -452,9 +458,11 @@ async fn call_shared_object_contract() {
         }
         .into()
     );
-    assert!(effects
-        .dependencies()
-        .contains(&assert_value_mut_transaction));
+    assert!(
+        effects
+            .dependencies()
+            .contains(&assert_value_mut_transaction)
+    );
 }
 
 #[ignore("Disabled due to flakiness - re-enable when failure is fixed")]
@@ -543,8 +551,8 @@ async fn shared_object_sync() {
         .await;
     let package_id = publish_basics_package(&test_cluster.wallet).await.0;
 
-    // Since we use submit_transaction_to_validators in this test, which does not go through fullnode,
-    // we need to manage gas objects ourselves.
+    // Since we use submit_transaction_to_validators in this test, which does not go
+    // through fullnode, we need to manage gas objects ourselves.
     let (sender, mut objects) = test_cluster.wallet.get_one_account().await.unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
     // Send a transaction to create a counter, to all but one authority.
@@ -567,32 +575,37 @@ async fn shared_object_sync() {
     assert!(effects.status().is_ok());
     let ((counter_id, counter_initial_shared_version, _), _) = effects.created()[0];
 
-    // Check that the counter object exists in at least one of the validators the transaction was
-    // sent to.
+    // Check that the counter object exists in at least one of the validators the
+    // transaction was sent to.
     for validator in test_cluster.swarm.validator_node_handles() {
         if slow_validators.contains(&validator.state().name) {
-            assert!(validator
-                .state()
-                .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
-                    counter_id,
-                    LayoutGenerationOption::None,
-                ))
-                .await
-                .is_ok());
+            assert!(
+                validator
+                    .state()
+                    .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
+                        counter_id,
+                        LayoutGenerationOption::None,
+                    ))
+                    .await
+                    .is_ok()
+            );
         }
     }
 
-    // Check that the validator that wasn't sent the transaction is unaware of the counter object
+    // Check that the validator that wasn't sent the transaction is unaware of the
+    // counter object
     for validator in test_cluster.swarm.validator_node_handles() {
         if fast_validators.contains(&validator.state().name) {
-            assert!(validator
-                .state()
-                .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
-                    counter_id,
-                    LayoutGenerationOption::None,
-                ))
-                .await
-                .is_err());
+            assert!(
+                validator
+                    .state()
+                    .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
+                        counter_id,
+                        LayoutGenerationOption::None,
+                    ))
+                    .await
+                    .is_err()
+            );
         }
     }
 
@@ -603,7 +616,8 @@ async fn shared_object_sync() {
             .build(),
     );
 
-    // Let's submit the transaction to the original set of validators, except the first.
+    // Let's submit the transaction to the original set of validators, except the
+    // first.
     let (effects, _) = test_cluster
         .submit_transaction_to_validators(increment_counter_transaction.clone(), &validators[1..])
         .await
@@ -619,7 +633,8 @@ async fn shared_object_sync() {
     assert!(effects.status().is_ok());
 }
 
-/// Send a simple shared object transaction to Iota and ensures the client gets back a response.
+/// Send a simple shared object transaction to Iota and ensures the client gets
+/// back a response.
 #[sim_test]
 async fn replay_shared_object_transaction() {
     let test_cluster = TestClusterBuilder::new().build().await;

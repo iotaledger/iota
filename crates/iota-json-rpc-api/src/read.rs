@@ -2,18 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
-
-use iota_json_rpc_types::ProtocolConfigResponse;
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest,
-    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ProtocolConfigResponse,
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::base_types::{ObjectID, SequenceNumber, TransactionDigest};
-use iota_types::iota_serde::BigInt;
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    iota_serde::BigInt,
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 #[open_rpc(namespace = "iota", tag = "Read API")]
 #[rpc(server, client, namespace = "iota")]
@@ -76,10 +75,11 @@ pub trait ReadApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse>;
 
-    /// Note there is no software-level guarantee/SLA that objects with past versions
-    /// can be retrieved by this API, even if the object and version exists/existed.
-    /// The result may vary across nodes depending on their pruning policies.
-    /// Returns the latest object information with a version less than or equal to the given version
+    /// Note there is no software-level guarantee/SLA that objects with past
+    /// versions can be retrieved by this API, even if the object and
+    /// version exists/existed. The result may vary across nodes depending
+    /// on their pruning policies. Returns the latest object information
+    /// with a version less than or equal to the given version
     #[method(name = "tryGetObjectBeforeVersion", deprecated = "true")]
     async fn try_get_object_before_version(
         &self,
@@ -89,10 +89,11 @@ pub trait ReadApi {
         version: SequenceNumber,
     ) -> RpcResult<IotaPastObjectResponse>;
 
-    /// Note there is no software-level guarantee/SLA that objects with past versions
-    /// can be retrieved by this API, even if the object and version exists/existed.
-    /// The result may vary across nodes depending on their pruning policies.
-    /// Return the object information for a specified version
+    /// Note there is no software-level guarantee/SLA that objects with past
+    /// versions can be retrieved by this API, even if the object and
+    /// version exists/existed. The result may vary across nodes depending
+    /// on their pruning policies. Return the object information for a
+    /// specified version
     #[method(name = "tryMultiGetPastObjects")]
     async fn try_multi_get_past_objects(
         &self,
@@ -148,7 +149,8 @@ pub trait ReadApi {
     #[method(name = "getTotalTransactionBlocks")]
     async fn get_total_transaction_blocks(&self) -> RpcResult<BigInt<u64>>;
 
-    /// Return the sequence number of the latest checkpoint that has been executed
+    /// Return the sequence number of the latest checkpoint that has been
+    /// executed
     #[method(name = "getLatestCheckpointSequenceNumber")]
     async fn get_latest_checkpoint_sequence_number(&self) -> RpcResult<BigInt<u64>>;
 

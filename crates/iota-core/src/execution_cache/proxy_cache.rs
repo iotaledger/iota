@@ -2,37 +2,39 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store::{ExecutionLockWriteGuard, IotaLockResult};
-use crate::authority::epoch_start_configuration::EpochStartConfiguration;
-use crate::authority::epoch_start_configuration::{EpochFlag, EpochStartConfigTrait};
-use crate::authority::AuthorityStore;
-use crate::state_accumulator::AccumulatorStore;
-use crate::transaction_outputs::TransactionOutputs;
+use std::{sync::Arc, time::Duration};
 
-use futures::future::BoxFuture;
-use futures::FutureExt;
-use parking_lot::RwLock;
-use std::sync::Arc;
-use std::time::Duration;
+use futures::{FutureExt, future::BoxFuture};
 use iota_protocol_config::ProtocolVersion;
-use iota_types::accumulator::Accumulator;
-use iota_types::base_types::VerifiedExecutionData;
-use iota_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber};
-use iota_types::bridge::Bridge;
-use iota_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
-use iota_types::effects::{TransactionEffects, TransactionEvents};
-use iota_types::error::IotaResult;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use iota_types::object::Object;
-use iota_types::storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject};
-use iota_types::iota_system_state::IotaSystemState;
-use iota_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
+use iota_types::{
+    accumulator::Accumulator,
+    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    bridge::Bridge,
+    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEvents},
+    error::IotaResult,
+    iota_system_state::IotaSystemState,
+    messages_checkpoint::CheckpointSequenceNumber,
+    object::Object,
+    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
+    transaction::{VerifiedSignedTransaction, VerifiedTransaction},
+};
+use parking_lot::RwLock;
 
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfigType, ExecutionCacheMetrics,
     ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, PassthroughCache,
     StateSyncAPI, TestingAPI, TransactionCacheRead, WritebackCache,
+};
+use crate::{
+    authority::{
+        AuthorityStore,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store::{ExecutionLockWriteGuard, IotaLockResult},
+        epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
+    },
+    state_accumulator::AccumulatorStore,
+    transaction_outputs::TransactionOutputs,
 };
 
 macro_rules! delegate_method {
@@ -79,17 +81,20 @@ impl ProxyCache {
         let cache_type = epoch_start_config.execution_cache_type();
         tracing::info!("switching to cache impl {:?}", cache_type);
         if matches!(cache_type, ExecutionCacheConfigType::PassthroughCache) {
-            // we may switch back to the writeback cache next epoch, at which point its caches will
-            // be stale if not cleared now
+            // we may switch back to the writeback cache next epoch, at which point its
+            // caches will be stale if not cleared now
 
-            // When we call invalidate_all on Moka caches, it sets the valid after time stamp to the current
-            // time. Upon retrieval, it ignores entries whose insertion time is strictly less than the valid-after
-            // time. In the simulator, time remains constant for the duration of a single task poll, so it is
-            // possible that entries have been inserted in the same tick, and will therefore not be invalidated
-            // properly. So, this sleep is necessary for passing tests, and it also is some insurance against
-            // hitting the same issue in production. (It should be more or less impossible for two consecutive
-            // calls to Instant::now() to return the same value in production, but there is no harm in having a
-            // short sleep here just to be sure).
+            // When we call invalidate_all on Moka caches, it sets the valid after time
+            // stamp to the current time. Upon retrieval, it ignores entries
+            // whose insertion time is strictly less than the valid-after
+            // time. In the simulator, time remains constant for the duration of a single
+            // task poll, so it is possible that entries have been inserted in
+            // the same tick, and will therefore not be invalidated
+            // properly. So, this sleep is necessary for passing tests, and it also is some
+            // insurance against hitting the same issue in production. (It
+            // should be more or less impossible for two consecutive
+            // calls to Instant::now() to return the same value in production, but there is
+            // no harm in having a short sleep here just to be sure).
             tokio::time::sleep(Duration::from_nanos(100)).await;
             self.writeback_cache.clear_caches_and_assert_empty();
         }

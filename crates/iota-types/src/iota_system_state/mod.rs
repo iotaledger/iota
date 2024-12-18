@@ -2,28 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::ObjectID;
-use crate::committee::CommitteeWithNetworkMetadata;
-use crate::dynamic_field::{
-    get_dynamic_field_from_store, get_dynamic_field_object_from_store, Field,
-};
-use crate::error::IotaError;
-use crate::object::{MoveObject, Object};
-use crate::storage::ObjectStore;
-use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
-use crate::iota_system_state::iota_system_state_inner_v2::IotaSystemStateInnerV2;
-use crate::versioned::Versioned;
-use crate::{id::UID, MoveTypeTagTrait, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID};
+use std::fmt;
+
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use std::fmt;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use self::iota_system_state_inner_v1::{IotaSystemStateInnerV1, ValidatorV1};
-use self::iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary};
+use self::{
+    iota_system_state_inner_v1::{IotaSystemStateInnerV1, ValidatorV1},
+    iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+};
+use crate::{
+    IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait,
+    base_types::ObjectID,
+    committee::CommitteeWithNetworkMetadata,
+    dynamic_field::{Field, get_dynamic_field_from_store, get_dynamic_field_object_from_store},
+    error::IotaError,
+    id::UID,
+    iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemState,
+        iota_system_state_inner_v2::IotaSystemStateInnerV2,
+    },
+    object::{MoveObject, Object},
+    storage::ObjectStore,
+    versioned::Versioned,
+};
 
 pub mod epoch_start_iota_system_state;
 pub mod iota_system_state_inner_v1;
@@ -55,9 +60,10 @@ pub const IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2: u64 = 18446744073709551607; // u64
 /// This repreents the object with 0x5 ID.
 /// In Rust, this type should be rarely used since it's just a thin
 /// wrapper used to access the inner object.
-/// Within this module, we use it to determine the current version of the system state inner object type,
-/// so that we could deserialize the inner object correctly.
-/// Outside of this module, we only use it in genesis snapshot and testing.
+/// Within this module, we use it to determine the current version of the system
+/// state inner object type, so that we could deserialize the inner object
+/// correctly. Outside of this module, we only use it in genesis snapshot and
+/// testing.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IotaSystemStateWrapper {
     pub id: UID,
@@ -75,8 +81,9 @@ impl IotaSystemStateWrapper {
     }
 
     /// Advances epoch in safe mode natively in Rust, without involking Move.
-    /// This ensures that there cannot be any failure from Move and is guaranteed to succeed.
-    /// Returns the old and new inner system state object.
+    /// This ensures that there cannot be any failure from Move and is
+    /// guaranteed to succeed. Returns the old and new inner system state
+    /// object.
     pub fn advance_epoch_safe_mode(
         &self,
         params: &AdvanceEpochParams,
@@ -164,7 +171,8 @@ impl IotaSystemStateWrapper {
     }
 }
 
-/// This is the standard API that all inner system state object type should implement.
+/// This is the standard API that all inner system state object type should
+/// implement.
 #[enum_dispatch]
 pub trait IotaSystemStateTrait {
     fn epoch(&self) -> u64;
@@ -184,10 +192,11 @@ pub trait IotaSystemStateTrait {
     fn into_iota_system_state_summary(self) -> IotaSystemStateSummary;
 }
 
-/// IotaSystemState provides an abstraction over multiple versions of the inner IotaSystemStateInner object.
-/// This should be the primary interface to the system state object in Rust.
-/// We use enum dispatch to dispatch all methods defined in IotaSystemStateTrait to the actual
-/// implementation in the inner types.
+/// IotaSystemState provides an abstraction over multiple versions of the inner
+/// IotaSystemStateInner object. This should be the primary interface to the
+/// system state object in Rust. We use enum dispatch to dispatch all methods
+/// defined in IotaSystemStateTrait to the actual implementation in the inner
+/// types.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 #[enum_dispatch(IotaSystemStateTrait)]
 pub enum IotaSystemState {
@@ -208,8 +217,9 @@ pub type IotaValidatorGenesis = ValidatorV1;
 impl IotaSystemState {
     /// Always return the version that we will be using for genesis.
     /// Genesis always uses this version regardless of the current version.
-    /// Note that since it's possible for the actual genesis of the network to diverge from the
-    /// genesis of the latest Rust code, it's important that we only use this for tooling purposes.
+    /// Note that since it's possible for the actual genesis of the network to
+    /// diverge from the genesis of the latest Rust code, it's important
+    /// that we only use this for tooling purposes.
     pub fn into_genesis_version_for_tooling(self) -> IotaSystemStateInnerGenesis {
         match self {
             IotaSystemState::V1(inner) => inner,
@@ -229,7 +239,9 @@ pub fn get_iota_system_state_wrapper(
         .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
         // Don't panic here on None because object_store is a generic store.
         .ok_or_else(|| {
-            IotaError::IotaSystemStateReadError("IotaSystemStateWrapper object not found".to_owned())
+            IotaError::IotaSystemStateReadError(
+                "IotaSystemStateWrapper object not found".to_owned(),
+            )
         })?;
     let move_object = wrapper.data.try_as_move().ok_or_else(|| {
         IotaError::IotaSystemStateReadError(
@@ -315,10 +327,10 @@ pub fn get_iota_system_state(object_store: &dyn ObjectStore) -> Result<IotaSyste
     }
 }
 
-/// Given a system state type version, and the ID of the table, along with a key, retrieve the
-/// dynamic field as a Validator type. We need the version to determine which inner type to use for
-/// the Validator type. This is assuming that the validator is stored in the table as
-/// ValidatorWrapper type.
+/// Given a system state type version, and the ID of the table, along with a
+/// key, retrieve the dynamic field as a Validator type. We need the version to
+/// determine which inner type to use for the Validator type. This is assuming
+/// that the validator is stored in the table as ValidatorWrapper type.
 pub fn get_validator_from_table<K>(
     object_store: &dyn ObjectStore,
     table_id: ObjectID,
@@ -446,24 +458,27 @@ pub struct AdvanceEpochParams {
 
 #[cfg(msim)]
 pub mod advance_epoch_result_injection {
+    use std::cell::RefCell;
+
     use crate::{
         committee::EpochId,
         error::{ExecutionError, ExecutionErrorKind},
     };
-    use std::cell::RefCell;
 
     thread_local! {
         /// Override the result of advance_epoch in the range [start, end).
         static OVERRIDE: RefCell<Option<(EpochId, EpochId)>>  = RefCell::new(None);
     }
 
-    /// Override the result of advance_epoch transaction if new epoch is in the provided range [start, end).
+    /// Override the result of advance_epoch transaction if new epoch is in the
+    /// provided range [start, end).
     pub fn set_override(value: Option<(EpochId, EpochId)>) {
         OVERRIDE.with(|o| *o.borrow_mut() = value);
     }
 
-    /// This function is used to modify the result of advance_epoch transaction for testing.
-    /// If the override is set, the result will be an execution error, otherwise the original result will be returned.
+    /// This function is used to modify the result of advance_epoch transaction
+    /// for testing. If the override is set, the result will be an execution
+    /// error, otherwise the original result will be returned.
     pub fn maybe_modify_result(
         result: Result<(), ExecutionError>,
         current_epoch: EpochId,

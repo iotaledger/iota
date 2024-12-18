@@ -1,12 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::remote_write;
-use crate::var;
 use itertools::Itertools;
 use prometheus::proto::{Counter, Gauge, Histogram, Metric, MetricFamily, MetricType};
 use protobuf::RepeatedField;
 use tracing::{debug, error};
+
+use crate::{remote_write, var};
 
 #[derive(Debug)]
 pub struct Mimir<S> {
@@ -118,7 +118,8 @@ impl From<Vec<MetricFamily>> for Mimir<Vec<remote_write::WriteRequest>> {
         Self {
             state: timeseries
                 .into_iter()
-                // the upstream remote_write should have a max sample size per request set to this number
+                // the upstream remote_write should have a max sample size per request set to this
+                // number
                 .chunks(var!("MIMIR_MAX_SAMPLE_SIZE", 500))
                 .into_iter()
                 .map(|ts| remote_write::WriteRequest {
@@ -161,9 +162,10 @@ impl From<MetricFamily> for Mimir<Vec<remote_write::TimeSeries>> {
             ts.labels
                 .extend(Mimir::<RepeatedField<remote_write::Label>>::from(metric));
 
-            // assumption here is that since a MetricFamily will have one MetricType, we'll only need
-            // to look for one of these types.  Setting two different types on Metric at the same time
-            // in a way that is conflicting with the MetricFamily type will result in undefined mimir
+            // assumption here is that since a MetricFamily will have one MetricType, we'll
+            // only need to look for one of these types.  Setting two different
+            // types on Metric at the same time in a way that is conflicting
+            // with the MetricFamily type will result in undefined mimir
             // behavior, probably an error.
             if metric.has_counter() {
                 let mut s = Mimir::<remote_write::Sample>::from(metric.get_counter()).sample();
@@ -176,7 +178,8 @@ impl From<MetricFamily> for Mimir<Vec<remote_write::TimeSeries>> {
             } else if metric.has_histogram() {
                 // TODO implement
                 // ts.mut_histograms()
-                //     .push(Mimir::<remote_write::Histogram>::from(metric.get_histogram()).histogram());
+                //     .push(Mimir::<remote_write::Histogram>::from(metric.
+                // get_histogram()).histogram());
             } else if metric.has_summary() {
                 // TODO implement
                 error!("summary is not implemented for a metric type");
@@ -195,10 +198,10 @@ impl Mimir<remote_write::TimeSeries> {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::prom_to_mimir::Mimir;
-    use crate::remote_write;
     use prometheus::proto;
     use protobuf::RepeatedField;
+
+    use crate::{prom_to_mimir::Mimir, remote_write};
 
     // protobuf stuff
     pub fn create_metric_family(

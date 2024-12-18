@@ -1,7 +1,7 @@
-use super::TryFromProtoError;
 use tap::Pipe;
 
-//
+use super::TryFromProtoError;
+
 // ObjectReference
 //
 
@@ -40,7 +40,6 @@ impl TryFrom<&super::ObjectReference> for iota_sdk_types::types::ObjectReference
     }
 }
 
-//
 // Object
 //
 
@@ -90,14 +89,14 @@ impl TryFrom<&super::Object> for iota_sdk_types::types::Object {
     }
 }
 
-//
 // Owner
 //
 
 impl From<iota_sdk_types::types::Owner> for super::Owner {
     fn from(value: iota_sdk_types::types::Owner) -> Self {
-        use super::owner::Kind;
         use iota_sdk_types::types::Owner::*;
+
+        use super::owner::Kind;
 
         let kind = match value {
             Address(address) => Kind::Address(address.into()),
@@ -130,14 +129,14 @@ impl TryFrom<&super::Owner> for iota_sdk_types::types::Owner {
     }
 }
 
-//
 // ObjectData
 //
 
 impl From<iota_sdk_types::types::ObjectData> for super::ObjectData {
     fn from(value: iota_sdk_types::types::ObjectData) -> Self {
-        use super::object_data::Kind;
         use iota_sdk_types::types::ObjectData::*;
+
+        use super::object_data::Kind;
 
         let kind = match value {
             Struct(s) => Kind::Struct(s.into()),
@@ -166,7 +165,6 @@ impl TryFrom<&super::ObjectData> for iota_sdk_types::types::ObjectData {
     }
 }
 
-//
 // MoveStruct
 //
 
@@ -212,7 +210,6 @@ impl TryFrom<&super::MoveStruct> for iota_sdk_types::types::MoveStruct {
     }
 }
 
-//
 // MovePackage
 //
 
@@ -318,13 +315,10 @@ impl TryFrom<&super::MovePackage> for iota_sdk_types::types::MovePackage {
                     .upgraded_version
                     .ok_or_else(|| TryFromProtoError::missing("upgraded_version"))?;
 
-                Ok((
-                    original_id,
-                    iota_sdk_types::types::UpgradeInfo {
-                        upgraded_id,
-                        upgraded_version,
-                    },
-                ))
+                Ok((original_id, iota_sdk_types::types::UpgradeInfo {
+                    upgraded_id,
+                    upgraded_version,
+                }))
             })
             .collect::<Result<_, TryFromProtoError>>()?;
 
@@ -342,7 +336,6 @@ impl TryFrom<&super::MovePackage> for iota_sdk_types::types::MovePackage {
     }
 }
 
-//
 // TypeOrigin
 //
 
@@ -386,7 +379,6 @@ impl TryFrom<&super::TypeOrigin> for iota_sdk_types::types::TypeOrigin {
     }
 }
 
-//
 // GenesisObject
 //
 

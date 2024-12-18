@@ -2,15 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use anyhow::Context;
-use anyhow::Result;
-use std::fs::OpenOptions;
 use std::{
+    fs::OpenOptions,
     path::{Path, PathBuf},
     process::{Child, Command},
     time::{Duration, Instant},
 };
+
+use anyhow::{Context, Result, anyhow};
 use tracing::{event_enabled, info, trace};
 use url::Url;
 
@@ -54,8 +53,9 @@ enum HealthCheckError {
 impl TempDb {
     /// Create and start a new temporary postgres database.
     ///
-    /// A fresh database will be initialized in a temporary directory that will be cleand up on drop.
-    /// The running `postgres` service will be serving traffic on an available, os-assigned port.
+    /// A fresh database will be initialized in a temporary directory that will
+    /// be cleand up on drop. The running `postgres` service will be serving
+    /// traffic on an available, os-assigned port.
     pub fn new() -> Result<Self> {
         let dir = tempfile::TempDir::new()?;
         let port = get_available_port();
@@ -81,8 +81,9 @@ impl TempDb {
 impl LocalDatabase {
     /// Start a local `postgres` database service.
     ///
-    /// `dir`: The location of the on-disk postgres database. The database must already exist at
-    ///     the provided path. If you instead want to create a new database see `Self::new_initdb`.
+    /// `dir`: The location of the on-disk postgres database. The database must
+    /// already exist at     the provided path. If you instead want to
+    /// create a new database see `Self::new_initdb`.
     ///
     /// `port`: The port to listen for incoming connection on.
     pub fn new(dir: PathBuf, port: u16) -> Result<Self> {
@@ -104,7 +105,8 @@ impl LocalDatabase {
 
     /// Initialize and start a local `postgres` database service.
     ///
-    /// Unlike `Self::new`, this will initialize a clean database at the provided path.
+    /// Unlike `Self::new`, this will initialize a clean database at the
+    /// provided path.
     pub fn new_initdb(dir: PathBuf, port: u16) -> Result<Self> {
         initdb(&dir)?;
         Self::new(dir, port)
@@ -266,7 +268,8 @@ fn pg_isready(port: u16) -> Result<(), HealthCheckError> {
     }
 }
 
-/// Run the postgres `initdb` command to initialize a database at the provided path
+/// Run the postgres `initdb` command to initialize a database at the provided
+/// path
 ///
 /// See <https://www.postgresql.org/docs/16/app-initdb.html> for more info
 fn initdb(dir: &Path) -> Result<()> {
@@ -288,9 +291,10 @@ fn initdb(dir: &Path) -> Result<()> {
     }
 }
 
-/// Return an ephemeral, available port. On unix systems, the port returned will be in the
-/// TIME_WAIT state ensuring that the OS won't hand out this port for some grace period.
-/// Callers should be able to bind to this port given they use SO_REUSEADDR.
+/// Return an ephemeral, available port. On unix systems, the port returned will
+/// be in the TIME_WAIT state ensuring that the OS won't hand out this port for
+/// some grace period. Callers should be able to bind to this port given they
+/// use SO_REUSEADDR.
 pub fn get_available_port() -> u16 {
     const MAX_PORT_RETRIES: u32 = 1000;
 
@@ -308,9 +312,10 @@ fn get_ephemeral_port() -> std::io::Result<u16> {
     let listener = std::net::TcpListener::bind(("127.0.0.1", 0))?;
     let addr = listener.local_addr()?;
 
-    // Create and accept a connection (which we'll promptly drop) in order to force the port
-    // into the TIME_WAIT state, ensuring that the port will be reserved from some limited
-    // amount of time (roughly 60s on some Linux systems)
+    // Create and accept a connection (which we'll promptly drop) in order to force
+    // the port into the TIME_WAIT state, ensuring that the port will be
+    // reserved from some limited amount of time (roughly 60s on some Linux
+    // systems)
     let _sender = std::net::TcpStream::connect(addr)?;
     let _incoming = listener.accept()?;
 

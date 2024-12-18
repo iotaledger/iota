@@ -2,31 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, path::Path};
+
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
-use std::collections::HashMap;
-use std::path::Path;
 use iota_data_ingestion_core::Worker;
-use iota_indexer::errors::IndexerError;
-use iota_types::object::bounded_visitor::BoundedVisitor;
-use iota_types::{TypeTag, SYSTEM_PACKAGE_ADDRESSES};
+use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
+use iota_json_rpc_types::IotaMoveValue;
+use iota_package_resolver::Resolver;
+use iota_rpc_api::{CheckpointData, CheckpointTransaction};
+use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES, TypeTag,
+    base_types::ObjectID,
+    dynamic_field::{DynamicFieldName, DynamicFieldType, visitor as DFV},
+    object::{Object, bounded_visitor::BoundedVisitor},
+};
 use tap::tap::TapFallible;
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use iota_indexer::types::owner_to_owner_info;
-use iota_json_rpc_types::IotaMoveValue;
-use iota_package_resolver::Resolver;
-use iota_rpc_api::{CheckpointData, CheckpointTransaction};
-use iota_types::base_types::ObjectID;
-use iota_types::dynamic_field::visitor as DFV;
-use iota_types::dynamic_field::{DynamicFieldName, DynamicFieldType};
-use iota_types::object::Object;
-
-use crate::handlers::AnalyticsHandler;
-use crate::package_store::{LocalDBPackageStore, PackageCache};
-use crate::tables::DynamicFieldEntry;
-use crate::FileType;
+use crate::{
+    FileType,
+    handlers::AnalyticsHandler,
+    package_store::{LocalDBPackageStore, PackageCache},
+    tables::DynamicFieldEntry,
+};
 
 pub struct DynamicFieldHandler {
     state: Mutex<State>,
@@ -162,13 +162,12 @@ impl DynamicFieldHandler {
                     .to_canonical_string(/* with_prefix */ true),
             },
             DynamicFieldType::DynamicObject => {
-                let object =
-                    all_written_objects
-                        .get(&object_id)
-                        .ok_or(IndexerError::UncategorizedError(anyhow::anyhow!(
-                    "Failed to find object_id {:?} when trying to create dynamic field info",
-                    object_id
-                )))?;
+                let object = all_written_objects.get(&object_id).ok_or(
+                    IndexerError::UncategorizedError(anyhow::anyhow!(
+                        "Failed to find object_id {:?} when trying to create dynamic field info",
+                        object_id
+                    )),
+                )?;
                 let version = object.version().value();
                 let digest = object.digest().to_string();
                 let object_type = object.data.type_().unwrap().clone();

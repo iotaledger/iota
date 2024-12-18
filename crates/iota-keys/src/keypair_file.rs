@@ -5,9 +5,12 @@
 use std::path::PathBuf;
 
 use anyhow::anyhow;
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::{secp256k1::Secp256k1KeyPair, traits::EncodeDecodeBase64};
-use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, IotaKeyPair, ToFromBytes};
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    secp256k1::Secp256k1KeyPair,
+    traits::EncodeDecodeBase64,
+};
+use iota_types::crypto::{AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, ToFromBytes};
 
 /// Write Base64 encoded `flag || privkey` to file.
 pub fn write_keypair_to_file<P: AsRef<std::path::Path>>(
@@ -43,7 +46,8 @@ pub fn read_keypair_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Res
     IotaKeyPair::decode_base64(contents.as_str().trim()).map_err(|e| anyhow!(e))
 }
 
-/// Read from file as Base64 encoded `flag || privkey` and return a NetworkKeyPair.
+/// Read from file as Base64 encoded `flag || privkey` and return a
+/// NetworkKeyPair.
 pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
     path: P,
 ) -> anyhow::Result<NetworkKeyPair> {
@@ -61,7 +65,8 @@ pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
 /// - Bech32 encoded private key prefixed with `iotaprivkey`
 /// - Hex encoded `privkey` for Raw key
 ///
-/// If `require_secp256k1` is true, it will return an error if the key is not Secp256k1.
+/// If `require_secp256k1` is true, it will return an error if the key is not
+/// Secp256k1.
 pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, anyhow::Error> {
     if !path.exists() {
         return Err(anyhow::anyhow!("Key file not found at path: {:?}", path));
@@ -82,8 +87,9 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, 
         return Ok(IotaKeyPair::Secp256k1(key));
     }
 
-    // Try Bech32 encoded 33-byte `flag || private key` starting with `iotaprivkey`A prefix.
-    // This is the format of a private key exported from Iota Wallet or iota.keystore.
+    // Try Bech32 encoded 33-byte `flag || private key` starting with `iotaprivkey`A
+    // prefix. This is the format of a private key exported from Iota Wallet or
+    // iota.keystore.
     if let Ok(key) = IotaKeyPair::decode(contents) {
         if require_secp256k1 && !matches!(key, IotaKeyPair::Secp256k1(_)) {
             return Err(anyhow!("Key is not Secp256k1"));

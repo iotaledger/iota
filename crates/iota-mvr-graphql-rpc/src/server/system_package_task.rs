@@ -9,8 +9,8 @@ use tracing::info;
 
 use crate::data::package_resolver::PackageResolver;
 
-/// Background task responsible for evicting system packages from the package resolver's cache on
-/// epoch boundaries.
+/// Background task responsible for evicting system packages from the package
+/// resolver's cache on epoch boundaries.
 pub(crate) struct SystemPackageTask {
     resolver: PackageResolver,
     epoch_rx: watch::Receiver<u64>,

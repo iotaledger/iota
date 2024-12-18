@@ -33,5 +33,5 @@ mod rpc_tests;
 
 pub use crate::{
     metrics::PrimaryChannelMetrics,
-    primary::{Primary, CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS},
+    primary::{CHANNEL_CAPACITY, NUM_SHUTDOWN_RECEIVERS, Primary},
 };

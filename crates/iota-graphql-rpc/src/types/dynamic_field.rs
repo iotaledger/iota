@@ -2,33 +2,41 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::*;
-use diesel_async::scoped_futures::ScopedFutureExt;
-use move_core_types::language_storage::TypeTag;
-use iota_indexer::models::objects::StoredHistoryObject;
-use iota_indexer::types::OwnerType;
-use iota_types::dynamic_field::visitor::{Field, FieldVisitor};
-use iota_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, DynamicFieldType};
-
-use super::available_range::AvailableRange;
-use super::cursor::{Page, Target};
-use super::object::{self, Object, ObjectKind};
-use super::type_filter::ExactTypeFilter;
-use super::{
-    base64::Base64, move_object::MoveObject, move_value::MoveValue, iota_address::IotaAddress,
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
 };
-use crate::consistency::{build_objects_query, View};
-use crate::data::package_resolver::PackageResolver;
-use crate::data::{Db, QueryExecutor};
-use crate::error::Error;
-use crate::filter;
-use crate::raw_query::RawQuery;
+use diesel_async::scoped_futures::ScopedFutureExt;
+use iota_indexer::{models::objects::StoredHistoryObject, types::OwnerType};
+use iota_types::dynamic_field::{
+    DynamicFieldInfo, DynamicFieldType, derive_dynamic_field_id,
+    visitor::{Field, FieldVisitor},
+};
+use move_core_types::language_storage::TypeTag;
+
+use super::{
+    available_range::AvailableRange,
+    base64::Base64,
+    cursor::{Page, Target},
+    iota_address::IotaAddress,
+    move_object::MoveObject,
+    move_value::MoveValue,
+    object::{self, Object, ObjectKind},
+    type_filter::ExactTypeFilter,
+};
+use crate::{
+    consistency::{View, build_objects_query},
+    data::{Db, QueryExecutor, package_resolver::PackageResolver},
+    error::Error,
+    filter,
+    raw_query::RawQuery,
+};
 
 pub(crate) struct DynamicField {
     pub super_: MoveObject,
-    /// The root version that this dynamic field was queried at. This can be a later version than
-    /// the version of the dynamic field's object (`super_`).
+    /// The root version that this dynamic field was queried at. This can be a
+    /// later version than the version of the dynamic field's object
+    /// (`super_`).
     pub root_version: Option<u64>,
 }
 
@@ -41,26 +49,29 @@ pub(crate) enum DynamicFieldValue {
 #[derive(InputObject)] // used as input object
 pub(crate) struct DynamicFieldName {
     /// The string type of the DynamicField's 'name' field.
-    /// A string representation of a Move primitive like 'u64', or a struct type like '0x2::kiosk::Listing'
+    /// A string representation of a Move primitive like 'u64', or a struct type
+    /// like '0x2::kiosk::Listing'
     pub type_: ExactTypeFilter,
     /// The Base64 encoded bcs serialization of the DynamicField's 'name' field.
     pub bcs: Base64,
 }
 
-/// Dynamic fields are heterogeneous fields that can be added or removed at runtime,
-/// and can have arbitrary user-assigned names. There are two sub-types of dynamic
-/// fields:
+/// Dynamic fields are heterogeneous fields that can be added or removed at
+/// runtime, and can have arbitrary user-assigned names. There are two sub-types
+/// of dynamic fields:
 ///
-/// 1) Dynamic Fields can store any value that has the `store` ability, however an object
-///    stored in this kind of field will be considered wrapped and will not be accessible
-///    directly via its ID by external tools (explorers, wallets, etc) accessing storage.
-/// 2) Dynamic Object Fields values must be Iota objects (have the `key` and `store`
-///    abilities, and id: UID as the first field), but will still be directly accessible off-chain
-///    via their object ID after being attached.
+/// 1) Dynamic Fields can store any value that has the `store` ability, however
+///    an object stored in this kind of field will be considered wrapped and
+///    will not be accessible directly via its ID by external tools (explorers,
+///    wallets, etc) accessing storage.
+/// 2) Dynamic Object Fields values must be Iota objects (have the `key` and
+///    `store` abilities, and id: UID as the first field), but will still be
+///    directly accessible off-chain via their object ID after being attached.
 #[Object]
 impl DynamicField {
-    /// The string type, data, and serialized value of the DynamicField's 'name' field.
-    /// This field is used to uniquely identify a child of the parent object.
+    /// The string type, data, and serialized value of the DynamicField's 'name'
+    /// field. This field is used to uniquely identify a child of the parent
+    /// object.
     async fn name(&self, ctx: &Context<'_>) -> Result<Option<MoveValue>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
@@ -86,10 +97,10 @@ impl DynamicField {
         )))
     }
 
-    /// The returned dynamic field is an object if its return type is `MoveObject`,
-    /// in which case it is also accessible off-chain via its address. Its contents
-    /// will be from the latest version that is at most equal to its parent object's
-    /// version
+    /// The returned dynamic field is an object if its return type is
+    /// `MoveObject`, in which case it is also accessible off-chain via its
+    /// address. Its contents will be from the latest version that is at
+    /// most equal to its parent object's version
     async fn value(&self, ctx: &Context<'_>) -> Result<Option<DynamicFieldValue>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
 
@@ -138,11 +149,13 @@ impl DynamicField {
 }
 
 impl DynamicField {
-    /// Fetch a single dynamic field entry from the `db`, on `parent` object, with field name
-    /// `name`, and kind `kind` (dynamic field or dynamic object field). The dynamic field is bound
-    /// by the `parent_version` if provided - the fetched field will be the latest version at or
-    /// before the provided version. If `parent_version` is not provided, the latest version of the
-    /// field is returned as bounded by the `checkpoint_viewed_at` parameter.
+    /// Fetch a single dynamic field entry from the `db`, on `parent` object,
+    /// with field name `name`, and kind `kind` (dynamic field or dynamic
+    /// object field). The dynamic field is bound by the `parent_version` if
+    /// provided - the fetched field will be the latest version at or before
+    /// the provided version. If `parent_version` is not provided, the latest
+    /// version of the field is returned as bounded by the
+    /// `checkpoint_viewed_at` parameter.
     pub(crate) async fn query(
         ctx: &Context<'_>,
         parent: IotaAddress,
@@ -177,11 +190,12 @@ impl DynamicField {
             .transpose()
     }
 
-    /// Query the `db` for a `page` of dynamic fields attached to object with ID `parent`. The
-    /// returned dynamic fields are bound by the `parent_version` if provided - each field will be
-    /// the latest version at or before the provided version. If `parent_version` is not provided,
-    /// the latest version of each field is returned as bounded by the `checkpoint_viewed-at`
-    /// parameter.`
+    /// Query the `db` for a `page` of dynamic fields attached to object with ID
+    /// `parent`. The returned dynamic fields are bound by the
+    /// `parent_version` if provided - each field will be the latest version
+    /// at or before the provided version. If `parent_version` is not provided,
+    /// the latest version of each field is returned as bounded by the
+    /// `checkpoint_viewed-at` parameter.`
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<object::Cursor>,
@@ -189,9 +203,10 @@ impl DynamicField {
         parent_version: Option<u64>,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, DynamicField>, Error> {
-        // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if they are
-        // consistent. Otherwise, use the value from the parameter, or set to None. This is so that
-        // paginated queries are consistent with the previous query that created the cursor.
+        // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if
+        // they are consistent. Otherwise, use the value from the parameter, or
+        // set to None. This is so that paginated queries are consistent with
+        // the previous query that created the cursor.
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
@@ -224,8 +239,8 @@ impl DynamicField {
         let mut conn: Connection<String, DynamicField> = Connection::new(prev, next);
 
         for stored in results {
-            // To maintain consistency, the returned cursor should have the same upper-bound as the
-            // checkpoint found on the cursor.
+            // To maintain consistency, the returned cursor should have the same upper-bound
+            // as the checkpoint found on the cursor.
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
 
             let object = Object::try_from_stored_history_object(
@@ -276,16 +291,17 @@ impl DynamicField {
     }
 }
 
-/// Builds the `RawQuery` for fetching dynamic fields attached to a parent object. If
-/// `parent_version` is null, the latest version of each field within the given checkpoint range
-/// [`lhs`, `rhs`] is returned, conditioned on the fact that there is not a more recent version of
-/// the field.
+/// Builds the `RawQuery` for fetching dynamic fields attached to a parent
+/// object. If `parent_version` is null, the latest version of each field within
+/// the given checkpoint range [`lhs`, `rhs`] is returned, conditioned on the
+/// fact that there is not a more recent version of the field.
 ///
-/// If `parent_version` is provided, it is used to bound both the `candidates` and `newer` objects
-/// subqueries. This is because the dynamic fields of a parent at version v are dynamic fields owned
-/// by the parent whose versions are <= v. Unlike object ownership, where owned and owner objects
-/// can have arbitrary `object_version`s, dynamic fields on a parent cannot have a version greater
-/// than its parent.
+/// If `parent_version` is provided, it is used to bound both the `candidates`
+/// and `newer` objects subqueries. This is because the dynamic fields of a
+/// parent at version v are dynamic fields owned by the parent whose versions
+/// are <= v. Unlike object ownership, where owned and owner objects
+/// can have arbitrary `object_version`s, dynamic fields on a parent cannot have
+/// a version greater than its parent.
 fn dynamic_fields_query(
     parent: IotaAddress,
     parent_version: Option<u64>,

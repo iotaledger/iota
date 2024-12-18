@@ -7,24 +7,24 @@ mod rosetta_client;
 #[path = "custom_coins/test_coin_utils.rs"]
 mod test_coin_utils;
 
-use serde_json::json;
-use std::num::NonZeroUsize;
-use std::path::Path;
+use std::{num::NonZeroUsize, path::Path};
+
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
 };
-use iota_rosetta::operations::Operations;
-use iota_rosetta::types::{
-    AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, Currency, CurrencyMetadata,
-    NetworkIdentifier, IotaEnv,
+use iota_rosetta::{
+    CoinMetadataCache, IOTA,
+    operations::Operations,
+    types::{
+        AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, Currencies, Currency,
+        CurrencyMetadata, IotaEnv, NetworkIdentifier, OperationType,
+    },
 };
-use iota_rosetta::types::{Currencies, OperationType};
-use iota_rosetta::CoinMetadataCache;
-use iota_rosetta::IOTA;
+use serde_json::json;
 use test_cluster::TestClusterBuilder;
 use test_coin_utils::{init_package, mint};
 
-use crate::rosetta_client::{start_rosetta_test_server, RosettaEndpoint};
+use crate::rosetta_client::{RosettaEndpoint, start_rosetta_test_server};
 
 #[tokio::test]
 async fn test_custom_coin_balance() {
@@ -141,8 +141,10 @@ async fn test_default_balance() {
     // Keep server running for testing with bash/curl
     // To test with curl,
     // 1. Uncomment the following lines
-    // 2. use `cargo test -- --nocapture` to print the server <port> and <address0>
-    // 3. run curl 'localhost:<port>/account/balance' --header 'Content-Type: application/json' \
+    // 2. use `cargo test -- --nocapture` to print the server <port> and
+    //    <address0>
+    // 3. run curl 'localhost:<port>/account/balance' --header 'Content-Type:
+    //    application/json' \
     // --data-raw '{
     //     "network_identifier": {
     //         "blockchain": "iota",

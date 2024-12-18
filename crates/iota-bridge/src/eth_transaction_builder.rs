@@ -2,24 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abi::{
-    eth_bridge_committee, eth_committee_upgradeable_contract, eth_iota_bridge, EthBridgeCommittee,
-    EthBridgeLimiter, EthCommitteeUpgradeableContract,
-};
-use crate::abi::{eth_bridge_config, eth_bridge_limiter, EthBridgeConfig};
-use crate::error::{BridgeError, BridgeResult};
-use crate::types::{
-    AddTokensOnEvmAction, AssetPriceUpdateAction, BlocklistCommitteeAction,
-    BridgeCommitteeValiditySignInfo, EvmContractUpgradeAction, LimitUpdateAction,
-    VerifiedCertifiedBridgeAction,
-};
-use crate::utils::EthSigner;
+use ethers::{prelude::*, types::Address as EthAddress};
+
 use crate::{
-    abi::EthIotaBridge,
-    types::{BridgeAction, EmergencyAction},
+    abi::{
+        EthBridgeCommittee, EthBridgeConfig, EthBridgeLimiter, EthCommitteeUpgradeableContract,
+        EthIotaBridge, eth_bridge_committee, eth_bridge_config, eth_bridge_limiter,
+        eth_committee_upgradeable_contract, eth_iota_bridge,
+    },
+    error::{BridgeError, BridgeResult},
+    types::{
+        AddTokensOnEvmAction, AssetPriceUpdateAction, BlocklistCommitteeAction, BridgeAction,
+        BridgeCommitteeValiditySignInfo, EmergencyAction, EvmContractUpgradeAction,
+        LimitUpdateAction, VerifiedCertifiedBridgeAction,
+    },
+    utils::EthSigner,
 };
-use ethers::prelude::*;
-use ethers::types::Address as EthAddress;
 
 pub async fn build_eth_transaction(
     contract_address: EthAddress,

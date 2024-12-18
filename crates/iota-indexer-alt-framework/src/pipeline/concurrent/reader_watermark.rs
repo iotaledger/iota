@@ -8,25 +8,25 @@ use tokio::{task::JoinHandle, time::interval};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
+use super::{Handler, PrunerConfig};
 use crate::{
     db::Db,
     metrics::IndexerMetrics,
     watermarks::{ReaderWatermark, StoredWatermark},
 };
 
-use super::{Handler, PrunerConfig};
-
-/// The reader watermark task is responsible for updating the `reader_lo` and `pruner_timestamp`
-/// values for a pipeline's row in the watermark table, based on the pruner configuration, and the
-/// committer's progress.
+/// The reader watermark task is responsible for updating the `reader_lo` and
+/// `pruner_timestamp` values for a pipeline's row in the watermark table, based
+/// on the pruner configuration, and the committer's progress.
 ///
-/// `reader_lo` is the lowest checkpoint that readers are allowed to read from with a guarantee of
-/// data availability for this pipeline, and `pruner_timestamp` is the timestamp at which this task
-/// last updated that watermark. The timestamp is always fetched from the database (not from the
+/// `reader_lo` is the lowest checkpoint that readers are allowed to read from
+/// with a guarantee of data availability for this pipeline, and
+/// `pruner_timestamp` is the timestamp at which this task last updated that
+/// watermark. The timestamp is always fetched from the database (not from the
 /// indexer or the reader), to avoid issues with drift between clocks.
 ///
-/// If there is no pruner configuration, this task will immediately exit. Otherwise, the task exits
-/// when the provided cancellation token is triggered.
+/// If there is no pruner configuration, this task will immediately exit.
+/// Otherwise, the task exits when the provided cancellation token is triggered.
 pub(super) fn reader_watermark<H: Handler + 'static>(
     config: Option<PrunerConfig>,
     db: Db,

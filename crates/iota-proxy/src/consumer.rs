@@ -2,23 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::admin::ReqwestClient;
-use crate::prom_to_mimir::Mimir;
-use crate::remote_write::WriteRequest;
+use std::io::Read;
+
 use anyhow::Result;
-use axum::body::Bytes;
-use axum::http::StatusCode;
+use axum::{body::Bytes, http::StatusCode};
 use bytes::buf::Reader;
 use fastcrypto::ed25519::Ed25519PublicKey;
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
-use prometheus::proto::{self, MetricFamily};
-use prometheus::{register_counter, register_counter_vec, register_histogram_vec};
-use prometheus::{Counter, CounterVec, HistogramVec};
+use prometheus::{
+    Counter, CounterVec, HistogramVec,
+    proto::{self, MetricFamily},
+    register_counter, register_counter_vec, register_histogram_vec,
+};
 use prost::Message;
 use protobuf::CodedInputStream;
-use std::io::Read;
 use tracing::{debug, error};
+
+use crate::{admin::ReqwestClient, prom_to_mimir::Mimir, remote_write::WriteRequest};
 
 static CONSUMER_OPS_SUBMITTED: Lazy<Counter> = Lazy::new(|| {
     register_counter!(
@@ -75,8 +76,8 @@ pub struct NodeMetric {
     pub data: Vec<proto::MetricFamily>, // decoded protobuf of prometheus data
 }
 
-/// The ProtobufDecoder will decode message delimited protobuf messages from prom_model.proto types
-/// They are delimited by size, eg a format is such:
+/// The ProtobufDecoder will decode message delimited protobuf messages from
+/// prom_model.proto types They are delimited by size, eg a format is such:
 /// []byte{size, data, size, data, size, data}, etc etc
 pub struct ProtobufDecoder {
     buf: Reader<Bytes>,
@@ -86,7 +87,8 @@ impl ProtobufDecoder {
     pub fn new(buf: Reader<Bytes>) -> Self {
         Self { buf }
     }
-    /// parse a delimited buffer of protobufs. this is used to consume data sent from a iota-node
+    /// parse a delimited buffer of protobufs. this is used to consume data sent
+    /// from a iota-node
     pub fn parse<T: protobuf::Message>(&mut self) -> Result<Vec<T>> {
         let timer = CONSUMER_OPERATION_DURATION
             .with_label_values(&["decode_len_delim_protobuf"])
@@ -266,12 +268,13 @@ async fn convert(
     Ok(result)
 }
 
-/// convert_to_remote_write is an expensive method due to the time it takes to submit to mimir.
-/// other operations here are optimized for async, within reason.  The post process uses a single
-/// connection to mimir and thus incurs the seriliaztion delay for each metric family sent. Possible
-/// future optimizations would be to use multiple tcp connections to mimir, within reason. Nevertheless
-/// we await on each post of each metric family so it shouldn't block any other async work in a
-/// significant way.
+/// convert_to_remote_write is an expensive method due to the time it takes to
+/// submit to mimir. other operations here are optimized for async, within
+/// reason.  The post process uses a single connection to mimir and thus incurs
+/// the seriliaztion delay for each metric family sent. Possible
+/// future optimizations would be to use multiple tcp connections to mimir,
+/// within reason. Nevertheless we await on each post of each metric family so
+/// it shouldn't block any other async work in a significant way.
 pub async fn convert_to_remote_write(
     rc: ReqwestClient,
     node_metric: NodeMetric,

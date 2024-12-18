@@ -2,27 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::drivers::Interval;
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::payload::Payload;
-use crate::workloads::workload::{
-    ExpectedFailureType, WorkloadBuilder, ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING,
-    STORAGE_COST_PER_COIN,
-};
-use crate::workloads::{Gas, GasCoinConfig, Workload, WorkloadBuilderInfo, WorkloadParams};
-use crate::ExecutionEffects;
-use crate::ValidatorProxy;
+use std::{collections::HashMap, fmt, sync::Arc};
+
 use async_trait::async_trait;
-use rand::seq::IteratorRandom;
-use std::collections::HashMap;
-use std::fmt;
-use std::sync::Arc;
 use iota_core::test_utils::make_transfer_object_transaction;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{AccountKeyPair, Ed25519IotaSignature};
-use iota_types::signature::GenericSignature;
-use iota_types::{base_types::ObjectRef, crypto::get_key_pair, transaction::Transaction};
+use iota_types::{
+    base_types::{IotaAddress, ObjectRef},
+    crypto::{AccountKeyPair, Ed25519IotaSignature, get_key_pair},
+    signature::GenericSignature,
+    transaction::Transaction,
+};
+use rand::seq::IteratorRandom;
 use tracing::debug;
+
+use crate::{
+    ExecutionEffects, ValidatorProxy,
+    drivers::Interval,
+    system_state_observer::SystemStateObserver,
+    workloads::{
+        Gas, GasCoinConfig, Workload, WorkloadBuilderInfo, WorkloadParams,
+        payload::Payload,
+        workload::{
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, MAX_GAS_FOR_TESTING,
+            STORAGE_COST_PER_COIN, WorkloadBuilder,
+        },
+    },
+};
 
 #[derive(Debug, Clone)]
 pub struct ExpectedFailurePayload {

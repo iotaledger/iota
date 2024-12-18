@@ -2,16 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto_zkp::bn254::zk_login::{JwkId, JWK};
+use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
-use crate::base_types::SequenceNumber;
-use crate::dynamic_field::get_dynamic_field_from_store;
-use crate::error::{IotaError, IotaResult};
-use crate::object::Owner;
-use crate::storage::ObjectStore;
-use crate::{id::UID, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS};
+use crate::{
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS,
+    base_types::SequenceNumber,
+    dynamic_field::get_dynamic_field_from_store,
+    error::{IotaError, IotaResult},
+    id::UID,
+    object::Owner,
+    storage::ObjectStore,
+};
 
 pub const AUTHENTICATOR_STATE_MODULE_NAME: &IdentStr = ident_str!("authenticator_state");
 pub const AUTHENTICATOR_STATE_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorState");

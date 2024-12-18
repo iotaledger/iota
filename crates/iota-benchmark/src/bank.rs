@@ -2,19 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::util::UpdatedAndNewlyMintedGasCoins;
-use crate::workloads::payload::Payload;
-use crate::workloads::workload::{Workload, WorkloadBuilder, MAX_BUDGET};
-use crate::workloads::{Gas, GasCoinConfig};
-use crate::ValidatorProxy;
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
+
 use anyhow::{Error, Result};
-use itertools::Itertools;
-use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
 use iota_core::test_utils::{make_pay_iota_transaction, make_transfer_iota_transaction};
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::AccountKeyPair;
+use iota_types::{base_types::IotaAddress, crypto::AccountKeyPair};
+use itertools::Itertools;
 use tracing::info;
+
+use crate::{
+    ValidatorProxy,
+    util::UpdatedAndNewlyMintedGasCoins,
+    workloads::{
+        Gas, GasCoinConfig,
+        payload::Payload,
+        workload::{MAX_BUDGET, Workload, WorkloadBuilder},
+    },
+};
 
 /// Bank is used for generating gas for running the benchmark.
 #[derive(Clone)]
@@ -102,7 +109,8 @@ impl BenchmarkBank {
         init_coin: &mut Gas,
         gas_price: u64,
     ) -> Result<UpdatedAndNewlyMintedGasCoins> {
-        let recipient_addresses: Vec<IotaAddress> = coin_configs.iter().map(|g| g.address).collect();
+        let recipient_addresses: Vec<IotaAddress> =
+            coin_configs.iter().map(|g| g.address).collect();
         let amounts: Vec<u64> = coin_configs.iter().map(|c| c.amount).collect();
 
         info!(
@@ -132,7 +140,7 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == init_coin.0 .0)
+            .find(|(k, _)| k.0 == init_coin.0.0)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 
@@ -183,7 +191,7 @@ impl BenchmarkBank {
         let updated_gas = effects
             .mutated()
             .into_iter()
-            .find(|(k, _)| k.0 == self.primary_coin.0 .0)
+            .find(|(k, _)| k.0 == self.primary_coin.0.0)
             .ok_or("Input gas missing in the effects")
             .map_err(Error::msg)?;
 

@@ -4,25 +4,16 @@
 
 use std::sync::Arc;
 
-use super::to_signing_message;
-use crate::crypto::DefaultHash;
-use crate::passkey_authenticator::{PasskeyAuthenticator, RawPasskeyAuthenticator};
-use crate::{
-    base_types::{dbg_addr, ObjectID, IotaAddress},
-    crypto::{PublicKey, Signature, SignatureScheme},
-    error::IotaError,
-    object::Object,
-    signature::GenericSignature,
-    signature_verification::VerifiedDigestCache,
-    transaction::{TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
+use fastcrypto::{
+    hash::HashFunction,
+    rsa::{Base64UrlUnpadded, Encoding as _},
+    traits::ToFromBytes,
 };
-use fastcrypto::hash::HashFunction;
-use fastcrypto::rsa::{Base64UrlUnpadded, Encoding as _};
-use fastcrypto::traits::ToFromBytes;
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserValidationMethod};
 use passkey_client::Client;
 use passkey_types::{
+    Bytes, Passkey,
     ctap2::Aaguid,
     rand::random_vec,
     webauthn::{
@@ -31,10 +22,21 @@ use passkey_types::{
         PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
-    Bytes, Passkey,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
 use url::Url;
+
+use super::to_signing_message;
+use crate::{
+    base_types::{IotaAddress, ObjectID, dbg_addr},
+    crypto::{DefaultHash, PublicKey, Signature, SignatureScheme},
+    error::IotaError,
+    object::Object,
+    passkey_authenticator::{PasskeyAuthenticator, RawPasskeyAuthenticator},
+    signature::GenericSignature,
+    signature_verification::VerifiedDigestCache,
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData},
+};
 
 /// Helper struct to initialize passkey client.
 pub struct MyUserValidationMethod {}
@@ -116,7 +118,8 @@ async fn create_credential_and_sign_test_tx(
     );
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
-    // Compute the challenge as blake2b_hash(intent_msg(tx)). This is the challenge for the passkey to sign.
+    // Compute the challenge as blake2b_hash(intent_msg(tx)). This is the challenge
+    // for the passkey to sign.
     let passkey_digest = to_signing_message(&intent_msg);
 
     // Send the challenge to the passkey to sign with the rp_id.
@@ -139,7 +142,8 @@ async fn create_credential_and_sign_test_tx(
         .await
         .unwrap();
 
-    // Parse the response, gets the signature from der format and normalize it to lower s.
+    // Parse the response, gets the signature from der format and normalize it to
+    // lower s.
     let sig_bytes_der = authenticated_cred.response.signature.as_slice();
     let sig = p256::ecdsa::Signature::from_der(sig_bytes_der).unwrap();
     let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
@@ -255,12 +259,9 @@ async fn test_passkey_fails_invalid_json() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid client data json".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid client data json".to_string()
+    });
     const CORRECT_LEN: usize = DefaultHash::OUTPUT_SIZE;
     let client_data_json_too_short = format!(
         r#"{{"type":"webauthn.get", "challenge":"{}","origin":"http://localhost:5173","crossOrigin":false, "unknown": "unknown"}}"#,
@@ -312,12 +313,9 @@ async fn test_passkey_fails_invalid_challenge() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid encoded challenge".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid encoded challenge".to_string()
+    });
 }
 
 #[tokio::test]
@@ -333,24 +331,30 @@ async fn test_passkey_fails_wrong_client_data_type() {
     };
     let res: Result<PasskeyAuthenticator, IotaError> = raw.try_into();
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid client data type".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid client data type".to_string()
+    });
 }
 
 // #[tokio::test]
 // async fn test_passkey_fails_not_normalized_signature() {
 //     // crafts a particular not normalized signature, fails to verify. this is produced from typescript client https://github.com/joyqvq/iota-webauthn-poc/tree/joy/tx-example
-//     let tx_data: TransactionData = bcs::from_bytes(&Base64::decode("AAAAAHaTZLc0GGZ6RNYAqPC8LWZV7xHO+54zf71arV1MwFUtAcDum6pkbPZZN/iYq0zJpOxiV2wrZAnVU0bnNpOjombGAgAAAAAAAAAgAIiQFrz1abd2rNdo76dQS026yMAS1noA7FiGsggyt9V2k2S3NBhmekTWAKjwvC1mVe8RzvueM3+9Wq1dTMBVLegDAAAAAAAAgIQeAAAAAAAA").unwrap()).unwrap();
-//     let response = PasskeyResponse::<TransactionData> {
-//         user_sig_bytes: Hex::decode("02bbd02ace0bad3b32eb3a891dc5c85e56274f52695d24db41b247ec694d1531d6fe1a5bec11a8063d1eb0512e7971bfd23395c2cb8862f73049d0f78fd204c6d602276d5f3a22f3e698cdd2272a63da8bfdd9344de73312c7f7f9eca21bfc304f2e").unwrap(),
-//         authenticator_data: Hex::decode("49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97631d00000000").unwrap(),
-//         client_data_json: r#"{"type":"webauthn.get","challenge":"AAAAZgUD1inhS1l9qUfZePaivu6IbIo_SxCGmYcfTwrmcFU","origin":"http://localhost:5173","crossOrigin":false}"#.to_string(),
+//     let tx_data: TransactionData =
+// bcs::from_bytes(&Base64::decode("
+// AAAAAHaTZLc0GGZ6RNYAqPC8LWZV7xHO+54zf71arV1MwFUtAcDum6pkbPZZN/
+// iYq0zJpOxiV2wrZAnVU0bnNpOjombGAgAAAAAAAAAgAIiQFrz1abd2rNdo76dQS026yMAS1noA7FiGsggyt9V2k2S3NBhmekTWAKjwvC1mVe8RzvueM3+9Wq1dTMBVLegDAAAAAAAAgIQeAAAAAAAA"
+// ).unwrap()).unwrap();     let response = PasskeyResponse::<TransactionData> {
+//         user_sig_bytes:
+// Hex::decode("
+// 02bbd02ace0bad3b32eb3a891dc5c85e56274f52695d24db41b247ec694d1531d6fe1a5bec11a8063d1eb0512e7971bfd23395c2cb8862f73049d0f78fd204c6d602276d5f3a22f3e698cdd2272a63da8bfdd9344de73312c7f7f9eca21bfc304f2e"
+// ).unwrap(),         authenticator_data:
+// Hex::decode("
+// 49960de5880e8c687434170f6476605b8fe4aeb9a28632c7995cf3ba831d97631d00000000").
+// unwrap(),         client_data_json: r#"{"type":"webauthn.get","challenge":"AAAAZgUD1inhS1l9qUfZePaivu6IbIo_SxCGmYcfTwrmcFU","origin":"http://localhost:5173","crossOrigin":false}"#.to_string(),
 //         intent_msg: IntentMessage::new(Intent::iota_transaction(), tx_data),
-//         sender: IotaAddress::from_str("0x769364b73418667a44d600a8f0bc2d6655ef11cefb9e337fbd5aad5d4cc0552d").unwrap()
+//         sender:
+// IotaAddress::from_str("
+// 0x769364b73418667a44d600a8f0bc2d6655ef11cefb9e337fbd5aad5d4cc0552d").unwrap()
 //     };
 //     let sig = GenericSignature::PasskeyAuthenticator(
 //         PasskeyAuthenticator::new_for_testing(
@@ -381,11 +385,17 @@ async fn test_passkey_fails_wrong_client_data_type() {
 // async fn test_real_passkey_output() {
 //     // response from a real passkey authenticator created in iCloud, from typescript client: https://github.com/joyqvq/iota-webauthn-poc/tree/joy/tx-example
 //     let address =
-//         IotaAddress::from_str("0xac8564f638fbf673fc92eb85b5abe5f7c29bdaa60a4a10329868fbe6c551dda2")
+//         IotaAddress::from_str("
+// 0xac8564f638fbf673fc92eb85b5abe5f7c29bdaa60a4a10329868fbe6c551dda2")
 //             .unwrap();
-//     let sig = GenericSignature::from_bytes(&Base64::decode("BiVJlg3liA6MaHQ0Fw9kdmBbj+SuuaKGMseZXPO6gx2XYx0AAAAAigF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJBQUFBdF9taklCMXZiVnBZTTZXVjZZX29peDZKOGFOXzlzYjhTS0ZidWtCZmlRdyIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTE3MyIsImNyb3NzT3JpZ2luIjpmYWxzZX1iApjskL9Xyfopyg9Av7MSrcchSpfWqAYoJ+qfSId4gNmoQ1YNgj2alDpRIbq9kthmyGY25+k24FrW114PEoy5C+8DPRcOCTtACi3ZywtZ4UILhwV+Suh79rWtbKqDqhBQwxM=").unwrap()).unwrap();
-//     let tx_data: TransactionData = bcs::from_bytes(&Base64::decode("AAAAAKyFZPY4+/Zz/JLrhbWr5ffCm9qmCkoQMpho++bFUd2iAUwOMmeNHuxq2hS4PvO1uivs9exQGefW2wNQAt7tRkkdAgAAAAAAAAAgCsJHAaWbb8oUlZsGdsyW3Atf3d51wBEr9HLkrBF0/UushWT2OPv2c/yS64W1q+X3wpvapgpKEDKYaPvmxVHdougDAAAAAAAAgIQeAAAAAAAA").unwrap()).unwrap();
-//     let res = sig.verify_authenticator(
+//     let sig =
+// GenericSignature::from_bytes(&Base64::decode("
+// BiVJlg3liA6MaHQ0Fw9kdmBbj+SuuaKGMseZXPO6gx2XYx0AAAAAigF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJBQUFBdF9taklCMXZiVnBZTTZXVjZZX29peDZKOGFOXzlzYjhTS0ZidWtCZmlRdyIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTE3MyIsImNyb3NzT3JpZ2luIjpmYWxzZX1iApjskL9Xyfopyg9Av7MSrcchSpfWqAYoJ+qfSId4gNmoQ1YNgj2alDpRIbq9kthmyGY25+k24FrW114PEoy5C+8DPRcOCTtACi3ZywtZ4UILhwV+Suh79rWtbKqDqhBQwxM="
+// ).unwrap()).unwrap();     let tx_data: TransactionData =
+// bcs::from_bytes(&Base64::decode("AAAAAKyFZPY4+/Zz/
+// JLrhbWr5ffCm9qmCkoQMpho++bFUd2iAUwOMmeNHuxq2hS4PvO1uivs9exQGefW2wNQAt7tRkkdAgAAAAAAAAAgCsJHAaWbb8oUlZsGdsyW3Atf3d51wBEr9HLkrBF0/
+// UushWT2OPv2c/yS64W1q+X3wpvapgpKEDKYaPvmxVHdougDAAAAAAAAgIQeAAAAAAAA").
+// unwrap()).unwrap();     let res = sig.verify_authenticator(
 //         &IntentMessage::new(Intent::iota_transaction(), tx_data),
 //         address,
 //         0,

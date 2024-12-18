@@ -2,48 +2,47 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use either::Either;
-use fastcrypto_zkp::bn254::zk_login::JwkId;
-use fastcrypto_zkp::bn254::zk_login::{OIDCProvider, JWK};
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
+use fastcrypto_zkp::bn254::{
+    zk_login::{JWK, JwkId, OIDCProvider},
+    zk_login_api::ZkLoginEnv,
+};
 use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
-use itertools::{izip, Itertools as _};
 use iota_metrics::monitored_scope;
-use parking_lot::{Mutex, MutexGuard, RwLock};
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use shared_crypto::intent::Intent;
-use std::sync::Arc;
-use iota_types::digests::SenderSignedDataDigest;
-use iota_types::digests::ZKLoginInputsDigest;
-use iota_types::signature_verification::{
-    verify_sender_signed_data_message_signatures, VerifiedDigestCache,
-};
-use iota_types::transaction::SenderSignedData;
 use iota_types::{
     committee::Committee,
     crypto::{AuthoritySignInfoTrait, VerificationObligation},
-    digests::CertificateDigest,
+    digests::{CertificateDigest, SenderSignedDataDigest, ZKLoginInputsDigest},
     error::{IotaError, IotaResult},
     message_envelope::Message,
     messages_checkpoint::SignedCheckpointSummary,
     signature::VerifyParams,
-    transaction::{CertifiedTransaction, VerifiedCertificate},
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
+    transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
 };
+use itertools::{Itertools as _, izip};
+use parking_lot::{Mutex, MutexGuard, RwLock};
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use shared_crypto::intent::Intent;
 use tap::TapFallible;
-use tokio::runtime::Handle;
 use tokio::{
+    runtime::Handle,
     sync::oneshot,
-    time::{timeout, Duration},
+    time::{Duration, timeout},
 };
 use tracing::debug;
-// Maximum amount of time we wait for a batch to fill up before verifying a partial batch.
+// Maximum amount of time we wait for a batch to fill up before verifying a
+// partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
 
-// Maximum size of batch to verify. Increasing this value will slightly improve CPU utilization
-// (batching starts to hit steeply diminishing marginal returns around batch sizes of 16), at the
-// cost of slightly increasing latency (BATCH_TIMEOUT_MS will be hit more frequently if system is
-// not heavily loaded).
+// Maximum size of batch to verify. Increasing this value will slightly improve
+// CPU utilization (batching starts to hit steeply diminishing marginal returns
+// around batch sizes of 16), at the cost of slightly increasing latency
+// (BATCH_TIMEOUT_MS will be hit more frequently if system is not heavily
+// loaded).
 const MAX_BATCH_SIZE: usize = 8;
 
 type Sender = oneshot::Sender<IotaResult<VerifiedCertificate>>;
@@ -63,7 +62,8 @@ impl CertBuffer {
         }
     }
 
-    // Function consumes MutexGuard, therefore releasing the lock after mem swap is done
+    // Function consumes MutexGuard, therefore releasing the lock after mem swap is
+    // done
     fn take_and_replace(mut guard: MutexGuard<'_, Self>) -> Self {
         let this = &mut *guard;
         let mut new = CertBuffer::new(this.capacity());
@@ -88,7 +88,8 @@ impl CertBuffer {
     }
 }
 
-/// Verifies signatures in ways that faster than verifying each signature individually.
+/// Verifies signatures in ways that faster than verifying each signature
+/// individually.
 /// - BLS signatures - caching and batch verification.
 /// - User signed data - caching.
 pub struct SignatureVerifier {
@@ -98,13 +99,15 @@ pub struct SignatureVerifier {
     zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
 
     /// Map from JwkId (iss, kid) to the fetched JWK for that key.
-    /// We use an immutable data structure because verification of ZKLogins may be slow, so we
-    /// don't want to pass a reference to the map to the verify method, since that would lead to a
-    /// lengthy critical section. Instead, we use an immutable data structure which can be cloned
-    /// very cheaply.
+    /// We use an immutable data structure because verification of ZKLogins may
+    /// be slow, so we don't want to pass a reference to the map to the
+    /// verify method, since that would lead to a lengthy critical section.
+    /// Instead, we use an immutable data structure which can be cloned very
+    /// cheaply.
     jwks: RwLock<ImHashMap<JwkId, JWK>>,
 
-    /// Params that contains a list of supported providers for ZKLogin and the environment (prod/test) the code runs in.
+    /// Params that contains a list of supported providers for ZKLogin and the
+    /// environment (prod/test) the code runs in.
     zk_login_params: ZkLoginParams,
 
     queue: Mutex<CertBuffer>,
@@ -116,9 +119,11 @@ pub struct SignatureVerifier {
 struct ZkLoginParams {
     /// A list of supported OAuth providers for ZkLogin.
     pub supported_providers: Vec<OIDCProvider>,
-    /// The environment (prod/test) the code runs in. It decides which verifying key to use in fastcrypto.
+    /// The environment (prod/test) the code runs in. It decides which verifying
+    /// key to use in fastcrypto.
     pub env: ZkLoginEnv,
-    /// Flag to determine whether legacy address (derived from padded address seed) should be verified.
+    /// Flag to determine whether legacy address (derived from padded address
+    /// seed) should be verified.
     pub verify_legacy_zklogin_address: bool,
     // Flag to determine whether zkLogin inside multisig is accepted.
     pub accept_zklogin_in_multisig: bool,
@@ -199,8 +204,9 @@ impl SignatureVerifier {
             .filter(|cert| !self.certificate_cache.is_cached(&cert.certificate_digest()))
             .collect();
 
-        // Verify only the user sigs of certificates that were not cached already, since whenever we
-        // insert a certificate into the cache, it is already verified.
+        // Verify only the user sigs of certificates that were not cached already, since
+        // whenever we insert a certificate into the cache, it is already
+        // verified.
         for cert in &certs {
             self.verify_tx(cert.data())?;
         }
@@ -226,8 +232,8 @@ impl SignatureVerifier {
         &self,
         certs: Vec<CertifiedTransaction>,
     ) -> Vec<IotaResult<VerifiedCertificate>> {
-        // TODO: We could do better by pushing the all of `certs` into the verification queue at once,
-        // but that's significantly more complex.
+        // TODO: We could do better by pushing the all of `certs` into the verification
+        // queue at once, but that's significantly more complex.
         let mut futures = Vec::with_capacity(certs.len());
         for cert in certs {
             futures.push(self.verify_cert(cert));
@@ -240,8 +246,8 @@ impl SignatureVerifier {
         &self,
         cert: CertifiedTransaction,
     ) -> IotaResult<VerifiedCertificate> {
-        // this is the only innocent error we are likely to encounter - filter it before we poison
-        // a whole batch.
+        // this is the only innocent error we are likely to encounter - filter it before
+        // we poison a whole batch.
         if cert.auth_sig().epoch != self.committee.epoch() {
             return Err(IotaError::WrongEpoch {
                 expected_epoch: self.committee.epoch(),
@@ -256,9 +262,10 @@ impl SignatureVerifier {
         &self,
         cert: CertifiedTransaction,
     ) -> IotaResult<VerifiedCertificate> {
-        // Cancellation safety: we use parking_lot locks, which cannot be held across awaits.
-        // Therefore once the queue has been taken by a thread, it is guaranteed to process the
-        // queue and send all results before the future can be cancelled by the caller.
+        // Cancellation safety: we use parking_lot locks, which cannot be held across
+        // awaits. Therefore once the queue has been taken by a thread, it is
+        // guaranteed to process the queue and send all results before the
+        // future can be cancelled by the caller.
         let (tx, rx) = oneshot::channel();
         pin_mut!(rx);
 
@@ -305,8 +312,8 @@ impl SignatureVerifier {
             return rx.try_recv().unwrap();
         }
 
-        // unwrap ok - another thread took the queue while we were re-acquiring the lock and is
-        // guaranteed to process the queue immediately.
+        // unwrap ok - another thread took the queue while we were re-acquiring the lock
+        // and is guaranteed to process the queue immediately.
         rx.await.unwrap()
     }
 
@@ -355,8 +362,8 @@ impl SignatureVerifier {
         });
     }
 
-    /// Insert a JWK into the verifier state. Pre-existing entries for a given JwkId will not be
-    /// overwritten.
+    /// Insert a JWK into the verifier state. Pre-existing entries for a given
+    /// JwkId will not be overwritten.
     pub(crate) fn insert_jwk(&self, jwk_id: &JwkId, jwk: &JWK) {
         let mut jwks = self.jwks.write();
         match jwks.entry(jwk_id.clone()) {
@@ -533,7 +540,8 @@ pub fn batch_verify_all_certificates_and_checkpoints(
     batch_verify(committee, certs, checkpoints)
 }
 
-/// Verifies certificates in batch mode, but returns a separate result for each cert.
+/// Verifies certificates in batch mode, but returns a separate result for each
+/// cert.
 pub fn batch_verify_certificates(
     committee: &Committee,
     certs: &[&CertifiedTransaction],

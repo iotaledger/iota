@@ -10,9 +10,9 @@ use std::{
 };
 
 use anemo::{
-    rpc::Status,
-    types::{response::StatusCode, PeerInfo},
     PeerId, Response,
+    rpc::Status,
+    types::{PeerInfo, response::StatusCode},
 };
 use anemo_tower::{
     auth::{AllowedPeers, RequireAuthorizationLayer},
@@ -29,6 +29,7 @@ use tokio::sync::broadcast::error::RecvError;
 use tracing::{debug, error, warn};
 
 use super::{
+    BlockStream, NetworkClient, NetworkManager, NetworkService,
     anemo_gen::{
         consensus_rpc_client::ConsensusRpcClient,
         consensus_rpc_server::{ConsensusRpc, ConsensusRpcServer},
@@ -36,14 +37,13 @@ use super::{
     connection_monitor::{AnemoConnectionMonitor, ConnectionMonitorHandle},
     epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
-    BlockStream, NetworkClient, NetworkManager, NetworkService,
 };
 use crate::{
+    CommitIndex, Round,
     block::{BlockRef, VerifiedBlock},
     commit::CommitRange,
     context::Context,
     error::{ConsensusError, ConsensusResult},
-    CommitIndex, Round,
 };
 
 /// Implements Anemo RPC client for Consensus.
@@ -463,7 +463,8 @@ impl<S: NetworkService> ConsensusRpc for AnemoServiceProxy<S> {
 /// 2. Take `AnemoClient` from `AnemoManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `AnemoService` for consensus RPC handler.
-/// 5. Install `AnemoService` to `AnemoManager` with `AnemoManager::install_service()`.
+/// 5. Install `AnemoService` to `AnemoManager` with
+///    `AnemoManager::install_service()`.
 pub(crate) struct AnemoManager {
     context: Arc<Context>,
     network_keypair: Option<NetworkKeyPair>,
@@ -507,8 +508,8 @@ impl<S: NetworkService> NetworkManager<S> for AnemoManager {
 
         let server = ConsensusRpcServer::new(AnemoServiceProxy::new(self.context.clone(), service));
         let authority = self.context.committee.authority(self.context.own_index);
-        // By default, bind to the unspecified address to allow the actual address to be assigned.
-        // But bind to localhost if it is requested.
+        // By default, bind to the unspecified address to allow the actual address to be
+        // assigned. But bind to localhost if it is requested.
         let own_address = if authority.address.is_localhost_ip() {
             authority.address.clone()
         } else {
@@ -591,8 +592,8 @@ impl<S: NetworkService> NetworkManager<S> for AnemoManager {
 
             let mut config = anemo::Config::default();
             config.quic = Some(quic_config);
-            // Set the max_frame_size to be 1 GB to work around the issue of there being too many
-            // delegation events in the epoch change txn.
+            // Set the max_frame_size to be 1 GB to work around the issue of there being too
+            // many delegation events in the epoch change txn.
             config.max_frame_size = Some(1 << 30);
             // Set a default timeout of 300s for all RPC requests
             config.inbound_request_timeout_ms = Some(300_000);

@@ -4,24 +4,24 @@
 
 mod utils;
 use anyhow::anyhow;
-use shared_crypto::intent::Intent;
-use iota_config::{iota_config_dir, IOTA_KEYSTORE_FILENAME};
+use iota_config::{IOTA_KEYSTORE_FILENAME, iota_config_dir};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
+        Identifier,
         base_types::ObjectID,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{Argument, CallArg, Command, Transaction, TransactionData},
-        Identifier,
     },
 };
+use shared_crypto::intent::Intent;
 use utils::setup_for_write;
 
 // This example shows how to use programmable transactions to chain multiple
-// commands into one transaction, and specifically how to call a function from a move package
-// These are the following steps:
+// commands into one transaction, and specifically how to call a function from a
+// move package These are the following steps:
 // 1) finds a coin from the active address that has Iota,
 // 2) creates a PTB and adds an input to it,
 // 3) adds a move call to the PTB,
@@ -62,13 +62,9 @@ async fn main() -> Result<(), anyhow::Error> {
     let package = ObjectID::from_hex_literal(pkg_id).map_err(|e| anyhow!(e))?;
     let module = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
     let function = Identifier::new("hello_world").map_err(|e| anyhow!(e))?;
-    ptb.command(Command::move_call(
-        package,
-        module,
-        function,
-        vec![],
-        vec![Argument::Input(0)],
-    ));
+    ptb.command(Command::move_call(package, module, function, vec![], vec![
+        Argument::Input(0),
+    ]));
 
     // build the transaction block by calling finish on the ptb
     let builder = ptb.finish();

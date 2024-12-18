@@ -5,8 +5,7 @@
 use fastcrypto::ed25519::{Ed25519PrivateKey, Ed25519PublicKey};
 use pkcs8::EncodePrivateKey;
 use rcgen::{CertificateParams, KeyPair};
-use rustls::pki_types::CertificateDer;
-use rustls::pki_types::PrivateKeyDer;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 
 pub struct SelfSignedCertificate {
     inner: rcgen::Certificate,

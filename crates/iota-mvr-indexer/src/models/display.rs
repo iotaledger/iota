@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
-use serde::Deserialize;
-
 use iota_types::display::DisplayVersionUpdatedEvent;
+use serde::Deserialize;
 
 use crate::schema::display;
 

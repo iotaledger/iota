@@ -19,10 +19,9 @@ mod narwhal {
     include!(concat!(env!("OUT_DIR"), "/narwhal.WorkerToWorker.rs"));
 }
 
-use crate::Transaction;
 use bytes::Bytes;
-
 pub use narwhal::{
+    Empty, Transaction as TransactionProto,
     primary_to_primary_client::PrimaryToPrimaryClient,
     primary_to_primary_server::{MockPrimaryToPrimary, PrimaryToPrimary, PrimaryToPrimaryServer},
     primary_to_worker_client::PrimaryToWorkerClient,
@@ -33,8 +32,9 @@ pub use narwhal::{
     worker_to_primary_server::{MockWorkerToPrimary, WorkerToPrimary, WorkerToPrimaryServer},
     worker_to_worker_client::WorkerToWorkerClient,
     worker_to_worker_server::{MockWorkerToWorker, WorkerToWorker, WorkerToWorkerServer},
-    Empty, Transaction as TransactionProto,
 };
+
+use crate::Transaction;
 
 impl From<Transaction> for TransactionProto {
     fn from(transaction: Transaction) -> Self {

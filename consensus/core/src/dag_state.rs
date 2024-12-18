@@ -16,25 +16,26 @@ use itertools::Itertools as _;
 use tracing::{debug, error, info};
 
 use crate::{
+    CommittedSubDag,
     block::{
-        genesis_blocks, BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, Round, Slot,
-        VerifiedBlock, GENESIS_ROUND,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
+        VerifiedBlock, genesis_blocks,
     },
     commit::{
-        load_committed_subdag_from_store, CommitAPI as _, CommitDigest, CommitIndex, CommitInfo,
-        CommitRef, CommitVote, TrustedCommit, GENESIS_COMMIT_INDEX,
+        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
+        GENESIS_COMMIT_INDEX, TrustedCommit, load_committed_subdag_from_store,
     },
     context::Context,
     leader_scoring::{ReputationScores, ScoringSubdag},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::{Store, WriteBatch},
-    CommittedSubDag,
 };
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
 /// The rest of blocks are stored on disk.
-/// Refs to cached blocks and additional refs are cached as well, to speed up existence checks.
+/// Refs to cached blocks and additional refs are cached as well, to speed up
+/// existence checks.
 ///
 /// Note: DagState should be wrapped with Arc<parking_lot::RwLock<_>>, to allow
 /// concurrent access from multiple components.
@@ -47,19 +48,23 @@ pub(crate) struct DagState {
     // Contains recent blocks within CACHED_ROUNDS from the last committed round per authority.
     // Note: all uncommitted blocks are kept in memory.
     //
-    // When GC is enabled, this map has a different semantic. It holds all the recent data for each authority making sure that it always have available
-    // CACHED_ROUNDS worth of data. The entries are evicted based on the latest GC round, however the eviction process will respect the CACHED_ROUNDS.
-    // For each authority, blocks are only evicted when their round is less than or equal to both `gc_round`, and `highest authority round - cached rounds`.
-    // This ensures that the GC requirements are respected (we never clean up any block above `gc_round`), and there are enough blocks cached.
+    // When GC is enabled, this map has a different semantic. It holds all the recent data for each
+    // authority making sure that it always have available CACHED_ROUNDS worth of data. The
+    // entries are evicted based on the latest GC round, however the eviction process will respect
+    // the CACHED_ROUNDS. For each authority, blocks are only evicted when their round is less
+    // than or equal to both `gc_round`, and `highest authority round - cached rounds`.
+    // This ensures that the GC requirements are respected (we never clean up any block above
+    // `gc_round`), and there are enough blocks cached.
     recent_blocks: BTreeMap<BlockRef, VerifiedBlock>,
 
     // Indexes recent block refs by their authorities.
     // Vec position corresponds to the authority index.
     recent_refs_by_authority: Vec<BTreeSet<BlockRef>>,
 
-    // Keeps track of the highest round that has been evicted for each authority. Any blocks that are of round <= evict_round
-    // should be considered evicted, and if any exist we should not consider the causauly complete in the order they appear.
-    // The `evicted_rounds` size should be the same as the committee size.
+    // Keeps track of the highest round that has been evicted for each authority. Any blocks that
+    // are of round <= evict_round should be considered evicted, and if any exist we should not
+    // consider the causauly complete in the order they appear. The `evicted_rounds` size
+    // should be the same as the committee size.
     evicted_rounds: Vec<Round>,
 
     // Highest round of blocks accepted.
@@ -74,8 +79,8 @@ pub(crate) struct DagState {
     // Last committed rounds per authority.
     last_committed_rounds: Vec<Round>,
 
-    /// The committed subdags that have been scored but scores have not been used
-    /// for leader schedule yet.
+    /// The committed subdags that have been scored but scores have not been
+    /// used for leader schedule yet.
     scoring_subdag: ScoringSubdag,
 
     // TODO: Remove when DistributedVoteScoring is enabled.
@@ -187,7 +192,8 @@ impl DagState {
         for (i, round) in last_committed_rounds.into_iter().enumerate() {
             let authority_index = state.context.committee.to_authority_index(i).unwrap();
             let (blocks, eviction_round) = if state.gc_enabled() {
-                // Find the latest block for the authority to calculate the eviction round. Then we want to scan and load the blocks from the eviction round and onwards only.
+                // Find the latest block for the authority to calculate the eviction round. Then
+                // we want to scan and load the blocks from the eviction round and onwards only.
                 // As reminder, the eviction round is taking into account the gc_round.
                 let last_block = state
                     .store
@@ -254,7 +260,9 @@ impl DagState {
         if block.timestamp_ms() > now {
             panic!(
                 "Block {:?} cannot be accepted! Block timestamp {} is greater than local timestamp {}.",
-                block, block.timestamp_ms(), now,
+                block,
+                block.timestamp_ms(),
+                now,
             );
         }
 
@@ -327,8 +335,9 @@ impl DagState {
             .expect("Exactly one element should be returned")
     }
 
-    /// Gets blocks by checking genesis, cached recent blocks in memory, then storage.
-    /// An element is None when the corresponding block is not found.
+    /// Gets blocks by checking genesis, cached recent blocks in memory, then
+    /// storage. An element is None when the corresponding block is not
+    /// found.
     pub(crate) fn get_blocks(&self, block_refs: &[BlockRef]) -> Vec<Option<VerifiedBlock>> {
         let mut blocks = vec![None; block_refs.len()];
         let mut missing = Vec::new();
@@ -375,10 +384,12 @@ impl DagState {
     }
 
     /// Gets all uncommitted blocks in a slot.
-    /// Uncommitted blocks must exist in memory, so only in-memory blocks are checked.
+    /// Uncommitted blocks must exist in memory, so only in-memory blocks are
+    /// checked.
     pub(crate) fn get_uncommitted_blocks_at_slot(&self, slot: Slot) -> Vec<VerifiedBlock> {
-        // TODO: either panic below when the slot is at or below the last committed round,
-        // or support reading from storage while limiting storage reads to edge cases.
+        // TODO: either panic below when the slot is at or below the last committed
+        // round, or support reading from storage while limiting storage reads
+        // to edge cases.
 
         let mut blocks = vec![];
         for (_block_ref, block) in self.recent_blocks.range((
@@ -391,7 +402,8 @@ impl DagState {
     }
 
     /// Gets all uncommitted blocks in a round.
-    /// Uncommitted blocks must exist in memory, so only in-memory blocks are checked.
+    /// Uncommitted blocks must exist in memory, so only in-memory blocks are
+    /// checked.
     pub(crate) fn get_uncommitted_blocks_at_round(&self, round: Round) -> Vec<VerifiedBlock> {
         if round <= self.last_commit_round() {
             panic!("Round {} have committed blocks!", round);
@@ -459,8 +471,9 @@ impl DagState {
         self.get_last_block_for_authority(self.context.own_index)
     }
 
-    /// Retrieves the last accepted block from the specified `authority`. If no block is found in cache
-    /// then the genesis block is returned as no other block has been received from that authority.
+    /// Retrieves the last accepted block from the specified `authority`. If no
+    /// block is found in cache then the genesis block is returned as no
+    /// other block has been received from that authority.
     pub(crate) fn get_last_block_for_authority(&self, authority: AuthorityIndex) -> VerifiedBlock {
         if let Some(last) = self.recent_refs_by_authority[authority].last() {
             return self
@@ -504,10 +517,12 @@ impl DagState {
     }
 
     /// Returns the last block proposed per authority with `round < end_round`.
-    /// The method is guaranteed to return results only when the `end_round` is not earlier of the
-    /// available cached data for each authority, otherwise the method will panic - it's the caller's
-    /// responsibility to ensure that is not requesting filtering for earlier rounds .
-    /// In case of equivocation for an authority's last slot only one block will be returned (the last in order).
+    /// The method is guaranteed to return results only when the `end_round` is
+    /// not earlier of the available cached data for each authority,
+    /// otherwise the method will panic - it's the caller's responsibility
+    /// to ensure that is not requesting filtering for earlier rounds .
+    /// In case of equivocation for an authority's last slot only one block will
+    /// be returned (the last in order).
     pub(crate) fn get_last_cached_block_per_authority(
         &self,
         end_round: Round,
@@ -534,7 +549,9 @@ impl DagState {
 
             let last_evicted_round = self.evicted_rounds[authority_index];
             if end_round.saturating_sub(1) <= last_evicted_round {
-                panic!("Attempted to request for blocks of rounds < {end_round}, when the last evicted round is {last_evicted_round} for authority {authority_index}", );
+                panic!(
+                    "Attempted to request for blocks of rounds < {end_round}, when the last evicted round is {last_evicted_round} for authority {authority_index}",
+                );
             }
 
             if let Some(block_ref) = block_refs
@@ -560,8 +577,9 @@ impl DagState {
         blocks.into_iter().collect()
     }
 
-    /// Checks whether a block exists in the slot. The method checks only against the cached data.
-    /// If the user asks for a slot that is not within the cached data then a panic is thrown.
+    /// Checks whether a block exists in the slot. The method checks only
+    /// against the cached data. If the user asks for a slot that is not
+    /// within the cached data then a panic is thrown.
     pub(crate) fn contains_cached_block_at_slot(&self, slot: Slot) -> bool {
         // Always return true for genesis slots.
         if slot.round == GENESIS_ROUND {
@@ -570,7 +588,13 @@ impl DagState {
 
         let eviction_round = self.evicted_rounds[slot.authority];
         if slot.round <= eviction_round {
-            panic!("{}", format!("Attempted to check for slot {slot} that is <= the last{}evicted round {eviction_round}", if self.gc_enabled() { " gc " } else { " " } ));
+            panic!(
+                "{}",
+                format!(
+                    "Attempted to check for slot {slot} that is <= the last{}evicted round {eviction_round}",
+                    if self.gc_enabled() { " gc " } else { " " }
+                )
+            );
         }
 
         let mut result = self.recent_refs_by_authority[slot.authority].range((
@@ -580,8 +604,9 @@ impl DagState {
         result.next().is_some()
     }
 
-    /// Checks whether the required blocks are in cache, if exist, or otherwise will check in store. The method is not caching
-    /// back the results, so its expensive if keep asking for cache missing blocks.
+    /// Checks whether the required blocks are in cache, if exist, or otherwise
+    /// will check in store. The method is not caching back the results, so
+    /// its expensive if keep asking for cache missing blocks.
     pub(crate) fn contains_blocks(&self, block_refs: Vec<BlockRef>) -> Vec<bool> {
         let mut exist = vec![false; block_refs.len()];
         let mut missing = Vec::new();
@@ -592,9 +617,10 @@ impl DagState {
                 exist[index] = true;
             } else if recent_refs.is_empty() || recent_refs.last().unwrap().round < block_ref.round
             {
-                // Optimization: recent_refs contain the most recent blocks known to this authority.
-                // If a block ref is not found there and has a higher round, it definitely is
-                // missing from this authority and there is no need to check disk.
+                // Optimization: recent_refs contain the most recent blocks known to this
+                // authority. If a block ref is not found there and has a higher
+                // round, it definitely is missing from this authority and there
+                // is no need to check disk.
                 exist[index] = false;
             } else {
                 missing.push((index, block_ref));
@@ -646,7 +672,10 @@ impl DagState {
             assert_eq!(commit.index(), last_commit.index() + 1);
 
             if commit.timestamp_ms() < last_commit.timestamp_ms() {
-                panic!("Commit timestamps do not monotonically increment, prev commit {:?}, new commit {:?}", last_commit, commit);
+                panic!(
+                    "Commit timestamps do not monotonically increment, prev commit {:?}, new commit {:?}",
+                    last_commit, commit
+                );
             }
         } else {
             assert_eq!(commit.index(), 1);
@@ -761,7 +790,8 @@ impl DagState {
         }
     }
 
-    /// Highest round where a block is committed, which is last commit's leader round.
+    /// Highest round where a block is committed, which is last commit's leader
+    /// round.
     pub(crate) fn last_commit_round(&self) -> Round {
         match &self.last_commit {
             Some(commit) => commit.leader().round,
@@ -774,17 +804,20 @@ impl DagState {
         self.last_committed_rounds.clone()
     }
 
-    /// The GC round is the highest round that blocks of equal or lower round are considered obsolete and no longer possible to be committed.
-    /// There is no meaning accepting any blocks with round <= gc_round. The Garbage Collection (GC) round is calculated based on the latest
-    /// committed leader round. When GC is disabled that will return the genesis round.
+    /// The GC round is the highest round that blocks of equal or lower round
+    /// are considered obsolete and no longer possible to be committed.
+    /// There is no meaning accepting any blocks with round <= gc_round. The
+    /// Garbage Collection (GC) round is calculated based on the latest
+    /// committed leader round. When GC is disabled that will return the genesis
+    /// round.
     pub(crate) fn gc_round(&self) -> Round {
         let gc_depth = self.context.protocol_config.gc_depth();
         if gc_depth > 0 {
             // GC is enabled, only then calculate the diff
             self.last_commit_round().saturating_sub(gc_depth)
         } else {
-            // Otherwise just return genesis round. That also acts as a safety mechanism so we never attempt to truncate anything
-            // even accidentally.
+            // Otherwise just return genesis round. That also acts as a safety mechanism so
+            // we never attempt to truncate anything even accidentally.
             GENESIS_ROUND
         }
     }
@@ -793,8 +826,8 @@ impl DagState {
         self.context.protocol_config.gc_depth() > 0
     }
 
-    /// After each flush, DagState becomes persisted in storage and it expected to recover
-    /// all internal states from storage after restarts.
+    /// After each flush, DagState becomes persisted in storage and it expected
+    /// to recover all internal states from storage after restarts.
     pub(crate) fn flush(&mut self) {
         let _s = self
             .context
@@ -832,7 +865,8 @@ impl DagState {
             .dag_state_store_write_count
             .inc();
 
-        // Clean up old cached data. After flushing, all cached blocks are guaranteed to be persisted.
+        // Clean up old cached data. After flushing, all cached blocks are guaranteed to
+        // be persisted.
         for (authority_index, _) in self.context.committee.authorities() {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
             while let Some(block_ref) = self.recent_refs_by_authority[authority_index].first() {
@@ -858,11 +892,12 @@ impl DagState {
         );
     }
 
-    /// Detects and returns the blocks of the round that forms the last quorum. The method will return
-    /// the quorum even if that's genesis.
+    /// Detects and returns the blocks of the round that forms the last quorum.
+    /// The method will return the quorum even if that's genesis.
     pub(crate) fn last_quorum(&self) -> Vec<VerifiedBlock> {
-        // the quorum should exist either on the highest accepted round or the one before. If we fail to detect
-        // a quorum then it means that our DAG has advanced with missing causal history.
+        // the quorum should exist either on the highest accepted round or the one
+        // before. If we fail to detect a quorum then it means that our DAG has
+        // advanced with missing causal history.
         for round in
             (self.highest_accepted_round.saturating_sub(1)..=self.highest_accepted_round).rev()
         {
@@ -871,7 +906,8 @@ impl DagState {
             }
             let mut quorum = StakeAggregator::<QuorumThreshold>::new();
 
-            // Since the minimum wave length is 3 we expect to find a quorum in the uncommitted rounds.
+            // Since the minimum wave length is 3 we expect to find a quorum in the
+            // uncommitted rounds.
             let blocks = self.get_uncommitted_blocks_at_round(round);
             for block in &blocks {
                 if quorum.add(block.author(), &self.context.committee) {
@@ -942,9 +978,10 @@ impl DagState {
         self.genesis.values().cloned().collect()
     }
 
-    /// The last round that should get evicted after a cache clean up operation. After this round we are
-    /// guaranteed to have all the produced blocks from that authority. For any round that is
-    /// <= `last_evicted_round` we don't have such guarantees as out of order blocks might exist.
+    /// The last round that should get evicted after a cache clean up operation.
+    /// After this round we are guaranteed to have all the produced blocks
+    /// from that authority. For any round that is <= `last_evicted_round`
+    /// we don't have such guarantees as out of order blocks might exist.
     fn calculate_authority_eviction_round(&self, authority_index: AuthorityIndex) -> Round {
         if self.gc_enabled() {
             let last_round = self.recent_refs_by_authority[authority_index]
@@ -959,14 +996,16 @@ impl DagState {
         }
     }
 
-    /// Calculates the last eviction round based on the provided `commit_round`. Any blocks with
-    /// round <= the evict round have been cleaned up.
+    /// Calculates the last eviction round based on the provided `commit_round`.
+    /// Any blocks with round <= the evict round have been cleaned up.
     fn eviction_round(commit_round: Round, cached_rounds: Round) -> Round {
         commit_round.saturating_sub(cached_rounds)
     }
 
-    /// Calculates the eviction round for the given authority. The goal is to keep at least `cached_rounds`
-    /// of the latest blocks in the cache (if enough data is available), while evicting blocks with rounds <= `gc_round` when possible.
+    /// Calculates the eviction round for the given authority. The goal is to
+    /// keep at least `cached_rounds` of the latest blocks in the cache (if
+    /// enough data is available), while evicting blocks with rounds <=
+    /// `gc_round` when possible.
     fn gc_eviction_round(last_round: Round, gc_round: Round, cached_rounds: u32) -> Round {
         gc_round.min(last_round.saturating_sub(cached_rounds))
     }
@@ -987,7 +1026,7 @@ mod test {
     use super::*;
     use crate::{
         block::{BlockDigest, BlockRef, BlockTimestampMs, TestBlock, VerifiedBlock},
-        storage::{mem_store::MemStore, WriteBatch},
+        storage::{WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
     };
@@ -1034,13 +1073,15 @@ mod test {
 
         // Check uncommitted blocks that do not exist.
         let last_ref = blocks.keys().last().unwrap();
-        assert!(dag_state
-            .get_block(&BlockRef::new(
-                last_ref.round,
-                last_ref.author,
-                BlockDigest::MIN
-            ))
-            .is_none());
+        assert!(
+            dag_state
+                .get_block(&BlockRef::new(
+                    last_ref.round,
+                    last_ref.author,
+                    BlockDigest::MIN
+                ))
+                .is_none()
+        );
 
         // Check slots with uncommitted blocks.
         for round in 1..=num_rounds {
@@ -1093,9 +1134,11 @@ mod test {
         }
 
         // Check rounds without uncommitted blocks.
-        assert!(dag_state
-            .get_uncommitted_blocks_at_round(non_existent_round)
-            .is_empty());
+        assert!(
+            dag_state
+                .get_uncommitted_blocks_at_round(non_existent_round)
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -1279,7 +1322,8 @@ mod test {
             }
         }
 
-        // Now write in store the blocks from first 4 rounds and the rest to the dag state
+        // Now write in store the blocks from first 4 rounds and the rest to the dag
+        // state
         blocks.clone().into_iter().for_each(|block| {
             if block.round() <= 4 {
                 store
@@ -1290,8 +1334,9 @@ mod test {
             }
         });
 
-        // Now when trying to query whether we have all the blocks, we should successfully retrieve a positive answer
-        // where the blocks of first 4 round should be found in DagState and the rest in store.
+        // Now when trying to query whether we have all the blocks, we should
+        // successfully retrieve a positive answer where the blocks of first 4
+        // round should be found in DagState and the rest in store.
         let mut block_refs = blocks
             .iter()
             .map(|block| block.reference())
@@ -1347,8 +1392,9 @@ mod test {
             );
         }
 
-        // Now when trying to query whether we have all the blocks, we should successfully retrieve a positive answer
-        // where the blocks of first 4 round should be found in DagState and the rest in store.
+        // Now when trying to query whether we have all the blocks, we should
+        // successfully retrieve a positive answer where the blocks of first 4
+        // round should be found in DagState and the rest in store.
         let mut block_refs = blocks
             .iter()
             .map(|block| block.reference())
@@ -1413,8 +1459,9 @@ mod test {
 
         dag_state.flush();
 
-        // When trying to request for authority 0 at block slot 8 it should panic, as anything
-        // that is <= commit_round - cached_rounds = 10 - 2 = 8 should be evicted
+        // When trying to request for authority 0 at block slot 8 it should panic, as
+        // anything that is <= commit_round - cached_rounds = 10 - 2 = 8 should
+        // be evicted
         let _ =
             dag_state.contains_cached_block_at_slot(Slot::new(8, AuthorityIndex::new_for_test(0)));
     }
@@ -1424,7 +1471,8 @@ mod test {
         expected = "Attempted to check for slot B3 that is <= the last gc evicted round 3"
     )]
     async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range_gc_enabled() {
-        /// Keep 2 rounds from the highest committed round. This is considered universal and minimum necessary blocks to hold
+        /// Keep 2 rounds from the highest committed round. This is considered
+        /// universal and minimum necessary blocks to hold
         /// for the correct node operation.
         const GC_DEPTH: u32 = 2;
         /// Keep at least 3 rounds in cache for each authority.
@@ -1440,7 +1488,8 @@ mod test {
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
 
-        // Create for rounds 1..=6. Skip creating blocks for authority 0 for rounds 4 - 6.
+        // Create for rounds 1..=6. Skip creating blocks for authority 0 for rounds 4 -
+        // 6.
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=3).build();
         dag_builder
@@ -1471,7 +1520,8 @@ mod test {
 
         // Now what we expect to happen is for:
         // * Nodes 1 - 3 should have in cache blocks from gc_round (3) and onwards.
-        // * Node 0 should have in cache blocks from it's latest round, 3, up to round 1, which is the number of cached_rounds.
+        // * Node 0 should have in cache blocks from it's latest round, 3, up to round
+        //   1, which is the number of cached_rounds.
         for authority_index in 1..=3 {
             for round in 4..=6 {
                 assert!(dag_state.contains_cached_block_at_slot(Slot::new(
@@ -1482,12 +1532,16 @@ mod test {
         }
 
         for round in 1..=3 {
-            assert!(dag_state
-                .contains_cached_block_at_slot(Slot::new(round, AuthorityIndex::new_for_test(0))));
+            assert!(
+                dag_state.contains_cached_block_at_slot(Slot::new(
+                    round,
+                    AuthorityIndex::new_for_test(0)
+                ))
+            );
         }
 
-        // When trying to request for authority 1 at block slot 3 it should panic, as anything
-        // that is <= 3 should be evicted
+        // When trying to request for authority 1 at block slot 3 it should panic, as
+        // anything that is <= 3 should be evicted
         let _ =
             dag_state.contains_cached_block_at_slot(Slot::new(3, AuthorityIndex::new_for_test(1)));
     }
@@ -1511,7 +1565,8 @@ mod test {
             }
         }
 
-        // Now write in store the blocks from first 4 rounds and the rest to the dag state
+        // Now write in store the blocks from first 4 rounds and the rest to the dag
+        // state
         blocks.clone().into_iter().for_each(|block| {
             if block.round() <= 4 {
                 store
@@ -1522,8 +1577,9 @@ mod test {
             }
         });
 
-        // Now when trying to query whether we have all the blocks, we should successfully retrieve a positive answer
-        // where the blocks of first 4 round should be found in DagState and the rest in store.
+        // Now when trying to query whether we have all the blocks, we should
+        // successfully retrieve a positive answer where the blocks of first 4
+        // round should be found in DagState and the rest in store.
         let mut block_refs = blocks
             .iter()
             .map(|block| block.reference())
@@ -1658,7 +1714,8 @@ mod test {
             dag_state.last_committed_rounds(),
             expected_last_committed_rounds
         );
-        // Unscored subdags will be recoverd based on the flushed commits and no commit info
+        // Unscored subdags will be recoverd based on the flushed commits and no commit
+        // info
         assert_eq!(dag_state.unscored_committed_subdags_count(), 5);
     }
 
@@ -1757,7 +1814,8 @@ mod test {
             dag_state.last_committed_rounds(),
             expected_last_committed_rounds
         );
-        // Unscored subdags will be recoverd based on the flushed commits and no commit info
+        // Unscored subdags will be recoverd based on the flushed commits and no commit
+        // info
         assert_eq!(dag_state.scoring_subdags_count(), 5);
     }
 
@@ -1796,7 +1854,8 @@ mod test {
         }
 
         // Add the blocks from first 8 rounds and first 7 commits to the dag state
-        // It's 7 commits because we missing the commit of round 8 where authority 0 is the leader, but produced no block
+        // It's 7 commits because we missing the commit of round 8 where authority 0 is
+        // the leader, but produced no block
         let temp_commits = commits.split_off(7);
         dag_state.accept_blocks(dag_builder.blocks(1..=8));
         for commit in commits.clone() {
@@ -1873,7 +1932,8 @@ mod test {
             dag_state.last_committed_rounds(),
             expected_last_committed_rounds
         );
-        // Unscored subdags will be recoverd based on the flushed commits and no commit info
+        // Unscored subdags will be recoverd based on the flushed commits and no commit
+        // info
         assert_eq!(dag_state.scoring_subdags_count(), 7);
 
         // Ensure that cached blocks exist only for specific rounds per authority
@@ -1881,20 +1941,25 @@ mod test {
             let blocks = dag_state.get_cached_blocks(authority_index, 1);
 
             // Ensure that eviction rounds have been properly recovered
-            // DagState should hold cached blocks for authority 0 for rounds [2..=5] as no higher blocks exist and due to CACHED_ROUNDS = 4
-            // we want at max to hold blocks for 4 rounds in cache.
+            // DagState should hold cached blocks for authority 0 for rounds [2..=5] as no
+            // higher blocks exist and due to CACHED_ROUNDS = 4 we want at max
+            // to hold blocks for 4 rounds in cache.
             if authority_index == AuthorityIndex::new_for_test(0) {
                 assert_eq!(blocks.len(), 4);
                 assert_eq!(dag_state.evicted_rounds[authority_index.value()], 1);
-                assert!(blocks
-                    .into_iter()
-                    .all(|block| block.round() >= 2 && block.round() <= 5));
+                assert!(
+                    blocks
+                        .into_iter()
+                        .all(|block| block.round() >= 2 && block.round() <= 5)
+                );
             } else {
                 assert_eq!(blocks.len(), 4);
                 assert_eq!(dag_state.evicted_rounds[authority_index.value()], 4);
-                assert!(blocks
-                    .into_iter()
-                    .all(|block| block.round() >= 5 && block.round() <= 8));
+                assert!(
+                    blocks
+                        .into_iter()
+                        .all(|block| block.round() >= 5 && block.round() <= 8)
+                );
             }
         }
     }
@@ -2017,10 +2082,12 @@ mod test {
         assert_eq!(last_blocks[2].round(), 2);
         assert_eq!(last_blocks[3].round(), 3);
 
-        // WHEN we flush the DagState - after adding a commit with all the blocks, we expect this to trigger
-        // a clean up in the internal cache. That will keep the all the blocks with rounds >= authority_commit_round - CACHED_ROUND.
+        // WHEN we flush the DagState - after adding a commit with all the blocks, we
+        // expect this to trigger a clean up in the internal cache. That will
+        // keep the all the blocks with rounds >= authority_commit_round - CACHED_ROUND.
         //
-        // When GC is enabled then we'll keep all the blocks that are > gc_round (2) and for those who don't have blocks > gc_round, we'll keep
+        // When GC is enabled then we'll keep all the blocks that are > gc_round (2) and
+        // for those who don't have blocks > gc_round, we'll keep
         // all their highest round blocks for CACHED_ROUNDS.
         dag_state.flush();
 
@@ -2073,11 +2140,12 @@ mod test {
                 .collect::<Vec<_>>(),
         ));
 
-        // Flush the store so we keep in memory only the last 1 round from the last commit for each
-        // authority.
+        // Flush the store so we keep in memory only the last 1 round from the last
+        // commit for each authority.
         dag_state.flush();
 
-        // THEN the method should panic, as some authorities have already evicted rounds <= round 2
+        // THEN the method should panic, as some authorities have already evicted rounds
+        // <= round 2
         let end_round = 2;
         dag_state.get_last_cached_block_per_authority(end_round);
     }
@@ -2144,7 +2212,8 @@ mod test {
         // Flush the store so we update the evict rounds
         dag_state.flush();
 
-        // THEN the method should panic, as some authorities have already evicted rounds <= round 2
+        // THEN the method should panic, as some authorities have already evicted rounds
+        // <= round 2
         dag_state.get_last_cached_block_per_authority(2);
     }
 
@@ -2163,7 +2232,8 @@ mod test {
             assert_eq!(dag_state.read().last_quorum(), genesis);
         }
 
-        // WHEN a fully connected DAG up to round 4 is created, then round 4 blocks should be returned as quorum
+        // WHEN a fully connected DAG up to round 4 is created, then round 4 blocks
+        // should be returned as quorum
         {
             let mut dag_builder = DagBuilder::new(context.clone());
             dag_builder
@@ -2187,7 +2257,8 @@ mod test {
             );
         }
 
-        // WHEN adding one more block at round 5, still round 4 should be returned as quorum
+        // WHEN adding one more block at round 5, still round 4 should be returned as
+        // quorum
         {
             let block = VerifiedBlock::new_for_test(TestBlock::new(5, 0).build());
             dag_state.write().accept_block(block);
@@ -2219,7 +2290,8 @@ mod test {
             assert_eq!(dag_state.read().get_last_proposed_block(), my_genesis);
         }
 
-        // WHEN adding some blocks for authorities, only the last ones should be returned
+        // WHEN adding some blocks for authorities, only the last ones should be
+        // returned
         {
             // add blocks up to round 4
             let mut dag_builder = DagBuilder::new(context.clone());

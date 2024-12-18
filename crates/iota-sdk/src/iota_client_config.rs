@@ -5,13 +5,15 @@
 use std::fmt::{Display, Formatter, Write};
 
 use anyhow::anyhow;
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-
-use crate::{IotaClient, IotaClientBuilder, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_URL};
 use iota_config::Config;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_types::base_types::*;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use crate::{
+    IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
+};
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -65,7 +67,8 @@ pub struct IotaEnv {
     pub alias: String,
     pub rpc: String,
     pub ws: Option<String>,
-    /// Basic HTTP access authentication in the format of username:password, if needed.
+    /// Basic HTTP access authentication in the format of username:password, if
+    /// needed.
     pub basic_auth: Option<String>,
 }
 

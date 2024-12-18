@@ -1,36 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::config::{DynamicPeerValidationConfig, RemoteWriteConfig, StaticPeerValidationConfig};
-use crate::handlers::publish_metrics;
-use crate::histogram_relay::HistogramRelay;
-use crate::middleware::{
-    expect_content_length, expect_iota_proxy_header, expect_valid_public_key,
+use std::{fs, io::BufReader, net::SocketAddr, sync::Arc, time::Duration};
+
+use anyhow::{Error, Result};
+use axum::{Extension, Router, extract::DefaultBodyLimit, middleware, routing::post};
+use fastcrypto::{
+    ed25519::{Ed25519KeyPair, Ed25519PublicKey},
+    traits::{KeyPair, ToFromBytes},
 };
-use crate::peers::{AllowedPeer, IotaNodeProvider};
-use crate::var;
-use anyhow::Error;
-use anyhow::Result;
-use axum::{extract::DefaultBodyLimit, middleware, routing::post, Extension, Router};
-use fastcrypto::ed25519::{Ed25519KeyPair, Ed25519PublicKey};
-use fastcrypto::traits::{KeyPair, ToFromBytes};
-use std::fs;
-use std::io::BufReader;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_tls::IOTA_VALIDATOR_SERVER_NAME;
 use iota_tls::{
-    rustls::ServerConfig, AllowAll, ClientCertVerifier, SelfSignedCertificate, TlsAcceptor,
+    AllowAll, ClientCertVerifier, IOTA_VALIDATOR_SERVER_NAME, SelfSignedCertificate, TlsAcceptor,
+    rustls::ServerConfig,
 };
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
+    LatencyUnit,
     timeout::TimeoutLayer,
     trace::{DefaultOnFailure, DefaultOnResponse, TraceLayer},
-    LatencyUnit,
 };
-use tracing::{info, Level};
+use tracing::{Level, info};
+
+use crate::{
+    config::{DynamicPeerValidationConfig, RemoteWriteConfig, StaticPeerValidationConfig},
+    handlers::publish_metrics,
+    histogram_relay::HistogramRelay,
+    middleware::{expect_content_length, expect_iota_proxy_header, expect_valid_public_key},
+    peers::{AllowedPeer, IotaNodeProvider},
+    var,
+};
 
 /// Configure our graceful shutdown scenarios
 pub async fn shutdown_signal(h: axum_server::Handle) {
@@ -211,7 +210,8 @@ fn load_private_key(filename: &str) -> rustls::pki_types::PrivateKeyDer<'static>
     );
 }
 
-/// load the static keys we'll use to allow external non-validator nodes to push metrics
+/// load the static keys we'll use to allow external non-validator nodes to push
+/// metrics
 fn load_static_peers(
     static_peers: Option<StaticPeerValidationConfig>,
 ) -> Result<Vec<AllowedPeer>, Error> {
@@ -238,7 +238,8 @@ fn load_static_peers(
     Ok(static_keys)
 }
 
-/// Default allow mode for server, we don't verify clients, everything is accepted
+/// Default allow mode for server, we don't verify clients, everything is
+/// accepted
 pub fn create_server_cert_default_allow(
     hostname: String,
 ) -> Result<ServerConfig, iota_tls::rustls::Error> {
@@ -250,8 +251,8 @@ pub fn create_server_cert_default_allow(
     )
 }
 
-/// Verify clients against iota blockchain, clients that are not found in iota_getValidators
-/// will be rejected
+/// Verify clients against iota blockchain, clients that are not found in
+/// iota_getValidators will be rejected
 pub fn create_server_cert_enforce_peer(
     dynamic_peers: DynamicPeerValidationConfig,
     static_peers: Option<StaticPeerValidationConfig>,

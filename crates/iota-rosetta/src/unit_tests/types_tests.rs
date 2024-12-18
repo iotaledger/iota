@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::types::{
-    AccountBalanceRequest, Amount, ConstructionMetadata, Currency, CurrencyMetadata,
-};
+use iota_types::base_types::{IotaAddress, ObjectRef};
 use quick_js::Context;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use iota_types::base_types::{ObjectRef, IotaAddress};
+
+use crate::types::{
+    AccountBalanceRequest, Amount, ConstructionMetadata, Currency, CurrencyMetadata,
+};
 
 #[tokio::test]
 async fn test_currency_defaults() {

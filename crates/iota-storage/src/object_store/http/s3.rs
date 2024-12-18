@@ -2,18 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::object_store::http::{get, DEFAULT_USER_AGENT, STRICT_PATH_ENCODE_SET};
-use crate::object_store::ObjectStoreGetExt;
+use std::{fmt, sync::Arc};
+
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
-use object_store::path::Path;
-use object_store::GetResult;
-use percent_encoding::{utf8_percent_encode, PercentEncode};
-use reqwest::Client;
-use reqwest::ClientBuilder;
-use std::fmt;
-use std::sync::Arc;
+use object_store::{GetResult, path::Path};
+use percent_encoding::{PercentEncode, utf8_percent_encode};
+use reqwest::{Client, ClientBuilder};
+
+use crate::object_store::{
+    ObjectStoreGetExt,
+    http::{DEFAULT_USER_AGENT, STRICT_PATH_ENCODE_SET, get},
+};
 
 #[derive(Debug)]
 pub(crate) struct S3Client {

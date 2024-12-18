@@ -2,65 +2,60 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use anyhow::Result;
+use std::sync::Arc;
+
+use anyhow::{Result, anyhow};
 use diesel::{
-    dsl::sql, sql_types::Bool, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
-    OptionalExtension, QueryDsl, SelectableHelper, TextExpressionMethods,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, QueryDsl,
+    SelectableHelper, TextExpressionMethods, dsl::sql, sql_types::Bool,
+};
+use fastcrypto::encoding::{Encoding, Hex};
+use iota_json_rpc_types::{
+    Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo, EventFilter,
+    IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter, IotaTransactionBlockResponse,
+    TransactionFilter,
+};
+use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
+use iota_types::{
+    balance::Supply,
+    base_types::{IotaAddress, ObjectID, VersionNumber},
+    coin::{CoinMetadata, TreasuryCap},
+    committee::EpochId,
+    digests::TransactionDigest,
+    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
+    effects::TransactionEvents,
+    event::EventID,
+    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
+    object::{Object, ObjectRead, bounded_visitor::BoundedVisitor},
 };
 use itertools::Itertools;
-use std::sync::Arc;
-use iota_types::dynamic_field::visitor as DFV;
-use iota_types::object::bounded_visitor::BoundedVisitor;
+use move_core_types::{
+    annotated_value::MoveStructLayout,
+    language_storage::{StructTag, TypeTag},
+};
 use tap::{Pipe, TapFallible};
 use tracing::{debug, error, warn};
 
-use fastcrypto::encoding::Encoding;
-use fastcrypto::encoding::Hex;
-use move_core_types::annotated_value::MoveStructLayout;
-use move_core_types::language_storage::{StructTag, TypeTag};
-use iota_json_rpc_types::DisplayFieldsResponse;
-use iota_json_rpc_types::{Balance, Coin as IotaCoin, IotaCoinMetadata, IotaMoveValue};
-use iota_json_rpc_types::{
-    CheckpointId, EpochInfo, EventFilter, IotaEvent, IotaObjectDataFilter,
-    IotaTransactionBlockResponse, TransactionFilter,
-};
-use iota_package_resolver::Package;
-use iota_package_resolver::PackageStore;
-use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
-use iota_types::effects::TransactionEvents;
-use iota_types::{balance::Supply, coin::TreasuryCap, dynamic_field::DynamicFieldName};
-use iota_types::{
-    base_types::{ObjectID, IotaAddress, VersionNumber},
-    committee::EpochId,
-    digests::TransactionDigest,
-    dynamic_field::DynamicFieldInfo,
-    object::{Object, ObjectRead},
-    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
-};
-use iota_types::{coin::CoinMetadata, event::EventID};
-
-use crate::database::ConnectionPool;
-use crate::db::ConnectionPoolConfig;
-use crate::models::objects::StoredHistoryObject;
-use crate::models::objects::StoredObjectSnapshot;
-use crate::models::transactions::{stored_events_to_events, StoredTransactionEvents};
-use crate::schema::objects_history;
-use crate::schema::objects_snapshot;
-use crate::schema::pruner_cp_watermark;
-use crate::schema::tx_digests;
 use crate::{
+    database::ConnectionPool,
+    db::ConnectionPoolConfig,
     errors::IndexerError,
     models::{
         checkpoints::StoredCheckpoint,
         display::StoredDisplay,
         epoch::StoredEpochInfo,
         events::StoredEvent,
-        objects::{CoinBalance, StoredObject},
-        transactions::{tx_events_to_iota_tx_events, StoredTransaction},
+        objects::{CoinBalance, StoredHistoryObject, StoredObject, StoredObjectSnapshot},
+        transactions::{
+            StoredTransaction, StoredTransactionEvents, stored_events_to_events,
+            tx_events_to_iota_tx_events,
+        },
         tx_indices::TxSequenceNumber,
     },
-    schema::{checkpoints, display, epochs, events, objects, transactions},
+    schema::{
+        checkpoints, display, epochs, events, objects, objects_history, objects_snapshot,
+        pruner_cp_watermark, transactions, tx_digests,
+    },
     store::package_resolver::IndexerStorePackageResolver,
     types::{IndexerResult, OwnerType},
 };
@@ -284,7 +279,9 @@ impl IndexerReader {
             .map_err(Into::into)
     }
 
-    pub async fn get_latest_iota_system_state(&self) -> Result<IotaSystemStateSummary, IndexerError> {
+    pub async fn get_latest_iota_system_state(
+        &self,
+    ) -> Result<IotaSystemStateSummary, IndexerError> {
         let object_store = ConnectionAsObjectStore::from_pool(&self.pool)
             .await
             .map_err(|e| IndexerError::PgPoolConnectionError(e.to_string()))?;
@@ -312,18 +309,23 @@ impl IndexerReader {
             .map_err(|e| IndexerError::PgPoolConnectionError(e.to_string()))?;
 
         let validator = tokio::task::spawn_blocking(move || {
-            iota_types::iota_system_state::get_validator_from_table(&object_store, table_id, &pool_id)
+            iota_types::iota_system_state::get_validator_from_table(
+                &object_store,
+                table_id,
+                &pool_id,
+            )
         })
         .await
         .unwrap()?;
         Ok(validator)
     }
 
-    /// Retrieve the system state data for the given epoch. If no epoch is given,
-    /// it will retrieve the latest epoch's data and return the system state.
-    /// System state of the an epoch is written at the end of the epoch, so system state
-    /// of the current epoch is empty until the epoch ends. You can call
-    /// `get_latest_iota_system_state` for current epoch instead.
+    /// Retrieve the system state data for the given epoch. If no epoch is
+    /// given, it will retrieve the latest epoch's data and return the
+    /// system state. System state of the an epoch is written at the end of
+    /// the epoch, so system state of the current epoch is empty until the
+    /// epoch ends. You can call `get_latest_iota_system_state` for current
+    /// epoch instead.
     pub async fn get_epoch_iota_system_state(
         &self,
         epoch: Option<EpochId>,
@@ -472,8 +474,10 @@ impl IndexerReader {
             let package_resolver_clone = self.package_resolver();
             let options_clone = options.clone();
             tx_block_responses_futures.push(tokio::task::spawn(
-                stored_tx
-                    .try_into_iota_transaction_block_response(options_clone, package_resolver_clone),
+                stored_tx.try_into_iota_transaction_block_response(
+                    options_clone,
+                    package_resolver_clone,
+                ),
             ));
         }
 
@@ -786,11 +790,7 @@ impl IndexerReader {
 
         let query = format!(
             "SELECT {TX_SEQUENCE_NUMBER_STR} FROM {} WHERE {} {} ORDER BY {TX_SEQUENCE_NUMBER_STR} {} LIMIT {}",
-            table_name,
-            main_where_clause,
-            cursor_clause,
-            order_str,
-            limit,
+            table_name, main_where_clause, cursor_clause, order_str, limit,
         );
 
         debug!("query transaction blocks: {}", query);
@@ -849,8 +849,9 @@ impl IndexerReader {
 
         let mut connection = self.pool.get().await?;
 
-        // Use the tx_digests lookup table for the corresponding tx_sequence_number, and then fetch
-        // event-relevant data from the entry on the transactions table.
+        // Use the tx_digests lookup table for the corresponding tx_sequence_number, and
+        // then fetch event-relevant data from the entry on the transactions
+        // table.
         let (timestamp_ms, serialized_events) = transactions::table
             .filter(
                 transactions::tx_sequence_number
@@ -915,8 +916,9 @@ impl IndexerReader {
         }
 
         // If the cursor is provided and matches tx_digest, we've already fetched the
-        // tx_sequence_number and can query events table directly. Otherwise, we can just consult
-        // the tx_digests table for the tx_sequence_number to key into events table.
+        // tx_sequence_number and can query events table directly. Otherwise, we can
+        // just consult the tx_digests table for the tx_sequence_number to key
+        // into events table.
         if cursor.is_some() {
             query = query.filter(events::tx_sequence_number.eq(cursor_tx_seq));
         } else {
@@ -989,9 +991,15 @@ impl IndexerReader {
         let query = if let EventFilter::Sender(sender) = &filter {
             // Need to remove ambiguities for tx_sequence_number column
             let cursor_clause = if descending_order {
-                format!("(e.{TX_SEQUENCE_NUMBER_STR} < {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} < {}))", tx_seq, tx_seq, event_seq)
+                format!(
+                    "(e.{TX_SEQUENCE_NUMBER_STR} < {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} < {}))",
+                    tx_seq, tx_seq, event_seq
+                )
             } else {
-                format!("(e.{TX_SEQUENCE_NUMBER_STR} > {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} > {}))", tx_seq, tx_seq, event_seq)
+                format!(
+                    "(e.{TX_SEQUENCE_NUMBER_STR} > {} OR (e.{TX_SEQUENCE_NUMBER_STR} = {} AND e.{EVENT_SEQUENCE_NUMBER_STR} > {}))",
+                    tx_seq, tx_seq, event_seq
+                )
             };
             let order_clause = if descending_order {
                 format!("e.{TX_SEQUENCE_NUMBER_STR} DESC, e.{EVENT_SEQUENCE_NUMBER_STR} DESC")
@@ -1056,9 +1064,15 @@ impl IndexerReader {
             };
 
             let cursor_clause = if descending_order {
-                format!("AND ({TX_SEQUENCE_NUMBER_STR} < {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} < {}))", tx_seq, tx_seq, event_seq)
+                format!(
+                    "AND ({TX_SEQUENCE_NUMBER_STR} < {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} < {}))",
+                    tx_seq, tx_seq, event_seq
+                )
             } else {
-                format!("AND ({TX_SEQUENCE_NUMBER_STR} > {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} > {}))", tx_seq, tx_seq, event_seq)
+                format!(
+                    "AND ({TX_SEQUENCE_NUMBER_STR} > {} OR ({TX_SEQUENCE_NUMBER_STR} = {} AND {EVENT_SEQUENCE_NUMBER_STR} > {}))",
+                    tx_seq, tx_seq, event_seq
+                )
             };
             let order_clause = if descending_order {
                 format!("{TX_SEQUENCE_NUMBER_STR} DESC, {EVENT_SEQUENCE_NUMBER_STR} DESC")
@@ -1439,9 +1453,9 @@ impl IndexerReader {
     }
 }
 
-// NOTE: Do not make this public and easily accessible as we need to be careful that it is only
-// used in non-async contexts via the use of tokio::task::spawn_blocking in order to avoid blocking
-// the async runtime.
+// NOTE: Do not make this public and easily accessible as we need to be careful
+// that it is only used in non-async contexts via the use of
+// tokio::task::spawn_blocking in order to avoid blocking the async runtime.
 //
 // Maybe we should look into introducing an async object store trait...
 struct ConnectionAsObjectStore {

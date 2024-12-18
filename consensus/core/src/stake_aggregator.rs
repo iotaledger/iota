@@ -42,9 +42,9 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
         }
     }
 
-    /// Adds a vote for the specified authority index to the aggregator. It is guaranteed to count
-    /// the vote only once for an authority. The method returns true when the required threshold has
-    /// been reached.
+    /// Adds a vote for the specified authority index to the aggregator. It is
+    /// guaranteed to count the vote only once for an authority. The method
+    /// returns true when the required threshold has been reached.
     pub(crate) fn add(&mut self, vote: AuthorityIndex, committee: &Committee) -> bool {
         if self.votes.insert(vote) {
             self.stake += committee.stake(vote);
@@ -68,7 +68,7 @@ impl<T: CommitteeThreshold> StakeAggregator<T> {
 
 #[cfg(test)]
 mod tests {
-    use consensus_config::{local_committee_and_keys, AuthorityIndex};
+    use consensus_config::{AuthorityIndex, local_committee_and_keys};
 
     use super::*;
 

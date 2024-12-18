@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::displays::Pretty;
 use std::fmt::{Display, Formatter};
-use iota_types::gas::IotaGasStatus;
-use iota_types::gas_model::gas_v2::IotaGasStatus as GasStatusV2;
+
+use iota_types::{gas::IotaGasStatus, gas_model::gas_v2::IotaGasStatus as GasStatusV2};
 use tabled::{
     builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Style as TableStyle},
+    settings::{Style as TableStyle, style::HorizontalLine},
 };
+
+use crate::displays::Pretty;
 
 impl<'a> Display for Pretty<'a, IotaGasStatus> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

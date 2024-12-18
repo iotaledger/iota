@@ -4,24 +4,24 @@
 
 use std::collections::BTreeMap;
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 use async_trait::async_trait;
-use jsonrpsee::{core::RpcResult, RpcModule};
-
-use cached::{proc_macro::cached, SizedCache};
-use iota_json_rpc::{governance_api::ValidatorExchangeRates, IotaRpcModule};
+use cached::{SizedCache, proc_macro::cached};
+use iota_json_rpc::{IotaRpcModule, governance_api::ValidatorExchangeRates};
 use iota_json_rpc_api::GovernanceReadApiServer;
 use iota_json_rpc_types::{
-    DelegatedStake, EpochInfo, StakeStatus, IotaCommittee, IotaObjectDataFilter, ValidatorApys,
+    DelegatedStake, EpochInfo, IotaCommittee, IotaObjectDataFilter, StakeStatus, ValidatorApys,
 };
 use iota_open_rpc::Module;
 use iota_types::{
-    base_types::{MoveObjectType, ObjectID, IotaAddress},
+    base_types::{IotaAddress, MoveObjectType, ObjectID},
     committee::EpochId,
     governance::StakedIota,
     iota_serde::BigInt,
-    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, PoolTokenExchangeRate},
+    iota_system_state::{PoolTokenExchangeRate, iota_system_state_summary::IotaSystemStateSummary},
 };
+use jsonrpsee::{RpcModule, core::RpcResult};
+
+use crate::{errors::IndexerError, indexer_reader::IndexerReader};
 
 #[derive(Clone)]
 pub struct GovernanceReadApi {
@@ -161,8 +161,9 @@ impl GovernanceReadApi {
     }
 }
 
-/// Cached exchange rates for validators for the given epoch, the cache size is 1, it will be cleared when the epoch changes.
-/// rates are in descending order by epoch.
+/// Cached exchange rates for validators for the given epoch, the cache size is
+/// 1, it will be cleared when the epoch changes. rates are in descending order
+/// by epoch.
 #[cached(
     type = "SizedCache<EpochId, Vec<ValidatorExchangeRates>>",
     create = "{ SizedCache::with_size(1) }",
@@ -226,9 +227,11 @@ pub async fn exchange_rates(
         {
             let dynamic_field = df
                 .to_dynamic_field::<EpochId, PoolTokenExchangeRate>()
-                .ok_or_else(|| iota_types::error::IotaError::ObjectDeserializationError {
-                    error: "dynamic field malformed".to_owned(),
-                })?;
+                .ok_or_else(
+                    || iota_types::error::IotaError::ObjectDeserializationError {
+                        error: "dynamic field malformed".to_owned(),
+                    },
+                )?;
 
             rates.push((dynamic_field.name, dynamic_field.value));
         }
@@ -266,7 +269,9 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummary> {
-        self.get_latest_iota_system_state().await.map_err(Into::into)
+        self.get_latest_iota_system_state()
+            .await
+            .map_err(Into::into)
     }
 
     async fn get_reference_gas_price(&self) -> RpcResult<BigInt<u64>> {

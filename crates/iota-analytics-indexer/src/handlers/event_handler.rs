@@ -2,25 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::Path;
+
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
-use move_core_types::annotated_value::MoveValue;
-use iota_types::SYSTEM_PACKAGE_ADDRESSES;
-
-use std::path::Path;
 use iota_data_ingestion_core::Worker;
-use tokio::sync::Mutex;
-
-use crate::handlers::AnalyticsHandler;
-use crate::package_store::{LocalDBPackageStore, PackageCache};
-use crate::tables::EventEntry;
-use crate::FileType;
 use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
 use iota_rpc_api::CheckpointData;
-use iota_types::digests::TransactionDigest;
-use iota_types::effects::TransactionEvents;
-use iota_types::event::Event;
+use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES, digests::TransactionDigest, effects::TransactionEvents, event::Event,
+};
+use move_core_types::annotated_value::MoveValue;
+use tokio::sync::Mutex;
+
+use crate::{
+    FileType,
+    handlers::AnalyticsHandler,
+    package_store::{LocalDBPackageStore, PackageCache},
+    tables::EventEntry,
+};
 
 pub struct EventHandler {
     state: Mutex<State>,

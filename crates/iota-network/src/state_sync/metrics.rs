@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_metrics::histogram::Histogram as IotaHistogram;
-use prometheus::{
-    register_histogram_with_registry, register_int_gauge_with_registry, Histogram, IntGauge,
-    Registry,
-};
 use std::sync::Arc;
+
+use iota_metrics::histogram::Histogram as IotaHistogram;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use prometheus::{
+    Histogram, IntGauge, Registry, register_histogram_with_registry,
+    register_int_gauge_with_registry,
+};
 use tap::Pipe;
 
 #[derive(Clone)]

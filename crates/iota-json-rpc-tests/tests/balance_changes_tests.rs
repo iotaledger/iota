@@ -3,10 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
+
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::IotaClient;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::transaction::{TransactionData, TransactionKind};
+use iota_types::{
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{TransactionData, TransactionKind},
+};
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]

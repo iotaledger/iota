@@ -11,10 +11,10 @@ mod store_tests;
 use consensus_config::AuthorityIndex;
 
 use crate::{
+    CommitIndex,
     block::{BlockRef, Round, Slot, VerifiedBlock},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
-    CommitIndex,
 };
 
 /// A common interface for consensus storage.
@@ -39,9 +39,10 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
-    // The method returns the last `num_of_rounds` rounds blocks by author in round ascending order.
-    // When a `before_round` is defined then the blocks of round `<=before_round` are returned. If not
-    // then the max value for round will be used as cut off.
+    // The method returns the last `num_of_rounds` rounds blocks by author in round
+    // ascending order. When a `before_round` is defined then the blocks of
+    // round `<=before_round` are returned. If not then the max value for round
+    // will be used as cut off.
     fn scan_last_blocks_by_author(
         &self,
         author: AuthorityIndex,

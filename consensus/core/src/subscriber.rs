@@ -12,19 +12,19 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info};
 
 use crate::{
+    Round,
     block::BlockAPI as _,
     context::Context,
     dag_state::DagState,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
-    Round,
 };
 
-/// Subscriber manages the block stream subscriptions to other peers, taking care of retrying
-/// when subscription streams break. Blocks returned from the peer are sent to the authority
-/// service for processing.
-/// Currently subscription management for individual peer is not exposed, but it could become
-/// useful in future.
+/// Subscriber manages the block stream subscriptions to other peers, taking
+/// care of retrying when subscription streams break. Blocks returned from the
+/// peer are sent to the authority service for processing.
+/// Currently subscription management for individual peer is not exposed, but it
+/// could become useful in future.
 pub(crate) struct Subscriber<C: NetworkClient, S: NetworkService> {
     context: Arc<Context>,
     network_client: Arc<C>,
@@ -69,9 +69,10 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             )
         };
 
-        // If the latest block we have accepted by an authority is older than the current gc round,
-        // then do not attempt to fetch any blocks from that point as they will simply be skipped. Instead
-        // do attempt to fetch from the gc round.
+        // If the latest block we have accepted by an authority is older than the
+        // current gc round, then do not attempt to fetch any blocks from that
+        // point as they will simply be skipped. Instead do attempt to fetch
+        // from the gc round.
         if gc_enabled && last_received < gc_round {
             info!(
                 "Last received block for peer {peer} is older than GC round, {last_received} < {gc_round}, fetching from GC round"
@@ -102,8 +103,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         if let Some(subscription) = subscription.take() {
             subscription.abort();
         }
-        // There is a race between shutting down the subscription task and clearing the metric here.
-        // TODO: fix the race when unsubscribe_locked() gets called outside of stop().
+        // There is a race between shutting down the subscription task and clearing the
+        // metric here. TODO: fix the race when unsubscribe_locked() gets called
+        // outside of stop().
         self.context
             .metrics
             .node_metrics
@@ -241,7 +243,7 @@ mod test {
         block::{BlockRef, VerifiedBlock},
         commit::CommitRange,
         error::ConsensusResult,
-        network::{test_network::TestService, BlockStream},
+        network::{BlockStream, test_network::TestService},
         storage::mem_store::MemStore,
     };
 
@@ -344,8 +346,8 @@ mod test {
             }
         }
 
-        // Even if the stream ends after 10 blocks, the subscriber should retry and get enough
-        // blocks eventually.
+        // Even if the stream ends after 10 blocks, the subscriber should retry and get
+        // enough blocks eventually.
         let service = authority_service.lock();
         assert!(service.handle_send_block.len() >= 100);
         for (p, block) in service.handle_send_block.iter() {

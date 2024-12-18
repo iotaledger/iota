@@ -2,27 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{AuthorityName, VerifiedExecutionData};
-use crate::committee::Committee;
-use crate::crypto::{AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature};
-use crate::effects::{TransactionEffects, TransactionEffectsAPI};
-use crate::gas::GasCostSummary;
-use crate::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
-    CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
-    VerifiedCheckpointContents,
-};
-use crate::transaction::VerifiedTransaction;
-use fastcrypto::traits::Signer;
 use std::mem;
+
+use fastcrypto::traits::Signer;
+
+use crate::{
+    base_types::{AuthorityName, VerifiedExecutionData},
+    committee::Committee,
+    crypto::{AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    gas::GasCostSummary,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+        CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
+    },
+    transaction::VerifiedTransaction,
+};
 
 pub trait ValidatorKeypairProvider {
     fn get_validator_key(&self, name: &AuthorityName) -> &dyn Signer<AuthoritySignature>;
     fn get_committee(&self) -> &Committee;
 }
 
-/// A utility to build consecutive checkpoints by adding transactions to the checkpoint builder.
-/// It's mostly used by simulations, tests and benchmarks.
+/// A utility to build consecutive checkpoints by adding transactions to the
+/// checkpoint builder. It's mostly used by simulations, tests and benchmarks.
 #[derive(Debug)]
 pub struct MockCheckpointBuilder {
     previous_checkpoint: Option<VerifiedCheckpoint>,
@@ -65,7 +69,8 @@ impl MockCheckpointBuilder {
     }
 
     /// Override the next checkpoint number to generate.
-    /// This can be useful to generate checkpoints with specific sequence numbers.
+    /// This can be useful to generate checkpoints with specific sequence
+    /// numbers.
     pub fn override_next_checkpoint_number(
         &mut self,
         checkpoint_number: u64,

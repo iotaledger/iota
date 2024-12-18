@@ -2,18 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::Parser;
-use fastcrypto::traits::KeyPair;
-use iota_metrics::start_prometheus_server;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
 };
-use iota_bridge::config::BridgeNodeConfig;
-use iota_bridge::metrics::start_metrics_push_task;
-use iota_bridge::node::run_bridge_node;
-use iota_bridge::server::BridgeNodePublicMetadata;
+
+use clap::Parser;
+use fastcrypto::traits::KeyPair;
+use iota_bridge::{
+    config::BridgeNodeConfig, metrics::start_metrics_push_task, node::run_bridge_node,
+    server::BridgeNodePublicMetadata,
+};
 use iota_config::Config;
+use iota_metrics::start_prometheus_server;
 use tracing::info;
 
 // Define the `GIT_REVISION` and `VERSION` consts

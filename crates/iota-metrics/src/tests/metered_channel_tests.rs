@@ -2,13 +2,14 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use super::{channel, channel_with_total};
 use futures::{
-    task::{noop_waker, Context, Poll},
     FutureExt,
+    task::{Context, Poll, noop_waker},
 };
 use prometheus::{IntCounter, IntGauge};
 use tokio::sync::mpsc::error::TrySendError;
+
+use super::{channel, channel_with_total};
 
 #[tokio::test]
 async fn test_send() {

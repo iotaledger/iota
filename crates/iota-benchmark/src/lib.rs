@@ -1,48 +1,42 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
+
 use anyhow::bail;
 use async_trait::async_trait;
 use embedded_reconfig_observer::EmbeddedReconfigObserver;
 use fullnode_reconfig_observer::FullNodeReconfigObserver;
-use prometheus::Registry;
-use rand::Rng;
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use iota_config::genesis::Genesis;
 use iota_core::{
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
     authority_client::NetworkAuthorityClient,
     quorum_driver::{
-        reconfig_observer::ReconfigObserver, QuorumDriver, QuorumDriverHandler,
-        QuorumDriverHandlerBuilder, QuorumDriverMetrics,
+        QuorumDriver, QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics,
+        reconfig_observer::ReconfigObserver,
     },
 };
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_types::effects::{TransactionEffectsAPI, TransactionEvents};
-use iota_types::gas::GasCostSummary;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::quorum_driver_types::EffectsFinalityInfo;
-use iota_types::quorum_driver_types::FinalizedEffects;
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
-use iota_types::transaction::Argument;
-use iota_types::transaction::CallArg;
-use iota_types::transaction::ObjectArg;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{AuthorityName, IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
-    object::Object,
-    transaction::Transaction,
+    crypto::AuthorityStrongQuorumSignInfo,
+    effects::{TransactionEffectsAPI, TransactionEvents},
+    gas::GasCostSummary,
+    gas_coin::GasCoin,
+    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::{EffectsFinalityInfo, FinalizedEffects},
+    transaction::{Argument, CallArg, ObjectArg, Transaction},
 };
-use iota_types::{base_types::ObjectRef, crypto::AuthorityStrongQuorumSignInfo, object::Owner};
-use iota_types::{base_types::SequenceNumber, gas_coin::GasCoin};
-use iota_types::{
-    base_types::{AuthorityName, IotaAddress},
-    iota_system_state::IotaSystemStateTrait,
-};
+use prometheus::Registry;
+use rand::Rng;
 use tokio::time::sleep;
 use tracing::{error, info, warn};
 
@@ -135,7 +129,8 @@ impl ExecutionEffects {
             Owner::ObjectOwner(_)
             | Owner::Shared { .. }
             | Owner::Immutable
-            | Owner::ConsensusV2 { .. } => unreachable!(), // owner of gas object is always an address
+            | Owner::ConsensusV2 { .. } => unreachable!(), /* owner of gas object is always an
+                                                            * address */
         }
     }
 
@@ -209,7 +204,8 @@ pub trait ValidatorProxy {
         account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error>;
 
-    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error>;
+    async fn get_latest_system_state_object(&self)
+    -> Result<IotaSystemStateSummary, anyhow::Error>;
 
     async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects>;
 
@@ -222,7 +218,8 @@ pub trait ValidatorProxy {
     async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
 }
 
-// TODO: Eventually remove this proxy because we shouldn't rely on validators to read objects.
+// TODO: Eventually remove this proxy because we shouldn't rely on validators to
+// read objects.
 pub struct LocalValidatorAggregatorProxy {
     _qd_handler: QuorumDriverHandler<NetworkAuthorityClient>,
     // Stress client does not verify individual validator signatures since this is very expensive
@@ -319,7 +316,9 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         unimplemented!("Not available for local proxy");
     }
 
-    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error> {
+    async fn get_latest_system_state_object(
+        &self,
+    ) -> Result<IotaSystemStateSummary, anyhow::Error> {
         let auth_agg = self.qd.authority_aggregator().load();
         Ok(auth_agg
             .get_latest_system_state_object_for_testing()
@@ -493,7 +492,9 @@ impl ValidatorProxy for FullNodeProxy {
         Ok(values_objects)
     }
 
-    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error> {
+    async fn get_latest_system_state_object(
+        &self,
+    ) -> Result<IotaSystemStateSummary, anyhow::Error> {
         Ok(self
             .iota_client
             .governance_api()
@@ -505,8 +506,8 @@ impl ValidatorProxy for FullNodeProxy {
         let tx_digest = *tx.digest();
         let mut retry_cnt = 0;
         while retry_cnt < 10 {
-            // Fullnode could time out after WAIT_FOR_FINALITY_TIMEOUT (30s) in TransactionOrchestrator
-            // IotaClient times out after 60s
+            // Fullnode could time out after WAIT_FOR_FINALITY_TIMEOUT (30s) in
+            // TransactionOrchestrator IotaClient times out after 60s
             match self
                 .iota_client
                 .quorum_driver_api()

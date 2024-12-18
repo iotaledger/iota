@@ -1,17 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::metrics::{DefaultMetricsCallbackProvider, MetricsCallbackProvider};
-use crate::{
-    client::{connect_lazy_with_config, connect_with_config},
-    server::ServerBuilder,
-    Multiaddr,
-};
+use std::time::Duration;
+
 use eyre::Result;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 use tokio_rustls::rustls::ClientConfig;
 use tonic::transport::Channel;
+
+use crate::{
+    Multiaddr,
+    client::{connect_lazy_with_config, connect_with_config},
+    metrics::{DefaultMetricsCallbackProvider, MetricsCallbackProvider},
+    server::ServerBuilder,
+};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Config {
@@ -24,8 +26,8 @@ pub struct Config {
     /// Set a timeout for establishing an outbound connection.
     pub connect_timeout: Option<Duration>,
 
-    /// Sets the SETTINGS_INITIAL_WINDOW_SIZE option for HTTP2 stream-level flow control.
-    /// Default is 65,535
+    /// Sets the SETTINGS_INITIAL_WINDOW_SIZE option for HTTP2 stream-level flow
+    /// control. Default is 65,535
     pub http2_initial_stream_window_size: Option<u32>,
 
     /// Sets the max connection-level flow control for HTTP2
@@ -40,19 +42,22 @@ pub struct Config {
 
     /// Set whether TCP keepalive messages are enabled on accepted connections.
     ///
-    /// If None is specified, keepalive is disabled, otherwise the duration specified will be the
-    /// time to remain idle before sending TCP keepalive probes.
+    /// If None is specified, keepalive is disabled, otherwise the duration
+    /// specified will be the time to remain idle before sending TCP
+    /// keepalive probes.
     ///
     /// Default is no keepalive (None)
     pub tcp_keepalive: Option<Duration>,
 
-    /// Set the value of TCP_NODELAY option for accepted connections. Enabled by default.
+    /// Set the value of TCP_NODELAY option for accepted connections. Enabled by
+    /// default.
     pub tcp_nodelay: Option<bool>,
 
     /// Set whether HTTP2 Ping frames are enabled on accepted connections.
     ///
-    /// If None is specified, HTTP2 keepalive is disabled, otherwise the duration specified will be
-    /// the time interval between HTTP2 Ping frames. The timeout for receiving an acknowledgement
+    /// If None is specified, HTTP2 keepalive is disabled, otherwise the
+    /// duration specified will be the time interval between HTTP2 Ping
+    /// frames. The timeout for receiving an acknowledgement
     /// of the keepalive ping can be set with http2_keepalive_timeout.
     ///
     /// Default is no HTTP2 keepalive (None)
@@ -60,8 +65,8 @@ pub struct Config {
 
     /// Sets a timeout for receiving an acknowledgement of the keepalive ping.
     ///
-    /// If the ping is not acknowledged within the timeout, the connection will be closed. Does nothing
-    /// if http2_keep_alive_interval is disabled.
+    /// If the ping is not acknowledged within the timeout, the connection will
+    /// be closed. Does nothing if http2_keep_alive_interval is disabled.
     ///
     /// Default is 20 seconds.
     pub http2_keepalive_timeout: Option<Duration>,

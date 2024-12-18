@@ -2,25 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::drivers::Interval;
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::payload::Payload;
-use crate::workloads::workload::{ExpectedFailureType, Workload, WorkloadBuilder};
-use crate::workloads::workload::{
-    ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING, STORAGE_COST_PER_COIN,
-};
-use crate::workloads::{Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams};
-use crate::{ExecutionEffects, ValidatorProxy};
-use async_trait::async_trait;
-use rand::seq::IteratorRandom;
 use std::sync::Arc;
+
+use async_trait::async_trait;
 use iota_core::test_utils::make_transfer_iota_transaction;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::{ObjectRef, IotaAddress};
-use iota_types::crypto::{get_key_pair, AccountKeyPair};
-use iota_types::gas_coin::NANOS_PER_IOTA;
-use iota_types::transaction::Transaction;
+use iota_types::{
+    base_types::{IotaAddress, ObjectRef},
+    crypto::{AccountKeyPair, get_key_pair},
+    gas_coin::NANOS_PER_IOTA,
+    transaction::Transaction,
+};
+use rand::seq::IteratorRandom;
 use tracing::error;
+
+use crate::{
+    ExecutionEffects, ValidatorProxy,
+    drivers::Interval,
+    system_state_observer::SystemStateObserver,
+    workloads::{
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+        payload::Payload,
+        workload::{
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, MAX_GAS_FOR_TESTING,
+            STORAGE_COST_PER_COIN, Workload, WorkloadBuilder,
+        },
+    },
+};
 
 #[derive(Debug)]
 pub struct DelegationTestPayload {
@@ -54,8 +62,8 @@ impl Payload for DelegationTestPayload {
     }
 
     /// delegation flow is split into two phases
-    /// first `make_transaction` call creates separate coin object for future delegation
-    /// followup call creates delegation transaction itself
+    /// first `make_transaction` call creates separate coin object for future
+    /// delegation followup call creates delegation transaction itself
     fn make_transaction(&mut self) -> Transaction {
         match self.coin {
             Some(coin) => TestTransactionBuilder::new(

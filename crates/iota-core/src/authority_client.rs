@@ -3,35 +3,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, net::SocketAddr, time::Duration};
+
 use anyhow::anyhow;
 use async_trait::async_trait;
-use iota_network_stack::config::Config;
-use std::collections::BTreeMap;
-use std::net::SocketAddr;
-use std::time::Duration;
-use iota_network::{api::ValidatorClient, tonic};
-use iota_types::base_types::AuthorityName;
-use iota_types::committee::CommitteeWithNetworkMetadata;
-use iota_types::crypto::NetworkPublicKey;
-use iota_types::messages_checkpoint::{
-    CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
+use iota_network::{
+    api::ValidatorClient,
+    tonic,
+    tonic::{metadata::KeyAndValueRef, transport::Channel},
 };
-use iota_types::multiaddr::Multiaddr;
-use iota_types::iota_system_state::IotaSystemState;
+use iota_network_stack::config::Config;
 use iota_types::{
+    base_types::AuthorityName,
+    committee::CommitteeWithNetworkMetadata,
+    crypto::NetworkPublicKey,
     error::{IotaError, IotaResult},
+    iota_system_state::IotaSystemState,
+    messages_checkpoint::{
+        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
+    },
+    messages_grpc::{
+        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
+        HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
+        HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
+        TransactionInfoRequest, TransactionInfoResponse,
+    },
+    multiaddr::Multiaddr,
     transaction::*,
 };
 
 use crate::authority_client::tonic::IntoRequest;
-use iota_network::tonic::metadata::KeyAndValueRef;
-use iota_network::tonic::transport::Channel;
-use iota_types::messages_grpc::{
-    HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-    HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
-    HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
-    TransactionInfoRequest, TransactionInfoResponse,
-};
 
 #[async_trait]
 pub trait AuthorityAPI {
@@ -284,15 +285,17 @@ pub fn make_network_authority_clients_with_network_config(
     for (name, (_state, network_metadata)) in committee.validators() {
         let address = network_metadata.network_address.clone();
         let address = address.rewrite_udp_to_tcp();
-        // TODO: Enable TLS on this interface with below config, once support is rolled out to validators.
-        // let tls_config = network_metadata.network_public_key.as_ref().map(|key| {
+        // TODO: Enable TLS on this interface with below config, once support is rolled
+        // out to validators. let tls_config =
+        // network_metadata.network_public_key.as_ref().map(|key| {
         //     iota_tls::create_rustls_client_config(
         //         key.clone(),
         //         iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
         //         None,
         //     )
         // });
-        // TODO: Change below code to generate a IotaError if no valid TLS config is available.
+        // TODO: Change below code to generate a IotaError if no valid TLS config is
+        // available.
         let maybe_channel = network_config.connect_lazy(&address, None).map_err(|e| {
             tracing::error!(
                 address = %address,

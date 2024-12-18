@@ -2,26 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::Parser;
-use move_cli::base::{
-    self,
-    test::{self, UnitTestResult},
-};
-use move_package::BuildConfig;
-use move_unit_test::{extensions::set_extension_hook, UnitTestingConfig};
-use move_vm_runtime::native_extensions::NativeContextExtensions;
-use once_cell::sync::Lazy;
 use std::{cell::RefCell, collections::BTreeMap, path::Path, sync::Arc};
+
+use clap::Parser;
 use iota_move_build::decorate_warnings;
-use iota_move_natives::test_scenario::InMemoryTestStore;
-use iota_move_natives::{object_runtime::ObjectRuntime, NativesCostTable};
+use iota_move_natives::{
+    NativesCostTable, object_runtime::ObjectRuntime, test_scenario::InMemoryTestStore,
+};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
     metrics::LimitsMetrics,
 };
+use move_cli::base::{
+    self,
+    test::{self, UnitTestResult},
+};
+use move_package::BuildConfig;
+use move_unit_test::{UnitTestingConfig, extensions::set_extension_hook};
+use move_vm_runtime::native_extensions::NativeContextExtensions;
+use once_cell::sync::Lazy;
 
-// Move unit tests will halt after executing this many steps. This is a protection to avoid divergence
+// Move unit tests will halt after executing this many steps. This is a
+// protection to avoid divergence
 const MAX_UNIT_TEST_INSTRUCTIONS: u64 = 1_000_000;
 
 #[derive(Parser)]
@@ -43,7 +46,8 @@ impl Test {
                 "The --coverage flag is currently supported only in debug builds. Please build the Iota CLI from source in debug mode."
             ));
         }
-        // find manifest file directory from a given path or (if missing) from current dir
+        // find manifest file directory from a given path or (if missing) from current
+        // dir
         let rerooted_path = base::reroot_path(path)?;
         let unit_test_config = self.test.unit_test_config();
         run_move_unit_tests(
@@ -65,8 +69,9 @@ static TEST_STORE: Lazy<InMemoryTestStore> = Lazy::new(|| InMemoryTestStore(&TES
 static SET_EXTENSION_HOOK: Lazy<()> =
     Lazy::new(|| set_extension_hook(Box::new(new_testing_object_and_natives_cost_runtime)));
 
-/// This function returns a result of UnitTestResult. The outer result indicates whether it
-/// successfully started running the test, and the inner result indicatests whether all tests pass.
+/// This function returns a result of UnitTestResult. The outer result indicates
+/// whether it successfully started running the test, and the inner result
+/// indicatests whether all tests pass.
 pub fn run_move_unit_tests(
     path: &Path,
     build_config: BuildConfig,
@@ -87,7 +92,8 @@ pub fn run_move_unit_tests(
             ..config
         },
         iota_move_natives::all_natives(
-            /* silent */ false,
+            // silent
+            false,
             &ProtocolConfig::get_for_max_version_UNSAFE(),
         ),
         Some(initial_cost_schedule_for_unit_tests()),

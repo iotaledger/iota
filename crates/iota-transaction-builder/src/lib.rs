@@ -2,38 +2,43 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::result::Result;
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{collections::BTreeMap, result::Result, str::FromStr, sync::Arc};
 
-use anyhow::{anyhow, bail, ensure, Ok};
+use anyhow::{Ok, anyhow, bail, ensure};
 use async_trait::async_trait;
 use futures::future::join_all;
-use move_binary_format::binary_config::BinaryConfig;
-use move_binary_format::file_format::SignatureToken;
-use move_binary_format::CompiledModule;
-use move_core_types::ident_str;
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::{StructTag, TypeTag};
-use iota_json::{is_receiving_argument, resolve_move_function_args, ResolvedCallArg, IotaJsonValue};
+use iota_json::{
+    IotaJsonValue, ResolvedCallArg, is_receiving_argument, resolve_move_function_args,
+};
 use iota_json_rpc_types::{
-    RPCTransactionRequestParams, IotaData, IotaObjectDataOptions, IotaObjectResponse, IotaRawData,
-    IotaTypeTag,
+    IotaData, IotaObjectDataOptions, IotaObjectResponse, IotaRawData, IotaTypeTag,
+    RPCTransactionRequestParams,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_types::base_types::{ObjectID, ObjectInfo, ObjectRef, ObjectType, IotaAddress};
-use iota_types::error::UserInputError;
-use iota_types::gas_coin::GasCoin;
-use iota_types::governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME};
-use iota_types::move_package::MovePackage;
-use iota_types::object::{Object, Owner};
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::iota_system_state::IOTA_SYSTEM_MODULE_NAME;
-use iota_types::transaction::{
-    Argument, CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind,
+use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
+    base_types::{IotaAddress, ObjectID, ObjectInfo, ObjectRef, ObjectType},
+    coin,
+    error::UserInputError,
+    fp_ensure,
+    gas_coin::GasCoin,
+    governance::{ADD_STAKE_MUL_COIN_FUN_NAME, WITHDRAW_STAKE_FUN_NAME},
+    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
+    move_package::MovePackage,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{
+        Argument, CallArg, Command, InputObjectKind, ObjectArg, TransactionData, TransactionKind,
+    },
 };
-use iota_types::{coin, fp_ensure, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID};
+use move_binary_format::{
+    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+};
+use move_core_types::{
+    ident_str,
+    identifier::Identifier,
+    language_storage::{StructTag, TypeTag},
+};
 
 #[async_trait]
 pub trait DataReader {
@@ -69,7 +74,9 @@ impl TransactionBuilder {
         gas_price: u64,
     ) -> Result<ObjectRef, anyhow::Error> {
         if gas_budget < gas_price {
-            bail!("Gas budget {gas_budget} is less than the reference gas price {gas_price}. The gas budget must be at least the current reference gas price of {gas_price}.")
+            bail!(
+                "Gas budget {gas_budget} is less than the reference gas price {gas_price}. The gas budget must be at least the current reference gas price of {gas_price}."
+            )
         }
         if let Some(gas) = input_gas {
             self.get_object_ref(gas).await
@@ -94,7 +101,9 @@ impl TransactionBuilder {
                     return Ok(obj.object_ref());
                 }
             }
-            Err(anyhow!("Cannot find gas coin for signer address {signer} with amount sufficient for the required gas budget {gas_budget}. If you are using the pay or transfer commands, you can use pay-iota or transfer-iota commands instead, which will use the only object as gas payment."))
+            Err(anyhow!(
+                "Cannot find gas coin for signer address {signer} with amount sufficient for the required gas budget {gas_budget}. If you are using the pay or transfer commands, you can use pay-iota or transfer-iota commands instead, which will use the only object as gas payment."
+            ))
         }
     }
 
@@ -123,9 +132,10 @@ impl TransactionBuilder {
         )
     }
 
-    /// Construct the transaction data from a transaction kind, and other parameters.
-    /// If the gas_payment list is empty, it will pick the first gas coin that has at least
-    /// the required gas budget that is not in the input coins.
+    /// Construct the transaction data from a transaction kind, and other
+    /// parameters. If the gas_payment list is empty, it will pick the first
+    /// gas coin that has at least the required gas budget that is not in
+    /// the input coins.
     pub async fn tx_data(
         &self,
         sender: IotaAddress,
@@ -256,7 +266,9 @@ impl TransactionBuilder {
     ) -> anyhow::Result<TransactionData> {
         if let Some(gas) = gas {
             if input_coins.contains(&gas) {
-                return Err(anyhow!("Gas coin is in input coins of Pay transaction, use PayIota transaction instead!"));
+                return Err(anyhow!(
+                    "Gas coin is in input coins of Pay transaction, use PayIota transaction instead!"
+                ));
             }
         }
 
@@ -311,7 +323,8 @@ impl TransactionBuilder {
         );
 
         let mut coin_refs = self.input_refs(&input_coins).await?;
-        // [0] is safe because input_coins is non-empty and coins are of same length as input_coins.
+        // [0] is safe because input_coins is non-empty and coins are of same length as
+        // input_coins.
         let gas_object_ref = coin_refs.remove(0);
         let gas_price = self.0.get_reference_gas_price().await?;
         TransactionData::new_pay_iota(
@@ -345,7 +358,8 @@ impl TransactionBuilder {
         );
 
         let mut coin_refs = self.input_refs(&input_coins).await?;
-        // [0] is safe because input_coins is non-empty and coins are of same length as input_coins.
+        // [0] is safe because input_coins is non-empty and coins are of same length as
+        // input_coins.
         let gas_object_ref = coin_refs.remove(0);
         let gas_price = self.0.get_reference_gas_price().await?;
         Ok(TransactionData::new_pay_all_iota(
@@ -560,7 +574,8 @@ impl TransactionBuilder {
                             self.get_object_arg(
                                 id,
                                 &mut objects,
-                                /* is_mutable_ref */ false,
+                                // is_mutable_ref
+                                false,
                                 &module,
                                 &expected_type,
                             )
@@ -623,7 +638,10 @@ impl TransactionBuilder {
     ) -> Result<TransactionKind, anyhow::Error> {
         let upgrade_capability = self
             .0
-            .get_object_with_options(upgrade_capability, IotaObjectDataOptions::new().with_owner())
+            .get_object_with_options(
+                upgrade_capability,
+                IotaObjectDataOptions::new().with_owner(),
+            )
             .await?
             .into_object()?;
         let capability_owner = upgrade_capability
@@ -653,7 +671,7 @@ impl TransactionBuilder {
                 // If the capability is owned by an object, then the module defining the owning
                 // object gets to decide how the upgrade capability should be used.
                 Owner::ObjectOwner(_) => {
-                    return Err(anyhow::anyhow!("Upgrade capability controlled by object"))
+                    return Err(anyhow::anyhow!("Upgrade capability controlled by object"));
                 }
             };
             builder.obj(capability_arg).unwrap();
@@ -700,7 +718,10 @@ impl TransactionBuilder {
             .await?;
         let upgrade_cap = self
             .0
-            .get_object_with_options(upgrade_capability, IotaObjectDataOptions::new().with_owner())
+            .get_object_with_options(
+                upgrade_capability,
+                IotaObjectDataOptions::new().with_owner(),
+            )
             .await?
             .into_object()?;
         let cap_owner = upgrade_cap
@@ -722,8 +743,8 @@ impl TransactionBuilder {
     }
 
     /// Construct a transaction kind for the SplitCoin transaction type
-    /// It expects that only one of the two: split_amounts or split_count is provided
-    /// If both are provided, it will use split_amounts.
+    /// It expects that only one of the two: split_amounts or split_count is
+    /// provided If both are provided, it will use split_amounts.
     pub async fn split_coin_tx_kind(
         &self,
         coin_object_id: ObjectID,

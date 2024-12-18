@@ -2,16 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::object_store::util::path_to_filesystem;
-use crate::object_store::ObjectStoreGetExt;
-use anyhow::{anyhow, Context, Result};
+use std::{fmt, fs, fs::File, io::Read, path::PathBuf};
+
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use bytes::Bytes;
 use object_store::path::Path;
-use std::fs::File;
-use std::io::Read;
-use std::path::PathBuf;
-use std::{fmt, fs};
+
+use crate::object_store::{ObjectStoreGetExt, util::path_to_filesystem};
 
 pub struct LocalStorage {
     root: PathBuf,

@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_network_stack::config::Config;
 use std::time::Duration;
+
+use iota_network_stack::config::Config;
 
 pub mod api;
 pub mod discovery;

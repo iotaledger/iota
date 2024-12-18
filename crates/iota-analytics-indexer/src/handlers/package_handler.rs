@@ -6,13 +6,10 @@ use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_rpc_api::CheckpointData;
-use iota_types::full_checkpoint_content::CheckpointTransaction;
-use iota_types::object::Object;
+use iota_types::{full_checkpoint_content::CheckpointTransaction, object::Object};
 use tokio::sync::Mutex;
 
-use crate::handlers::AnalyticsHandler;
-use crate::tables::MovePackageEntry;
-use crate::FileType;
+use crate::{FileType, handlers::AnalyticsHandler, tables::MovePackageEntry};
 
 pub struct PackageHandler {
     state: Mutex<State>,

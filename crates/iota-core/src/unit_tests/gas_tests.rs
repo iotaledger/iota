@@ -2,30 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
-
-use super::authority_tests::{init_state_with_ids, send_and_confirm_transaction};
-use super::move_integration_tests::build_and_try_publish_test_package;
-use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::ident_str;
-use once_cell::sync::Lazy;
 use iota_protocol_config::ProtocolConfig;
-use iota_types::crypto::AccountKeyPair;
-use iota_types::effects::TransactionEvents;
-use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use iota_types::gas_coin::GasCoin;
-use iota_types::object::GAS_VALUE_FOR_TESTING;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::utils::to_sender_signed_transaction;
-use iota_types::{base_types::dbg_addr, crypto::get_key_pair};
+use iota_types::{
+    base_types::dbg_addr,
+    crypto::{AccountKeyPair, get_key_pair},
+    effects::TransactionEvents,
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
+    gas_coin::GasCoin,
+    object::GAS_VALUE_FOR_TESTING,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    utils::to_sender_signed_transaction,
+};
+use move_core_types::{account_address::AccountAddress, ident_str};
+use once_cell::sync::Lazy;
 
-// The cost table is used only to get the max budget available which is not dependent on
-// the gas price
+use super::{
+    authority_tests::{init_state_with_ids, send_and_confirm_transaction},
+    move_integration_tests::build_and_try_publish_test_package,
+    *,
+};
+use crate::authority::{
+    authority_tests::init_state_with_ids_and_object_basics,
+    test_authority_builder::TestAuthorityBuilder,
+};
+
+// The cost table is used only to get the max budget available which is not
+// dependent on the gas price
 static MAX_GAS_BUDGET: Lazy<u64> =
     Lazy::new(|| ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas());
-// MIN_GAS_BUDGET_PRE_RGP has to be multiplied by the RGP to get the proper minimum
+// MIN_GAS_BUDGET_PRE_RGP has to be multiplied by the RGP to get the proper
+// minimum
 static MIN_GAS_BUDGET_PRE_RGP: Lazy<u64> =
     Lazy::new(|| ProtocolConfig::get_for_max_version_UNSAFE().base_tx_cost_fixed());
 
@@ -49,8 +55,8 @@ async fn test_tx_less_than_minimum_gas_budget() {
 #[tokio::test]
 async fn test_tx_more_than_maximum_gas_budget() {
     // This test creates a transaction that sets a gas_budget more than the maximum
-    // budget (which could lead to overflow). It's expected to fail early during transaction
-    // handling phase.
+    // budget (which could lead to overflow). It's expected to fail early during
+    // transaction handling phase.
     let budget = *MAX_GAS_BUDGET + 1;
     let result = execute_transfer(*MAX_GAS_BUDGET, budget, false, false).await;
 
@@ -63,26 +69,27 @@ async fn test_tx_more_than_maximum_gas_budget() {
     );
 }
 
-//
 // Out Of Gas Scenarios
 // "minimal storage" is storage for input objects after reset. Operations for
 // "minimal storage" can only happen if storage charges fail.
 // Single gas coin:
 // - OOG computation, storage (minimal storage) ok
-// - OOG for computation, OOG for minimal storage (e.g. computation is entire budget)
+// - OOG for computation, OOG for minimal storage (e.g. computation is entire
+//   budget)
 // - computation ok, OOG for storage, minimal storage ok
-// - computation ok, OOG for storage, OOG for minimal storage (e.g. computation is entire budget)
+// - computation ok, OOG for storage, OOG for minimal storage (e.g. computation
+//   is entire budget)
 //
-// With multiple gas coins is practically impossible to fail storage cost because we
-// get a significant among of NANOS back from smashing. So we try:
+// With multiple gas coins is practically impossible to fail storage cost
+// because we get a significant among of NANOS back from smashing. So we try:
 // - OOG computation, storage ok
 //
 // impossible scenarios:
-// - OOG for computation, OOG for storage, minimal storage ok - OOG for computation implies
+// - OOG for computation, OOG for storage, minimal storage ok - OOG for
+//   computation implies
 // minimal storage is the only extra charge, so storage == minimal storage
 //
 
-//
 // Helpers for OOG scenarios
 //
 
@@ -103,7 +110,8 @@ async fn publish_move_random_package(
         "move_random",
         PUBLISH_BUDGET,
         rgp,
-        /* with_unpublished_deps */ false,
+        // with_unpublished_deps
+        false,
     )
     .await;
     let effects = response.1.into_data();
@@ -114,7 +122,7 @@ async fn publish_move_random_package(
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-         .0
+        .0
 }
 
 async fn check_oog_transaction<F>(
@@ -199,16 +207,18 @@ where
         ExecutionFailureStatus::InsufficientGas
     );
     // gas object in effects is first coin in vector of coins
-    assert_eq!(gas_coin_ids[0], effects.gas_object().0 .0);
+    assert_eq!(gas_coin_ids[0], effects.gas_object().0.0);
     //  gas at position 0 mutated
     assert_eq!(effects.mutated().len(), 1);
     // extra coins are deleted
     assert_eq!(effects.deleted().len() as u64, coin_num - 1);
     for gas_coin_id in &gas_coin_ids[1..] {
-        assert!(effects
-            .deleted()
-            .iter()
-            .any(|deleted| deleted.0 == *gas_coin_id));
+        assert!(
+            effects
+                .deleted()
+                .iter()
+                .any(|deleted| deleted.0 == *gas_coin_id)
+        );
     }
     let gas_ref = effects.gas_object().0;
     let gas_object = authority_state.get_object(&gas_ref.0).await.unwrap();
@@ -333,7 +343,8 @@ async fn test_oog_computation_storage_ok_multi_coins() -> IotaResult {
     .await
 }
 
-// OOG for computation, OOG for minimal storage (e.g. computation is entire budget)
+// OOG for computation, OOG for minimal storage (e.g. computation is entire
+// budget)
 #[tokio::test]
 async fn test_oog_computation_oog_storage_final_one_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1000;
@@ -351,7 +362,8 @@ async fn test_oog_computation_oog_storage_final_one_coin() -> IotaResult {
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
-            // currently when storage charges go out of gas, the storage data in the summary is zero
+            // currently when storage charges go out of gas, the storage data in the summary
+            // is zero
             assert_eq!(summary.storage_cost, 0);
             assert_eq!(summary.storage_rebate, 0);
             assert_eq!(summary.non_refundable_storage_fee, 0);
@@ -426,7 +438,8 @@ async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> IotaResult 
     .await
 }
 
-// - computation ok, OOG for storage, OOG for minimal storage (e.g. computation is entire budget)
+// - computation ok, OOG for storage, OOG for minimal storage (e.g. computation
+//   is entire budget)
 #[tokio::test]
 async fn test_computation_ok_oog_storage_final_one_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
@@ -446,7 +459,8 @@ async fn test_computation_ok_oog_storage_final_one_coin() -> IotaResult {
         |summary, initial_value, final_value| {
             let gas_used = summary.net_gas_usage() as u64;
             assert!(summary.computation_cost > 0);
-            // currently when storage charges go out of gas, the storage data in the summary is zero
+            // currently when storage charges go out of gas, the storage data in the summary
+            // is zero
             assert_eq!(summary.storage_cost, 0);
             assert_eq!(summary.storage_rebate, 0);
             assert_eq!(summary.non_refundable_storage_fee, 0);
@@ -690,11 +704,13 @@ async fn test_invalid_gas_owners() {
 #[tokio::test]
 async fn test_native_transfer_insufficient_gas_reading_objects() {
     // This test creates a transfer transaction with a gas budget, that's more than
-    // the minimum budget requirement, but not enough to even read the objects from db.
-    // This will lead to failure in lock check step during handle transaction phase.
+    // the minimum budget requirement, but not enough to even read the objects from
+    // db. This will lead to failure in lock check step during handle
+    // transaction phase.
     let balance = *MIN_GAS_BUDGET_PRE_RGP + 1;
     let result = execute_transfer(*MAX_GAS_BUDGET, balance, true, true).await;
-    // The transaction should still execute to effects, but with execution status as failure.
+    // The transaction should still execute to effects, but with execution status as
+    // failure.
     let effects = result
         .response
         .unwrap()
@@ -708,10 +724,10 @@ async fn test_native_transfer_insufficient_gas_reading_objects() {
 
 #[tokio::test]
 async fn test_native_transfer_insufficient_gas_execution() {
-    // This test creates a transfer transaction with a gas budget that's insufficient
-    // to finalize the transfer object mutation effects. It will fail during
-    // execution phase, and hence gas object will still be mutated and all budget
-    // will be charged.
+    // This test creates a transfer transaction with a gas budget that's
+    // insufficient to finalize the transfer object mutation effects. It will
+    // fail during execution phase, and hence gas object will still be mutated
+    // and all budget will be charged.
     let result = execute_transfer(*MAX_GAS_BUDGET, *MAX_GAS_BUDGET, true, false).await;
     let total_gas = result
         .response
@@ -764,7 +780,8 @@ async fn test_publish_gas() -> anyhow::Result<()> {
         "object_wrapping",
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH * rgp * 2,
         rgp,
-        /* with_unpublished_deps */ false,
+        // with_unpublished_deps
+        false,
     )
     .await;
     let effects = response.1.into_data();
@@ -798,7 +815,8 @@ async fn test_publish_gas() -> anyhow::Result<()> {
         "object_wrapping",
         budget,
         rgp,
-        /* with_unpublished_deps */ false,
+        // with_unpublished_deps
+        false,
     )
     .await;
     let effects = response.1.into_data();
@@ -890,7 +908,8 @@ async fn test_move_call_gas() -> IotaResult {
     // storage_cost should be less than rebate because for object deletion, we only
     // rebate without charging.
     assert!(gas_cost.storage_cost > 0 && gas_cost.storage_cost < gas_cost.storage_rebate);
-    // Check that we have storage rebate is less or equal to the previous one + non refundable
+    // Check that we have storage rebate is less or equal to the previous one + non
+    // refundable
     assert_eq!(
         gas_cost.storage_rebate + gas_cost.non_refundable_storage_fee,
         prev_storage_cost

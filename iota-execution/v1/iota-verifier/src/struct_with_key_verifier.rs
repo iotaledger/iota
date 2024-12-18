@@ -2,19 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This pass verifies necessary properties for Move Objects, i.e. structs with the `key` ability.
-//! The properties checked are
+//! This pass verifies necessary properties for Move Objects, i.e. structs with
+//! the `key` ability. The properties checked are
 //! - The first field is named "id"
 //! - The first field has type `iota::object::UID`
 
-use crate::verification_failure;
-use move_binary_format::file_format::{CompiledModule, SignatureToken};
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     error::ExecutionError,
     fp_ensure,
     id::{OBJECT_MODULE_NAME, UID_STRUCT_NAME},
-    IOTA_FRAMEWORK_ADDRESS,
 };
+use move_binary_format::file_format::{CompiledModule, SignatureToken};
+
+use crate::verification_failure;
 
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
     verify_key_structs(module)
@@ -36,7 +37,7 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
                 return Err(verification_failure(format!(
                     "First field of struct {} must be 'id', no field found",
                     name
-                )))
+                )));
             }
         };
         let first_field_name = module.identifier_at(first_field.name).as_str();
@@ -55,10 +56,11 @@ fn verify_key_structs(module: &CompiledModule) -> Result<(), ExecutionError> {
                     "First field of struct {} must be of type {}::object::UID, \
                     {:?} type found",
                     name, IOTA_FRAMEWORK_ADDRESS, uid_field_type
-                )))
+                )));
             }
         };
-        // check that the struct type for "id" field must be IOTA_FRAMEWORK_ADDRESS::object::UID.
+        // check that the struct type for "id" field must be
+        // IOTA_FRAMEWORK_ADDRESS::object::UID.
         let uid_type_struct = module.datatype_handle_at(*uid_field_type);
         let uid_type_struct_name = module.identifier_at(uid_type_struct.name);
         let uid_type_module = module.module_handle_at(uid_type_struct.module);

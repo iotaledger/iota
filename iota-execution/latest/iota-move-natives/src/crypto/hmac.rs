@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::NativesCostTable;
+use std::collections::VecDeque;
+
 use fastcrypto::{hmac, traits::ToFromBytes};
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
@@ -13,7 +14,8 @@ use move_vm_types::{
     values::{Value, VectorRef},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
+
+use crate::NativesCostTable;
 
 const HMAC_SHA3_256_BLOCK_SIZE: usize = 136;
 
@@ -26,15 +28,19 @@ pub struct HmacHmacSha3256CostParams {
     ///  Cost per block of `msg` and `key`, with block size = 136
     pub hmac_hmac_sha3_256_input_cost_per_block: InternalGas,
 }
-/***************************************************************************************************
- * native fun ed25519_verify
- * Implementation of the Move native function `hmac_sha3_256(key: &vector<u8>, msg: &vector<u8>): vector<u8>;`
- *   gas cost: hmac_hmac_sha3_256_cost_base                          | base cost for function call and fixed opers
- *              + hmac_hmac_sha3_256_input_cost_per_byte * msg.len()   | cost depends on length of message
- *              + hmac_hmac_sha3_256_input_cost_per_block * num_blocks(msg) | cost depends on number of blocks in message
- * Note: each block is of size `HMAC_SHA3_256_BLOCK_SIZE` bytes, and we round up.
- *       `key` is fixed size, so the cost is included in the base cost.
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun ed25519_verify
+/// Implementation of the Move native function `hmac_sha3_256(key: &vector<u8>,
+/// msg: &vector<u8>): vector<u8>;`   gas cost: hmac_hmac_sha3_256_cost_base
+/// | base cost for function call and fixed opers
+///              + hmac_hmac_sha3_256_input_cost_per_byte * msg.len()   | cost
+///                depends on length of message
+///              + hmac_hmac_sha3_256_input_cost_per_block * num_blocks(msg) |
+///                cost depends on number of blocks in message
+/// Note: each block is of size `HMAC_SHA3_256_BLOCK_SIZE` bytes, and we round
+/// up.       `key` is fixed size, so the cost is included in the base cost.
+/// ****************************************************************************
+/// *******************
 pub fn hmac_sha3_256(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -77,10 +83,7 @@ pub fn hmac_sha3_256(
         .expect("HMAC key can be of any length and from_bytes should always succeed");
     let cost = context.gas_used();
 
-    Ok(NativeResult::ok(
-        cost,
-        smallvec![Value::vector_u8(
-            hmac::hmac_sha3_256(&hmac_key, &message.as_bytes_ref()).to_vec()
-        )],
-    ))
+    Ok(NativeResult::ok(cost, smallvec![Value::vector_u8(
+        hmac::hmac_sha3_256(&hmac_key, &message.as_bytes_ref()).to_vec()
+    )]))
 }

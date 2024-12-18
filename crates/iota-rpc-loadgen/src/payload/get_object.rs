@@ -3,15 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
+use async_trait::async_trait;
 use futures::future::join_all;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaObjectResponse};
 use iota_sdk::IotaClient;
 use iota_types::base_types::ObjectID;
 
-use crate::payload::{GetObject, ProcessPayload, RpcCommandProcessor, SignerInfo};
-use async_trait::async_trait;
-
 use super::validation::chunk_entities;
+use crate::payload::{GetObject, ProcessPayload, RpcCommandProcessor, SignerInfo};
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a GetObject> for RpcCommandProcessor {

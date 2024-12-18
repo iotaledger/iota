@@ -9,16 +9,15 @@ use std::{
 };
 
 use futures::Future;
-use http::StatusCode;
+use http::{Request, StatusCode};
 use prometheus::{HistogramTimer, Registry};
-use tower::{load_shed::error::Overloaded, BoxError, Layer, Service, ServiceExt};
+use tower::{BoxError, Layer, Service, ServiceExt, load_shed::error::Overloaded};
 use tracing::{error, info, warn};
 
-use crate::metrics::{is_path_tracked, normalize_path, RequestMetrics};
-use http::Request;
+use crate::metrics::{RequestMetrics, is_path_tracked, normalize_path};
 
-/// Tower Layer for tracking metrics in Prometheus related to number, success-rate and latency of
-/// requests running through service.
+/// Tower Layer for tracking metrics in Prometheus related to number,
+/// success-rate and latency of requests running through service.
 #[derive(Clone)]
 pub struct RequestMetricsLayer {
     metrics: Arc<RequestMetrics>,

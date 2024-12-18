@@ -10,14 +10,14 @@ use std::{
 
 use consensus_config::{AuthorityIndex, Stake};
 use parking_lot::RwLock;
-use rand::{prelude::SliceRandom, rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, prelude::SliceRandom, rngs::StdRng};
 
 use crate::{
+    CommitIndex, Round,
     commit::CommitRange,
     context::Context,
     dag_state::DagState,
     leader_scoring::{ReputationScoreCalculator, ReputationScores},
-    CommitIndex, Round,
 };
 
 /// The `LeaderSchedule` is responsible for producing the leader schedule across
@@ -31,8 +31,8 @@ pub(crate) struct LeaderSchedule {
 }
 
 impl LeaderSchedule {
-    /// The window where the schedule change takes place in consensus. It represents
-    /// number of committed sub dags.
+    /// The window where the schedule change takes place in consensus. It
+    /// represents number of committed sub dags.
     /// TODO: move this to protocol config
     #[cfg(not(msim))]
     const CONSENSUS_COMMITS_PER_SCHEDULE: u64 = 300;
@@ -53,8 +53,9 @@ impl LeaderSchedule {
         self
     }
 
-    /// Restores the `LeaderSchedule` from storage. It will attempt to retrieve the
-    /// last stored `ReputationScores` and use them to build a `LeaderSwapTable`.
+    /// Restores the `LeaderSchedule` from storage. It will attempt to retrieve
+    /// the last stored `ReputationScores` and use them to build a
+    /// `LeaderSwapTable`.
     pub(crate) fn from_store(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
         let leader_swap_table = dag_state.read().recover_last_commit_info().map_or(
             LeaderSwapTable::default(),
@@ -72,15 +73,15 @@ impl LeaderSchedule {
             .consensus_distributed_vote_scoring_strategy()
         {
             tracing::info!(
-            "LeaderSchedule recovered using {leader_swap_table:?}. There are {} committed subdags scored in DagState.",
-            dag_state.read().scoring_subdags_count(),
-        );
+                "LeaderSchedule recovered using {leader_swap_table:?}. There are {} committed subdags scored in DagState.",
+                dag_state.read().scoring_subdags_count(),
+            );
         } else {
             // TODO: Remove when DistributedVoteScoring is enabled.
             tracing::info!(
-            "LeaderSchedule recovered using {leader_swap_table:?}. There are {} pending unscored subdags in DagState.",
-            dag_state.read().unscored_committed_subdags_count(),
-        );
+                "LeaderSchedule recovered using {leader_swap_table:?}. There are {} pending unscored subdags in DagState.",
+                dag_state.read().unscored_committed_subdags_count(),
+            );
         }
 
         // create the schedule
@@ -111,9 +112,10 @@ impl LeaderSchedule {
             .unwrap() as usize
     }
 
-    /// Checks whether the dag state sub dags list is empty. If yes then that means that
-    /// either (1) the system has just started and there is no unscored sub dag available (2) the
-    /// schedule has updated - new scores have been calculated. Both cases we consider as valid cases
+    /// Checks whether the dag state sub dags list is empty. If yes then that
+    /// means that either (1) the system has just started and there is no
+    /// unscored sub dag available (2) the schedule has updated - new scores
+    /// have been calculated. Both cases we consider as valid cases
     /// where the schedule has been updated.
     pub(crate) fn leader_schedule_updated(&self, dag_state: &RwLock<DagState>) -> bool {
         if self
@@ -271,7 +273,8 @@ impl LeaderSchedule {
         // preceding commit range of the old swap table.
         if *old_commit_range != CommitRange::default() {
             assert!(
-                old_commit_range.is_next_range(new_commit_range) && old_commit_range.is_equal_size(new_commit_range),
+                old_commit_range.is_next_range(new_commit_range)
+                    && old_commit_range.is_equal_size(new_commit_range),
                 "The new LeaderSwapTable has an invalid CommitRange. Old LeaderSwapTable {old_commit_range:?} vs new LeaderSwapTable {new_commit_range:?}",
             );
         }
@@ -289,18 +292,21 @@ pub(crate) struct LeaderSwapTable {
     /// The list of `f` (by configurable stake) authorities with best scores as
     /// those defined by the provided `ReputationScores`. Those authorities will
     /// be used in the position of the `bad_nodes` on the final leader schedule.
-    /// Storing the hostname & stake along side the authority index for debugging.
+    /// Storing the hostname & stake along side the authority index for
+    /// debugging.
     pub(crate) good_nodes: Vec<(AuthorityIndex, String, Stake)>,
 
     /// The set of `f` (by configurable stake) authorities with the worst scores
-    /// as those defined by the provided `ReputationScores`. Every time where such
-    /// authority is elected as leader on the schedule, it will swapped by one of
-    /// the authorities of the `good_nodes`.
-    /// Storing the hostname & stake along side the authority index for debugging.
+    /// as those defined by the provided `ReputationScores`. Every time where
+    /// such authority is elected as leader on the schedule, it will swapped
+    /// by one of the authorities of the `good_nodes`.
+    /// Storing the hostname & stake along side the authority index for
+    /// debugging.
     pub(crate) bad_nodes: BTreeMap<AuthorityIndex, (String, Stake)>,
 
-    /// Scores by authority in descending order, needed by other parts of the system
-    /// for a consistent view on how each validator performs in consensus.
+    /// Scores by authority in descending order, needed by other parts of the
+    /// system for a consistent view on how each validator performs in
+    /// consensus.
     pub(crate) reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
 
     // The scores for which the leader swap table was built from. This struct is
@@ -359,7 +365,8 @@ impl LeaderSwapTable {
         let mut authorities_by_score = reputation_scores.authorities_by_score(context.clone());
         assert_eq!(authorities_by_score.len(), context.committee.size());
         authorities_by_score.shuffle(&mut rng);
-        // Stable sort the authorities by score descending. Order of authorities with the same score is preserved.
+        // Stable sort the authorities by score descending. Order of authorities with
+        // the same score is preserved.
         authorities_by_score.sort_by(|a1, a2| a2.1.cmp(&a1.1));
 
         // Calculating the good nodes
@@ -414,11 +421,12 @@ impl LeaderSwapTable {
     /// returns None. Otherwise the leader to swap with is returned instead. The
     /// `leader_round` & `leader_offset` represents the DAG slot on which the
     /// provided `AuthorityIndex` is a leader on and is used as a seed to random
-    /// function in order to calculate the good node that will swap in that round
-    /// with the bad node. We are intentionally not doing weighted randomness as
-    /// we want to give to all the good nodes equal opportunity to get swapped
-    /// with bad nodes and nothave one node with enough stake end up swapping
-    /// bad nodes more frequently than the others on the final schedule.
+    /// function in order to calculate the good node that will swap in that
+    /// round with the bad node. We are intentionally not doing weighted
+    /// randomness as we want to give to all the good nodes equal
+    /// opportunity to get swapped with bad nodes and nothave one node with
+    /// enough stake end up swapping bad nodes more frequently than the
+    /// others on the final schedule.
     pub(crate) fn swap(
         &self,
         leader: AuthorityIndex,
@@ -453,11 +461,11 @@ impl LeaderSwapTable {
         None
     }
 
-    /// Retrieves the first nodes provided by the iterator `authorities` until the
-    /// `stake_threshold` has been reached. The `stake_threshold` should be between
-    /// [0, 100] and expresses the percentage of stake that is considered the cutoff.
-    /// It's the caller's responsibility to ensure that the elements of the `authorities`
-    /// input is already sorted.
+    /// Retrieves the first nodes provided by the iterator `authorities` until
+    /// the `stake_threshold` has been reached. The `stake_threshold` should
+    /// be between [0, 100] and expresses the percentage of stake that is
+    /// considered the cutoff. It's the caller's responsibility to ensure
+    /// that the elements of the `authorities` input is already sorted.
     fn retrieve_first_nodes<'a>(
         context: Arc<Context>,
         authorities: impl Iterator<Item = &'a (AuthorityIndex, u64)>,
@@ -514,7 +522,7 @@ mod tests {
     use crate::{
         block::{BlockDigest, BlockRef, BlockTimestampMs, TestBlock, VerifiedBlock},
         commit::{CommitDigest, CommitInfo, CommitRef, CommittedSubDag, TrustedCommit},
-        storage::{mem_store::MemStore, Store, WriteBatch},
+        storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
     };
 
@@ -535,7 +543,8 @@ mod tests {
             leader_schedule.elect_leader(5, 0),
             AuthorityIndex::new_for_test(1)
         );
-        // ensure we elect different leaders for the same round for the multi-leader case
+        // ensure we elect different leaders for the same round for the multi-leader
+        // case
         assert_ne!(
             leader_schedule.elect_leader_stake_based(1, 1),
             leader_schedule.elect_leader_stake_based(1, 2)
@@ -559,7 +568,8 @@ mod tests {
             leader_schedule.elect_leader_stake_based(5, 0),
             AuthorityIndex::new_for_test(3)
         );
-        // ensure we elect different leaders for the same round for the multi-leader case
+        // ensure we elect different leaders for the same round for the multi-leader
+        // case
         assert_ne!(
             leader_schedule.elect_leader_stake_based(1, 1),
             leader_schedule.elect_leader_stake_based(1, 2)
@@ -872,9 +882,11 @@ mod tests {
             AuthorityIndex::new_for_test(2)
         );
         assert_eq!(leader_swap_table.bad_nodes.len(), 1);
-        assert!(leader_swap_table
-            .bad_nodes
-            .contains_key(&AuthorityIndex::new_for_test(0)));
+        assert!(
+            leader_swap_table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(0))
+        );
         assert_eq!(
             leader_schedule.elect_leader(4, 0),
             AuthorityIndex::new_for_test(2)
@@ -900,9 +912,11 @@ mod tests {
             AuthorityIndex::new_for_test(3)
         );
         assert_eq!(leader_swap_table.bad_nodes.len(), 1);
-        assert!(leader_swap_table
-            .bad_nodes
-            .contains_key(&AuthorityIndex::new_for_test(0)));
+        assert!(
+            leader_swap_table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(0))
+        );
     }
 
     #[tokio::test]
@@ -1386,9 +1400,11 @@ mod tests {
             AuthorityIndex::new_for_test(2)
         );
         assert_eq!(leader_swap_table.bad_nodes.len(), 1);
-        assert!(leader_swap_table
-            .bad_nodes
-            .contains_key(&AuthorityIndex::new_for_test(0)));
+        assert!(
+            leader_swap_table
+                .bad_nodes
+                .contains_key(&AuthorityIndex::new_for_test(0))
+        );
         assert_eq!(
             leader_schedule.elect_leader(4, 0),
             AuthorityIndex::new_for_test(2)

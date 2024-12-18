@@ -4,12 +4,13 @@
 
 use camino::Utf8PathBuf;
 use iota_config::local_ip_utils;
-use iota_genesis_builder::validator_info::ValidatorInfo;
-use iota_genesis_builder::Builder;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{
-    generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-    KeypairTraits, NetworkKeyPair,
+use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{
+        AccountKeyPair, AuthorityKeyPair, KeypairTraits, NetworkKeyPair,
+        generate_proof_of_possession, get_key_pair_from_rng,
+    },
 };
 
 #[tokio::main]

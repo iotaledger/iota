@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use anyhow::{Context, Result};
 use core::time::Duration;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_with::{serde_as, DurationSeconds};
 use std::net::SocketAddr;
+
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_with::{DurationSeconds, serde_as};
 use tracing::debug;
 
 #[serde_as]
@@ -39,9 +40,10 @@ pub struct RemoteWriteConfig {
     pub pool_max_idle_per_host: usize,
 }
 
-/// DynamicPeerValidationConfig controls what iota-node & iota-bridge binaries that are functioning as a validator that we'll speak with.
-/// Peer in this case is peers within the consensus committee, for each epoch.  This membership is determined dynamically
-/// for each epoch via json-rpc calls to a full node.
+/// DynamicPeerValidationConfig controls what iota-node & iota-bridge binaries
+/// that are functioning as a validator that we'll speak with. Peer in this case
+/// is peers within the consensus committee, for each epoch.  This membership is
+/// determined dynamically for each epoch via json-rpc calls to a full node.
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -50,21 +52,22 @@ pub struct DynamicPeerValidationConfig {
     pub url: String,
     #[serde_as(as = "DurationSeconds<u64>")]
     pub interval: Duration,
-    /// if certificate_file and private_key are not provided, we'll create a self-signed
-    /// cert using this hostname
+    /// if certificate_file and private_key are not provided, we'll create a
+    /// self-signed cert using this hostname
     #[serde(default = "hostname_default")]
     pub hostname: Option<String>,
 
-    /// incoming client connections to this proxy will be presented with this pub key
-    /// please use an absolute path
+    /// incoming client connections to this proxy will be presented with this
+    /// pub key please use an absolute path
     pub certificate_file: Option<String>,
     /// private key for tls
     /// please use an absolute path
     pub private_key: Option<String>,
 }
 
-/// StaticPeerValidationConfig, unlike the DynamicPeerValidationConfig, is not determined dynamically from rpc
-/// calls.  It instead searches a local directory for pub keys that we will add to an allow list.
+/// StaticPeerValidationConfig, unlike the DynamicPeerValidationConfig, is not
+/// determined dynamically from rpc calls.  It instead searches a local
+/// directory for pub keys that we will add to an allow list.
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -72,8 +75,9 @@ pub struct StaticPeerValidationConfig {
     pub pub_keys: Vec<StaticPubKey>,
 }
 
-/// StaticPubKey holds a human friendly name, ip and the key file for the pub key
-/// if you don't have a valid public routable ip, use an ip from 169.254.0.0/16.
+/// StaticPubKey holds a human friendly name, ip and the key file for the pub
+/// key if you don't have a valid public routable ip, use an ip from
+/// 169.254.0.0/16.
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]

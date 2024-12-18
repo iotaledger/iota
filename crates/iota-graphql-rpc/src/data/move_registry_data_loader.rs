@@ -1,17 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::fmt::Write;
-
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use std::{collections::HashMap, fmt::Write, str::FromStr, sync::Arc};
 
 use async_graphql::dataloader::{DataLoader, Loader};
 use serde::{Deserialize, Serialize};
 
-use crate::metrics::Metrics;
 use crate::{
     config::MoveRegistryConfig,
     error::Error,
+    metrics::Metrics,
     types::{
         base64::Base64,
         move_registry::{
@@ -44,17 +42,20 @@ impl ExternalNamesLoader {
         }
     }
 
-    /// Constructs the GraphQL Query to query the names on an external graphql endpoint.
+    /// Constructs the GraphQL Query to query the names on an external graphql
+    /// endpoint.
     fn construct_names_graphql_query(&self, names: &[Name]) -> (String, HashMap<Name, usize>) {
         let mut mapping: HashMap<Name, usize> = HashMap::new();
 
         let mut result = format!(r#"{{ owner(address: "{}") {{"#, self.config.registry_id);
 
-        // we create the GraphQL query keys with a `fetch_{id}` prefix, which is accepted on graphql fields.
+        // we create the GraphQL query keys with a `fetch_{id}` prefix, which is
+        // accepted on graphql fields.
         for (index, name) in names.iter().enumerate() {
             let bcs_base64 = name.to_base64_string();
 
-            // retain the mapping here (id to bcs representation, so we can pick the right response later on)
+            // retain the mapping here (id to bcs representation, so we can pick the right
+            // response later on)
             mapping.insert(name.clone(), index);
 
             // SAFETY: write! to String always succeeds
@@ -88,10 +89,11 @@ impl Loader<Name> for ExternalNamesLoader {
     type Value = AppRecord;
     type Error = Error;
 
-    /// This function queries the external API to fetch the app records for the requested names.
-    /// This is part of the data loader, so all queries are bulked-up to the maximum of {config.page_limit}.
-    /// We handle the cases where individual queries fail, to ensure that a failed query cannot affect
-    /// a successful one.
+    /// This function queries the external API to fetch the app records for the
+    /// requested names. This is part of the data loader, so all queries are
+    /// bulked-up to the maximum of {config.page_limit}. We handle the cases
+    /// where individual queries fail, to ensure that a failed query cannot
+    /// affect a successful one.
     async fn load(&self, keys: &[Name]) -> Result<HashMap<Name, AppRecord>, Error> {
         let Some(api_url) = self.config.external_api_url.as_ref() else {
             return Err(Error::MoveNameRegistry(

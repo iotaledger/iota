@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod indexer_builder;
+pub mod iota_datasource;
 pub mod metrics;
 pub mod progress;
-pub mod iota_datasource;
 pub const LIVE_TASK_TARGET_CHECKPOINT: i64 = i64::MAX;
 
 #[derive(Clone, Debug)]
@@ -18,7 +18,8 @@ pub struct Task {
 }
 
 impl Task {
-    // TODO: this is really fragile and we should fix the task naming thing and storage schema asasp
+    // TODO: this is really fragile and we should fix the task naming thing and
+    // storage schema asasp
     pub fn name_prefix(&self) -> &str {
         self.task_name.split(' ').next().unwrap_or("Unknown")
     }

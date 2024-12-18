@@ -3,23 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::sync::Arc;
 
-use diesel::ExpressionMethods;
-use diesel::QueryDsl;
+use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
-use simulacrum::Simulacrum;
-use iota_mvr_indexer::errors::IndexerError;
-use iota_mvr_indexer::handlers::TransactionObjectChangesToCommit;
-use iota_mvr_indexer::models::{checkpoints::StoredCheckpoint, objects::StoredObjectSnapshot};
-use iota_mvr_indexer::schema::{checkpoints, objects_snapshot};
-use iota_mvr_indexer::store::indexer_store::IndexerStore;
-use iota_mvr_indexer::test_utils::{
-    set_up, set_up_with_start_and_end_checkpoints, wait_for_checkpoint, wait_for_objects_snapshot,
+use iota_mvr_indexer::{
+    errors::IndexerError,
+    handlers::TransactionObjectChangesToCommit,
+    models::{checkpoints::StoredCheckpoint, objects::StoredObjectSnapshot},
+    schema::{checkpoints, objects_snapshot},
+    store::indexer_store::IndexerStore,
+    test_utils::{
+        set_up, set_up_with_start_and_end_checkpoints, wait_for_checkpoint,
+        wait_for_objects_snapshot,
+    },
+    types::{EventIndex, IndexedDeletedObject, IndexedObject, TxIndex},
 };
-use iota_mvr_indexer::types::EventIndex;
-use iota_mvr_indexer::types::IndexedDeletedObject;
-use iota_mvr_indexer::types::IndexedObject;
-use iota_mvr_indexer::types::TxIndex;
 use iota_types::base_types::IotaAddress;
+use simulacrum::Simulacrum;
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -109,12 +108,14 @@ pub async fn test_objects_snapshot() -> Result<(), IndexerError> {
 
     let (_, pg_store, _, _database) = set_up(Arc::new(sim), data_ingestion_path).await;
 
-    // Wait for objects snapshot at checkpoint max_expected_checkpoint_sequence_number
+    // Wait for objects snapshot at checkpoint
+    // max_expected_checkpoint_sequence_number
     let max_expected_checkpoint_sequence_number = total_checkpoint_sequence_number - 5;
     wait_for_objects_snapshot(&pg_store, max_expected_checkpoint_sequence_number as u64).await?;
 
     let mut connection = pg_store.pool().dedicated_connection().await.unwrap();
-    // Get max checkpoint_sequence_number from objects_snapshot table and assert it's expected
+    // Get max checkpoint_sequence_number from objects_snapshot table and assert
+    // it's expected
     let max_checkpoint_sequence_number = objects_snapshot::table
         .select(objects_snapshot::checkpoint_sequence_number)
         .order(objects_snapshot::checkpoint_sequence_number.desc())
@@ -141,7 +142,8 @@ pub async fn test_objects_snapshot() -> Result<(), IndexerError> {
         .first::<StoredObjectSnapshot>(&mut connection)
         .await
         .expect("Failed reading object from objects_snapshot");
-    // Assert that the object state is as expected at checkpoint max_expected_checkpoint_sequence_number
+    // Assert that the object state is as expected at checkpoint
+    // max_expected_checkpoint_sequence_number
     assert_eq!(snapshot_object.object_id, obj_id.to_vec());
     assert_eq!(
         snapshot_object.checkpoint_sequence_number,

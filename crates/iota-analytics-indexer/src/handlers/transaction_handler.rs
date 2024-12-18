@@ -7,17 +7,15 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
+use iota_rpc_api::{CheckpointData, CheckpointTransaction};
+use iota_types::{
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    transaction::{Command, TransactionDataAPI, TransactionKind},
+};
 use tokio::sync::Mutex;
 use tracing::error;
 
-use iota_rpc_api::{CheckpointData, CheckpointTransaction};
-use iota_types::effects::TransactionEffects;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::transaction::{Command, TransactionDataAPI, TransactionKind};
-
-use crate::handlers::AnalyticsHandler;
-use crate::tables::TransactionEntry;
-use crate::FileType;
+use crate::{FileType, handlers::AnalyticsHandler, tables::TransactionEntry};
 
 pub struct TransactionHandler {
     pub(crate) state: Mutex<State>,
@@ -128,10 +126,14 @@ impl TransactionHandler {
                     }
                 }
             } else {
-                error!("Transaction kind [{kind}] is not programmable transaction and not a system transaction");
+                error!(
+                    "Transaction kind [{kind}] is not programmable transaction and not a system transaction"
+                );
             }
             if move_calls_count != move_calls {
-                error!("Mismatch in move calls count: commands {move_calls_count} != {move_calls} calls");
+                error!(
+                    "Mismatch in move calls count: commands {move_calls_count} != {move_calls} calls"
+                );
             }
         }
         let transaction_json = serde_json::to_string(&transaction)?;
@@ -168,9 +170,9 @@ impl TransactionHandler {
             move_calls,
             packages,
             gas_owner: txn_data.gas_owner().to_string(),
-            gas_object_id: gas_object.0 .0.to_string(),
-            gas_object_sequence: gas_object.0 .1.value(),
-            gas_object_digest: gas_object.0 .2.to_string(),
+            gas_object_id: gas_object.0.0.to_string(),
+            gas_object_sequence: gas_object.0.1.value(),
+            gas_object_digest: gas_object.0.2.to_string(),
             gas_budget: txn_data.gas_budget(),
             total_gas_cost: gas_summary.net_gas_usage(),
             computation_cost: gas_summary.computation_cost,
@@ -194,12 +196,12 @@ impl TransactionHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::handlers::transaction_handler::TransactionHandler;
     use fastcrypto::encoding::{Base64, Encoding};
-    use simulacrum::Simulacrum;
     use iota_data_ingestion_core::Worker;
-    use iota_types::base_types::IotaAddress;
-    use iota_types::storage::ReadStore;
+    use iota_types::{base_types::IotaAddress, storage::ReadStore};
+    use simulacrum::Simulacrum;
+
+    use crate::handlers::transaction_handler::TransactionHandler;
 
     #[tokio::test]
     pub async fn test_transaction_handler() -> anyhow::Result<()> {

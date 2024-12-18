@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use std::collections::VecDeque;
+
+use iota_types::{TypeTag, base_types::MoveObjectType};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress, gas_algebra::InternalGas, language_storage::StructTag,
     runtime_value as R, vm_status::StatusCode,
 };
-use move_vm_runtime::native_charge_gas_early_exit;
-use move_vm_runtime::native_functions::NativeContext;
+use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
@@ -17,9 +18,9 @@ use move_vm_types::{
     values::{Struct, Value, Vector},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
-use iota_types::{base_types::MoveObjectType, TypeTag};
 use tracing::{error, instrument};
+
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 const E_BCS_SERIALIZATION_FAILURE: u64 = 2;
 
@@ -75,7 +76,7 @@ pub fn read_setting_impl(
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                     .with_message("Iota verifier guarantees this is a struct".to_string()),
-            )
+            );
         }
     };
     let Some(field_setting_layout) = context.type_to_type_layout(&field_setting_ty)? else {
@@ -104,10 +105,9 @@ pub fn read_setting_impl(
         config_read_setting_impl_cost_per_byte * u64::from(read_value_opt.legacy_size()).into()
     );
 
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![read_value_opt],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        read_value_opt
+    ]))
 }
 
 fn consistent_value_before_current_epoch(

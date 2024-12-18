@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::{Deserialize, Serialize};
 use std::env;
+
+use serde::{Deserialize, Serialize};
 
 /// config as loaded from `config.yaml`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -19,9 +20,11 @@ pub struct IndexerConfig {
     #[serde(default = "default_db_url")]
     pub db_url: String,
     pub concurrency: u64,
-    /// Used as the starting checkpoint for backfill tasks when indexer starts with an empty DB.
+    /// Used as the starting checkpoint for backfill tasks when indexer starts
+    /// with an empty DB.
     pub iota_bridge_genesis_checkpoint: u64,
-    /// Used as the starting checkpoint for backfill tasks when indexer starts with an empty DB.
+    /// Used as the starting checkpoint for backfill tasks when indexer starts
+    /// with an empty DB.
     pub eth_bridge_genesis_block: u64,
     pub eth_iota_bridge_contract_address: String,
 

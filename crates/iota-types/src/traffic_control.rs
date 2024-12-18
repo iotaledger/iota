@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::path::PathBuf;
 
 // These values set to loosely attempt to limit
 // memory usage for a single sketch to ~20MB
@@ -52,13 +53,15 @@ const TRAFFIC_SINK_TIMEOUT_SEC: u64 = 300;
 /// operators to discover the number of hops that should be configured. To use:
 ///
 /// 1. Set `x-forwarded-for: 0` for the `client-id-source` in the config.
-/// 2. Run the node and query any endpoint (AuthorityServer for validator, or json rpc for rpc node)
-///     from a known IP address.
-/// 3. Search for lines containing `x-forwarded-for` in the logs. The log lines should contain
-///    the contents of the `x-forwarded-for` header, if present, or a corresponding error if not.
-/// 4. The value for number of hops is derived from any such log line that contains your known IP
-///     address, and is defined as 1 + the number of IP addresses in the `x-forwarded-for` that occur
-///     **after** the known client IP address. Example:
+/// 2. Run the node and query any endpoint (AuthorityServer for validator, or
+///    json rpc for rpc node) from a known IP address.
+/// 3. Search for lines containing `x-forwarded-for` in the logs. The log lines
+///    should contain the contents of the `x-forwarded-for` header, if present,
+///    or a corresponding error if not.
+/// 4. The value for number of hops is derived from any such log line that
+///    contains your known IP address, and is defined as 1 + the number of IP
+///    addresses in the `x-forwarded-for` that occur **after** the known client
+///    IP address. Example:
 ///
 /// ```ignore
 ///     [<known client IP>] <--- number of hops is 1
@@ -211,19 +214,19 @@ pub enum PolicyType {
     #[default]
     NoOp,
 
-    /// Blocks connection_ip after reaching a tally frequency (tallies per second)
-    /// of `threshold`, as calculated over an average window of `window_size_secs`
-    /// with granularity of `update_interval_secs`
+    /// Blocks connection_ip after reaching a tally frequency (tallies per
+    /// second) of `threshold`, as calculated over an average window of
+    /// `window_size_secs` with granularity of `update_interval_secs`
     FreqThreshold(FreqThresholdConfig),
 
-    /* Below this point are test policies, and thus should not be used in production */
-    ///
-    /// Simple policy that adds connection_ip to blocklist when the same connection_ip
-    /// is encountered in tally N times. If used in an error policy, this would trigger
-    /// after N errors
+    // Below this point are test policies, and thus should not be used in production
+    /// Simple policy that adds connection_ip to blocklist when the same
+    /// connection_ip is encountered in tally N times. If used in an error
+    /// policy, this would trigger after N errors
     TestNConnIP(u64),
-    /// Test policy that panics when invoked. To be used as an error policy in tests that do
-    /// not expect request errors in order to verify that the error policy is not invoked
+    /// Test policy that panics when invoked. To be used as an error policy in
+    /// tests that do not expect request errors in order to verify that the
+    /// error policy is not invoked
     TestPanicOnInvocation,
 }
 

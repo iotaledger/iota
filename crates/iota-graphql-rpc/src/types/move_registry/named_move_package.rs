@@ -6,6 +6,10 @@ use std::str::FromStr;
 
 use async_graphql::Context;
 
+use super::{
+    error::MoveRegistryError,
+    on_chain::{AppInfo, AppRecord, VersionedName},
+};
 use crate::{
     config::{MoveRegistryConfig, ResolutionType},
     data::move_registry_data_loader::MoveRegistryDataLoader,
@@ -16,16 +20,12 @@ use crate::{
     },
 };
 
-use super::{
-    error::MoveRegistryError,
-    on_chain::{AppInfo, AppRecord, VersionedName},
-};
-
 pub(crate) struct NamedMovePackage;
 
 impl NamedMovePackage {
-    /// Queries a package by name (and version, encoded in the name but optional).
-    /// Name's format should be `{organization}/{application}/{version}`.
+    /// Queries a package by name (and version, encoded in the name but
+    /// optional). Name's format should be
+    /// `{organization}/{application}/{version}`.
     pub(crate) async fn query(
         ctx: &Context<'_>,
         name: &str,

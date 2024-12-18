@@ -13,11 +13,11 @@ use consensus_config::AuthorityIndex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    Round, VerifiedBlock,
     block::{BlockAPI, BlockDigest, BlockRef, Slot},
     commit::{CommitRange, CommittedSubDag},
     context::Context,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    Round, VerifiedBlock,
 };
 
 pub(crate) struct ReputationScoreCalculator {
@@ -81,7 +81,10 @@ impl ReputationScoreCalculator {
         let leader_blocks = subdag.get_blocks_at_slot(leader_slot);
 
         if leader_blocks.is_empty() {
-            tracing::trace!("[{}] No block for leader slot {leader_slot} in this set of unscored committed subdags, skip scoring", subdag.context.own_index);
+            tracing::trace!(
+                "[{}] No block for leader slot {leader_slot} in this set of unscored committed subdags, skip scoring",
+                subdag.context.own_index
+            );
             return scores_per_authority;
         }
 
@@ -94,8 +97,9 @@ impl ReputationScoreCalculator {
         let voting_round = leader_slot.round + 1;
         let voting_blocks = subdag.get_blocks_at_round(voting_round);
         for potential_vote in voting_blocks {
-            // TODO: use the decided leader as input instead of leader slot. If the leader was skipped,
-            // votes to skip should be included in the score as well.
+            // TODO: use the decided leader as input instead of leader slot. If the leader
+            // was skipped, votes to skip should be included in the score as
+            // well.
             if subdag.is_vote(&potential_vote, leader_block) {
                 let authority = potential_vote.author();
                 tracing::trace!(
@@ -173,9 +177,10 @@ impl ReputationScores {
 /// ScoringSubdag represents the scoring votes in a collection of subdags across
 /// multiple commits.
 /// These subdags are "scoring" for the purposes of leader schedule change. As
-/// new subdags are added, the DAG is traversed and votes for leaders are recorded
-/// and scored along with stake. On a leader schedule change, finalized reputation
-/// scores will be calculated based on the votes & stake collected in this struct.
+/// new subdags are added, the DAG is traversed and votes for leaders are
+/// recorded and scored along with stake. On a leader schedule change, finalized
+/// reputation scores will be calculated based on the votes & stake collected in
+/// this struct.
 pub(crate) struct ScoringSubdag {
     pub(crate) context: Arc<Context>,
     pub(crate) commit_range: Option<CommitRange>,
@@ -242,10 +247,12 @@ impl ScoringSubdag {
                             block.reference(),
                             block.author()
                         );
-                        assert!(self
-                            .votes
-                            .insert(block.reference(), StakeAggregator::new())
-                            .is_none(), "Vote {block} already exists. Duplicate vote found for leader {ancestor}");
+                        assert!(
+                            self.votes
+                                .insert(block.reference(), StakeAggregator::new())
+                                .is_none(),
+                            "Vote {block} already exists. Duplicate vote found for leader {ancestor}"
+                        );
                     }
 
                     if let Some(stake) = self.votes.get_mut(ancestor) {
@@ -276,10 +283,10 @@ impl ScoringSubdag {
         )
     }
 
-    /// This scoring strategy aims to give scores based on overall vote distribution.
-    /// Instead of only giving one point for each vote that is included in 2f+1
-    /// blocks. We give a score equal to the amount of stake of all blocks that
-    /// included the vote.
+    /// This scoring strategy aims to give scores based on overall vote
+    /// distribution. Instead of only giving one point for each vote that is
+    /// included in 2f+1 blocks. We give a score equal to the amount of
+    /// stake of all blocks that included the vote.
     fn distributed_votes_scores(&self) -> Vec<u64> {
         let _s = self
             .context
@@ -458,22 +465,19 @@ impl UnscoredSubdag {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_dag_builder::DagBuilder, CommitDigest, CommitRef};
+    use crate::{CommitDigest, CommitRef, test_dag_builder::DagBuilder};
 
     #[tokio::test]
     async fn test_reputation_scores_authorities_by_score() {
         let context = Arc::new(Context::new_for_test(4).0);
         let scores = ReputationScores::new((1..=300).into(), vec![4, 1, 1, 3]);
         let authorities = scores.authorities_by_score(context);
-        assert_eq!(
-            authorities,
-            vec![
-                (AuthorityIndex::new_for_test(0), 4),
-                (AuthorityIndex::new_for_test(1), 1),
-                (AuthorityIndex::new_for_test(2), 1),
-                (AuthorityIndex::new_for_test(3), 3),
-            ]
-        );
+        assert_eq!(authorities, vec![
+            (AuthorityIndex::new_for_test(0), 4),
+            (AuthorityIndex::new_for_test(1), 1),
+            (AuthorityIndex::new_for_test(2), 1),
+            (AuthorityIndex::new_for_test(3), 3),
+        ]);
     }
 
     #[tokio::test]

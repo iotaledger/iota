@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::{file_format::CompiledModule, file_format_common::VERSION_MAX};
-
 use std::{collections::BTreeMap, path::PathBuf};
+
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_types::{
@@ -13,8 +12,9 @@ use iota_types::{
     error::ExecutionErrorKind,
     execution_status::PackageUpgradeError,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
-    object::{Data, Object, OBJECT_START_VERSION},
+    object::{Data, OBJECT_START_VERSION, Object},
 };
+use move_binary_format::{file_format::CompiledModule, file_format_common::VERSION_MAX};
 
 macro_rules! type_origin_table {
     {} => { Vec::new() };
@@ -54,40 +54,29 @@ fn test_new_initial() {
     let b_pkg = MovePackage::new_initial(&build_test_modules("B"), u64::MAX, VERSION_MAX, [&c_pkg])
         .unwrap();
 
-    let a_pkg = MovePackage::new_initial(
-        &build_test_modules("A"),
-        u64::MAX,
-        VERSION_MAX,
-        [&b_pkg, &c_pkg],
-    )
+    let a_pkg = MovePackage::new_initial(&build_test_modules("A"), u64::MAX, VERSION_MAX, [
+        &b_pkg, &c_pkg,
+    ])
     .unwrap();
 
-    assert_eq!(
-        a_pkg.linkage_table(),
-        &linkage_table! {
-            b_id1 => (b_id1, OBJECT_START_VERSION),
-            c_id1 => (c_id1, OBJECT_START_VERSION),
-        }
-    );
+    assert_eq!(a_pkg.linkage_table(), &linkage_table! {
+        b_id1 => (b_id1, OBJECT_START_VERSION),
+        c_id1 => (c_id1, OBJECT_START_VERSION),
+    });
 
-    assert_eq!(
-        b_pkg.linkage_table(),
-        &linkage_table! {
-            c_id1 => (c_id1, OBJECT_START_VERSION),
-        }
-    );
+    assert_eq!(b_pkg.linkage_table(), &linkage_table! {
+        c_id1 => (c_id1, OBJECT_START_VERSION),
+    });
 
     assert_eq!(c_pkg.linkage_table(), &linkage_table! {},);
 
-    assert_eq!(
-        c_pkg.type_origin_table(),
-        &type_origin_table! {
-            c::C => c_id1,
-        }
-    );
+    assert_eq!(c_pkg.type_origin_table(), &type_origin_table! {
+        c::C => c_id1,
+    });
 
-    // also test that move package sizes used for gas computations are estimated correctly (small
-    // constant differences can be tolerated and are due to BCS encoding)
+    // also test that move package sizes used for gas computations are estimated
+    // correctly (small constant differences can be tolerated and are due to BCS
+    // encoding)
     let a_pkg_obj = Object::new_package_from_data(Data::Package(a_pkg), TransactionDigest::ZERO);
     let b_pkg_obj = Object::new_package_from_data(Data::Package(b_pkg), TransactionDigest::ZERO);
     let c_pkg_obj = Object::new_package_from_data(Data::Package(c_pkg), TransactionDigest::ZERO);
@@ -122,13 +111,10 @@ fn test_upgraded() {
     expected_version.increment();
     assert_eq!(expected_version, c_new.version());
 
-    assert_eq!(
-        c_new.type_origin_table(),
-        &type_origin_table! {
-            c::C => c_id1,
-            c::D => c_id2,
-        },
-    );
+    assert_eq!(c_new.type_origin_table(), &type_origin_table! {
+        c::C => c_id1,
+        c::D => c_id2,
+    },);
 }
 
 #[test]
@@ -150,12 +136,9 @@ fn test_depending_on_upgrade() {
     let b_pkg = MovePackage::new_initial(&build_test_modules("B"), u64::MAX, VERSION_MAX, [&c_new])
         .unwrap();
 
-    assert_eq!(
-        b_pkg.linkage_table(),
-        &linkage_table! {
-            c_id1 => (c_id2, c_new.version()),
-        },
-    );
+    assert_eq!(b_pkg.linkage_table(), &linkage_table! {
+        c_id1 => (c_id2, c_new.version()),
+    },);
 }
 
 #[test]
@@ -187,19 +170,13 @@ fn test_upgrade_upgrades_linkage() {
         )
         .unwrap();
 
-    assert_eq!(
-        b_pkg.linkage_table(),
-        &linkage_table! {
-            c_id1 => (c_id1, OBJECT_START_VERSION),
-        },
-    );
+    assert_eq!(b_pkg.linkage_table(), &linkage_table! {
+        c_id1 => (c_id1, OBJECT_START_VERSION),
+    },);
 
-    assert_eq!(
-        b_new.linkage_table(),
-        &linkage_table! {
-            c_id1 => (c_id2, c_new.version()),
-        },
-    );
+    assert_eq!(b_new.linkage_table(), &linkage_table! {
+        c_id1 => (c_id2, c_new.version()),
+    },);
 }
 
 #[test]
@@ -231,15 +208,12 @@ fn test_upgrade_linkage_digest_to_new_dep() {
         )
         .unwrap();
 
-    assert_eq!(
-        b_new.linkage_table(),
-        &linkage_table! {
-            c_id1 => (c_id2, c_new.version()),
-        },
-    );
+    assert_eq!(b_new.linkage_table(), &linkage_table! {
+        c_id1 => (c_id2, c_new.version()),
+    },);
 
-    // Make sure that we compute the package digest off of the update dependencies and not the old
-    // dependencies in the linkage table.
+    // Make sure that we compute the package digest off of the update dependencies
+    // and not the old dependencies in the linkage table.
     let hash_modules = true;
     assert_eq!(
         b_new.digest(hash_modules),
@@ -289,19 +263,13 @@ fn test_upgrade_downngrades_linkage() {
         )
         .unwrap();
 
-    assert_eq!(
-        b_pkg.linkage_table(),
-        &linkage_table! {
-            c_id1 => (c_id2, c_new.version()),
-        },
-    );
+    assert_eq!(b_pkg.linkage_table(), &linkage_table! {
+        c_id1 => (c_id2, c_new.version()),
+    },);
 
-    assert_eq!(
-        b_new.linkage_table(),
-        &linkage_table! {
-            c_id1 => (c_id1, OBJECT_START_VERSION),
-        },
-    );
+    assert_eq!(b_new.linkage_table(), &linkage_table! {
+        c_id1 => (c_id1, OBJECT_START_VERSION),
+    },);
 }
 
 #[test]
@@ -324,21 +292,15 @@ fn test_transitively_depending_on_upgrade() {
     let b_pkg = MovePackage::new_initial(&build_test_modules("B"), u64::MAX, VERSION_MAX, [&c_pkg])
         .unwrap();
 
-    let a_pkg = MovePackage::new_initial(
-        &build_test_modules("A"),
-        u64::MAX,
-        VERSION_MAX,
-        [&b_pkg, &c_new],
-    )
+    let a_pkg = MovePackage::new_initial(&build_test_modules("A"), u64::MAX, VERSION_MAX, [
+        &b_pkg, &c_new,
+    ])
     .unwrap();
 
-    assert_eq!(
-        a_pkg.linkage_table(),
-        &linkage_table! {
-            b_id1 => (b_id1, OBJECT_START_VERSION),
-            c_id1 => (c_id2, c_new.version()),
-        },
-    );
+    assert_eq!(a_pkg.linkage_table(), &linkage_table! {
+        b_id1 => (b_id1, OBJECT_START_VERSION),
+        c_id1 => (c_id2, c_new.version()),
+    },);
 }
 
 #[test]
@@ -424,12 +386,9 @@ fn test_fail_on_transitive_dependency_downgrade() {
     let b_pkg = MovePackage::new_initial(&build_test_modules("B"), u64::MAX, VERSION_MAX, [&c_new])
         .unwrap();
 
-    let err = MovePackage::new_initial(
-        &build_test_modules("A"),
-        u64::MAX,
-        VERSION_MAX,
-        [&b_pkg, &c_pkg],
-    )
+    let err = MovePackage::new_initial(&build_test_modules("A"), u64::MAX, VERSION_MAX, [
+        &b_pkg, &c_pkg,
+    ])
     .unwrap_err();
 
     assert_eq!(
@@ -453,12 +412,9 @@ fn test_fail_on_upgrade_missing_type() {
         )
         .unwrap_err();
 
-    assert_eq!(
-        err.kind(),
-        &ExecutionErrorKind::PackageUpgradeError {
-            upgrade_error: PackageUpgradeError::IncompatibleUpgrade
-        }
-    );
+    assert_eq!(err.kind(), &ExecutionErrorKind::PackageUpgradeError {
+        upgrade_error: PackageUpgradeError::IncompatibleUpgrade
+    });
 
     // At versions before version 5 this was an invariant violation
     let err = c_pkg

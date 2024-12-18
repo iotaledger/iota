@@ -2,25 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::VecDeque;
-use std::hash::{Hash, Hasher};
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-use std::{cmp::Ordering, hash::DefaultHasher};
+use std::{
+    cmp::Ordering,
+    collections::VecDeque,
+    hash::{DefaultHasher, Hash, Hasher},
+    sync::{Arc, atomic::AtomicU64},
+};
 
-use moka::sync::Cache as MokaCache;
 use iota_common::debug_fatal;
-use parking_lot::Mutex;
 use iota_types::base_types::SequenceNumber;
+use moka::sync::Cache as MokaCache;
+use parking_lot::Mutex;
 
-/// CachedVersionMap is a map from version to value, with the additional contraints:
-/// - The key (SequenceNumber) must be monotonically increasing for each insert. If
-///   a key is inserted that is less than the previous key, it results in an assertion
-///   failure.
+/// CachedVersionMap is a map from version to value, with the additional
+/// contraints:
+/// - The key (SequenceNumber) must be monotonically increasing for each insert.
+///   If a key is inserted that is less than the previous key, it results in an
+///   assertion failure.
 /// - Similarly, only the item with the least key can be removed.
-/// - The intent of these constraints is to ensure that there are never gaps in the collection,
-///   so that membership in the map can be tested by comparing to both the highest and lowest
-///   (first and last) entries.
+/// - The intent of these constraints is to ensure that there are never gaps in
+///   the collection, so that membership in the map can be tested by comparing
+///   to both the highest and lowest (first and last) entries.
 #[derive(Debug)]
 pub struct CachedVersionMap<V> {
     values: VecDeque<(SequenceNumber, V)>,
@@ -108,7 +110,8 @@ impl<V> CachedVersionMap<V> {
     }
 }
 
-// an iterator adapter that asserts that the wrapped iterator yields elements in order
+// an iterator adapter that asserts that the wrapped iterator yields elements in
+// order
 pub(super) struct AssertOrdered<I: Iterator> {
     iter: I,
     last: Option<I::Item>,
@@ -171,10 +174,11 @@ pub enum Ticket {
 }
 
 // key_generation should be big enough to make false positives unlikely. If, on
-// average, there is one millisecond between acquiring the ticket and calling insert(),
-// then even at 1 million inserts per second, there will be 1000 inserts between acquiring
-// the ticket and calling insert(), so about 1/16th of the entries will be invalidated,
-// so valid inserts will succeed with probability 15/16.
+// average, there is one millisecond between acquiring the ticket and calling
+// insert(), then even at 1 million inserts per second, there will be 1000
+// inserts between acquiring the ticket and calling insert(), so about 1/16th of
+// the entries will be invalidated, so valid inserts will succeed with
+// probability 15/16.
 const KEY_GENERATION_SIZE: usize = 1024 * 16;
 
 impl<K, V> MonotonicCache<K, V>
@@ -202,22 +206,24 @@ where
         &self.key_generation[(hash % KEY_GENERATION_SIZE as u64) as usize]
     }
 
-    /// Get a ticket for caching the result of a read operation. The ticket will be
-    /// expired if a writer writes a new version of the value.
-    /// The caller must obtain the ticket BEFORE checking the dirty set and db. By
-    /// obeying this rule, the caller can be sure that if their ticket remains valid
-    /// at insert time, they either are inserting the most recent value, or a concurrent
-    /// writer will shortly overwrite their value.
+    /// Get a ticket for caching the result of a read operation. The ticket will
+    /// be expired if a writer writes a new version of the value.
+    /// The caller must obtain the ticket BEFORE checking the dirty set and db.
+    /// By obeying this rule, the caller can be sure that if their ticket
+    /// remains valid at insert time, they either are inserting the most
+    /// recent value, or a concurrent writer will shortly overwrite their
+    /// value.
     pub fn get_ticket_for_read(&self, key: &K) -> Ticket {
         let gen = self.generation(key);
         Ticket::Read(gen.load(std::sync::atomic::Ordering::Acquire))
     }
 
     // Update the cache with guaranteed monotonicity. That is, if there are N
-    // calls to the this function from N threads, the write with the newest value will
-    // win the race regardless of what ordering the writes occur in.
+    // calls to the this function from N threads, the write with the newest value
+    // will win the race regardless of what ordering the writes occur in.
     //
-    // Caller should log the insert with trace! and increment the appropriate metric.
+    // Caller should log the insert with trace! and increment the appropriate
+    // metric.
     pub fn insert(&self, key: &K, value: V, ticket: Ticket) -> Result<(), ()> {
         let gen = self.generation(key);
 
@@ -249,10 +255,10 @@ where
             // no entry. Here are the possible outcomes:
             //
             // 1. Race in `or_optionally_insert_with`:
-            //    1. Reader wins race, ticket is valid, and reader inserts old version.
-            //       Writer will overwrite the old version after the !is_fresh check.
-            //    2. Writer wins race. Reader will enter is_fresh check, lock entry, and
-            //       find that its ticket is expired.
+            //    1. Reader wins race, ticket is valid, and reader inserts old version. Writer will
+            //       overwrite the old version after the !is_fresh check.
+            //    2. Writer wins race. Reader will enter is_fresh check, lock entry, and find that
+            //       its ticket is expired.
             //
             // 2. No race on `or_optionally_insert_with`:
             //    1. Reader inserts first (via `or_optionally_insert_with`), writer enters !is_fresh
@@ -267,12 +273,12 @@ where
             //          `or_optionally_insert_with`. The ticket is expired so we do not insert.
             //
             // The other cases are where there is already an entry. In this case neither reader
-            // nor writer will enter `or_optionally_insert_with` callback. Instead they will both enter
-            // the !is_fresh check and lock the entry:
-            // 1. If the reader locks first, it will insert its old version. Then the writer
-            //    will lock and overwrite it with the newer version.
-            // 2. If the writer locks first, it will have already expired the ticket, and the
-            //    reader will not insert anything.
+            // nor writer will enter `or_optionally_insert_with` callback. Instead they will both
+            // enter the !is_fresh check and lock the entry:
+            // 1. If the reader locks first, it will insert its old version. Then the writer will
+            //    lock and overwrite it with the newer version.
+            // 2. If the writer locks first, it will have already expired the ticket, and the reader
+            //    will not insert anything.
             //
             // There may also be more than one concurrent reader. However, the only way the two
             // readers can have different versions is if there is concurrently a writer that wrote
@@ -285,10 +291,12 @@ where
             })
             // Note: Ticket::Write cannot expire, but an insert can still fail, in the case where
             // a writer and reader are racing to call `or_optionally_insert_with`, the reader wins,
-            // but then fails to insert because its ticket is expired. Then no entry at all is inserted.
+            // but then fails to insert because its ticket is expired. Then no entry at all is
+            // inserted.
             .ok_or(())?;
 
-        // !is_fresh means we did not insert a new entry in or_optionally_insert_with above.
+        // !is_fresh means we did not insert a new entry in or_optionally_insert_with
+        // above.
         if !entry.is_fresh() {
             let mut entry = entry.value().lock();
             check_ticket()?;
@@ -325,8 +333,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use iota_types::base_types::SequenceNumber;
+
+    use super::*;
 
     // Helper function to create a SequenceNumber for simplicity
     fn seq(num: u64) -> SequenceNumber {

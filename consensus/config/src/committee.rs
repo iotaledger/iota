@@ -15,13 +15,13 @@ use crate::{AuthorityPublicKey, NetworkPublicKey, ProtocolPublicKey};
 /// Committee of the consensus protocol is updated each epoch.
 pub type Epoch = u64;
 
-/// Voting power of an authority, roughly proportional to the actual amount of Iota staked
-/// by the authority.
+/// Voting power of an authority, roughly proportional to the actual amount of
+/// Iota staked by the authority.
 /// Total stake / voting power of all authorities should sum to 10,000.
 pub type Stake = u64;
 
-/// Committee is the set of authorities that participate in the consensus protocol for this epoch.
-/// Its configuration is stored and computed on chain.
+/// Committee is the set of authorities that participate in the consensus
+/// protocol for this epoch. Its configuration is stored and computed on chain.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Committee {
     /// The epoch number of this committee
@@ -128,8 +128,8 @@ impl Committee {
 
 /// Represents one authority in the committee.
 ///
-/// NOTE: this is intentionally un-cloneable, to encourage only copying relevant fields.
-/// AuthorityIndex should be used to reference an authority instead.
+/// NOTE: this is intentionally un-cloneable, to encourage only copying relevant
+/// fields. AuthorityIndex should be used to reference an authority instead.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Authority {
     /// Voting power of the authority in the committee.
@@ -146,12 +146,13 @@ pub struct Authority {
     pub network_key: NetworkPublicKey,
 }
 
-/// Each authority is uniquely identified by its AuthorityIndex in the Committee.
-/// AuthorityIndex is between 0 (inclusive) and the total number of authorities (exclusive).
+/// Each authority is uniquely identified by its AuthorityIndex in the
+/// Committee. AuthorityIndex is between 0 (inclusive) and the total number of
+/// authorities (exclusive).
 ///
-/// NOTE: for safety, invalid AuthorityIndex should be impossible to create. So AuthorityIndex
-/// should not be created or incremented outside of this file. AuthorityIndex received from peers
-/// should be validated before use.
+/// NOTE: for safety, invalid AuthorityIndex should be impossible to create. So
+/// AuthorityIndex should not be created or incremented outside of this file.
+/// AuthorityIndex received from peers should be validated before use.
 #[derive(
     Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug, Default, Hash, Serialize, Deserialize,
 )]

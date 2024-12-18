@@ -5,25 +5,24 @@
 use std::str::FromStr;
 
 use async_graphql::ScalarType;
-use move_core_types::language_storage::StructTag;
-use once_cell::sync::Lazy;
-use regex::Regex;
-use serde::{Deserialize, Serialize};
-use iota_json_rpc::name_service::{validate_label, Domain};
+use iota_json_rpc::name_service::{Domain, validate_label};
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     collection_types::VecMap,
     dynamic_field::Field,
     id::ID,
     object::MoveObject as NativeMoveObject,
 };
-
-use crate::{
-    config::{MoveRegistryConfig, MOVE_REGISTRY_MODULE, MOVE_REGISTRY_TYPE},
-    types::base64::Base64,
-};
+use move_core_types::language_storage::StructTag;
+use once_cell::sync::Lazy;
+use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use super::error::MoveRegistryError;
+use crate::{
+    config::{MOVE_REGISTRY_MODULE, MOVE_REGISTRY_TYPE, MoveRegistryConfig},
+    types::base64::Base64,
+};
 
 /// Regex to parse a dot move name. Version is optional (defaults to latest).
 /// For versioned format, the expected format is `@org/app/1` (1 == version).
@@ -58,8 +57,8 @@ pub(crate) static VERSIONED_NAME_REG: Lazy<Regex> =
     Lazy::new(|| Regex::new(VERSIONED_NAME_REGEX).unwrap());
 
 /// An AppRecord entry in the DotMove service.
-/// Attention: The format of this struct should not change unless the on-chain format changes,
-/// as we define it to deserialize on-chain data.
+/// Attention: The format of this struct should not change unless the on-chain
+/// format changes, as we define it to deserialize on-chain data.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub(crate) struct AppRecord {
     pub(crate) app_cap_id: ID,
@@ -70,8 +69,8 @@ pub(crate) struct AppRecord {
     pub(crate) storage: ObjectID,
 }
 
-/// Attention: The format of this struct should not change unless the on-chain format changes,
-/// as we define it to deserialize on-chain data.
+/// Attention: The format of this struct should not change unless the on-chain
+/// format changes, as we define it to deserialize on-chain data.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub(crate) struct AppInfo {
     pub(crate) package_info_id: Option<ID>,
@@ -87,8 +86,8 @@ pub(crate) struct VersionedName {
     pub(crate) name: Name,
 }
 
-/// Attention: The format of this struct should not change unless the on-chain format changes,
-/// as we define it to deserialize on-chain data.
+/// Attention: The format of this struct should not change unless the on-chain
+/// format changes, as we define it to deserialize on-chain data.
 #[derive(Debug, Serialize, Deserialize, Hash, Clone, Eq, PartialEq)]
 pub(crate) struct Name {
     pub(crate) org: Domain,
@@ -184,22 +183,27 @@ impl TryFrom<NativeMoveObject> for AppRecord {
 
 #[cfg(test)]
 mod tests {
-    use super::VersionedName;
     use std::str::FromStr;
+
+    use super::VersionedName;
 
     #[test]
     fn parse_some_names() {
         let versioned = VersionedName::from_str("@org/app/1").unwrap();
         assert!(versioned.version.is_some_and(|x| x == 1));
 
-        assert!(VersionedName::from_str("@org/app/34")
-            .unwrap()
-            .version
-            .is_some_and(|x| x == 34));
-        assert!(VersionedName::from_str("@org/app")
-            .unwrap()
-            .version
-            .is_none());
+        assert!(
+            VersionedName::from_str("@org/app/34")
+                .unwrap()
+                .version
+                .is_some_and(|x| x == 34)
+        );
+        assert!(
+            VersionedName::from_str("@org/app")
+                .unwrap()
+                .version
+                .is_none()
+        );
 
         let ok_names = vec![
             "@org/1-app/1",

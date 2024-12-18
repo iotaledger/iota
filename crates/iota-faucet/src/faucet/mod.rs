@@ -1,17 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::FaucetError;
 use async_trait::async_trait;
+use iota_types::base_types::{IotaAddress, ObjectID, TransactionDigest};
 use serde::{Deserialize, Serialize};
-use iota_types::base_types::{ObjectID, IotaAddress, TransactionDigest};
 use uuid::Uuid;
+
+use crate::FaucetError;
 
 mod simple_faucet;
 mod write_ahead_log;
-pub use self::simple_faucet::SimpleFaucet;
-use clap::Parser;
 use std::{net::Ipv4Addr, path::PathBuf, sync::Arc};
+
+use clap::Parser;
+
+pub use self::simple_faucet::SimpleFaucet;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FaucetReceipt {
@@ -66,7 +69,8 @@ pub trait Faucet {
         amounts: &[u64],
     ) -> Result<FaucetReceipt, FaucetError>;
 
-    /// Send `Coin<IOTA>` of the specified amount to the recipient in a batch request
+    /// Send `Coin<IOTA>` of the specified amount to the recipient in a batch
+    /// request
     async fn batch_send(
         &self,
         id: Uuid,

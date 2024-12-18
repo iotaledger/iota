@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::consensus_handler::{
-    SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
-};
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ConsensusTransactionOrdering;
 use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::TransactionDataAPI as _,
+};
+
+use crate::consensus_handler::{
+    SequencedConsensusTransactionKind, VerifiedSequencedConsensusTransaction,
 };
 
 pub struct PostConsensusTxReorder {}
@@ -19,9 +20,10 @@ impl PostConsensusTxReorder {
         transactions: &mut [VerifiedSequencedConsensusTransaction],
         kind: ConsensusTransactionOrdering,
     ) {
-        // TODO: make the reordering algorithm richer and depend on object hotness as well.
-        // Order transactions based on their gas prices. System transactions without gas price
-        // are put to the beginning of the sequenced_transactions vector.
+        // TODO: make the reordering algorithm richer and depend on object hotness as
+        // well. Order transactions based on their gas prices. System
+        // transactions without gas price are put to the beginning of the
+        // sequenced_transactions vector.
         match kind {
             ConsensusTransactionOrdering::ByGasPrice => Self::order_by_gas_price(transactions),
             ConsensusTransactionOrdering::None => (),
@@ -31,7 +33,8 @@ impl PostConsensusTxReorder {
     fn order_by_gas_price(transactions: &mut [VerifiedSequencedConsensusTransaction]) {
         let _scope = monitored_scope("ConsensusCommitHandler::order_by_gas_price");
         transactions.sort_by_key(|txn| {
-            // Reverse order, so that transactions with higher gas price are put to the beginning.
+            // Reverse order, so that transactions with higher gas price are put to the
+            // beginning.
             std::cmp::Reverse({
                 match &txn.0.transaction {
                     SequencedConsensusTransactionKind::External(ConsensusTransaction {

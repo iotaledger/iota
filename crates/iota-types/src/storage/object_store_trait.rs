@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use super::ObjectKey;
-use crate::base_types::{ObjectID, ObjectRef, VersionNumber};
-use crate::object::Object;
-use crate::storage::WriteKind;
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use crate::{
+    base_types::{ObjectID, ObjectRef, VersionNumber},
+    object::Object,
+    storage::WriteKind,
+};
 
 pub trait ObjectStore {
     fn get_object(&self, object_id: &ObjectID) -> Option<Object>;

@@ -2,34 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{io, io::Write, thread::sleep, time::Duration};
+
 use anyhow::anyhow;
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::encoding::{Base64, Encoding};
-use fastcrypto::jwt_utils::parse_and_validate_jwt;
-use fastcrypto::traits::{EncodeDecodeBase64, KeyPair};
-use fastcrypto_zkp::bn254::utils::get_proof;
-use fastcrypto_zkp::bn254::utils::{gen_address_seed, get_salt};
-use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    encoding::{Base64, Encoding},
+    jwt_utils::parse_and_validate_jwt,
+    traits::{EncodeDecodeBase64, KeyPair},
+};
+use fastcrypto_zkp::bn254::{
+    utils::{gen_address_seed, get_proof, get_salt},
+    zk_login::ZkLoginInputs,
+};
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_keys::keystore::{AccountKeystore, Keystore};
+use iota_sdk::IotaClientBuilder;
+use iota_types::{
+    base_types::IotaAddress,
+    committee::EpochId,
+    crypto::{IotaKeyPair, PublicKey},
+    multisig::{MultiSig, MultiSigPublicKey},
+    signature::GenericSignature,
+    transaction::Transaction,
+    zk_login_authenticator::ZkLoginAuthenticator,
+};
+use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use reqwest::Client;
 use serde_json::json;
 use shared_crypto::intent::Intent;
-use std::io;
-use std::io::Write;
-use std::thread::sleep;
-use std::time::Duration;
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
-use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_sdk::IotaClientBuilder;
-use iota_types::base_types::IotaAddress;
-use iota_types::committee::EpochId;
-use iota_types::crypto::{PublicKey, IotaKeyPair};
-use iota_types::multisig::{MultiSig, MultiSigPublicKey};
-use iota_types::signature::GenericSignature;
-use iota_types::transaction::Transaction;
-use iota_types::zk_login_authenticator::ZkLoginAuthenticator;
 
 /// Read a line from stdin, parse the id_token field and return.
 pub fn read_cli_line() -> Result<String, anyhow::Error> {
@@ -66,7 +68,8 @@ pub(crate) async fn request_tokens_from_faucet(
     Ok(())
 }
 
-/// A helper function that performs a zklogin test transaction based on the provided parameters.
+/// A helper function that performs a zklogin test transaction based on the
+/// provided parameters.
 pub async fn perform_zk_login_test_tx(
     parsed_token: &str,
     max_epoch: EpochId,
@@ -75,8 +78,10 @@ pub async fn perform_zk_login_test_tx(
     ephemeral_key_identifier: IotaAddress,
     keystore: &mut Keystore,
     network: &str,
-    test_multisig: bool, // if true, put zklogin in a multisig address with another traditional pubkey.
-    sign_with_sk: bool, // if true, submit tx with the traditional sig, otherwise submit with zklogin sig.
+    test_multisig: bool, /* if true, put zklogin in a multisig address with another traditional
+                          * pubkey. */
+    sign_with_sk: bool, /* if true, submit tx with the traditional sig, otherwise submit with
+                         * zklogin sig. */
 ) -> Result<String, anyhow::Error> {
     let (gas_url, fullnode_url) = get_config(network);
     let user_salt = get_salt(parsed_token, "https://salt.api.iota.org/get_salt")

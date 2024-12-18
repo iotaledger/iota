@@ -2,37 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
 use futures::FutureExt;
-use std::collections::HashMap;
-use std::sync::Arc;
 use iota_protocol_config::ProtocolConfig;
+use iota_storage::{
+    http_key_value_store::*, key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics,
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::{
-    random_object_ref, ExecutionDigests, ObjectID, SequenceNumber, VersionNumber,
+use iota_types::{
+    base_types::{ExecutionDigests, ObjectID, SequenceNumber, VersionNumber, random_object_ref},
+    committee::Committee,
+    crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
+    digests::{
+        CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
+    },
+    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    error::IotaResult,
+    event::Event,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
+        CheckpointSummary, SignedCheckpointSummary,
+    },
+    object::Object,
+    storage::ObjectKey,
+    transaction::Transaction,
 };
-use iota_types::committee::Committee;
-use iota_types::crypto::KeypairTraits;
-use iota_types::crypto::{get_key_pair, AccountKeyPair};
-use iota_types::digests::{
-    CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
-};
-use iota_types::effects::{
-    TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents,
-};
-use iota_types::error::IotaResult;
-use iota_types::event::Event;
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
-    SignedCheckpointSummary,
-};
-use iota_types::transaction::Transaction;
-
-use iota_storage::http_key_value_store::*;
-use iota_storage::key_value_store::*;
-use iota_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use iota_types::object::Object;
-use iota_types::storage::ObjectKey;
 
 fn random_tx() -> Transaction {
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
@@ -429,15 +425,23 @@ async fn test_get_tx_from_fallback() {
 
 #[cfg(msim)]
 mod simtests {
-    use super::*;
-    use axum::routing::get;
-    use axum::{body::Body, extract::Request, extract::State, response::Response};
-    use std::net::SocketAddr;
-    use std::sync::Mutex;
-    use std::time::{Duration, Instant};
+    use std::{
+        net::SocketAddr,
+        sync::Mutex,
+        time::{Duration, Instant},
+    };
+
+    use axum::{
+        body::Body,
+        extract::{Request, State},
+        response::Response,
+        routing::get,
+    };
     use iota_macros::sim_test;
     use iota_simulator::configs::constant_latency_ms;
     use tracing::info;
+
+    use super::*;
 
     async fn svc(
         State(state): State<Arc<Mutex<HashMap<String, Vec<u8>>>>>,
@@ -545,8 +549,8 @@ mod simtests {
             .await
             .unwrap();
 
-        // verify that the request took approximately one round trip despite fetching 4 items,
-        // i.e. test that pipelining or multiplexing is working.
+        // verify that the request took approximately one round trip despite fetching 4
+        // items, i.e. test that pipelining or multiplexing is working.
         assert!(start_time.elapsed() < Duration::from_millis(600));
 
         assert_eq!(

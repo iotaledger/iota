@@ -2,22 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::{HashMap, HashSet};
+
 use futures::{
-    stream::{FuturesOrdered, FuturesUnordered},
     StreamExt,
+    stream::{FuturesOrdered, FuturesUnordered},
 };
+use iota_macros::*;
+use iota_test_transaction_builder::make_transfer_iota_transaction;
 use rand::{
+    Rng,
     distributions::{Distribution, Uniform},
     rngs::OsRng,
-    Rng,
 };
-use std::collections::{HashMap, HashSet};
-use iota_test_transaction_builder::make_transfer_iota_transaction;
-use tokio::time::{sleep, Duration, Instant};
-use tracing::{debug, trace};
-
-use iota_macros::*;
 use test_cluster::TestClusterBuilder;
+use tokio::time::{Duration, Instant, sleep};
+use tracing::{debug, trace};
 
 async fn make_fut(i: usize) -> usize {
     let count_dist = Uniform::from(1..5);
@@ -122,8 +122,8 @@ async fn test_hash_collections() {
     debug!("final rng state: {}", OsRng.gen::<u32>());
 }
 
-// Test that starting up a network + fullnode, and sending one transaction through that network is
-// repeatable and deterministic.
+// Test that starting up a network + fullnode, and sending one transaction
+// through that network is repeatable and deterministic.
 #[sim_test(check_determinism)]
 async fn test_net_determinism() {
     let mut test_cluster = TestClusterBuilder::new().build().await;

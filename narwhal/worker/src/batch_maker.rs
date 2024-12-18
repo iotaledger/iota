@@ -3,32 +3,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::metrics::WorkerMetrics;
-use config::WorkerId;
-use fastcrypto::hash::Hash;
-use futures::future::BoxFuture;
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
-use iota_metrics::metered_channel::{Receiver, Sender};
-use iota_metrics::{monitored_scope, spawn_logged_monitored_task};
-use network::{client::NetworkClient, WorkerToPrimaryClient};
+#[cfg(feature = "benchmark")]
+use std::convert::TryInto;
 use std::sync::Arc;
-use store::{rocks::DBMap, Map};
-use iota_protocol_config::ProtocolConfig;
-use tokio::{
-    task::JoinHandle,
-    time::{sleep, Duration, Instant},
-};
-use tracing::{error, warn};
-use types::{
-    error::DagError, now, Batch, BatchAPI, BatchDigest, ConditionalBroadcastReceiver, MetadataAPI,
-    Transaction, TxResponse, WorkerOwnBatchMessage,
-};
 
 #[cfg(feature = "trace_transaction")]
 use byteorder::{BigEndian, ReadBytesExt};
-#[cfg(feature = "benchmark")]
-use std::convert::TryInto;
+use config::WorkerId;
+use fastcrypto::hash::Hash;
+use futures::{StreamExt, future::BoxFuture, stream::FuturesUnordered};
+use iota_metrics::{
+    metered_channel::{Receiver, Sender},
+    monitored_scope, spawn_logged_monitored_task,
+};
+use iota_protocol_config::ProtocolConfig;
+use network::{WorkerToPrimaryClient, client::NetworkClient};
+use store::{Map, rocks::DBMap};
+use tokio::{
+    task::JoinHandle,
+    time::{Duration, Instant, sleep},
+};
+use tracing::{error, warn};
+use types::{
+    Batch, BatchAPI, BatchDigest, ConditionalBroadcastReceiver, MetadataAPI, Transaction,
+    TxResponse, WorkerOwnBatchMessage, error::DagError, now,
+};
+
+use crate::metrics::WorkerMetrics;
 
 // The number of batches to store / transmit in parallel.
 pub const MAX_PARALLEL_BATCH: usize = 100;
@@ -54,7 +55,8 @@ pub struct BatchMaker {
     /// Metrics handler
     node_metrics: Arc<WorkerMetrics>,
     /// The timestamp of the batch creation.
-    /// Average resident time in the batch would be ~ (batch seal time - creation time) / 2
+    /// Average resident time in the batch would be ~ (batch seal time -
+    /// creation time) / 2
     batch_start_timestamp: Instant,
     /// The network client to send our batches to the primary.
     client: NetworkClient,
@@ -189,7 +191,8 @@ impl BatchMaker {
         {
             let digest = batch.digest();
 
-            // Look for sample txs (they all start with 0) and gather their txs id (the next 8 bytes).
+            // Look for sample txs (they all start with 0) and gather their txs id (the next
+            // 8 bytes).
             let tx_ids: Vec<_> = batch
                 .transactions()
                 .iter()

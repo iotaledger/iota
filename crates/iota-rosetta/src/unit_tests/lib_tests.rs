@@ -2,28 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::CoinMetadataCache;
+use std::{num::NonZeroUsize, path::PathBuf};
+
 use anyhow::anyhow;
-use rand::prelude::IteratorRandom;
-use rand::rngs::OsRng;
-use shared_crypto::intent::Intent;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
 use iota_json_rpc_types::{
-    ObjectChange, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
+    ObjectChange,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_move_build::BuildConfig;
 use iota_sdk::IotaClient;
-use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
-use iota_types::gas_coin::GAS;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::transaction::{
-    InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
-    TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    gas_coin::GAS,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{
+        InputObjectKind, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
+        TransactionData, TransactionDataAPI, TransactionKind,
+    },
 };
+use rand::{prelude::IteratorRandom, rngs::OsRng};
+use shared_crypto::intent::Intent;
 use test_cluster::TestClusterBuilder;
+
+use crate::CoinMetadataCache;
 
 #[tokio::test]
 async fn test_cache() {
@@ -127,8 +130,10 @@ async fn get_random_iota(
                     .with_owner()
                     .with_previous_transaction(),
             )),
-            /* cursor */ None,
-            /* limit */ None,
+            // cursor
+            None,
+            // limit
+            None,
         )
         .await
         .unwrap()

@@ -2,38 +2,37 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abi::{eth_iota_bridge, EthIotaBridge};
-use crate::client::bridge_authority_aggregator::BridgeAuthorityAggregator;
-use crate::crypto::BridgeAuthorityKeyPair;
-use crate::e2e_tests::test_utils::TestClusterWrapperBuilder;
-use crate::e2e_tests::test_utils::{
-    get_signatures, initiate_bridge_erc20_to_iota, initiate_bridge_eth_to_iota,
-    initiate_bridge_iota_to_eth, send_eth_tx_and_get_tx_receipt, BridgeTestClusterBuilder,
-};
-use crate::eth_transaction_builder::build_eth_transaction;
-use crate::events::{
-    IotaBridgeEvent, IotaToEthTokenBridgeV1, TokenTransferApproved, TokenTransferClaimed,
-};
-use crate::iota_transaction_builder::build_add_tokens_on_iota_transaction;
-use crate::types::{AddTokensOnEvmAction, BridgeAction};
-use crate::utils::publish_and_register_coins_return_add_coins_on_iota_action;
-use crate::BRIDGE_ENABLE_PROTOCOL_VERSION;
-use ethers::prelude::*;
-use ethers::types::Address as EthAddress;
-use std::collections::HashSet;
+use std::{collections::HashSet, path::Path, sync::Arc};
+
+use ethers::{prelude::*, types::Address as EthAddress};
 use iota_json_rpc_api::BridgeReadApiClient;
-use iota_types::crypto::get_key_pair;
-use test_cluster::TestClusterBuilder;
-
-use std::path::Path;
-
-use std::sync::Arc;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
-use iota_types::bridge::{
-    get_bridge, BridgeChainId, BridgeTokenMetadata, BridgeTrait, TOKEN_ID_ETH,
+use iota_types::{
+    IOTA_BRIDGE_OBJECT_ID,
+    bridge::{BridgeChainId, BridgeTokenMetadata, BridgeTrait, TOKEN_ID_ETH, get_bridge},
+    crypto::get_key_pair,
 };
-use iota_types::IOTA_BRIDGE_OBJECT_ID;
+use test_cluster::TestClusterBuilder;
 use tracing::info;
+
+use crate::{
+    BRIDGE_ENABLE_PROTOCOL_VERSION,
+    abi::{EthIotaBridge, eth_iota_bridge},
+    client::bridge_authority_aggregator::BridgeAuthorityAggregator,
+    crypto::BridgeAuthorityKeyPair,
+    e2e_tests::test_utils::{
+        BridgeTestClusterBuilder, TestClusterWrapperBuilder, get_signatures,
+        initiate_bridge_erc20_to_iota, initiate_bridge_eth_to_iota, initiate_bridge_iota_to_eth,
+        send_eth_tx_and_get_tx_receipt,
+    },
+    eth_transaction_builder::build_eth_transaction,
+    events::{
+        IotaBridgeEvent, IotaToEthTokenBridgeV1, TokenTransferApproved, TokenTransferClaimed,
+    },
+    iota_transaction_builder::build_add_tokens_on_iota_transaction,
+    types::{AddTokensOnEvmAction, BridgeAction},
+    utils::publish_and_register_coins_return_add_coins_on_iota_action,
+};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn test_bridge_from_eth_to_iota_to_eth() {
@@ -148,7 +147,8 @@ async fn test_bridge_from_eth_to_iota_to_eth() {
     assert_eq!(parsed_msg.parsed_payload.amount, iota_amount);
 
     let message = eth_iota_bridge::Message::from(iota_to_eth_bridge_action);
-    let signatures = get_signatures(bridge_test_cluster.bridge_client(), nonce, iota_chain_id).await;
+    let signatures =
+        get_signatures(bridge_test_cluster.bridge_client(), nonce, iota_chain_id).await;
 
     let eth_iota_bridge = EthIotaBridge::new(
         bridge_test_cluster.contracts().iota_bridge,
@@ -283,15 +283,12 @@ async fn test_add_new_coins_on_iota_and_eth() {
         .iter()
         .find(|(_type_, _)| _type == _type_)
         .unwrap();
-    assert_eq!(
-        metadata,
-        &BridgeTokenMetadata {
-            id: *id,
-            decimal_multiplier: 1_000_000_000,
-            notional_value: token_price,
-            native_token: false,
-        }
-    );
+    assert_eq!(metadata, &BridgeTokenMetadata {
+        id: *id,
+        decimal_multiplier: 1_000_000_000,
+        notional_value: token_price,
+        native_token: false,
+    });
 
     // Add new token on EVM
     let config_address = bridge_test_cluster.contracts().bridge_config;
@@ -335,11 +332,12 @@ async fn test_create_bridge_state_object() {
     // no node has the bridge state object yet
     for h in &handles {
         h.with(|node| {
-            assert!(node
-                .state()
-                .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(IOTA_BRIDGE_OBJECT_ID)
-                .is_none());
+            assert!(
+                node.state()
+                    .get_object_cache_reader()
+                    .get_latest_object_ref_or_tombstone(IOTA_BRIDGE_OBJECT_ID)
+                    .is_none()
+            );
         });
     }
 
@@ -347,8 +345,8 @@ async fn test_create_bridge_state_object() {
     test_cluster
         .wait_for_protocol_version(BRIDGE_ENABLE_PROTOCOL_VERSION.into())
         .await;
-    // wait until next epoch - authenticator state object is created at the end of the first epoch
-    // in which it is supported.
+    // wait until next epoch - authenticator state object is created at the end of
+    // the first epoch in which it is supported.
     test_cluster.wait_for_epoch_all_nodes(2).await; // protocol upgrade completes in epoch 1
 
     for h in &handles {

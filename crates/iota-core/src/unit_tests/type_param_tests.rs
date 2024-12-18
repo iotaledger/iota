@@ -4,17 +4,16 @@
 
 use std::str::FromStr;
 
-use crate::authority::{
-    authority_tests::{call_move, init_state_with_ids, TestCallArg},
-    move_integration_tests::build_and_publish_test_package,
-};
-
-use move_core_types::language_storage::TypeTag;
-
-use iota_types::effects::TransactionEffectsAPI;
 use iota_types::{
     base_types::ObjectID,
-    crypto::{get_key_pair, AccountKeyPair},
+    crypto::{AccountKeyPair, get_key_pair},
+    effects::TransactionEffectsAPI,
+};
+use move_core_types::language_storage::TypeTag;
+
+use crate::authority::{
+    authority_tests::{TestCallArg, call_move, init_state_with_ids},
+    move_integration_tests::build_and_publish_test_package,
 };
 
 #[tokio::test]
@@ -30,7 +29,8 @@ async fn test_same_module_type_param() {
         &sender_key,
         &gas,
         "type_params",
-        /* with_unpublished_deps */ true,
+        // with_unpublished_deps
+        true,
     )
     .await;
 
@@ -51,7 +51,7 @@ async fn test_same_module_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0 .0;
+    let created_object_id = effects.created()[0].0.0;
     let type_param = TypeTag::from_str(format!("{}::m1::Object", package.0).as_str()).unwrap();
 
     let effects = call_move(
@@ -87,7 +87,8 @@ async fn test_different_module_type_param() {
         &sender_key,
         &gas,
         "type_params",
-        /* with_unpublished_deps */ true,
+        // with_unpublished_deps
+        true,
     )
     .await;
 
@@ -108,7 +109,7 @@ async fn test_different_module_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0 .0;
+    let created_object_id = effects.created()[0].0.0;
     let type_param =
         TypeTag::from_str(format!("{}::m2::AnotherObject", package.0).as_str()).unwrap();
 
@@ -146,7 +147,8 @@ async fn test_nested_type_param() {
         &sender_key,
         &gas,
         "type_params",
-        /* with_unpublished_deps */ true,
+        // with_unpublished_deps
+        true,
     )
     .await;
 
@@ -167,7 +169,7 @@ async fn test_nested_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0 .0;
+    let created_object_id = effects.created()[0].0.0;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
@@ -211,7 +213,8 @@ async fn test_nested_type_param_different_module() {
         &sender_key,
         &gas,
         "type_params",
-        /* with_unpublished_deps */ true,
+        // with_unpublished_deps
+        true,
     )
     .await;
 
@@ -232,7 +235,7 @@ async fn test_nested_type_param_different_module() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0 .0;
+    let created_object_id = effects.created()[0].0.0;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",
@@ -276,7 +279,8 @@ async fn test_different_package_type_param() {
         &sender_key,
         &gas,
         "type_params",
-        /* with_unpublished_deps */ true,
+        // with_unpublished_deps
+        true,
     )
     .await;
 
@@ -286,7 +290,8 @@ async fn test_different_package_type_param() {
         &sender_key,
         &gas,
         "type_params_extra",
-        /* with_unpublished_deps */ true,
+        // with_unpublished_deps
+        true,
     )
     .await;
 
@@ -307,7 +312,7 @@ async fn test_different_package_type_param() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0 .0;
+    let created_object_id = effects.created()[0].0.0;
     let type_param =
         TypeTag::from_str(format!("{}::m2::AnotherObject", package.0).as_str()).unwrap();
 
@@ -345,7 +350,8 @@ async fn test_nested_type_param_different_package() {
         &sender_key,
         &gas,
         "type_params",
-        /* with_unpublished_deps */ true,
+        // with_unpublished_deps
+        true,
     )
     .await;
 
@@ -355,7 +361,8 @@ async fn test_nested_type_param_different_package() {
         &sender_key,
         &gas,
         "type_params_extra",
-        /* with_unpublished_deps */ true,
+        // with_unpublished_deps
+        true,
     )
     .await;
 
@@ -376,7 +383,7 @@ async fn test_nested_type_param_different_package() {
     .await
     .unwrap();
 
-    let created_object_id = effects.created()[0].0 .0;
+    let created_object_id = effects.created()[0].0.0;
     let type_param = TypeTag::from_str(
         format!(
             "{}::m1::GenObject<{}::m2::AnotherObject>",

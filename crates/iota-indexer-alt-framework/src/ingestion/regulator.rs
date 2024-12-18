@@ -8,25 +8,25 @@ use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-/// The regulator task is responsible for writing out checkpoint sequence numbers from the
-/// `checkpoints` iterator to `checkpoint_tx`, bounded by the high watermark dictated by
-/// subscribers.
+/// The regulator task is responsible for writing out checkpoint sequence
+/// numbers from the `checkpoints` iterator to `checkpoint_tx`, bounded by the
+/// high watermark dictated by subscribers.
 ///
-/// Subscribers can share their high watermarks on `ingest_hi_rx`. The regulator remembers these,
-/// and stops serving checkpoints if they are over the minimum subscriber watermark plus the
-/// ingestion `buffer_size`.
+/// Subscribers can share their high watermarks on `ingest_hi_rx`. The regulator
+/// remembers these, and stops serving checkpoints if they are over the minimum
+/// subscriber watermark plus the ingestion `buffer_size`.
 ///
-/// This offers a form of back-pressure that is sensitive to ordering, which is useful for
-/// subscribers that need to commit information in order: Without it, those subscribers may need to
-/// buffer unboundedly many updates from checkpoints while they wait for the checkpoint that they
-/// need to commit.
+/// This offers a form of back-pressure that is sensitive to ordering, which is
+/// useful for subscribers that need to commit information in order: Without it,
+/// those subscribers may need to buffer unboundedly many updates from
+/// checkpoints while they wait for the checkpoint that they need to commit.
 ///
-/// Note that back-pressure is optional, and will only be applied if a subscriber provides a
-/// watermark, at which point it must keep updating the watermark to allow the ingestion service to
-/// continue making progress.
+/// Note that back-pressure is optional, and will only be applied if a
+/// subscriber provides a watermark, at which point it must keep updating the
+/// watermark to allow the ingestion service to continue making progress.
 ///
-/// The task will shut down if the `cancel` token is signalled, or if the `checkpoints` iterator
-/// runs out.
+/// The task will shut down if the `cancel` token is signalled, or if the
+/// `checkpoints` iterator runs out.
 pub(super) fn regulator<I>(
     checkpoints: I,
     buffer_size: usize,
@@ -81,13 +81,14 @@ mod tests {
 
     use super::*;
 
-    /// Wait up to a second for a response on the channel, and return it, expecting this operation
-    /// to succeed.
+    /// Wait up to a second for a response on the channel, and return it,
+    /// expecting this operation to succeed.
     async fn expect_recv(rx: &mut mpsc::Receiver<u64>) -> Option<u64> {
         timeout(Duration::from_secs(1), rx.recv()).await.unwrap()
     }
 
-    /// Wait up to a second for a response on the channel, but expecting this operation to timeout.
+    /// Wait up to a second for a response on the channel, but expecting this
+    /// operation to timeout.
     async fn expect_timeout(rx: &mut mpsc::Receiver<u64>) -> Elapsed {
         timeout(Duration::from_secs(1), rx.recv())
             .await
@@ -198,7 +199,8 @@ mod tests {
             assert_eq!(Some(i), expect_recv(&mut cp_rx).await);
         }
 
-        // Regulator stopped because of watermark, but resumes when that watermark is updated.
+        // Regulator stopped because of watermark, but resumes when that watermark is
+        // updated.
         expect_timeout(&mut cp_rx).await;
         hi_tx.send(("test", 4)).unwrap();
 
@@ -247,7 +249,8 @@ mod tests {
         hi_tx.send(("a", 4)).unwrap();
         assert_eq!(Some(4), expect_recv(&mut cp_rx).await);
 
-        // But another update to "a" will now not make a difference, because "b" is still behind.
+        // But another update to "a" will now not make a difference, because "b" is
+        // still behind.
         hi_tx.send(("a", 5)).unwrap();
         expect_timeout(&mut cp_rx).await;
 

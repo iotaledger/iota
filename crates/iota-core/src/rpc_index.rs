@@ -2,43 +2,40 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::AuthorityStore;
-use crate::checkpoints::CheckpointStore;
-use crate::par_index_live_object_set::LiveObjectIndexer;
-use crate::par_index_live_object_set::ParMakeLiveObjectIndexer;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::Instant,
+};
+
+use iota_types::{
+    base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    digests::TransactionDigest,
+    dynamic_field::visitor as DFV,
+    full_checkpoint_content::CheckpointData,
+    layout_resolver::LayoutResolver,
+    messages_checkpoint::CheckpointContents,
+    object::{Object, Owner},
+    storage::{
+        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, error::Error as StorageError,
+    },
+};
 use move_core_types::language_storage::StructTag;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
-use serde::Deserialize;
-use serde::Serialize;
-use std::collections::HashMap;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::time::Instant;
-use iota_types::base_types::MoveObjectType;
-use iota_types::base_types::ObjectID;
-use iota_types::base_types::SequenceNumber;
-use iota_types::base_types::IotaAddress;
-use iota_types::digests::TransactionDigest;
-use iota_types::dynamic_field::visitor as DFV;
-use iota_types::full_checkpoint_content::CheckpointData;
-use iota_types::layout_resolver::LayoutResolver;
-use iota_types::messages_checkpoint::CheckpointContents;
-use iota_types::object::Object;
-use iota_types::object::Owner;
-use iota_types::storage::error::Error as StorageError;
-use iota_types::storage::BackingPackageStore;
-use iota_types::storage::DynamicFieldIndexInfo;
-use iota_types::storage::DynamicFieldKey;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
-use typed_store::rocks::{DBMap, MetricConf};
-use typed_store::traits::Map;
-use typed_store::traits::{TableSummary, TypedStoreDebug};
-use typed_store::DBMapUtils;
-use typed_store::TypedStoreError;
+use typed_store::{
+    DBMapUtils, TypedStoreError,
+    rocks::{DBMap, MetricConf},
+    traits::{Map, TableSummary, TypedStoreDebug},
+};
+
+use crate::{
+    authority::{AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore},
+    checkpoints::CheckpointStore,
+    par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
+};
 
 const CURRENT_DB_VERSION: u64 = 0;
 
@@ -105,10 +102,11 @@ impl CoinIndexInfo {
 
 /// RocksDB tables for the RpcIndexStore
 ///
-/// Anytime a new table is added, or and existing one has it's schema changed, make sure to also
-/// update the value of `CURRENT_DB_VERSION`.
+/// Anytime a new table is added, or and existing one has it's schema changed,
+/// make sure to also update the value of `CURRENT_DB_VERSION`.
 ///
-/// NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
+/// NOTE: Authors and Reviewers before adding any new tables ensure that they
+/// are either:
 /// - bounded in size by the live object set
 /// - are prune-able and have corresponding logic in the `prune` function
 #[derive(DBMapUtils)]
@@ -116,33 +114,34 @@ struct IndexStoreTables {
     /// A singleton that store metadata information on the DB.
     ///
     /// A few uses for this singleton:
-    /// - determining if the DB has been initialized (as some tables will still be empty post
-    ///     initialization)
-    /// - version of the DB. Everytime a new table or schema is changed the version number needs to
-    ///     be incremented.
+    /// - determining if the DB has been initialized (as some tables will still
+    ///   be empty post initialization)
+    /// - version of the DB. Everytime a new table or schema is changed the
+    ///   version number needs to be incremented.
     meta: DBMap<(), MetadataInfo>,
 
     /// An index of extra metadata for Transactions.
     ///
-    /// Only contains entries for transactions which have yet to be pruned from the main database.
+    /// Only contains entries for transactions which have yet to be pruned from
+    /// the main database.
     transactions: DBMap<TransactionDigest, TransactionInfo>,
 
     /// An index of object ownership.
     ///
-    /// Allows an efficient iterator to list all objects currently owned by a specific user
-    /// account.
+    /// Allows an efficient iterator to list all objects currently owned by a
+    /// specific user account.
     owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
 
     /// An index of dynamic fields (children objects).
     ///
-    /// Allows an efficient iterator to list all of the dynamic fields owned by a particular
-    /// ObjectID.
+    /// Allows an efficient iterator to list all of the dynamic fields owned by
+    /// a particular ObjectID.
     dynamic_field: DBMap<DynamicFieldKey, DynamicFieldIndexInfo>,
 
     /// An index of Coin Types
     ///
-    /// Allows looking up information related to published Coins, like the ObjectID of its
-    /// coorisponding CoinMetadata.
+    /// Allows looking up information related to published Coins, like the
+    /// ObjectID of its coorisponding CoinMetadata.
     coin: DBMap<CoinIndexKey, CoinIndexInfo>,
     // NOTE: Authors and Reviewers before adding any new tables ensure that they are either:
     // - bounded in size by the live object set
@@ -240,12 +239,9 @@ impl IndexStoreTables {
 
         self.coin.multi_insert(coin_index.into_inner().unwrap())?;
 
-        self.meta.insert(
-            &(),
-            &MetadataInfo {
-                version: CURRENT_DB_VERSION,
-            },
-        )?;
+        self.meta.insert(&(), &MetadataInfo {
+            version: CURRENT_DB_VERSION,
+        })?;
 
         info!("Finished initializing RPC indexes");
 
@@ -309,10 +305,10 @@ impl IndexStoreTables {
                             batch.delete_batch(&self.owner, [owner_key])?;
                         }
                         Owner::ObjectOwner(object_id) => {
-                            batch.delete_batch(
-                                &self.dynamic_field,
-                                [DynamicFieldKey::new(*object_id, removed_object.id())],
-                            )?;
+                            batch.delete_batch(&self.dynamic_field, [DynamicFieldKey::new(
+                                *object_id,
+                                removed_object.id(),
+                            )])?;
                         }
                         Owner::Shared { .. } | Owner::Immutable => {}
                         // TODO: Implement support for ConsensusV2 objects.
@@ -331,10 +327,9 @@ impl IndexStoreTables {
                                 }
 
                                 Owner::ObjectOwner(object_id) => {
-                                    batch.delete_batch(
-                                        &self.dynamic_field,
-                                        [DynamicFieldKey::new(*object_id, old_object.id())],
-                                    )?;
+                                    batch.delete_batch(&self.dynamic_field, [
+                                        DynamicFieldKey::new(*object_id, old_object.id()),
+                                    ])?;
                                 }
 
                                 Owner::Shared { .. } | Owner::Immutable => {}
@@ -370,9 +365,10 @@ impl IndexStoreTables {
 
                 // coin indexing
                 //
-                // coin indexing relies on the fact that CoinMetadata and TreasuryCap are created in
-                // the same transaction so we don't need to worry about overriding any older value
-                // that may exist in the database (because there necessarily cannot be).
+                // coin indexing relies on the fact that CoinMetadata and TreasuryCap are
+                // created in the same transaction so we don't need to worry
+                // about overriding any older value that may exist in the
+                // database (because there necessarily cannot be).
                 for (key, value) in tx.created_objects().flat_map(try_create_coin_index_info) {
                     use std::collections::hash_map::Entry;
 
@@ -574,7 +570,8 @@ fn try_create_dynamic_field_info(
     //
     // All dynamic fields are of type:
     //   - Field<Name, Value> for dynamic fields
-    //   - Field<Wrapper<Name, ID>> for dynamic field objects where the ID is the id of the pointed
+    //   - Field<Wrapper<Name, ID>> for dynamic field objects where the ID is the id
+    //     of the pointed
     //   to object
     //
     if !move_object.type_().is_dynamic_field() {
@@ -604,8 +601,7 @@ fn try_create_dynamic_field_info(
 }
 
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
-    use iota_types::coin::CoinMetadata;
-    use iota_types::coin::TreasuryCap;
+    use iota_types::coin::{CoinMetadata, TreasuryCap};
 
     object
         .type_()
@@ -614,25 +610,19 @@ fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinInde
             CoinMetadata::is_coin_metadata_with_coin_type(object_type)
                 .cloned()
                 .map(|coin_type| {
-                    (
-                        CoinIndexKey { coin_type },
-                        CoinIndexInfo {
-                            coin_metadata_object_id: Some(object.id()),
-                            treasury_object_id: None,
-                        },
-                    )
+                    (CoinIndexKey { coin_type }, CoinIndexInfo {
+                        coin_metadata_object_id: Some(object.id()),
+                        treasury_object_id: None,
+                    })
                 })
                 .or_else(|| {
                     TreasuryCap::is_treasury_with_coin_type(object_type)
                         .cloned()
                         .map(|coin_type| {
-                            (
-                                CoinIndexKey { coin_type },
-                                CoinIndexInfo {
-                                    coin_metadata_object_id: None,
-                                    treasury_object_id: Some(object.id()),
-                                },
-                            )
+                            (CoinIndexKey { coin_type }, CoinIndexInfo {
+                                coin_metadata_object_id: None,
+                                treasury_object_id: Some(object.id()),
+                            })
                         })
                 })
         })
@@ -712,8 +702,8 @@ impl<'a> LiveObjectIndexer for RpcLiveObjectIndexer<'a> {
             }
         }
 
-        // If the batch size grows to greater that 128MB then write out to the DB so that the
-        // data we need to hold in memory doesn't grown unbounded.
+        // If the batch size grows to greater that 128MB then write out to the DB so
+        // that the data we need to hold in memory doesn't grown unbounded.
         if self.batch.size_in_bytes() >= 1 << 27 {
             std::mem::replace(&mut self.batch, self.tables.owner.batch()).write()?;
         }

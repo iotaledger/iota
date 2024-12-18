@@ -2,15 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ClientError;
-use reqwest::header;
-use reqwest::header::HeaderValue;
-use reqwest::Response;
-use serde_json::Value;
 use std::collections::BTreeMap;
+
 use iota_graphql_rpc_headers::LIMITS_HEADER;
+use reqwest::{Response, header, header::HeaderValue};
+use serde_json::Value;
 
 use super::response::GraphqlResponse;
+use crate::ClientError;
 
 #[derive(Clone, Debug)]
 pub struct GraphqlQueryVariable {

@@ -3,19 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    crypto::{AccountKeyPair, get_key_pair},
+    object::Owner,
+};
 use jsonrpsee::rpc_params;
 use tracing::info;
 
-use iota_json_rpc_types::IotaTransactionBlockResponse;
-use iota_types::{
-    base_types::{ObjectID, IotaAddress},
-    crypto::{get_key_pair, AccountKeyPair},
-    object::Owner,
-};
-
 use crate::{
-    helper::{BalanceChangeChecker, ObjectChecker},
     TestCaseImpl, TestContext,
+    helper::{BalanceChangeChecker, ObjectChecker},
 };
 
 pub struct NativeTransferTest;
@@ -82,15 +81,16 @@ impl NativeTransferTest {
         obj_to_transfer_id: ObjectID,
     ) {
         let balance_changes = &mut response.balance_changes.as_mut().unwrap();
-        // for transfer we only expect 2 balance changes, one for sender and one for recipient.
+        // for transfer we only expect 2 balance changes, one for sender and one for
+        // recipient.
         assert_eq!(
             balance_changes.len(),
             2,
             "Expect 2 balance changes emitted, but got {}",
             balance_changes.len()
         );
-        // Order of balance change is not fixed so need to check who's balance come first.
-        // this make sure recipient always come first
+        // Order of balance change is not fixed so need to check who's balance come
+        // first. this make sure recipient always come first
         if balance_changes[0].owner.get_owner_address().unwrap() == signer {
             balance_changes.reverse()
         }

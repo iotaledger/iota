@@ -2,15 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
-use crate::utils::{build_network_and_key, build_network_with_anemo_config};
-use anemo::types::PeerAffinity;
-use anemo::Result;
+use std::collections::HashSet;
+
+use anemo::{Result, types::PeerAffinity};
 use fastcrypto::ed25519::Ed25519PublicKey;
 use futures::stream::FuturesUnordered;
-use std::collections::HashSet;
 use iota_config::p2p::AllowlistedPeer;
 use tokio::time::timeout;
+
+use super::*;
+use crate::utils::{build_network_and_key, build_network_with_anemo_config};
 
 #[tokio::test]
 async fn get_known_peers() -> Result<()> {
@@ -270,20 +271,21 @@ async fn peers_are_added_from_reconfig_channel() -> Result<()> {
 
 #[tokio::test]
 async fn test_access_types() {
-    // This test case constructs a mesh graph of 11 nodes, with the following topology.
-    // For allowlisted nodes, `+` means the peer is allowlisted with an address, otherwise not.
-    // An allowlisted peer with address will be proactively connected in anemo network.
+    // This test case constructs a mesh graph of 11 nodes, with the following
+    // topology. For allowlisted nodes, `+` means the peer is allowlisted with
+    // an address, otherwise not. An allowlisted peer with address will be
+    // proactively connected in anemo network.
     //
     //
     // The topology:
-    //                                      ------------  11 (private, seed: 1, allowed: 7, 8)
-    //                                     /
+    //                                      ------------  11 (private, seed: 1,
+    // allowed: 7, 8)                                     /
     //                       ------ 1 (public) ------
     //                      /                        \
-    //    2 (public, seed: 1, allowed: 7, 8)          3 (private, seed: 1, allowed: 4+, 5+)
-    //       |                                       /             \
-    //       |                 4 (private, allowed: 3+, 5, 6)     5 (private, allowed: 3, 4+)
-    //       |                                        \
+    //    2 (public, seed: 1, allowed: 7, 8)          3 (private, seed: 1, allowed:
+    // 4+, 5+)       |                                       /             \
+    //       |                 4 (private, allowed: 3+, 5, 6)     5 (private,
+    // allowed: 3, 4+)       |                                        \
     //       |                                      6 (private, allowed: 4+)
     //     7 (private, allowed: 2+, 8+)
     //       |
@@ -512,7 +514,8 @@ async fn test_access_types() {
         ]),
     );
 
-    // Node 1 is connected to everyone. But it does not "know" private nodes except the allowlisted ones 7 and 8.
+    // Node 1 is connected to everyone. But it does not "know" private nodes except
+    // the allowlisted ones 7 and 8.
     assert_peers(
         "Node 2",
         &network_2,
@@ -575,7 +578,8 @@ async fn test_access_types() {
         HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_4, peer_id_9]),
     );
 
-    // Node 11 finds Node 7 via Node 2, and invites Node 7 to connect. Node 7 says yes.
+    // Node 11 finds Node 7 via Node 2, and invites Node 7 to connect. Node 7 says
+    // yes.
     assert_peers(
         "Node 7",
         &network_7,
@@ -586,8 +590,8 @@ async fn test_access_types() {
         HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_8, peer_id_9, peer_id_11]),
     );
 
-    // Node 11 finds Node 8 via Node 2, and invites Node 8 to connect. Node 8 said No
-    // because its `max_concurrent_connections` is 0.
+    // Node 11 finds Node 8 via Node 2, and invites Node 8 to connect. Node 8 said
+    // No because its `max_concurrent_connections` is 0.
     assert_peers(
         "Node 8",
         &network_8,

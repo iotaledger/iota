@@ -6,9 +6,11 @@ use axum::extract::Path;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::config::{ServerConfig, Version};
-use crate::error::Error;
-use crate::server::builder::ServerBuilder;
+use crate::{
+    config::{ServerConfig, Version},
+    error::Error,
+    server::builder::ServerBuilder,
+};
 
 async fn graphiql(
     ide_title: axum::Extension<Option<String>>,

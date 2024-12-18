@@ -3,27 +3,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use shared_crypto::intent::Intent;
-use shared_crypto::intent::IntentMessage;
 use std::net::SocketAddr;
+
 use iota_core::authority_client::AuthorityAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::IotaAddress;
-use iota_types::committee::EpochId;
-use iota_types::crypto::Signature;
-use iota_types::error::{IotaError, IotaResult, UserInputError};
-use iota_types::signature::GenericSignature;
-use iota_types::transaction::Transaction;
-use iota_types::utils::load_test_vectors;
-use iota_types::utils::{
-    get_legacy_zklogin_user_address, get_zklogin_user_address, make_zklogin_tx,
+use iota_types::{
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+    base_types::IotaAddress,
+    committee::EpochId,
+    crypto::Signature,
+    error::{IotaError, IotaResult, UserInputError},
+    signature::GenericSignature,
+    transaction::Transaction,
+    utils::{
+        get_legacy_zklogin_user_address, get_zklogin_user_address, load_test_vectors,
+        make_zklogin_tx,
+    },
+    zk_login_authenticator::ZkLoginAuthenticator,
 };
-use iota_types::zk_login_authenticator::ZkLoginAuthenticator;
-use iota_types::IOTA_AUTHENTICATOR_STATE_OBJECT_ID;
-use test_cluster::TestCluster;
-use test_cluster::TestClusterBuilder;
+use shared_crypto::intent::{Intent, IntentMessage};
+use test_cluster::{TestCluster, TestClusterBuilder};
 
 async fn do_zklogin_test(address: IotaAddress, legacy: bool) -> IotaResult {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -79,12 +80,9 @@ async fn test_zklogin_feature_deny() {
         .await
         .unwrap_err();
 
-    assert!(matches!(
-        err,
-        IotaError::UserInputError {
-            error: UserInputError::Unsupported(..)
-        }
-    ));
+    assert!(matches!(err, IotaError::UserInputError {
+        error: UserInputError::Unsupported(..)
+    }));
 }
 
 #[sim_test]
@@ -133,10 +131,12 @@ async fn zklogin_end_to_end_test() {
 
     // a txn with max_epoch mismatch with proof, fails to execute.
     let signed_txn_with_wrong_max_epoch = build_zklogin_tx(&test_cluster, 1).await;
-    assert!(context
-        .execute_transaction_may_fail(signed_txn_with_wrong_max_epoch)
-        .await
-        .is_err());
+    assert!(
+        context
+            .execute_transaction_may_fail(signed_txn_with_wrong_max_epoch)
+            .await
+            .is_err()
+    );
 }
 
 #[sim_test]
@@ -154,13 +154,15 @@ async fn test_max_epoch_too_large_fail_tx() {
         .await;
     test_cluster.wait_for_authenticator_state_update().await;
     let context = &test_cluster.wallet;
-    // current epoch is 1, upper bound is 1 + 1, so max_epoch as 3 in zklogin signature should fail.
+    // current epoch is 1, upper bound is 1 + 1, so max_epoch as 3 in zklogin
+    // signature should fail.
     let signed_txn = build_zklogin_tx(&test_cluster, 2).await;
     let res = context.execute_transaction_may_fail(signed_txn).await;
-    assert!(res
-        .unwrap_err()
-        .to_string()
-        .contains("ZKLogin max epoch too large"));
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("ZKLogin max epoch too large")
+    );
 }
 
 #[sim_test]
@@ -207,10 +209,11 @@ async fn test_expired_zklogin_sig() {
     let res = context
         .execute_transaction_may_fail(signed_txn_expired)
         .await;
-    assert!(res
-        .unwrap_err()
-        .to_string()
-        .contains("ZKLogin expired at epoch 2"));
+    assert!(
+        res.unwrap_err()
+            .to_string()
+            .contains("ZKLogin expired at epoch 2")
+    );
 }
 
 #[sim_test]
@@ -222,10 +225,11 @@ async fn test_auth_state_creation() {
         .with_default_jwks()
         .build()
         .await;
-    // Wait until we are in an epoch that has zklogin enabled, but the auth state object is not
-    // created yet.
+    // Wait until we are in an epoch that has zklogin enabled, but the auth state
+    // object is not created yet.
     test_cluster.wait_for_protocol_version(24.into()).await;
-    // Now wait until the auth state object is created, ie. AuthenticatorStateUpdate transaction happened.
+    // Now wait until the auth state object is created, ie. AuthenticatorStateUpdate
+    // transaction happened.
     test_cluster.wait_for_authenticator_state_update().await;
 }
 
@@ -242,18 +246,19 @@ async fn test_create_authenticator_state_object() {
     // no node has the authenticator state object yet
     for h in &handles {
         h.with(|node| {
-            assert!(node
-                .state()
-                .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
-                .is_none());
+            assert!(
+                node.state()
+                    .get_object_cache_reader()
+                    .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
+                    .is_none()
+            );
         });
     }
 
     // wait until feature is enabled
     test_cluster.wait_for_protocol_version(24.into()).await;
-    // wait until next epoch - authenticator state object is created at the end of the first epoch
-    // in which it is supported.
+    // wait until next epoch - authenticator state object is created at the end of
+    // the first epoch in which it is supported.
     test_cluster.wait_for_epoch_all_nodes(2).await; // protocol upgrade completes in epoch 1
 
     for h in &handles {
@@ -266,18 +271,22 @@ async fn test_create_authenticator_state_object() {
     }
 }
 
-// This test is intended to look for forks caused by conflicting / repeated JWK votes from
-// validators.
+// This test is intended to look for forks caused by conflicting / repeated JWK
+// votes from validators.
 #[cfg(msim)]
 #[sim_test]
 async fn test_conflicting_jwks() {
+    use std::{
+        collections::HashSet,
+        sync::{Arc, Mutex},
+    };
+
     use futures::StreamExt;
-    use std::collections::HashSet;
-    use std::sync::{Arc, Mutex};
-    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
-    use iota_json_rpc_types::TransactionFilter;
-    use iota_types::base_types::ObjectID;
-    use iota_types::transaction::{TransactionDataAPI, TransactionKind};
+    use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, TransactionFilter};
+    use iota_types::{
+        base_types::ObjectID,
+        transaction::{TransactionDataAPI, TransactionKind},
+    };
     use tokio::time::Duration;
 
     let test_cluster = TestClusterBuilder::new()

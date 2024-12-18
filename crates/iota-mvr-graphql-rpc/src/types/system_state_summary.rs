@@ -2,24 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use async_graphql::*;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeSystemStateSummary;
+
 use super::{
     big_int::BigInt, gas::GasCostSummary, safe_mode::SafeMode, stake_subsidy::StakeSubsidy,
     storage_fund::StorageFund, system_parameters::SystemParameters, uint53::UInt53,
 };
-use async_graphql::*;
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeSystemStateSummary;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SystemStateSummary {
     pub native: NativeSystemStateSummary,
 }
 
-/// Aspects that affect the running of the system that are managed by the validators either
-/// directly, or through system transactions.
+/// Aspects that affect the running of the system that are managed by the
+/// validators either directly, or through system transactions.
 #[Object]
 impl SystemStateSummary {
-    /// IOTA set aside to account for objects stored on-chain, at the start of the epoch.
-    /// This is also used for storage rebates.
+    /// IOTA set aside to account for objects stored on-chain, at the start of
+    /// the epoch. This is also used for storage rebates.
     async fn storage_fund(&self) -> Option<StorageFund> {
         Some(StorageFund {
             total_object_storage_rebates: Some(BigInt::from(
@@ -31,8 +32,8 @@ impl SystemStateSummary {
         })
     }
 
-    /// Information about whether this epoch was started in safe mode, which happens if the full epoch
-    /// change logic fails for some reason.
+    /// Information about whether this epoch was started in safe mode, which
+    /// happens if the full epoch change logic fails for some reason.
     async fn safe_mode(&self) -> Option<SafeMode> {
         Some(SafeMode {
             enabled: Some(self.native.safe_mode),
@@ -45,8 +46,9 @@ impl SystemStateSummary {
         })
     }
 
-    /// The value of the `version` field of `0x5`, the `0x3::iota::IotaSystemState` object.  This
-    /// version changes whenever the fields contained in the system state object (held in a dynamic
+    /// The value of the `version` field of `0x5`, the
+    /// `0x3::iota::IotaSystemState` object.  This version changes whenever
+    /// the fields contained in the system state object (held in a dynamic
     /// field attached to `0x5`) change.
     async fn system_state_version(&self) -> Option<UInt53> {
         Some(self.native.system_state_version.into())

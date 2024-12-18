@@ -1,7 +1,7 @@
-use super::TryFromProtoError;
 use tap::Pipe;
 
-//
+use super::TryFromProtoError;
+
 // ExecutionStatus
 //
 
@@ -46,14 +46,13 @@ impl TryFrom<&super::ExecutionStatus> for iota_sdk_types::types::ExecutionStatus
                 command: *command,
             },
             (true, Some(_)) | (false, None) => {
-                return Err(TryFromProtoError::from_error("invalid execution status"))
+                return Err(TryFromProtoError::from_error("invalid execution status"));
             }
         }
         .pipe(Ok)
     }
 }
 
-//
 // ExecutionError
 //
 
@@ -302,7 +301,6 @@ impl TryFrom<&super::failure_status::ExecutionError> for iota_sdk_types::types::
     }
 }
 
-//
 // CommandArgumentError
 //
 
@@ -338,8 +336,7 @@ impl TryFrom<&super::command_argument_error::Kind> for iota_sdk_types::types::Co
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::command_argument_error::Kind) -> Result<Self, Self::Error> {
-        use super::command_argument_error::Kind::*;
-        use super::NestedResult;
+        use super::{NestedResult, command_argument_error::Kind::*};
 
         match value {
             TypeMismatch(()) => Self::TypeMismatch,
@@ -374,7 +371,6 @@ impl TryFrom<&super::command_argument_error::Kind> for iota_sdk_types::types::Co
     }
 }
 
-//
 // TypeArgumentError
 //
 
@@ -403,7 +399,6 @@ impl TryFrom<&super::type_argument_error::Kind> for iota_sdk_types::types::TypeA
     }
 }
 
-//
 // PackageUpgradeError
 //
 
@@ -458,14 +453,13 @@ impl TryFrom<&super::package_upgrade_error::Kind> for iota_sdk_types::types::Pac
             PackageIdDoesNotMatch(_) => {
                 return Err(TryFromProtoError::missing(
                     "missing package_id or ticket_id",
-                ))
+                ));
             }
         }
         .pipe(Ok)
     }
 }
 
-//
 // MoveLocation
 //
 

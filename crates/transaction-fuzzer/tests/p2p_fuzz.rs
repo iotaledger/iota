@@ -6,11 +6,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use proptest::arbitrary::*;
-use proptest::collection::vec;
-use proptest::prelude::*;
-use transaction_fuzzer::account_universe::*;
-use transaction_fuzzer::run_proptest;
+use proptest::{arbitrary::*, collection::vec, prelude::*};
+use transaction_fuzzer::{account_universe::*, run_proptest};
 
 const NUM_RUNS: u32 = 20;
 

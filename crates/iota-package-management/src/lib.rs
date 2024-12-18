@@ -2,22 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Context};
-use std::collections::HashMap;
-use std::fs::File;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
+use std::{
+    collections::HashMap,
+    fs::File,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
+use anyhow::{Context, bail};
+use iota_json_rpc_types::{IotaTransactionBlockResponse, get_new_package_obj_from_response};
+use iota_sdk::wallet_context::WalletContext;
+use iota_types::base_types::ObjectID;
 use move_core_types::account_address::AccountAddress;
 use move_package::{
-    lock_file::{self, schema::ManagedPackage, LockFile},
+    lock_file::{self, LockFile, schema::ManagedPackage},
     resolution::resolution_graph::Package,
     source_package::layout::SourcePackageLayout,
 };
 use move_symbol_pool::Symbol;
-use iota_json_rpc_types::{get_new_package_obj_from_response, IotaTransactionBlockResponse};
-use iota_sdk::wallet_context::WalletContext;
-use iota_types::base_types::ObjectID;
 
 const PUBLISHED_AT_MANIFEST_FIELD: &str = "published-at";
 
@@ -46,9 +48,10 @@ pub enum PublishedAtError {
 
 /// Update the `Move.lock` file with automated address management info.
 /// Expects a wallet context, the publish or upgrade command, its response.
-/// The `Move.lock` principally file records the published address (i.e., package ID) of
-/// a package under an environment determined by the wallet context config. See the
-/// `ManagedPackage` type in the lock file for a complete spec.
+/// The `Move.lock` principally file records the published address (i.e.,
+/// package ID) of a package under an environment determined by the wallet
+/// context config. See the `ManagedPackage` type in the lock file for a
+/// complete spec.
 pub async fn update_lock_file(
     context: &WalletContext,
     command: LockCommand,
@@ -105,12 +108,13 @@ pub async fn update_lock_file(
     Ok(())
 }
 
-/// Sets the `original-published-id` in the Move.lock to the given `id`. This function
-/// provides a utility to manipulate the `original-published-id` during a package upgrade.
-/// For instance, we require graph resolution to resolve a `0x0` address for module names
-/// in the package to-be-upgraded, and the `Move.lock` value can be explicitly set to `0x0`
-/// in such cases (and reset otherwise).
-/// The function returns the existing `original-published-id`, if any.
+/// Sets the `original-published-id` in the Move.lock to the given `id`. This
+/// function provides a utility to manipulate the `original-published-id` during
+/// a package upgrade. For instance, we require graph resolution to resolve a
+/// `0x0` address for module names in the package to-be-upgraded, and the
+/// `Move.lock` value can be explicitly set to `0x0` in such cases (and reset
+/// otherwise). The function returns the existing `original-published-id`, if
+/// any.
 pub fn set_package_id(
     package_path: &Path,
     install_dir: Option<PathBuf>,
@@ -139,11 +143,11 @@ pub fn set_package_id(
 }
 
 /// Find the published on-chain ID in the `Move.lock` or `Move.toml` file.
-/// A chain ID of `None` means that we will only try to resolve a published ID from the Move.toml.
-/// The published ID is resolved from the `Move.toml` if the Move.lock does not exist.
-/// Else, we resolve from the `Move.lock`, where addresses are automatically
-/// managed. If conflicting IDs are found in the `Move.lock` vs. `Move.toml`, a
-/// "Conflict" error message returns.
+/// A chain ID of `None` means that we will only try to resolve a published ID
+/// from the Move.toml. The published ID is resolved from the `Move.toml` if the
+/// Move.lock does not exist. Else, we resolve from the `Move.lock`, where
+/// addresses are automatically managed. If conflicting IDs are found in the
+/// `Move.lock` vs. `Move.toml`, a "Conflict" error message returns.
 pub fn resolve_published_id(
     package: &Package,
     chain_id: Option<String>,

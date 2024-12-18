@@ -4,53 +4,60 @@
 
 #[cfg(msim)]
 mod test {
-    use rand::{distributions::uniform::SampleRange, thread_rng, Rng};
-    use std::collections::HashSet;
-    use std::num::NonZeroUsize;
-    use std::path::PathBuf;
-    use std::str::FromStr;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{Arc, Mutex};
-    use std::time::{Duration, Instant};
-    use iota_benchmark::bank::BenchmarkBank;
-    use iota_benchmark::system_state_observer::SystemStateObserver;
-    use iota_benchmark::workloads::adversarial::AdversarialPayloadCfg;
-    use iota_benchmark::workloads::expected_failure::ExpectedFailurePayloadCfg;
-    use iota_benchmark::workloads::workload::ExpectedFailureType;
-    use iota_benchmark::workloads::workload_configuration::{
-        WorkloadConfig, WorkloadConfiguration, WorkloadWeights,
+    use std::{
+        collections::HashSet,
+        num::NonZeroUsize,
+        path::PathBuf,
+        str::FromStr,
+        sync::{
+            Arc, Mutex,
+            atomic::{AtomicBool, Ordering},
+        },
+        time::{Duration, Instant},
     };
+
     use iota_benchmark::{
-        drivers::{bench_driver::BenchDriver, driver::Driver, Interval},
-        util::get_ed25519_keypair_from_keystore,
         LocalValidatorAggregatorProxy, ValidatorProxy,
+        bank::BenchmarkBank,
+        drivers::{Interval, bench_driver::BenchDriver, driver::Driver},
+        system_state_observer::SystemStateObserver,
+        util::get_ed25519_keypair_from_keystore,
+        workloads::{
+            adversarial::AdversarialPayloadCfg,
+            expected_failure::ExpectedFailurePayloadCfg,
+            workload::ExpectedFailureType,
+            workload_configuration::{WorkloadConfig, WorkloadConfiguration, WorkloadWeights},
+        },
     };
-    use iota_config::node::AuthorityOverloadConfig;
-    use iota_config::{AUTHORITIES_DB_NAME, IOTA_KEYSTORE_FILENAME};
-    use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
-    use iota_core::authority::framework_injection;
-    use iota_core::authority::AuthorityState;
-    use iota_core::checkpoints::{CheckpointStore, CheckpointWatermark};
+    use iota_config::{AUTHORITIES_DB_NAME, IOTA_KEYSTORE_FILENAME, node::AuthorityOverloadConfig};
+    use iota_core::{
+        authority::{
+            AuthorityState, authority_store_tables::AuthorityPerpetualTables, framework_injection,
+        },
+        checkpoints::{CheckpointStore, CheckpointWatermark},
+    };
     use iota_framework::BuiltInFramework;
     use iota_macros::{
         clear_fail_point, nondeterministic, register_fail_point_arg, register_fail_point_async,
         register_fail_point_if, register_fail_points, sim_test,
     };
     use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
-    use iota_simulator::tempfile::TempDir;
-    use iota_simulator::{configs::*, SimConfig};
+    use iota_simulator::{SimConfig, configs::*, tempfile::TempDir};
     use iota_storage::blob::Blob;
     use iota_surfer::surf_strategy::SurfStrategy;
     use iota_swarm_config::network_config_builder::ConfigBuilder;
-    use iota_types::base_types::{ConciseableName, ObjectID, SequenceNumber};
-    use iota_types::digests::TransactionDigest;
-    use iota_types::full_checkpoint_content::CheckpointData;
-    use iota_types::messages_checkpoint::VerifiedCheckpoint;
-    use iota_types::supported_protocol_versions::SupportedProtocolVersions;
-    use iota_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType};
-    use iota_types::transaction::{
-        DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+    use iota_types::{
+        base_types::{ConciseableName, ObjectID, SequenceNumber},
+        digests::TransactionDigest,
+        full_checkpoint_content::CheckpointData,
+        messages_checkpoint::VerifiedCheckpoint,
+        supported_protocol_versions::SupportedProtocolVersions,
+        traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType},
+        transaction::{
+            DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        },
     };
+    use rand::{Rng, distributions::uniform::SampleRange, thread_rng};
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tracing::{error, info, trace};
     use typed_store::traits::Map;
@@ -61,19 +68,16 @@ mod test {
     }
 
     fn test_config() -> SimConfig {
-        env_config(
-            uniform_latency_ms(10..20),
-            [
-                (
-                    "regional_high_variance",
-                    bimodal_latency_ms(30..40, 300..800, 0.005),
-                ),
-                (
-                    "global_high_variance",
-                    bimodal_latency_ms(60..80, 500..1500, 0.01),
-                ),
-            ],
-        )
+        env_config(uniform_latency_ms(10..20), [
+            (
+                "regional_high_variance",
+                bimodal_latency_ms(30..40, 300..800, 0.005),
+            ),
+            (
+                "global_high_variance",
+                bimodal_latency_ms(60..80, 500..1500, 0.01),
+            ),
+        ])
     }
 
     fn test_config_low_latency() -> SimConfig {
@@ -126,7 +130,7 @@ mod test {
 
         register_fail_point_if("correlated-crash-after-consensus-commit-boundary", || true);
         // TODO: enable this - right now it causes rocksdb errors when re-opening DBs
-        //register_fail_point_if("correlated-crash-process-certificate", || true);
+        // register_fail_point_if("correlated-crash-process-certificate", || true);
 
         let test_cluster = build_test_cluster(4, 10000, 1).await;
         test_simulated_load(test_cluster, 60).await;
@@ -193,9 +197,10 @@ mod test {
         test_simulated_load(test_cluster, 120).await;
     }
 
-    /// Get a list of nodes that we don't want to kill in the crash recovery tests.
-    /// This includes the client node which is the node that is running the test, as well as
-    /// rpc fullnode which are needed to run the benchmark.
+    /// Get a list of nodes that we don't want to kill in the crash recovery
+    /// tests. This includes the client node which is the node that is
+    /// running the test, as well as rpc fullnode which are needed to run
+    /// the benchmark.
     fn get_keep_alive_nodes(cluster: &TestCluster) -> HashSet<iota_simulator::task::NodeId> {
         let mut keep_alive_nodes = HashSet::new();
         // The first fullnode in the swarm ins the rpc fullnode.
@@ -273,7 +278,8 @@ mod test {
         }
     }
 
-    // Runs object pruning and compaction for object table in `state` probabistically.
+    // Runs object pruning and compaction for object table in `state`
+    // probabistically.
     async fn handle_failpoint_prune_and_compact(state: Arc<AuthorityState>, probability: f64) {
         {
             let mut rng = thread_rng();
@@ -317,7 +323,8 @@ mod test {
         });
 
         test_simulated_load(test_cluster, 60).await;
-        // The fail point holds a reference to `node_state`, which we need to release before the test ends.
+        // The fail point holds a reference to `node_state`, which we need to release
+        // before the test ends.
         clear_fail_point("prune-and-compact");
     }
 
@@ -520,25 +527,39 @@ mod test {
                 * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
             config.set_per_object_congestion_control_mode_for_testing(mode);
             match mode {
-                PerObjectCongestionControlMode::None => panic!("Congestion control mode cannot be None in test_simulated_load_shared_object_congestion_control"),
+                PerObjectCongestionControlMode::None => panic!(
+                    "Congestion control mode cannot be None in test_simulated_load_shared_object_congestion_control"
+                ),
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(total_gas_limit);
-                    config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(total_gas_limit);
-                },
-                PerObjectCongestionControlMode::TotalTxCount => {
                     config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(
-                        txn_count_limit
+                        total_gas_limit,
                     );
                     config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
-                        txn_count_limit
+                        total_gas_limit,
                     );
-                },
+                }
+                PerObjectCongestionControlMode::TotalTxCount => {
+                    config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(
+                        txn_count_limit,
+                    );
+                    config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
+                        txn_count_limit,
+                    );
+                }
                 PerObjectCongestionControlMode::TotalGasBudgetWithCap => {
-                    config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(total_gas_limit);
-                    config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(total_gas_limit);
-                    config.set_gas_budget_based_txn_cost_cap_factor_for_testing(total_gas_limit/cap_factor_denominator);
-                    config.set_gas_budget_based_txn_cost_absolute_cap_commit_count_for_testing(absolute_cap_factor);
-                },
+                    config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(
+                        total_gas_limit,
+                    );
+                    config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
+                        total_gas_limit,
+                    );
+                    config.set_gas_budget_based_txn_cost_cap_factor_for_testing(
+                        total_gas_limit / cap_factor_denominator,
+                    );
+                    config.set_gas_budget_based_txn_cost_absolute_cap_commit_count_for_testing(
+                        absolute_cap_factor,
+                    );
+                }
             }
             config.set_max_deferral_rounds_for_congestion_control_for_testing(max_deferral_rounds);
             config.set_max_txn_cost_overage_per_object_in_commit_for_testing(
@@ -678,9 +699,10 @@ mod test {
             Blob::from_bytes(&bytes).expect("failed to load checkpoint");
     }
 
-    // Tests the correctness of large consensus commit transaction due to large number
-    // of cancelled transactions. Note that we use a low latency configuration since
-    // simtest has low timeout tolerance and it is not designed to test performance.
+    // Tests the correctness of large consensus commit transaction due to large
+    // number of cancelled transactions. Note that we use a low latency
+    // configuration since simtest has low timeout tolerance and it is not
+    // designed to test performance.
     #[sim_test(config = "test_config_low_latency()")]
     async fn test_simulated_load_large_consensus_commit_prologue_size() {
         let test_cluster = build_test_cluster(4, 5_000, 1).await;
@@ -689,9 +711,10 @@ mod test {
         let num_txns = thread_rng().gen_range(500..2000);
         info!("Adding additional {num_txns} cancelled txns in consensus commit prologue.");
 
-        // Note that we need to construct the additional assigned object versions outside of
-        // fail point arg so that the same assigned object versions are used for all nodes in
-        // all consensus commit to preserve the determinism.
+        // Note that we need to construct the additional assigned object versions
+        // outside of fail point arg so that the same assigned object versions
+        // are used for all nodes in all consensus commit to preserve the
+        // determinism.
         for _ in 0..num_txns {
             let num_objs = thread_rng().gen_range(1..15);
             let mut assigned_object_versions = Vec::new();
@@ -741,10 +764,11 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_upgrade_compatibility() {
-        // This test is intended to test the compatibility of the latest protocol version with
-        // the previous protocol version. It does this by starting a network with
-        // the previous protocol version that this binary supports, and then upgrading the network
-        // to the latest protocol version.
+        // This test is intended to test the compatibility of the latest protocol
+        // version with the previous protocol version. It does this by starting
+        // a network with the previous protocol version that this binary
+        // supports, and then upgrading the network to the latest protocol
+        // version.
         tokio::time::timeout(
             Duration::from_secs(1000),
             test_protocol_upgrade_compatibility_impl(),
@@ -802,8 +826,9 @@ mod test {
                             Some(BuiltInFramework::iter_system_packages().collect::<Vec<_>>())
                         } else {
                             // Often we want to be able to create multiple protocol config versions
-                            // on main that none have shipped to any production network. In this case,
-                            // some of the protocol versions may not have a framework snapshot.
+                            // on main that none have shipped to any production network. In this
+                            // case, some of the protocol versions may
+                            // not have a framework snapshot.
                             None
                         }
                     }
@@ -842,7 +867,8 @@ mod test {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(6, 20_000, 1).await;
 
-        // Network should continue as long as f+1 nodes (in this case 3/6) are sending partial signatures.
+        // Network should continue as long as f+1 nodes (in this case 3/6) are sending
+        // partial signatures.
         let eligible_nodes: HashSet<_> = test_cluster
             .swarm
             .validator_nodes()
@@ -862,9 +888,9 @@ mod test {
         iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(6, 20_000, 1).await;
 
-        // Network should continue as long as nodes are participating in DKG representing
-        // stake equal to 2f+1 PLUS proportion of stake represented by the
-        // `random_beacon_reduction_allowed_delta` ProtocolConfig option.
+        // Network should continue as long as nodes are participating in DKG
+        // representing stake equal to 2f+1 PLUS proportion of stake represented
+        // by the `random_beacon_reduction_allowed_delta` ProtocolConfig option.
         // In this case we make sure it still works with 5/6 validators.
         let eligible_nodes: HashSet<_> = test_cluster
             .swarm
@@ -881,7 +907,8 @@ mod test {
     }
 
     fn handle_bool_failpoint(
-        eligible_nodes: &HashSet<iota_simulator::task::NodeId>, // only given eligible nodes may fail
+        eligible_nodes: &HashSet<iota_simulator::task::NodeId>, /* only given eligible nodes may
+                                                                 * fail */
         probability: f64,
     ) -> bool {
         if !eligible_nodes.contains(&iota_simulator::current_simnode_id()) {
@@ -1017,13 +1044,15 @@ mod test {
         let system_state_observer = {
             let mut system_state_observer = SystemStateObserver::new(proxy.clone());
             if let Ok(_) = system_state_observer.state.changed().await {
-                info!("Got the new state (reference gas price and/or protocol config) from system state object");
+                info!(
+                    "Got the new state (reference gas price and/or protocol config) from system state object"
+                );
             }
             Arc::new(system_state_observer)
         };
 
-        // The default test parameters are somewhat conservative in order to keep the running time
-        // of the test reasonable in CI.
+        // The default test parameters are somewhat conservative in order to keep the
+        // running time of the test reasonable in CI.
         let target_qps = target_qps.unwrap_or(get_var("SIM_STRESS_TEST_QPS", 10));
         let num_workers = num_workers.unwrap_or(get_var("SIM_STRESS_TEST_WORKERS", 10));
         let in_flight_ratio = get_var("SIM_STRESS_TEST_IFR", 2);
@@ -1033,9 +1062,9 @@ mod test {
         let adversarial_cfg = AdversarialPayloadCfg::from_str("0-1.0").unwrap();
         let duration = Interval::from_str("unbounded").unwrap();
 
-        // TODO: re-enable this when we figure out why it is causing connection errors and making
-        // TODO: move adversarial cfg to TestSimulatedLoadConfig once enabled.
-        // tests run for ever
+        // TODO: re-enable this when we figure out why it is causing connection errors
+        // and making TODO: move adversarial cfg to TestSimulatedLoadConfig once
+        // enabled. tests run for ever
         let adversarial_weight = 0;
 
         let shared_counter_max_tip = if config.use_shared_counter_max_tip {
@@ -1113,7 +1142,8 @@ mod test {
                 .await
                 .unwrap();
 
-            // TODO: make this stricter (== 0) when we have reliable error retrying on the client.
+            // TODO: make this stricter (== 0) when we have reliable error retrying on the
+            // client.
             tracing::info!("end of test {:?}", benchmark_stats);
             assert!(benchmark_stats.num_error_txes < 100);
         });

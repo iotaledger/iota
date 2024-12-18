@@ -4,15 +4,15 @@
 
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use diesel_async::RunQueryDsl;
 use iota_indexer_alt_framework::{
     db,
-    pipeline::{concurrent::Handler, Processor},
+    pipeline::{Processor, concurrent::Handler},
 };
 use iota_types::{
     full_checkpoint_content::CheckpointData,
-    iota_system_state::{get_iota_system_state, IotaSystemStateTrait},
+    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     transaction::{TransactionDataAPI, TransactionKind},
 };
 
@@ -32,8 +32,8 @@ impl Processor for KvEpochStarts {
             ..
         } = checkpoint.as_ref();
 
-        // If this is the last checkpoint in the current epoch, it will contain enough information
-        // about the start of the next epoch.
+        // If this is the last checkpoint in the current epoch, it will contain enough
+        // information about the start of the next epoch.
         if !checkpoint_summary.is_last_checkpoint_of_epoch() {
             return Ok(vec![]);
         }

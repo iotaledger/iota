@@ -2,6 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use iota_types::iota_system_state::{
+    IotaSystemState, IotaSystemStateTrait,
+    epoch_start_iota_system_state::EpochStartSystemStateTrait,
+};
+use tokio::sync::broadcast::error::RecvError;
+use tracing::{info, warn};
+
 use super::AuthorityAggregatorUpdatable;
 use crate::{
     authority_aggregator::AuthAggMetrics,
@@ -10,13 +20,6 @@ use crate::{
     execution_cache::ObjectCacheRead,
     safe_client::SafeClientMetricsBase,
 };
-use async_trait::async_trait;
-use std::sync::Arc;
-use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
-use iota_types::iota_system_state::IotaSystemState;
-use iota_types::iota_system_state::IotaSystemStateTrait;
-use tokio::sync::broadcast::error::RecvError;
-use tracing::{info, warn};
 
 #[async_trait]
 pub trait ReconfigObserver<A: Clone> {

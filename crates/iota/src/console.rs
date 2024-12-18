@@ -2,21 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::io::{stderr, Write};
-use std::ops::Deref;
+use std::{
+    io::{Write, stderr},
+    ops::Deref,
+};
 
 use async_trait::async_trait;
-use clap::Command;
-use clap::CommandFactory;
-use clap::FromArgMatches;
-use clap::Parser;
+use clap::{Command, CommandFactory, FromArgMatches, Parser};
 use colored::Colorize;
 use iota_sdk::wallet_context::WalletContext;
 
-use crate::client_commands::SwitchResponse;
-use crate::client_commands::{IotaClientCommandResult, IotaClientCommands};
-use crate::shell::{
-    install_shell_plugins, AsyncHandler, CacheKey, CommandStructure, CompletionCache, Shell,
+use crate::{
+    client_commands::{IotaClientCommandResult, IotaClientCommands, SwitchResponse},
+    shell::{
+        AsyncHandler, CacheKey, CommandStructure, CompletionCache, Shell, install_shell_plugins,
+    },
 };
 
 const IOTA: &str = "   _____       _    ______                       __
@@ -125,7 +125,8 @@ async fn handle_command(
     let result = wallet_opts.command.execute(context).await?;
 
     // Update completion cache
-    // TODO: Completion data are keyed by strings, are there ways to make it more error proof?
+    // TODO: Completion data are keyed by strings, are there ways to make it more
+    // error proof?
     if let Ok(mut cache) = completion_cache.write() {
         match result {
             IotaClientCommandResult::Addresses(ref addresses) => {

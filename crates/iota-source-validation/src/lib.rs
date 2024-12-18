@@ -2,19 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::{AggregateError, Error};
+use std::collections::{HashMap, HashSet};
+
 use futures::future;
+use iota_move_build::CompiledPackage;
+use iota_sdk::{
+    apis::ReadApi,
+    error::Error as SdkError,
+    rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMovePackage},
+};
+use iota_types::base_types::ObjectID;
 use move_binary_format::CompiledModule;
 use move_compiler::compiled_unit::NamedCompiledModule;
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
-use std::collections::{HashMap, HashSet};
-use iota_move_build::CompiledPackage;
-use iota_sdk::apis::ReadApi;
-use iota_sdk::error::Error as SdkError;
-use iota_sdk::rpc_types::{IotaObjectDataOptions, IotaRawData, IotaRawMovePackage};
-use iota_types::base_types::ObjectID;
 use toolchain::units_for_toolchain;
+
+use crate::error::{AggregateError, Error};
 
 pub mod error;
 mod toolchain;
@@ -29,12 +33,13 @@ pub enum ValidationMode {
 
     /// Validate the root package, and its linkage.
     Root {
-        /// Additionally validate the dependencies, and make sure the runtime and storage IDs in
-        /// dependency source code matches the root package's on-chain linkage table.
+        /// Additionally validate the dependencies, and make sure the runtime
+        /// and storage IDs in dependency source code matches the root
+        /// package's on-chain linkage table.
         deps: bool,
 
-        /// Look for the root package on-chain at the specified address, rather than the address in
-        /// its manifest.
+        /// Look for the root package on-chain at the specified address, rather
+        /// than the address in its manifest.
         at: Option<AccountAddress>,
     },
 }
@@ -48,13 +53,14 @@ type LocalModules = HashMap<(AccountAddress, Symbol), (Symbol, CompiledModule)>;
 
 #[derive(Default)]
 struct OnChainRepresentation {
-    /// Storage IDs from the root package's on-chain linkage table. This will only be present if
-    /// root package verification was requested, in which case the keys from this mapping must
-    /// match the source package's dependencies.
+    /// Storage IDs from the root package's on-chain linkage table. This will
+    /// only be present if root package verification was requested, in which
+    /// case the keys from this mapping must match the source package's
+    /// dependencies.
     on_chain_dependencies: Option<HashSet<AccountAddress>>,
 
-    /// Map package addresses and module names to bytecode (package names are gone in the on-chain
-    /// representation).
+    /// Map package addresses and module names to bytecode (package names are
+    /// gone in the on-chain representation).
     modules: HashMap<(AccountAddress, Symbol), CompiledModule>,
 }
 
@@ -64,8 +70,9 @@ impl ValidationMode {
         Self::Deps
     }
 
-    /// Only verify that the root package matches its on-chain version (requires that the root
-    /// package is published with its address available in the manifest).
+    /// Only verify that the root package matches its on-chain version (requires
+    /// that the root package is published with its address available in the
+    /// manifest).
     pub fn root() -> Self {
         Self::Root {
             deps: false,
@@ -73,8 +80,8 @@ impl ValidationMode {
         }
     }
 
-    /// Only verify that the root package matches its on-chain version, but override the location
-    /// to look for the root package to `address`.
+    /// Only verify that the root package matches its on-chain version, but
+    /// override the location to look for the root package to `address`.
     pub fn root_at(address: AccountAddress) -> Self {
         Self::Root {
             deps: false,
@@ -82,8 +89,9 @@ impl ValidationMode {
         }
     }
 
-    /// Verify both the root package and its dependencies (requires that the root package is
-    /// published with its address available in the manifest).
+    /// Verify both the root package and its dependencies (requires that the
+    /// root package is published with its address available in the
+    /// manifest).
     pub fn root_and_deps() -> Self {
         Self::Root {
             deps: true,
@@ -91,8 +99,8 @@ impl ValidationMode {
         }
     }
 
-    /// Verify both the root package and its dependencies, but override the location to look for
-    /// the root package to `address`.
+    /// Verify both the root package and its dependencies, but override the
+    /// location to look for the root package to `address`.
     pub fn root_and_deps_at(address: AccountAddress) -> Self {
         Self::Root {
             deps: true,
@@ -105,7 +113,8 @@ impl ValidationMode {
         matches!(self, Self::Deps | Self::Root { deps: true, .. })
     }
 
-    /// If the root package needs to be verified, what address should it be fetched from?
+    /// If the root package needs to be verified, what address should it be
+    /// fetched from?
     fn root_address(&self, package: &CompiledPackage) -> Result<Option<AccountAddress>, Error> {
         match self {
             Self::Root { at: Some(addr), .. } => Ok(Some(*addr)),
@@ -114,7 +123,8 @@ impl ValidationMode {
         }
     }
 
-    /// All the on-chain addresses that we need to fetch to build on-chain addresses.
+    /// All the on-chain addresses that we need to fetch to build on-chain
+    /// addresses.
     fn on_chain_addresses(&self, package: &CompiledPackage) -> Result<Vec<AccountAddress>, Error> {
         let mut addrs = vec![];
 
@@ -129,8 +139,8 @@ impl ValidationMode {
         Ok(addrs)
     }
 
-    /// On-chain representation of the package and dependencies compiled to `package`, including
-    /// linkage information.
+    /// On-chain representation of the package and dependencies compiled to
+    /// `package`, including linkage information.
     async fn on_chain(
         &self,
         package: &CompiledPackage,
@@ -206,17 +216,20 @@ impl ValidationMode {
         Ok(on_chain)
     }
 
-    /// Local representation of the modules in `package`. If the validation mode requires verifying
-    /// dependencies, then the dependencies' modules are also included in the output.
+    /// Local representation of the modules in `package`. If the validation mode
+    /// requires verifying dependencies, then the dependencies' modules are
+    /// also included in the output.
     ///
-    /// For the purposes of this function, a module is considered a dependency if it is from a
-    /// different source package, and that source package has already been published. Conversely, a
-    /// module that is from a different source package, but that has not been published is
+    /// For the purposes of this function, a module is considered a dependency
+    /// if it is from a different source package, and that source package
+    /// has already been published. Conversely, a module that is from a
+    /// different source package, but that has not been published is
     /// considered part of the root package.
     ///
-    /// If the validation mode requires verifying the root package at a specific address, then the
-    /// modules from the root package will be expected at address `0x0` and this address will be
-    /// substituted with the specified address.
+    /// If the validation mode requires verifying the root package at a specific
+    /// address, then the modules from the root package will be expected at
+    /// address `0x0` and this address will be substituted with the
+    /// specified address.
     fn local(&self, package: &CompiledPackage) -> Result<LocalModules, Error> {
         let iota_package = package;
         let package = &package.package;
@@ -237,8 +250,8 @@ impl ValidationMode {
                 let module = m.name;
                 let address = m.address.into_inner();
 
-                // Skip modules with on 0x0 because they are treated as part of the root package,
-                // even if they are a source dependency.
+                // Skip modules with on 0x0 because they are treated as part of the root
+                // package, even if they are a source dependency.
                 if address == AccountAddress::ZERO {
                     continue;
                 }
@@ -264,8 +277,8 @@ impl ValidationMode {
             return Ok(map);
         };
 
-        // Potentially rebuild according to the toolchain that the package was originally built
-        // with.
+        // Potentially rebuild according to the toolchain that the package was
+        // originally built with.
         let root_compiled_units = units_for_toolchain(
             &package
                 .root_compiled_units
@@ -278,8 +291,8 @@ impl ValidationMode {
             message: e.to_string(),
         })?;
 
-        // Add the root modules, potentially remapping 0x0 if we have been supplied an address to
-        // substitute with.
+        // Add the root modules, potentially remapping 0x0 if we have been supplied an
+        // address to substitute with.
         for (_, local_unit) in root_compiled_units {
             let m = &local_unit.unit;
             let module = m.name;
@@ -299,8 +312,8 @@ impl ValidationMode {
             map.insert((address, module), (root_package, compiled_module));
         }
 
-        // If we have a root address to substitute, we need to find unpublished dependencies that
-        // would have gone into the root package as well.
+        // If we have a root address to substitute, we need to find unpublished
+        // dependencies that would have gone into the root package as well.
         if let Some(root_address) = at {
             for (package, local_unit) in &package.deps_compiled_units {
                 let m = &local_unit.unit;
@@ -335,13 +348,10 @@ impl<'a> BytecodeSourceVerifier<'a> {
         package: &CompiledPackage,
         mode: ValidationMode,
     ) -> Result<(), AggregateError> {
-        if matches!(
-            mode,
-            ValidationMode::Root {
-                at: Some(AccountAddress::ZERO),
-                ..
-            }
-        ) {
+        if matches!(mode, ValidationMode::Root {
+            at: Some(AccountAddress::ZERO),
+            ..
+        }) {
             return Err(Error::ZeroOnChainAddresSpecifiedFailure.into());
         }
 
@@ -349,8 +359,9 @@ impl<'a> BytecodeSourceVerifier<'a> {
         let mut chain = mode.on_chain(package, self).await?;
         let mut errs = vec![];
 
-        // Check that the transitive dependencies listed on chain match the dependencies listed in
-        // source code. Ignore 0x0 because this signifies an unpublished dependency.
+        // Check that the transitive dependencies listed on chain match the dependencies
+        // listed in source code. Ignore 0x0 because this signifies an
+        // unpublished dependency.
         if let Some(on_chain_deps) = &mut chain.on_chain_dependencies {
             for dependency_id in dependency_addresses(package) {
                 if dependency_id != AccountAddress::ZERO && !on_chain_deps.remove(&dependency_id) {
@@ -395,9 +406,10 @@ impl<'a> BytecodeSourceVerifier<'a> {
         // fetched from a iota network via iota_getObject, which takes an object ID
         let obj_id = ObjectID::from(addr);
 
-        // fetch the Iota object at the address specified for the package in the local resolution table
-        // if future packages with a large set of dependency packages prove too slow to verify,
-        // batched object fetching should be added to the ReadApi & used here
+        // fetch the Iota object at the address specified for the package in the local
+        // resolution table if future packages with a large set of dependency
+        // packages prove too slow to verify, batched object fetching should be
+        // added to the ReadApi & used here
         let obj_read = self
             .rpc_client
             .get_object_with_options(obj_id, IotaObjectDataOptions::new().with_bcs())

@@ -2,34 +2,42 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    read_manifest, FileMetadata, FileType, Manifest, CHECKPOINT_FILE_MAGIC, SUMMARY_FILE_MAGIC,
+use std::{
+    borrow::Borrow,
+    future,
+    ops::Range,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
 };
-use anyhow::{anyhow, Context, Result};
-use bytes::buf::Reader;
-use bytes::{Buf, Bytes};
+
+use anyhow::{Context, Result, anyhow};
+use bytes::{Buf, Bytes, buf::Reader};
 use futures::{StreamExt, TryStreamExt};
-use prometheus::{register_int_counter_vec_with_registry, IntCounterVec, Registry};
-use rand::seq::SliceRandom;
-use std::borrow::Borrow;
-use std::future;
-use std::ops::Range;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
 use iota_config::node::ArchiveReaderConfig;
-use iota_storage::object_store::http::HttpDownloaderBuilder;
-use iota_storage::object_store::util::get;
-use iota_storage::object_store::ObjectStoreGetExt;
-use iota_storage::{compute_sha3_checksum_for_bytes, make_iterator, verify_checkpoint};
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointSequenceNumber,
-    FullCheckpointContents as CheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
+use iota_storage::{
+    compute_sha3_checksum_for_bytes, make_iterator,
+    object_store::{ObjectStoreGetExt, http::HttpDownloaderBuilder, util::get},
+    verify_checkpoint,
 };
-use iota_types::storage::WriteStore;
-use tokio::sync::oneshot::Sender;
-use tokio::sync::{oneshot, Mutex};
+use iota_types::{
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointSequenceNumber,
+        FullCheckpointContents as CheckpointContents, VerifiedCheckpoint,
+        VerifiedCheckpointContents,
+    },
+    storage::WriteStore,
+};
+use prometheus::{IntCounterVec, Registry, register_int_counter_vec_with_registry};
+use rand::seq::SliceRandom;
+use tokio::sync::{Mutex, oneshot, oneshot::Sender};
 use tracing::info;
+
+use crate::{
+    CHECKPOINT_FILE_MAGIC, FileMetadata, FileType, Manifest, SUMMARY_FILE_MAGIC, read_manifest,
+};
 
 #[derive(Debug)]
 pub struct ArchiveReaderMetrics {
@@ -59,7 +67,8 @@ impl ArchiveReaderMetrics {
     }
 }
 
-// ArchiveReaderBalancer selects archives for reading based on whether they can fulfill a checkpoint request
+// ArchiveReaderBalancer selects archives for reading based on whether they can
+// fulfill a checkpoint request
 #[derive(Default, Clone)]
 pub struct ArchiveReaderBalancer {
     readers: Vec<Arc<ArchiveReader>>,
@@ -168,8 +177,9 @@ impl ArchiveReader {
         })
     }
 
-    /// This function verifies that the files in archive cover the entire range of checkpoints from
-    /// sequence number 0 until the latest available checkpoint with no missing checkpoint
+    /// This function verifies that the files in archive cover the entire range
+    /// of checkpoints from sequence number 0 until the latest available
+    /// checkpoint with no missing checkpoint
     pub async fn verify_manifest(
         &self,
         manifest: Manifest,
@@ -193,12 +203,16 @@ impl ArchiveReader {
         summary_files.sort_by_key(|f| f.checkpoint_seq_range.start);
         contents_files.sort_by_key(|f| f.checkpoint_seq_range.start);
 
-        assert!(summary_files
-            .windows(2)
-            .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end));
-        assert!(contents_files
-            .windows(2)
-            .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end));
+        assert!(
+            summary_files
+                .windows(2)
+                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
+        );
+        assert!(
+            contents_files
+                .windows(2)
+                .all(|w| w[1].checkpoint_seq_range.start == w[0].checkpoint_seq_range.end)
+        );
 
         let files: Vec<(FileMetadata, FileMetadata)> = summary_files
             .into_iter()
@@ -214,8 +228,8 @@ impl ArchiveReader {
         Ok(files)
     }
 
-    /// This function downloads summary and content files and ensures their computed checksum matches
-    /// the one in manifest
+    /// This function downloads summary and content files and ensures their
+    /// computed checksum matches the one in manifest
     pub async fn verify_file_consistency(
         &self,
         files: Vec<(FileMetadata, FileMetadata)>,
@@ -264,8 +278,9 @@ impl ArchiveReader {
             .await
     }
 
-    /// Load checkpoints from archive into the input store `S` for the given checkpoint
-    /// range. Summaries are downloaded out of order and inserted without verification
+    /// Load checkpoints from archive into the input store `S` for the given
+    /// checkpoint range. Summaries are downloaded out of order and inserted
+    /// without verification
     pub async fn read_summaries_for_range_no_verify<S>(
         &self,
         store: S,
@@ -400,9 +415,10 @@ impl ArchiveReader {
             .await
     }
 
-    /// Load checkpoints+txns+effects from archive into the input store `S` for the given
-    /// checkpoint range. If latest available checkpoint in archive is older than the start of the
-    /// input range then this call fails with an error otherwise we load as many checkpoints as
+    /// Load checkpoints+txns+effects from archive into the input store `S` for
+    /// the given checkpoint range. If latest available checkpoint in
+    /// archive is older than the start of the input range then this call
+    /// fails with an error otherwise we load as many checkpoints as
     /// possible until the end of the provided checkpoint range.
     pub async fn read<S>(
         &self,

@@ -2,14 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf, str::FromStr, time::Duration};
 
 use iota_graphql_rpc::{
     config::{ConnectionConfig, ServiceConfig},
     test_infra::cluster::{
-        start_graphql_server_with_fn_rpc, start_network_cluster,
-        wait_for_graphql_checkpoint_catchup, wait_for_graphql_server, NetworkCluster,
+        NetworkCluster, start_graphql_server_with_fn_rpc, start_network_cluster,
+        wait_for_graphql_checkpoint_catchup, wait_for_graphql_server,
     },
 };
 use iota_graphql_rpc_client::simple_client::SimpleClient;
@@ -18,13 +17,13 @@ use iota_json_rpc_types::ObjectChange;
 use iota_move_build::BuildConfig;
 use iota_pg_temp_db::get_available_port;
 use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, Identifier,
     base_types::{ObjectID, SequenceNumber},
     digests::ObjectDigest,
     move_package::UpgradePolicy,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg},
-    Identifier, IOTA_FRAMEWORK_PACKAGE_ID,
 };
 const DOT_MOVE_PKG: &str = "tests/move_registry/move_registry/";
 const DEMO_PKG: &str = "tests/move_registry/demo/";
@@ -87,7 +86,8 @@ async fn test_move_registry_e2e() {
 
     // Initialize the internal and external clients of GraphQL.
 
-    // The first cluster uses internal resolution (mimics our base network, does not rely on external chain).
+    // The first cluster uses internal resolution (mimics our base network, does not
+    // rely on external chain).
     let internal_client = init_move_registry_gql(
         network_cluster.graphql_connection_config.clone(),
         ServiceConfig::move_registry_test_defaults(
@@ -117,7 +117,8 @@ async fn test_move_registry_e2e() {
     .await;
 
     // Await for the internal cluster to catch up with the latest checkpoint.
-    // That way we're certain that the data is available for querying (committed & indexed).
+    // That way we're certain that the data is available for querying (committed &
+    // indexed).
     let latest_checkpoint = network_cluster
         .validator_fullnode_handle
         .fullnode_handle
@@ -144,9 +145,9 @@ async fn test_move_registry_e2e() {
 
     eprintln!("MVR Name: {}", mvr_name);
 
-    // We craft a big query, which we'll use to test both the internal and the external resolution.
-    // Same query is used across both nodes, since we're testing on top of the same data, just with a different
-    // lookup approach.
+    // We craft a big query, which we'll use to test both the internal and the
+    // external resolution. Same query is used across both nodes, since we're
+    // testing on top of the same data, just with a different lookup approach.
     let query = format!(
         r#"{{ valid_latest: {}, v1: {}, v2: {}, v3: {}, v4: {}, v1_type: {}, v2_type: {}, v3_type: {} }}"#,
         name_query(&mvr_name),
@@ -306,7 +307,8 @@ async fn register_pkg(
     eprintln!("Added record successfully: {:?}", (app, org, chain_id));
 }
 
-// Publishes the Demo PKG, upgrades it twice and returns v1, v2 and v3 package ids.
+// Publishes the Demo PKG, upgrades it twice and returns v1, v2 and v3 package
+// ids.
 async fn publish_demo_pkg(cluster: &NetworkCluster) -> (ObjectID, ObjectID, ObjectID) {
     let tx = cluster
         .validator_fullnode_handle

@@ -2,30 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails};
-use dashmap::mapref::entry::Entry as DashMapEntry;
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::*;
-use iota_types::base_types::{ObjectID, ObjectRef};
-use iota_types::digests::TransactionDigest;
-use iota_types::error::{IotaError, IotaResult, UserInputError};
-use iota_types::object::Object;
-use iota_types::storage::ObjectStore;
-use iota_types::transaction::VerifiedSignedTransaction;
+use iota_types::{
+    base_types::{ObjectID, ObjectRef},
+    digests::TransactionDigest,
+    error::{IotaError, IotaResult, UserInputError},
+    object::Object,
+    storage::ObjectStore,
+    transaction::VerifiedSignedTransaction,
+};
 use tracing::{debug, info, instrument, trace};
 
 use super::writeback_cache::WritebackCache;
+use crate::authority::authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails};
 
 type RefCount = usize;
 
 pub(super) struct ObjectLocks {
     // When acquire transaction locks, lock entries are briefly inserted into this map. The map
-    // exists to provide atomic test-and-set operations on the locks. After all locks have been inserted
-    // into the map, they are written to the db, and then all locks are removed from the map.
+    // exists to provide atomic test-and-set operations on the locks. After all locks have been
+    // inserted into the map, they are written to the db, and then all locks are removed from
+    // the map.
     //
     // After a transaction has been executed, newly created objects are available to be locked.
-    // But, because of crash recovery, we cannot rule out that a lock may already exist in the db for
-    // those objects. Therefore we do a db read for each object we are locking.
+    // But, because of crash recovery, we cannot rule out that a lock may already exist in the db
+    // for those objects. Therefore we do a db read for each object we are locking.
     //
     // TODO: find a strategy to allow us to avoid db reads for each object.
     locked_transactions: DashMap<ObjectRef, (RefCount, LockDetails)>,
@@ -43,16 +45,16 @@ impl ObjectLocks {
         obj_ref: &ObjectRef,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult<Option<LockDetails>> {
-        // We don't consult the in-memory state here. We are only interested in state that
-        // has been committed to the db. This is because in memory state is reverted
-        // if the transaction is not successfully locked.
+        // We don't consult the in-memory state here. We are only interested in state
+        // that has been committed to the db. This is because in memory state is
+        // reverted if the transaction is not successfully locked.
         epoch_store.tables()?.get_locked_transaction(obj_ref)
     }
 
     /// Attempts to atomically test-and-set a transaction lock on an object.
-    /// If the lock is already set to a conflicting transaction, an error is returned.
-    /// If the lock is not set, or is already set to the same transaction, the lock is
-    /// set.
+    /// If the lock is already set to a conflicting transaction, an error is
+    /// returned. If the lock is not set, or is already set to the same
+    /// transaction, the lock is set.
     pub(crate) fn try_set_transaction_lock(
         &self,
         obj_ref: &ObjectRef,
@@ -69,14 +71,16 @@ impl ObjectLocks {
         // cannot be a lock in the db that we do not know about. Two possibilities are:
         //
         // 1. Read all locks into memory at startup (and keep them there). The lifetime
-        //    of locks is relatively short in the common case, so this might be feasible.
-        // 2. Find some strategy to distinguish between the cases where we are re-executing
-        //    old transactions after restarting vs executing transactions that we have never
-        //    seen before. The output objects of novel transactions cannot previously have
-        //    been locked on this validator.
+        //    of locks is relatively short in the common case, so this might be
+        //    feasible.
+        // 2. Find some strategy to distinguish between the cases where we are
+        //    re-executing old transactions after restarting vs executing transactions
+        //    that we have never seen before. The output objects of novel transactions
+        //    cannot previously have been locked on this validator.
         //
-        // Solving this is not terribly important as it is not in the execution path, and
-        // hence only improves the latency of transaction signing, not transaction execution
+        // Solving this is not terribly important as it is not in the execution path,
+        // and hence only improves the latency of transaction signing, not
+        // transaction execution
         let prev_lock = match entry {
             DashMapEntry::Vacant(vacant) => {
                 let tables = epoch_store.tables()?;
@@ -208,14 +212,15 @@ impl ObjectLocks {
         let mut locks_to_write: Vec<(_, LockDetails)> =
             Vec::with_capacity(owned_input_objects.len());
 
-        // Sort the objects before locking. This is not required by the protocol (since it's okay to
-        // reject any equivocating tx). However, this does prevent a confusing error on the client.
-        // Consider the case:
+        // Sort the objects before locking. This is not required by the protocol (since
+        // it's okay to reject any equivocating tx). However, this does prevent
+        // a confusing error on the client. Consider the case:
         //   TX1: [o1, o2];
         //   TX2: [o2, o1];
-        // If two threads race to acquire these locks, they might both acquire the first object, then
-        // error when trying to acquire the second. The error returned to the client would say that there
-        // is a conflicting tx on that object, but in fact neither object was locked and the tx was never
+        // If two threads race to acquire these locks, they might both acquire the first
+        // object, then error when trying to acquire the second. The error
+        // returned to the client would say that there is a conflicting tx on
+        // that object, but in fact neither object was locked and the tx was never
         // signed. If one client then retries, they will succeed (counterintuitively).
         let owned_input_objects = {
             let mut o = owned_input_objects.to_vec();
@@ -223,18 +228,21 @@ impl ObjectLocks {
             o
         };
 
-        // Note that this function does not have to operate atomically. If there are two racing threads,
-        // then they are either trying to lock the same transaction (in which case both will succeed),
-        // or they are trying to lock the same object in two different transactions, in which case
-        // the sender has equivocated, and we are under no obligation to help them form a cert.
+        // Note that this function does not have to operate atomically. If there are two
+        // racing threads, then they are either trying to lock the same
+        // transaction (in which case both will succeed), or they are trying to
+        // lock the same object in two different transactions, in which case the
+        // sender has equivocated, and we are under no obligation to help them form a
+        // cert.
         for obj_ref in owned_input_objects.iter() {
             match self.try_set_transaction_lock(obj_ref, tx_digest, epoch_store) {
                 Ok(()) => locks_to_write.push((*obj_ref, tx_digest)),
                 Err(e) => {
                     // revert all pending writes and return error
-                    // Note that reverting is not required for liveness, since a well formed and un-equivocating
-                    // txn cannot fail to acquire locks.
-                    // However, reverting is easy enough to do in this implementation that we do it anyway.
+                    // Note that reverting is not required for liveness, since a well formed and
+                    // un-equivocating txn cannot fail to acquire locks.
+                    // However, reverting is easy enough to do in this implementation that we do it
+                    // anyway.
                     self.clear_cached_locks(&locks_to_write);
                     return Err(e);
                 }
@@ -255,10 +263,11 @@ impl ObjectLocks {
 
 #[cfg(test)]
 mod tests {
-    use crate::execution_cache::{
-        writeback_cache::writeback_cache_tests::Scenario, ExecutionCacheWrite,
-    };
     use futures::FutureExt;
+
+    use crate::execution_cache::{
+        ExecutionCacheWrite, writeback_cache::writeback_cache_tests::Scenario,
+    };
 
     #[tokio::test]
     async fn test_transaction_locks_are_exclusive() {
@@ -284,8 +293,8 @@ mod tests {
                 .await
                 .expect("locks should be available");
 
-            // this tx doesn't use the actual objects in question, but we just need something
-            // to insert into the table.
+            // this tx doesn't use the actual objects in question, but we just need
+            // something to insert into the table.
             s.with_created(&[4, 5]);
             let tx2 = s.take_outputs().transaction.clone();
             let tx2 = s.make_signed_transaction(&tx2);
@@ -403,8 +412,8 @@ mod tests {
                 .await
                 .unwrap_err();
 
-            // this tx doesn't use the actual objects in question, but we just need something
-            // to insert into the table.
+            // this tx doesn't use the actual objects in question, but we just need
+            // something to insert into the table.
             s.with_created(&[4, 5]);
             let tx2 = s.take_outputs().transaction.clone();
             let tx2 = s.make_signed_transaction(&tx2);
@@ -435,8 +444,8 @@ mod tests {
             let outputs = s.take_outputs();
 
             let tx2 = s.make_signed_transaction(&outputs.transaction);
-            // assert that acquire_transaction_locks is sync in non-simtest, which causes the
-            // fail_point_async! macros above to be elided
+            // assert that acquire_transaction_locks is sync in non-simtest, which causes
+            // the fail_point_async! macros above to be elided
             s.cache
                 .acquire_transaction_locks(
                     &s.epoch_store,

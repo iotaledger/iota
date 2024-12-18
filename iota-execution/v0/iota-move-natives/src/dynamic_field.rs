@@ -2,11 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    get_nested_struct_field, get_object_id,
-    object_runtime::{object_store::ObjectResult, ObjectRuntime},
-    NativesCostTable,
-};
+use std::collections::VecDeque;
+
+use iota_types::{base_types::MoveObjectType, dynamic_field::derive_dynamic_field_id};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     account_address::AccountAddress,
@@ -16,8 +14,7 @@ use move_core_types::{
     runtime_value as R,
     vm_status::StatusCode,
 };
-use move_vm_runtime::native_charge_gas_early_exit;
-use move_vm_runtime::native_functions::NativeContext;
+use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
 use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
@@ -25,9 +22,12 @@ use move_vm_types::{
     values::{StructRef, Value},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
-use iota_types::{base_types::MoveObjectType, dynamic_field::derive_dynamic_field_id};
 use tracing::instrument;
+
+use crate::{
+    NativesCostTable, get_nested_struct_field, get_object_id,
+    object_runtime::{ObjectRuntime, object_store::ObjectResult},
+};
 
 const E_KEY_DOES_NOT_EXIST: u64 = 1;
 const E_FIELD_TYPE_MISMATCH: u64 = 2;
@@ -48,7 +48,7 @@ macro_rules! get_or_fetch_object {
                 return Ok(NativeResult::err(
                     $context.gas_used(),
                     E_BCS_SERIALIZATION_FAILURE,
-                ))
+                ));
             }
         };
 
@@ -72,14 +72,21 @@ pub struct DynamicFieldHashTypeAndKeyCostParams {
     pub dynamic_field_hash_type_and_key_type_tag_cost_per_byte: InternalGas,
 }
 
-/***************************************************************************************************
- * native fun hash_type_and_key
- * Implementation of the Move native function `hash_type_and_key<K: copy + drop + store>(parent: address, k: K): address`
- *   gas cost: dynamic_field_hash_type_and_key_cost_base                            | covers various fixed costs in the oper
- *              + dynamic_field_hash_type_and_key_type_cost_per_byte * size_of(K)   | covers cost of operating on the type `K`
- *              + dynamic_field_hash_type_and_key_value_cost_per_byte * size_of(k)  | covers cost of operating on the value `k`
- *              + dynamic_field_hash_type_and_key_type_tag_cost_per_byte * size_of(type_tag(k))    | covers cost of operating on the type tag of `K`
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun hash_type_and_key
+/// Implementation of the Move native function `hash_type_and_key<K: copy + drop
+/// + store>(parent: address, k: K): address`   gas cost:
+/// dynamic_field_hash_type_and_key_cost_base                            |
+/// covers various fixed costs in the oper
+///              + dynamic_field_hash_type_and_key_type_cost_per_byte *
+///                size_of(K)   | covers cost of operating on the type `K`
+///              + dynamic_field_hash_type_and_key_value_cost_per_byte *
+///                size_of(k)  | covers cost of operating on the value `k`
+///              + dynamic_field_hash_type_and_key_type_tag_cost_per_byte *
+///                size_of(type_tag(k))    | covers cost of operating on the
+///                type tag of `K`
+/// ****************************************************************************
+/// *******************
 #[instrument(level = "trace", skip_all, err)]
 pub fn hash_type_and_key(
     context: &mut NativeContext,
@@ -152,15 +159,24 @@ pub struct DynamicFieldAddChildObjectCostParams {
     pub dynamic_field_add_child_object_struct_tag_cost_per_byte: InternalGas,
 }
 
-/***************************************************************************************************
- * native fun add_child_object
- * throws `E_KEY_ALREADY_EXISTS` if a child already exists with that ID
- * Implementation of the Move native function `add_child_object<Child: key>(parent: address, child: Child)`
- *   gas cost: dynamic_field_add_child_object_cost_base                    | covers various fixed costs in the oper
- *              + dynamic_field_add_child_object_type_cost_per_byte * size_of(Child)        | covers cost of operating on the type `Child`
- *              + dynamic_field_add_child_object_value_cost_per_byte * size_of(child)       | covers cost of operating on the value `child`
- *              + dynamic_field_add_child_object_struct_tag_cost_per_byte * size_of(struct)tag(Child))  | covers cost of operating on the struct tag of `Child`
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun add_child_object
+/// throws `E_KEY_ALREADY_EXISTS` if a child already exists with that ID
+/// Implementation of the Move native function `add_child_object<Child:
+/// key>(parent: address, child: Child)`   gas cost:
+/// dynamic_field_add_child_object_cost_base                    | covers various
+/// fixed costs in the oper
+///              + dynamic_field_add_child_object_type_cost_per_byte *
+///                size_of(Child)        | covers cost of operating on the type
+///                `Child`
+///              + dynamic_field_add_child_object_value_cost_per_byte *
+///                size_of(child)       | covers cost of operating on the value
+///                `child`
+///              + dynamic_field_add_child_object_struct_tag_cost_per_byte *
+///                size_of(struct)tag(Child))  | covers cost of operating on the
+///                struct tag of `Child`
+/// ****************************************************************************
+/// *******************
 #[instrument(level = "trace", skip_all, err)]
 pub fn add_child_object(
     context: &mut NativeContext,
@@ -218,7 +234,7 @@ pub fn add_child_object(
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                     .with_message("Iota verifier guarantees this is a struct".to_string()),
-            )
+            );
         }
     };
 
@@ -248,15 +264,23 @@ pub struct DynamicFieldBorrowChildObjectCostParams {
     pub dynamic_field_borrow_child_object_type_cost_per_byte: InternalGas,
 }
 
-/***************************************************************************************************
- * native fun borrow_child_object
- * throws `E_KEY_DOES_NOT_EXIST` if a child does not exist with that ID at that type
- * or throws `E_FIELD_TYPE_MISMATCH` if the type does not match (as the runtime does not distinguish different reference types)
- * Implementation of the Move native function `borrow_child_object_mut<Child: key>(parent: &mut UID, id: address): &mut Child`
- *   gas cost: dynamic_field_borrow_child_object_cost_base                    | covers various fixed costs in the oper
- *              + dynamic_field_borrow_child_object_child_ref_cost_per_byte  * size_of(&Child)  | covers cost of fetching and returning `&Child`
- *              + dynamic_field_borrow_child_object_type_cost_per_byte  * size_of(Child)        | covers cost of operating on type `Child`
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun borrow_child_object
+/// throws `E_KEY_DOES_NOT_EXIST` if a child does not exist with that ID at that
+/// type or throws `E_FIELD_TYPE_MISMATCH` if the type does not match (as the
+/// runtime does not distinguish different reference types) Implementation of
+/// the Move native function `borrow_child_object_mut<Child: key>(parent: &mut
+/// UID, id: address): &mut Child`   gas cost:
+/// dynamic_field_borrow_child_object_cost_base                    | covers
+/// various fixed costs in the oper
+///              + dynamic_field_borrow_child_object_child_ref_cost_per_byte  *
+///                size_of(&Child)  | covers cost of fetching and returning
+///                `&Child`
+///              + dynamic_field_borrow_child_object_type_cost_per_byte  *
+///                size_of(Child)        | covers cost of operating on type
+///                `Child`
+/// ****************************************************************************
+/// *******************
 #[instrument(level = "trace", skip_all, err)]
 pub fn borrow_child_object(
     context: &mut NativeContext,
@@ -297,7 +321,7 @@ pub fn borrow_child_object(
     );
     let global_value = match global_value_result {
         ObjectResult::MismatchedType => {
-            return Ok(NativeResult::err(context.gas_used(), E_FIELD_TYPE_MISMATCH))
+            return Ok(NativeResult::err(context.gas_used(), E_FIELD_TYPE_MISMATCH));
         }
         ObjectResult::Loaded(gv) => gv,
     };
@@ -324,15 +348,22 @@ pub struct DynamicFieldRemoveChildObjectCostParams {
     pub dynamic_field_remove_child_object_child_cost_per_byte: InternalGas,
     pub dynamic_field_remove_child_object_type_cost_per_byte: InternalGas,
 }
-/***************************************************************************************************
- * native fun remove_child_object
- * throws `E_KEY_DOES_NOT_EXIST` if a child does not exist with that ID at that type
- * or throws `E_FIELD_TYPE_MISMATCH` if the type does not match
- * Implementation of the Move native function `remove_child_object<Child: key>(parent: address, id: address): Child`
- *   gas cost: dynamic_field_remove_child_object_cost_base                    | covers various fixed costs in the oper
- *              + dynamic_field_remove_child_object_type_cost_per_byte * size_of(Child)      | covers cost of operating on type `Child`
- *              + dynamic_field_remove_child_object_child_cost_per_byte  * size_of(child)     | covers cost of fetching and returning value of type `Child`
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun remove_child_object
+/// throws `E_KEY_DOES_NOT_EXIST` if a child does not exist with that ID at that
+/// type or throws `E_FIELD_TYPE_MISMATCH` if the type does not match
+/// Implementation of the Move native function `remove_child_object<Child:
+/// key>(parent: address, id: address): Child`   gas cost:
+/// dynamic_field_remove_child_object_cost_base                    | covers
+/// various fixed costs in the oper
+///              + dynamic_field_remove_child_object_type_cost_per_byte *
+///                size_of(Child)      | covers cost of operating on type
+///                `Child`
+///              + dynamic_field_remove_child_object_child_cost_per_byte  *
+///                size_of(child)     | covers cost of fetching and returning
+///                value of type `Child`
+/// ****************************************************************************
+/// *******************
 #[instrument(level = "trace", skip_all, err)]
 pub fn remove_child_object(
     context: &mut NativeContext,
@@ -365,7 +396,7 @@ pub fn remove_child_object(
     );
     let global_value = match global_value_result {
         ObjectResult::MismatchedType => {
-            return Ok(NativeResult::err(context.gas_used(), E_FIELD_TYPE_MISMATCH))
+            return Ok(NativeResult::err(context.gas_used(), E_FIELD_TYPE_MISMATCH));
         }
         ObjectResult::Loaded(gv) => gv,
     };
@@ -391,11 +422,13 @@ pub struct DynamicFieldHasChildObjectCostParams {
     // All inputs are constant same size. No need for special costing as this is a lookup
     pub dynamic_field_has_child_object_cost_base: InternalGas,
 }
-/***************************************************************************************************
- * native fun has_child_object
- * Implementation of the Move native function `has_child_object(parent: address, id: address): bool`
- *   gas cost: dynamic_field_has_child_object_cost_base                    | covers various fixed costs in the oper
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun has_child_object
+/// Implementation of the Move native function `has_child_object(parent:
+/// address, id: address): bool`   gas cost:
+/// dynamic_field_has_child_object_cost_base                    | covers various
+/// fixed costs in the oper ****************************************************
+/// *******************************************
 #[instrument(level = "trace", skip_all, err)]
 pub fn has_child_object(
     context: &mut NativeContext,
@@ -419,10 +452,9 @@ pub fn has_child_object(
     let parent = pop_arg!(args, AccountAddress).into();
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut();
     let has_child = object_runtime.child_object_exists(parent, child_id)?;
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::bool(has_child)],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::bool(has_child)
+    ]))
 }
 
 #[derive(Clone)]
@@ -431,13 +463,20 @@ pub struct DynamicFieldHasChildObjectWithTyCostParams {
     pub dynamic_field_has_child_object_with_ty_type_cost_per_byte: InternalGas,
     pub dynamic_field_has_child_object_with_ty_type_tag_cost_per_byte: InternalGas,
 }
-/***************************************************************************************************
- * native fun has_child_object_with_ty
- * Implementation of the Move native function `has_child_object_with_ty<Child: key>(parent: address, id: address): bool`
- *   gas cost: dynamic_field_has_child_object_with_ty_cost_base               | covers various fixed costs in the oper
- *              + dynamic_field_has_child_object_with_ty_type_cost_per_byte * size_of(Child)        | covers cost of operating on type `Child`
- *              + dynamic_field_has_child_object_with_ty_type_tag_cost_per_byte * size_of(Child)    | covers cost of fetching and returning value of type tag for `Child`
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun has_child_object_with_ty
+/// Implementation of the Move native function `has_child_object_with_ty<Child:
+/// key>(parent: address, id: address): bool`   gas cost:
+/// dynamic_field_has_child_object_with_ty_cost_base               | covers
+/// various fixed costs in the oper
+///              + dynamic_field_has_child_object_with_ty_type_cost_per_byte *
+///                size_of(Child)        | covers cost of operating on type
+///                `Child`
+///              + dynamic_field_has_child_object_with_ty_type_tag_cost_per_byte
+///                * size_of(Child)    | covers cost of fetching and returning
+///                value of type tag for `Child`
+/// ****************************************************************************
+/// *******************
 #[instrument(level = "trace", skip_all, err)]
 pub fn has_child_object_with_ty(
     context: &mut NativeContext,
@@ -476,7 +515,7 @@ pub fn has_child_object_with_ty(
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                     .with_message("Iota verifier guarantees this is a struct".to_string()),
-            )
+            );
         }
     };
 
@@ -493,10 +532,9 @@ pub fn has_child_object_with_ty(
         child_id,
         &MoveObjectType::from(tag),
     )?;
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::bool(has_child)],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::bool(has_child)
+    ]))
 }
 
 fn get_tag_and_layouts(
@@ -509,7 +547,7 @@ fn get_tag_and_layouts(
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                     .with_message("Iota verifier guarantees this is a struct".to_string()),
-            )
+            );
         }
     };
     let Some(layout) = context.type_to_type_layout(ty)? else {

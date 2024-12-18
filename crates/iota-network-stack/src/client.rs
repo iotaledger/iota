@@ -2,13 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    config::Config,
-    multiaddr::{parse_dns, parse_ip4, parse_ip6, Multiaddr, Protocol},
-};
-use eyre::{eyre, Context, Result};
-use hyper_util::client::legacy::connect::{dns::Name, HttpConnector};
-use once_cell::sync::OnceCell;
 use std::{
     collections::HashMap,
     fmt,
@@ -21,11 +14,20 @@ use std::{
     time::Instant,
     vec,
 };
+
+use eyre::{Context, Result, eyre};
+use hyper_util::client::legacy::connect::{HttpConnector, dns::Name};
+use once_cell::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tokio_rustls::rustls::ClientConfig;
 use tonic::transport::{Channel, Endpoint, Uri};
 use tower::Service;
 use tracing::{info, trace};
+
+use crate::{
+    config::Config,
+    multiaddr::{Multiaddr, Protocol, parse_dns, parse_ip4, parse_ip6},
+};
 
 pub async fn connect(address: &Multiaddr, tls_config: Option<ClientConfig>) -> Result<Channel> {
     let channel = endpoint_from_multiaddr(address, tls_config)?

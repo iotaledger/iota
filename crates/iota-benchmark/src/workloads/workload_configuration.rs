@@ -2,25 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bank::BenchmarkBank;
-use crate::drivers::Interval;
-use crate::options::{Opts, RunSpec};
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::batch_payment::BatchPaymentWorkloadBuilder;
-use crate::workloads::delegation::DelegationWorkloadBuilder;
-use crate::workloads::shared_counter::SharedCounterWorkloadBuilder;
-use crate::workloads::transfer_object::TransferObjectWorkloadBuilder;
-use crate::workloads::{ExpectedFailureType, GroupID, WorkloadBuilderInfo, WorkloadInfo};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+
 use anyhow::Result;
-use std::collections::BTreeMap;
-use std::str::FromStr;
-use std::sync::Arc;
 use tracing::info;
 
-use super::adversarial::{AdversarialPayloadCfg, AdversarialWorkloadBuilder};
-use super::expected_failure::{ExpectedFailurePayloadCfg, ExpectedFailureWorkloadBuilder};
-use super::randomness::RandomnessWorkloadBuilder;
-use super::shared_object_deletion::SharedCounterDeletionWorkloadBuilder;
+use super::{
+    adversarial::{AdversarialPayloadCfg, AdversarialWorkloadBuilder},
+    expected_failure::{ExpectedFailurePayloadCfg, ExpectedFailureWorkloadBuilder},
+    randomness::RandomnessWorkloadBuilder,
+    shared_object_deletion::SharedCounterDeletionWorkloadBuilder,
+};
+use crate::{
+    bank::BenchmarkBank,
+    drivers::Interval,
+    options::{Opts, RunSpec},
+    system_state_observer::SystemStateObserver,
+    workloads::{
+        ExpectedFailureType, GroupID, WorkloadBuilderInfo, WorkloadInfo,
+        batch_payment::BatchPaymentWorkloadBuilder, delegation::DelegationWorkloadBuilder,
+        shared_counter::SharedCounterWorkloadBuilder,
+        transfer_object::TransferObjectWorkloadBuilder,
+    },
+};
 
 pub struct WorkloadWeights {
     pub shared_counter: u32,
@@ -86,8 +90,9 @@ impl WorkloadConfiguration {
                     num_of_benchmark_groups
                 );
 
-                // Creating the workload builders for each benchmark group. The workloads for each
-                // benchmark group will run in the same time for the same duration.
+                // Creating the workload builders for each benchmark group. The workloads for
+                // each benchmark group will run in the same time for the same
+                // duration.
                 for workload_group in 0..num_of_benchmark_groups {
                     let i = workload_group as usize;
                     let config = WorkloadConfig {

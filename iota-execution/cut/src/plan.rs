@@ -2,33 +2,38 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Context, Result};
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::env;
-use std::fmt;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    env, fmt, fs,
+    path::{Path, PathBuf},
+};
+
+use anyhow::{Context, Result, bail};
 use thiserror::Error;
 use toml::value::Value;
 use toml_edit::{self, Document, Item};
 
-use crate::args::Args;
-use crate::path::{deep_copy, normalize_path, path_relative_to, shortest_new_prefix};
+use crate::{
+    args::Args,
+    path::{deep_copy, normalize_path, path_relative_to, shortest_new_prefix},
+};
 
-/// Description of where packages should be copied to, what their new names should be, and whether
-/// they should be added to the `workspace` `members` or `exclude` fields.
+/// Description of where packages should be copied to, what their new names
+/// should be, and whether they should be added to the `workspace` `members` or
+/// `exclude` fields.
 #[derive(Debug)]
 pub(crate) struct CutPlan {
-    /// Root of the repository, where the `Cargo.toml` containing the `workspace` configuration is
-    /// found.
+    /// Root of the repository, where the `Cargo.toml` containing the
+    /// `workspace` configuration is found.
     root: PathBuf,
 
-    /// New directories that need to be created.  Used to clean-up copied packages on roll-back.  If
-    /// multiple nested directories must be created, only contains their shortest common prefix.
+    /// New directories that need to be created.  Used to clean-up copied
+    /// packages on roll-back.  If multiple nested directories must be
+    /// created, only contains their shortest common prefix.
     directories: BTreeSet<PathBuf>,
 
-    /// Mapping from the names of existing packages to be cut, to the details of where they will be
-    /// copied to.
+    /// Mapping from the names of existing packages to be cut, to the details of
+    /// where they will be copied to.
     packages: BTreeMap<String, CutPackage>,
 }
 
@@ -41,8 +46,9 @@ pub(crate) struct CutPackage {
     ws_state: WorkspaceState,
 }
 
-/// Whether the package in question is an explicit member of the workspace, an explicit exclude of
-/// the workspace, or neither (in which case it could still transitively be one or the other).
+/// Whether the package in question is an explicit member of the workspace, an
+/// explicit exclude of the workspace, or neither (in which case it could still
+/// transitively be one or the other).
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum WorkspaceState {
     Member,
@@ -87,9 +93,10 @@ pub(crate) enum Error {
 }
 
 impl CutPlan {
-    /// Scan `args.directories` looking for `args.packages` to produce a new plan.  The resulting
-    /// plan is guaranteed not to contain any duplicate packages (by name or path), or overwrite any
-    /// existing packages.  Returns an error if it's not possible to construct such a plan.
+    /// Scan `args.directories` looking for `args.packages` to produce a new
+    /// plan.  The resulting plan is guaranteed not to contain any duplicate
+    /// packages (by name or path), or overwrite any existing packages.
+    /// Returns an error if it's not possible to construct such a plan.
     pub(crate) fn discover(args: Args) -> Result<Self> {
         let cwd = env::current_dir()?;
 
@@ -177,19 +184,16 @@ impl CutPlan {
                     bail!(Error::ExistingPackage(pkg_name, dst_path));
                 }
 
-                self.planned_packages.insert(
-                    pkg_name,
-                    CutPackage {
-                        dst_name,
-                        dst_path,
-                        src_path: src.to_path_buf(),
-                        ws_state: if let Some(ws) = &self.ws {
-                            ws.state(src)?
-                        } else {
-                            WorkspaceState::Unknown
-                        },
+                self.planned_packages.insert(pkg_name, CutPackage {
+                    dst_name,
+                    dst_path,
+                    src_path: src.to_path_buf(),
+                    ws_state: if let Some(ws) = &self.ws {
+                        ws.state(src)?
+                    } else {
+                        WorkspaceState::Unknown
                     },
-                );
+                });
 
                 Ok(())
             }
@@ -220,8 +224,8 @@ impl CutPlan {
             let dst_path = normalize_path(&dir.dst)
                 .with_context(|| format!("Normalizing {} failed", dir.dst.display()))?;
 
-            // Check whether any parent directories need to be made as part of this iteration of the
-            // cut.
+            // Check whether any parent directories need to be made as part of this
+            // iteration of the cut.
             let fresh_parent = shortest_new_prefix(&dst_path).map_or(false, |pfx| {
                 walker.make_directories.insert(pfx);
                 true
@@ -269,9 +273,9 @@ impl CutPlan {
         })
     }
 
-    /// Copy the packages according to this plan.  On success, all the packages will be copied to
-    /// their destinations, and their dependencies will be fixed up.  On failure, pending changes
-    /// are rolled back.
+    /// Copy the packages according to this plan.  On success, all the packages
+    /// will be copied to their destinations, and their dependencies will be
+    /// fixed up.  On failure, pending changes are rolled back.
     pub(crate) fn execute(&self) -> Result<()> {
         self.execute_().inspect_err(|_| {
             self.rollback();
@@ -289,13 +293,14 @@ impl CutPlan {
                 .with_context(|| format!("Failed to update manifest for '{}'", package.dst_name))?
         }
 
-        // Update the workspace at the end, so that if there is any problem before that, rollback
-        // will leave the state clean.
+        // Update the workspace at the end, so that if there is any problem before that,
+        // rollback will leave the state clean.
         self.update_workspace()
             .context("Failed to update [workspace].")
     }
 
-    /// Copy the contents of `package` from its `src_path` to its `dst_path`, unchanged.
+    /// Copy the contents of `package` from its `src_path` to its `dst_path`,
+    /// unchanged.
     fn copy_package(&self, package: &CutPackage) -> Result<()> {
         // Copy everything in the directory as-is, except for any "target" directories
         deep_copy(&package.src_path, &package.dst_path, &mut |src| {
@@ -305,10 +310,11 @@ impl CutPlan {
         Ok(())
     }
 
-    /// Fix the contents of the copied package's `Cargo.toml`: name altered to match
-    /// `package.dst_name` and local relative-path-based dependencies are updated to account for the
-    /// copied package's new location.  Assumes that all copied files exist (but may not contain
-    /// up-to-date information).
+    /// Fix the contents of the copied package's `Cargo.toml`: name altered to
+    /// match `package.dst_name` and local relative-path-based dependencies
+    /// are updated to account for the copied package's new location.
+    /// Assumes that all copied files exist (but may not contain up-to-date
+    /// information).
     fn update_package(&self, package: &CutPackage) -> Result<()> {
         let path = package.dst_path.join("Cargo.toml");
         let mut toml = fs::read_to_string(&path)?.parse::<Document>()?;
@@ -332,9 +338,10 @@ impl CutPlan {
         Ok(())
     }
 
-    /// Find all dependency tables in `table`, part of a manifest at `dst_path/Cargo.toml`
-    /// (originally at `src_path/Cargo.toml`), and fix (relative) paths to account for the change in
-    /// the package's location.
+    /// Find all dependency tables in `table`, part of a manifest at
+    /// `dst_path/Cargo.toml` (originally at `src_path/Cargo.toml`), and fix
+    /// (relative) paths to account for the change in the package's
+    /// location.
     fn update_dependencies(
         &self,
         src_path: impl AsRef<Path>,
@@ -354,14 +361,15 @@ impl CutPlan {
         Ok(())
     }
 
-    /// Update an individual dependency from a copied package manifest.  Only local path-based
-    /// dependencies are updated:
+    /// Update an individual dependency from a copied package manifest.  Only
+    /// local path-based dependencies are updated:
     ///
     ///     Dep = { path = "..." }
     ///
-    /// If `Dep` is another package to be copied as part of this plan, the path is updated to the
-    /// location it is copied to.  Otherwise, its location (a relative path) is updated to account
-    /// for the fact that the copied package is at a new location.
+    /// If `Dep` is another package to be copied as part of this plan, the path
+    /// is updated to the location it is copied to.  Otherwise, its location
+    /// (a relative path) is updated to account for the fact that the copied
+    /// package is at a new location.
     fn update_dependency(
         &self,
         src_path: impl AsRef<Path>,
@@ -373,8 +381,8 @@ impl CutPlan {
             return Ok(());
         };
 
-        // If the dep has an explicit package name, use that as the key for finding package
-        // information, rather than the field name of the dep.
+        // If the dep has an explicit package name, use that as the key for finding
+        // package information, rather than the field name of the dep.
         let dep_pkg = self.packages.get(
             dep.get("package")
                 .and_then(Item::as_str)
@@ -393,8 +401,8 @@ impl CutPlan {
                 dep.insert("package", toml_edit::value(&dep_pkg.dst_name));
             }
         } else if let Some(rel_dep_path) = path.as_str() {
-            // Dependency is for an existing (non-cut) local package, fix up its (relative) path to
-            // now be relative to its cut location.
+            // Dependency is for an existing (non-cut) local package, fix up its (relative)
+            // path to now be relative to its cut location.
             let dep_path = src_path.as_ref().join(rel_dep_path);
             *path = toml_edit::value(path_to_toml_value(dst_path, dep_path)?);
         }
@@ -402,7 +410,8 @@ impl CutPlan {
         Ok(())
     }
 
-    /// Add entries to the `members` and `exclude` arrays in the root manifest's `workspace` table.
+    /// Add entries to the `members` and `exclude` arrays in the root manifest's
+    /// `workspace` table.
     fn update_workspace(&self) -> Result<()> {
         let path = self.root.join("Cargo.toml");
         if !path.exists() {
@@ -460,9 +469,10 @@ impl CutPlan {
         Ok(())
     }
 
-    /// Attempt to clean-up the partial results of executing a plan, by deleting the directories
-    /// that the plan would have created.  Swallows and prints errors to make sure as much clean-up
-    /// as possible is done -- this function is typically called when some other error has occurred,
+    /// Attempt to clean-up the partial results of executing a plan, by deleting
+    /// the directories that the plan would have created.  Swallows and
+    /// prints errors to make sure as much clean-up as possible is done --
+    /// this function is typically called when some other error has occurred,
     /// so it's unclear what it's starting state would be.
     fn rollback(&self) {
         for dir in &self.directories {
@@ -474,9 +484,10 @@ impl CutPlan {
 }
 
 impl Workspace {
-    /// Read `members` and `exclude` from the `workspace` section of the `Cargo.toml` file in
-    /// directory `root`.  Fails if there isn't a manifest, it doesn't contain a `workspace`
-    /// section, or the relevant fields are not formatted as expected.
+    /// Read `members` and `exclude` from the `workspace` section of the
+    /// `Cargo.toml` file in directory `root`.  Fails if there isn't a
+    /// manifest, it doesn't contain a `workspace` section, or the relevant
+    /// fields are not formatted as expected.
     fn read<P: AsRef<Path>>(root: P) -> Result<Self> {
         let path = root.as_ref().join("Cargo.toml");
         if !path.exists() {
@@ -496,8 +507,8 @@ impl Workspace {
         Ok(Self { members, exclude })
     }
 
-    /// Determine the state of the path insofar as whether it is a direct member or exclude of this
-    /// `Workspace`.
+    /// Determine the state of the path insofar as whether it is a direct member
+    /// or exclude of this `Workspace`.
     fn state<P: AsRef<Path>>(&self, path: P) -> Result<WorkspaceState> {
         let path = path.as_ref();
         match (self.members.contains(path), self.exclude.contains(path)) {
@@ -559,9 +570,10 @@ impl fmt::Display for CutPlan {
     }
 }
 
-/// Find the root of the git repository containing `cwd`, if it exists, return `None` otherwise.
-/// This function only searches prefixes of the provided path for the git repo, so if the path is
-/// given as a relative path within the repository, the root will not be found.
+/// Find the root of the git repository containing `cwd`, if it exists, return
+/// `None` otherwise. This function only searches prefixes of the provided path
+/// for the git repo, so if the path is given as a relative path within the
+/// repository, the root will not be found.
 fn discover_root(mut cwd: PathBuf) -> Option<PathBuf> {
     cwd.extend(["_", ".git"]);
     while {
@@ -578,11 +590,11 @@ fn discover_root(mut cwd: PathBuf) -> Option<PathBuf> {
     None
 }
 
-/// Read `[field]` from `table`, as an array of strings, and interpret as a set of paths,
-/// canonicalized relative to a `root` path.
+/// Read `[field]` from `table`, as an array of strings, and interpret as a set
+/// of paths, canonicalized relative to a `root` path.
 ///
-/// Fails if the field does not exist, does not consist of all strings, or if a path fails to
-/// canonicalize.
+/// Fails if the field does not exist, does not consist of all strings, or if a
+/// path fails to canonicalize.
 fn toml_path_array_to_set<P: AsRef<Path>>(
     root: P,
     table: &Value,
@@ -611,10 +623,10 @@ fn toml_path_array_to_set<P: AsRef<Path>>(
     Ok(set)
 }
 
-/// Represent `path` as a TOML value, by first describing it as a relative path (relative to
-/// `root`), and then converting it to a String.  Fails if either `root` or `path` are not real
-/// paths (cannot be canonicalized), or the resulting relative path cannot be represented as a
-/// String.
+/// Represent `path` as a TOML value, by first describing it as a relative path
+/// (relative to `root`), and then converting it to a String.  Fails if either
+/// `root` or `path` are not real paths (cannot be canonicalized), or the
+/// resulting relative path cannot be represented as a String.
 fn path_to_toml_value<P, Q>(root: P, path: Q) -> Result<toml_edit::Value>
 where
     P: AsRef<Path>,
@@ -628,8 +640,8 @@ where
     Ok(repr.into())
 }
 
-/// Format a TOML array of strings: Splits elements over multiple lines, indents them, sorts them,
-/// and adds a trailing comma.
+/// Format a TOML array of strings: Splits elements over multiple lines, indents
+/// them, sorts them, and adds a trailing comma.
 fn format_array_of_strings(field: &'static str, array: &mut toml_edit::Array) -> Result<()> {
     let mut strs = BTreeSet::new();
     for item in &*array {
@@ -672,15 +684,13 @@ fn package_name<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::args::Directory;
-
-    use super::*;
+    use std::{fmt, fs, path::PathBuf};
 
     use expect_test::expect;
-    use std::fmt;
-    use std::fs;
-    use std::path::PathBuf;
     use tempfile::tempdir;
+
+    use super::*;
+    use crate::args::Directory;
 
     #[test]
     fn test_discover_root() {
@@ -899,8 +909,9 @@ mod tests {
     fn test_cut_plan_discover_new_top_level_destination() {
         let cut = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
-        // Create a plan where all the new packages are gathered into a single top-level destination
-        // directory, and expect that the resulting plan's `directories` only contains one entry.
+        // Create a plan where all the new packages are gathered into a single top-level
+        // destination directory, and expect that the resulting plan's
+        // `directories` only contains one entry.
         let plan = CutPlan::discover(Args {
             dry_run: false,
             workspace_update: true,
@@ -1375,12 +1386,14 @@ mod tests {
         .assert_eq(&debug_for_test(&plan));
     }
 
-    /// Print with pretty-printed debug formatting, with repo paths scrubbed out for consistency.
+    /// Print with pretty-printed debug formatting, with repo paths scrubbed out
+    /// for consistency.
     fn debug_for_test<T: fmt::Debug>(x: &T) -> String {
         scrub_path(&format!("{x:#?}"), repo_root())
     }
 
-    /// Print with display formatting, with repo paths scrubbed out for consistency.
+    /// Print with display formatting, with repo paths scrubbed out for
+    /// consistency.
     fn display_for_test<T: fmt::Display>(x: &T) -> String {
         scrub_path(&format!("{x}"), repo_root())
     }

@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::base_types::{IotaAddress, ObjectID};
 use serde::{Deserialize, Serialize};
-use iota_types::base_types::{ObjectID, IotaAddress};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct MoveOrderFilledEvent {

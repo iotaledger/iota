@@ -2,32 +2,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, sync::Arc};
+
 use async_trait::async_trait;
+use iota_core::test_utils::make_transfer_object_transaction;
+use iota_types::{
+    base_types::{IotaAddress, ObjectRef},
+    crypto::{AccountKeyPair, get_key_pair},
+    transaction::Transaction,
+};
 use rand::seq::IteratorRandom;
 use tracing::error;
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use crate::drivers::Interval;
-use crate::system_state_observer::SystemStateObserver;
-use crate::workloads::payload::Payload;
-use crate::workloads::workload::WorkloadBuilder;
-use crate::workloads::workload::{
-    ExpectedFailureType, Workload, ESTIMATED_COMPUTATION_COST, MAX_GAS_FOR_TESTING,
-    STORAGE_COST_PER_COIN,
-};
-use crate::workloads::{Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams};
-use crate::{ExecutionEffects, ValidatorProxy};
-use iota_core::test_utils::make_transfer_object_transaction;
-use iota_types::{
-    base_types::{ObjectRef, IotaAddress},
-    crypto::{get_key_pair, AccountKeyPair},
-    transaction::Transaction,
+use crate::{
+    ExecutionEffects, ValidatorProxy,
+    drivers::Interval,
+    system_state_observer::SystemStateObserver,
+    workloads::{
+        Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams,
+        payload::Payload,
+        workload::{
+            ESTIMATED_COMPUTATION_COST, ExpectedFailureType, MAX_GAS_FOR_TESTING,
+            STORAGE_COST_PER_COIN, Workload, WorkloadBuilder,
+        },
+    },
 };
 
-/// TODO: This should be the amount that is being transferred instead of MAX_GAS.
-/// Number of nanos sent to each address on each batch transfer
+/// TODO: This should be the amount that is being transferred instead of
+/// MAX_GAS. Number of nanos sent to each address on each batch transfer
 const _TRANSFER_AMOUNT: u64 = 1;
 
 #[derive(Debug)]

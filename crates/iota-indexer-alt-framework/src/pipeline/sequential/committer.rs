@@ -4,15 +4,16 @@
 
 use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 
-use diesel_async::{scoped_futures::ScopedFutureExt, AsyncConnection};
+use diesel_async::{AsyncConnection, scoped_futures::ScopedFutureExt};
 use tokio::{
     sync::mpsc,
     task::JoinHandle,
-    time::{interval, MissedTickBehavior},
+    time::{MissedTickBehavior, interval},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, warn};
 
+use super::{Handler, SequentialConfig};
 use crate::{
     db::Db,
     metrics::IndexerMetrics,
@@ -20,26 +21,27 @@ use crate::{
     watermarks::CommitterWatermark,
 };
 
-use super::{Handler, SequentialConfig};
-
-/// The committer task gathers rows into batches and writes them to the database.
+/// The committer task gathers rows into batches and writes them to the
+/// database.
 ///
-/// Data arrives out of order, grouped by checkpoint, on `rx`. The task orders them and waits to
-/// write them until either a configural polling interval has passed (controlled by
-/// `config.collect_interval()`), or `H::BATCH_SIZE` rows have been accumulated and we have
-/// received the next expected checkpoint.
+/// Data arrives out of order, grouped by checkpoint, on `rx`. The task orders
+/// them and waits to write them until either a configural polling interval has
+/// passed (controlled by `config.collect_interval()`), or `H::BATCH_SIZE` rows
+/// have been accumulated and we have received the next expected checkpoint.
 ///
-/// Writes are performed on checkpoint boundaries (more than one checkpoint can be present in a
-/// single write), in a single transaction that includes all row updates and an update to the
-/// watermark table.
+/// Writes are performed on checkpoint boundaries (more than one checkpoint can
+/// be present in a single write), in a single transaction that includes all row
+/// updates and an update to the watermark table.
 ///
-/// The committer can be configured to lag behind the ingestion service by a fixed number of
-/// checkpoints (configured by `checkpoint_lag`). A value of `0` means no lag.
+/// The committer can be configured to lag behind the ingestion service by a
+/// fixed number of checkpoints (configured by `checkpoint_lag`). A value of `0`
+/// means no lag.
 ///
-/// Upon successful write, the task sends its new watermark back to the ingestion service, to
-/// unblock its regulator.
+/// Upon successful write, the task sends its new watermark back to the
+/// ingestion service, to unblock its regulator.
 ///
-/// The task can be shutdown using its `cancel` token or if either of its channels are closed.
+/// The task can be shutdown using its `cancel` token or if either of its
+/// channels are closed.
 pub(super) fn committer<H: Handler + 'static>(
     config: SequentialConfig,
     watermark: Option<CommitterWatermark<'static>>,
@@ -50,28 +52,30 @@ pub(super) fn committer<H: Handler + 'static>(
     cancel: CancellationToken,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
-        // The `poll` interval controls the maximum time to wait between commits, regardless of the
-        // amount of data available.
+        // The `poll` interval controls the maximum time to wait between commits,
+        // regardless of the amount of data available.
         let mut poll = interval(config.committer.collect_interval());
         poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         let checkpoint_lag = config.checkpoint_lag;
 
-        // Buffer to gather the next batch to write. A checkpoint's data is only added to the batch
-        // when it is known to come from the next checkpoint after `watermark` (the current tip of
-        // the batch), and data from previous checkpoints will be discarded to avoid double writes.
+        // Buffer to gather the next batch to write. A checkpoint's data is only added
+        // to the batch when it is known to come from the next checkpoint after
+        // `watermark` (the current tip of the batch), and data from previous
+        // checkpoints will be discarded to avoid double writes.
         //
-        // The batch may be non-empty at top of a tick of the committer's loop if the previous
-        // attempt at a write failed. Attempt is incremented every time a batch write fails, and is
-        // reset when it succeeds.
+        // The batch may be non-empty at top of a tick of the committer's loop if the
+        // previous attempt at a write failed. Attempt is incremented every time
+        // a batch write fails, and is reset when it succeeds.
         let mut attempt = 0;
         let mut batch = H::Batch::default();
         let mut batch_rows = 0;
         let mut batch_checkpoints = 0;
 
-        // The task keeps track of the highest (inclusive) checkpoint it has added to the batch,
-        // and whether that batch needs to be written out. By extension it also knows the next
-        // checkpoint to expect and add to the batch.
+        // The task keeps track of the highest (inclusive) checkpoint it has added to
+        // the batch, and whether that batch needs to be written out. By
+        // extension it also knows the next checkpoint to expect and add to the
+        // batch.
         let (mut watermark, mut next_checkpoint) = if let Some(watermark) = watermark {
             let next = watermark.checkpoint_hi_inclusive as u64 + 1;
             (watermark, next)
@@ -79,13 +83,13 @@ pub(super) fn committer<H: Handler + 'static>(
             (CommitterWatermark::initial(H::NAME.into()), 0)
         };
 
-        // The committer task will periodically output a log message at a higher log level to
-        // demonstrate that the pipeline is making progress.
+        // The committer task will periodically output a log message at a higher log
+        // level to demonstrate that the pipeline is making progress.
         let mut next_loud_watermark_update =
             watermark.checkpoint_hi_inclusive + LOUD_WATERMARK_UPDATE_INTERVAL;
 
-        // Data for checkpoint that haven't been written yet. Note that `pending_rows` includes
-        // rows in `batch`.
+        // Data for checkpoint that haven't been written yet. Note that `pending_rows`
+        // includes rows in `batch`.
         let mut pending: BTreeMap<u64, Indexed<H>> = BTreeMap::new();
         let mut pending_rows = 0;
 
@@ -381,11 +385,12 @@ pub(super) fn committer<H: Handler + 'static>(
     })
 }
 
-// Tests whether the first checkpoint in the `pending` buffer can be processed immediately, which
-// is subject to the following conditions:
+// Tests whether the first checkpoint in the `pending` buffer can be processed
+// immediately, which is subject to the following conditions:
 //
 // - It is at or before the `next_checkpoint` expected by the committer.
-// - It is at least `checkpoint_lag` checkpoints before the last checkpoint in the buffer.
+// - It is at least `checkpoint_lag` checkpoints before the last checkpoint in
+//   the buffer.
 fn can_process_pending<T>(
     next_checkpoint: u64,
     checkpoint_lag: u64,

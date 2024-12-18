@@ -1,21 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::NativesCostTable;
+use std::collections::VecDeque;
+
 use fastcrypto::error::FastCryptoError;
 use move_binary_format::errors::PartialVMResult;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::gas_algebra::InternalGas;
-use move_core_types::u256::U256;
-use move_core_types::vm_status::StatusCode;
+use move_core_types::{
+    account_address::AccountAddress, gas_algebra::InternalGas, u256::U256, vm_status::StatusCode,
+};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
-use move_vm_types::natives::function::PartialVMError;
-use move_vm_types::values::VectorRef;
 use move_vm_types::{
-    loaded_data::runtime_types::Type, natives::function::NativeResult, pop_arg, values::Value,
+    loaded_data::runtime_types::Type,
+    natives::function::{NativeResult, PartialVMError},
+    pop_arg,
+    values::{Value, VectorRef},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
+
+use crate::NativesCostTable;
 
 pub const INVALID_INPUT: u64 = 0;
 
@@ -25,21 +27,22 @@ pub struct CheckZkloginIdCostParams {
     pub check_zklogin_id_cost_base: Option<InternalGas>,
 }
 
-/***************************************************************************************************
- * native fun check_zklogin_id_internal
- *
- * Implementation of the Move native function `zklogin_verified_id::check_zklogin_id_internal(
- *      address: address,
- *      key_claim_name: &vector<u8>,
- *      key_claim_value: &vector<u8>,
- *      issuer: &vector<u8>,
- *      audience: &vector<u8>,
- *      pin_hash: u256
- *  ): bool;`
- *
- * Gas cost: check_zklogin_id_cost | The values name, value, iss and aud are hashed as part of this
- * function, but their sizes are bounded from above, so we may assume that the cost is constant.
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun check_zklogin_id_internal
+///
+/// Implementation of the Move native function
+/// `zklogin_verified_id::check_zklogin_id_internal(      address: address,
+///      key_claim_name: &vector<u8>,
+///      key_claim_value: &vector<u8>,
+///      issuer: &vector<u8>,
+///      audience: &vector<u8>,
+///      pin_hash: u256
+///  ): bool;`
+///
+/// Gas cost: check_zklogin_id_cost | The values name, value, iss and aud are
+/// hashed as part of this function, but their sizes are bounded from above, so
+/// we may assume that the cost is constant. ***********************************
+/// ************************************************************
 pub fn check_zklogin_id_internal(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -94,10 +97,9 @@ pub fn check_zklogin_id_internal(
     );
 
     match result {
-        Ok(result) => Ok(NativeResult::ok(
-            context.gas_used(),
-            smallvec![Value::bool(result)],
-        )),
+        Ok(result) => Ok(NativeResult::ok(context.gas_used(), smallvec![
+            Value::bool(result)
+        ])),
         Err(_) => Ok(NativeResult::err(context.gas_used(), INVALID_INPUT)),
     }
 }
@@ -130,18 +132,19 @@ pub struct CheckZkloginIssuerCostParams {
     pub check_zklogin_issuer_cost_base: Option<InternalGas>,
 }
 
-/***************************************************************************************************
- * native fun check_zklogin_issuer_internal
- *
- * Implementation of the Move native function `zklogin_verified_issuer::check_zklogin_issuer_internal(
- *      address: address,
- *      address_seed: u256,
- *      issuer: &vector<u8>,
- *  ): bool;`
- *
- * Gas cost: check_zklogin_issuer_cost | The iss value is hashed as part of this function, but its size
- * is bounded from above so we may assume that the cost is constant.
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun check_zklogin_issuer_internal
+///
+/// Implementation of the Move native function
+/// `zklogin_verified_issuer::check_zklogin_issuer_internal(      address:
+/// address,      address_seed: u256,
+///      issuer: &vector<u8>,
+///  ): bool;`
+///
+/// Gas cost: check_zklogin_issuer_cost | The iss value is hashed as part of
+/// this function, but its size is bounded from above so we may assume that the
+/// cost is constant. **********************************************************
+/// *************************************
 pub fn check_zklogin_issuer_internal(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -180,10 +183,9 @@ pub fn check_zklogin_issuer_internal(
     let result = check_issuer_internal(&address, &address_seed, &issuer.as_bytes_ref());
 
     match result {
-        Ok(result) => Ok(NativeResult::ok(
-            context.gas_used(),
-            smallvec![Value::bool(result)],
-        )),
+        Ok(result) => Ok(NativeResult::ok(context.gas_used(), smallvec![
+            Value::bool(result)
+        ])),
         Err(_) => Ok(NativeResult::err(context.gas_used(), INVALID_INPUT)),
     }
 }

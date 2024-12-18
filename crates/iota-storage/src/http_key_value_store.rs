@@ -2,21 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{str::FromStr, sync::Arc, time::Duration};
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
-use reqwest::header::{HeaderValue, CONTENT_LENGTH};
-use reqwest::Client;
-use reqwest::Url;
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
-use iota_types::object::Object;
-use iota_types::storage::ObjectKey;
 use iota_types::{
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
     digests::{
         CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
     },
@@ -25,13 +17,23 @@ use iota_types::{
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
+    object::Object,
+    storage::ObjectKey,
     transaction::Transaction,
 };
+use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
+use reqwest::{
+    Client, Url,
+    header::{CONTENT_LENGTH, HeaderValue},
+};
+use serde::{Deserialize, Serialize};
 use tap::{TapFallible, TapOptional};
 use tracing::{error, info, instrument, trace, warn};
 
-use crate::key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait};
-use crate::key_value_store_metrics::KeyValueStoreMetrics;
+use crate::{
+    key_value_store::{TransactionKeyValueStore, TransactionKeyValueStoreTrait},
+    key_value_store_metrics::KeyValueStoreMetrics,
+};
 
 pub struct HttpKVStore {
     base_url: Url,

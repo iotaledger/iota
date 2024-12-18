@@ -2,13 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk::wallet_context::WalletContext;
 use iota_test_transaction_builder::{increment_counter, publish_basics_package_and_make_counter};
 use iota_types::object::Owner;
 use tracing::info;
+
+use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
 
 pub struct SharedCounterTest;
 

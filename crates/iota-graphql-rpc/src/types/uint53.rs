@@ -10,8 +10,9 @@ use iota_types::{base_types::SequenceNumber, iota_serde::BigInt};
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct UInt53(u64);
 
-/// An unsigned integer that can hold values up to 2^53 - 1. This can be treated similarly to `Int`,
-/// but it is guaranteed to be non-negative, and it may be larger than 2^32 - 1.
+/// An unsigned integer that can hold values up to 2^53 - 1. This can be treated
+/// similarly to `Int`, but it is guaranteed to be non-negative, and it may be
+/// larger than 2^32 - 1.
 #[Scalar(name = "UInt53")]
 impl ScalarType for UInt53 {
     fn parse(value: Value) -> InputValueResult<Self> {

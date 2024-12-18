@@ -8,27 +8,26 @@ use std::{
 };
 
 use axum::{
+    Router,
     body::Bytes,
     extract::State,
     handler::Handler,
     http::Method,
     response::Html,
-    routing::{get, MethodRouter},
-    Router,
+    routing::{MethodRouter, get},
 };
 use documented::Documented;
 use openapiv3::v3_1::{
     Components, Header, Info, MediaType, OpenApi, Operation, Parameter, ParameterData, PathItem,
     Paths, ReferenceOr, RequestBody, Response, SchemaObject, Tag,
 };
-use schemars::{gen::SchemaGenerator, JsonSchema};
+use schemars::{JsonSchema, gen::SchemaGenerator};
 use tap::Pipe;
 
 const STABLE_BADGE_MARKDOWN: &str =
     "[![stable](https://img.shields.io/badge/api-stable-53b576?style=for-the-badge)](#)\n\n";
 
-const UNSTABLE_BADGE_MARKDOWN: &str =
-    "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n";
+const UNSTABLE_BADGE_MARKDOWN: &str = "[![unstable](https://img.shields.io/badge/api-unstable-red?style=for-the-badge)](#) _Api subject to change; use at your own risk_\n\n";
 
 pub trait ApiEndpoint<S> {
     fn method(&self) -> Method;
@@ -39,13 +38,15 @@ pub trait ApiEndpoint<S> {
 
     /// Indicates the stability of the API
     ///
-    /// Stable APIs are enabled in the REST service by default, unstable ones need to be explicitly
-    /// configured to be enabled via config.
+    /// Stable APIs are enabled in the REST service by default, unstable ones
+    /// need to be explicitly configured to be enabled via config.
     ///
-    /// Both stable and unstable APIs have a badge, indicating the api's stability, added to the
-    /// top of the description field of their OpenAPI definition.
+    /// Both stable and unstable APIs have a badge, indicating the api's
+    /// stability, added to the top of the description field of their
+    /// OpenAPI definition.
     ///
-    /// By default all apis are unstable, individual apis need to explicitly opt-in to being stable
+    /// By default all apis are unstable, individual apis need to explicitly
+    /// opt-in to being stable
     fn stable(&self) -> bool {
         false
     }
@@ -108,8 +109,8 @@ impl<'a, S> Api<'a, S> {
             let handler = endpoint.handler();
             assert_eq!(handler.method(), endpoint.method());
 
-            // we need to replace any path parameters wrapped in braces to be prefaced by a colon
-            // until axum updates matchit: https://github.com/tokio-rs/axum/pull/2645
+            // we need to replace any path parameters wrapped in braces to be prefaced by a
+            // colon until axum updates matchit: https://github.com/tokio-rs/axum/pull/2645
             let path = endpoint.path().replace('{', ":").replace('}', "");
 
             router = router.route(&path, handler.handler);
@@ -379,7 +380,8 @@ impl ApiEndpoint<Arc<OpenApiDocument>> for OpenApiYaml {
     }
 }
 
-/// Provides a web UI for exploring the OpenAPI v3.1.0 definition for this service
+/// Provides a web UI for exploring the OpenAPI v3.1.0 definition for this
+/// service
 #[derive(Documented)]
 pub struct OpenApiExplorer;
 

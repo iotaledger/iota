@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use iota_synthetic_ingestion::synthetic_ingestion::{generate_ingestion, Config};
+use iota_synthetic_ingestion::synthetic_ingestion::{Config, generate_ingestion};
 
 #[tokio::main]
 async fn main() {

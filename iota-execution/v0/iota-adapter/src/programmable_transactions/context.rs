@@ -12,20 +12,31 @@ mod checked {
         sync::Arc,
     };
 
-    use crate::adapter::new_native_extensions;
-    use crate::error::convert_vm_error;
-    use crate::execution_mode::ExecutionMode;
-    use crate::execution_value::{
-        CommandKind, ExecutionState, InputObjectMetadata, InputValue, ObjectContents, ObjectValue,
-        RawValueType, ResultValue, TryFromValue, UsageKind, Value,
+    use iota_move_natives::object_runtime::{
+        self, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
-    use crate::gas_charger::GasCharger;
-    use crate::programmable_transactions::linkage_view::{LinkageInfo, LinkageView, SavedLinkage};
-    use crate::type_resolver::TypeTagResolver;
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::{
+        balance::Balance,
+        base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber, TxContext},
+        coin::Coin,
+        error::{ExecutionError, ExecutionErrorKind, command_argument_error},
+        event::Event,
+        execution::{ExecutionResults, ExecutionResultsV1},
+        execution_status::CommandArgumentError,
+        metrics::LimitsMetrics,
+        move_package::MovePackage,
+        object::{Data, MoveObject, Object, ObjectInner, Owner},
+        storage::{
+            BackingPackageStore, ChildObjectResolver, DeleteKind, DeleteKindWithOldVersion,
+            ObjectChange, PackageObject, WriteKind,
+        },
+        transaction::{Argument, CallArg, ObjectArg},
+    };
     use move_binary_format::{
+        CompiledModule,
         errors::{Location, VMError, VMResult},
         file_format::{CodeOffset, FunctionDefinitionIndex, TypeParameterIndex},
-        CompiledModule,
     };
     use move_core_types::{
         account_address::AccountAddress,
@@ -33,27 +44,18 @@ mod checked {
     };
     use move_vm_runtime::{move_vm::MoveVM, session::Session};
     use move_vm_types::loaded_data::runtime_types::Type;
-    use iota_move_natives::object_runtime::{
-        self, get_all_uids, max_event_error, ObjectRuntime, RuntimeResults,
-    };
-    use iota_protocol_config::ProtocolConfig;
-    use iota_types::execution_status::CommandArgumentError;
-    use iota_types::storage::PackageObject;
-    use iota_types::{
-        balance::Balance,
-        base_types::{MoveObjectType, ObjectID, SequenceNumber, IotaAddress, TxContext},
-        coin::Coin,
-        error::{command_argument_error, ExecutionError, ExecutionErrorKind},
-        event::Event,
-        execution::{ExecutionResults, ExecutionResultsV1},
-        metrics::LimitsMetrics,
-        move_package::MovePackage,
-        object::{Data, MoveObject, Object, ObjectInner, Owner},
-        storage::{
-            BackingPackageStore, ChildObjectResolver, DeleteKind, DeleteKindWithOldVersion,
-            ObjectChange, WriteKind,
+
+    use crate::{
+        adapter::new_native_extensions,
+        error::convert_vm_error,
+        execution_mode::ExecutionMode,
+        execution_value::{
+            CommandKind, ExecutionState, InputObjectMetadata, InputValue, ObjectContents,
+            ObjectValue, RawValueType, ResultValue, TryFromValue, UsageKind, Value,
         },
-        transaction::{Argument, CallArg, ObjectArg},
+        gas_charger::GasCharger,
+        programmable_transactions::linkage_view::{LinkageInfo, LinkageView, SavedLinkage},
+        type_resolver::TypeTagResolver,
     };
 
     /// Maintains all runtime state specific to programmable transactions
@@ -66,8 +68,8 @@ mod checked {
         pub vm: &'vm MoveVM,
         /// The global state, used for resolving packages
         pub state_view: &'state dyn ExecutionState,
-        /// A shared transaction context, contains transaction digest information and manages the
-        /// creation of new object IDs
+        /// A shared transaction context, contains transaction digest
+        /// information and manages the creation of new object IDs
         pub tx_context: &'a mut TxContext,
         /// The gas charger used for metering
         pub gas_charger: &'a mut GasCharger,
@@ -82,18 +84,22 @@ mod checked {
         // runtime data
         /// The runtime value for the Gas coin, None if it has been taken/moved
         gas: InputValue,
-        /// The runtime value for the inputs/call args, None if it has been taken/moved
+        /// The runtime value for the inputs/call args, None if it has been
+        /// taken/moved
         inputs: Vec<InputValue>,
-        /// The results of a given command. For most commands, the inner vector will have length 1.
-        /// It will only not be 1 for Move calls with multiple return values.
-        /// Inner values are None if taken/moved by-value
+        /// The results of a given command. For most commands, the inner vector
+        /// will have length 1. It will only not be 1 for Move calls
+        /// with multiple return values. Inner values are None if
+        /// taken/moved by-value
         results: Vec<Vec<ResultValue>>,
-        /// Map of arguments that are currently borrowed in this command, true if the borrow is mutable
-        /// This gets cleared out when new results are pushed, i.e. the end of a command
+        /// Map of arguments that are currently borrowed in this command, true
+        /// if the borrow is mutable This gets cleared out when new
+        /// results are pushed, i.e. the end of a command
         borrowed: HashMap<Argument, /* mut */ bool>,
     }
 
-    /// A write for an object that was generated outside of the Move ObjectRuntime
+    /// A write for an object that was generated outside of the Move
+    /// ObjectRuntime
     struct AdditionalWrite {
         /// The new owner of the object
         recipient: Owner,
@@ -152,12 +158,13 @@ mod checked {
                     state_view,
                     &mut tmp_session,
                     &mut input_object_map,
-                    /* imm override */ false,
+                    // imm override
+                    false,
                     gas_coin,
                 )?;
-                // subtract the max gas budget. This amount is off limits in the programmable transaction,
-                // so to mimic this "off limits" behavior, we act as if the coin has less balance than
-                // it really does
+                // subtract the max gas budget. This amount is off limits in the programmable
+                // transaction, so to mimic this "off limits" behavior, we act
+                // as if the coin has less balance than it really does
                 let Some(Value::Object(ObjectValue {
                     contents: ObjectContents::Coin(coin),
                     ..
@@ -182,8 +189,9 @@ mod checked {
                     },
                 }
             };
-            // the session was just used for ability and layout metadata fetching, no changes should
-            // exist. Plus, Iota Move does not use these changes or events
+            // the session was just used for ability and layout metadata fetching, no
+            // changes should exist. Plus, Iota Move does not use these changes
+            // or events
             let (res, linkage) = tmp_session.finish();
             let change_set = res.map_err(|e| crate::error::convert_vm_error(e, vm, &linkage))?;
             assert_invariant!(change_set.accounts().is_empty(), "Change set must be empty");
@@ -253,8 +261,9 @@ mod checked {
                 .map_err(|e| self.convert_vm_error(e.finish(Location::Undefined)))
         }
 
-        /// Set the link context for the session from the linkage information in the MovePackage found
-        /// at `package_id`.  Returns the runtime ID of the link context package on success.
+        /// Set the link context for the session from the linkage information in
+        /// the MovePackage found at `package_id`.  Returns the runtime
+        /// ID of the link context package on success.
         pub fn set_link_context(
             &mut self,
             package_id: ObjectID,
@@ -271,8 +280,9 @@ mod checked {
             set_linkage(&mut self.session, package.move_package())
         }
 
-        /// Set the link context for the session from the linkage information in the `package`.  Returns
-        /// the runtime ID of the link context package on success.
+        /// Set the link context for the session from the linkage information in
+        /// the `package`.  Returns the runtime ID of the link context
+        /// package on success.
         pub fn set_linkage(
             &mut self,
             package: &MovePackage,
@@ -280,8 +290,8 @@ mod checked {
             set_linkage(&mut self.session, package)
         }
 
-        /// Turn off linkage information, so that the next use of the session will need to set linkage
-        /// information to succeed.
+        /// Turn off linkage information, so that the next use of the session
+        /// will need to set linkage information to succeed.
         pub fn reset_linkage(&mut self) {
             reset_linkage(&mut self.session);
         }
@@ -304,8 +314,8 @@ mod checked {
             load_type(&mut self.session, type_tag)
         }
 
-        /// Takes the user events from the runtime and tags them with the Move module of the function
-        /// that was invoked for the command
+        /// Takes the user events from the runtime and tags them with the Move
+        /// module of the function that was invoked for the command
         pub fn take_user_events(
             &mut self,
             module_id: &ModuleId,
@@ -339,10 +349,11 @@ mod checked {
             Ok(())
         }
 
-        /// Get the argument value. Cloning the value if it is copyable, and setting its value to None
-        /// if it is not (making it unavailable).
-        /// Errors if out of bounds, if the argument is borrowed, if it is unavailable (already taken),
-        /// or if it is an object that cannot be taken by value (shared or immutable)
+        /// Get the argument value. Cloning the value if it is copyable, and
+        /// setting its value to None if it is not (making it
+        /// unavailable). Errors if out of bounds, if the argument is
+        /// borrowed, if it is unavailable (already taken), or if it is
+        /// an object that cannot be taken by value (shared or immutable)
         pub fn by_value_arg<V: TryFromValue>(
             &mut self,
             command_kind: CommandKind<'_>,
@@ -365,10 +376,10 @@ mod checked {
                 return Err(CommandArgumentError::InvalidValueUsage);
             };
             // If it was taken, we catch this above.
-            // If it was not copyable and was borrowed, error as it creates a dangling reference in
-            // effect.
-            // We allow copyable values to be copied out even if borrowed, as we do not care about
-            // referential transparency at this level.
+            // If it was not copyable and was borrowed, error as it creates a dangling
+            // reference in effect.
+            // We allow copyable values to be copied out even if borrowed, as we do not care
+            // about referential transparency at this level.
             if !is_copyable && is_borrowed {
                 return Err(CommandArgumentError::InvalidValueUsage);
             }
@@ -396,11 +407,12 @@ mod checked {
             V::try_from_value(val)
         }
 
-        /// Mimic a mutable borrow by taking the argument value, setting its value to None,
-        /// making it unavailable. The value will be marked as borrowed and must be returned with
-        /// restore_arg
-        /// Errors if out of bounds, if the argument is borrowed, if it is unavailable (already taken),
-        /// or if it is an object that cannot be mutably borrowed (immutable)
+        /// Mimic a mutable borrow by taking the argument value, setting its
+        /// value to None, making it unavailable. The value will be
+        /// marked as borrowed and must be returned with restore_arg
+        /// Errors if out of bounds, if the argument is borrowed, if it is
+        /// unavailable (already taken), or if it is an object that
+        /// cannot be mutably borrowed (immutable)
         pub fn borrow_arg_mut<V: TryFromValue>(
             &mut self,
             arg_idx: usize,
@@ -432,8 +444,8 @@ mod checked {
             {
                 return Err(CommandArgumentError::InvalidObjectByMutRef);
             }
-            // if it is copyable, don't take it as we allow for the value to be copied even if
-            // mutably borrowed
+            // if it is copyable, don't take it as we allow for the value to be copied even
+            // if mutably borrowed
             let val = if is_copyable {
                 val_opt.as_ref().unwrap().clone()
             } else {
@@ -442,9 +454,10 @@ mod checked {
             V::try_from_value(val)
         }
 
-        /// Mimics an immutable borrow by cloning the argument value without setting its value to None
-        /// Errors if out of bounds, if the argument is mutably borrowed,
-        /// or if it is unavailable (already taken)
+        /// Mimics an immutable borrow by cloning the argument value without
+        /// setting its value to None Errors if out of bounds, if the
+        /// argument is mutably borrowed, or if it is unavailable
+        /// (already taken)
         pub fn borrow_arg<V: TryFromValue>(
             &mut self,
             arg_idx: usize,
@@ -523,7 +536,8 @@ mod checked {
             )
         }
 
-        /// Create a package upgrade from `previous_package` with `new_modules` and `dependencies`
+        /// Create a package upgrade from `previous_package` with `new_modules`
+        /// and `dependencies`
         pub fn upgrade_package<'p>(
             &self,
             storage_id: ObjectID,
@@ -548,7 +562,8 @@ mod checked {
             Ok(())
         }
 
-        /// Finish a command: clearing the borrows and adding the results to the result vector
+        /// Finish a command: clearing the borrows and adding the results to the
+        /// result vector
         pub fn push_command_results(&mut self, results: Vec<Value>) -> Result<(), ExecutionError> {
             assert_invariant!(
                 self.borrowed.values().all(|is_mut| !is_mut),
@@ -582,9 +597,9 @@ mod checked {
             let tx_digest = tx_context.digest();
             let mut additional_writes = BTreeMap::new();
             let mut input_object_metadata = BTreeMap::new();
-            // Any object value that has not been taken (still has `Some` for it's value) needs to
-            // written as it's value might have changed (and eventually it's sequence number will need
-            // to increase)
+            // Any object value that has not been taken (still has `Some` for it's value)
+            // needs to written as it's value might have changed (and eventually
+            // it's sequence number will need to increase)
             let mut by_value_inputs = BTreeSet::new();
             let mut add_input_object_write = |input| -> Result<(), ExecutionError> {
                 let InputValue {
@@ -601,7 +616,9 @@ mod checked {
                     ..
                 } = &object_metadata
                 else {
-                    unreachable!("Found non-input object metadata for input object when adding writes to input objects -- impossible in v0");
+                    unreachable!(
+                        "Found non-input object metadata for input object when adding writes to input objects -- impossible in v0"
+                    );
                 };
                 input_object_metadata.insert(object_metadata.id(), object_metadata.clone());
                 let Some(Value::Object(object_value)) = value else {
@@ -634,14 +651,14 @@ mod checked {
                                     result_idx: i as u16,
                                     secondary_idx: j as u16,
                                 }
-                                .into())
+                                .into());
                             }
                             Some(Value::Raw(RawValueType::Any, _)) => (),
                             Some(Value::Raw(RawValueType::Loaded { abilities, .. }, _)) => {
                                 // - nothing to check for drop
-                                // - if it does not have drop, but has copy,
-                                //   the last usage must be by value in order to "lie" and say that the
-                                //   last usage is actually a take instead of a clone
+                                // - if it does not have drop, but has copy, the last usage must be
+                                //   by value in order to "lie" and say that the last usage is
+                                //   actually a take instead of a clone
                                 // - Otherwise, an error
                                 if abilities.has_drop()
                                     || (abilities.has_copy()
@@ -685,7 +702,8 @@ mod checked {
                 res.map_err(|e| convert_vm_error(e, vm, &linkage))?;
             let object_runtime: ObjectRuntime = native_context_extensions.remove();
             let new_ids = object_runtime.new_ids().clone();
-            // tell the object runtime what input objects were taken and which were transferred
+            // tell the object runtime what input objects were taken and which were
+            // transferred
             let external_transfers = additional_writes.keys().copied().collect();
             let RuntimeResults {
                 writes,
@@ -703,8 +721,8 @@ mod checked {
                 let change = ObjectChange::Write(package, WriteKind::Create);
                 object_changes.insert(id, change);
             }
-            // we need a new session just for deserializing and fetching abilities. Which is sad
-            // TODO remove this
+            // we need a new session just for deserializing and fetching abilities. Which is
+            // sad TODO remove this
             let tmp_session = new_session(
                 vm,
                 linkage,
@@ -734,7 +752,8 @@ mod checked {
                 } else {
                     WriteKind::Unwrap
                 };
-                // safe given the invariant that the runtime correctly propagates has_public_transfer
+                // safe given the invariant that the runtime correctly propagates
+                // has_public_transfer
                 let move_object = unsafe {
                     create_written_object(
                         vm,
@@ -785,28 +804,32 @@ mod checked {
                 object_changes.insert(id, change);
             }
             for (id, delete_kind) in deletions {
-                // For deleted and wrapped objects, the object must exist either in the input or was
-                // loaded as child object. We can read them to get the previous version.
-                // For unwrap_then_delete, in older protocol versions, we must consult the object store
-                // to see if there exists a tombstone, and if so we include it otherwise we skip it.
+                // For deleted and wrapped objects, the object must exist either in the input or
+                // was loaded as child object. We can read them to get the
+                // previous version. For unwrap_then_delete, in older protocol
+                // versions, we must consult the object store to see if there
+                // exists a tombstone, and if so we include it otherwise we skip it.
                 // In newer protocol versions, we can just skip it.
                 let delete_kind_with_seq = match delete_kind {
                     DeleteKind::Normal | DeleteKind::Wrap => {
                         let old_version = match input_object_metadata.get(&id) {
-                        Some(metadata) => {
-                            assert_invariant!(
-                                !matches!(metadata, InputObjectMetadata::InputObject { owner: Owner::Immutable, .. }),
-                                "Attempting to delete immutable object {id} via delete kind {delete_kind}"
-                            );
-                            metadata.version()
-                        }
-                        None => {
-                            match loaded_child_objects.get(&id) {
-                                Some(version) => *version,
-                                None => invariant_violation!("Deleted/wrapped object {id} must be either in input or loaded child objects")
+                            Some(metadata) => {
+                                assert_invariant!(
+                                    !matches!(metadata, InputObjectMetadata::InputObject {
+                                        owner: Owner::Immutable,
+                                        ..
+                                    }),
+                                    "Attempting to delete immutable object {id} via delete kind {delete_kind}"
+                                );
+                                metadata.version()
                             }
-                        }
-                    };
+                            None => match loaded_child_objects.get(&id) {
+                                Some(version) => *version,
+                                None => invariant_violation!(
+                                    "Deleted/wrapped object {id} must be either in input or loaded child objects"
+                                ),
+                            },
+                        };
                         if delete_kind == DeleteKind::Normal {
                             DeleteKindWithOldVersion::Normal(old_version)
                         } else {
@@ -817,13 +840,14 @@ mod checked {
                         if protocol_config.simplified_unwrap_then_delete() {
                             DeleteKindWithOldVersion::UnwrapThenDelete
                         } else {
-                            let old_version =
-                                match state_view.get_latest_parent_entry_ref_deprecated(id) {
-                                    Some((_, previous_version, _)) => previous_version,
-                                    // This object was not created this transaction but has never existed in
-                                    // storage, skip it.
-                                    None => continue,
-                                };
+                            let old_version = match state_view
+                                .get_latest_parent_entry_ref_deprecated(id)
+                            {
+                                Some((_, previous_version, _)) => previous_version,
+                                // This object was not created this transaction but has never
+                                // existed in storage, skip it.
+                                None => continue,
+                            };
                             DeleteKindWithOldVersion::UnwrapThenDeleteDEPRECATED(old_version)
                         }
                     }
@@ -834,8 +858,9 @@ mod checked {
             let (res, linkage) = tmp_session.finish();
             let change_set = res.map_err(|e| convert_vm_error(e, vm, &linkage))?;
 
-            // the session was just used for ability and layout metadata fetching, no changes should
-            // exist. Plus, Iota Move does not use these changes or events
+            // the session was just used for ability and layout metadata fetching, no
+            // changes should exist. Plus, Iota Move does not use these changes
+            // or events
             assert_invariant!(change_set.accounts().is_empty(), "Change set must be empty");
 
             Ok(ExecutionResults::V1(ExecutionResultsV1 {
@@ -862,8 +887,8 @@ mod checked {
 
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
-            use move_core_types::vm_status::StatusCode;
             use iota_types::execution_status::TypeArgumentError;
+            use move_core_types::vm_status::StatusCode;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {
                     ExecutionErrorKind::TypeArityMismatch.into()
@@ -882,17 +907,20 @@ mod checked {
             }
         }
 
-        /// Returns true if the value at the argument's location is borrowed, mutably or immutably
+        /// Returns true if the value at the argument's location is borrowed,
+        /// mutably or immutably
         fn arg_is_borrowed(&self, arg: &Argument) -> bool {
             self.borrowed.contains_key(arg)
         }
 
-        /// Returns true if the value at the argument's location is mutably borrowed
+        /// Returns true if the value at the argument's location is mutably
+        /// borrowed
         fn arg_is_mut_borrowed(&self, arg: &Argument) -> bool {
             matches!(self.borrowed.get(arg), Some(/* mut */ true))
         }
 
-        /// Internal helper to borrow the value for an argument and update the most recent usage
+        /// Internal helper to borrow the value for an argument and update the
+        /// most recent usage
         fn borrow_mut(
             &mut self,
             arg: Argument,
@@ -976,7 +1004,8 @@ mod checked {
         )
     }
 
-    // Create a new Session suitable for resolving type and type operations rather than execution
+    // Create a new Session suitable for resolving type and type operations rather
+    // than execution
     pub(crate) fn new_session_for_linkage<'vm, 'state>(
         vm: &'vm MoveVM,
         linkage: LinkageView<'state>,
@@ -984,7 +1013,8 @@ mod checked {
         vm.new_session(linkage)
     }
 
-    /// Set the link context for the session from the linkage information in the `package`.
+    /// Set the link context for the session from the linkage information in the
+    /// `package`.
     pub fn set_linkage(
         session: &mut Session<LinkageView>,
         linkage: &MovePackage,
@@ -992,8 +1022,8 @@ mod checked {
         session.get_resolver_mut().set_linkage(linkage)
     }
 
-    /// Turn off linkage information, so that the next use of the session will need to set linkage
-    /// information to succeed.
+    /// Turn off linkage information, so that the next use of the session will
+    /// need to set linkage information to succeed.
     pub fn reset_linkage(session: &mut Session<LinkageView>) {
         session.get_resolver_mut().reset_linkage();
     }
@@ -1009,8 +1039,9 @@ mod checked {
         session.get_resolver_mut().restore_linkage(saved)
     }
 
-    /// Fetch the package at `package_id` with a view to using it as a link context.  Produces an error
-    /// if the object at that ID does not exist, or is not a package.
+    /// Fetch the package at `package_id` with a view to using it as a link
+    /// context.  Produces an error if the object at that ID does not exist,
+    /// or is not a package.
     fn package_for_linkage(
         session: &Session<LinkageView>,
         package_id: ObjectID,
@@ -1031,8 +1062,9 @@ mod checked {
         }
     }
 
-    /// Load `type_tag` to get a `Type` in the provided `session`.  `session`'s linkage context may be
-    /// reset after this operation, because during the operation, it may change when loading a struct.
+    /// Load `type_tag` to get a `Type` in the provided `session`.  `session`'s
+    /// linkage context may be reset after this operation, because during
+    /// the operation, it may change when loading a struct.
     pub fn load_type(session: &mut Session<LinkageView>, type_tag: &TypeTag) -> VMResult<Type> {
         use move_binary_format::errors::PartialVMError;
         use move_core_types::vm_status::StatusCode;
@@ -1239,7 +1271,8 @@ mod checked {
         })
     }
 
-    /// Load an ObjectArg from state view, marking if it can be treated as mutable or not
+    /// Load an ObjectArg from state view, marking if it can be treated as
+    /// mutable or not
     fn load_object_arg<'vm, 'state>(
         vm: &'vm MoveVM,
         state_view: &'state dyn ExecutionState,
@@ -1253,7 +1286,8 @@ mod checked {
                 state_view,
                 session,
                 input_object_map,
-                /* imm override */ false,
+                // imm override
+                false,
                 id,
             ),
             ObjectArg::SharedObject { id, mutable, .. } => load_object(
@@ -1261,7 +1295,8 @@ mod checked {
                 state_view,
                 session,
                 input_object_map,
-                /* imm override */ !mutable,
+                // imm override
+                !mutable,
                 id,
             ),
             ObjectArg::Receiving(_) => unreachable!("Impossible to hit Receiving in v0"),
@@ -1297,8 +1332,9 @@ mod checked {
         Ok(())
     }
 
-    /// The max budget was deducted from the gas coin at the beginning of the transaction,
-    /// now we return exactly that amount. Gas will be charged by the execution engine
+    /// The max budget was deducted from the gas coin at the beginning of the
+    /// transaction, now we return exactly that amount. Gas will be charged
+    /// by the execution engine
     fn refund_max_gas_budget(
         additional_writes: &mut BTreeMap<ObjectID, AdditionalWrite>,
         gas_charger: &mut GasCharger,
@@ -1324,8 +1360,9 @@ mod checked {
     /// Generate an MoveObject given an updated/written object
     /// # Safety
     ///
-    /// This function assumes proper generation of has_public_transfer, either from the abilities of
-    /// the StructTag, or from the runtime correctly propagating from the inputs
+    /// This function assumes proper generation of has_public_transfer, either
+    /// from the abilities of the StructTag, or from the runtime correctly
+    /// propagating from the inputs
     unsafe fn create_written_object<'vm, 'state>(
         vm: &'vm MoveVM,
         session: &Session<'state, 'vm, LinkageView<'state>>,

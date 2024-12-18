@@ -7,22 +7,25 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use crate::error::{UserInputError, UserInputResult};
-    use crate::gas::{self, GasCostSummary, IotaGasStatusAPI};
-    use crate::gas_model::gas_predicates::{cost_table_for_version, txn_base_cost_as_multiplier};
-    use crate::gas_model::units_types::CostTable;
-    use crate::transaction::ObjectReadResult;
-    use crate::{
-        error::{ExecutionError, ExecutionErrorKind},
-        gas_model::tables::{GasStatus, ZERO_COST_SCHEDULE},
-        ObjectID,
-    };
-    use move_core_types::vm_status::StatusCode;
     use iota_protocol_config::*;
+    use move_core_types::vm_status::StatusCode;
+
+    use crate::{
+        ObjectID,
+        error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
+        gas::{self, GasCostSummary, IotaGasStatusAPI},
+        gas_model::{
+            gas_predicates::{cost_table_for_version, txn_base_cost_as_multiplier},
+            tables::{GasStatus, ZERO_COST_SCHEDULE},
+            units_types::CostTable,
+        },
+        transaction::ObjectReadResult,
+    };
 
     /// A bucket defines a range of units that will be priced the same.
-    /// After execution a call to `GasStatus::bucketize` will round the computation
-    /// cost to `cost` for the bucket ([`min`, `max`]) the gas used falls into.
+    /// After execution a call to `GasStatus::bucketize` will round the
+    /// computation cost to `cost` for the bucket ([`min`, `max`]) the gas
+    /// used falls into.
     #[allow(dead_code)]
     pub(crate) struct ComputationBucket {
         min: u64,
@@ -69,8 +72,9 @@ mod checked {
         ]
     }
 
-    /// Portion of the storage rebate that gets passed on to the transaction sender. The remainder
-    /// will be burned, then re-minted + added to the storage fund at the next epoch change
+    /// Portion of the storage rebate that gets passed on to the transaction
+    /// sender. The remainder will be burned, then re-minted + added to the
+    /// storage fund at the next epoch change
     fn sender_rebate(storage_rebate: u64, storage_rebate_rate: u64) -> u64 {
         // we round storage rebate such that `>= x.5` goes to x+1 (rounds up) and
         // `< x.5` goes to x (truncates). We replicate `f32/64::round()`
@@ -82,21 +86,24 @@ mod checked {
 
     /// A list of constant costs of various operations in Iota.
     pub struct IotaCostTable {
-        /// A flat fee charged for every transaction. This is also the minimum amount of
-        /// gas charged for a transaction.
+        /// A flat fee charged for every transaction. This is also the minimum
+        /// amount of gas charged for a transaction.
         pub(crate) min_transaction_cost: u64,
         /// Maximum allowable budget for a transaction.
         pub(crate) max_gas_budget: u64,
-        /// Computation cost per byte charged for package publish. This cost is primarily
-        /// determined by the cost to verify and link a package. Note that this does not
-        /// include the cost of writing the package to the store.
+        /// Computation cost per byte charged for package publish. This cost is
+        /// primarily determined by the cost to verify and link a
+        /// package. Note that this does not include the cost of writing
+        /// the package to the store.
         package_publish_per_byte_cost: u64,
-        /// Per byte cost to read objects from the store. This is computation cost instead of
-        /// storage cost because it does not change the amount of data stored on the db.
+        /// Per byte cost to read objects from the store. This is computation
+        /// cost instead of storage cost because it does not change the
+        /// amount of data stored on the db.
         object_read_per_byte_cost: u64,
-        /// Unit cost of a byte in the storage. This will be used both for charging for
-        /// new storage as well as rebating for deleting storage. That is, we expect users to
-        /// get full refund on the object storage when it's deleted.
+        /// Unit cost of a byte in the storage. This will be used both for
+        /// charging for new storage as well as rebating for deleting
+        /// storage. That is, we expect users to get full refund on the
+        /// object storage when it's deleted.
         storage_per_byte_cost: u64,
         /// Execution cost table to be used.
         pub execution_cost_table: CostTable,
@@ -151,11 +158,12 @@ mod checked {
         /// at the end of execution while determining storage charges.
         /// It tracks `storage_bytes * obj_data_cost_refundable` as
         /// described in `storage_gas_price`
-        /// It has been multiplied by the storage gas price. This is the new storage rebate.
+        /// It has been multiplied by the storage gas price. This is the new
+        /// storage rebate.
         pub storage_cost: u64,
         /// storage_rebate is the storage rebate (in Iota) for in this object.
-        /// This is computed at the end of execution while determining storage charges.
-        /// The value is in Iota.
+        /// This is computed at the end of execution while determining storage
+        /// charges. The value is in Iota.
         pub storage_rebate: u64,
         /// The object size post-transaction in bytes
         pub new_size: u64,
@@ -193,13 +201,16 @@ mod checked {
         // `total_storage_cost = storage_bytes * obj_data_cost_refundable`
         // `final_storage_cost = total_storage_cost * storage_gas_price`
         storage_gas_price: u64,
-        /// Per Object Storage Cost and Storage Rebate, used to get accumulated values at the
-        /// end of execution to determine storage charges and rebates.
+        /// Per Object Storage Cost and Storage Rebate, used to get accumulated
+        /// values at the end of execution to determine storage charges
+        /// and rebates.
         per_object_storage: Vec<(ObjectID, PerObjectStorage)>,
         // storage rebate rate as defined in the ProtocolConfig
         rebate_rate: u64,
-        /// Amount of storage rebate accumulated when we are running in unmetered mode (i.e. system transaction).
-        /// This allows us to track how much storage rebate we need to retain in system transactions.
+        /// Amount of storage rebate accumulated when we are running in
+        /// unmetered mode (i.e. system transaction). This allows us to
+        /// track how much storage rebate we need to retain in system
+        /// transactions.
         unmetered_storage_rebate: u64,
         /// Rounding value to round up gas charges.
         gas_rounding_step: Option<u64>,
@@ -296,8 +307,8 @@ mod checked {
         ) -> UserInputResult {
             // 1. All gas objects have an address owner
             for gas_object in gas_objs {
-                // if as_object() returns None, it means the object has been deleted (and therefore
-                // must be a shared object).
+                // if as_object() returns None, it means the object has been deleted (and
+                // therefore must be a shared object).
                 if let Some(obj) = gas_object.as_object() {
                     if !obj.is_address_owned() {
                         return Err(UserInputError::GasObjectNotOwnedObject {
@@ -328,7 +339,8 @@ mod checked {
             // 3. Gas balance (all gas coins together) is bigger or equal to budget
             let mut gas_balance = 0u128;
             for gas_obj in gas_objs {
-                // expect is safe because we already checked that all gas objects have an address owner
+                // expect is safe because we already checked that all gas objects have an
+                // address owner
                 gas_balance +=
                     gas::get_gas_balance(gas_obj.as_object().expect("object must be owned"))?
                         as u128;
@@ -388,9 +400,9 @@ mod checked {
             }
         }
 
-        /// Returns the final (computation cost, storage cost, storage rebate) of the gas meter.
-        /// We use initial budget, combined with remaining gas and storage cost to derive
-        /// computation cost.
+        /// Returns the final (computation cost, storage cost, storage rebate)
+        /// of the gas meter. We use initial budget, combined with
+        /// remaining gas and storage cost to derive computation cost.
         fn summary(&self) -> GasCostSummary {
             // compute storage rebate, both rebate and non refundable fee
             let storage_rebate = self.storage_rebate();
@@ -454,10 +466,12 @@ mod checked {
                 })
         }
 
-        /// Update `storage_rebate` and `storage_gas_units` for each object in the transaction.
-        /// There is no charge in this function. Charges will all be applied together at the end
+        /// Update `storage_rebate` and `storage_gas_units` for each object in
+        /// the transaction. There is no charge in this function.
+        /// Charges will all be applied together at the end
         /// (`track_storage_mutation`).
-        /// Return the new storage rebate (cost of object storage) according to `new_size`.
+        /// Return the new storage rebate (cost of object storage) according to
+        /// `new_size`.
         fn track_storage_mutation(
             &mut self,
             object_id: ObjectID,
@@ -475,14 +489,11 @@ mod checked {
                 new_size * self.cost_table.storage_per_byte_cost * self.storage_gas_price;
             // track rebate
 
-            self.per_object_storage.push((
-                object_id,
-                PerObjectStorage {
-                    storage_cost,
-                    storage_rebate,
-                    new_size,
-                },
-            ));
+            self.per_object_storage.push((object_id, PerObjectStorage {
+                storage_cost,
+                storage_rebate,
+                new_size,
+            }));
             // return the new object rebate (object storage cost)
             storage_cost
         }

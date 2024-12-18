@@ -3,18 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     sync::Arc,
 };
 
 use anyhow::{anyhow, ensure};
-use diesel::{upsert::excluded, ExpressionMethods};
+use diesel::{ExpressionMethods, upsert::excluded};
 use diesel_async::RunQueryDsl;
-use futures::future::{try_join_all, Either};
+use futures::future::{Either, try_join_all};
 use iota_field_count::FieldCount;
 use iota_indexer_alt_framework::{
     db,
-    pipeline::{sequential::Handler, Processor},
+    pipeline::{Processor, sequential::Handler},
 };
 use iota_types::{
     base_types::ObjectID, effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData,
@@ -46,12 +46,13 @@ impl Processor for SumObjTypes {
         let cp_sequence_number = checkpoint_summary.sequence_number;
         let mut values: BTreeMap<ObjectID, Self::Value> = BTreeMap::new();
 
-        // Iterate over transactions in reverse so we see the latest version of each object first.
+        // Iterate over transactions in reverse so we see the latest version of each
+        // object first.
         for tx in transactions.iter().rev() {
             // Deleted and wrapped objects -- objects that show up without a digest in
-            // `object_changes` are either deleted or wrapped. Objects without an input version
-            // must have been unwrapped and deleted, meaning they do not need to be deleted from
-            // our records.
+            // `object_changes` are either deleted or wrapped. Objects without an input
+            // version must have been unwrapped and deleted, meaning they do not
+            // need to be deleted from our records.
             for change in tx.effects.object_changes() {
                 if change.output_digest.is_some() || change.input_version.is_none() {
                     continue;
@@ -99,8 +100,9 @@ impl Processor for SumObjTypes {
                                     Owner::ObjectOwner(_) => StoredOwnerKind::Object,
                                     Owner::Shared { .. } => StoredOwnerKind::Shared,
                                     Owner::Immutable => StoredOwnerKind::Immutable,
-                                    // ConsensusV2 objects are treated as address-owned for now in indexers.
-                                    // This will need to be updated if additional Authenticators are added.
+                                    // ConsensusV2 objects are treated as address-owned for now in
+                                    // indexers. This will need
+                                    // to be updated if additional Authenticators are added.
                                     Owner::ConsensusV2 { .. } => StoredOwnerKind::Address,
                                 },
 
@@ -140,8 +142,9 @@ impl Handler for SumObjTypes {
     type Batch = BTreeMap<ObjectID, Self::Value>;
 
     fn batch(batch: &mut Self::Batch, updates: Vec<Self::Value>) {
-        // `updates` are guaranteed to be provided in checkpoint order, so blindly inserting them
-        // will result in the batch containing the most up-to-date update for each object.
+        // `updates` are guaranteed to be provided in checkpoint order, so blindly
+        // inserting them will result in the batch containing the most
+        // up-to-date update for each object.
         for update in updates {
             batch.insert(update.object_id, update);
         }

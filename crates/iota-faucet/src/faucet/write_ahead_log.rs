@@ -4,24 +4,26 @@
 
 use std::path::Path;
 
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    transaction::TransactionData,
+};
 use serde::{Deserialize, Serialize};
-use iota_types::base_types::IotaAddress;
-use iota_types::{base_types::ObjectID, transaction::TransactionData};
-use typed_store::traits::{TableSummary, TypedStoreDebug};
-use typed_store::Map;
-use typed_store::{rocks::DBMap, TypedStoreError};
-
 use tracing::info;
-use typed_store::DBMapUtils;
+use typed_store::{
+    DBMapUtils, Map, TypedStoreError,
+    rocks::DBMap,
+    traits::{TableSummary, TypedStoreDebug},
+};
 use uuid::Uuid;
 
-/// Persistent log of transactions paying out iota from the faucet, keyed by the coin serving the
-/// request.  Transactions are expected to be written to the log before they are sent to full-node,
-/// and removed after receiving a response back, before the coin becomes available for subsequent
-/// writes.
+/// Persistent log of transactions paying out iota from the faucet, keyed by the
+/// coin serving the request.  Transactions are expected to be written to the
+/// log before they are sent to full-node, and removed after receiving a
+/// response back, before the coin becomes available for subsequent writes.
 ///
-/// This allows the faucet to go down and back up, and not forget which requests were in-flight that
-/// it needs to confirm succeeded or failed.
+/// This allows the faucet to go down and back up, and not forget which requests
+/// were in-flight that it needs to confirm succeeded or failed.
 #[derive(DBMapUtils, Clone)]
 pub struct WriteAheadLog {
     pub log: DBMap<ObjectID, Entry>,
@@ -47,8 +49,9 @@ impl WriteAheadLog {
         )
     }
 
-    /// Mark `coin` as reserved for transaction `tx` sending coin to `recipient`. Fails if `coin` is
-    /// already in the WAL pointing to an existing transaction.
+    /// Mark `coin` as reserved for transaction `tx` sending coin to
+    /// `recipient`. Fails if `coin` is already in the WAL pointing to an
+    /// existing transaction.
     pub(crate) fn reserve(
         &mut self,
         uuid: Uuid,
@@ -65,27 +68,25 @@ impl WriteAheadLog {
         }
 
         let uuid = *uuid.as_bytes();
-        self.log.insert(
-            &coin,
-            &Entry {
-                uuid,
-                recipient,
-                tx,
-                retry_count: 0,
-                in_flight: true,
-            },
-        )
+        self.log.insert(&coin, &Entry {
+            uuid,
+            recipient,
+            tx,
+            retry_count: 0,
+            in_flight: true,
+        })
     }
 
-    /// Check whether `coin` has a pending transaction in the WAL.  Returns `Ok(Some(entry))` if a
-    /// pending transaction exists, `Ok(None)` if not, and `Err(_)` if there was an internal error
-    /// accessing the WAL.
+    /// Check whether `coin` has a pending transaction in the WAL.  Returns
+    /// `Ok(Some(entry))` if a pending transaction exists, `Ok(None)` if
+    /// not, and `Err(_)` if there was an internal error accessing the WAL.
     pub(crate) fn reclaim(&self, coin: ObjectID) -> Result<Option<Entry>, TypedStoreError> {
         match self.log.get(&coin) {
             Ok(entry) => Ok(entry),
             Err(TypedStoreError::SerializationError(_)) => {
-                // Remove bad log from the store, so we don't crash on start up, this can happen if we update the
-                // WAL Entry and have some leftover Entry from the WAL.
+                // Remove bad log from the store, so we don't crash on start up, this can happen
+                // if we update the WAL Entry and have some leftover Entry from
+                // the WAL.
                 self.log
                     .remove(&coin)
                     .expect("Coin: {coin:?} unable to be removed from log.");
@@ -95,8 +96,8 @@ impl WriteAheadLog {
         }
     }
 
-    /// Indicate that the transaction in flight for `coin` has landed, and the entry in the WAL can
-    /// be removed.
+    /// Indicate that the transaction in flight for `coin` has landed, and the
+    /// entry in the WAL can be removed.
     pub(crate) fn commit(&mut self, coin: ObjectID) -> Result<(), TypedStoreError> {
         self.log.remove(&coin)
     }
@@ -134,7 +135,7 @@ impl WriteAheadLog {
 #[cfg(test)]
 mod tests {
     use iota_types::{
-        base_types::{random_object_ref, ObjectRef},
+        base_types::{ObjectRef, random_object_ref},
         transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     };
 

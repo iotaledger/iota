@@ -2,24 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::account_address::AccountAddress;
-use move_core_types::identifier::Identifier;
-
+use iota_json_rpc_types::IotaMoveStruct;
+use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, base_types::ObjectID, gas_coin::GasCoin,
+    object::bounded_visitor::BoundedVisitor,
+};
 use move_core_types::{
+    account_address::AccountAddress,
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
+    identifier::Identifier,
     language_storage::StructTag,
 };
-
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use iota_json_rpc_types::IotaMoveStruct;
-
-use iota_types::base_types::ObjectID;
-use iota_types::gas_coin::GasCoin;
-use iota_types::object::bounded_visitor::BoundedVisitor;
-use iota_types::{MOVE_STDLIB_ADDRESS, IOTA_FRAMEWORK_ADDRESS};
 
 #[test]
 fn test_to_json_value() {

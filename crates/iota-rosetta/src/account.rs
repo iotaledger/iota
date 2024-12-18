@@ -2,28 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 //! This module implements the [Rosetta Account API](https://www.rosetta-api.org/docs/AccountApi.html)
-use axum::extract::State;
-use axum::{Extension, Json};
-use axum_extra::extract::WithRejection;
-use futures::{future::join_all, StreamExt};
+use std::time::Duration;
 
-use iota_sdk::rpc_types::StakeStatus;
-use iota_sdk::{IotaClient, IOTA_COIN_TYPE};
-use iota_types::base_types::IotaAddress;
+use axum::{Extension, Json, extract::State};
+use axum_extra::extract::WithRejection;
+use futures::{StreamExt, future::join_all};
+use iota_sdk::{IOTA_COIN_TYPE, IotaClient, error::IotaRpcResult, rpc_types::StakeStatus};
+use iota_types::{base_types::IotaAddress, messages_checkpoint::CheckpointSequenceNumber};
 use tracing::info;
 
-use crate::errors::Error;
-use crate::types::{
-    AccountBalanceRequest, AccountBalanceResponse, AccountCoinsRequest, AccountCoinsResponse,
-    Amount, Coin, Currencies, Currency, SubAccountType, SubBalance,
+use crate::{
+    IotaEnv, OnlineServerContext,
+    errors::Error,
+    types::{
+        AccountBalanceRequest, AccountBalanceResponse, AccountCoinsRequest, AccountCoinsResponse,
+        Amount, Coin, Currencies, Currency, SubAccountType, SubBalance,
+    },
 };
-use crate::{OnlineServerContext, IotaEnv};
-use std::time::Duration;
-use iota_sdk::error::IotaRpcResult;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
-/// Get an array of all AccountBalances for an AccountIdentifier and the BlockIdentifier
-/// at which the balance lookup was performed.
+/// Get an array of all AccountBalances for an AccountIdentifier and the
+/// BlockIdentifier at which the balance lookup was performed.
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/AccountApi.html#accountbalance)
 pub async fn balance(
     State(ctx): State<OnlineServerContext>,
@@ -98,7 +96,7 @@ async fn get_balances(
                     return Err(Error::InvalidInput(format!(
                         "{:?}",
                         currency.metadata.coin_type
-                    )))
+                    )));
                 }
             }
         }
@@ -185,8 +183,8 @@ async fn get_sub_account_balances(
     })
 }
 
-/// Get an array of all unspent coins for an AccountIdentifier and the BlockIdentifier at which the lookup was performed. .
-/// [Rosetta API Spec](https://www.rosetta-api.org/docs/AccountApi.html#accountcoins)
+/// Get an array of all unspent coins for an AccountIdentifier and the
+/// BlockIdentifier at which the lookup was performed. . [Rosetta API Spec](https://www.rosetta-api.org/docs/AccountApi.html#accountcoins)
 pub async fn coins(
     State(context): State<OnlineServerContext>,
     Extension(env): Extension<IotaEnv>,

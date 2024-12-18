@@ -2,24 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::object_change::{ObjectIn, ObjectOut};
-use super::{EffectsObjectChange, IDOperation, ObjectChange};
-use crate::base_types::{
-    EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest,
-    VersionDigest,
-};
-use crate::digests::{EffectsAuxDataDigest, TransactionEventsDigest};
-use crate::effects::{InputSharedObject, TransactionEffectsAPI};
-use crate::execution::SharedInput;
-use crate::execution_status::ExecutionStatus;
-use crate::gas::GasCostSummary;
-#[cfg(debug_assertions)]
-use crate::is_system_package;
-use crate::object::{Owner, OBJECT_START_VERSION};
-use serde::{Deserialize, Serialize};
 #[cfg(debug_assertions)]
 use std::collections::HashSet;
 use std::collections::{BTreeMap, BTreeSet};
+
+use serde::{Deserialize, Serialize};
+
+use super::{
+    EffectsObjectChange, IDOperation, ObjectChange,
+    object_change::{ObjectIn, ObjectOut},
+};
+#[cfg(debug_assertions)]
+use crate::is_system_package;
+use crate::{
+    base_types::{
+        EpochId, IotaAddress, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        VersionDigest,
+    },
+    digests::{EffectsAuxDataDigest, TransactionEventsDigest},
+    effects::{InputSharedObject, TransactionEffectsAPI},
+    execution::SharedInput,
+    execution_status::ExecutionStatus,
+    gas::GasCostSummary,
+    object::{OBJECT_START_VERSION, Owner},
+};
 
 /// The response from processing a transaction or a certified transaction
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
@@ -31,8 +37,8 @@ pub struct TransactionEffectsV2 {
     gas_used: GasCostSummary,
     /// The transaction digest
     transaction_digest: TransactionDigest,
-    /// The updated gas object reference, as an index into the `changed_objects` vector.
-    /// Having a dedicated field for convenient access.
+    /// The updated gas object reference, as an index into the `changed_objects`
+    /// vector. Having a dedicated field for convenient access.
     /// System transaction that don't require gas will leave this as None.
     gas_object_index: Option<u32>,
     /// The digest of the events emitted during execution,
@@ -45,13 +51,15 @@ pub struct TransactionEffectsV2 {
     pub(crate) lamport_version: SequenceNumber,
     /// Objects whose state are changed in the object store.
     changed_objects: Vec<(ObjectID, EffectsObjectChange)>,
-    /// Shared objects that are not mutated in this transaction. Unlike owned objects,
-    /// read-only shared objects' version are not committed in the transaction,
-    /// and in order for a node to catch up and execute it without consensus sequencing,
-    /// the version needs to be committed in the effects.
+    /// Shared objects that are not mutated in this transaction. Unlike owned
+    /// objects, read-only shared objects' version are not committed in the
+    /// transaction, and in order for a node to catch up and execute it
+    /// without consensus sequencing, the version needs to be committed in
+    /// the effects.
     unchanged_shared_objects: Vec<(ObjectID, UnchangedSharedKind)>,
-    /// Auxiliary data that are not protocol-critical, generated as part of the effects but are stored separately.
-    /// Storing it separately allows us to avoid bloating the effects with data that are not critical.
+    /// Auxiliary data that are not protocol-critical, generated as part of the
+    /// effects but are stored separately. Storing it separately allows us
+    /// to avoid bloating the effects with data that are not critical.
     /// It also provides more flexibility on the format and type of the data.
     aux_data_digest: Option<EffectsAuxDataDigest>,
 }
@@ -340,24 +348,17 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
 
     fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject) {
         match kind {
-            InputSharedObject::Mutate(obj_ref) => self.changed_objects.push((
-                obj_ref.0,
-                EffectsObjectChange {
-                    input_state: ObjectIn::Exist((
-                        (obj_ref.1, obj_ref.2),
-                        Owner::Shared {
-                            initial_shared_version: OBJECT_START_VERSION,
-                        },
-                    )),
-                    output_state: ObjectOut::ObjectWrite((
-                        obj_ref.2,
-                        Owner::Shared {
-                            initial_shared_version: obj_ref.1,
-                        },
-                    )),
+            InputSharedObject::Mutate(obj_ref) => {
+                self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+                    input_state: ObjectIn::Exist(((obj_ref.1, obj_ref.2), Owner::Shared {
+                        initial_shared_version: OBJECT_START_VERSION,
+                    })),
+                    output_state: ObjectOut::ObjectWrite((obj_ref.2, Owner::Shared {
+                        initial_shared_version: obj_ref.1,
+                    })),
                     id_operation: IDOperation::None,
-                },
-            )),
+                }))
+            }
             InputSharedObject::ReadOnly(obj_ref) => self.unchanged_shared_objects.push((
                 obj_ref.0,
                 UnchangedSharedKind::ReadOnlyRoot((obj_ref.1, obj_ref.2)),
@@ -375,34 +376,28 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
     }
 
     fn unsafe_add_deleted_live_object_for_testing(&mut self, obj_ref: ObjectRef) {
-        self.changed_objects.push((
-            obj_ref.0,
-            EffectsObjectChange {
-                input_state: ObjectIn::Exist((
-                    (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                output_state: ObjectOut::ObjectWrite((
-                    obj_ref.2,
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                id_operation: IDOperation::None,
-            },
-        ))
+        self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+            input_state: ObjectIn::Exist((
+                (obj_ref.1, obj_ref.2),
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            output_state: ObjectOut::ObjectWrite((
+                obj_ref.2,
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            id_operation: IDOperation::None,
+        }))
     }
 
     fn unsafe_add_object_tombstone_for_testing(&mut self, obj_ref: ObjectRef) {
-        self.changed_objects.push((
-            obj_ref.0,
-            EffectsObjectChange {
-                input_state: ObjectIn::Exist((
-                    (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(IotaAddress::default()),
-                )),
-                output_state: ObjectOut::NotExist,
-                id_operation: IDOperation::Deleted,
-            },
-        ))
+        self.changed_objects.push((obj_ref.0, EffectsObjectChange {
+            input_state: ObjectIn::Exist((
+                (obj_ref.1, obj_ref.2),
+                Owner::AddressOwner(IotaAddress::default()),
+            )),
+            output_state: ObjectOut::NotExist,
+            id_operation: IDOperation::Deleted,
+        }))
     }
 }
 
@@ -478,7 +473,8 @@ impl TransactionEffectsV2 {
     }
 
     /// This function demonstrates what's the invariant of the effects.
-    /// It also documents the semantics of different combinations in object changes.
+    /// It also documents the semantics of different combinations in object
+    /// changes.
     #[cfg(debug_assertions)]
     fn check_invariant(&self) {
         let mut unique_ids = HashSet::new();
@@ -599,15 +595,18 @@ impl Default for TransactionEffectsV2 {
 
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
 pub enum UnchangedSharedKind {
-    /// Read-only shared objects from the input. We don't really need ObjectDigest
-    /// for protocol correctness, but it will make it easier to verify untrusted read.
+    /// Read-only shared objects from the input. We don't really need
+    /// ObjectDigest for protocol correctness, but it will make it easier to
+    /// verify untrusted read.
     ReadOnlyRoot(VersionDigest),
     /// Deleted shared objects that appear mutably/owned in the input.
     MutateDeleted(SequenceNumber),
     /// Deleted shared objects that appear as read-only in the input.
     ReadDeleted(SequenceNumber),
-    /// Shared objects in cancelled transaction. The sequence number embed cancellation reason.
+    /// Shared objects in cancelled transaction. The sequence number embed
+    /// cancellation reason.
     Cancelled(SequenceNumber),
-    /// Read of a per-epoch config object that should remain the same during an epoch.
+    /// Read of a per-epoch config object that should remain the same during an
+    /// epoch.
     PerEpochConfig,
 }

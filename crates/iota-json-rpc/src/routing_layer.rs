@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{HashMap, HashSet};
+
 use iota_open_rpc::MethodRouting;
 
 #[derive(Debug, Clone)]

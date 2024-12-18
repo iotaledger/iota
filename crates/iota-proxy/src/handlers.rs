@@ -1,27 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::admin::{Labels, ReqwestClient};
-use crate::consumer::{convert_to_remote_write, populate_labels, NodeMetric};
-use crate::histogram_relay::HistogramRelay;
-use crate::middleware::LenDelimProtobuf;
-use crate::peers::AllowedPeer;
+use std::net::SocketAddr;
+
 use axum::{
     extract::{ConnectInfo, Extension},
     http::StatusCode,
 };
 use multiaddr::Multiaddr;
 use once_cell::sync::Lazy;
-use prometheus::{register_counter_vec, register_histogram_vec};
-use prometheus::{CounterVec, HistogramVec};
-use std::net::SocketAddr;
+use prometheus::{CounterVec, HistogramVec, register_counter_vec, register_histogram_vec};
+
+use crate::{
+    admin::{Labels, ReqwestClient},
+    consumer::{NodeMetric, convert_to_remote_write, populate_labels},
+    histogram_relay::HistogramRelay,
+    middleware::LenDelimProtobuf,
+    peers::AllowedPeer,
+};
 
 static HANDLER_HITS: Lazy<CounterVec> = Lazy::new(|| {
-    register_counter_vec!(
-        "http_handler_hits",
-        "Number of HTTP requests made.",
-        &["handler", "remote"]
-    )
+    register_counter_vec!("http_handler_hits", "Number of HTTP requests made.", &[
+        "handler", "remote"
+    ])
     .unwrap()
 });
 
@@ -38,10 +39,11 @@ static HTTP_HANDLER_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
     .unwrap()
 });
 
-/// Publish handler which receives metrics from nodes.  Nodes will call us at this endpoint
-/// and we relay them to the upstream tsdb
+/// Publish handler which receives metrics from nodes.  Nodes will call us at
+/// this endpoint and we relay them to the upstream tsdb
 ///
-/// Clients will receive a response after successfully relaying the metrics upstream
+/// Clients will receive a response after successfully relaying the metrics
+/// upstream
 pub async fn publish_metrics(
     Extension(labels): Extension<Labels>,
     Extension(client): Extension<ReqwestClient>,
@@ -58,14 +60,11 @@ pub async fn publish_metrics(
         .start_timer();
     let data = populate_labels(name, labels.network, labels.inventory_hostname, data);
     relay.submit(data.clone());
-    let response = convert_to_remote_write(
-        client.clone(),
-        NodeMetric {
-            data,
-            peer_addr: Multiaddr::from(addr.ip()),
-            public_key,
-        },
-    )
+    let response = convert_to_remote_write(client.clone(), NodeMetric {
+        data,
+        peer_addr: Multiaddr::from(addr.ip()),
+        public_key,
+    })
     .await;
     timer.observe_duration();
     response

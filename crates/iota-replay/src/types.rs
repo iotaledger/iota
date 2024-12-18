@@ -2,22 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::Error as JsonRpseeError;
-use move_binary_format::CompiledModule;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::language_storage::{ModuleId, StructTag};
-use serde::Deserialize;
-use serde::Serialize;
 use std::fmt::Debug;
-use iota_json_rpc_types::IotaEvent;
-use iota_json_rpc_types::IotaTransactionBlockEffects;
+
+use iota_json_rpc_types::{IotaEvent, IotaTransactionBlockEffects};
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::error::Error as IotaRpcError;
-use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress, VersionNumber};
-use iota_types::digests::{ObjectDigest, TransactionDigest};
-use iota_types::error::{IotaError, IotaObjectResponseError, IotaResult, UserInputError};
-use iota_types::object::Object;
-use iota_types::transaction::{InputObjectKind, SenderSignedData, TransactionKind};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    digests::{ObjectDigest, TransactionDigest},
+    error::{IotaError, IotaObjectResponseError, IotaResult, UserInputError},
+    object::Object,
+    transaction::{InputObjectKind, SenderSignedData, TransactionKind},
+};
+use jsonrpsee::core::Error as JsonRpseeError;
+use move_binary_format::CompiledModule;
+use move_core_types::{
+    account_address::AccountAddress,
+    language_storage::{ModuleId, StructTag},
+};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Duration;
 use tracing::{error, warn};
@@ -33,8 +36,8 @@ pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
 pub(crate) const EPOCH_CHANGE_STRUCT_TAG: &str =
     "0x3::iota_system_state_inner::SystemEpochInfoEvent";
 
-// TODO: A lot of the information in OnChainTransactionInfo is redundant from what's already in
-// SenderSignedData. We should consider removing them.
+// TODO: A lot of the information in OnChainTransactionInfo is redundant from
+// what's already in SenderSignedData. We should consider removing them.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OnChainTransactionInfo {
     pub tx_digest: TransactionDigest,
@@ -55,8 +58,8 @@ pub struct OnChainTransactionInfo {
     pub config_objects: Vec<(ObjectID, SequenceNumber)>,
     // TODO: There are two problems with this being a json-rpc type:
     // 1. The json-rpc type is not a perfect mirror with TransactionEffects since v2. We lost the
-    // ability to replay effects v2 specific forks. We need to fix this asap. Unfortunately at the moment
-    // it is really difficult to get the raw effects given a transaction digest.
+    // ability to replay effects v2 specific forks. We need to fix this asap. Unfortunately at the
+    // moment it is really difficult to get the raw effects given a transaction digest.
     // 2. This data structure is not bcs/bincode friendly. It makes it much more expensive to
     // store the sandbox state for batch replay.
     pub effects: IotaTransactionBlockEffects,

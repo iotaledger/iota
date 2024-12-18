@@ -2,22 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use diesel::{
+    BoolExpressionMethods, ExpressionMethods, QueryDsl,
+    backend::Backend,
+    deserialize::{self, FromSql, QueryableByName},
+    row::NamedRow,
+};
+use iota_indexer::{models::events::StoredEvent, schema::events};
+use serde::{Deserialize, Serialize};
+
+use super::Query;
 use crate::{
     consistency::Checkpointed,
     filter,
     raw_query::RawQuery,
     types::cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
 };
-use diesel::{
-    backend::Backend,
-    deserialize::{self, FromSql, QueryableByName},
-    row::NamedRow,
-    BoolExpressionMethods, ExpressionMethods, QueryDsl,
-};
-use serde::{Deserialize, Serialize};
-use iota_indexer::{models::events::StoredEvent, schema::events};
-
-use super::Query;
 
 /// Contents of an Event's cursor.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -35,9 +35,10 @@ pub(crate) struct EventKey {
 
 pub(crate) type Cursor = cursor::JsonCursor<EventKey>;
 
-/// Results from raw queries in Diesel can only be deserialized into structs that implement
-/// `QueryableByName`. This struct is used to represent a row of `tx_sequence_number` and
-/// `event_sequence_number` returned from subqueries against event lookup tables.
+/// Results from raw queries in Diesel can only be deserialized into structs
+/// that implement `QueryableByName`. This struct is used to represent a row of
+/// `tx_sequence_number` and `event_sequence_number` returned from subqueries
+/// against event lookup tables.
 #[derive(Clone, Debug)]
 pub struct EvLookup {
     pub tx: i64,
@@ -165,9 +166,10 @@ impl RawPaginated<Cursor> for EvLookup {
     }
 }
 
-/// `sql_query` raw queries require `QueryableByName`. The default implementation looks for a table
-/// based on the struct name, and it also expects the struct's fields to reflect the table's
-/// columns. We can override this behavior by implementing `QueryableByName` for our struct. For
+/// `sql_query` raw queries require `QueryableByName`. The default
+/// implementation looks for a table based on the struct name, and it also
+/// expects the struct's fields to reflect the table's columns. We can override
+/// this behavior by implementing `QueryableByName` for our struct. For
 /// `EvLookup`, its fields are derived from the common `tx_sequence_number` and
 /// `event_sequence_number` columns for all events-related tables.
 impl<DB> QueryableByName<DB> for EvLookup

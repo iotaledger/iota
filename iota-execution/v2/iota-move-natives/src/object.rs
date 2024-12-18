@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{object_runtime::ObjectRuntime, NativesCostTable};
+use std::collections::VecDeque;
+
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};
@@ -13,17 +14,20 @@ use move_vm_types::{
     values::{StructRef, Value},
 };
 use smallvec::smallvec;
-use std::collections::VecDeque;
+
+use crate::{NativesCostTable, object_runtime::ObjectRuntime};
 
 #[derive(Clone)]
 pub struct BorrowUidCostParams {
     pub object_borrow_uid_cost_base: InternalGas,
 }
-/***************************************************************************************************
- * native fun borrow_uid
- * Implementation of the Move native function `borrow_uid<T: key>(obj: &T): &UID`
- *   gas cost: object_borrow_uid_cost_base                | this is hard to calculate as it's very sensitive to `borrow_field` impl. Making it flat
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun borrow_uid
+/// Implementation of the Move native function `borrow_uid<T: key>(obj: &T):
+/// &UID`   gas cost: object_borrow_uid_cost_base                | this is hard
+/// to calculate as it's very sensitive to `borrow_field` impl. Making it flat
+/// ****************************************************************************
+/// *******************
 pub fn borrow_uid(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -51,11 +55,12 @@ pub fn borrow_uid(
 pub struct DeleteImplCostParams {
     pub object_delete_impl_cost_base: InternalGas,
 }
-/***************************************************************************************************
- * native fun delete_impl
- * Implementation of the Move native function `delete_impl(id: address)`
- *   gas cost: cost_base                | this is a simple ID deletion
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun delete_impl
+/// Implementation of the Move native function `delete_impl(id: address)`
+///   gas cost: cost_base                | this is a simple ID deletion
+/// ****************************************************************************
+/// *******************
 pub fn delete_impl(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -88,11 +93,12 @@ pub fn delete_impl(
 pub struct RecordNewIdCostParams {
     pub object_record_new_uid_cost_base: InternalGas,
 }
-/***************************************************************************************************
- * native fun record_new_uid
- * Implementation of the Move native function `record_new_uid(id: address)`
- *   gas cost: object_record_new_uid_cost_base                | this is a simple ID addition
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun record_new_uid
+/// Implementation of the Move native function `record_new_uid(id: address)`
+///   gas cost: object_record_new_uid_cost_base                | this is a
+/// simple ID addition *********************************************************
+/// **************************************
 pub fn record_new_uid(
     context: &mut NativeContext,
     ty_args: Vec<Type>,

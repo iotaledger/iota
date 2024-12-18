@@ -2,18 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::checkpoints::CheckpointStore;
-use crate::execution_cache::{ObjectCacheRead, TransactionCacheRead};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
 use iota_storage::blob::{Blob, BlobEncoding};
-use iota_types::digests::TransactionDigest;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::error::{IotaError, IotaResult, UserInputError};
-use iota_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
-use iota_types::messages_checkpoint::VerifiedCheckpoint;
-use iota_types::storage::ObjectKey;
+use iota_types::{
+    digests::TransactionDigest,
+    effects::TransactionEffectsAPI,
+    error::{IotaError, IotaResult, UserInputError},
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    messages_checkpoint::VerifiedCheckpoint,
+    storage::ObjectKey,
+};
+
+use crate::{
+    checkpoints::CheckpointStore,
+    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+};
 
 pub(crate) fn load_checkpoint_data(
     checkpoint: VerifiedCheckpoint,
@@ -49,7 +53,9 @@ pub(crate) fn load_checkpoint_data(
         .multi_get_events(&event_digests)
         .into_iter()
         .zip(&event_digests)
-        .map(|(event, digest)| event.ok_or(IotaError::TransactionEventsNotFound { digest: *digest }))
+        .map(|(event, digest)| {
+            event.ok_or(IotaError::TransactionEventsNotFound { digest: *digest })
+        })
         .collect::<IotaResult<Vec<_>>>()?;
 
     let events: HashMap<_, _> = event_digests.into_iter().zip(events).collect();

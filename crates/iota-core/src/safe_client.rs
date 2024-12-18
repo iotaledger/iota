@@ -3,35 +3,35 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority_client::AuthorityAPI;
-use crate::epoch::committee_store::CommitteeStore;
-use prometheus::core::GenericCounter;
-use prometheus::{
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry, Histogram,
-    HistogramVec, IntCounterVec, Registry,
-};
-use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use iota_types::crypto::AuthorityPublicKeyBytes;
-use iota_types::effects::{SignedTransactionEffects, TransactionEffectsAPI};
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
-};
-use iota_types::messages_grpc::{
-    HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-    ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest,
-    TransactionStatus, VerifiedObjectInfoResponse,
-};
-use iota_types::messages_safe_client::PlainTransactionInfoResponse;
-use iota_types::iota_system_state::IotaSystemState;
-use iota_types::{base_types::*, committee::*, fp_ensure};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+
 use iota_types::{
+    base_types::*,
+    committee::*,
+    crypto::AuthorityPublicKeyBytes,
+    effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
+    fp_ensure,
+    iota_system_state::IotaSystemState,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
+    },
+    messages_grpc::{
+        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
+        ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest,
+        TransactionStatus, VerifiedObjectInfoResponse,
+    },
+    messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
+};
+use prometheus::{
+    Histogram, HistogramVec, IntCounterVec, Registry, core::GenericCounter,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
 };
 use tap::TapFallible;
 use tracing::{debug, error, instrument};
+
+use crate::{authority_client::AuthorityAPI, epoch::committee_store::CommitteeStore};
 
 macro_rules! check_error {
     ($address:expr, $cond:expr, $msg:expr) => {

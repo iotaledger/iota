@@ -10,12 +10,11 @@ use move_core_types::{
     u256::U256,
 };
 
+use super::{DynamicFieldInfo, DynamicFieldType};
 use crate::{base_types::ObjectID, id::UID};
 
-use super::{DynamicFieldInfo, DynamicFieldType};
-
-/// Visitor to deserialize the outer structure of a `0x2::dynamic_field::Field` while leaving its
-/// name and value untouched.
+/// Visitor to deserialize the outer structure of a `0x2::dynamic_field::Field`
+/// while leaving its name and value untouched.
 pub struct FieldVisitor;
 
 #[derive(Debug, Clone)]
@@ -46,8 +45,9 @@ pub enum Error {
 }
 
 impl FieldVisitor {
-    /// Deserialize the top-level structure from a dynamic field's `0x2::dynamic_field::Field`
-    /// without having to fully deserialize its name or value.
+    /// Deserialize the top-level structure from a dynamic field's
+    /// `0x2::dynamic_field::Field` without having to fully deserialize its
+    /// name or value.
     pub fn deserialize<'b, 'l>(
         bytes: &'b [u8],
         layout: &'l A::MoveTypeLayout,
@@ -57,9 +57,9 @@ impl FieldVisitor {
 }
 
 impl<'b, 'l> Field<'b, 'l> {
-    /// If this field is a dynamic field, returns its value's type. If it is a dynamic object
-    /// field, it returns the ID of the object the value points to (which must be fetched to
-    /// extract its type).
+    /// If this field is a dynamic field, returns its value's type. If it is a
+    /// dynamic object field, it returns the ID of the object the value
+    /// points to (which must be fetched to extract its type).
     pub fn value_metadata(&self) -> Result<ValueMetadata, Error> {
         match self.kind {
             DynamicFieldType::DynamicField => Ok(ValueMetadata::DynamicField(TypeTag::from(
@@ -87,8 +87,8 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
             return Err(Error::NotADynamicField);
         }
 
-        // Set-up optionals to fill while visiting fields -- all of them must be filled by the end
-        // to successfully return a `Field`.
+        // Set-up optionals to fill while visiting fields -- all of them must be filled
+        // by the end to successfully return a `Field`.
         let mut id = None;
         let mut name_parts = None;
         let mut value_parts = None;
@@ -150,7 +150,8 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
 
     // === Empty/default casees ===
     //
-    // A dynamic field must be a struct, so if the visitor is fed anything else, it complains.
+    // A dynamic field must be a struct, so if the visitor is fed anything else, it
+    // complains.
 
     fn visit_u8(&mut self, _: &ValueDriver<'_, 'b, 'l>, _: u8) -> Result<Self::Value, Error> {
         Err(Error::NotADynamicField)
@@ -205,7 +206,8 @@ impl<'b, 'l> Visitor<'b, 'l> for FieldVisitor {
     }
 }
 
-/// Extract the type and layout of a dynamic field name, from the layout of its `Field.name`.
+/// Extract the type and layout of a dynamic field name, from the layout of its
+/// `Field.name`.
 fn extract_name_layout(
     layout: &A::MoveTypeLayout,
 ) -> Result<(DynamicFieldType, &A::MoveTypeLayout), Error> {
@@ -238,14 +240,13 @@ mod tests {
         account_address::AccountAddress, annotated_value as A, language_storage::TypeTag,
     };
 
+    use super::*;
     use crate::{
         base_types::ObjectID,
         dynamic_field,
         id::UID,
         object::bounded_visitor::tests::{enum_, layout_, value_, variant_},
     };
-
-    use super::*;
 
     #[test]
     fn test_dynamic_field_name() {
@@ -328,8 +329,8 @@ mod tests {
         }
     }
 
-    /// If the visitor is run over a type that isn't actually a `0x2::dynamic_field::Field`, it
-    /// will complain.
+    /// If the visitor is run over a type that isn't actually a
+    /// `0x2::dynamic_field::Field`, it will complain.
     #[test]
     fn test_from_bad_type() {
         for (value, layout, bytes) in fixtures() {
@@ -348,13 +349,10 @@ mod tests {
     #[test]
     fn test_from_dynamic_field_missing_id() {
         let bytes = bcs::to_bytes(&(42u8, 43u8)).unwrap();
-        let layout = layout_(
-            "0x2::dynamic_field::Field<u8, u8>",
-            vec![
-                ("name", A::MoveTypeLayout::U8),
-                ("value", A::MoveTypeLayout::U8),
-            ],
-        );
+        let layout = layout_("0x2::dynamic_field::Field<u8, u8>", vec![
+            ("name", A::MoveTypeLayout::U8),
+            ("value", A::MoveTypeLayout::U8),
+        ]);
 
         let Err(e) = FieldVisitor::deserialize(&bytes, &layout) else {
             panic!("Expected NotADynamicField error");
@@ -366,10 +364,10 @@ mod tests {
     #[test]
     fn test_from_dynamic_field_missing_name() {
         let bytes = bcs::to_bytes(&(oid_("0x264"), 43u8)).unwrap();
-        let layout = layout_(
-            "0x2::dynamic_field::Field<u8, u8>",
-            vec![("id", id_layout()), ("value", A::MoveTypeLayout::U8)],
-        );
+        let layout = layout_("0x2::dynamic_field::Field<u8, u8>", vec![
+            ("id", id_layout()),
+            ("value", A::MoveTypeLayout::U8),
+        ]);
 
         let Err(e) = FieldVisitor::deserialize(&bytes, &layout) else {
             panic!("Expected NotADynamicField error");
@@ -381,10 +379,10 @@ mod tests {
     #[test]
     fn test_from_dynamic_field_missing_value() {
         let bytes = bcs::to_bytes(&(oid_("0x264"), 42u8)).unwrap();
-        let layout = layout_(
-            "0x2::dynamic_field::Field<u8, u8>",
-            vec![("id", id_layout()), ("name", A::MoveTypeLayout::U8)],
-        );
+        let layout = layout_("0x2::dynamic_field::Field<u8, u8>", vec![
+            ("id", id_layout()),
+            ("name", A::MoveTypeLayout::U8),
+        ]);
 
         let Err(e) = FieldVisitor::deserialize(&bytes, &layout) else {
             panic!("Expected NotADynamicField error");
@@ -396,14 +394,11 @@ mod tests {
     #[test]
     fn test_from_dynamic_field_weird_id() {
         let bytes = bcs::to_bytes(&(42u8, 43u8, 44u8)).unwrap();
-        let layout = layout_(
-            "0x2::dynamic_field::Field<u8, u8>",
-            vec![
-                ("id", A::MoveTypeLayout::U8),
-                ("name", A::MoveTypeLayout::U8),
-                ("value", A::MoveTypeLayout::U8),
-            ],
-        );
+        let layout = layout_("0x2::dynamic_field::Field<u8, u8>", vec![
+            ("id", A::MoveTypeLayout::U8),
+            ("name", A::MoveTypeLayout::U8),
+            ("value", A::MoveTypeLayout::U8),
+        ]);
 
         let Err(e) = FieldVisitor::deserialize(&bytes, &layout) else {
             panic!("Expected NotADynamicField error");
@@ -412,8 +407,9 @@ mod tests {
         assert_eq!(e.to_string(), "Not a dynamic field");
     }
 
-    /// If the name is wrapped in `0x2::dynamic_object_field::Wrapper`, but the wrapper's structure
-    /// is somehow incorrect, that will result in an error.
+    /// If the name is wrapped in `0x2::dynamic_object_field::Wrapper`, but the
+    /// wrapper's structure is somehow incorrect, that will result in an
+    /// error.
     #[test]
     fn test_from_dynamic_object_field_bad_wrapper() {
         let bytes = bcs::to_bytes(&(oid_("0x264"), 42u8)).unwrap();
@@ -442,8 +438,7 @@ mod tests {
 
     /// Various Move values to use as dynamic field names and values.
     fn fixtures() -> Vec<(A::MoveValue, A::MoveTypeLayout, Vec<u8>)> {
-        use A::MoveTypeLayout as T;
-        use A::MoveValue as V;
+        use A::{MoveTypeLayout as T, MoveValue as V};
 
         vec![
             fixture(V::U8(42), T::U8),
@@ -453,26 +448,21 @@ mod tests {
                 T::Vector(Box::new(T::U32)),
             ),
             fixture(
-                value_(
-                    "0x2::object::ID",
-                    vec![("bytes", V::Address(AccountAddress::TWO))],
-                ),
+                value_("0x2::object::ID", vec![(
+                    "bytes",
+                    V::Address(AccountAddress::TWO),
+                )]),
                 layout_("0x2::object::ID", vec![("bytes", T::Address)]),
             ),
             fixture(
-                variant_(
-                    "0x1::option::Option<u64>",
-                    "Some",
-                    1,
-                    vec![("value", V::U64(46))],
-                ),
-                enum_(
-                    "0x1::option::Option<u64>",
-                    vec![
-                        (("None", 0), vec![]),
-                        (("Some", 1), vec![("value", T::U64)]),
-                    ],
-                ),
+                variant_("0x1::option::Option<u64>", "Some", 1, vec![(
+                    "value",
+                    V::U64(46),
+                )]),
+                enum_("0x1::option::Option<u64>", vec![
+                    (("None", 0), vec![]),
+                    (("Some", 1), vec![("value", T::U64)]),
+                ]),
             ),
         ]
     }

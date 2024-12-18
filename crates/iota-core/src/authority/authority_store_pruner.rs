@@ -2,43 +2,44 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_store_types::{ObjectContentDigest, StoreData, StoreObject};
-use crate::checkpoints::{CheckpointStore, CheckpointWatermark};
-use crate::rpc_index::RpcIndexStore;
-use anyhow::anyhow;
-use iota_metrics::{monitored_scope, spawn_monitored_task};
-use once_cell::sync::Lazy;
-use prometheus::{
-    register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
-    Registry,
+use std::{
+    cmp::{max, min},
+    collections::{BTreeSet, HashMap},
+    sync::{Arc, Mutex},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use std::cmp::{max, min};
-use std::collections::{BTreeSet, HashMap};
-use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::{sync::Arc, time::Duration};
+
+use anyhow::anyhow;
 use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_storage::mutex_table::RwLockTable;
-use iota_types::base_types::SequenceNumber;
-use iota_types::committee::EpochId;
-use iota_types::effects::TransactionEffects;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::message_envelope::Message;
-use iota_types::messages_checkpoint::{
-    CheckpointContents, CheckpointDigest, CheckpointSequenceNumber,
-};
 use iota_types::{
-    base_types::{ObjectID, VersionNumber},
+    base_types::{ObjectID, SequenceNumber, VersionNumber},
+    committee::EpochId,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    message_envelope::Message,
+    messages_checkpoint::{CheckpointContents, CheckpointDigest, CheckpointSequenceNumber},
     storage::ObjectKey,
 };
-use tokio::sync::oneshot::{self, Sender};
-use tokio::time::Instant;
+use once_cell::sync::Lazy;
+use prometheus::{
+    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
+};
+use tokio::{
+    sync::oneshot::{self, Sender},
+    time::Instant,
+};
 use tracing::{debug, error, info, warn};
-use typed_store::rocksdb::LiveFile;
-use typed_store::{Map, TypedStoreError};
+use typed_store::{Map, TypedStoreError, rocksdb::LiveFile};
 
 use super::authority_store_tables::AuthorityPerpetualTables;
+use crate::{
+    authority::authority_store_types::{ObjectContentDigest, StoreData, StoreObject},
+    checkpoints::{CheckpointStore, CheckpointWatermark},
+    rpc_index::RpcIndexStore,
+};
 
 static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
     [
@@ -194,11 +195,14 @@ impl AuthorityStorePruner {
             wb.schedule_delete_range(&perpetual_db.objects, &start_range, &end_range)?;
         }
 
-        // When enable_pruning_tombstones is enabled, instead of using range deletes, we need to do a scan of all the keys
-        // for the deleted objects and then do point deletes to delete all the existing keys. This is because to improve read
-        // performance, we set `ignore_range_deletions` on all read options, and using range delete to delete tombstones
-        // may leak object (imagine a tombstone is compacted away, but earlier version is still not). Using point deletes
-        // guarantees that all earlier versions are deleted in the database.
+        // When enable_pruning_tombstones is enabled, instead of using range deletes, we
+        // need to do a scan of all the keys for the deleted objects and then do
+        // point deletes to delete all the existing keys. This is because to improve
+        // read performance, we set `ignore_range_deletions` on all read
+        // options, and using range delete to delete tombstones may leak object
+        // (imagine a tombstone is compacted away, but earlier version is still not).
+        // Using point deletes guarantees that all earlier versions are deleted
+        // in the database.
         if !object_tombstones_to_prune.is_empty() {
             let mut object_keys_to_delete = vec![];
             for ObjectKey(object_id, seq_number) in object_tombstones_to_prune {
@@ -290,13 +294,10 @@ impl AuthorityStorePruner {
         checkpoints_batch
             .delete_batch(&checkpoint_db.checkpoint_by_digest, checkpoints_to_prune)?;
 
-        checkpoints_batch.insert_batch(
-            &checkpoint_db.watermarks,
-            [(
-                &CheckpointWatermark::HighestPruned,
-                &(checkpoint_number, CheckpointDigest::random()),
-            )],
-        )?;
+        checkpoints_batch.insert_batch(&checkpoint_db.watermarks, [(
+            &CheckpointWatermark::HighestPruned,
+            &(checkpoint_number, CheckpointDigest::random()),
+        )])?;
 
         if let Some(rpc_index) = rpc_index {
             rpc_index.prune(&checkpoint_content_to_prune)?;
@@ -309,7 +310,8 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
-    /// Prunes old data based on effects from all checkpoints from epochs eligible for pruning
+    /// Prunes old data based on effects from all checkpoints from epochs
+    /// eligible for pruning
     pub async fn prune_objects_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
@@ -412,7 +414,8 @@ impl AuthorityStorePruner {
         .await
     }
 
-    /// Prunes old object versions based on effects from all checkpoints from epochs eligible for pruning
+    /// Prunes old object versions based on effects from all checkpoints from
+    /// epochs eligible for pruning
     pub async fn prune_for_eligible_epochs(
         perpetual_db: &Arc<AuthorityPerpetualTables>,
         checkpoint_store: &Arc<CheckpointStore>,
@@ -447,9 +450,10 @@ impl AuthorityStorePruner {
             };
             let checkpoint = ckpt.into_inner();
             // Skipping because  checkpoint's epoch or checkpoint number is too new.
-            // We have to respect the highest executed checkpoint watermark (including the watermark itself)
-            // because there might be parts of the system that still require access to old object versions
-            // (i.e. state accumulator).
+            // We have to respect the highest executed checkpoint watermark (including the
+            // watermark itself) because there might be parts of the system that
+            // still require access to old object versions (i.e. state
+            // accumulator).
             if (current_epoch < checkpoint.epoch() + num_epochs_to_retain)
                 || (*checkpoint.sequence_number() >= max_eligible_checkpoint)
             {
@@ -716,7 +720,10 @@ impl AuthorityStorePruner {
     ) -> Self {
         if pruning_config.num_epochs_to_retain > 0 && pruning_config.num_epochs_to_retain < u64::MAX
         {
-            warn!("Using objects pruner with num_epochs_to_retain = {} can lead to performance issues", pruning_config.num_epochs_to_retain);
+            warn!(
+                "Using objects pruner with num_epochs_to_retain = {} can lead to performance issues",
+                pruning_config.num_epochs_to_retain
+            );
             if is_validator {
                 warn!("Resetting to aggressive pruner.");
                 pruning_config.num_epochs_to_retain = 0;
@@ -749,33 +756,32 @@ impl AuthorityStorePruner {
 
 #[cfg(test)]
 mod tests {
-    use more_asserts as ma;
-    use std::path::Path;
-    use std::time::Duration;
-    use std::{collections::HashSet, sync::Arc};
-    use tracing::log::info;
+    use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use crate::authority::authority_store_pruner::AuthorityStorePruningMetrics;
-    use crate::authority::authority_store_tables::AuthorityPerpetualTables;
-    use crate::authority::authority_store_types::{
-        get_store_object_pair, ObjectContentDigest, StoreData, StoreObject, StoreObjectPair,
-        StoreObjectWrapper,
-    };
-    use prometheus::Registry;
     use iota_storage::mutex_table::RwLockTable;
-    use iota_types::base_types::ObjectDigest;
-    use iota_types::effects::TransactionEffects;
-    use iota_types::effects::TransactionEffectsAPI;
     use iota_types::{
-        base_types::{ObjectID, SequenceNumber},
+        base_types::{ObjectDigest, ObjectID, SequenceNumber},
+        effects::{TransactionEffects, TransactionEffectsAPI},
         object::Object,
         storage::ObjectKey,
     };
-    use typed_store::rocks::util::reference_count_merge_operator;
-    use typed_store::rocks::{DBMap, MetricConf, ReadWriteOptions};
-    use typed_store::Map;
+    use more_asserts as ma;
+    use prometheus::Registry;
+    use tracing::log::info;
+    use typed_store::{
+        Map,
+        rocks::{DBMap, MetricConf, ReadWriteOptions, util::reference_count_merge_operator},
+    };
 
     use super::AuthorityStorePruner;
+    use crate::authority::{
+        authority_store_pruner::AuthorityStorePruningMetrics,
+        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_types::{
+            ObjectContentDigest, StoreData, StoreObject, StoreObjectPair, StoreObjectWrapper,
+            get_store_object_pair,
+        },
+    };
 
     fn get_keys_after_pruning(path: &Path) -> anyhow::Result<HashSet<ObjectKey>> {
         let perpetual_db_path = path.join(Path::new("perpetual"));
@@ -838,16 +844,16 @@ mod tests {
                     Object::immutable_with_id_for_testing(id),
                     indirect_object_threshold,
                 );
-                batch.insert_batch(
-                    &db.objects,
-                    [(ObjectKey(id, SequenceNumber::from(seq)), obj.clone())],
-                )?;
+                batch.insert_batch(&db.objects, [(
+                    ObjectKey(id, SequenceNumber::from(seq)),
+                    obj.clone(),
+                )])?;
                 if let StoreObject::Value(o) = obj.into_inner() {
                     if let StoreData::IndirectObject(metadata) = o.data {
-                        batch.merge_batch(
-                            &db.indirect_move_objects,
-                            [(metadata.digest, indirect_obj.unwrap())],
-                        )?;
+                        batch.merge_batch(&db.indirect_move_objects, [(
+                            metadata.digest,
+                            indirect_obj.unwrap(),
+                        )])?;
                     }
                 }
             }
@@ -856,10 +862,10 @@ mod tests {
             if num_object_versions_to_retain == 0 {
                 let tombstone_key = ObjectKey(id, SequenceNumber::from(num_versions_per_object));
                 println!("Adding tombstone object {:?}", tombstone_key);
-                batch.insert_batch(
-                    &db.objects,
-                    [(tombstone_key, StoreObjectWrapper::V1(StoreObject::Deleted))],
-                )?;
+                batch.insert_batch(&db.objects, [(
+                    tombstone_key,
+                    StoreObjectWrapper::V1(StoreObject::Deleted),
+                )])?;
                 tombstones.push(tombstone_key);
             }
         }
@@ -1073,30 +1079,25 @@ mod tests {
 #[cfg(not(target_os = "macos"))]
 #[cfg(not(target_env = "msvc"))]
 mod pprof_tests {
-    use crate::authority::authority_store_pruner::tests;
-
     use std::sync::Arc;
-    use tracing::log::{error, info};
 
-    use crate::authority::authority_store_pruner::tests::lock_table;
-    use crate::authority::authority_store_pruner::AuthorityStorePruningMetrics;
-    use crate::authority::authority_store_tables::AuthorityPerpetualTables;
-    use crate::authority::authority_store_types::{get_store_object_pair, StoreObjectWrapper};
-    use pprof::Symbol;
-    use prometheus::Registry;
-    use iota_types::base_types::ObjectDigest;
-    use iota_types::base_types::VersionNumber;
-    use iota_types::effects::TransactionEffects;
-    use iota_types::effects::TransactionEffectsAPI;
     use iota_types::{
-        base_types::{ObjectID, SequenceNumber},
+        base_types::{ObjectDigest, ObjectID, SequenceNumber, VersionNumber},
+        effects::{TransactionEffects, TransactionEffectsAPI},
         object::Object,
         storage::ObjectKey,
     };
-    use typed_store::rocks::DBMap;
-    use typed_store::Map;
+    use pprof::Symbol;
+    use prometheus::Registry;
+    use tracing::log::{error, info};
+    use typed_store::{Map, rocks::DBMap};
 
     use super::AuthorityStorePruner;
+    use crate::authority::{
+        authority_store_pruner::{AuthorityStorePruningMetrics, tests, tests::lock_table},
+        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_types::{StoreObjectWrapper, get_store_object_pair},
+    };
 
     fn insert_keys(
         objects: &DBMap<ObjectKey, StoreObjectWrapper>,
@@ -1155,12 +1156,13 @@ mod pprof_tests {
     #[tokio::test]
     // un-ignore once https://github.com/tikv/pprof-rs/issues/250 is fixed
     #[ignore]
-    async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones(
-    ) -> Result<(), anyhow::Error> {
-        // This test writes a bunch of objects to objects table, invokes pruning on it and
-        // then does a bunch of get(). We open the db with `ignore_range_delete` set to true (default mode).
-        // We then record a cpu profile of the `get()` calls and do not find any range fragmentation stack frame
-        // in it.
+    async fn ensure_no_tombstone_fragmentation_in_stack_frame_with_ignore_tombstones()
+    -> Result<(), anyhow::Error> {
+        // This test writes a bunch of objects to objects table, invokes pruning on it
+        // and then does a bunch of get(). We open the db with
+        // `ignore_range_delete` set to true (default mode). We then record a
+        // cpu profile of the `get()` calls and do not find any range fragmentation
+        // stack frame in it.
         let registry = Registry::default();
         let metrics = AuthorityStorePruningMetrics::new(&registry);
         let primary_path = tempfile::tempdir()?.into_path();
@@ -1182,10 +1184,11 @@ mod pprof_tests {
             .unwrap();
         read_keys(&perpetual_db.objects, 1000)?;
         if let Ok(report) = guard.report().build() {
-            assert!(!report.data.keys().any(|f| f
-                .frames
-                .iter()
-                .any(|vs| is_rocksdb_range_tombstone_frame(vs))));
+            assert!(!report.data.keys().any(|f| {
+                f.frames
+                    .iter()
+                    .any(|vs| is_rocksdb_range_tombstone_frame(vs))
+            }));
         }
         Ok(())
     }
@@ -1193,12 +1196,13 @@ mod pprof_tests {
     #[tokio::test]
     // un-ignore once https://github.com/tikv/pprof-rs/issues/250 is fixed
     #[ignore]
-    async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush(
-    ) -> Result<(), anyhow::Error> {
-        // This test writes a bunch of objects to objects table, invokes pruning on it and
-        // then does a bunch of get(). We open the db with `ignore_range_delete` set to true (default mode).
-        // We then record a cpu profile of the `get()` calls and do not find any range fragmentation stack frame
-        // in it.
+    async fn ensure_no_tombstone_fragmentation_in_stack_frame_after_flush()
+    -> Result<(), anyhow::Error> {
+        // This test writes a bunch of objects to objects table, invokes pruning on it
+        // and then does a bunch of get(). We open the db with
+        // `ignore_range_delete` set to true (default mode). We then record a
+        // cpu profile of the `get()` calls and do not find any range fragmentation
+        // stack frame in it.
         let primary_path = tempfile::tempdir()?.into_path();
         let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&primary_path, None));
         let effects = insert_keys(&perpetual_db.objects)?;
@@ -1225,10 +1229,11 @@ mod pprof_tests {
             .unwrap();
         read_keys(&perpetual_db.objects, 1000)?;
         if let Ok(report) = guard.report().build() {
-            assert!(!report.data.keys().any(|f| f
-                .frames
-                .iter()
-                .any(|vs| is_rocksdb_range_tombstone_frame(vs))));
+            assert!(!report.data.keys().any(|f| {
+                f.frames
+                    .iter()
+                    .any(|vs| is_rocksdb_range_tombstone_frame(vs))
+            }));
         }
         Ok(())
     }

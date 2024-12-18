@@ -17,22 +17,25 @@ use tokio_util::sync::CancellationToken;
 
 /// Extension trait introducing `try_for_each_spawned` to all streams.
 pub trait TrySpawnStreamExt: Stream {
-    /// Attempts to run this stream to completion, executing the provided asynchronous closure on
-    /// each element from the stream as elements become available.
+    /// Attempts to run this stream to completion, executing the provided
+    /// asynchronous closure on each element from the stream as elements
+    /// become available.
     ///
-    /// This is similar to [StreamExt::for_each_concurrent], but it may take advantage of any
-    /// parallelism available in the underlying runtime, because each unit of work is spawned as
-    /// its own tokio task.
+    /// This is similar to [StreamExt::for_each_concurrent], but it may take
+    /// advantage of any parallelism available in the underlying runtime,
+    /// because each unit of work is spawned as its own tokio task.
     ///
-    /// The first argument is an optional limit on the number of tasks to spawn concurrently.
-    /// Values of `0` and `None` are interpreted as no limit, and any other value will result in no
-    /// more than that many tasks being spawned at one time.
+    /// The first argument is an optional limit on the number of tasks to spawn
+    /// concurrently. Values of `0` and `None` are interpreted as no limit,
+    /// and any other value will result in no more than that many tasks
+    /// being spawned at one time.
     ///
     /// ## Safety
     ///
-    /// This function will panic if any of its futures panics, will return early with success if
-    /// the runtime it is running on is cancelled, and will return early with an error propagated
-    /// from any worker that produces an error.
+    /// This function will panic if any of its futures panics, will return early
+    /// with success if the runtime it is running on is cancelled, and will
+    /// return early with an error propagated from any worker that produces
+    /// an error.
     fn try_for_each_spawned<Fut, F, E>(
         self,
         limit: impl Into<Option<usize>>,
@@ -67,7 +70,8 @@ impl<S: Stream + Sized + 'static> TrySpawnStreamExt for S {
         let mut join_set = JoinSet::new();
         // Whether the worker pool has stopped accepting new items and is draining.
         let mut draining = false;
-        // Error that occurred in one of the workers, to be propagated to the called on exit.
+        // Error that occurred in one of the workers, to be propagated to the called on
+        // exit.
         let mut error = None;
 
         let mut self_ = pin!(self);
@@ -123,24 +127,21 @@ impl<S: Stream + Sized + 'static> TrySpawnStreamExt for S {
             }
         }
 
-        if let Some(e) = error {
-            Err(e)
-        } else {
-            Ok(())
-        }
+        if let Some(e) = error { Err(e) } else { Ok(()) }
     }
 }
 
-/// Manages cleanly exiting the process, either because one of its constituent services has stopped
-/// or because an interrupt signal was sent to the process.
+/// Manages cleanly exiting the process, either because one of its constituent
+/// services has stopped or because an interrupt signal was sent to the process.
 ///
 /// Returns the exit values from all services that exited successfully.
 pub async fn graceful_shutdown<T>(
     services: impl IntoIterator<Item = JoinHandle<T>>,
     cancel: CancellationToken,
 ) -> Vec<T> {
-    // If the service is naturalling winding down, we don't need to wait for an interrupt signal.
-    // This channel is used to short-circuit the await in that case.
+    // If the service is naturalling winding down, we don't need to wait for an
+    // interrupt signal. This channel is used to short-circuit the await in that
+    // case.
     let (cancel_ctrl_c_tx, cancel_ctrl_c_rx) = oneshot::channel();
 
     let interrupt = async {
@@ -175,8 +176,8 @@ pub async fn graceful_shutdown<T>(
 mod tests {
     use std::{
         sync::{
-            atomic::{AtomicUsize, Ordering},
             Arc, Mutex,
+            atomic::{AtomicUsize, Ordering},
         },
         time::Duration,
     };

@@ -5,20 +5,21 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use iota_json_rpc::get_balance_changes_from_effect;
-use iota_json_rpc::get_object_changes;
-use iota_json_rpc::ObjectProvider;
+use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_rpc_api::CheckpointData;
-use iota_types::base_types::ObjectID;
-use iota_types::base_types::SequenceNumber;
-use iota_types::digests::TransactionDigest;
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use iota_types::object::Object;
-use iota_types::transaction::{TransactionData, TransactionDataAPI};
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber},
+    digests::TransactionDigest,
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    object::Object,
+    transaction::{TransactionData, TransactionDataAPI},
+};
 
-use crate::errors::IndexerError;
-use crate::metrics::IndexerMetrics;
-use crate::types::{IndexedObjectChange, IndexerResult};
+use crate::{
+    errors::IndexerError,
+    metrics::IndexerMetrics,
+    types::{IndexedObjectChange, IndexerResult},
+};
 
 pub struct InMemObjectCache {
     id_map: HashMap<ObjectID, Object>,
@@ -178,12 +179,15 @@ impl ObjectProvider for TxChangesProcessor {
             }
         }
 
-        panic!("Object {} is not found in TxChangesProcessor as an ObjectProvider (fn find_object_lt_or_eq_version)", id);
+        panic!(
+            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn find_object_lt_or_eq_version)",
+            id
+        );
     }
 }
 
-// This is a struct that is used to extract IotaSystemState and its dynamic children
-// for end-of-epoch indexing.
+// This is a struct that is used to extract IotaSystemState and its dynamic
+// children for end-of-epoch indexing.
 pub(crate) struct EpochEndIndexingObjectStore<'a> {
     objects: Vec<&'a Object>,
 }

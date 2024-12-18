@@ -2,6 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::{BTreeMap, HashMap};
+
+use async_graphql::{connection::CursorType, dataloader::Loader, *};
+use connection::Edge;
+use cursor::TxLookup;
+use diesel::{ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
+use diesel_async::scoped_futures::ScopedFutureExt;
+use fastcrypto::encoding::{Base58, Encoding};
+use iota_indexer::{
+    models::transactions::StoredTransaction,
+    schema::{transactions, tx_digests},
+};
+use iota_types::{
+    base_types::IotaAddress as NativeIotaAddress,
+    effects::TransactionEffects as NativeTransactionEffects,
+    event::Event as NativeEvent,
+    message_envelope::Message,
+    transaction::{
+        SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
+        TransactionDataAPI, TransactionExpiration,
+    },
+};
+use serde::{Deserialize, Serialize};
+
 use super::{
     address::Address,
     base64::Base64,
@@ -20,28 +44,6 @@ use crate::{
     error::Error,
     server::watermark_task::Watermark,
 };
-use async_graphql::{connection::CursorType, dataloader::Loader, *};
-use connection::Edge;
-use cursor::TxLookup;
-use diesel::{ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
-use diesel_async::scoped_futures::ScopedFutureExt;
-use fastcrypto::encoding::{Base58, Encoding};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
-use iota_indexer::{
-    models::transactions::StoredTransaction,
-    schema::{transactions, tx_digests},
-};
-use iota_types::{
-    base_types::IotaAddress as NativeIotaAddress,
-    effects::TransactionEffects as NativeTransactionEffects,
-    event::Event as NativeEvent,
-    message_envelope::Message,
-    transaction::{
-        SenderSignedData as NativeSenderSignedData, TransactionData as NativeTransactionData,
-        TransactionDataAPI, TransactionExpiration,
-    },
-};
 
 mod cursor;
 mod filter;
@@ -49,10 +51,11 @@ mod tx_lookups;
 
 pub(crate) use cursor::Cursor;
 pub(crate) use filter::TransactionBlockFilter;
-pub(crate) use tx_lookups::{subqueries, TxBounds};
+pub(crate) use tx_lookups::{TxBounds, subqueries};
 
-/// Wraps the actual transaction block data with the checkpoint sequence number at which the data
-/// was viewed, for consistent results on paginating through and resolving nested types.
+/// Wraps the actual transaction block data with the checkpoint sequence number
+/// at which the data was viewed, for consistent results on paginating through
+/// and resolving nested types.
 #[derive(Clone, Debug)]
 pub(crate) struct TransactionBlock {
     pub inner: TransactionBlockInner,
@@ -76,7 +79,8 @@ pub(crate) enum TransactionBlockInner {
         events: Vec<NativeEvent>,
     },
     /// A transaction block that has been executed via dryRunTransactionBlock.
-    /// This variant also does not return signatures or digest since only `NativeTransactionData` is present.
+    /// This variant also does not return signatures or digest since only
+    /// `NativeTransactionData` is present.
     DryRun {
         tx_data: NativeTransactionData,
         effects: NativeTransactionEffects,
@@ -108,9 +112,9 @@ pub(crate) enum TransactionBlockLookup {
 
 type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
 
-/// The cursor returned for each `TransactionBlock` in a connection's page of results. The
-/// `checkpoint_viewed_at` will set the consistent upper bound for subsequent queries made on this
-/// cursor.
+/// The cursor returned for each `TransactionBlock` in a connection's page of
+/// results. The `checkpoint_viewed_at` will set the consistent upper bound for
+/// subsequent queries made on this cursor.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct TransactionBlockCursor {
     /// The checkpoint sequence number this was viewed at.
@@ -123,16 +127,16 @@ pub(crate) struct TransactionBlockCursor {
     pub tx_checkpoint_number: u64,
 }
 
-/// `DataLoader` key for fetching a `TransactionBlock` by its digest, constrained by a consistency
-/// cursor.
+/// `DataLoader` key for fetching a `TransactionBlock` by its digest,
+/// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct DigestKey {
     pub digest: Digest,
     pub checkpoint_viewed_at: u64,
 }
 
-/// `DataLoader` key for fetching a `TransactionBlock` by its sequence number, constrained by a
-/// consistency cursor.
+/// `DataLoader` key for fetching a `TransactionBlock` by its sequence number,
+/// constrained by a consistency cursor.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct SeqKey {
     pub tx_sequence_number: u64,
@@ -141,15 +145,16 @@ struct SeqKey {
 
 #[Object]
 impl TransactionBlock {
-    /// A 32-byte hash that uniquely identifies the transaction block contents, encoded in Base58.
-    /// This serves as a unique id for the block on chain.
+    /// A 32-byte hash that uniquely identifies the transaction block contents,
+    /// encoded in Base58. This serves as a unique id for the block on
+    /// chain.
     async fn digest(&self) -> Option<String> {
         self.native_signed_data()
             .map(|s| Base58::encode(s.digest()))
     }
 
-    /// The address corresponding to the public key that signed this transaction. System
-    /// transactions do not have senders.
+    /// The address corresponding to the public key that signed this
+    /// transaction. System transactions do not have senders.
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
@@ -159,18 +164,20 @@ impl TransactionBlock {
         })
     }
 
-    /// The gas input field provides information on what objects were used as gas as well as the
-    /// owner of the gas object(s) and information on the gas price and budget.
+    /// The gas input field provides information on what objects were used as
+    /// gas as well as the owner of the gas object(s) and information on the
+    /// gas price and budget.
     ///
-    /// If the owner of the gas object(s) is not the same as the sender, the transaction block is a
-    /// sponsored transaction block.
+    /// If the owner of the gas object(s) is not the same as the sender, the
+    /// transaction block is a sponsored transaction block.
     async fn gas_input(&self, ctx: &Context<'_>) -> Option<GasInput> {
         let checkpoint_viewed_at = if matches!(self.inner, TransactionBlockInner::Stored { .. }) {
             self.checkpoint_viewed_at
         } else {
-            // Non-stored transactions have a sentinel checkpoint_viewed_at value that generally
-            // prevents access to further queries, but inputs should generally be available so try
-            // to access them at the high watermark.
+            // Non-stored transactions have a sentinel checkpoint_viewed_at value that
+            // generally prevents access to further queries, but inputs should
+            // generally be available so try to access them at the high
+            // watermark.
             let Watermark { hi_cp, .. } = *ctx.data_unchecked();
             hi_cp
         };
@@ -181,8 +188,8 @@ impl TransactionBlock {
         ))
     }
 
-    /// The type of this transaction as well as the commands and/or parameters comprising the
-    /// transaction of this kind.
+    /// The type of this transaction as well as the commands and/or parameters
+    /// comprising the transaction of this kind.
     async fn kind(&self) -> Option<TransactionBlockKind> {
         Some(TransactionBlockKind::from(
             self.native().kind().clone(),
@@ -190,8 +197,8 @@ impl TransactionBlock {
         ))
     }
 
-    /// A list of all signatures, Base64-encoded, from senders, and potentially the gas owner if
-    /// this is a sponsored transaction.
+    /// A list of all signatures, Base64-encoded, from senders, and potentially
+    /// the gas owner if this is a sponsored transaction.
     async fn signatures(&self) -> Option<Vec<Base64>> {
         self.native_signed_data().map(|s| {
             s.tx_signatures()
@@ -201,14 +208,16 @@ impl TransactionBlock {
         })
     }
 
-    /// The effects field captures the results to the chain of executing this transaction.
+    /// The effects field captures the results to the chain of executing this
+    /// transaction.
     async fn effects(&self) -> Result<Option<TransactionBlockEffects>> {
         Ok(Some(self.clone().try_into().extend()?))
     }
 
-    /// This field is set by senders of a transaction block. It is an epoch reference that sets a
-    /// deadline after which validators will no longer consider the transaction valid. By default,
-    /// there is no deadline for when a transaction must execute.
+    /// This field is set by senders of a transaction block. It is an epoch
+    /// reference that sets a deadline after which validators will no longer
+    /// consider the transaction valid. By default, there is no deadline for
+    /// when a transaction must execute.
     async fn expiration(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
         let TransactionExpiration::Epoch(id) = self.native().expiration() else {
             return Ok(None);
@@ -219,7 +228,8 @@ impl TransactionBlock {
             .extend()
     }
 
-    /// Serialized form of this transaction's `TransactionData`, BCS serialized and Base64 encoded.
+    /// Serialized form of this transaction's `TransactionData`, BCS serialized
+    /// and Base64 encoded.
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
             TransactionBlockInner::Stored { native, .. } => Some(Base64::from(
@@ -260,9 +270,10 @@ impl TransactionBlock {
         }
     }
 
-    /// Look-up the transaction block by its sequence number (this is not usually exposed through
-    /// the GraphQL schema, but internally, other entities in the DB will refer to transactions at
-    /// their sequence number).
+    /// Look-up the transaction block by its sequence number (this is not
+    /// usually exposed through the GraphQL schema, but internally, other
+    /// entities in the DB will refer to transactions at their sequence
+    /// number).
     pub(crate) fn by_seq(
         tx_sequence_number: u64,
         checkpoint_viewed_at: u64,
@@ -273,9 +284,10 @@ impl TransactionBlock {
         }
     }
 
-    /// Look up a `TransactionBlock` in the database, by its transaction digest. Treats it as if it
-    /// is being viewed at the `checkpoint_viewed_at` (e.g. the state of all relevant addresses will
-    /// be at that checkpoint).
+    /// Look up a `TransactionBlock` in the database, by its transaction digest.
+    /// Treats it as if it is being viewed at the `checkpoint_viewed_at`
+    /// (e.g. the state of all relevant addresses will be at that
+    /// checkpoint).
     pub(crate) async fn query(
         ctx: &Context<'_>,
         lookup: TransactionBlockLookup,
@@ -308,9 +320,10 @@ impl TransactionBlock {
         }
     }
 
-    /// Look up multiple `TransactionBlock`s by their digests. Returns a map from those digests to
-    /// their resulting transaction blocks, for the blocks that could be found. We return a map
-    /// because the order of results from the DB is not otherwise guaranteed to match the order that
+    /// Look up multiple `TransactionBlock`s by their digests. Returns a map
+    /// from those digests to their resulting transaction blocks, for the
+    /// blocks that could be found. We return a map because the order of
+    /// results from the DB is not otherwise guaranteed to match the order that
     /// digests were passed into `multi_query`.
     pub(crate) async fn multi_query(
         ctx: &Context<'_>,
@@ -328,24 +341,28 @@ impl TransactionBlock {
         Ok(result.into_iter().map(|(k, v)| (k.digest, v)).collect())
     }
 
-    /// Query the database for a `page` of TransactionBlocks. The page uses `tx_sequence_number` and
-    /// `checkpoint_viewed_at` as the cursor, and can optionally be further `filter`-ed.
+    /// Query the database for a `page` of TransactionBlocks. The page uses
+    /// `tx_sequence_number` and `checkpoint_viewed_at` as the cursor, and
+    /// can optionally be further `filter`-ed.
     ///
-    /// The `checkpoint_viewed_at` parameter represents the checkpoint sequence number at which this
-    /// page was queried for. Each entity returned in the connection will inherit this checkpoint,
-    /// so that when viewing that entity's state, it will be from the reference of this
+    /// The `checkpoint_viewed_at` parameter represents the checkpoint sequence
+    /// number at which this page was queried for. Each entity returned in
+    /// the connection will inherit this checkpoint, so that when viewing
+    /// that entity's state, it will be from the reference of this
     /// checkpoint_viewed_at parameter.
     ///
-    /// If the `Page<Cursor>` is set, then this function will defer to the `checkpoint_viewed_at` in
-    /// the cursor if they are consistent.
+    /// If the `Page<Cursor>` is set, then this function will defer to the
+    /// `checkpoint_viewed_at` in the cursor if they are consistent.
     ///
-    /// Filters that involve a combination of `affectedAddress`, `inputObject`, `changedObject`,
-    /// and `function` should provide a value for `scan_limit`. This modifies querying behavior by
-    /// limiting how many transactions to scan through before applying filters, and also affects
+    /// Filters that involve a combination of `affectedAddress`, `inputObject`,
+    /// `changedObject`, and `function` should provide a value for
+    /// `scan_limit`. This modifies querying behavior by limiting how many
+    /// transactions to scan through before applying filters, and also affects
     /// pagination behavior.
     ///
-    /// Queries for data that have been pruned will return an empty connection; we treat pruned data
-    /// as simply non-existent and thus no error is returned.
+    /// Queries for data that have been pruned will return an empty connection;
+    /// we treat pruned data as simply non-existent and thus no error is
+    /// returned.
     pub(crate) async fn paginate(
         ctx: &Context<'_>,
         page: Page<Cursor>,
@@ -355,12 +372,14 @@ impl TransactionBlock {
     ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
         let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
         let db: &Db = ctx.data_unchecked();
-        // If we've entered this function, we already fetched `checkpoint_viewed_at` from the
-        // `Watermark`, and so we must be able to retrieve `lo_cp` as well.
+        // If we've entered this function, we already fetched `checkpoint_viewed_at`
+        // from the `Watermark`, and so we must be able to retrieve `lo_cp` as
+        // well.
         let Watermark { lo_cp, .. } = *ctx.data_unchecked();
 
         // If the caller has provided some arbitrary combination of `function`, `kind`,
-        // `recvAddress`, `inputObject`, or `changedObject`, we require setting a `scanLimit`.
+        // `recvAddress`, `inputObject`, or `changedObject`, we require setting a
+        // `scanLimit`.
         if let Some(scan_limit) = scan_limit {
             if scan_limit > limits.max_scan_limit as u64 {
                 return Err(Error::Client(format!(
@@ -390,8 +409,8 @@ impl TransactionBlock {
         let cp_at = filter.at_checkpoint.map(u64::from);
         let cp_before = filter.before_checkpoint.map(u64::from);
 
-        // If page size or scan limit is 0, we want to standardize behavior by returning an empty
-        // connection
+        // If page size or scan limit is 0, we want to standardize behavior by returning
+        // an empty connection
         if filter.is_empty() || page.limit() == 0 || scan_limit.is_some_and(|v| v == 0) {
             return Ok(ScanConnection::new(false, false));
         }
@@ -421,9 +440,10 @@ impl TransactionBlock {
                     };
 
                     // If no filters are selected, or if the filter is composed of only checkpoint
-                    // filters, we can directly query the main `transactions` table. Otherwise, we first
-                    // fetch the set of `tx_sequence_number` from a join over relevant lookup tables,
-                    // and then issue a query against the `transactions` table to fetch the remaining
+                    // filters, we can directly query the main `transactions` table. Otherwise, we
+                    // first fetch the set of `tx_sequence_number` from a join
+                    // over relevant lookup tables, and then issue a query
+                    // against the `transactions` table to fetch the remaining
                     // contents.
                     let (prev, next, transactions) = if !filter.has_filters() {
                         let (prev, next, iter) = page
@@ -547,21 +567,18 @@ impl Loader<DigestKey> for Db {
                 continue;
             };
 
-            // Filter by key's checkpoint viewed at here. Doing this in memory because it should be
-            // quite rare that this query actually filters something, but encoding it in SQL is
-            // complicated.
+            // Filter by key's checkpoint viewed at here. Doing this in memory because it
+            // should be quite rare that this query actually filters something,
+            // but encoding it in SQL is complicated.
             if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
                 continue;
             }
 
             let inner = TransactionBlockInner::try_from(stored)?;
-            results.insert(
-                *key,
-                TransactionBlock {
-                    inner,
-                    checkpoint_viewed_at: key.checkpoint_viewed_at,
-                },
-            );
+            results.insert(*key, TransactionBlock {
+                inner,
+                checkpoint_viewed_at: key.checkpoint_viewed_at,
+            });
         }
 
         Ok(results)
@@ -604,21 +621,18 @@ impl Loader<SeqKey> for Db {
                 continue;
             };
 
-            // Filter by key's checkpoint viewed at here. Doing this in memory because it should be
-            // quite rare that this query actually filters something, but encoding it in SQL is
-            // complicated.
+            // Filter by key's checkpoint viewed at here. Doing this in memory because it
+            // should be quite rare that this query actually filters something,
+            // but encoding it in SQL is complicated.
             if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
                 continue;
             }
 
             let inner = TransactionBlockInner::try_from(stored)?;
-            results.insert(
-                *key,
-                TransactionBlock {
-                    inner,
-                    checkpoint_viewed_at: key.checkpoint_viewed_at,
-                },
-            );
+            results.insert(*key, TransactionBlock {
+                inner,
+                checkpoint_viewed_at: key.checkpoint_viewed_at,
+            });
         }
 
         Ok(results)
@@ -685,10 +699,11 @@ fn apply_scan_limited_pagination(
     }
 }
 
-/// When paginating forwards on a scan-limited query, the starting cursor and previous page flag
-/// will be the first tx scanned in the current window, and whether this window is within the
-/// scanning range. The ending cursor and next page flag wraps the last element of the result set if
-/// there are more matches in the scanned window that are truncated - if the page size is smaller
+/// When paginating forwards on a scan-limited query, the starting cursor and
+/// previous page flag will be the first tx scanned in the current window, and
+/// whether this window is within the scanning range. The ending cursor and next
+/// page flag wraps the last element of the result set if there are more matches
+/// in the scanned window that are truncated - if the page size is smaller
 /// than the scan limit - but otherwise is expanded out to the last tx scanned.
 fn apply_forward_scan_limited_pagination(
     conn: &mut ScanConnection<String, TransactionBlock>,
@@ -705,9 +720,9 @@ fn apply_forward_scan_limited_pagination(
         .encode_cursor(),
     );
 
-    // There may be more results within the scanned range that got truncated, which occurs when page
-    // size is less than `scan_limit`, so only overwrite the end when the base pagination reports no
-    // next page.
+    // There may be more results within the scanned range that got truncated, which
+    // occurs when page size is less than `scan_limit`, so only overwrite the
+    // end when the base pagination reports no next page.
     if !conn.has_next_page {
         conn.has_next_page = tx_bounds.scan_has_next_page();
         conn.end_cursor = Some(
@@ -721,11 +736,13 @@ fn apply_forward_scan_limited_pagination(
     }
 }
 
-/// When paginating backwards on a scan-limited query, the ending cursor and next page flag will be
-/// the last tx scanned in the current window, and whether this window is within the scanning range.
-/// The starting cursor and previous page flag wraps the first element of the result set if there
-/// are more matches in the scanned window that are truncated - if the page size is smaller than the
-/// scan limit - but otherwise is expanded out to the first tx scanned.
+/// When paginating backwards on a scan-limited query, the ending cursor and
+/// next page flag will be the last tx scanned in the current window, and
+/// whether this window is within the scanning range. The starting cursor and
+/// previous page flag wraps the first element of the result set if there
+/// are more matches in the scanned window that are truncated - if the page size
+/// is smaller than the scan limit - but otherwise is expanded out to the first
+/// tx scanned.
 fn apply_backward_scan_limited_pagination(
     conn: &mut ScanConnection<String, TransactionBlock>,
     tx_bounds: TxBounds,
@@ -741,9 +758,9 @@ fn apply_backward_scan_limited_pagination(
         .encode_cursor(),
     );
 
-    // There may be more results within the scanned range that are truncated, especially if page
-    // size is less than `scan_limit`, so only overwrite the end when the base pagination reports no
-    // next page.
+    // There may be more results within the scanned range that are truncated,
+    // especially if page size is less than `scan_limit`, so only overwrite the
+    // end when the base pagination reports no next page.
     if !conn.has_previous_page {
         conn.has_previous_page = tx_bounds.scan_has_prev_page();
         conn.start_cursor = Some(

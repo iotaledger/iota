@@ -4,14 +4,16 @@
 
 use anyhow::bail;
 use fastcrypto::traits::ToFromBytes;
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{
+        AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
+        verify_proof_of_possession,
+    },
+    multiaddr::Multiaddr,
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{
-    verify_proof_of_possession, AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature,
-    NetworkPublicKey,
-};
-use iota_types::multiaddr::Multiaddr;
 
 const MAX_VALIDATOR_METADATA_LENGTH: usize = 256;
 
@@ -208,7 +210,7 @@ pub struct GenesisValidatorMetadata {
     pub gas_price: u64,
     pub commission_rate: u64,
 
-    pub protocol_public_key: Vec<u8>, //AuthorityPublicKeyBytes,
+    pub protocol_public_key: Vec<u8>, // AuthorityPublicKeyBytes,
     pub proof_of_possession: Vec<u8>, // AuthoritySignature,
 
     pub network_public_key: Vec<u8>, // NetworkPublicKey,

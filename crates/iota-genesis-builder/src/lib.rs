@@ -2,17 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Context};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fs,
+    path::Path,
+    sync::Arc,
+};
+
+use anyhow::{Context, bail};
 use camino::Utf8Path;
-use fastcrypto::hash::HashFunction;
-use fastcrypto::traits::KeyPair;
-use move_binary_format::CompiledModule;
-use move_core_types::ident_str;
-use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use std::collections::{BTreeMap, HashSet};
-use std::fs;
-use std::path::Path;
-use std::sync::Arc;
+use fastcrypto::{hash::HashFunction, traits::KeyPair};
 use iota_config::genesis::{
     Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
     UnsignedGenesis,
@@ -20,39 +19,44 @@ use iota_config::genesis::{
 use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_types::base_types::{
-    ExecutionDigests, ObjectID, SequenceNumber, IotaAddress, TransactionDigest, TxContext,
+use iota_types::{
+    BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
+    base_types::{
+        ExecutionDigests, IotaAddress, ObjectID, SequenceNumber, TransactionDigest, TxContext,
+    },
+    bridge::{BRIDGE_CREATE_FUNCTION_NAME, BRIDGE_MODULE_NAME, BridgeChainId},
+    committee::Committee,
+    crypto::{
+        AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
+        AuthoritySignature, DefaultHash, IotaAuthoritySignature,
+    },
+    deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
+    digests::ChainIdentifier,
+    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    epoch_data::EpochData,
+    gas::IotaGasStatus,
+    gas_coin::GasCoin,
+    governance::StakedIota,
+    id::UID,
+    in_memory_storage::InMemoryStorage,
+    inner_temporary_store::InnerTemporaryStore,
+    iota_system_state::{IotaSystemState, IotaSystemStateTrait, get_iota_system_state},
+    is_system_package,
+    message_envelope::Message,
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
+        CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
+    },
+    metrics::LimitsMetrics,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{
+        CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
+    },
 };
-use iota_types::bridge::{BridgeChainId, BRIDGE_CREATE_FUNCTION_NAME, BRIDGE_MODULE_NAME};
-use iota_types::committee::Committee;
-use iota_types::crypto::{
-    AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo, AuthoritySignInfoTrait,
-    AuthoritySignature, DefaultHash, IotaAuthoritySignature,
-};
-use iota_types::deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE};
-use iota_types::digests::ChainIdentifier;
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use iota_types::epoch_data::EpochData;
-use iota_types::gas::IotaGasStatus;
-use iota_types::gas_coin::GasCoin;
-use iota_types::governance::StakedIota;
-use iota_types::id::UID;
-use iota_types::in_memory_storage::InMemoryStorage;
-use iota_types::inner_temporary_store::InnerTemporaryStore;
-use iota_types::is_system_package;
-use iota_types::message_envelope::Message;
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
-    CheckpointVersionSpecificData, CheckpointVersionSpecificDataV1,
-};
-use iota_types::metrics::LimitsMetrics;
-use iota_types::object::{Object, Owner};
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::iota_system_state::{get_iota_system_state, IotaSystemState, IotaSystemStateTrait};
-use iota_types::transaction::{
-    CallArg, CheckedInputObjects, Command, InputObjectKind, ObjectReadResult, Transaction,
-};
-use iota_types::{BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS};
+use move_binary_format::CompiledModule;
+use move_core_types::ident_str;
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
 
@@ -127,13 +131,11 @@ impl Builder {
         validator: ValidatorInfo,
         proof_of_possession: AuthoritySignature,
     ) -> Self {
-        self.validators.insert(
-            validator.protocol_key(),
-            GenesisValidatorInfo {
+        self.validators
+            .insert(validator.protocol_key(), GenesisValidatorInfo {
                 info: validator,
                 proof_of_possession,
-            },
-        );
+            });
         self
     }
 
@@ -249,15 +251,16 @@ impl Builder {
         genesis
     }
 
-    /// Validates the entire state of the build, no matter what the internal state is (input
-    /// collection phase or output phase)
+    /// Validates the entire state of the build, no matter what the internal
+    /// state is (input collection phase or output phase)
     pub fn validate(&self) -> anyhow::Result<(), anyhow::Error> {
         self.validate_inputs()?;
         self.validate_output();
         Ok(())
     }
 
-    /// Runs through validation checks on the input values present in the builder
+    /// Runs through validation checks on the input values present in the
+    /// builder
     fn validate_inputs(&self) -> anyhow::Result<(), anyhow::Error> {
         if !self.parameters.allow_insertion_of_extra_objects && !self.objects.is_empty() {
             bail!("extra objects are disallowed");
@@ -282,10 +285,11 @@ impl Builder {
         Ok(())
     }
 
-    /// Runs through validation checks on the generated output (the initial chain state) based on
-    /// the input values present in the builder
+    /// Runs through validation checks on the generated output (the initial
+    /// chain state) based on the input values present in the builder
     fn validate_output(&self) {
-        // If genesis hasn't been built yet, just early return as there is nothing to validate yet
+        // If genesis hasn't been built yet, just early return as there is nothing to
+        // validate yet
         let Some(unsigned_genesis) = self.unsigned_genesis_checkpoint() else {
             return;
         };
@@ -351,10 +355,13 @@ impl Builder {
         {
             let metadata = onchain_validator.verified_metadata();
 
-            // Validators should not have duplicate addresses so the result of insertion should be None.
-            assert!(address_to_pool_id
-                .insert(metadata.iota_address, onchain_validator.staking_pool.id)
-                .is_none());
+            // Validators should not have duplicate addresses so the result of insertion
+            // should be None.
+            assert!(
+                address_to_pool_id
+                    .insert(metadata.iota_address, onchain_validator.staking_pool.id)
+                    .is_none()
+            );
             assert_eq!(validator.info.iota_address(), metadata.iota_address);
             assert_eq!(validator.info.protocol_key(), metadata.iota_pubkey_bytes());
             assert_eq!(validator.info.network_key, metadata.network_pubkey);
@@ -488,7 +495,8 @@ impl Builder {
                     })
                     .map(|(k, _)| *k)
                     .expect("all allocations should be present");
-                let staked_iota_object = staked_iota_objects.remove(&staked_iota_object_id).unwrap();
+                let staked_iota_object =
+                    staked_iota_objects.remove(&staked_iota_object_id).unwrap();
                 assert_eq!(
                     staked_iota_object.0.owner,
                     Owner::AddressOwner(allocation.recipient_address)
@@ -611,8 +619,8 @@ impl Builder {
             let unsigned_genesis_bytes = fs::read(unsigned_genesis_file)?;
             let loaded_genesis: UnsignedGenesis = bcs::from_bytes(&unsigned_genesis_bytes)?;
 
-            // If we have a built genesis, then we must have a token_distribution_schedule present
-            // as well.
+            // If we have a built genesis, then we must have a token_distribution_schedule
+            // present as well.
             assert!(
                 builder.token_distribution_schedule.is_some(),
                 "If a built genesis is present, then there must also be a token-distribution-schedule present"
@@ -682,9 +690,9 @@ impl Builder {
     }
 }
 
-// Create a Genesis Txn Context to be used when generating genesis objects by hashing all of the
-// inputs into genesis ans using that as our "Txn Digest". This is done to ensure that coin objects
-// created between chains are unique
+// Create a Genesis Txn Context to be used when generating genesis objects by
+// hashing all of the inputs into genesis ans using that as our "Txn Digest".
+// This is done to ensure that coin objects created between chains are unique
 fn create_genesis_context(
     epoch_data: &EpochData,
     genesis_chain_parameters: &GenesisChainParameters,
@@ -712,9 +720,9 @@ fn create_genesis_context(
 }
 
 fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
-    // We have a circular dependency here. Protocol config depends on chain ID, which
-    // depends on genesis checkpoint (digest), which depends on genesis transaction, which
-    // depends on protocol config.
+    // We have a circular dependency here. Protocol config depends on chain ID,
+    // which depends on genesis checkpoint (digest), which depends on genesis
+    // transaction, which depends on protocol config.
     //
     // ChainIdentifier::default().chain() which can be overridden by the
     // IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE if necessary
@@ -728,7 +736,9 @@ fn build_unsigned_genesis_data(
     objects: &[Object],
 ) -> UnsignedGenesis {
     if !parameters.allow_insertion_of_extra_objects && !objects.is_empty() {
-        panic!("insertion of extra objects at genesis time is prohibited due to 'allow_insertion_of_extra_objects' parameter");
+        panic!(
+            "insertion of extra objects at genesis time is prohibited due to 'allow_insertion_of_extra_objects' parameter"
+        );
     }
 
     let genesis_chain_parameters = parameters.to_genesis_chain_parameters();
@@ -745,15 +755,16 @@ fn build_unsigned_genesis_data(
 
     let epoch_data = EpochData::new_genesis(genesis_chain_parameters.chain_start_timestamp_ms);
 
-    // Get the correct system packages for our protocol version. If we cannot find the snapshot
-    // that means that we must be at the latest version and we should use the latest version of the
-    // framework.
+    // Get the correct system packages for our protocol version. If we cannot find
+    // the snapshot that means that we must be at the latest version and we
+    // should use the latest version of the framework.
     let mut system_packages =
         iota_framework_snapshot::load_bytecode_snapshot(parameters.protocol_version.as_u64())
             .unwrap_or_else(|_| BuiltInFramework::iter_system_packages().cloned().collect());
 
-    // if system packages are provided in `objects`, update them with the provided bytes.
-    // This is a no-op under normal conditions and only an issue with certain tests.
+    // if system packages are provided in `objects`, update them with the provided
+    // bytes. This is a no-op under normal conditions and only an issue with
+    // certain tests.
     update_system_packages_from_objects(&mut system_packages, objects);
 
     let mut genesis_ctx = create_genesis_context(
@@ -799,18 +810,18 @@ fn build_unsigned_genesis_data(
     }
 }
 
-// Some tests provide an override of the system packages via objects to the genesis builder.
-// When that happens we need to update the system packages with the new bytes provided.
-// Mock system packages in protocol config tests are an example of that (today the only
-// example).
-// The problem here arises from the fact that if regular system packages are pushed first
-// *AND* if any of them is loaded in the loader cache, there is no way to override them
-// with the provided object (no way to mock properly).
-// System packages are loaded only from internal dependencies (a system package depending on
-// some other), and in that case they would be loaded in the VM/loader cache.
-// The Bridge is an example of that and what led to this code. The bridge depends
-// on `iota_system` which is mocked in some tests, but would be in the loader
-// cache courtesy of the Bridge, thus causing the problem.
+// Some tests provide an override of the system packages via objects to the
+// genesis builder. When that happens we need to update the system packages with
+// the new bytes provided. Mock system packages in protocol config tests are an
+// example of that (today the only example).
+// The problem here arises from the fact that if regular system packages are
+// pushed first *AND* if any of them is loaded in the loader cache, there is no
+// way to override them with the provided object (no way to mock properly).
+// System packages are loaded only from internal dependencies (a system package
+// depending on some other), and in that case they would be loaded in the
+// VM/loader cache. The Bridge is an example of that and what led to this code.
+// The bridge depends on `iota_system` which is mocked in some tests, but would
+// be in the loader cache courtesy of the Bridge, thus causing the problem.
 fn update_system_packages_from_objects(
     system_packages: &mut Vec<SystemPackage>,
     objects: &[Object],
@@ -829,8 +840,8 @@ fn update_system_packages_from_objects(
         })
         .collect();
 
-    // Replace packages in `system_packages` that are present in `objects` with their counterparts
-    // from the previous step.
+    // Replace packages in `system_packages` that are present in `objects` with
+    // their counterparts from the previous step.
     for package in system_packages {
         if let Some(overrides) = system_package_overrides.get(&package.id).cloned() {
             package.bytes = overrides;
@@ -967,9 +978,9 @@ fn create_genesis_objects(
     metrics: Arc<LimitsMetrics>,
 ) -> Vec<Object> {
     let mut store = InMemoryStorage::new(Vec::new());
-    // We don't know the chain ID here since we haven't yet created the genesis checkpoint.
-    // However since we know there are no chain specific protool config options in genesis,
-    // we use Chain::Unknown here.
+    // We don't know the chain ID here since we haven't yet created the genesis
+    // checkpoint. However since we know there are no chain specific protool
+    // config options in genesis, we use Chain::Unknown here.
     let protocol_config = ProtocolConfig::get_for_version(
         ProtocolVersion::new(parameters.protocol_version),
         Chain::Unknown,
@@ -1023,9 +1034,10 @@ fn process_package(
 ) -> anyhow::Result<()> {
     let dependency_objects = store.get_objects(&dependencies);
     // When publishing genesis packages, since the std framework packages all have
-    // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will consider
-    // them as dependencies even though they are not. Hence input_objects contain objects
-    // that don't exist on-chain because they are yet to be published.
+    // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will
+    // consider them as dependencies even though they are not. Hence
+    // input_objects contain objects that don't exist on-chain because they are
+    // yet to be published.
     #[cfg(debug_assertions)]
     {
         use move_core_types::account_address::AccountAddress;
@@ -1115,8 +1127,8 @@ pub fn generate_genesis_system_object(
             vec![],
         )?;
 
-        // Step 3: Create ProtocolConfig-controlled system objects, unless disabled (which only
-        // happens in tests).
+        // Step 3: Create ProtocolConfig-controlled system objects, unless disabled
+        // (which only happens in tests).
         if protocol_config.create_authenticator_state_in_genesis() {
             builder.move_call(
                 IOTA_FRAMEWORK_ADDRESS.into(),
@@ -1147,10 +1159,12 @@ pub fn generate_genesis_system_object(
 
         if protocol_config.enable_bridge() {
             let bridge_uid = builder
-                .input(CallArg::Pure(UID::new(IOTA_BRIDGE_OBJECT_ID).to_bcs_bytes()))
+                .input(CallArg::Pure(
+                    UID::new(IOTA_BRIDGE_OBJECT_ID).to_bcs_bytes(),
+                ))
                 .unwrap();
-            // TODO(bridge): this needs to be passed in as a parameter for next testnet regenesis
-            // Hardcoding chain id to IotaCustom
+            // TODO(bridge): this needs to be passed in as a parameter for next testnet
+            // regenesis Hardcoding chain id to IotaCustom
             let bridge_chain_id = builder.pure(BridgeChainId::IotaCustom).unwrap();
             builder.programmable_move_call(
                 BRIDGE_ADDRESS.into(),
@@ -1171,8 +1185,8 @@ pub fn generate_genesis_system_object(
         );
 
         // Step 5: Run genesis.
-        // The first argument is the system state uid we got from step 1 and the second one is the IOTA supply we
-        // got from step 3.
+        // The first argument is the system state uid we got from step 1 and the second
+        // one is the IOTA supply we got from step 3.
         let mut arguments = vec![iota_system_state_uid, iota_supply];
         let mut call_arg_arguments = vec![
             CallArg::Pure(bcs::to_bytes(&genesis_chain_parameters).unwrap()),
@@ -1219,18 +1233,21 @@ pub fn generate_genesis_system_object(
 
 #[cfg(test)]
 mod test {
-    use crate::validator_info::ValidatorInfo;
-    use crate::Builder;
     use fastcrypto::traits::KeyPair;
-    use iota_config::genesis::*;
-    use iota_config::local_ip_utils;
-    use iota_config::node::DEFAULT_COMMISSION_RATE;
-    use iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE;
-    use iota_types::base_types::IotaAddress;
-    use iota_types::crypto::{
-        generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        NetworkKeyPair,
+    use iota_config::{
+        genesis::*,
+        local_ip_utils,
+        node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
+    use iota_types::{
+        base_types::IotaAddress,
+        crypto::{
+            AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
+            get_key_pair_from_rng,
+        },
+    };
+
+    use crate::{Builder, validator_info::ValidatorInfo};
 
     #[test]
     fn allocation_csv() {

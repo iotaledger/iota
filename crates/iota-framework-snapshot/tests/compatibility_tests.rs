@@ -4,15 +4,16 @@
 
 mod compatibility_tests {
     use std::collections::BTreeMap;
-    use iota_framework::{compare_system_package, BuiltInFramework};
+
+    use iota_framework::{BuiltInFramework, compare_system_package};
     use iota_framework_snapshot::{load_bytecode_snapshot, load_bytecode_snapshot_manifest};
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_types::execution_config_utils::to_binary_config;
 
     #[tokio::test]
     async fn test_framework_compatibility() {
-        // This test checks that the current framework is compatible with all previous framework
-        // bytecode snapshots.
+        // This test checks that the current framework is compatible with all previous
+        // framework bytecode snapshots.
         for (version, _snapshots) in load_bytecode_snapshot_manifest() {
             let config =
                 ProtocolConfig::get_for_version(ProtocolVersion::new(version), Chain::Unknown);
@@ -45,13 +46,13 @@ mod compatibility_tests {
 
     #[test]
     fn check_framework_change_with_protocol_upgrade() {
-        // This test checks that if we ever update the framework, the current protocol version must differ
-        // the latest bytecode snapshot in each network.
+        // This test checks that if we ever update the framework, the current protocol
+        // version must differ the latest bytecode snapshot in each network.
         let snapshots = load_bytecode_snapshot_manifest();
         let latest_snapshot_version = *snapshots.keys().max().unwrap();
         if latest_snapshot_version != ProtocolVersion::MAX.as_u64() {
-            // If we have already incremented the protocol version, then we are fine and we don't
-            // care if the framework has changed.
+            // If we have already incremented the protocol version, then we are fine and we
+            // don't care if the framework has changed.
             return;
         }
         let latest_snapshot = load_bytecode_snapshot(*snapshots.keys().max().unwrap()).unwrap();
@@ -62,10 +63,9 @@ mod compatibility_tests {
             .map(|p| (p.id(), p))
             .collect();
         assert_eq!(
-                latest_snapshot_ref,
-                current_framework,
-                "The current framework differs the latest bytecode snapshot. Did you forget to upgrade protocol version?"
-            );
+            latest_snapshot_ref, current_framework,
+            "The current framework differs the latest bytecode snapshot. Did you forget to upgrade protocol version?"
+        );
     }
 
     #[test]

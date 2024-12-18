@@ -2,14 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::backfill::backfill_instances::ingestion_backfills::digest_task::DigestBackfill;
-use crate::backfill::backfill_instances::ingestion_backfills::ingestion_backfill_task::IngestionBackfillTask;
-use crate::backfill::backfill_instances::ingestion_backfills::raw_checkpoints::RawCheckpointsBackFill;
-use crate::backfill::backfill_instances::ingestion_backfills::tx_affected_objects::TxAffectedObjectsBackfill;
-use crate::backfill::backfill_task::BackfillTask;
-use crate::backfill::{BackfillTaskKind, IngestionBackfillKind};
 use std::sync::Arc;
+
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+
+use crate::backfill::{
+    BackfillTaskKind, IngestionBackfillKind,
+    backfill_instances::ingestion_backfills::{
+        digest_task::DigestBackfill, ingestion_backfill_task::IngestionBackfillTask,
+        raw_checkpoints::RawCheckpointsBackFill, tx_affected_objects::TxAffectedObjectsBackfill,
+    },
+    backfill_task::BackfillTask,
+};
 
 mod ingestion_backfills;
 mod sql_backfill;

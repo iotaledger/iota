@@ -2,12 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
 use iota_json_rpc_types::{Balance, CoinPage, IotaCoinMetadata};
 use iota_open_rpc_macros::open_rpc;
-use iota_types::balance::Supply;
-use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::{
+    balance::Supply,
+    base_types::{IotaAddress, ObjectID},
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 #[open_rpc(namespace = "iotax", tag = "Coin Query API")]
 #[rpc(server, client, namespace = "iotax")]
@@ -50,7 +51,8 @@ pub trait CoinReadApi {
         coin_type: Option<String>,
     ) -> RpcResult<Balance>;
 
-    /// Return the total coin balance for all coin type, owned by the address owner.
+    /// Return the total coin balance for all coin type, owned by the address
+    /// owner.
     #[method(name = "getAllBalances")]
     async fn get_all_balances(
         &self,

@@ -2,29 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::bail;
-use clap::Parser;
 use std::path::{Path, PathBuf};
 
+use anyhow::bail;
+use clap::Parser;
+use iota_types::base_types::ObjectID;
 use move_cli::base;
 use move_package::{
+    BuildConfig,
     lock_file::{self, LockFile},
     source_package::layout::SourcePackageLayout,
-    BuildConfig,
 };
-use iota_types::base_types::ObjectID;
 
 const NO_LOCK_FILE: &str = "Expected a `Move.lock` file to exist in the package path, \
                             but none found. Consider running `iota move build` to \
                             generate the `Move.lock` file in the package directory.";
 
-/// Record addresses (Object IDs) for where this package is published on chain (this command sets variables in
-/// Move.lock).
+/// Record addresses (Object IDs) for where this package is published on chain
+/// (this command sets variables in Move.lock).
 #[derive(Parser)]
 #[group(id = "iota-move-manage-package")]
 pub struct ManagePackage {
     #[clap(long)]
-    /// The environment to associate this package information with (consider using `iota client active-env`).
+    /// The environment to associate this package information with (consider
+    /// using `iota client active-env`).
     pub environment: String,
     #[clap(long = "network-id")]
     /// The network chain identifer. Use '35834a8a' for mainnet.
@@ -33,13 +34,15 @@ pub struct ManagePackage {
     /// The original address (Object ID) where this package is published.
     pub original_id: ObjectID,
     #[clap(long = "latest-id", value_parser = ObjectID::from_hex_literal)]
-    /// The most recent address (Object ID) where this package is published. It is the same as 'original-id' if the
-    /// package is immutable and published once. It is different from 'original-id' if the package has been upgraded to
-    /// a different address.
+    /// The most recent address (Object ID) where this package is published. It
+    /// is the same as 'original-id' if the package is immutable and
+    /// published once. It is different from 'original-id' if the package has
+    /// been upgraded to a different address.
     pub latest_id: ObjectID,
     #[clap(long = "version-number")]
-    /// The version number of the published package. It is '1' if the package is immutable and published once. It is
-    /// some number greater than '1' if the package has been upgraded once or more.
+    /// The version number of the published package. It is '1' if the package is
+    /// immutable and published once. It is some number greater than '1' if
+    /// the package has been upgraded once or more.
     pub version_number: u64,
 }
 
@@ -59,8 +62,9 @@ impl ManagePackage {
         let install_dir = build_config.install_dir.unwrap_or(PathBuf::from("."));
         let mut lock = LockFile::from(install_dir.clone(), &lock_file)?;
 
-        // Updating managed packages in the Move.lock file is controlled by distinct `Published` and `Upgraded`
-        // commands. To set all relevant values, we run both commands. First use the `Published` update to set the
+        // Updating managed packages in the Move.lock file is controlled by distinct
+        // `Published` and `Upgraded` commands. To set all relevant values, we
+        // run both commands. First use the `Published` update to set the
         // environment, chain ID, and original ID.
         lock_file::schema::update_managed_address(
             &mut lock,

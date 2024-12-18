@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use diesel_async::RunQueryDsl;
-use itertools::Itertools;
 use iota_indexer_alt_framework::{
     db,
-    pipeline::{concurrent::Handler, Processor},
+    pipeline::{Processor, concurrent::Handler},
 };
 use iota_types::{full_checkpoint_content::CheckpointData, object::Owner};
+use itertools::Itertools;
 
 use crate::{models::transactions::StoredTxAffectedAddress, schema::tx_affected_addresses};
 

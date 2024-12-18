@@ -2,25 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::associations::HasTable;
-use diesel::QueryDsl;
-use diesel_async::RunQueryDsl;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations};
-use prometheus::Registry;
 use std::time::Duration;
+
+use diesel::{QueryDsl, associations::HasTable};
+use diesel_async::RunQueryDsl;
+use diesel_migrations::{EmbeddedMigrations, embed_migrations};
 use iota_bridge::e2e_tests::test_utils::{
-    initiate_bridge_eth_to_iota, BridgeTestCluster, BridgeTestClusterBuilder,
+    BridgeTestCluster, BridgeTestClusterBuilder, initiate_bridge_eth_to_iota,
 };
-use iota_bridge_indexer::config::IndexerConfig;
-use iota_bridge_indexer::metrics::BridgeIndexerMetrics;
-use iota_bridge_indexer::models::{GovernanceAction, TokenTransfer};
-use iota_bridge_indexer::postgres_manager::get_connection_pool;
-use iota_bridge_indexer::storage::PgBridgePersistent;
-use iota_bridge_indexer::{create_iota_indexer, schema};
+use iota_bridge_indexer::{
+    config::IndexerConfig,
+    create_iota_indexer,
+    metrics::BridgeIndexerMetrics,
+    models::{GovernanceAction, TokenTransfer},
+    postgres_manager::get_connection_pool,
+    schema,
+    storage::PgBridgePersistent,
+};
 use iota_data_ingestion_core::DataIngestionMetrics;
 use iota_indexer::database::Connection;
 use iota_indexer_builder::indexer_builder::IndexerProgressStore;
 use iota_pg_temp_db::TempDb;
+use prometheus::Registry;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("src/migrations");
 
@@ -68,11 +71,14 @@ async fn test_indexing_transfer() {
         .await
         .unwrap();
 
-    // 8 governance actions in total, token registration and approval events for ETH USDC, USDT and BTC.
+    // 8 governance actions in total, token registration and approval events for ETH
+    // USDC, USDT and BTC.
     assert_eq!(8, data.len());
 
     // transfer eth to iota
-    initiate_bridge_eth_to_iota(&cluster, 1000, 0).await.unwrap();
+    initiate_bridge_eth_to_iota(&cluster, 1000, 0)
+        .await
+        .unwrap();
 
     let current_block_height = cluster
         .iota_client()

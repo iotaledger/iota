@@ -2,19 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::CheckpointResponse;
-use crate::types::FullCheckpointObject;
-use crate::types::FullCheckpointResponse;
-use crate::types::FullCheckpointTransaction;
-use crate::types::GetCheckpointOptions;
-use crate::types::GetFullCheckpointOptions;
-use crate::Result;
-use crate::RpcService;
-use iota_sdk_types::types::CheckpointContents;
-use iota_sdk_types::types::CheckpointDigest;
-use iota_sdk_types::types::CheckpointSequenceNumber;
-use iota_sdk_types::types::SignedCheckpointSummary;
+use iota_sdk_types::types::{
+    CheckpointContents, CheckpointDigest, CheckpointSequenceNumber, SignedCheckpointSummary,
+};
 use tap::Pipe;
+
+use crate::{
+    Result, RpcService,
+    types::{
+        CheckpointResponse, FullCheckpointObject, FullCheckpointResponse,
+        FullCheckpointTransaction, GetCheckpointOptions, GetFullCheckpointOptions,
+    },
+};
 
 impl RpcService {
     pub fn get_checkpoint(

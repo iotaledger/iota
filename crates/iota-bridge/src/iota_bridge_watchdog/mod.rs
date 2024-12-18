@@ -9,14 +9,13 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_metrics::spawn_logged_monitored_task;
-use tokio::time::Duration;
-use tokio::time::MissedTickBehavior;
-use tracing::{error_span, info, Instrument};
+use tokio::time::{Duration, MissedTickBehavior};
+use tracing::{Instrument, error_span, info};
 
 pub mod eth_bridge_status;
 pub mod eth_vault_balance;
-pub mod metrics;
 pub mod iota_bridge_status;
+pub mod metrics;
 pub mod total_supplies;
 
 pub struct BridgeWatchDog {

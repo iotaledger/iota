@@ -2,28 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use colored::Colorize;
-use itertools::Itertools;
-use move_binary_format::file_format::{Ability, AbilitySet, DatatypeTyParameter, Visibility};
-use move_binary_format::normalized::{
-    Enum as NormalizedEnum, Field as NormalizedField, Function as IotaNormalizedFunction,
-    Module as NormalizedModule, Struct as NormalizedStruct, Type as NormalizedType,
+use std::{
+    collections::BTreeMap,
+    fmt,
+    fmt::{Display, Formatter, Write},
 };
-use move_core_types::annotated_value::{MoveStruct, MoveValue, MoveVariant};
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::StructTag;
+
+use colored::Colorize;
+use iota_macros::EnumVariantOrder;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    iota_serde::IotaStructTag,
+};
+use itertools::Itertools;
+use move_binary_format::{
+    file_format::{Ability, AbilitySet, DatatypeTyParameter, Visibility},
+    normalized::{
+        Enum as NormalizedEnum, Field as NormalizedField, Function as IotaNormalizedFunction,
+        Module as NormalizedModule, Struct as NormalizedStruct, Type as NormalizedType,
+    },
+};
+use move_core_types::{
+    annotated_value::{MoveStruct, MoveValue, MoveVariant},
+    identifier::Identifier,
+    language_storage::StructTag,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use serde_with::serde_as;
-use std::collections::BTreeMap;
-use std::fmt;
-use std::fmt::{Display, Formatter, Write};
-use iota_macros::EnumVariantOrder;
 use tracing::warn;
-
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::iota_serde::IotaStructTag;
 
 pub type IotaMoveTypeParameterIndex = u16;
 
@@ -303,9 +311,9 @@ impl From<NormalizedType> for IotaMoveNormalizedType {
             NormalizedType::Reference(r) => {
                 IotaMoveNormalizedType::Reference(Box::new(IotaMoveNormalizedType::from(*r)))
             }
-            NormalizedType::MutableReference(mr) => {
-                IotaMoveNormalizedType::MutableReference(Box::new(IotaMoveNormalizedType::from(*mr)))
-            }
+            NormalizedType::MutableReference(mr) => IotaMoveNormalizedType::MutableReference(
+                Box::new(IotaMoveNormalizedType::from(*mr)),
+            ),
         }
     }
 }
@@ -469,7 +477,8 @@ pub struct IotaMoveVariant {
 
 impl IotaMoveVariant {
     pub fn to_json_value(self) -> Value {
-        // We only care about values here, assuming type information is known at the client side.
+        // We only care about values here, assuming type information is known at the
+        // client side.
         let fields = self
             .fields
             .into_iter()
@@ -534,7 +543,8 @@ impl IotaMoveStruct {
                     .collect::<Vec<_>>();
                 json!(values)
             }
-            // We only care about values here, assuming struct type information is known at the client side.
+            // We only care about values here, assuming struct type information is known at the
+            // client side.
             IotaMoveStruct::WithTypes { type_: _, fields } | IotaMoveStruct::WithFields(fields) => {
                 let fields = fields
                     .into_iter()
@@ -589,7 +599,10 @@ fn indent<T: Display>(d: &T, indent: usize) -> String {
         .join("\n")
 }
 
-fn try_convert_type(type_: &StructTag, fields: &[(Identifier, MoveValue)]) -> Option<IotaMoveValue> {
+fn try_convert_type(
+    type_: &StructTag,
+    fields: &[(Identifier, MoveValue)],
+) -> Option<IotaMoveValue> {
     let struct_name = format!(
         "0x{}::{}::{}",
         type_.address.short_str_lossless(),

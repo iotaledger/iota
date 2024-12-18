@@ -2,23 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{TestCaseImpl, TestContext};
+use std::collections::HashMap;
+
 use async_trait::async_trait;
+use iota_core::test_utils::compile_managed_coin_package;
+use iota_json::IotaJsonValue;
+use iota_json_rpc_types::{
+    Balance, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+};
+use iota_test_transaction_builder::make_staking_transaction;
+use iota_types::{
+    base_types::{ObjectID, ObjectRef},
+    gas_coin::GAS,
+    object::Owner,
+    quorum_driver_types::ExecuteTransactionRequestType,
+};
 use jsonrpsee::rpc_params;
 use move_core_types::language_storage::StructTag;
 use serde_json::json;
-use std::collections::HashMap;
-use iota_core::test_utils::compile_managed_coin_package;
-use iota_json::IotaJsonValue;
-use iota_json_rpc_types::ObjectChange;
-use iota_json_rpc_types::IotaTransactionBlockResponse;
-use iota_json_rpc_types::{Balance, IotaTransactionBlockResponseOptions};
-use iota_test_transaction_builder::make_staking_transaction;
-use iota_types::base_types::{ObjectID, ObjectRef};
-use iota_types::gas_coin::GAS;
-use iota_types::object::Owner;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use tracing::info;
+
+use crate::{TestCaseImpl, TestContext};
 
 pub struct CoinIndexTest;
 
@@ -614,10 +618,12 @@ impl TestCaseImpl for CoinIndexTest {
             managed_coins_12_39.data.last().unwrap().coin_object_id,
             last_managed_coin
         );
-        assert!(!managed_coins_12_39
-            .data
-            .iter()
-            .any(|coin| coin.coin_object_id == removed_coin_id));
+        assert!(
+            !managed_coins_12_39
+                .data
+                .iter()
+                .any(|coin| coin.coin_object_id == removed_coin_id)
+        );
         assert!(!managed_coins_12_39.has_next_page);
 
         // =========================== Test Get Coins Ends ===========================

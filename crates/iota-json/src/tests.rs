@@ -2,33 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use fastcrypto::encoding::{Encoding, Hex};
-use move_core_types::annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout};
-use move_core_types::language_storage::StructTag;
-use move_core_types::u256::U256;
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
-use serde::Serialize;
-use serde_json::{json, Value};
-use test_fuzz::runtime::num_traits::ToPrimitive;
-
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
-use iota_types::base_types::{
-    ObjectID, IotaAddress, TransactionDigest, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
-    STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
+use iota_types::{
+    MOVE_STDLIB_ADDRESS,
+    base_types::{
+        IotaAddress, ObjectID, STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME,
+        STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME, TransactionDigest,
+    },
+    dynamic_field::derive_dynamic_field_id,
+    gas_coin::GasCoin,
+    object::Object,
+    parse_iota_type_tag,
 };
-use iota_types::dynamic_field::derive_dynamic_field_id;
-use iota_types::gas_coin::GasCoin;
-use iota_types::object::Object;
-use iota_types::{parse_iota_type_tag, MOVE_STDLIB_ADDRESS};
+use move_core_types::{
+    account_address::AccountAddress,
+    annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
+    ident_str,
+    identifier::Identifier,
+    language_storage::StructTag,
+    u256::U256,
+};
+use serde::Serialize;
+use serde_json::{Value, json};
+use test_fuzz::runtime::num_traits::ToPrimitive;
 
+use super::{HEX_PREFIX, IotaJsonValue, check_valid_homogeneous, resolve_move_function_args};
 use crate::ResolvedCallArg;
-
-use super::{check_valid_homogeneous, HEX_PREFIX};
-use super::{resolve_move_function_args, IotaJsonValue};
 
 // Negative test cases
 #[test]
@@ -142,46 +145,53 @@ fn test_basic_args_linter_pure_args_bad() {
     let bad_hex_val = "0x1234AB  CD";
 
     let checks = vec![
-            // Although U256 value can be encoded as num, we enforce it must be a string
-            (
-                Value::from(123),
-                MoveTypeLayout::U256,
+        // Although U256 value can be encoded as num, we enforce it must be a string
+        (Value::from(123), MoveTypeLayout::U256),
+        // Space not allowed
+        (Value::from(" 9"), MoveTypeLayout::U8),
+        // Hex must start with 0x
+        (Value::from("AB"), MoveTypeLayout::U8),
+        // Too large
+        (Value::from("123456789"), MoveTypeLayout::U8),
+        // Too large
+        (
+            Value::from("123456789123456789123456789123456789"),
+            MoveTypeLayout::U64,
+        ),
+        // Too large
+        (
+            Value::from(
+                "123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789",
             ),
-             // Space not allowed
-             (Value::from(" 9"), MoveTypeLayout::U8),
-             // Hex must start with 0x
-             (Value::from("AB"), MoveTypeLayout::U8),
-             // Too large
-             (Value::from("123456789"), MoveTypeLayout::U8),
-             // Too large
-             (Value::from("123456789123456789123456789123456789"), MoveTypeLayout::U64),
-             // Too large
-             (Value::from("123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789123456789"), MoveTypeLayout::U128),
-             // U64 value greater than 255 cannot be used as U8
-             (Value::from(900u64), MoveTypeLayout::U8),
-             // floats cannot be used as U8
-             (Value::from(0.4f32), MoveTypeLayout::U8),
-             // floats cannot be used as U64
-             (Value::from(3.4f32), MoveTypeLayout::U64),
-             // Negative cannot be used as U64
-             (Value::from(-19), MoveTypeLayout::U64),
-             // Negative cannot be used as Unsigned
-             (Value::from(-1), MoveTypeLayout::U8),
-              // u8 vector from bad hex repr
-            (
-                Value::from(bad_hex_val),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-            ),
-            // u8 vector from heterogeneous array
-            (
-                json!([1, 2, 3, true, 5, 6, 7]),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-            ),
-            // U64 deep nest, bad because heterogeneous array
-            (
-                json!([[[9, 53, 434], [0], [300]], [], [300, 4, 5, 6, 7]]),
-                MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U64)))),
-            ),
+            MoveTypeLayout::U128,
+        ),
+        // U64 value greater than 255 cannot be used as U8
+        (Value::from(900u64), MoveTypeLayout::U8),
+        // floats cannot be used as U8
+        (Value::from(0.4f32), MoveTypeLayout::U8),
+        // floats cannot be used as U64
+        (Value::from(3.4f32), MoveTypeLayout::U64),
+        // Negative cannot be used as U64
+        (Value::from(-19), MoveTypeLayout::U64),
+        // Negative cannot be used as Unsigned
+        (Value::from(-1), MoveTypeLayout::U8),
+        // u8 vector from bad hex repr
+        (
+            Value::from(bad_hex_val),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
+        ),
+        // u8 vector from heterogeneous array
+        (
+            json!([1, 2, 3, true, 5, 6, 7]),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
+        ),
+        // U64 deep nest, bad because heterogeneous array
+        (
+            json!([[[9, 53, 434], [0], [300]], [], [300, 4, 5, 6, 7]]),
+            MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
+                MoveTypeLayout::U64,
+            )))),
+        ),
     ];
 
     // Driver
@@ -370,11 +380,9 @@ fn test_basic_args_linter_pure_args_good() {
             MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
                 MoveTypeLayout::U8,
             )))),
-            bcs::to_bytes(&vec![
-                vec![1u8, 2u8, 3u8],
-                vec![],
-                vec![3u8, 4u8, 5u8, 6u8, 7u8],
-            ])
+            bcs::to_bytes(&vec![vec![1u8, 2u8, 3u8], vec![], vec![
+                3u8, 4u8, 5u8, 6u8, 7u8,
+            ]])
             .unwrap(),
         ),
         // U64 nest
@@ -383,11 +391,9 @@ fn test_basic_args_linter_pure_args_good() {
             MoveTypeLayout::Vector(Box::new(MoveTypeLayout::Vector(Box::new(
                 MoveTypeLayout::U64,
             )))),
-            bcs::to_bytes(&vec![
-                vec![1111u64, 2u64, 3u64],
-                vec![],
-                vec![300u64, 4u64, 5u64, 6u64, 7u64],
-            ])
+            bcs::to_bytes(&vec![vec![1111u64, 2u64, 3u64], vec![], vec![
+                300u64, 4u64, 5u64, 6u64, 7u64,
+            ]])
             .unwrap(),
         ),
         // U32 deep nest, good
@@ -486,17 +492,14 @@ fn test_basic_args_linter_top_level() {
         RCA::Pure(bcs::to_bytes(t).unwrap())
     }
 
-    assert_eq!(
-        json_args,
-        vec![
-            RCA::Object(foo_id),
-            RCA::ObjVec(vec![bar_id, baz_id]),
-            pure(&"Name"),
-            pure(&12345678u64),
-            pure(&89u8),
-            pure(&recipient_addr),
-        ],
-    );
+    assert_eq!(json_args, vec![
+        RCA::Object(foo_id),
+        RCA::ObjVec(vec![bar_id, baz_id]),
+        pure(&"Name"),
+        pure(&12345678u64),
+        pure(&89u8),
+        pure(&recipient_addr),
+    ],);
 
     // Flag is u8 so too large
     let args: Vec<_> = [foo, bar, name, index, json!(10000u64), recipient]

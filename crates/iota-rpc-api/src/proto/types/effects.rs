@@ -1,14 +1,15 @@
-use super::TryFromProtoError;
 use tap::Pipe;
 
-//
+use super::TryFromProtoError;
+
 // TransactionEffects
 //
 
 impl From<iota_sdk_types::types::TransactionEffects> for super::TransactionEffects {
     fn from(value: iota_sdk_types::types::TransactionEffects) -> Self {
-        use super::transaction_effects::Version;
         use iota_sdk_types::types::TransactionEffects::*;
+
+        use super::transaction_effects::Version;
 
         let version = match value {
             V1(v1) => Version::V1((*v1).into()),
@@ -39,7 +40,6 @@ impl TryFrom<&super::TransactionEffects> for iota_sdk_types::types::TransactionE
     }
 }
 
-//
 // TransactionEffectsV1
 //
 
@@ -192,7 +192,6 @@ impl TryFrom<&super::TransactionEffectsV1> for iota_sdk_types::types::Transactio
     }
 }
 
-//
 // TransactionEffectsV2
 //
 
@@ -306,7 +305,6 @@ impl TryFrom<&super::TransactionEffectsV2> for iota_sdk_types::types::Transactio
     }
 }
 
-//
 // ModifiedAtVersion
 //
 
@@ -336,7 +334,6 @@ impl TryFrom<&super::ModifiedAtVersion> for iota_sdk_types::types::ModifiedAtVer
     }
 }
 
-//
 // ObjectReferenceWithOwner
 //
 
@@ -369,7 +366,6 @@ impl TryFrom<&super::ObjectReferenceWithOwner> for iota_sdk_types::types::Object
     }
 }
 
-//
 // ChangedObject
 //
 
@@ -423,7 +419,6 @@ impl TryFrom<&super::ChangedObject> for iota_sdk_types::types::ChangedObject {
     }
 }
 
-//
 // InputState
 //
 
@@ -472,7 +467,6 @@ impl TryFrom<&super::changed_object::InputState> for iota_sdk_types::types::Obje
     }
 }
 
-//
 // OutputState
 //
 
@@ -524,7 +518,6 @@ impl TryFrom<&super::changed_object::OutputState> for iota_sdk_types::types::Obj
     }
 }
 
-//
 // IdOperation
 //
 
@@ -555,7 +548,6 @@ impl TryFrom<&super::changed_object::IdOperation> for iota_sdk_types::types::IdO
     }
 }
 
-//
 // UnchangedSharedObject
 //
 
@@ -588,7 +580,6 @@ impl TryFrom<&super::UnchangedSharedObject> for iota_sdk_types::types::Unchanged
     }
 }
 
-//
 // UnchangedSharedKind
 //
 

@@ -2,18 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::State;
-use axum::{Extension, Json};
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use tracing::debug;
 
-use crate::operations::Operations;
-use crate::types::{
-    BlockRequest, BlockResponse, BlockTransactionRequest, BlockTransactionResponse, Transaction,
-    TransactionIdentifier,
+use crate::{
+    Error, IotaEnv, OnlineServerContext,
+    operations::Operations,
+    types::{
+        BlockRequest, BlockResponse, BlockTransactionRequest, BlockTransactionResponse,
+        Transaction, TransactionIdentifier,
+    },
 };
-use crate::{Error, OnlineServerContext, IotaEnv};
-use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 
 /// This module implements the [Rosetta Block API](https://www.rosetta-api.org/docs/BlockApi.html)
 

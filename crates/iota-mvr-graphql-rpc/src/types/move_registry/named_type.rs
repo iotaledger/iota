@@ -2,28 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
 use async_graphql::Context;
 use futures::future;
+use iota_types::{TypeTag, base_types::ObjectID};
 use regex::{Captures, Regex};
-use iota_types::{base_types::ObjectID, TypeTag};
-
-use crate::{data::package_resolver::PackageResolver, error::Error};
 
 use super::{
     error::MoveRegistryError,
     named_move_package::NamedMovePackage,
-    on_chain::{VersionedName, VERSIONED_NAME_UNBOUND_REG},
+    on_chain::{VERSIONED_NAME_UNBOUND_REG, VersionedName},
 };
+use crate::{data::package_resolver::PackageResolver, error::Error};
 
 pub(crate) struct NamedType;
 
 impl NamedType {
     /// Queries a type by the given name.
-    /// Name should be a valid type tag, with move names in it in the format `app@org::type::Type`.
-    /// For nested type params, we just follow the same pattern e.g. `app@org::type::Type<app@org::type::AnotherType, u64>`.
+    /// Name should be a valid type tag, with move names in it in the format
+    /// `app@org::type::Type`. For nested type params, we just follow the
+    /// same pattern e.g. `app@org::type::Type<app@org::type::AnotherType,
+    /// u64>`.
     pub(crate) async fn query(
         ctx: &Context<'_>,
         name: &str,
@@ -39,8 +39,10 @@ impl NamedType {
             .map(|x| NamedMovePackage::query(ctx, x, checkpoint_viewed_at))
             .collect::<Vec<_>>();
 
-        // now we resolve all the names in parallel (data-loader will do the proper de-duplication / batching for us)
-        // also the `NamedMovePackage` query will re-validate the names (including max length, which is not checked on the regex).
+        // now we resolve all the names in parallel (data-loader will do the proper
+        // de-duplication / batching for us) also the `NamedMovePackage` query
+        // will re-validate the names (including max length, which is not checked on the
+        // regex).
         let results = future::try_join_all(names_to_resolve).await?;
 
         // now let's create a hashmap with {name: MovePackage}
@@ -68,9 +70,10 @@ impl NamedType {
 
     /// Is this already caught by the global limits?
     /// This parser just extracts all names from a type tag, and returns them
-    /// We do not care about de-duplication, as the dataloader will do this for us.
-    /// The goal of replacing all of them with `0x0` is to make sure that the type tag is valid
-    /// so when replaced with the move name package addresses, it'll also be valid.
+    /// We do not care about de-duplication, as the dataloader will do this for
+    /// us. The goal of replacing all of them with `0x0` is to make sure
+    /// that the type tag is valid so when replaced with the move name
+    /// package addresses, it'll also be valid.
     fn parse_names(name: &str) -> Result<Vec<String>, Error> {
         let mut names = vec![];
         let struct_tag = VERSIONED_NAME_UNBOUND_REG.replace_all(name, |m: &regex::Captures| {
@@ -85,17 +88,19 @@ impl NamedType {
             }
         });
 
-        // We attempt to parse the type_tag with these replacements, to make sure there are no other
-        // errors in the type tag (apart from the move names). That protects us from unnecessary
-        // queries to resolve .move names, for a type tag that will be invalid anyway.
+        // We attempt to parse the type_tag with these replacements, to make sure there
+        // are no other errors in the type tag (apart from the move names). That
+        // protects us from unnecessary queries to resolve .move names, for a
+        // type tag that will be invalid anyway.
         TypeTag::from_str(&struct_tag).map_err(|e| Error::Client(format!("bad type: {e}")))?;
 
         Ok(names)
     }
 
-    /// This function replaces all the names in the type tag with their corresponding MovePackage address.
-    /// The names are guaranteed to be the same and exist (as long as this is called in sequence),
-    /// since we use the same parser to extract the names.
+    /// This function replaces all the names in the type tag with their
+    /// corresponding MovePackage address. The names are guaranteed to be
+    /// the same and exist (as long as this is called in sequence), since we
+    /// use the same parser to extract the names.
     fn replace_names(type_name: &str, names: &HashMap<String, ObjectID>) -> Result<String, Error> {
         let struct_tag_str = replace_all_result(
             &VERSIONED_NAME_UNBOUND_REG,
@@ -120,9 +125,10 @@ impl NamedType {
     }
 }
 
-/// Helper to replace all occurrences of a regex with a function that returns a string.
-/// Used as a replacement of `regex`.replace_all().
-/// The only difference is that this function returns a Result, so we can handle errors.
+/// Helper to replace all occurrences of a regex with a function that returns a
+/// string. Used as a replacement of `regex`.replace_all().
+/// The only difference is that this function returns a Result, so we can handle
+/// errors.
 fn replace_all_result(
     re: &Regex,
     haystack: &str,

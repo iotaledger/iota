@@ -3,72 +3,64 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::coin::Coin;
-use crate::coin::CoinMetadata;
-use crate::coin::TreasuryCap;
-use crate::coin::COIN_MODULE_NAME;
-use crate::coin::COIN_STRUCT_NAME;
-pub use crate::committee::EpochId;
-use crate::crypto::{
-    AuthorityPublicKeyBytes, DefaultHash, PublicKey, SignatureScheme, IotaPublicKey, IotaSignature,
+use std::{
+    cmp::max,
+    convert::{TryFrom, TryInto},
+    fmt,
+    str::FromStr,
 };
-pub use crate::digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest};
-use crate::dynamic_field::DynamicFieldInfo;
-use crate::dynamic_field::DynamicFieldType;
-use crate::effects::TransactionEffects;
-use crate::effects::TransactionEffectsAPI;
-use crate::epoch_data::EpochData;
-use crate::error::ExecutionErrorKind;
-use crate::error::IotaError;
-use crate::error::{ExecutionError, IotaResult};
-use crate::gas_coin::GasCoin;
-use crate::gas_coin::GAS;
-use crate::governance::StakedIota;
-use crate::governance::STAKED_IOTA_STRUCT_NAME;
-use crate::governance::STAKING_POOL_MODULE_NAME;
-use crate::id::RESOLVED_IOTA_ID;
-use crate::messages_checkpoint::CheckpointTimestamp;
-use crate::multisig::MultiSigPublicKey;
-use crate::object::{Object, Owner};
-use crate::parse_iota_struct_tag;
-use crate::signature::GenericSignature;
-use crate::iota_serde::Readable;
-use crate::iota_serde::{to_iota_struct_tag_string, HexAccountAddress};
-use crate::transaction::Transaction;
-use crate::transaction::VerifiedTransaction;
-use crate::zk_login_authenticator::ZkLoginAuthenticator;
-use crate::MOVE_STDLIB_ADDRESS;
-use crate::IOTA_CLOCK_OBJECT_ID;
-use crate::IOTA_FRAMEWORK_ADDRESS;
-use crate::IOTA_SYSTEM_ADDRESS;
+
 use anyhow::anyhow;
-use fastcrypto::encoding::decode_bytes_hex;
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::hash::HashFunction;
-use fastcrypto::traits::AllowedRng;
+use fastcrypto::{
+    encoding::{Encoding, Hex, decode_bytes_hex},
+    hash::HashFunction,
+    traits::AllowedRng,
+};
 use fastcrypto_zkp::bn254::zk_login::ZkLoginInputs;
-use move_binary_format::file_format::SignatureToken;
-use move_binary_format::CompiledModule;
+use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::annotated_value as A;
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use move_core_types::language_storage::ModuleId;
-use move_core_types::language_storage::StructTag;
-use move_core_types::language_storage::TypeTag;
+use move_core_types::{
+    account_address::AccountAddress,
+    annotated_value as A, ident_str,
+    identifier::IdentStr,
+    language_storage::{ModuleId, StructTag, TypeTag},
+};
 use rand::Rng;
 use schemars::JsonSchema;
-use serde::ser::Error;
-use serde::ser::SerializeSeq;
-use serde::Serializer;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize, Serialize, Serializer,
+    ser::{Error, SerializeSeq},
+};
 use serde_with::serde_as;
 use shared_crypto::intent::HashingIntentScope;
-use std::cmp::max;
-use std::convert::{TryFrom, TryInto};
-use std::fmt;
-use std::str::FromStr;
+
+use crate::{
+    IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS,
+    coin::{COIN_MODULE_NAME, COIN_STRUCT_NAME, Coin, CoinMetadata, TreasuryCap},
+    crypto::{
+        AuthorityPublicKeyBytes, DefaultHash, IotaPublicKey, IotaSignature, PublicKey,
+        SignatureScheme,
+    },
+    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    epoch_data::EpochData,
+    error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
+    gas_coin::{GAS, GasCoin},
+    governance::{STAKED_IOTA_STRUCT_NAME, STAKING_POOL_MODULE_NAME, StakedIota},
+    id::RESOLVED_IOTA_ID,
+    iota_serde::{HexAccountAddress, Readable, to_iota_struct_tag_string},
+    messages_checkpoint::CheckpointTimestamp,
+    multisig::MultiSigPublicKey,
+    object::{Object, Owner},
+    parse_iota_struct_tag,
+    signature::GenericSignature,
+    transaction::{Transaction, VerifiedTransaction},
+    zk_login_authenticator::ZkLoginAuthenticator,
+};
+pub use crate::{
+    committee::EpochId,
+    digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest},
+};
 
 #[cfg(test)]
 #[path = "unit_tests/base_types_tests.rs"]
@@ -156,15 +148,16 @@ pub fn update_object_ref_for_testing(object_ref: ObjectRef) -> ObjectRef {
     )
 }
 
-/// Wrapper around StructTag with a space-efficient representation for common types like coins
-/// The StructTag for a gas coin is 84 bytes, so using 1 byte instead is a win.
-/// The inner representation is private to prevent incorrectly constructing an `Other` instead of
-/// one of the specialized variants, e.g. `Other(GasCoin::type_())` instead of `GasCoin`
+/// Wrapper around StructTag with a space-efficient representation for common
+/// types like coins The StructTag for a gas coin is 84 bytes, so using 1 byte
+/// instead is a win. The inner representation is private to prevent incorrectly
+/// constructing an `Other` instead of one of the specialized variants, e.g.
+/// `Other(GasCoin::type_())` instead of `GasCoin`
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct MoveObjectType(MoveObjectType_);
 
-/// Even though it is declared public, it is the "private", internal representation for
-/// `MoveObjectType`
+/// Even though it is declared public, it is the "private", internal
+/// representation for `MoveObjectType`
 #[derive(Eq, PartialEq, PartialOrd, Ord, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum MoveObjectType_ {
     /// A type that is not `0x2::coin::Coin<T>`
@@ -173,7 +166,8 @@ pub enum MoveObjectType_ {
     GasCoin,
     /// A record of a staked IOTA coin (i.e., `0x3::staking_pool::StakedIota`)
     StakedIota,
-    /// A non-IOTA coin type (i.e., `0x2::coin::Coin<T> where T != 0x2::iota::IOTA`)
+    /// A non-IOTA coin type (i.e., `0x2::coin::Coin<T> where T !=
+    /// 0x2::iota::IOTA`)
     Coin(TypeTag),
     // NOTE: if adding a new type here, and there are existing on-chain objects of that
     // type with Other(_), that is ok, but you must hand-roll PartialEq/Eq/Ord/maybe Hash
@@ -254,7 +248,8 @@ impl MoveObjectType {
         }
     }
 
-    /// Return true if `self` is `0x2::coin::Coin<T>` for some T (note: T can be IOTA)
+    /// Return true if `self` is `0x2::coin::Coin<T>` for some T (note: T can be
+    /// IOTA)
     pub fn is_coin(&self) -> bool {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => true,
@@ -382,7 +377,8 @@ impl MoveObjectType {
         }
     }
 
-    /// Returns the string representation of this object's type using the canonical display.
+    /// Returns the string representation of this object's type using the
+    /// canonical display.
     pub fn to_canonical_string(&self, with_prefix: bool) -> String {
         StructTag::from(self.clone()).to_canonical_string(with_prefix)
     }
@@ -631,8 +627,9 @@ impl IotaAddress {
             .map(IotaAddress)
     }
 
-    /// This derives a zkLogin address by parsing the iss and address_seed from [struct ZkLoginAuthenticator].
-    /// Define as iss_bytes_len || iss_bytes || padded_32_byte_address_seed. This is to be differentiated with
+    /// This derives a zkLogin address by parsing the iss and address_seed from
+    /// [struct ZkLoginAuthenticator]. Define as iss_bytes_len || iss_bytes
+    /// || padded_32_byte_address_seed. This is to be differentiated with
     /// try_from_unpadded defined below.
     pub fn try_from_padded(inputs: &ZkLoginInputs) -> IotaResult<Self> {
         Ok((&PublicKey::from_zklogin_inputs(inputs)?).into())
@@ -735,8 +732,9 @@ impl From<&MultiSigPublicKey> for IotaAddress {
     }
 }
 
-/// Iota address for [struct ZkLoginAuthenticator] is defined as the black2b hash of
-/// [zklogin_flag || iss_bytes_length || iss_bytes || unpadded_address_seed_in_bytes].
+/// Iota address for [struct ZkLoginAuthenticator] is defined as the black2b
+/// hash of [zklogin_flag || iss_bytes_length || iss_bytes ||
+/// unpadded_address_seed_in_bytes].
 impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
     type Error = IotaError;
     fn try_from(authenticator: &ZkLoginAuthenticator) -> IotaResult<Self> {
@@ -746,7 +744,8 @@ impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
 
 impl TryFrom<&GenericSignature> for IotaAddress {
     type Error = IotaError;
-    /// Derive a IotaAddress from a serialized signature in Iota [GenericSignature].
+    /// Derive a IotaAddress from a serialized signature in Iota
+    /// [GenericSignature].
     fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
         match sig {
             GenericSignature::Signature(sig) => {
@@ -939,7 +938,8 @@ pub struct TxContext {
     epoch: EpochId,
     /// Timestamp that the epoch started at
     epoch_timestamp_ms: CheckpointTimestamp,
-    /// Number of `ObjectID`'s generated during execution of the current transaction
+    /// Number of `ObjectID`'s generated during execution of the current
+    /// transaction
     ids_created: u64,
 }
 
@@ -978,7 +978,8 @@ impl TxContext {
         }
     }
 
-    /// Returns whether the type signature is &mut TxContext, &TxContext, or none of the above.
+    /// Returns whether the type signature is &mut TxContext, &TxContext, or
+    /// none of the above.
     pub fn kind(view: &CompiledModule, s: &SignatureToken) -> TxContextKind {
         use SignatureToken as S;
         let (kind, s) = match s {
@@ -1007,7 +1008,8 @@ impl TxContext {
         self.epoch
     }
 
-    /// Derive a globally unique object ID by hashing self.digest | self.ids_created
+    /// Derive a globally unique object ID by hashing self.digest |
+    /// self.ids_created
     pub fn fresh_id(&mut self) -> ObjectID {
         let id = ObjectID::derive_id(self.digest(), self.ids_created);
 
@@ -1102,8 +1104,8 @@ impl SequenceNumber {
         *self = prev;
     }
 
-    /// Returns a new sequence number that is greater than all `SequenceNumber`s in `inputs`,
-    /// assuming this operation will not overflow.
+    /// Returns a new sequence number that is greater than all `SequenceNumber`s
+    /// in `inputs`, assuming this operation will not overflow.
     #[must_use]
     pub fn lamport_increment(inputs: impl IntoIterator<Item = SequenceNumber>) -> SequenceNumber {
         let max_input = inputs.into_iter().fold(SequenceNumber::new(), max);
@@ -1232,11 +1234,13 @@ impl ObjectID {
         let hash = hasher.finalize();
 
         // truncate into an ObjectID.
-        // OK to access slice because digest should never be shorter than ObjectID::LENGTH.
+        // OK to access slice because digest should never be shorter than
+        // ObjectID::LENGTH.
         ObjectID::try_from(&hash.as_ref()[0..ObjectID::LENGTH]).unwrap()
     }
 
-    /// Incremenent the ObjectID by usize IDs, assuming the ObjectID hex is a number represented as an array of bytes
+    /// Incremenent the ObjectID by usize IDs, assuming the ObjectID hex is a
+    /// number represented as an array of bytes
     pub fn advance(&self, step: usize) -> Result<ObjectID, anyhow::Error> {
         let mut curr_vec = self.to_vec();
         let mut step_copy = step;
@@ -1262,7 +1266,8 @@ impl ObjectID {
         ObjectID::try_from(curr_vec).map_err(|w| w.into())
     }
 
-    /// Increment the ObjectID by one, assuming the ObjectID hex is a number represented as an array of bytes
+    /// Increment the ObjectID by one, assuming the ObjectID hex is a number
+    /// represented as an array of bytes
     pub fn next_increment(&self) -> Result<ObjectID, anyhow::Error> {
         let mut prev_val = self.to_vec();
         let mx = [0xFF; Self::LENGTH];
@@ -1296,8 +1301,9 @@ impl ObjectID {
         Ok(ret)
     }
 
-    /// Return the full hex string with 0x prefix without removing trailing 0s. Prefer this
-    /// over [fn to_hex_literal] if the string needs to be fully preserved.
+    /// Return the full hex string with 0x prefix without removing trailing 0s.
+    /// Prefer this over [fn to_hex_literal] if the string needs to be fully
+    /// preserved.
     pub fn to_hex_uncompressed(&self) -> String {
         format!("{self}")
     }
@@ -1359,7 +1365,8 @@ impl TryFrom<Vec<u8>> for ObjectID {
 impl FromStr for ObjectID {
     type Err = ObjectIDParseError;
 
-    /// Parse ObjectID from hex string with or without 0x prefix, pad with 0s if needed.
+    /// Parse ObjectID from hex string with or without 0x prefix, pad with 0s if
+    /// needed.
     fn from_str(s: &str) -> Result<Self, ObjectIDParseError> {
         decode_bytes_hex(s).or_else(|_| Self::from_hex_literal(s))
     }
@@ -1419,11 +1426,11 @@ impl fmt::Display for ObjectType {
     }
 }
 
-// SizeOneVec is a wrapper around Vec<T> that enforces the size of the vec to be 1.
-// This seems pointless, but it allows us to have fields in protocol messages that are
-// current enforced to be of size 1, but might later allow other sizes, and to have
-// that constraint enforced in the serialization/deserialization layer, instead of
-// requiring manual input validation.
+// SizeOneVec is a wrapper around Vec<T> that enforces the size of the vec to be
+// 1. This seems pointless, but it allows us to have fields in protocol messages
+// that are current enforced to be of size 1, but might later allow other sizes,
+// and to have that constraint enforced in the serialization/deserialization
+// layer, instead of requiring manual input validation.
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[serde(try_from = "Vec<T>")]
 pub struct SizeOneVec<T> {

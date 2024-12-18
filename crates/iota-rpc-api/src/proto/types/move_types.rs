@@ -1,7 +1,7 @@
-use super::TryFromProtoError;
 use tap::Pipe;
 
-//
+use super::TryFromProtoError;
+
 // Identifier
 //
 
@@ -28,7 +28,6 @@ impl TryFrom<&super::Identifier> for iota_sdk_types::types::Identifier {
     }
 }
 
-//
 // StructTag
 //
 
@@ -77,14 +76,14 @@ impl TryFrom<&super::StructTag> for iota_sdk_types::types::StructTag {
     }
 }
 
-//
 // TypeTag
 //
 
 impl From<iota_sdk_types::types::TypeTag> for super::TypeTag {
     fn from(value: iota_sdk_types::types::TypeTag) -> Self {
-        use super::type_tag::Tag;
         use iota_sdk_types::types::TypeTag;
+
+        use super::type_tag::Tag;
 
         let tag = match value {
             TypeTag::U8 => Tag::U8(()),

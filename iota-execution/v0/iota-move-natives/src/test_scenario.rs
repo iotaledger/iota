@@ -2,9 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    get_nth_struct_field, legacy_test_cost,
-    object_runtime::{ObjectRuntime, RuntimeResults},
+use std::{
+    borrow::Borrow,
+    collections::{BTreeMap, BTreeSet, VecDeque},
+};
+
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    id::UID,
+    object::Owner,
+    storage::WriteKind,
 };
 use linked_hash_map::LinkedHashMap;
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -22,15 +29,10 @@ use move_vm_types::{
     values::{self, StructRef, Value},
 };
 use smallvec::smallvec;
-use std::{
-    borrow::Borrow,
-    collections::{BTreeMap, BTreeSet, VecDeque},
-};
-use iota_types::{
-    base_types::{ObjectID, SequenceNumber, IotaAddress},
-    id::UID,
-    object::Owner,
-    storage::WriteKind,
+
+use crate::{
+    get_nth_struct_field, legacy_test_cost,
+    object_runtime::{ObjectRuntime, RuntimeResults},
 };
 
 const E_COULD_NOT_GENERATE_EFFECTS: u64 = 0;
@@ -40,8 +42,8 @@ const E_OBJECT_NOT_FOUND_CODE: u64 = 4;
 // LinkedHashSet has a bug for accessing the back/last element
 type Set<K> = LinkedHashMap<K, ()>;
 
-// This function updates the inventories based on the transfers and deletes that occurred in the
-// transaction
+// This function updates the inventories based on the transfers and deletes that
+// occurred in the transaction
 // native fun end_transaction(): TransactionResult;
 pub fn end_transaction(
     context: &mut NativeContext,
@@ -98,8 +100,10 @@ pub fn end_transaction(
     // cleanup inventories
     // we will remove all changed objects
     // - deleted objects need to be removed to mark deletions
-    // - written objects are removed and later replaced to mark new values and new owners
-    // - child objects will not be reflected in transfers, but need to be no longer retrievable
+    // - written objects are removed and later replaced to mark new values and new
+    //   owners
+    // - child objects will not be reflected in transfers, but need to be no longer
+    //   retrievable
     for id in deletions
         .keys()
         .chain(writes.keys())
@@ -118,7 +122,8 @@ pub fn end_transaction(
         }
         inventories.taken.remove(id);
     }
-    // handle transfers, inserting transferred/written objects into their respective inventory
+    // handle transfers, inserting transferred/written objects into their respective
+    // inventory
     let mut created = vec![];
     let mut written = vec![];
     for (id, (kind, owner, ty, value)) in writes {
@@ -322,10 +327,9 @@ pub fn most_recent_id_for_address(
         None => pack_option(None),
         Some(inv) => most_recent_at_ty(&inventories.taken, inv, specified_ty),
     };
-    Ok(NativeResult::ok(
-        legacy_test_cost(),
-        smallvec![most_recent_id],
-    ))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
+        most_recent_id
+    ]))
 }
 
 // native fun was_taken_from_address(account: address, id: ID): bool;
@@ -345,10 +349,9 @@ pub fn was_taken_from_address(
         .get(&id)
         .map(|owner| owner == &Owner::AddressOwner(account))
         .unwrap_or(false);
-    Ok(NativeResult::ok(
-        legacy_test_cost(),
-        smallvec![Value::bool(was_taken)],
-    ))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
+        Value::bool(was_taken)
+    ]))
 }
 
 // native fun take_immutable_by_id<T: key>(id: ID): T;
@@ -405,10 +408,9 @@ pub fn most_recent_immutable_id(
         &inventories.immutable_inventory,
         specified_ty,
     );
-    Ok(NativeResult::ok(
-        legacy_test_cost(),
-        smallvec![most_recent_id],
-    ))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
+        most_recent_id
+    ]))
 }
 
 // native fun was_taken_immutable(id: ID): bool;
@@ -427,10 +429,9 @@ pub fn was_taken_immutable(
         .get(&id)
         .map(|owner| owner == &Owner::Immutable)
         .unwrap_or(false);
-    Ok(NativeResult::ok(
-        legacy_test_cost(),
-        smallvec![Value::bool(was_taken)],
-    ))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
+        Value::bool(was_taken)
+    ]))
 }
 
 // native fun take_shared_by_id<T: key>(id: ID): T;
@@ -480,10 +481,9 @@ pub fn most_recent_id_shared(
         &inventories.shared_inventory,
         specified_ty,
     );
-    Ok(NativeResult::ok(
-        legacy_test_cost(),
-        smallvec![most_recent_id],
-    ))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
+        most_recent_id
+    ]))
 }
 
 // native fun was_taken_shared(id: ID): bool;
@@ -502,10 +502,9 @@ pub fn was_taken_shared(
         .get(&id)
         .map(|owner| matches!(owner, Owner::Shared { .. }))
         .unwrap_or(false);
-    Ok(NativeResult::ok(
-        legacy_test_cost(),
-        smallvec![Value::bool(was_taken)],
-    ))
+    Ok(NativeResult::ok(legacy_test_cost(), smallvec![
+        Value::bool(was_taken)
+    ]))
 }
 
 // impls
@@ -561,7 +560,7 @@ fn pop_id(args: &mut VecDeque<Value>) -> PartialVMResult<ObjectID> {
         None => {
             return Err(PartialVMError::new(
                 StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
-            ))
+            ));
         }
         Some(v) => v,
     };
@@ -731,15 +730,11 @@ fn find_all_wrapped_objects<'a, 'i>(
         };
 
         let blob = value.borrow().simple_serialize(&layout).unwrap();
-        MoveValue::visit_deserialize(
-            &blob,
-            &annotated_layout,
-            &mut Traversal {
-                state: LookingFor::Wrapped,
-                ids,
-                uid: &uid,
-            },
-        )
+        MoveValue::visit_deserialize(&blob, &annotated_layout, &mut Traversal {
+            state: LookingFor::Wrapped,
+            ids,
+            uid: &uid,
+        })
         .unwrap();
     }
 }

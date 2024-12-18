@@ -5,14 +5,14 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use crate::{
+    Round,
     block::{
-        genesis_blocks, BlockAPI, BlockRef, BlockTimestampMs, SignedBlock, VerifiedBlock,
-        GENESIS_ROUND,
+        BlockAPI, BlockRef, BlockTimestampMs, GENESIS_ROUND, SignedBlock, VerifiedBlock,
+        genesis_blocks,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
     transaction::TransactionVerifier,
-    Round,
 };
 
 pub(crate) trait BlockVerifier: Send + Sync + 'static {
@@ -24,7 +24,8 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
     /// This is called after a block has complete causal history locally,
     /// and is ready to be accepted into the DAG.
     ///
-    /// Caller must make sure ancestors corresponse to block.ancestors() 1-to-1, in the same order.
+    /// Caller must make sure ancestors corresponse to block.ancestors() 1-to-1,
+    /// in the same order.
     fn check_ancestors(
         &self,
         block: &VerifiedBlock,
@@ -36,9 +37,9 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
 
 /// `SignedBlockVerifier` checks the validity of a block.
 ///
-/// Blocks that fail verification at one honest authority will be rejected by all other honest
-/// authorities as well. The means invalid blocks, and blocks with an invalid ancestor, will never
-/// be accepted into the DAG.
+/// Blocks that fail verification at one honest authority will be rejected by
+/// all other honest authorities as well. The means invalid blocks, and blocks
+/// with an invalid ancestor, will never be accepted into the DAG.
 pub(crate) struct SignedBlockVerifier {
     context: Arc<Context>,
     genesis: BTreeSet<BlockRef>,
@@ -199,9 +200,10 @@ impl BlockVerifier for SignedBlockVerifier {
         gc_round: Round,
     ) -> ConsensusResult<()> {
         if gc_enabled {
-            // TODO: will be removed with new timestamp calculation is in place as all these will be irrelevant.
-            // When gc is enabled we don't have gaurantees that all ancestors will be available. We'll take into account only the passed gc_round ones
-            // for the timestamp check.
+            // TODO: will be removed with new timestamp calculation is in place as all these
+            // will be irrelevant. When gc is enabled we don't have gaurantees
+            // that all ancestors will be available. We'll take into account only the passed
+            // gc_round ones for the timestamp check.
             let mut max_timestamp_ms = BlockTimestampMs::MIN;
             for ancestor in ancestors.iter().flatten() {
                 if ancestor.round() <= gc_round {
@@ -564,8 +566,9 @@ mod test {
         }
     }
 
-    /// Tests the block's ancestors for timestamp monotonicity. Test will run for both when gc is enabled and disabled, but
-    /// with none of the ancestors being below the gc_round.
+    /// Tests the block's ancestors for timestamp monotonicity. Test will run
+    /// for both when gc is enabled and disabled, but with none of the
+    /// ancestors being below the gc_round.
     #[rstest]
     #[tokio::test]
     async fn test_check_ancestors(#[values(false, true)] gc_enabled: bool) {
@@ -595,9 +598,11 @@ mod test {
                 .set_timestamp_ms(1500)
                 .build();
             let verified_block = VerifiedBlock::new_for_test(block);
-            assert!(verifier
-                .check_ancestors(&verified_block, &ancestor_blocks, gc_enabled, gc_round)
-                .is_ok());
+            assert!(
+                verifier
+                    .check_ancestors(&verified_block, &ancestor_blocks, gc_enabled, gc_round)
+                    .is_ok()
+            );
         }
 
         // Block not respecting timestamp invariant.
@@ -628,8 +633,8 @@ mod test {
 
         let mut ancestor_blocks = vec![];
 
-        // Create one block just on the `gc_round` (so it should be considered garbage collected). This has higher
-        // timestamp that the block we are testing.
+        // Create one block just on the `gc_round` (so it should be considered garbage
+        // collected). This has higher timestamp that the block we are testing.
         let test_block = TestBlock::new(gc_round, 0_u32)
             .set_timestamp_ms(1500 as BlockTimestampMs)
             .build();
@@ -656,25 +661,30 @@ mod test {
                 .set_timestamp_ms(1600)
                 .build();
             let verified_block = VerifiedBlock::new_for_test(block);
-            assert!(verifier
-                .check_ancestors(&verified_block, &ancestor_blocks, gc_enabled, gc_round)
-                .is_ok());
+            assert!(
+                verifier
+                    .check_ancestors(&verified_block, &ancestor_blocks, gc_enabled, gc_round)
+                    .is_ok()
+            );
         }
 
-        // Block not respecting timestamp invariant for the block that is garbage collected
-        // Validation should pass.
+        // Block not respecting timestamp invariant for the block that is garbage
+        // collected Validation should pass.
         {
             let block = TestBlock::new(11, 0)
                 .set_ancestors(ancestor_refs.clone())
                 .set_timestamp_ms(1400)
                 .build();
             let verified_block = VerifiedBlock::new_for_test(block);
-            assert!(verifier
-                .check_ancestors(&verified_block, &ancestor_blocks, gc_enabled, gc_round)
-                .is_ok());
+            assert!(
+                verifier
+                    .check_ancestors(&verified_block, &ancestor_blocks, gc_enabled, gc_round)
+                    .is_ok()
+            );
         }
 
-        // Block not respecting timestamp invariant for the blocks that are not garbage collected
+        // Block not respecting timestamp invariant for the blocks that are not garbage
+        // collected
         {
             let block = TestBlock::new(11, 0)
                 .set_ancestors(ancestor_refs.clone())

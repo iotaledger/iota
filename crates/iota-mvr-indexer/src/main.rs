@@ -3,19 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use iota_mvr_indexer::backfill::backfill_runner::BackfillRunner;
-use iota_mvr_indexer::config::{Command, UploadOptions};
-use iota_mvr_indexer::database::ConnectionPool;
-use iota_mvr_indexer::db::setup_postgres::clear_database;
-use iota_mvr_indexer::db::{
-    check_db_migration_consistency, check_prunable_tables_valid, reset_database, run_migrations,
+use iota_mvr_indexer::{
+    backfill::backfill_runner::BackfillRunner,
+    config::{Command, UploadOptions},
+    database::ConnectionPool,
+    db::{
+        check_db_migration_consistency, check_prunable_tables_valid, reset_database,
+        run_migrations, setup_postgres::clear_database,
+    },
+    indexer::Indexer,
+    metrics::{IndexerMetrics, spawn_connection_pool_metric_collector, start_prometheus_server},
+    restorer::formal_snapshot::IndexerFormalSnapshotRestorer,
+    store::PgIndexerStore,
 };
-use iota_mvr_indexer::indexer::Indexer;
-use iota_mvr_indexer::metrics::{
-    spawn_connection_pool_metric_collector, start_prometheus_server, IndexerMetrics,
-};
-use iota_mvr_indexer::restorer::formal_snapshot::IndexerFormalSnapshotRestorer;
-use iota_mvr_indexer::store::PgIndexerStore;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
@@ -27,7 +27,9 @@ async fn main() -> anyhow::Result<()> {
     let _guard = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .init();
-    warn!("WARNING: Iota indexer is still experimental and we expect occasional breaking changes that require backfills.");
+    warn!(
+        "WARNING: Iota indexer is still experimental and we expect occasional breaking changes that require backfills."
+    );
 
     let (_registry_service, registry) = start_prometheus_server(opts.metrics_address)?;
     iota_metrics::init_metrics(&registry);
@@ -47,7 +49,8 @@ async fn main() -> anyhow::Result<()> {
             pruning_options,
             upload_options,
         } => {
-            // Make sure to run all migrations on startup, and also serve as a compatibility check.
+            // Make sure to run all migrations on startup, and also serve as a compatibility
+            // check.
             run_migrations(pool.dedicated_connection().await?).await?;
             let retention_config = pruning_options.load_from_file();
             if retention_config.is_some() {

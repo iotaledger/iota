@@ -2,18 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::sql_types::{BigInt, VarChar};
-use diesel::QueryableByName;
+use std::{
+    collections::{BTreeMap, HashMap},
+    time::Duration,
+};
+
+use diesel::{
+    QueryableByName,
+    sql_types::{BigInt, VarChar},
+};
 use diesel_async::scoped_futures::ScopedFutureExt;
-use std::collections::{BTreeMap, HashMap};
-use std::time::Duration;
 use tracing::{error, info};
 
-use crate::database::ConnectionPool;
-use crate::errors::IndexerError;
-use crate::handlers::EpochToCommit;
-use crate::models::epoch::StoredEpochInfo;
-use crate::store::transaction_with_retry;
+use crate::{
+    database::ConnectionPool, errors::IndexerError, handlers::EpochToCommit,
+    models::epoch::StoredEpochInfo, store::transaction_with_retry,
+};
 
 const GET_PARTITION_SQL: &str = r"
 SELECT parent.relname                                            AS table_name,
@@ -122,9 +126,9 @@ impl PgPartitionManager {
         )
     }
 
-    /// Tries to fetch the partitioning strategy for the given partitioned table. Defaults to
-    /// `CheckpointSequenceNumber` as the majority of our tables are partitioned on an epoch's
-    /// checkpoints today.
+    /// Tries to fetch the partitioning strategy for the given partitioned
+    /// table. Defaults to `CheckpointSequenceNumber` as the majority of our
+    /// tables are partitioned on an epoch's checkpoints today.
     pub fn get_strategy(&self, table_name: &str) -> PgPartitionStrategy {
         self.partition_strategies
             .get(table_name)
@@ -186,8 +190,8 @@ impl PgPartitionManager {
                 table, last_partition, data.next_epoch, partition_range.0
             );
         } else if last_partition != data.next_epoch {
-            // skip when the partition is already advanced once, which is possible when indexer
-            // crashes and restarts; error otherwise.
+            // skip when the partition is already advanced once, which is possible when
+            // indexer crashes and restarts; error otherwise.
             error!(
                 "Epoch partition for table {} is not in sync with the last epoch {}.",
                 table, data.last_epoch

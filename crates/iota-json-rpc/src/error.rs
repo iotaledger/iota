@@ -2,21 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority_state::StateReadError;
-use crate::name_service::NameServiceError;
+use std::collections::BTreeMap;
+
 use fastcrypto::error::FastCryptoError;
 use hyper::header::InvalidHeaderValue;
-use itertools::Itertools;
-use jsonrpsee::core::Error as RpcError;
-use jsonrpsee::types::error::{CallError, INTERNAL_ERROR_CODE};
-use jsonrpsee::types::ErrorObject;
-use std::collections::BTreeMap;
 use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
-use iota_types::committee::{QUORUM_THRESHOLD, TOTAL_VOTING_POWER};
-use iota_types::error::{IotaError, IotaObjectResponseError, UserInputError};
-use iota_types::quorum_driver_types::QuorumDriverError;
+use iota_types::{
+    committee::{QUORUM_THRESHOLD, TOTAL_VOTING_POWER},
+    error::{IotaError, IotaObjectResponseError, UserInputError},
+    quorum_driver_types::QuorumDriverError,
+};
+use itertools::Itertools;
+use jsonrpsee::{
+    core::Error as RpcError,
+    types::{
+        ErrorObject,
+        error::{CallError, INTERNAL_ERROR_CODE},
+    },
+};
 use thiserror::Error;
 use tokio::task::JoinError;
+
+use crate::{authority_state::StateReadError, name_service::NameServiceError};
 
 pub type RpcInterimResult<T = ()> = Result<T, Error>;
 
@@ -174,7 +181,8 @@ impl From<Error> for RpcError {
                             Some((digest, success)) => {
                                 format!(
                                     "Retried transaction {} ({}) because it was able to gather the necessary votes.",
-                                    digest, if success { "succeeded" } else { "failed" }
+                                    digest,
+                                    if success { "succeeded" } else { "failed" }
                                 )
                             }
                             None => "".to_string(),
@@ -216,7 +224,8 @@ impl From<Error> for RpcError {
                     QuorumDriverError::NonRecoverableTransactionError { errors } => {
                         let new_errors: Vec<String> = errors
                             .into_iter()
-                            // sort by total stake, descending, so users see the most prominent one first
+                            // sort by total stake, descending, so users see the most prominent one
+                            // first
                             .sorted_by(|(_, a, _), (_, b, _)| b.cmp(a))
                             .filter_map(|(err, _, _)| {
                                 match &err {
@@ -253,7 +262,10 @@ impl From<Error> for RpcError {
                             error_list.push(format!("- {}", err));
                         }
 
-                        let error_msg = format!("Transaction validator signing failed due to issues with transaction inputs, please review the errors and try again:\n{}", error_list.join("\n"));
+                        let error_msg = format!(
+                            "Transaction validator signing failed due to issues with transaction inputs, please review the errors and try again:\n{}",
+                            error_list.join("\n")
+                        );
 
                         let error_object = ErrorObject::owned(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
@@ -297,7 +309,9 @@ pub enum IotaRpcInputError {
     #[error("{0}")]
     GenericInvalid(String),
 
-    #[error("request_type` must set to `None` or `WaitForLocalExecution` if effects is required in the response")]
+    #[error(
+        "request_type` must set to `None` or `WaitForLocalExecution` if effects is required in the response"
+    )]
     InvalidExecuteTransactionRequestType,
 
     #[error("Unsupported protocol version requested. Min supported: {0}, max supported: {1}")]
@@ -330,18 +344,16 @@ impl From<IotaRpcInputError> for RpcError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use expect_test::expect;
+    use iota_types::{
+        base_types::{AuthorityName, ObjectID, ObjectRef, SequenceNumber},
+        committee::StakeUnit,
+        crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
+        digests::{ObjectDigest, TransactionDigest},
+    };
     use jsonrpsee::types::ErrorObjectOwned;
-    use iota_types::base_types::AuthorityName;
-    use iota_types::base_types::ObjectID;
-    use iota_types::base_types::ObjectRef;
-    use iota_types::base_types::SequenceNumber;
-    use iota_types::committee::StakeUnit;
-    use iota_types::crypto::AuthorityPublicKey;
-    use iota_types::crypto::AuthorityPublicKeyBytes;
-    use iota_types::digests::ObjectDigest;
-    use iota_types::digests::TransactionDigest;
+
+    use super::*;
 
     fn test_object_ref() -> ObjectRef {
         (
@@ -413,7 +425,8 @@ mod tests {
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();
 
-            // 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi has enough stake to escape equivocation
+            // 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi has enough stake to escape
+            // equivocation
             let stake_unit: StakeUnit = 8000;
             let authority_name = AuthorityPublicKeyBytes([0; AuthorityPublicKey::LENGTH]);
             conflicting_txes.insert(tx_digest, (vec![(authority_name, object_ref)], stake_unit));
@@ -434,7 +447,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect!["Failed to sign transaction by a quorum of validators because one or more of its objects is reserved for another transaction. Retried transaction 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (succeeded) because it was able to gather the necessary votes. Other transactions locking these objects:\n- 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 80.0)\n- 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 5.0)"];
+            let expected_message = expect![
+                "Failed to sign transaction by a quorum of validators because one or more of its objects is reserved for another transaction. Retried transaction 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (succeeded) because it was able to gather the necessary votes. Other transactions locking these objects:\n- 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 80.0)\n- 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 5.0)"
+            ];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
                 r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
@@ -458,7 +473,8 @@ mod tests {
             let authority_name = AuthorityPublicKeyBytes([0; AuthorityPublicKey::LENGTH]);
             conflicting_txes.insert(tx_digest, (vec![(authority_name, object_ref)], stake_unit));
 
-            // 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR is a higher stake and should be first in the list
+            // 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR is a higher stake and should be
+            // first in the list
             let tx_digest = TransactionDigest::from([2; 32]);
             let stake_unit: StakeUnit = 5000;
             let authority_name = AuthorityPublicKeyBytes([1; AuthorityPublicKey::LENGTH]);
@@ -475,7 +491,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect!["Failed to sign transaction by a quorum of validators because one or more of its objects is equivocated until the next epoch.  Other transactions locking these objects:\n- 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 50.0)\n- 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 40.0)"];
+            let expected_message = expect![
+                "Failed to sign transaction by a quorum of validators because one or more of its objects is equivocated until the next epoch.  Other transactions locking these objects:\n- 8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR (stake 50.0)\n- 4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi (stake 40.0)"
+            ];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[
                 r#"{"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]],"8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR":[["0x0000000000000000000000000000000000000000000000000000000000000000",0,"11111111111111111111111111111111"]]}"#
@@ -516,8 +534,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message =
-                expect!["Transaction validator signing failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0x0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 0xa"];
+            let expected_message = expect![
+                "Transaction validator signing failed due to issues with transaction inputs, please review the errors and try again:\n- Balance of gas object 10 is lower than the needed amount: 100\n- Object ID 0x0000000000000000000000000000000000000000000000000000000000000000 Version 0x0 Digest 11111111111111111111111111111111 is not available for consumption, current version: 0xa"
+            ];
             expected_message.assert_eq(error_object.message());
         }
 
@@ -548,8 +567,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32002"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message =
-                expect!["Transaction validator signing failed due to issues with transaction inputs, please review the errors and try again:\n- Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None"];
+            let expected_message = expect![
+                "Transaction validator signing failed due to issues with transaction inputs, please review the errors and try again:\n- Could not find the referenced object 0x0000000000000000000000000000000000000000000000000000000000000000 at version None"
+            ];
             expected_message.assert_eq(error_object.message());
         }
 
@@ -580,7 +600,9 @@ mod tests {
             let error_object: ErrorObjectOwned = rpc_error.into();
             let expected_code = expect!["-32050"];
             expected_code.assert_eq(&error_object.code().to_string());
-            let expected_message = expect!["Transaction is not processed because 10 of validators by stake are overloaded with certificates pending execution."];
+            let expected_message = expect![
+                "Transaction is not processed because 10 of validators by stake are overloaded with certificates pending execution."
+            ];
             expected_message.assert_eq(error_object.message());
         }
     }

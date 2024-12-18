@@ -2,18 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use std::sync::Arc;
 
+use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+
 pub struct EpochMetrics {
-    /// The current epoch ID. This is updated only when the AuthorityState finishes reconfiguration.
+    /// The current epoch ID. This is updated only when the AuthorityState
+    /// finishes reconfiguration.
     pub current_epoch: IntGauge,
 
-    /// Current voting right of the validator in the protocol. Updated at the start of epochs.
+    /// Current voting right of the validator in the protocol. Updated at the
+    /// start of epochs.
     pub current_voting_right: IntGauge,
 
-    /// Total duration of the epoch. This is measured from when the current epoch store is opened,
-    /// until the current epoch store is replaced with the next epoch store.
+    /// Total duration of the epoch. This is measured from when the current
+    /// epoch store is opened, until the current epoch store is replaced
+    /// with the next epoch store.
     pub epoch_total_duration: IntGauge,
 
     /// Number of checkpoints in the epoch.
@@ -31,73 +35,85 @@ pub struct EpochMetrics {
     // 3. Stop accepting messages from consensus after seeing 2f+1 EndOfPublish messages.
     // 4. Creating the last checkpoint of the epoch by augmenting it with AdvanceEpoch transaction.
     // 5. CheckpointExecutor finishes executing the last checkpoint, and triggers reconfiguration.
-    // 6. During reconfiguration, we tear down consensus, reconfigure state (at which point we opens
-    //    up user certs), and start consensus again.
-    // 7. After reconfiguration, and eventually consensus starts successfully, at some point the first
-    //    checkpoint of the new epoch will be created.
+    // 6. During reconfiguration, we tear down consensus, reconfigure state (at which point we
+    //    opens up user certs), and start consensus again.
+    // 7. After reconfiguration, and eventually consensus starts successfully, at some point the
+    //    first checkpoint of the new epoch will be created.
     // We introduce various metrics to cover the latency of above steps.
-    /// The duration from when the epoch is closed (i.e. validator halted) to when all pending
-    /// certificates are processed (i.e. ready to send EndOfPublish message).
-    /// This is the duration of (1) through (2) above.
+    /// The duration from when the epoch is closed (i.e. validator halted) to
+    /// when all pending certificates are processed (i.e. ready to send
+    /// EndOfPublish message). This is the duration of (1) through (2)
+    /// above.
     pub epoch_pending_certs_processed_time_since_epoch_close_ms: IntGauge,
 
-    /// The interval from when the epoch is closed to when we receive 2f+1 EndOfPublish messages.
-    /// This is the duration of (1) through (3) above.
+    /// The interval from when the epoch is closed to when we receive 2f+1
+    /// EndOfPublish messages. This is the duration of (1) through (3)
+    /// above.
     pub epoch_end_of_publish_quorum_time_since_epoch_close_ms: IntGauge,
 
-    /// The interval from when the epoch is closed to when we created the last checkpoint of the
-    /// epoch.
+    /// The interval from when the epoch is closed to when we created the last
+    /// checkpoint of the epoch.
     /// This is the duration of (1) through (4) above.
     pub epoch_last_checkpoint_created_time_since_epoch_close_ms: IntGauge,
 
-    /// The interval from when the epoch is closed to when we finished executing the last transaction
-    /// of the checkpoint (and hence triggering reconfiguration process).
-    /// This is the duration of (1) through (5) above.
+    /// The interval from when the epoch is closed to when we finished executing
+    /// the last transaction of the checkpoint (and hence triggering
+    /// reconfiguration process). This is the duration of (1) through (5)
+    /// above.
     pub epoch_reconfig_start_time_since_epoch_close_ms: IntGauge,
 
-    /// The total duration when this validator is halted, and hence does not accept certs from users.
-    /// This is the duration of (1) through (6) above, and is the most important latency metric
-    /// reflecting reconfiguration delay for each validator.
+    /// The total duration when this validator is halted, and hence does not
+    /// accept certs from users. This is the duration of (1) through (6)
+    /// above, and is the most important latency metric reflecting
+    /// reconfiguration delay for each validator.
     pub epoch_validator_halt_duration_ms: IntGauge,
 
-    /// The interval from when the epoch begins (i.e. right after state reconfigure, when the new
-    /// epoch_store is created), to when the first checkpoint of the epoch is ready for creation locally.
-    /// This is (7) above, and is a good proxy to how long it takes for the validator
-    /// to become useful in the network after reconfiguration.
+    /// The interval from when the epoch begins (i.e. right after state
+    /// reconfigure, when the new epoch_store is created), to when the first
+    /// checkpoint of the epoch is ready for creation locally. This is (7)
+    /// above, and is a good proxy to how long it takes for the validator to
+    /// become useful in the network after reconfiguration.
     // TODO: This needs to be reported properly.
     pub epoch_first_checkpoint_created_time_since_epoch_begin_ms: IntGauge,
 
-    /// Whether we are running in safe mode where reward distribution and tokenomics are disabled.
+    /// Whether we are running in safe mode where reward distribution and
+    /// tokenomics are disabled.
     pub is_safe_mode: IntGauge,
 
-    /// When building the last checkpoint of the epoch, we execute advance epoch transaction once
-    /// without committing results to the store. It's useful to know whether this execution leads
-    /// to safe_mode, since in theory the result could be different from checkpoint executor.
+    /// When building the last checkpoint of the epoch, we execute advance epoch
+    /// transaction once without committing results to the store. It's
+    /// useful to know whether this execution leads to safe_mode, since in
+    /// theory the result could be different from checkpoint executor.
     pub checkpoint_builder_advance_epoch_is_safe_mode: IntGauge,
 
     /// Buffer stake current in effect for this epoch
     pub effective_buffer_stake: IntGauge,
 
-    /// Set to 1 if the random beacon DKG protocol failed for the most recent epoch.
+    /// Set to 1 if the random beacon DKG protocol failed for the most recent
+    /// epoch.
     pub epoch_random_beacon_dkg_failed: IntGauge,
 
-    /// The number of shares held by this node after the random beacon DKG protocol completed.
+    /// The number of shares held by this node after the random beacon DKG
+    /// protocol completed.
     pub epoch_random_beacon_dkg_num_shares: IntGauge,
 
-    /// The amount of time taken from epoch start to completion of random beacon DKG protocol,
-    /// for the most recent epoch.
+    /// The amount of time taken from epoch start to completion of random beacon
+    /// DKG protocol, for the most recent epoch.
     pub epoch_random_beacon_dkg_epoch_start_completion_time_ms: IntGauge,
 
-    /// The amount of time taken to complete random beacon DKG protocol from the time it was
-    /// started (which may be a bit after the epcoh began), for the most recent epoch.
+    /// The amount of time taken to complete random beacon DKG protocol from the
+    /// time it was started (which may be a bit after the epcoh began), for
+    /// the most recent epoch.
     pub epoch_random_beacon_dkg_completion_time_ms: IntGauge,
 
-    /// The amount of time taken to start first phase of the random beacon DKG protocol,
-    /// at which point the node has submitted a DKG Message, for the most recent epoch.
+    /// The amount of time taken to start first phase of the random beacon DKG
+    /// protocol, at which point the node has submitted a DKG Message, for
+    /// the most recent epoch.
     pub epoch_random_beacon_dkg_message_time_ms: IntGauge,
 
-    /// The amount of time taken to complete first phase of the random beacon DKG protocol,
-    /// at which point the node has submitted a DKG Confirmation, for the most recent epoch.
+    /// The amount of time taken to complete first phase of the random beacon
+    /// DKG protocol, at which point the node has submitted a DKG
+    /// Confirmation, for the most recent epoch.
     pub epoch_random_beacon_dkg_confirmation_time_ms: IntGauge,
 }
 

@@ -2,43 +2,42 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, language_storage::StructTag};
-use iota_move_build::BuildConfig;
-use iota_protocol_config::ProtocolConfig;
-use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
-    crypto::{get_key_pair, AccountKeyPair},
-    move_package::UpgradePolicy,
-    object::{Object, Owner},
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::ObjectStore,
-    transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-    MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-};
-
 use std::{
     collections::BTreeSet,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
 };
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use iota_types::error::{IotaError, UserInputError};
-use iota_types::execution_config_utils::to_binary_config;
-use iota_types::execution_status::{
-    CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
-};
 
-use crate::authority::authority_tests::init_state_with_ids;
-use crate::authority::move_integration_tests::{
-    build_multi_publish_txns, build_multi_upgrade_txns, build_package,
-    collect_packages_and_upgrade_caps, run_multi_txns, UpgradeData,
+use iota_move_build::BuildConfig;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    crypto::{AccountKeyPair, get_key_pair},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    error::{IotaError, UserInputError},
+    execution_config_utils::to_binary_config,
+    execution_status::{
+        CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
+    },
+    move_package::UpgradePolicy,
+    object::{Object, Owner},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    storage::ObjectStore,
+    transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
+use move_core_types::{ident_str, language_storage::StructTag};
+
 use crate::authority::{
+    AuthorityState,
     authority_test_utils::build_test_modules_with_dep_addr,
-    authority_tests::execute_programmable_transaction,
-    move_integration_tests::build_and_publish_test_package_with_upgrade_cap, AuthorityState,
+    authority_tests::{execute_programmable_transaction, init_state_with_ids},
+    move_integration_tests::{
+        UpgradeData, build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
+        build_multi_upgrade_txns, build_package, collect_packages_and_upgrade_caps, run_multi_txns,
+    },
+    test_authority_builder::TestAuthorityBuilder,
 };
 
 #[macro_export]
@@ -66,7 +65,8 @@ fn build_upgrade_test_modules_with_overlay(
     base_pkg: &str,
     overlay: FileOverlay<'_>,
 ) -> (Vec<u8>, Vec<Vec<u8>>) {
-    // Root temp dirs under `move_upgrade` directory so that dependency paths remain correct.
+    // Root temp dirs under `move_upgrade` directory so that dependency paths remain
+    // correct.
     let mut tmp_dir_root_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     tmp_dir_root_path.extend(["src", "unit_tests", "data", "move_upgrade"]);
 
@@ -187,7 +187,8 @@ impl UpgradeStateRunner {
             &sender_key,
             &gas_object_id,
             base_package_name,
-            /* with_unpublished_deps */ false,
+            // with_unpublished_deps
+            false,
         )
         .await;
 
@@ -330,14 +331,18 @@ async fn test_upgrade_package_happy_path() {
     let binary_config = to_binary_config(&config);
     let normalized_modules = package.move_package().normalize(&binary_config).unwrap();
     assert!(normalized_modules.contains_key("new_module"));
-    assert!(normalized_modules["new_module"]
-        .functions
-        .contains_key(ident_str!("this_is_a_new_module")));
-    assert!(normalized_modules["new_module"]
-        .functions
-        .contains_key(ident_str!(
-            "i_can_call_funs_in_other_modules_that_already_existed"
-        )));
+    assert!(
+        normalized_modules["new_module"]
+            .functions
+            .contains_key(ident_str!("this_is_a_new_module"))
+    );
+    assert!(
+        normalized_modules["new_module"]
+            .functions
+            .contains_key(ident_str!(
+                "i_can_call_funs_in_other_modules_that_already_existed"
+            ))
+    );
 
     // Call into the upgraded module
     let effects = runner
@@ -361,12 +366,10 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     // First upgrade introduces a new type, B.
     let (digest, modules) = build_upgrade_test_modules("new_object");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -375,19 +378,17 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     // Second upgrade introduces an entry function that creates `B`s.
     let (digest, modules) = build_upgrade_test_modules("makes_new_object");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
     let package_v3 = runner.package.0;
 
-    // Create an instance of the type introduced at version 2, with the function introduced at
-    // version 3.
+    // Create an instance of the type introduced at version 2, with the function
+    // introduced at version 3.
     let effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -409,15 +410,12 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .get_object_by_key(&created.0, created.1)
         .unwrap();
 
-    assert_eq!(
-        b.data.struct_tag().unwrap(),
-        StructTag {
-            address: *package_v2,
-            module: ident_str!("base").to_owned(),
-            name: ident_str!("B").to_owned(),
-            type_params: vec![],
-        },
-    );
+    assert_eq!(b.data.struct_tag().unwrap(), StructTag {
+        address: *package_v2,
+        module: ident_str!("base").to_owned(),
+        name: ident_str!("B").to_owned(),
+        type_params: vec![],
+    },);
 
     // Delete the instance we just created
     let effects = runner
@@ -524,20 +522,15 @@ async fn test_upgrade_package_add_new_module_in_dep_only_mode_pre_v68() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
     let base_pkg = "dep_only_upgrade";
     assert_valid_dep_only_upgrade(&mut runner, base_pkg).await;
-    let (digest, modules) = build_upgrade_test_modules_with_overlay(
-        base_pkg,
-        FileOverlay::Add {
-            file_name: "new_module.move",
-            contents: "module base_addr::new_module;",
-        },
-    );
+    let (digest, modules) = build_upgrade_test_modules_with_overlay(base_pkg, FileOverlay::Add {
+        file_name: "new_module.move",
+        contents: "module base_addr::new_module;",
+    });
     let effects = runner
-        .upgrade(
-            UpgradePolicy::DEP_ONLY,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -566,12 +559,10 @@ public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
     for overlay in overlays {
         let (digest, modules) = build_upgrade_test_modules_with_overlay(base_pkg, overlay);
         let effects = runner
-            .upgrade(
-                UpgradePolicy::DEP_ONLY,
-                digest,
-                modules,
-                vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-            )
+            .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, vec![
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                MOVE_STDLIB_PACKAGE_ID,
+            ])
             .await;
 
         assert_eq!(
@@ -606,12 +597,10 @@ public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
     for overlay in overlays {
         let (digest, modules) = build_upgrade_test_modules_with_overlay(base_pkg, overlay);
         let effects = runner
-            .upgrade(
-                UpgradePolicy::DEP_ONLY,
-                digest,
-                modules,
-                vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-            )
+            .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, vec![
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                MOVE_STDLIB_PACKAGE_ID,
+            ])
             .await;
 
         assert_eq!(
@@ -836,7 +825,7 @@ async fn test_multiple_upgrades(
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-         .0;
+        .0;
 
     // Second upgrade: May also adds a dep on the iota framework and stdlib.
     let (digest, modules) = build_upgrade_test_modules("stage2_basic_compatibility_valid");
@@ -859,7 +848,8 @@ async fn test_multiple_upgrades(
 async fn test_interleaved_upgrades() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
 
-    // Base has been published. Publish a package now that depends on the base package.
+    // Base has been published. Publish a package now that depends on the base
+    // package.
     let (_, module_bytes, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package",
         [("base_addr", runner.package.0)],
@@ -941,7 +931,8 @@ async fn test_interleaved_upgrades() {
 async fn test_publish_override_happy_path() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
 
-    // Base has been published already. Publish a package now that depends on the base package.
+    // Base has been published already. Publish a package now that depends on the
+    // base package.
     let (_, module_bytes, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package",
         [("base_addr", runner.package.0)],
@@ -969,8 +960,8 @@ async fn test_publish_override_happy_path() {
         .unwrap()
         .0;
 
-    // Publish P that depends on both `dep_on_upgrading_package` and `stage1_basic_compatibility_valid`
-    // Dependency graph for dep_on_dep:
+    // Publish P that depends on both `dep_on_upgrading_package` and
+    // `stage1_basic_compatibility_valid` Dependency graph for dep_on_dep:
     //    base(v1)
     //    base(v2) <-- dep_on_upgrading_package <-- dep_on_dep
     let (_, modules, dep_ids) = build_upgrade_test_modules_with_dep_addr(
@@ -1022,9 +1013,9 @@ async fn test_publish_transitive_happy_path() {
     // Dependency graph: base <-- dep_on_upgrading_package
     let (depender_package, _) = runner.publish(module_bytes, dep_ids).await;
 
-    // publish a root package that depends on the dependent package and on version 1 of the base
-    // package (both dependent package and transitively dependent package depended on the same
-    // version of the base package)
+    // publish a root package that depends on the dependent package and on version 1
+    // of the base package (both dependent package and transitively dependent
+    // package depended on the same version of the base package)
     let (_, root_module_bytes, root_dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package_transitive",
         [
@@ -1037,7 +1028,8 @@ async fn test_publish_transitive_happy_path() {
         ],
     );
     // Dependency graph: base(v1)  <-- dep_on_upgrading_package
-    //                   base(v1)  <-- dep_on_upgrading_package <-- dep_on_upgrading_package_transitive --> base(v1)
+    //                   base(v1)  <-- dep_on_upgrading_package <--
+    // dep_on_upgrading_package_transitive --> base(v1)
     let (root_package, _) = runner.publish(root_module_bytes, root_dep_ids).await;
 
     let root_move_package = runner
@@ -1057,8 +1049,8 @@ async fn test_publish_transitive_happy_path() {
     assert!(dep_ids_in_linkage_table.contains(&runner.package.0));
     assert!(dep_ids_in_linkage_table.contains(&depender_package.0));
 
-    // Call into the root module to call base module's function (should abort due to base module's
-    // call_return_0 aborting with code 42)
+    // Call into the root module to call base module's function (should abort due to
+    // base module's call_return_0 aborting with code 42)
     let call_effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1113,9 +1105,9 @@ async fn test_publish_transitive_override_happy_path() {
         .unwrap()
         .0;
 
-    // publish a root package that depends on the dependent package and on version 2 of the base
-    // package (overriding base package dependency of the dependent package which originally
-    // depended on base package version 1)
+    // publish a root package that depends on the dependent package and on version 2
+    // of the base package (overriding base package dependency of the dependent
+    // package which originally depended on base package version 1)
     let (_, root_module_bytes, root_dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package_transitive",
         [
@@ -1128,7 +1120,8 @@ async fn test_publish_transitive_override_happy_path() {
         ],
     );
     // Dependency graph: base(v1)  <-- dep_on_upgrading_package
-    //                   base(v2)  <-- dep_on_upgrading_package <-- dep_on_upgrading_package_transitive --> base(v2)
+    //                   base(v2)  <-- dep_on_upgrading_package <--
+    // dep_on_upgrading_package_transitive --> base(v2)
     let (root_package, _) = runner.publish(root_module_bytes, root_dep_ids).await;
 
     let root_move_package = runner
@@ -1148,8 +1141,8 @@ async fn test_publish_transitive_override_happy_path() {
     assert!(dep_ids_in_linkage_table.contains(&base_v2_package.0));
     assert!(dep_ids_in_linkage_table.contains(&depender_package.0));
 
-    // Call into the root module to call upgraded base module's function (should succeed due to base module's
-    // call_return_0 no longer aborting)
+    // Call into the root module to call upgraded base module's function (should
+    // succeed due to base module's call_return_0 no longer aborting)
     let call_effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1176,12 +1169,10 @@ async fn test_upgraded_types_in_one_txn() {
     // First upgrade (version 2) introduces a new type, B.
     let (digest, modules) = build_upgrade_test_modules("makes_new_object");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -1190,18 +1181,17 @@ async fn test_upgraded_types_in_one_txn() {
     // Second upgrade (version 3) introduces a new type, C.
     let (digest, modules) = build_upgrade_test_modules("makes_another_object");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
     let package_v3 = runner.package.0;
 
-    // Create an instance of the type introduced at version 2 using function from version 2.
+    // Create an instance of the type introduced at version 2 using function from
+    // version 2.
     let effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1217,7 +1207,8 @@ async fn test_upgraded_types_in_one_txn() {
         .find_map(|(b, owner)| matches!(owner, Owner::AddressOwner(_)).then_some(b))
         .unwrap();
 
-    // Create an instance of the type introduced at version 3 using function from version 3.
+    // Create an instance of the type introduced at version 3 using function from
+    // version 3.
     let effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1233,8 +1224,9 @@ async fn test_upgraded_types_in_one_txn() {
         .find_map(|(c, owner)| matches!(owner, Owner::AddressOwner(_)).then_some(c))
         .unwrap();
 
-    // modify objects created of types introduced at versions 2 and 3 and emit events using types
-    // introduced at versions 2 and 3 (using functions from version 3)
+    // modify objects created of types introduced at versions 2 and 3 and emit
+    // events using types introduced at versions 2 and 3 (using functions from
+    // version 3)
     let effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1277,9 +1269,10 @@ async fn test_different_versions_across_calls() {
         .find(|(_, owner)| matches!(owner, Owner::Immutable))
         .unwrap()
         .0
-         .0;
+        .0;
 
-    // call the same function twice within the same block but from two different module versions
+    // call the same function twice within the same block but from two different
+    // module versions
     let effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
@@ -1297,7 +1290,8 @@ async fn test_conflicting_versions_across_calls() {
     // publishes base package at version 1
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
 
-    // publish a dependent package at version 1 that depends on the base package at version 1
+    // publish a dependent package at version 1 that depends on the base package at
+    // version 1
     let (_, module_bytes, dep_ids) = build_upgrade_test_modules_with_dep_addr(
         "dep_on_upgrading_package_upgradeable",
         [
@@ -1325,7 +1319,8 @@ async fn test_conflicting_versions_across_calls() {
         .unwrap()
         .0;
 
-    // publish a dependent package at version 2 that depends on the base package at version 2
+    // publish a dependent package at version 2 that depends on the base package at
+    // version 2
     let pt2 = {
         let mut builder = ProgrammableTransactionBuilder::new();
         let current_package_id = depender_package.0;
@@ -1370,15 +1365,15 @@ async fn test_conflicting_versions_across_calls() {
         .unwrap()
         .0;
 
-    // call the same function twice within the same block but from two different module versions
-    // that differ only by having different dependencies
+    // call the same function twice within the same block but from two different
+    // module versions that differ only by having different dependencies
     let effects = runner
         .run({
             let mut builder = ProgrammableTransactionBuilder::new();
             // call from upgraded package - should succeed
             move_call! { builder, (dependent_v2_package.0)::my_module::call_return_0() };
-            // call from original package - should abort (check later that the second command
-            // aborts)
+            // call from original package - should abort (check later that the second
+            // command aborts)
             move_call! { builder, (depender_package.0)::my_module::call_return_0() };
             builder.finish()
         })
@@ -1416,12 +1411,10 @@ async fn test_upgrade_cross_module_refs() {
     // Upgrade and cross module, cross version type usage
     let (digest, modules) = build_upgrade_test_modules("object_cross_module_ref1");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -1443,12 +1436,10 @@ async fn test_upgrade_cross_module_refs() {
     // Upgrade and cross module, cross version type usage
     let (digest, modules) = build_upgrade_test_modules("object_cross_module_ref2");
     let effects = runner
-        .upgrade(
-            UpgradePolicy::COMPATIBLE,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());
@@ -1475,7 +1466,6 @@ async fn test_upgrade_max_packages() {
     let gas_object_id = ObjectID::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
-    //
     // Build and publish max number of packages allowed
     let (_, modules, dependencies) = build_package("move_upgrade/base", false);
 
@@ -1530,7 +1520,6 @@ async fn test_upgrade_more_than_max_packages_error() {
     let gas_object_id = ObjectID::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
-    //
     // Build and publish max number of packages allowed
     let (_, modules, dependencies) = build_package("move_upgrade/base", false);
 
@@ -1577,26 +1566,21 @@ async fn test_upgrade_more_than_max_packages_error() {
     let err = run_multi_txns(&authority, sender, &sender_key, &gas_object_id, builder)
         .await
         .unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::UserInputError {
-            error: UserInputError::MaxPublishCountExceeded {
-                max_publish_commands: max_pub_cmd,
-                publish_count: max_pub_cmd + 2,
-            }
+    assert_eq!(err, IotaError::UserInputError {
+        error: UserInputError::MaxPublishCountExceeded {
+            max_publish_commands: max_pub_cmd,
+            publish_count: max_pub_cmd + 2,
         }
-    );
+    });
 }
 
 async fn assert_valid_dep_only_upgrade(runner: &mut UpgradeStateRunner, package_name: &str) {
     let (digest, modules) = build_upgrade_test_modules(package_name);
     let effects = runner
-        .upgrade(
-            UpgradePolicy::DEP_ONLY,
-            digest,
-            modules,
-            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
-        )
+        .upgrade(UpgradePolicy::DEP_ONLY, digest, modules, vec![
+            IOTA_FRAMEWORK_PACKAGE_ID,
+            MOVE_STDLIB_PACKAGE_ID,
+        ])
         .await;
 
     assert!(effects.status().is_ok(), "{:#?}", effects.status());

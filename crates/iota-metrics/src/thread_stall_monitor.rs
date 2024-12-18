@@ -2,11 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::Once;
-use std::time::Duration;
-use std::time::Instant;
+use std::{
+    sync::{Arc, Mutex, Once},
+    time::{Duration, Instant},
+};
 
 use tracing::{error, info};
 
@@ -38,7 +37,8 @@ const ALERT_THRESHOLD: Duration = Duration::from_millis(500);
 //
 // You will need to type `c` to continue the process after it loads.
 //
-// The debugger will now print out all thread stacks every time a thread stall is detected.
+// The debugger will now print out all thread stacks every time a thread stall
+// is detected.
 #[inline(never)]
 extern "C" fn thread_monitor_report_stall(duration_ms: u64) {
     error!("Thread stalled for {}ms", duration_ms);
@@ -50,8 +50,8 @@ extern "C" fn thread_monitor_report_stall_cleared(duration_ms: u64) {
 }
 
 /// Monitors temporary stalls in tokio scheduling every MONITOR_INTERVAL.
-/// Calls `thread_monitor_report_stall` if more than ALERT_THRESHOLD has elapsed.
-/// When the stall clears, we observer the duration in a histogram.
+/// Calls `thread_monitor_report_stall` if more than ALERT_THRESHOLD has
+/// elapsed. When the stall clears, we observer the duration in a histogram.
 pub fn start_thread_stall_monitor() {
     let mut called = true;
     THREAD_STALL_MONITOR.call_once(|| {

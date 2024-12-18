@@ -12,8 +12,8 @@ pub mod one_time_witness_verifier;
 pub mod private_generics;
 pub mod struct_with_key_verifier;
 
-use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
 use iota_types::error::{ExecutionError, ExecutionErrorKind};
+use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
 
 pub const INIT_FN_NAME: &IdentStr = ident_str!("init");
 pub const TEST_SCENARIO_MODULE_NAME: &str = "test_scenario";
@@ -26,8 +26,8 @@ fn to_verification_timeout_error(error: String) -> ExecutionError {
     ExecutionError::new_with_source(ExecutionErrorKind::IotaMoveVerificationTimedout, error)
 }
 
-/// Runs the Move verifier and checks if the error counts as a Move verifier timeout
-/// NOTE: this function only check if the verifier error is a timeout
+/// Runs the Move verifier and checks if the error counts as a Move verifier
+/// timeout NOTE: this function only check if the verifier error is a timeout
 /// All other errors are ignored
 pub fn check_for_verifier_timeout(major_status_code: &StatusCode) -> bool {
     [

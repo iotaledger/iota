@@ -6,14 +6,14 @@ use std::{
     collections::BTreeSet,
     fmt::Debug,
     sync::{
-        atomic::{AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicU32, Ordering},
     },
 };
 
 use async_trait::async_trait;
 use iota_metrics::{
-    monitored_mpsc::{channel, Receiver, Sender, WeakSender},
+    monitored_mpsc::{Receiver, Sender, WeakSender, channel},
     monitored_scope, spawn_logged_monitored_task,
 };
 use parking_lot::RwLock;
@@ -22,6 +22,7 @@ use tokio::sync::{oneshot, watch};
 use tracing::warn;
 
 use crate::{
+    BlockAPI as _,
     block::{BlockRef, Round, VerifiedBlock},
     context::Context,
     core::Core,
@@ -29,7 +30,6 @@ use crate::{
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
     round_prober::QuorumRound,
-    BlockAPI as _,
 };
 
 const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
@@ -37,9 +37,11 @@ const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 enum CoreThreadCommand {
     /// Add blocks to be processed and accepted
     AddBlocks(Vec<VerifiedBlock>, oneshot::Sender<BTreeSet<BlockRef>>),
-    /// Called when the min round has passed or the leader timeout occurred and a block should be produced.
-    /// When the command is called with `force = true`, then the block will be created for `round` skipping
-    /// any checks (ex leader existence of previous round). More information can be found on the `Core` component.
+    /// Called when the min round has passed or the leader timeout occurred and
+    /// a block should be produced. When the command is called with `force =
+    /// true`, then the block will be created for `round` skipping
+    /// any checks (ex leader existence of previous round). More information can
+    /// be found on the `Core` component.
     NewBlock(Round, oneshot::Sender<()>, bool),
     /// Request missing blocks that need to be synced.
     GetMissing(oneshot::Sender<BTreeSet<BlockRef>>),
@@ -56,7 +58,7 @@ pub enum CoreError {
 #[async_trait]
 pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_blocks(&self, blocks: Vec<VerifiedBlock>)
-        -> Result<BTreeSet<BlockRef>, CoreError>;
+    -> Result<BTreeSet<BlockRef>, CoreError>;
 
     async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError>;
 
@@ -90,7 +92,8 @@ pub(crate) struct CoreThreadHandle {
 
 impl CoreThreadHandle {
     pub async fn stop(self) {
-        // drop the sender, that will force all the other weak senders to not able to upgrade.
+        // drop the sender, that will force all the other weak senders to not able to
+        // upgrade.
         drop(self.sender);
         self.join_handle.await.ok();
     }
@@ -235,8 +238,9 @@ impl ChannelCoreThreadDispatcher {
             "ConsensusCoreThread"
         );
 
-        // Explicitly using downgraded sender in order to allow sharing the CoreThreadDispatcher but
-        // able to shutdown the CoreThread by dropping the original sender.
+        // Explicitly using downgraded sender in order to allow sharing the
+        // CoreThreadDispatcher but able to shutdown the CoreThread by dropping
+        // the original sender.
         let dispatcher = ChannelCoreThreadDispatcher {
             context,
             sender: sender.downgrade(),
@@ -422,6 +426,7 @@ mod test {
 
     use super::*;
     use crate::{
+        CommitConsumer,
         block_manager::BlockManager,
         block_verifier::NoopBlockVerifier,
         commit_observer::CommitObserver,
@@ -431,7 +436,6 @@ mod test {
         leader_schedule::LeaderSchedule,
         storage::mem_store::MemStore,
         transaction::{TransactionClient, TransactionConsumer},
-        CommitConsumer,
     };
 
     #[tokio::test]

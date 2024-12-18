@@ -2,23 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::base64::Base64;
-use super::move_type::MoveType;
-use super::transaction_block::{TransactionBlock, TransactionBlockInner};
-use super::transaction_block_kind::programmable::TransactionArgument;
-use crate::error::Error;
 use async_graphql::*;
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionResult};
-use iota_types::effects::TransactionEffects as NativeTransactionEffects;
-use iota_types::transaction::TransactionData as NativeTransactionData;
-use iota_types::TypeTag;
+use iota_types::{
+    TypeTag, effects::TransactionEffects as NativeTransactionEffects,
+    transaction::TransactionData as NativeTransactionData,
+};
+
+use super::{
+    base64::Base64,
+    move_type::MoveType,
+    transaction_block::{TransactionBlock, TransactionBlockInner},
+    transaction_block_kind::programmable::TransactionArgument,
+};
+use crate::error::Error;
 
 #[derive(Clone, Debug, SimpleObject)]
 pub(crate) struct DryRunResult {
     /// The error that occurred during dry run execution, if any.
     pub error: Option<String>,
-    /// The intermediate results for each command of the dry run execution, including
-    /// contents of mutated references and return values.
+    /// The intermediate results for each command of the dry run execution,
+    /// including contents of mutated references and return values.
     pub results: Option<Vec<DryRunEffect>>,
     /// The transaction block representing the dry run execution.
     pub transaction: Option<TransactionBlock>,
@@ -26,7 +30,8 @@ pub(crate) struct DryRunResult {
 
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]
 pub(crate) struct DryRunEffect {
-    /// Changes made to arguments that were mutably borrowed by each command in this transaction.
+    /// Changes made to arguments that were mutably borrowed by each command in
+    /// this transaction.
     pub mutated_references: Option<Vec<DryRunMutation>>,
 
     /// Return results of each command in this transaction.

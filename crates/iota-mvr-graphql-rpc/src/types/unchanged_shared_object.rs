@@ -5,12 +5,12 @@
 use async_graphql::*;
 use iota_types::effects::InputSharedObject as NativeInputSharedObject;
 
-use super::{object_read::ObjectRead, iota_address::IotaAddress, uint53::UInt53};
+use super::{iota_address::IotaAddress, object_read::ObjectRead, uint53::UInt53};
 
-/// Details pertaining to shared objects that are referenced by but not changed by a transaction.
-/// This information is considered part of the effects, because although the transaction specifies
-/// the shared object as input, consensus must schedule it and pick the version that is actually
-/// used.
+/// Details pertaining to shared objects that are referenced by but not changed
+/// by a transaction. This information is considered part of the effects,
+/// because although the transaction specifies the shared object as input,
+/// consensus must schedule it and pick the version that is actually used.
 #[derive(Union)]
 pub(crate) enum UnchangedSharedObject {
     Read(SharedObjectRead),
@@ -25,29 +25,31 @@ pub(crate) struct SharedObjectRead {
     read: ObjectRead,
 }
 
-/// The transaction accepted a shared object as input, but it was deleted before the transaction
-/// executed.
+/// The transaction accepted a shared object as input, but it was deleted before
+/// the transaction executed.
 #[derive(SimpleObject)]
 pub(crate) struct SharedObjectDelete {
     /// ID of the shared object.
     address: IotaAddress,
 
-    /// The version of the shared object that was assigned to this transaction during by consensus,
-    /// during sequencing.
+    /// The version of the shared object that was assigned to this transaction
+    /// during by consensus, during sequencing.
     version: UInt53,
 
-    /// Whether this transaction intended to use this shared object mutably or not. See
-    /// `SharedInput.mutable` for further details.
+    /// Whether this transaction intended to use this shared object mutably or
+    /// not. See `SharedInput.mutable` for further details.
     mutable: bool,
 }
 
-/// The transaction accepted a shared object as input, but its execution was cancelled.
+/// The transaction accepted a shared object as input, but its execution was
+/// cancelled.
 #[derive(SimpleObject)]
 pub(crate) struct SharedObjectCancelled {
     /// ID of the shared object.
     address: IotaAddress,
 
-    /// The assigned shared object version. It is a special version indicating transaction cancellation reason.
+    /// The assigned shared object version. It is a special version indicating
+    /// transaction cancellation reason.
     version: UInt53,
 }
 

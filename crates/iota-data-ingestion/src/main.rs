@@ -2,21 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{env, path::PathBuf, time::Duration};
+
 use anyhow::Result;
-use prometheus::Registry;
-use serde::{Deserialize, Serialize};
-use std::env;
-use std::path::PathBuf;
-use std::time::Duration;
 use iota_data_ingestion::{
     ArchivalConfig, ArchivalReducer, ArchivalWorker, BlobTaskConfig, BlobWorker,
     DynamoDBProgressStore, KVStoreTaskConfig, KVStoreWorker,
 };
-use iota_data_ingestion_core::{DataIngestionMetrics, ReaderOptions};
-use iota_data_ingestion_core::{IndexerExecutor, WorkerPool};
+use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
 use iota_kvstore::{BigTableClient, KvWorker};
-use tokio::signal;
-use tokio::sync::oneshot;
+use prometheus::Registry;
+use serde::{Deserialize, Serialize};
+use tokio::{signal, sync::oneshot};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]

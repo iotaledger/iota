@@ -2,35 +2,40 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 #[cfg(not(msim))]
 use std::str::FromStr;
-use std::time::Duration;
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
     CoinReadApiClient, GovernanceReadApiClient, IndexerApiClient, ReadApiClient,
     TransactionBuilderClient, WriteApiClient,
 };
-use iota_json_rpc_types::ObjectChange;
-use iota_json_rpc_types::ObjectsPage;
 use iota_json_rpc_types::{
-    Balance, CoinPage, DelegatedStake, StakeStatus, IotaCoinMetadata, IotaExecutionStatus,
-    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, TransactionBlockBytes,
+    Balance, CoinPage, DelegatedStake, IotaCoinMetadata, IotaExecutionStatus,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange, ObjectsPage, StakeStatus,
+    TransactionBlockBytes,
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
-use iota_types::balance::Supply;
-use iota_types::base_types::SequenceNumber;
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::coin::{TreasuryCap, COIN_MODULE_NAME};
-use iota_types::digests::ObjectDigest;
-use iota_types::gas_coin::GAS;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::{parse_iota_struct_tag, IOTA_FRAMEWORK_ADDRESS};
+use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
+    balance::Supply,
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
+    coin::{COIN_MODULE_NAME, TreasuryCap},
+    digests::ObjectDigest,
+    gas_coin::GAS,
+    parse_iota_struct_tag,
+    quorum_driver_types::ExecuteTransactionRequestType,
+};
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
@@ -77,13 +82,15 @@ async fn test_get_package_with_display_should_not_fail() -> Result<(), anyhow::E
         .await;
     assert!(response.is_ok());
     let response: IotaObjectResponse = response?;
-    assert!(response
-        .into_object()
-        .unwrap()
-        .display
-        .unwrap()
-        .data
-        .is_none());
+    assert!(
+        response
+            .into_object()
+            .unwrap()
+            .display
+            .unwrap()
+            .data
+            .is_none()
+    );
     Ok(())
 }
 

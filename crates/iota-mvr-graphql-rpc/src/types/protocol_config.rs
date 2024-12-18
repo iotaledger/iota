@@ -9,12 +9,11 @@ use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use iota_indexer::schema::{epochs, feature_flags, protocol_configs};
 
+use super::uint53::UInt53;
 use crate::{
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
 };
-
-use super::uint53::UInt53;
 
 /// A single protocol configuration value.
 #[derive(Clone, Debug, SimpleObject)]
@@ -39,18 +38,21 @@ pub(crate) struct ProtocolConfigs {
 
 /// Constants that control how the chain operates.
 ///
-/// These can only change during protocol upgrades which happen on epoch boundaries.
+/// These can only change during protocol upgrades which happen on epoch
+/// boundaries.
 #[Object]
 impl ProtocolConfigs {
-    /// The protocol is not required to change on every epoch boundary, so the protocol version
-    /// tracks which change to the protocol these configs are from.
+    /// The protocol is not required to change on every epoch boundary, so the
+    /// protocol version tracks which change to the protocol these configs
+    /// are from.
     async fn protocol_version(&self) -> UInt53 {
         self.version.into()
     }
 
-    /// List all available feature flags and their values.  Feature flags are a form of boolean
-    /// configuration that are usually used to gate features while they are in development.  Once a
-    /// flag has been enabled, it is rare for it to be disabled.
+    /// List all available feature flags and their values.  Feature flags are a
+    /// form of boolean configuration that are usually used to gate features
+    /// while they are in development.  Once a flag has been enabled, it is
+    /// rare for it to be disabled.
     async fn feature_flags(&self) -> Vec<ProtocolConfigFeatureFlag> {
         self.feature_flags
             .clone()
@@ -59,8 +61,9 @@ impl ProtocolConfigs {
             .collect()
     }
 
-    /// List all available configurations and their values.  These configurations can take any value
-    /// (but they will all be represented in string form), and do not include feature flags.
+    /// List all available configurations and their values.  These
+    /// configurations can take any value (but they will all be represented
+    /// in string form), and do not include feature flags.
     async fn configs(&self) -> Vec<ProtocolConfigAttr> {
         self.configs
             .clone()
@@ -115,7 +118,8 @@ impl ProtocolConfigs {
             latest_version as u64
         };
 
-        // TODO: This could be optimized by fetching all configs and flags in a single query.
+        // TODO: This could be optimized by fetching all configs and flags in a single
+        // query.
         let configs: BTreeMap<String, Option<String>> = db
             .execute(move |conn| {
                 async move {

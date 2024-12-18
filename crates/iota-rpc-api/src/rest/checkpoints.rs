@@ -2,31 +2,35 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::Query;
-use axum::extract::{Path, State};
-use axum::Json;
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+};
+use documented::Documented;
 use iota_sdk_types::types::{CheckpointSequenceNumber, SignedCheckpointSummary};
 use iota_types::storage::ReadStore;
 use tap::Pipe;
 
-use crate::reader::StateReader;
-use crate::response::{Bcs, ResponseContent};
-use crate::rest::openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler};
-use crate::rest::PageCursor;
-use crate::service::checkpoints::{CheckpointId, CheckpointNotFoundError};
-use crate::types::{CheckpointResponse, GetCheckpointOptions};
-use crate::{Direction, RpcService};
-use crate::{Result, RpcServiceError};
-use documented::Documented;
-
 use super::accept::AcceptFormat;
+use crate::{
+    Direction, Result, RpcService, RpcServiceError,
+    reader::StateReader,
+    response::{Bcs, ResponseContent},
+    rest::{
+        PageCursor,
+        openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
+    },
+    service::checkpoints::{CheckpointId, CheckpointNotFoundError},
+    types::{CheckpointResponse, GetCheckpointOptions},
+};
 
 /// Fetch a Checkpoint
 ///
-/// Fetch a checkpoint either by `CheckpointSequenceNumber` (checkpoint height) or by
-/// `CheckpointDigest` and optionally request its contents.
+/// Fetch a checkpoint either by `CheckpointSequenceNumber` (checkpoint height)
+/// or by `CheckpointDigest` and optionally request its contents.
 ///
-/// If the checkpoint has been pruned and is not available, a 410 will be returned.
+/// If the checkpoint has been pruned and is not available, a 410 will be
+/// returned.
 #[derive(Documented)]
 pub struct GetCheckpoint;
 
@@ -91,8 +95,8 @@ pub struct GetCheckpointQueryParameters {
 /// Request a page of checkpoints, and optionally their contents, ordered by
 /// `CheckpointSequenceNumber`.
 ///
-/// If the requested page is below the Node's `lowest_available_checkpoint`, a 410 will be
-/// returned.
+/// If the requested page is below the Node's `lowest_available_checkpoint`, a
+/// 410 will be returned.
 #[derive(Documented)]
 pub struct ListCheckpoints;
 
@@ -106,8 +110,8 @@ impl ApiEndpoint<RpcService> for ListCheckpoints {
     }
 
     fn stable(&self) -> bool {
-        // Before making this api stable we'll need to properly handle the options that can be
-        // provided as inputs.
+        // Before making this api stable we'll need to properly handle the options that
+        // can be provided as inputs.
         false
     }
 
@@ -194,7 +198,8 @@ async fn list_checkpoints(
         Direction::Ascending => checkpoint.sequence_number.checked_add(1),
         Direction::Descending => {
             let cursor = checkpoint.sequence_number.checked_sub(1);
-            // If we've exhausted our available checkpoint range then there are no more pages left
+            // If we've exhausted our available checkpoint range then there are no more
+            // pages left
             if cursor < Some(oldest_checkpoint) {
                 None
             } else {
@@ -262,8 +267,8 @@ impl ListCheckpointsPaginationParameters {
 /// - CheckpointContents
 /// - Transactions, Effects, Events, as well as all input and output objects
 ///
-/// If the requested checkpoint is below the Node's `lowest_available_checkpoint_objects`, a 410
-/// will be returned.
+/// If the requested checkpoint is below the Node's
+/// `lowest_available_checkpoint_objects`, a 410 will be returned.
 #[derive(Documented)]
 pub struct GetFullCheckpoint;
 
@@ -277,9 +282,9 @@ impl ApiEndpoint<RpcService> for GetFullCheckpoint {
     }
 
     fn stable(&self) -> bool {
-        // TODO transactions are serialized with an intent message, do we want to change this
-        // format to remove it (and remove user signature duplication) prior to stabalizing the
-        // format?
+        // TODO transactions are serialized with an intent message, do we want to change
+        // this format to remove it (and remove user signature duplication)
+        // prior to stabalizing the format?
         false
     }
 
@@ -315,14 +320,14 @@ async fn get_full_checkpoint(
             return Err(RpcServiceError::new(
                 axum::http::StatusCode::BAD_REQUEST,
                 "invalid accept type; only 'application/bcs' is supported",
-            ))
+            ));
         }
     }
 
     let verified_summary = match checkpoint_id {
         CheckpointId::SequenceNumber(s) => {
-            // Since we need object contents we need to check for the lowest available checkpoint
-            // with objects that hasn't been pruned
+            // Since we need object contents we need to check for the lowest available
+            // checkpoint with objects that hasn't been pruned
             let oldest_checkpoint = state.inner().get_lowest_available_checkpoint_objects()?;
             if s < oldest_checkpoint {
                 return Err(crate::RpcServiceError::new(

@@ -2,21 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::models::IotaProgressStore;
-use crate::schema::governance_actions;
-use crate::schema::iota_progress_store::txn_digest;
-use crate::schema::{iota_error_transactions, token_transfer_data};
-use crate::{schema, schema::token_transfer, ProcessedTxnData};
-use diesel::query_dsl::methods::FilterDsl;
-use diesel::upsert::excluded;
-use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
-use diesel_async::pooled_connection::bb8::Pool;
-use diesel_async::pooled_connection::AsyncDieselConnectionManager;
-use diesel_async::scoped_futures::ScopedFutureExt;
-use diesel_async::AsyncConnection;
-use diesel_async::AsyncPgConnection;
-use diesel_async::RunQueryDsl;
+use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
+    query_dsl::methods::FilterDsl, upsert::excluded,
+};
+use diesel_async::{
+    AsyncConnection, AsyncPgConnection, RunQueryDsl,
+    pooled_connection::{AsyncDieselConnectionManager, bb8::Pool},
+    scoped_futures::ScopedFutureExt,
+};
 use iota_types::digests::TransactionDigest;
+
+use crate::{
+    ProcessedTxnData,
+    models::IotaProgressStore,
+    schema,
+    schema::{
+        governance_actions, iota_error_transactions, iota_progress_store::txn_digest,
+        token_transfer, token_transfer_data,
+    },
+};
 
 pub(crate) type PgPool =
     diesel_async::pooled_connection::bb8::Pool<diesel_async::AsyncPgConnection>;
@@ -148,11 +153,12 @@ pub async fn update_iota_progress_store(
 
 pub async fn read_iota_progress_store(pool: &PgPool) -> anyhow::Result<Option<TransactionDigest>> {
     let mut conn = pool.get().await?;
-    let val: Option<IotaProgressStore> = crate::schema::iota_progress_store::dsl::iota_progress_store
-        .select(IotaProgressStore::as_select())
-        .first(&mut conn)
-        .await
-        .optional()?;
+    let val: Option<IotaProgressStore> =
+        crate::schema::iota_progress_store::dsl::iota_progress_store
+            .select(IotaProgressStore::as_select())
+            .first(&mut conn)
+            .await
+            .optional()?;
     match val {
         Some(val) => Ok(Some(TransactionDigest::try_from(
             val.txn_digest.as_slice(),

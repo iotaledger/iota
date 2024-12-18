@@ -2,25 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::PathBuf;
+
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
-use std::path::PathBuf;
-use iota_config::{genesis::UnsignedGenesis, IOTA_GENESIS_FILENAME};
+use iota_config::{IOTA_GENESIS_FILENAME, genesis::UnsignedGenesis};
 use iota_genesis_builder::Builder;
-use iota_types::multiaddr::Multiaddr;
+use iota_keys::keypair_file::{
+    read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+};
 use iota_types::{
     base_types::IotaAddress,
     committee::ProtocolVersion,
     crypto::{
-        generate_proof_of_possession, AuthorityKeyPair, KeypairTraits, NetworkKeyPair, IotaKeyPair,
+        AuthorityKeyPair, IotaKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession,
     },
     message_envelope::Message,
-};
-
-use iota_keys::keypair_file::{
-    read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
+    multiaddr::Multiaddr,
 };
 
 use crate::genesis_inspector::examine_genesis_checkpoint;
@@ -249,25 +249,30 @@ pub fn run(cmd: Ceremony) -> Result<()> {
 
 fn check_protocol_version(builder: &Builder, protocol_version: ProtocolVersion) -> Result<()> {
     // It is entirely possible for the user to sign a genesis blob with an unknown
-    // protocol version, but if this happens there is almost certainly some confusion
-    // (e.g. using a `iota` binary built at the wrong commit).
+    // protocol version, but if this happens there is almost certainly some
+    // confusion (e.g. using a `iota` binary built at the wrong commit).
     if builder.protocol_version() != protocol_version {
         return Err(anyhow::anyhow!(
-                        "Serialized protocol version does not match local --protocol-version argument. ({:?} vs {:?})",
-                        builder.protocol_version(), protocol_version));
+            "Serialized protocol version does not match local --protocol-version argument. ({:?} vs {:?})",
+            builder.protocol_version(),
+            protocol_version
+        ));
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use anyhow::Result;
     use iota_config::local_ip_utils;
     use iota_genesis_builder::validator_info::ValidatorInfo;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_macros::nondeterministic;
-    use iota_types::crypto::{get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, IotaKeyPair};
+    use iota_types::crypto::{
+        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, get_key_pair_from_rng,
+    };
+
+    use super::*;
 
     #[test]
     #[cfg_attr(msim, ignore)]

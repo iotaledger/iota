@@ -2,6 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt::Write;
+
+use super::Cursor;
 use crate::{
     data::pg::bytea_literal,
     filter, query,
@@ -13,10 +16,6 @@ use crate::{
         type_filter::{ModuleFilter, TypeFilter},
     },
 };
-
-use std::fmt::Write;
-
-use super::Cursor;
 
 fn select_ev(sender: Option<IotaAddress>, from: &str) -> RawQuery {
     let query = query!(format!(
@@ -114,9 +113,10 @@ pub(crate) fn select_emit_module(
     }
 }
 
-/// Adds filters to bound an events query from above and below based on cursors and filters. The
-/// query will always at least be bounded by `tx_hi`, the current exclusive upperbound on
-/// transaction sequence numbers, based on the consistency cursor.
+/// Adds filters to bound an events query from above and below based on cursors
+/// and filters. The query will always at least be bounded by `tx_hi`, the
+/// current exclusive upperbound on transaction sequence numbers, based on the
+/// consistency cursor.
 pub(crate) fn add_bounds(
     mut query: RawQuery,
     tx_digest_filter: &Option<Digest>,

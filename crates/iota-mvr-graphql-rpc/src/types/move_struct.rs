@@ -5,13 +5,12 @@
 use async_graphql::*;
 use iota_package_resolver::{DataDef, MoveData};
 
-use crate::error::Error;
-
 use super::{
-    move_module::MoveModule,
-    open_move_type::{abilities, MoveAbility, OpenMoveType},
     iota_address::IotaAddress,
+    move_module::MoveModule,
+    open_move_type::{MoveAbility, OpenMoveType, abilities},
 };
+use crate::error::Error;
 
 pub(crate) struct MoveStruct {
     defining_id: IotaAddress,
@@ -72,15 +71,16 @@ impl MoveStruct {
         Some(&self.abilities)
     }
 
-    /// Constraints on the struct's formal type parameters.  Move bytecode does not name type
-    /// parameters, so when they are referenced (e.g. in field types) they are identified by their
-    /// index in this list.
+    /// Constraints on the struct's formal type parameters.  Move bytecode does
+    /// not name type parameters, so when they are referenced (e.g. in field
+    /// types) they are identified by their index in this list.
     pub(crate) async fn type_parameters(&self) -> Option<&Vec<MoveStructTypeParameter>> {
         Some(&self.type_parameters)
     }
 
-    /// The names and types of the struct's fields.  Field types reference type parameters, by their
-    /// index in the defining struct's `typeParameters` list.
+    /// The names and types of the struct's fields.  Field types reference type
+    /// parameters, by their index in the defining struct's `typeParameters`
+    /// list.
     pub(crate) async fn fields(&self) -> Option<&Vec<MoveField>> {
         Some(&self.fields)
     }
@@ -111,8 +111,8 @@ impl MoveStruct {
             .collect();
 
         let MoveData::Struct(fields) = def.data else {
-            // This should never happen, as the data should always be a struct if we're calling
-            // this function. Signal an internal error if it does.
+            // This should never happen, as the data should always be a struct if we're
+            // calling this function. Signal an internal error if it does.
             return Err(Error::Internal(format!(
                 "Expected struct data, but got: {:?}",
                 def.data

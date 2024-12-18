@@ -2,13 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::health::HealthResponse;
-use crate::DEFAULT_PORT;
 use anyhow::Result;
-use axum::routing::get;
-use axum::Json;
-use axum::Router;
+use axum::{Json, Router, routing::get};
 use tracing::debug;
+
+use crate::{DEFAULT_PORT, health::HealthResponse};
 
 pub fn get_iota_service<S>(app_name: &str, app_version: &str) -> Router<S>
 where

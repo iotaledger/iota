@@ -2,25 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use enum_dispatch::enum_dispatch;
-use serde::{Deserialize, Serialize};
-use iota_config::{ExecutionCacheConfig, NodeConfig};
-
 use std::fmt;
-use iota_types::authenticator_state::get_authenticator_state_obj_initial_shared_version;
-use iota_types::base_types::SequenceNumber;
-use iota_types::bridge::{get_bridge_obj_initial_shared_version, is_bridge_committee_initiated};
-use iota_types::deny_list_v1::get_deny_list_obj_initial_shared_version;
-use iota_types::epoch_data::EpochData;
-use iota_types::error::IotaResult;
-use iota_types::messages_checkpoint::{CheckpointDigest, CheckpointTimestamp};
-use iota_types::randomness_state::get_randomness_state_obj_initial_shared_version;
-use iota_types::storage::ObjectStore;
-use iota_types::iota_system_state::epoch_start_iota_system_state::{
-    EpochStartSystemState, EpochStartSystemStateTrait,
-};
 
-use crate::execution_cache::{choose_execution_cache, ExecutionCacheConfigType};
+use enum_dispatch::enum_dispatch;
+use iota_config::{ExecutionCacheConfig, NodeConfig};
+use iota_types::{
+    authenticator_state::get_authenticator_state_obj_initial_shared_version,
+    base_types::SequenceNumber,
+    bridge::{get_bridge_obj_initial_shared_version, is_bridge_committee_initiated},
+    deny_list_v1::get_deny_list_obj_initial_shared_version,
+    epoch_data::EpochData,
+    error::IotaResult,
+    iota_system_state::epoch_start_iota_system_state::{
+        EpochStartSystemState, EpochStartSystemStateTrait,
+    },
+    messages_checkpoint::{CheckpointDigest, CheckpointTimestamp},
+    randomness_state::get_randomness_state_obj_initial_shared_version,
+    storage::ObjectStore,
+};
+use serde::{Deserialize, Serialize};
+
+use crate::execution_cache::{ExecutionCacheConfigType, choose_execution_cache};
 
 #[enum_dispatch]
 pub trait EpochStartConfigTrait {
@@ -42,14 +44,14 @@ pub trait EpochStartConfigTrait {
     }
 }
 
-// IMPORTANT: Assign explicit values to each variant to ensure that the values are stable.
-// When cherry-picking changes from one branch to another, the value of variants must never
-// change.
+// IMPORTANT: Assign explicit values to each variant to ensure that the values
+// are stable. When cherry-picking changes from one branch to another, the value
+// of variants must never change.
 //
-// Unlikely: If you cherry pick a change from one branch to another, and there is a collision
-// in the value of some variant, the branch which has been released should take precedence.
-// In this case, the picked-from branch is inconsistent with the released branch, and must
-// be fixed.
+// Unlikely: If you cherry pick a change from one branch to another, and there
+// is a collision in the value of some variant, the branch which has been
+// released should take precedence. In this case, the picked-from branch is
+// inconsistent with the released branch, and must be fixed.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum EpochFlag {
     // The deprecated flags have all been in production for long enough that
@@ -75,7 +77,8 @@ impl EpochFlag {
         Self::default_flags_impl(&config.execution_cache)
     }
 
-    /// For situations in which there is no config available (e.g. setting up a downloaded snapshot).
+    /// For situations in which there is no config available (e.g. setting up a
+    /// downloaded snapshot).
     pub fn default_for_no_config() -> Vec<Self> {
         Self::default_flags_impl(&Default::default())
     }
@@ -100,7 +103,8 @@ impl EpochFlag {
 
 impl fmt::Display for EpochFlag {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Important - implementation should return low cardinality values because this is used as metric key
+        // Important - implementation should return low cardinality values because this
+        // is used as metric key
         match self {
             EpochFlag::_InMemoryCheckpointRootsDeprecated => {
                 write!(f, "InMemoryCheckpointRoots (DEPRECATED)")
@@ -170,19 +174,21 @@ impl EpochStartConfiguration {
         // We only need to implement this function for the latest version.
         // When a new version is introduced, this function should be updated.
         match self {
-            Self::V6(config) => {
-                Self::V6(EpochStartConfigurationV6 {
-                    system_state: config.system_state.new_at_next_epoch_for_testing(),
-                    epoch_digest: config.epoch_digest,
-                    flags: config.flags.clone(),
-                    authenticator_obj_initial_shared_version: config.authenticator_obj_initial_shared_version,
-                    randomness_obj_initial_shared_version: config.randomness_obj_initial_shared_version,
-                    coin_deny_list_obj_initial_shared_version: config.coin_deny_list_obj_initial_shared_version,
-                    bridge_obj_initial_shared_version: config.bridge_obj_initial_shared_version,
-                    bridge_committee_initiated: config.bridge_committee_initiated,
-                })
-            }
-            _ => panic!("This function is only implemented for the latest version of EpochStartConfiguration"),
+            Self::V6(config) => Self::V6(EpochStartConfigurationV6 {
+                system_state: config.system_state.new_at_next_epoch_for_testing(),
+                epoch_digest: config.epoch_digest,
+                flags: config.flags.clone(),
+                authenticator_obj_initial_shared_version: config
+                    .authenticator_obj_initial_shared_version,
+                randomness_obj_initial_shared_version: config.randomness_obj_initial_shared_version,
+                coin_deny_list_obj_initial_shared_version: config
+                    .coin_deny_list_obj_initial_shared_version,
+                bridge_obj_initial_shared_version: config.bridge_obj_initial_shared_version,
+                bridge_committee_initiated: config.bridge_committee_initiated,
+            }),
+            _ => panic!(
+                "This function is only implemented for the latest version of EpochStartConfiguration"
+            ),
         }
     }
 
@@ -204,8 +210,9 @@ pub struct EpochStartConfigurationV1 {
     system_state: EpochStartSystemState,
     /// epoch_digest is defined as following
     /// (1) For the genesis epoch it is set to 0
-    /// (2) For all other epochs it is a digest of the last checkpoint of a previous epoch
-    /// Note that this is in line with how epoch start timestamp is defined
+    /// (2) For all other epochs it is a digest of the last checkpoint of a
+    /// previous epoch Note that this is in line with how epoch start
+    /// timestamp is defined
     epoch_digest: CheckpointDigest,
 }
 

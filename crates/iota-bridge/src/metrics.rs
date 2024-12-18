@@ -2,17 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::MetricsConfig;
-use iota_common::metrics::{push_metrics, MetricsPushClient};
+use std::time::Duration;
+
+use iota_common::metrics::{MetricsPushClient, push_metrics};
 use iota_metrics::RegistryService;
+use iota_types::crypto::NetworkKeyPair;
 use prometheus::{
+    HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_vec_with_registry,
-    register_int_gauge_with_registry, HistogramVec, IntCounter, IntCounterVec, IntGauge,
-    IntGaugeVec, Registry,
+    register_int_gauge_with_registry,
 };
-use std::time::Duration;
-use iota_types::crypto::NetworkKeyPair;
+
+use crate::config::MetricsConfig;
 
 const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.005, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7, 0.8, 0.9,
@@ -21,8 +23,8 @@ const FINE_GRAINED_LATENCY_SEC_BUCKETS: &[f64] = &[
     200., 250., 300., 350., 400.,
 ];
 
-/// Starts a task to periodically push metrics to a configured endpoint if a metrics push endpoint
-/// is configured.
+/// Starts a task to periodically push metrics to a configured endpoint if a
+/// metrics push endpoint is configured.
 pub fn start_metrics_push_task(
     metrics_config: &Option<MetricsConfig>,
     metrics_key_pair: NetworkKeyPair,

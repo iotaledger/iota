@@ -2,32 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::HashMap, time::Duration};
+
 use iota_metrics::spawn_monitored_task;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::time::Duration;
 use strum_macros;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
-use crate::config::RetentionConfig;
-use crate::errors::IndexerError;
-use crate::store::pg_partition_manager::PgPartitionManager;
-use crate::store::PgIndexerStore;
-use crate::{metrics::IndexerMetrics, store::IndexerStore, types::IndexerResult};
+use crate::{
+    config::RetentionConfig,
+    errors::IndexerError,
+    metrics::IndexerMetrics,
+    store::{IndexerStore, PgIndexerStore, pg_partition_manager::PgPartitionManager},
+    types::IndexerResult,
+};
 
 pub struct Pruner {
     pub store: PgIndexerStore,
     pub partition_manager: PgPartitionManager,
-    // TODO: (wlmyng) - we can remove this when pruner logic is updated to use `retention_policies`.
+    // TODO: (wlmyng) - we can remove this when pruner logic is updated to use
+    // `retention_policies`.
     pub epochs_to_keep: u64,
     pub retention_policies: HashMap<PrunableTable, u64>,
     pub metrics: IndexerMetrics,
 }
 
-/// Enum representing tables that the pruner is allowed to prune. This corresponds to table names in
-/// the database, and should be used in lieu of string literals. This enum is also meant to
-/// facilitate the process of determining which unit (epoch, cp, or tx) should be used for the
+/// Enum representing tables that the pruner is allowed to prune. This
+/// corresponds to table names in the database, and should be used in lieu of
+/// string literals. This enum is also meant to facilitate the process of
+/// determining which unit (epoch, cp, or tx) should be used for the
 /// table's range. Pruner will ignore any table that is not listed here.
 #[derive(
     Debug,
@@ -103,8 +107,9 @@ impl PrunableTable {
 }
 
 impl Pruner {
-    /// Instantiates a pruner with default retention and overrides. Pruner will finalize the
-    /// retention policies so there is a value for every prunable table.
+    /// Instantiates a pruner with default retention and overrides. Pruner will
+    /// finalize the retention policies so there is a value for every
+    /// prunable table.
     pub fn new(
         store: PgIndexerStore,
         retention_config: RetentionConfig,
@@ -123,8 +128,8 @@ impl Pruner {
         })
     }
 
-    /// Given a table name, return the number of epochs to keep for that table. Return `None` if the
-    /// table is not prunable.
+    /// Given a table name, return the number of epochs to keep for that table.
+    /// Return `None` if the table is not prunable.
     fn table_retention(&self, table_name: &str) -> Option<u64> {
         if let Ok(variant) = table_name.parse::<PrunableTable>() {
             self.retention_policies.get(&variant).copied()
@@ -154,7 +159,8 @@ impl Pruner {
             }
             last_seen_max_epoch = max_epoch;
 
-            // Not all partitioned tables are epoch-partitioned, so we need to filter them out.
+            // Not all partitioned tables are epoch-partitioned, so we need to filter them
+            // out.
             let table_partitions: HashMap<_, _> = self
                 .partition_manager
                 .get_table_partitions()
@@ -194,9 +200,10 @@ impl Pruner {
                 }
             }
 
-            // TODO: (wlmyng) Once we have the watermarks table, we can iterate through each row
-            // returned from `watermarks`, look it up against `retention_policies`, and process them
-            // independently. This also means that pruning overrides will only apply for
+            // TODO: (wlmyng) Once we have the watermarks table, we can iterate through each
+            // row returned from `watermarks`, look it up against
+            // `retention_policies`, and process them independently. This also
+            // means that pruning overrides will only apply for
             // epoch-partitioned tables right now.
             let prune_to_epoch = last_seen_max_epoch.saturating_sub(self.epochs_to_keep - 1);
             let prune_start_epoch = next_prune_epoch.unwrap_or(min_epoch);
@@ -220,8 +227,8 @@ impl Pruner {
     }
 }
 
-/// Task to periodically query the `watermarks` table and update the lower bounds for all watermarks
-/// if the entry exceeds epoch-level retention policy.
+/// Task to periodically query the `watermarks` table and update the lower
+/// bounds for all watermarks if the entry exceeds epoch-level retention policy.
 async fn update_watermarks_lower_bounds_task(
     store: PgIndexerStore,
     retention_policies: HashMap<PrunableTable, u64>,
@@ -241,8 +248,8 @@ async fn update_watermarks_lower_bounds_task(
     }
 }
 
-/// Fetches all entries from the `watermarks` table, and updates the `reader_lo` for each entry if
-/// its epoch range exceeds the respective retention policy.
+/// Fetches all entries from the `watermarks` table, and updates the `reader_lo`
+/// for each entry if its epoch range exceeds the respective retention policy.
 async fn update_watermarks_lower_bounds(
     store: &PgIndexerStore,
     retention_policies: &HashMap<PrunableTable, u64>,

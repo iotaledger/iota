@@ -5,14 +5,15 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use axum::{extract::Extension, http::StatusCode, routing::get, Router};
+use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use prometheus::{
+    Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+    TextEncoder,
     core::{Collector, Desc},
     proto::{Counter, Gauge, LabelPair, Metric, MetricFamily, MetricType, Summary},
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_vec_with_registry, register_int_gauge_with_registry, Histogram,
-    HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Registry, TextEncoder,
+    register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
 use tokio::{net::TcpListener, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -25,26 +26,28 @@ const INGESTION_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0,
 ];
 
-/// Histogram buckets for the distribution of checkpoint lag (difference between the system time and
-/// the timestamp in the checkpoint).
+/// Histogram buckets for the distribution of checkpoint lag (difference between
+/// the system time and the timestamp in the checkpoint).
 const LAG_SEC_BUCKETS: &[f64] = &[
     0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9,
     0.95, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 20.0, 50.0, 100.0, 1000.0,
 ];
 
-/// Histogram buckets for the distribution of latencies for processing a checkpoint in the indexer
-/// (without having to call out to other services).
+/// Histogram buckets for the distribution of latencies for processing a
+/// checkpoint in the indexer (without having to call out to other services).
 const PROCESSING_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0,
 ];
 
-/// Histogram buckets for the distribution of latencies for writing to the database.
+/// Histogram buckets for the distribution of latencies for writing to the
+/// database.
 const DB_UPDATE_LATENCY_SEC_BUCKETS: &[f64] = &[
     0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0,
     2000.0, 5000.0, 10000.0,
 ];
 
-/// Histogram buckets for the distribution of batch sizes (number of rows) written to the database.
+/// Histogram buckets for the distribution of batch sizes (number of rows)
+/// written to the database.
 const BATCH_SIZE_BUCKETS: &[f64] = &[
     1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0, 2000.0, 5000.0, 10000.0, 20000.0,
 ];
@@ -130,9 +133,9 @@ struct DbConnectionStatsCollector {
 }
 
 impl MetricsService {
-    /// Create a new metrics service, exposing IOTA Foundation-wide metrics, and Indexer-specific metrics.
-    /// Returns the Indexer-specific metrics and the service itself (which must be run with
-    /// [Self::run]).
+    /// Create a new metrics service, exposing IOTA Foundation-wide metrics, and
+    /// Indexer-specific metrics. Returns the Indexer-specific metrics and
+    /// the service itself (which must be run with [Self::run]).
     pub(crate) fn new(
         addr: SocketAddr,
         db: Db,
@@ -152,7 +155,8 @@ impl MetricsService {
         Ok((Arc::new(metrics), service))
     }
 
-    /// Start the service. The service will run until the cancellation token is triggered.
+    /// Start the service. The service will run until the cancellation token is
+    /// triggered.
     pub(crate) async fn run(self) -> Result<JoinHandle<()>> {
         let listener = TcpListener::bind(&self.addr).await?;
         let app = Router::new()
@@ -543,8 +547,8 @@ impl IndexerMetrics {
         }
     }
 
-    /// Register that we're retrying a checkpoint fetch due to a transient error, logging the
-    /// reason and error.
+    /// Register that we're retrying a checkpoint fetch due to a transient
+    /// error, logging the reason and error.
     pub(crate) fn inc_retry(
         &self,
         checkpoint: u64,
@@ -634,23 +638,20 @@ impl Collector for DbConnectionStatsCollector {
             ),
             counter(&self.desc[4].1, stats.get_timed_out as f64),
             counter(&self.desc[5].1, stats.connections_created as f64),
-            counter_with_labels(
-                &self.desc[6].1,
-                &[
-                    ("reason", "broken", stats.connections_closed_broken as f64),
-                    ("reason", "invalid", stats.connections_closed_invalid as f64),
-                    (
-                        "reason",
-                        "max_lifetime",
-                        stats.connections_closed_max_lifetime as f64,
-                    ),
-                    (
-                        "reason",
-                        "idle_timeout",
-                        stats.connections_closed_idle_timeout as f64,
-                    ),
-                ],
-            ),
+            counter_with_labels(&self.desc[6].1, &[
+                ("reason", "broken", stats.connections_closed_broken as f64),
+                ("reason", "invalid", stats.connections_closed_invalid as f64),
+                (
+                    "reason",
+                    "max_lifetime",
+                    stats.connections_closed_max_lifetime as f64,
+                ),
+                (
+                    "reason",
+                    "idle_timeout",
+                    stats.connections_closed_idle_timeout as f64,
+                ),
+            ]),
         ]
     }
 }

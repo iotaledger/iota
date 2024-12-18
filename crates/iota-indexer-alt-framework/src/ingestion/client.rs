@@ -2,24 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ingestion::local_client::LocalIngestionClient;
-use crate::ingestion::remote_client::RemoteIngestionClient;
-use crate::ingestion::Error as IngestionError;
-use crate::ingestion::Result as IngestionResult;
-use crate::metrics::IndexerMetrics;
-use backoff::backoff::Constant;
-use backoff::Error as BE;
-use backoff::ExponentialBackoff;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
+
+use backoff::{Error as BE, ExponentialBackoff, backoff::Constant};
 use iota_storage::blob::Blob;
 use iota_types::full_checkpoint_content::CheckpointData;
-use tokio_util::bytes::Bytes;
-use tokio_util::sync::CancellationToken;
+use tokio_util::{bytes::Bytes, sync::CancellationToken};
 use tracing::debug;
 use url::Url;
+
+use crate::{
+    ingestion::{
+        Error as IngestionError, Result as IngestionResult, local_client::LocalIngestionClient,
+        remote_client::RemoteIngestionClient,
+    },
+    metrics::IndexerMetrics,
+};
 
 /// Wait at most this long between retries for transient errors.
 const MAX_TRANSIENT_RETRY_INTERVAL: Duration = Duration::from_secs(60);
@@ -76,8 +81,9 @@ impl IngestionClient {
 
     /// Fetch checkpoint data by sequence number.
     ///
-    /// This function behaves like `IngestionClient::fetch`, but will repeatedly retry the fetch if
-    /// the checkpoint is not found, on a constant back-off. The time between fetches is controlled
+    /// This function behaves like `IngestionClient::fetch`, but will repeatedly
+    /// retry the fetch if the checkpoint is not found, on a constant
+    /// back-off. The time between fetches is controlled
     /// by the `retry_interval` parameter.
     pub async fn wait_for(
         &self,
@@ -108,14 +114,16 @@ impl IngestionClient {
     /// Fetch checkpoint data by sequence number.
     ///
     /// Repeatedly retries transient errors with an exponential backoff (up to
-    /// [MAX_TRANSIENT_RETRY_INTERVAL]). Transient errors are either defined by the client
-    /// implementation that returns a [FetchError::Transient] error variant, or within this
-    /// function if we fail to deserialize the result as [CheckpointData].
+    /// [MAX_TRANSIENT_RETRY_INTERVAL]). Transient errors are either defined by
+    /// the client implementation that returns a [FetchError::Transient]
+    /// error variant, or within this function if we fail to deserialize the
+    /// result as [CheckpointData].
     ///
     /// The function will immediately return on:
     ///
-    /// - Non-transient errors determined by the client implementation, this includes both the
-    ///   [FetchError::NotFound] and [FetchError::Permanent] variants.
+    /// - Non-transient errors determined by the client implementation, this
+    ///   includes both the [FetchError::NotFound] and [FetchError::Permanent]
+    ///   variants.
     ///
     /// - Cancellation of the supplied `cancel` token.
     pub(crate) async fn fetch(
@@ -156,7 +164,8 @@ impl IngestionClient {
             }
         };
 
-        // Keep backing off until we are waiting for the max interval, but don't give up.
+        // Keep backing off until we are waiting for the max interval, but don't give
+        // up.
         let backoff = ExponentialBackoff {
             max_interval: MAX_TRANSIENT_RETRY_INTERVAL,
             max_elapsed_time: None,

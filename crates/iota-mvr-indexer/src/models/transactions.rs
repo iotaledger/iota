@@ -5,25 +5,28 @@
 use std::sync::Arc;
 
 use diesel::prelude::*;
-
-use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
-use move_core_types::language_storage::TypeTag;
 use iota_json_rpc_types::{
-    BalanceChange, ObjectChange, IotaEvent, IotaTransactionBlock, IotaTransactionBlockEffects,
+    BalanceChange, IotaEvent, IotaTransactionBlock, IotaTransactionBlockEffects,
     IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_types::digests::TransactionDigest;
-use iota_types::effects::TransactionEffects;
-use iota_types::effects::TransactionEvents;
-use iota_types::event::Event;
-use iota_types::transaction::SenderSignedData;
+use iota_types::{
+    digests::TransactionDigest,
+    effects::{TransactionEffects, TransactionEvents},
+    event::Event,
+    transaction::SenderSignedData,
+};
+use move_core_types::{
+    annotated_value::{MoveDatatypeLayout, MoveTypeLayout},
+    language_storage::TypeTag,
+};
 
-use crate::errors::IndexerError;
-use crate::schema::transactions;
-use crate::types::IndexedObjectChange;
-use crate::types::IndexedTransaction;
-use crate::types::IndexerResult;
+use crate::{
+    errors::IndexerError,
+    schema::transactions,
+    types::{IndexedObjectChange, IndexedTransaction, IndexerResult},
+};
 
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = transactions)]

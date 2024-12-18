@@ -2,19 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_types::{IOTA_FRAMEWORK_ADDRESS, error::ExecutionError};
 use move_binary_format::{
+    CompiledModule,
     file_format::{
         Bytecode, FunctionDefinition, FunctionHandle, FunctionInstantiation, ModuleHandle,
         SignatureToken,
     },
-    CompiledModule,
 };
 use move_bytecode_utils::format_signature_token;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use move_vm_config::verifier::VerifierConfig;
-use iota_types::{error::ExecutionError, IOTA_FRAMEWORK_ADDRESS};
 
-use crate::{verification_failure, TEST_SCENARIO_MODULE_NAME};
+use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
 pub const TRANSFER_MODULE: &IdentStr = ident_str!("transfer");
 pub const EVENT_MODULE: &IdentStr = ident_str!("event");
@@ -40,14 +40,14 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
     ident_str!("receive_impl"),
 ];
 
-/// All transfer functions (the functions in `iota::transfer`) are "private" in that they are
-/// restricted to the module.
+/// All transfer functions (the functions in `iota::transfer`) are "private" in
+/// that they are restricted to the module.
 /// For example, with `transfer::transfer<T>(...)`, either:
 /// - `T` must be a type declared in the current module or
 /// - `T` must have `store`
 ///
-/// Similarly, `event::emit` is also "private" to the module. Unlike the `transfer` functions, there
-/// is no relaxation for `store`
+/// Similarly, `event::emit` is also "private" to the module. Unlike the
+/// `transfer` functions, there is no relaxation for `store`
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
 pub fn verify_module(
@@ -57,8 +57,9 @@ pub fn verify_module(
     if *module.address() == IOTA_FRAMEWORK_ADDRESS
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
-        // exclude test_module which is a test-only module in the Iota framework which "emulates"
-        // transactional execution and needs to allow test code to bypass private generics
+        // exclude test_module which is a test-only module in the Iota framework which
+        // "emulates" transactional execution and needs to allow test code to
+        // bypass private generics
         return Ok(());
     }
     // do not need to check the iota::transfer module itself

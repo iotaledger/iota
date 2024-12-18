@@ -4,14 +4,15 @@
 
 //! The IotaBridgeStatus observable monitors whether the Iota Bridge is paused.
 
-use crate::iota_bridge_watchdog::Observable;
-use async_trait::async_trait;
-use prometheus::IntGaugeVec;
 use std::{collections::BTreeMap, sync::Arc};
-use iota_sdk::IotaClient;
 
+use async_trait::async_trait;
+use iota_sdk::IotaClient;
+use prometheus::IntGaugeVec;
 use tokio::time::Duration;
 use tracing::{error, info};
+
+use crate::iota_bridge_watchdog::Observable;
 
 pub struct TotalSupplies {
     iota_client: Arc<IotaClient>,

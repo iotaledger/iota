@@ -2,29 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{ObjectID, SequenceNumber, TransactionDigest};
-use crate::crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo};
-use crate::effects::{
-    SignedTransactionEffects, TransactionEffects, TransactionEvents,
-    VerifiedSignedTransactionEffects,
-};
-use crate::object::Object;
-use crate::transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction, Transaction};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    base_types::{ObjectID, SequenceNumber, TransactionDigest},
+    crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
+    effects::{
+        SignedTransactionEffects, TransactionEffects, TransactionEvents,
+        VerifiedSignedTransactionEffects,
+    },
+    object::Object,
+    transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction, Transaction},
+};
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum ObjectInfoRequestKind {
     /// Request the latest object state.
     LatestObjectInfo,
     /// Request a specific version of the object.
-    /// This is used only for debugging purpose and will not work as a generic solution
-    /// since we don't keep around all historic object versions.
+    /// This is used only for debugging purpose and will not work as a generic
+    /// solution since we don't keep around all historic object versions.
     /// No production code should depend on this kind.
     PastObjectInfoDebug(SequenceNumber),
 }
 
-/// Layout generation options -- you can either generate or not generate the layout.
+/// Layout generation options -- you can either generate or not generate the
+/// layout.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum LayoutGenerationOption {
     Generate,
@@ -74,17 +78,18 @@ pub struct ObjectInfoResponse {
     /// Value of the requested object in this authority
     pub object: Object,
     /// Schema of the Move value inside this object.
-    /// None if the object is a Move package, or the request did not ask for the layout
+    /// None if the object is a Move package, or the request did not ask for the
+    /// layout
     pub layout: Option<MoveStructLayout>,
     /// Transaction the object is locked on in this authority.
     /// None if the object is not currently locked by this authority.
-    /// This should be only used for debugging purpose, such as from iota-tool. No prod clients should
-    /// rely on it.
+    /// This should be only used for debugging purpose, such as from iota-tool.
+    /// No prod clients should rely on it.
     pub lock_for_debugging: Option<SignedTransaction>,
 }
 
-/// Verified version of `ObjectInfoResponse`. `layout` and `lock_for_debugging` are skipped because they
-/// are not needed and we don't want to verify them.
+/// Verified version of `ObjectInfoResponse`. `layout` and `lock_for_debugging`
+/// are skipped because they are not needed and we don't want to verify them.
 #[derive(Debug, Clone)]
 pub struct VerifiedObjectInfoResponse {
     /// Value of the requested object in this authority
@@ -100,10 +105,11 @@ pub struct TransactionInfoRequest {
 pub enum TransactionStatus {
     /// Signature over the transaction.
     Signed(AuthoritySignInfo),
-    /// For executed transaction, we could return an optional certificate signature on the transaction
-    /// (i.e. the signature part of the CertifiedTransaction), as well as the signed effects.
-    /// The certificate signature is optional because for transactions executed in previous
-    /// epochs, we won't keep around the certificate signatures.
+    /// For executed transaction, we could return an optional certificate
+    /// signature on the transaction (i.e. the signature part of the
+    /// CertifiedTransaction), as well as the signed effects.
+    /// The certificate signature is optional because for transactions executed
+    /// in previous epochs, we won't keep around the certificate signatures.
     Executed(
         Option<AuthorityStrongQuorumSignInfo>,
         SignedTransactionEffects,
@@ -168,7 +174,8 @@ pub struct HandleCertificateResponseV2 {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SubmitCertificateResponse {
-    /// If transaction is already executed, return same result as handle_certificate
+    /// If transaction is already executed, return same result as
+    /// handle_certificate
     pub executed: Option<HandleCertificateResponseV2>,
 }
 
@@ -186,27 +193,27 @@ pub struct SystemStateRequest {
 
 /// Response type for version 3 of the handle certifacte validator API.
 ///
-/// The corresponding version 3 request type allows for a client to request events as well as
-/// input/output objects from a transaction's execution. Given Validators operate with very
-/// aggressive object pruning, the return of input/output objects is only done immediately after
-/// the transaction has been executed locally on the validator and will not be returned for
-/// requests to previously executed transactions.
+/// The corresponding version 3 request type allows for a client to request
+/// events as well as input/output objects from a transaction's execution. Given
+/// Validators operate with very aggressive object pruning, the return of
+/// input/output objects is only done immediately after the transaction has been
+/// executed locally on the validator and will not be returned for requests to
+/// previously executed transactions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HandleCertificateResponseV3 {
     pub effects: SignedTransactionEffects,
     pub events: Option<TransactionEvents>,
 
-    /// If requested, will included all initial versions of objects modified in this transaction.
-    /// This includes owned objects included as input into the transaction as well as the assigned
-    /// versions of shared objects.
-    //
+    /// If requested, will included all initial versions of objects modified in
+    /// this transaction. This includes owned objects included as input into
+    /// the transaction as well as the assigned versions of shared objects.
     // TODO: In the future we may want to include shared objects or child objects which were read
     // but not modified during exectuion.
     pub input_objects: Option<Vec<Object>>,
 
-    /// If requested, will included all changed objects, including mutated, created and unwrapped
-    /// objects. In other words, all objects that still exist in the object state after this
-    /// transaction.
+    /// If requested, will included all changed objects, including mutated,
+    /// created and unwrapped objects. In other words, all objects that
+    /// still exist in the object state after this transaction.
     pub output_objects: Option<Vec<Object>>,
     pub auxiliary_data: Option<Vec<u8>>,
 }
@@ -233,27 +240,27 @@ pub struct HandleTransactionRequestV2 {
 
 /// Response type for version 2 of the handle transaction validator API.
 ///
-/// The corresponding version 2 request type allows for a client to request events as well as
-/// input/output objects from a transaction's execution. Given Validators operate with very
-/// aggressive object pruning, the return of input/output objects is only done immediately after
-/// the transaction has been executed locally on the validator and will not be returned for
-/// requests to previously executed transactions.
+/// The corresponding version 2 request type allows for a client to request
+/// events as well as input/output objects from a transaction's execution. Given
+/// Validators operate with very aggressive object pruning, the return of
+/// input/output objects is only done immediately after the transaction has been
+/// executed locally on the validator and will not be returned for requests to
+/// previously executed transactions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HandleTransactionResponseV2 {
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
 
-    /// If requested, will included all initial versions of objects modified in this transaction.
-    /// This includes owned objects included as input into the transaction as well as the assigned
-    /// versions of shared objects.
-    //
+    /// If requested, will included all initial versions of objects modified in
+    /// this transaction. This includes owned objects included as input into
+    /// the transaction as well as the assigned versions of shared objects.
     // TODO: In the future we may want to include shared objects or child objects which were read
     // but not modified during exectuion.
     pub input_objects: Option<Vec<Object>>,
 
-    /// If requested, will included all changed objects, including mutated, created and unwrapped
-    /// objects. In other words, all objects that still exist in the object state after this
-    /// transaction.
+    /// If requested, will included all changed objects, including mutated,
+    /// created and unwrapped objects. In other words, all objects that
+    /// still exist in the object state after this transaction.
     pub output_objects: Option<Vec<Object>>,
     pub auxiliary_data: Option<Vec<u8>>,
 }

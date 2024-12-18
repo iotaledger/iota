@@ -4,39 +4,41 @@
 
 use std::sync::Arc;
 
-use axum::extract::State;
-use axum::{Extension, Json};
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::hash::HashFunction;
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    hash::HashFunction,
+};
 use futures::StreamExt;
-
-use shared_crypto::intent::{Intent, IntentMessage};
 use iota_json_rpc_types::{
-    StakeStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponseOptions,
+    IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
+    StakeStatus,
 };
 use iota_sdk::rpc_types::IotaExecutionStatus;
-use iota_types::base_types::{ObjectRef, IotaAddress};
-use iota_types::crypto::{DefaultHash, SignatureScheme, ToFromBytes};
-use iota_types::error::IotaError;
-use iota_types::signature::{GenericSignature, VerifyParams};
-use iota_types::signature_verification::{
-    verify_sender_signed_data_message_signatures, VerifiedDigestCache,
+use iota_types::{
+    base_types::{IotaAddress, ObjectRef},
+    crypto::{DefaultHash, SignatureScheme, ToFromBytes},
+    error::IotaError,
+    signature::{GenericSignature, VerifyParams},
+    signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
+    transaction::{Transaction, TransactionData, TransactionDataAPI},
 };
-use iota_types::transaction::{Transaction, TransactionData, TransactionDataAPI};
+use shared_crypto::intent::{Intent, IntentMessage};
 
-use crate::errors::Error;
-use crate::types::{
-    Amount, ConstructionCombineRequest, ConstructionCombineResponse, ConstructionDeriveRequest,
-    ConstructionDeriveResponse, ConstructionHashRequest, ConstructionMetadata,
-    ConstructionMetadataRequest, ConstructionMetadataResponse, ConstructionParseRequest,
-    ConstructionParseResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
-    ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
-    InternalOperation, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
-    TransactionIdentifierResponse,
+use crate::{
+    IotaEnv, OnlineServerContext,
+    errors::Error,
+    types::{
+        Amount, ConstructionCombineRequest, ConstructionCombineResponse, ConstructionDeriveRequest,
+        ConstructionDeriveResponse, ConstructionHashRequest, ConstructionMetadata,
+        ConstructionMetadataRequest, ConstructionMetadataResponse, ConstructionParseRequest,
+        ConstructionParseResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
+        ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
+        InternalOperation, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
+        TransactionIdentifierResponse,
+    },
 };
-use crate::{OnlineServerContext, IotaEnv};
 
 /// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
 
@@ -54,9 +56,10 @@ pub async fn derive(
     })
 }
 
-/// Payloads is called with an array of operations and the response from /construction/metadata.
-/// It returns an unsigned transaction blob and a collection of payloads that must be signed by
-/// particular AccountIdentifiers using a certain SignatureType.
+/// Payloads is called with an array of operations and the response from
+/// /construction/metadata. It returns an unsigned transaction blob and a
+/// collection of payloads that must be signed by particular AccountIdentifiers
+/// using a certain SignatureType.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionpayloads)
 pub async fn payloads(
@@ -105,20 +108,21 @@ pub async fn combine(
         .ok_or_else(|| Error::MissingInput("Signature".to_string()))?;
     let sig_bytes = sig.hex_bytes.to_vec()?;
     let pub_key = sig.public_key.hex_bytes.to_vec()?;
-    let flag = vec![match sig.signature_type {
-        SignatureType::Ed25519 => SignatureScheme::ED25519,
-        SignatureType::Ecdsa => SignatureScheme::Secp256k1,
-    }
-    .flag()];
+    let flag = vec![
+        match sig.signature_type {
+            SignatureType::Ed25519 => SignatureScheme::ED25519,
+            SignatureType::Ecdsa => SignatureScheme::Secp256k1,
+        }
+        .flag(),
+    ];
 
-    let signed_tx = Transaction::from_generic_sig_data(
-        intent_msg.value,
-        vec![GenericSignature::from_bytes(
+    let signed_tx =
+        Transaction::from_generic_sig_data(intent_msg.value, vec![GenericSignature::from_bytes(
             &[&*flag, &*sig_bytes, &*pub_key].concat(),
-        )?],
-    );
-    // TODO: this will likely fail with zklogin authenticator, since we do not know the current epoch.
-    // As long as coinbase doesn't need to use zklogin for custodial wallets this is okay.
+        )?]);
+    // TODO: this will likely fail with zklogin authenticator, since we do not know
+    // the current epoch. As long as coinbase doesn't need to use zklogin for
+    // custodial wallets this is okay.
     let place_holder_epoch = 0;
     verify_sender_signed_data_message_signatures(
         &signed_tx,
@@ -144,9 +148,10 @@ pub async fn submit(
     env.check_network_identifier(&request.network_identifier)?;
     let signed_tx: Transaction = bcs::from_bytes(&request.signed_transaction.to_vec()?)?;
 
-    // According to RosettaClient.rosseta_flow() (see tests), this transaction has already passed
-    // through a dry_run with a possibly invalid budget (metadata endpoint), but the requirements
-    // are that it should pass from there and fail here.
+    // According to RosettaClient.rosseta_flow() (see tests), this transaction has
+    // already passed through a dry_run with a possibly invalid budget (metadata
+    // endpoint), but the requirements are that it should pass from there and
+    // fail here.
     let tx_data = signed_tx.data().transaction_data().clone();
     let dry_run = context
         .client
@@ -186,8 +191,9 @@ pub async fn submit(
     })
 }
 
-/// Preprocess is called prior to /construction/payloads to construct a request for any metadata
-/// that is needed for transaction construction given (i.e. account nonce).
+/// Preprocess is called prior to /construction/payloads to construct a request
+/// for any metadata that is needed for transaction construction given (i.e.
+/// account nonce).
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionpreprocess)
 pub async fn preprocess(
@@ -208,7 +214,8 @@ pub async fn preprocess(
     })
 }
 
-/// TransactionHash returns the network-specific transaction hash for a signed transaction.
+/// TransactionHash returns the network-specific transaction hash for a signed
+/// transaction.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionhash)
 pub async fn hash(
@@ -225,9 +232,9 @@ pub async fn hash(
     })
 }
 
-/// Get any information required to construct a transaction for a specific network.
-/// For Iota, we are returning the latest object refs for all the input objects,
-/// which will be used in transaction construction.
+/// Get any information required to construct a transaction for a specific
+/// network. For Iota, we are returning the latest object refs for all the input
+/// objects, which will be used in transaction construction.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionmetadata)
 pub async fn metadata(
@@ -320,8 +327,9 @@ pub async fn metadata(
     let budget = match budget {
         Some(budget) => budget,
         None => {
-            // Dry run the transaction to get the gas used, amount doesn't really matter here when using mock coins.
-            // get gas estimation from dry-run, this will also return any tx error.
+            // Dry run the transaction to get the gas used, amount doesn't really matter
+            // here when using mock coins. get gas estimation from dry-run, this
+            // will also return any tx error.
             let data = option
                 .internal_operation
                 .try_into_data(ConstructionMetadata {
@@ -363,7 +371,8 @@ pub async fn metadata(
         None
     };
 
-    // If required amount is None (all IOTA) or failed to select coin (might not have enough IOTA), select all coins.
+    // If required amount is None (all IOTA) or failed to select coin (might not
+    // have enough IOTA), select all coins.
     let coins = if let Some(coins) = coins {
         coins
     } else {

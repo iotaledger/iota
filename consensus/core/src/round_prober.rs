@@ -2,20 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! RoundProber periodically checks each peer for the latest rounds they received and accepted
-//! from others. This provides insight into how effectively each authority's blocks are propagated
-//! and accepted across the network.
+//! RoundProber periodically checks each peer for the latest rounds they
+//! received and accepted from others. This provides insight into how
+//! effectively each authority's blocks are propagated and accepted across the
+//! network.
 //!
-//! Unlike inferring accepted rounds from the DAG of each block, RoundProber has the benefit that
-//! it remains active even when peers are not proposing. This makes it essential for determining
-//! when to disable optimizations that improve DAG quality but may compromise liveness.
+//! Unlike inferring accepted rounds from the DAG of each block, RoundProber has
+//! the benefit that it remains active even when peers are not proposing. This
+//! makes it essential for determining when to disable optimizations that
+//! improve DAG quality but may compromise liveness.
 //!
-//! RoundProber's data sources include the `highest_received_rounds` & `highest_accepted_rounds` tracked
-//! by the CoreThreadDispatcher and DagState. The received rounds are updated after blocks are verified
-//! but before checking for dependencies. This should make the values more indicative of how well authorities
-//! propagate blocks, and less influenced by the quality of ancestors in the proposed blocks. The
-//! accepted rounds are updated after checking for dependencies which should indicate the quality
-//! of the proposed blocks including its ancestors.
+//! RoundProber's data sources include the `highest_received_rounds` &
+//! `highest_accepted_rounds` tracked by the CoreThreadDispatcher and DagState.
+//! The received rounds are updated after blocks are verified but before
+//! checking for dependencies. This should make the values more indicative of
+//! how well authorities propagate blocks, and less influenced by the quality of
+//! ancestors in the proposed blocks. The accepted rounds are updated after
+//! checking for dependencies which should indicate the quality of the proposed
+//! blocks including its ancestors.
 
 use std::{sync::Arc, time::Duration};
 
@@ -27,8 +31,8 @@ use parking_lot::RwLock;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 
 use crate::{
-    context::Context, core_thread::CoreThreadDispatcher, dag_state::DagState,
-    network::NetworkClient, BlockAPI as _, Round,
+    BlockAPI as _, Round, context::Context, core_thread::CoreThreadDispatcher, dag_state::DagState,
+    network::NetworkClient,
 };
 
 /// A [`QuorumRound`] is a round range [low, high]. It is computed from
@@ -39,13 +43,13 @@ use crate::{
 /// - the lowest round higher or equal to rounds from a quorum (high)
 ///
 /// [`QuorumRound`] is useful because:
-/// - [low, high] range is BFT, always between the lowest and highest rounds
-///   of honest validators, with < validity threshold of malicious stake.
-/// - It provides signals about how well blocks from an authority propagates
-///   in the network. If low bound for an authority is lower than its last
-///   proposed round, the last proposed block has not propagated to a quorum.
-///   If a new block is proposed from the authority, it will not get accepted
-///   immediately by a quorum.
+/// - [low, high] range is BFT, always between the lowest and highest rounds of
+///   honest validators, with < validity threshold of malicious stake.
+/// - It provides signals about how well blocks from an authority propagates in
+///   the network. If low bound for an authority is lower than its last proposed
+///   round, the last proposed block has not propagated to a quorum. If a new
+///   block is proposed from the authority, it will not get accepted immediately
+///   by a quorum.
 pub(crate) type QuorumRound = (Round, Round);
 
 // Handle to control the RoundProber loop and read latest round gaps.
@@ -94,9 +98,10 @@ impl<C: NetworkClient> RoundProber<C> {
         let shutdown_notify = self.shutdown_notify.clone();
         let loop_shutdown_notify = shutdown_notify.clone();
         let prober_task = tokio::spawn(async move {
-            // With 200 validators, this would result in 200 * 4 * 200 / 2 = 80KB of additional
-            // bandwidth usage per sec. We can consider using adaptive intervals, for example
-            // 10s by default but reduced to 2s when the propagation delay is higher.
+            // With 200 validators, this would result in 200 * 4 * 200 / 2 = 80KB of
+            // additional bandwidth usage per sec. We can consider using
+            // adaptive intervals, for example 10s by default but reduced to 2s
+            // when the propagation delay is higher.
             let mut interval = tokio::time::interval(Duration::from_millis(
                 self.context.parameters.round_prober_interval_ms,
             ));
@@ -274,12 +279,13 @@ impl<C: NetworkClient> RoundProber<C> {
         // TODO: consider using own quorum round gap to control proposing in addition to
         // propagation delay. For now they seem to be about the same.
 
-        // It is possible more blocks arrive at a quorum of peers before the get_latest_rounds
-        // requests arrive.
+        // It is possible more blocks arrive at a quorum of peers before the
+        // get_latest_rounds requests arrive.
         // Using the lower bound to increase sensitivity about block propagation issues
         // that can reduce round rate.
-        // Because of the nature of TCP and block streaming, propagation delay is expected to be
-        // 0 in most cases, even when the actual latency of broadcasting blocks is high.
+        // Because of the nature of TCP and block streaming, propagation delay is
+        // expected to be 0 in most cases, even when the actual latency of
+        // broadcasting blocks is high.
         let propagation_delay =
             last_proposed_round.saturating_sub(received_quorum_rounds[own_index].0);
         node_metrics
@@ -310,7 +316,8 @@ impl<C: NetworkClient> RoundProber<C> {
     }
 }
 
-/// For the peer specified with target_index, compute and return its [`QuorumRound`].
+/// For the peer specified with target_index, compute and return its
+/// [`QuorumRound`].
 fn compute_quorum_round(
     committee: &Committee,
     target_index: AuthorityIndex,
@@ -323,9 +330,10 @@ fn compute_quorum_round(
         .collect::<Vec<_>>();
     rounds_with_stake.sort();
 
-    // Forward iteration and stopping at validity threshold would produce the same result currently,
-    // with fault tolerance of f/3f+1 votes. But it is not semantically correct, and will provide an
-    // incorrect value when fault tolerance and validity threshold are different.
+    // Forward iteration and stopping at validity threshold would produce the same
+    // result currently, with fault tolerance of f/3f+1 votes. But it is not
+    // semantically correct, and will provide an incorrect value when fault
+    // tolerance and validity threshold are different.
     let mut total_stake = 0;
     let mut low = 0;
     for (round, stake) in rounds_with_stake.iter().rev() {
@@ -360,6 +368,7 @@ mod test {
 
     use super::QuorumRound;
     use crate::{
+        Round, TestBlock, VerifiedBlock,
         block::BlockRef,
         commit::CommitRange,
         context::Context,
@@ -367,9 +376,8 @@ mod test {
         dag_state::DagState,
         error::{ConsensusError, ConsensusResult},
         network::{BlockStream, NetworkClient},
-        round_prober::{compute_quorum_round, RoundProber},
+        round_prober::{RoundProber, compute_quorum_round},
         storage::mem_store::MemStore,
-        Round, TestBlock, VerifiedBlock,
     };
 
     struct FakeThreadDispatcher {
@@ -567,7 +575,8 @@ mod test {
             network_client.clone(),
         );
 
-        // Create test blocks for each authority with incrementing rounds starting at 110
+        // Create test blocks for each authority with incrementing rounds starting at
+        // 110
         let blocks = (0..NUM_AUTHORITIES)
             .map(|authority| {
                 let round = 110 + (authority as u32 * 10);
@@ -577,8 +586,8 @@ mod test {
 
         dag_state.write().accept_blocks(blocks);
 
-        // Compute quorum rounds and propagation delay based on last proposed round = 110,
-        // and highest received rounds:
+        // Compute quorum rounds and propagation delay based on last proposed round =
+        // 110, and highest received rounds:
         // 110, 120, 130, 140, 150, 160, 170,
         // 109, 121, 131, 0,   151, 161, 171,
         // 101, 0,   103, 104, 105, 166, 107,
@@ -590,60 +599,48 @@ mod test {
         let (received_quorum_rounds, accepted_quorum_rounds, propagation_delay) =
             prober.probe().await;
 
-        assert_eq!(
-            received_quorum_rounds,
-            vec![
-                (100, 105),
-                (0, 115),
-                (103, 130),
-                (0, 0),
-                (105, 150),
-                (106, 160),
-                (107, 170)
-            ]
-        );
+        assert_eq!(received_quorum_rounds, vec![
+            (100, 105),
+            (0, 115),
+            (103, 130),
+            (0, 0),
+            (105, 150),
+            (106, 160),
+            (107, 170)
+        ]);
 
-        assert_eq!(
-            core_thread_dispatcher.received_quorum_rounds(),
-            vec![
-                (100, 105),
-                (0, 115),
-                (103, 130),
-                (0, 0),
-                (105, 150),
-                (106, 160),
-                (107, 170)
-            ]
-        );
+        assert_eq!(core_thread_dispatcher.received_quorum_rounds(), vec![
+            (100, 105),
+            (0, 115),
+            (103, 130),
+            (0, 0),
+            (105, 150),
+            (106, 160),
+            (107, 170)
+        ]);
         // 110 - 100 = 10
         assert_eq!(propagation_delay, 10);
         assert_eq!(core_thread_dispatcher.propagation_delay(), 10);
 
-        assert_eq!(
-            accepted_quorum_rounds,
-            vec![
-                (0, 1),
-                (0, 115),
-                (103, 130),
-                (0, 0),
-                (105, 150),
-                (106, 160),
-                (107, 170)
-            ]
-        );
+        assert_eq!(accepted_quorum_rounds, vec![
+            (0, 1),
+            (0, 115),
+            (103, 130),
+            (0, 0),
+            (105, 150),
+            (106, 160),
+            (107, 170)
+        ]);
 
-        assert_eq!(
-            core_thread_dispatcher.accepted_quorum_rounds(),
-            vec![
-                (0, 1),
-                (0, 115),
-                (103, 130),
-                (0, 0),
-                (105, 150),
-                (106, 160),
-                (107, 170)
-            ]
-        );
+        assert_eq!(core_thread_dispatcher.accepted_quorum_rounds(), vec![
+            (0, 1),
+            (0, 115),
+            (103, 130),
+            (0, 0),
+            (105, 150),
+            (106, 160),
+            (107, 170)
+        ]);
     }
 
     #[tokio::test]

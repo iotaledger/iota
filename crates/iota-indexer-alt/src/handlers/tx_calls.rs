@@ -8,10 +8,9 @@ use anyhow::{Ok, Result};
 use diesel_async::RunQueryDsl;
 use iota_indexer_alt_framework::{
     db,
-    pipeline::{concurrent::Handler, Processor},
+    pipeline::{Processor, concurrent::Handler},
 };
-use iota_types::full_checkpoint_content::CheckpointData;
-use iota_types::transaction::TransactionDataAPI;
+use iota_types::{full_checkpoint_content::CheckpointData, transaction::TransactionDataAPI};
 
 use crate::{models::transactions::StoredTxCalls, schema::tx_calls};
 

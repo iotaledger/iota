@@ -3,26 +3,24 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
+
 use iota_config::genesis;
-use iota_types::base_types::ObjectRef;
-use iota_types::error::UserInputError;
-use iota_types::transaction::InputObjects;
-use iota_types::transaction::ObjectReadResult;
-use iota_types::transaction::ReceivingObjectReadResult;
-use iota_types::transaction::ReceivingObjects;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
     digests::{ObjectDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    error::IotaResult,
+    error::{IotaResult, UserInputError},
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
     object::Object,
     storage::{BackingStore, ChildObjectResolver, ParentSync},
-    transaction::{InputObjectKind, VerifiedTransaction},
+    transaction::{
+        InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjectReadResult,
+        ReceivingObjects, VerifiedTransaction,
+    },
 };
 pub mod in_mem_store;
 
@@ -76,7 +74,7 @@ pub trait SimulatorStore:
     fn get_transaction_effects(&self, digest: &TransactionDigest) -> Option<TransactionEffects>;
 
     fn get_transaction_events(&self, digest: &TransactionEventsDigest)
-        -> Option<TransactionEvents>;
+    -> Option<TransactionEvents>;
 
     fn get_transaction_events_by_tx_digest(
         &self,
@@ -121,10 +119,11 @@ pub trait SimulatorStore:
 
     fn backing_store(&self) -> &dyn BackingStore;
 
-    // TODO: This function is now out-of-sync with read_objects_for_execution from transaction_input_loader.rs.
-    // For instance, it does not support the use of deleted shared objects.
-    // We will need to make SimulatorStore implement ExecutionCacheRead, and keep track of deleted shared objects
-    // in a marker table in order to merge this function.
+    // TODO: This function is now out-of-sync with read_objects_for_execution from
+    // transaction_input_loader.rs. For instance, it does not support the use of
+    // deleted shared objects. We will need to make SimulatorStore implement
+    // ExecutionCacheRead, and keep track of deleted shared objects in a marker
+    // table in order to merge this function.
     fn read_objects_for_synchronous_execution(
         &self,
         _tx_digest: &TransactionDigest,

@@ -4,19 +4,20 @@
 
 use std::fmt;
 
-use move_core_types::parsing::{
-    address::{NumericalAddress, ParsedAddress},
-    types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType},
-};
-use move_core_types::runtime_value::MoveValue;
 use iota_types::{
-    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     Identifier, TypeTag,
+    base_types::{ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
 };
-
-use crate::{err, error, sp};
+use move_core_types::{
+    parsing::{
+        address::{NumericalAddress, ParsedAddress},
+        types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType},
+    },
+    runtime_value::MoveValue,
+};
 
 use super::error::{PTBResult, Span, Spanned};
+use crate::{err, error, sp};
 
 pub type ParsedProgram = (Program, ProgramMetadata);
 
@@ -94,8 +95,8 @@ pub fn all_keywords() -> String {
         + &format!(", or '{}'", KEYWORDS[KEYWORDS.len() - 1])
 }
 
-/// A PTB Program consisting of a list of commands and a flag indicating if the preview
-/// warn-shadows command was present.
+/// A PTB Program consisting of a list of commands and a flag indicating if the
+/// preview warn-shadows command was present.
 #[derive(Debug, Clone)]
 pub struct Program {
     pub commands: Vec<Spanned<ParsedPTBCommand>>,
@@ -103,8 +104,8 @@ pub struct Program {
     pub warn_shadows_set: bool,
 }
 
-/// The `ProgramMetadata` struct holds metadata about a PTB program, such as whether the preview
-/// flag was set, json output was set, etc.
+/// The `ProgramMetadata` struct holds metadata about a PTB program, such as
+/// whether the preview flag was set, json output was set, etc.
 #[derive(Debug, Clone)]
 pub struct ProgramMetadata {
     pub preview_set: bool,
@@ -118,7 +119,8 @@ pub struct ProgramMetadata {
     pub gas_budget: Option<Spanned<u64>>,
 }
 
-/// A parsed module access consisting of the address, module name, and function name.
+/// A parsed module access consisting of the address, module name, and function
+/// name.
 #[derive(Debug, Clone)]
 pub struct ModuleAccess {
     pub address: Spanned<ParsedAddress>,
@@ -126,7 +128,8 @@ pub struct ModuleAccess {
     pub function_name: Spanned<Identifier>,
 }
 
-/// A parsed PTB command consisting of the command and the parsed arguments to the command.
+/// A parsed PTB command consisting of the command and the parsed arguments to
+/// the command.
 #[derive(Debug, Clone)]
 pub enum ParsedPTBCommand {
     TransferObjects(Spanned<Vec<Spanned<Argument>>>, Spanned<Argument>),
@@ -166,8 +169,9 @@ pub enum Argument {
 }
 
 impl Argument {
-    /// Resolve an `Argument` into a `MoveValue` if possible. Errors if the `Argument` is not
-    /// convertible to a `MoveValue` of the provided `tag`.
+    /// Resolve an `Argument` into a `MoveValue` if possible. Errors if the
+    /// `Argument` is not convertible to a `MoveValue` of the provided
+    /// `tag`.
     pub fn checked_to_pure_move_value(&self, loc: Span, tag: &TypeTag) -> PTBResult<MoveValue> {
         Ok(match (self, tag) {
             (Argument::Bool(b), TypeTag::Bool) => MoveValue::Bool(*b),
@@ -232,8 +236,8 @@ impl Argument {
         })
     }
 
-    /// Resolve an `Argument` into a `MoveValue` if possible. Errors if the `Argument` is not
-    /// convertible to a `MoveValue`.
+    /// Resolve an `Argument` into a `MoveValue` if possible. Errors if the
+    /// `Argument` is not convertible to a `MoveValue`.
     pub fn to_pure_move_value(&self, loc: Span) -> PTBResult<MoveValue> {
         Ok(match self {
             Argument::Bool(b) => MoveValue::Bool(*b),
@@ -396,14 +400,11 @@ impl fmt::Display for ParsedPTBCommand {
                 write!(f, "]")
             }
             ParsedPTBCommand::MoveCall(
-                sp!(
-                    _,
-                    ModuleAccess {
-                        address,
-                        module_name,
-                        function_name
-                    }
-                ),
+                sp!(_, ModuleAccess {
+                    address,
+                    module_name,
+                    function_name
+                }),
                 tys,
                 args,
             ) => {

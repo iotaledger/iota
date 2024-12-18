@@ -2,21 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
-use std::io::Write;
-use std::sync::Arc;
 use std::{
+    io::Write,
     net::SocketAddr,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
+use async_trait::async_trait;
 use futures::future::try_join_all;
-use russh::client::Msg;
-use russh::{client, Channel};
+use russh::{Channel, client, client::Msg};
 use russh_keys::key;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
+use tokio::{task::JoinHandle, time::sleep};
 
 use crate::{
     client::Instance,
@@ -32,8 +30,8 @@ pub enum CommandStatus {
 }
 
 impl CommandStatus {
-    /// Return whether a background command is still running. Returns `Terminated` if the
-    /// command is not running in the background.
+    /// Return whether a background command is still running. Returns
+    /// `Terminated` if the command is not running in the background.
     pub fn status(command_id: &str, text: &str) -> Self {
         if text.contains(command_id) {
             Self::Running
@@ -46,8 +44,8 @@ impl CommandStatus {
 /// The command to execute on all specified remote machines.
 #[derive(Clone, Default)]
 pub struct CommandContext {
-    /// Whether to run the command in the background (and return immediately). Commands
-    /// running in the background are identified by a unique id.
+    /// Whether to run the command in the background (and return immediately).
+    /// Commands running in the background are identified by a unique id.
     pub background: Option<String>,
     /// The path from where to execute the command.
     pub path: Option<PathBuf>,
@@ -131,7 +129,8 @@ impl SshConnectionManager {
         self
     }
 
-    /// Set the maximum number of times to retries to establish a connection and execute commands.
+    /// Set the maximum number of times to retries to establish a connection and
+    /// execute commands.
     pub fn with_retries(mut self, retries: usize) -> Self {
         self.retries = retries;
         self
@@ -366,7 +365,8 @@ impl SshConnection {
         Err(error.unwrap())
     }
 
-    /// Execute an ssh command on the remote machine and return both stdout and stderr.
+    /// Execute an ssh command on the remote machine and return both stdout and
+    /// stderr.
     async fn execute_impl(
         &self,
         mut channel: Channel<Msg>,
@@ -407,8 +407,9 @@ impl SshConnection {
         Ok((output_str.clone(), output_str))
     }
 
-    /// Download a file from the remote machines by doing a silly cat on the file.
-    /// TODO: if the files get too big then we should leverage a simple S3 bucket instead.
+    /// Download a file from the remote machines by doing a silly cat on the
+    /// file. TODO: if the files get too big then we should leverage a
+    /// simple S3 bucket instead.
     pub async fn download<P: AsRef<Path>>(&self, path: P) -> SshResult<String> {
         let mut error = None;
         for _ in 0..self.retries + 1 {

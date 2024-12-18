@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use prettytable::{row, Table};
+use prettytable::{Table, row};
 use prometheus_parse::Scrape;
 use serde::{Deserialize, Serialize};
 
@@ -112,9 +112,10 @@ impl Measurement {
     }
 
     /// Compute the tps.
-    /// NOTE: Do not use `self.timestamp` as benchmark duration because some clients may
-    /// be unable to submit transactions passed the first few seconds of the benchmark. This
-    /// may happen as a result of a bad control system within the nodes.
+    /// NOTE: Do not use `self.timestamp` as benchmark duration because some
+    /// clients may be unable to submit transactions passed the first few
+    /// seconds of the benchmark. This may happen as a result of a bad
+    /// control system within the nodes.
     pub fn tps(&self, duration: &Duration) -> u64 {
         let tps = self.count.checked_div(duration.as_secs() as usize);
         tps.unwrap_or_default() as u64
@@ -208,7 +209,8 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         self.parameters.load
     }
 
-    /// Aggregate the benchmark duration of multiple data points by taking the max.
+    /// Aggregate the benchmark duration of multiple data points by taking the
+    /// max.
     pub fn benchmark_duration(&self) -> Duration {
         self.scrapers
             .values()
@@ -234,7 +236,8 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
             .sum()
     }
 
-    /// Aggregate the average latency of multiple data points by taking the average.
+    /// Aggregate the average latency of multiple data points by taking the
+    /// average.
     pub fn aggregate_average_latency(&self) -> Duration {
         let last_data_points: Vec<_> = self.scrapers.values().filter_map(|x| x.last()).collect();
         last_data_points
@@ -295,12 +298,11 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
 mod test {
     use std::{collections::HashMap, time::Duration};
 
+    use super::{BenchmarkParameters, Measurement, MeasurementsCollection};
     use crate::{
         benchmark::test::TestBenchmarkType, protocol::test_protocol_metrics::TestProtocolMetrics,
         settings::Settings,
     };
-
-    use super::{BenchmarkParameters, Measurement, MeasurementsCollection};
 
     #[test]
     fn average_latency() {

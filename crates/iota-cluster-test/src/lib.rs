@@ -1,32 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::faucet::{FaucetClient, FaucetClientFactory};
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use cluster::{Cluster, ClusterFactory};
 use config::ClusterTestOpt;
-use futures::{stream::FuturesUnordered, StreamExt};
+use futures::{StreamExt, stream::FuturesUnordered};
 use helper::ObjectChecker;
-use jsonrpsee::core::params::ArrayParams;
-use jsonrpsee::{core::client::ClientT, http_client::HttpClientBuilder};
-use std::sync::Arc;
 use iota_faucet::CoinInfo;
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
-use iota_sdk::wallet_context::WalletContext;
+use iota_sdk::{IotaClient, wallet_context::WalletContext};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
-use iota_types::base_types::TransactionDigest;
-use iota_types::object::Owner;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
-
-use iota_sdk::IotaClient;
-use iota_types::gas_coin::GasCoin;
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{IotaAddress, TransactionDigest},
+    gas_coin::GasCoin,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    object::Owner,
+    quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{Transaction, TransactionData},
+};
+use jsonrpsee::{
+    core::{client::ClientT, params::ArrayParams},
+    http_client::HttpClientBuilder,
 };
 use test_case::{
     coin_index_test::CoinIndexTest, coin_merge_split_test::CoinMergeSplitTest,
@@ -38,6 +37,8 @@ use test_case::{
 use tokio::time::{self, Duration};
 use tracing::{error, info};
 use wallet_client::WalletClient;
+
+use crate::faucet::{FaucetClient, FaucetClientFactory};
 
 pub mod cluster;
 pub mod config;

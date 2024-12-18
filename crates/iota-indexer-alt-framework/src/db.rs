@@ -2,24 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use diesel::migration::{self, Migration, MigrationSource, MigrationVersion};
-use diesel::pg::Pg;
-use diesel_async::async_connection_wrapper::AsyncConnectionWrapper;
-use diesel_async::{
-    pooled_connection::{
-        bb8::{Pool, PooledConnection, RunError},
-        AsyncDieselConnectionManager, PoolError,
-    },
-    AsyncPgConnection, RunQueryDsl,
-};
-use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use std::time::Duration;
+
+use anyhow::anyhow;
+use diesel::{
+    migration::{self, Migration, MigrationSource, MigrationVersion},
+    pg::Pg,
+};
+use diesel_async::{
+    AsyncPgConnection, RunQueryDsl,
+    async_connection_wrapper::AsyncConnectionWrapper,
+    pooled_connection::{
+        AsyncDieselConnectionManager, PoolError,
+        bb8::{Pool, PooledConnection, RunError},
+    },
+};
+use diesel_migrations::{EmbeddedMigrations, embed_migrations};
 use tracing::info;
 use url::Url;
 
-/// Migrations for schema that the indexer framework needs, regardless of the specific data being
-/// indexed.
+/// Migrations for schema that the indexer framework needs, regardless of the
+/// specific data being indexed.
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 #[derive(clap::Args, Debug, Clone)]
@@ -32,7 +35,8 @@ pub struct DbArgs {
     #[arg(long, default_value_t = Self::default().connection_pool_size)]
     connection_pool_size: u32,
 
-    /// Time spent waiting for a connection from the pool to become available, in milliseconds.
+    /// Time spent waiting for a connection from the pool to become available,
+    /// in milliseconds.
     #[arg(long, default_value_t = Self::default().connection_timeout_ms)]
     pub connection_timeout_ms: u64,
 }
@@ -51,8 +55,8 @@ impl DbArgs {
 }
 
 impl Db {
-    /// Construct a new DB connection pool. Instances of [Db] can be cloned to share access to the
-    /// same pool.
+    /// Construct a new DB connection pool. Instances of [Db] can be cloned to
+    /// share access to the same pool.
     pub async fn new(config: DbArgs) -> Result<Self, PoolError> {
         let manager = AsyncDieselConnectionManager::new(config.database_url.as_str());
 
@@ -65,8 +69,9 @@ impl Db {
         Ok(Self { pool })
     }
 
-    /// Retrieves a connection from the pool. Can fail with a timeout if a connection cannot be
-    /// established before the [DbArgs::connection_timeout] has elapsed.
+    /// Retrieves a connection from the pool. Can fail with a timeout if a
+    /// connection cannot be established before the
+    /// [DbArgs::connection_timeout] has elapsed.
     pub async fn connect(&self) -> Result<Connection<'_>, RunError> {
         self.pool.get().await
     }
@@ -127,12 +132,13 @@ impl Db {
         Ok(())
     }
 
-    /// Run migrations on the database. Use the `migrations` parameter to pass in the migrations
-    /// that are specific to the indexer being run. Migrations that the indexer framework needs
-    /// will be added automatically.
+    /// Run migrations on the database. Use the `migrations` parameter to pass
+    /// in the migrations that are specific to the indexer being run.
+    /// Migrations that the indexer framework needs will be added
+    /// automatically.
     ///
-    /// Use Diesel's `embed_migrations!` macro to generate the `migrations` parameter for your
-    /// indexer.
+    /// Use Diesel's `embed_migrations!` macro to generate the `migrations`
+    /// parameter for your indexer.
     pub(crate) async fn run_migrations(
         &self,
         migrations: &'static EmbeddedMigrations,
@@ -195,11 +201,12 @@ pub async fn reset_database(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::db::{Db, DbArgs};
     use diesel::prelude::QueryableByName;
     use diesel_async::RunQueryDsl;
     use iota_pg_temp_db::TempDb;
+
+    use super::*;
+    use crate::db::{Db, DbArgs};
 
     #[tokio::test]
     async fn temp_db_smoketest() {

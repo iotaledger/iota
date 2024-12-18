@@ -4,7 +4,8 @@
 
 use iota_sdk_types::types::CheckpointDigest;
 
-/// Extension trait used to facilitate retrieval of Iota specific data from responses
+/// Extension trait used to facilitate retrieval of Iota specific data from
+/// responses
 pub trait ResponseExt {
     fn chain_id(&self) -> Option<CheckpointDigest>;
     fn chain(&self) -> Option<&str>;

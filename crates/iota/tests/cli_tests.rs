@@ -2,63 +2,62 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeSet;
-use std::io::Read;
-use std::net::SocketAddr;
-use std::os::unix::prelude::FileExt;
-use std::{fmt::Write, fs::read_dir, path::PathBuf, str, thread, time::Duration};
-
-use std::env;
 #[cfg(not(msim))]
 use std::str::FromStr;
+use std::{
+    collections::BTreeSet, env, fmt::Write, fs::read_dir, io::Read, net::SocketAddr,
+    os::unix::prelude::FileExt, path::PathBuf, str, thread, time::Duration,
+};
 
 use expect_test::expect;
-use move_package::{lock_file::schema::ManagedPackage, BuildConfig as MoveBuildConfig};
-use serde_json::json;
-use iota::client_ptb::ptb::PTB;
-use iota::key_identity::{get_identity_address, KeyIdentity};
-use iota::iota_commands::IndexerArgs;
-use iota_sdk::IotaClient;
-use iota_test_transaction_builder::batch_make_transfer_transactions;
-use iota_types::object::Owner;
-use iota_types::transaction::{
-    TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-    TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-    TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-};
-use tokio::time::sleep;
-
 use iota::{
     client_commands::{
-        estimate_gas_budget, Opts, OptsWithGas, IotaClientCommandResult, IotaClientCommands,
-        SwitchResponse,
+        IotaClientCommandResult, IotaClientCommands, Opts, OptsWithGas, SwitchResponse,
+        estimate_gas_budget,
     },
-    iota_commands::{parse_host_port, IotaCommand},
+    client_ptb::ptb::PTB,
+    iota_commands::{IndexerArgs, IotaCommand, parse_host_port},
+    key_identity::{KeyIdentity, get_identity_address},
 };
 use iota_config::{
-    PersistedConfig, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
-    IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
+    IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
+    IOTA_KEYSTORE_ALIASES_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    get_new_package_obj_from_response, OwnedObjectRef, IotaExecutionStatus, IotaObjectData,
-    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockDataAPI, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockDataAPI,
+    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, OwnedObjectRef,
+    get_new_package_obj_from_response,
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk::iota_client_config::IotaClientConfig;
-use iota_sdk::wallet_context::WalletContext;
-use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
-use iota_swarm_config::network_config::NetworkConfig;
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{
-    Ed25519IotaSignature, Secp256k1IotaSignature, SignatureScheme, IotaKeyPair, IotaSignatureInner,
+use iota_sdk::{IotaClient, iota_client_config::IotaClientConfig, wallet_context::WalletContext};
+use iota_swarm_config::{
+    genesis_config::{AccountConfig, GenesisConfig},
+    network_config::NetworkConfig,
 };
-use iota_types::error::IotaObjectResponseError;
-use iota_types::{base_types::ObjectID, crypto::get_key_pair, gas_coin::GasCoin};
+use iota_test_transaction_builder::batch_make_transfer_transactions;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    crypto::{
+        Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner, Secp256k1IotaSignature,
+        SignatureScheme, get_key_pair,
+    },
+    error::IotaObjectResponseError,
+    gas_coin::GasCoin,
+    object::Owner,
+    transaction::{
+        TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    },
+};
+use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
+use serde_json::json;
 use test_cluster::{TestCluster, TestClusterBuilder};
+use tokio::time::sleep;
 
 const TEST_DATA_DIR: &str = "tests/data/";
 
@@ -736,11 +735,13 @@ async fn test_move_call_args_linter_command() -> Result<(), anyhow::Error> {
     let err_string = format!("{} ", resp.err().unwrap());
     assert!(err_string.contains("Gas price 1 under reference gas price"));
 
-    // FIXME: uncomment once we figure out what is going on with `resolve_and_type_check`
-    // let err_string = format!("{} ", resp.err().unwrap());
-    // let framework_addr = IOTA_FRAMEWORK_ADDRESS.to_hex_literal();
-    // let package_addr = package.to_hex_literal();
-    // assert!(err_string.contains(&format!("Expected argument of type {package_addr}::object_basics::Object, but found type {framework_addr}::coin::Coin<{framework_addr}::iota::IOTA>")));
+    // FIXME: uncomment once we figure out what is going on with
+    // `resolve_and_type_check` let err_string = format!("{} ",
+    // resp.err().unwrap()); let framework_addr =
+    // IOTA_FRAMEWORK_ADDRESS.to_hex_literal(); let package_addr =
+    // package.to_hex_literal(); assert!(err_string.contains(&format!("Expected
+    // argument of type {package_addr}::object_basics::Object, but found type
+    // {framework_addr}::coin::Coin<{framework_addr}::iota::IOTA>")));
 
     // Try a proper transfer
     let args = [
@@ -1408,8 +1409,8 @@ async fn test_receive_argument_by_mut_ref() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_package_publish_command_with_unpublished_dependency_succeeds(
-) -> Result<(), anyhow::Error> {
+async fn test_package_publish_command_with_unpublished_dependency_succeeds()
+-> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = true; // Value under test, results in successful response.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -1478,8 +1479,8 @@ async fn test_package_publish_command_with_unpublished_dependency_succeeds(
 }
 
 #[sim_test]
-async fn test_package_publish_command_with_unpublished_dependency_fails(
-) -> Result<(), anyhow::Error> {
+async fn test_package_publish_command_with_unpublished_dependency_fails()
+-> Result<(), anyhow::Error> {
     let with_unpublished_dependencies = false; // Value under test, results in error response.
 
     let mut test_cluster = TestClusterBuilder::new().build().await;
@@ -1767,8 +1768,9 @@ async fn test_package_upgrade_command() -> Result<(), anyhow::Error> {
         .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
         .unwrap();
 
-    // Hacky for now: we need to add the correct `published-at` field to the Move toml file.
-    // In the future once we have automated address management replace this logic!
+    // Hacky for now: we need to add the correct `published-at` field to the Move
+    // toml file. In the future once we have automated address management
+    // replace this logic!
     let tmp_dir = tempfile::tempdir().unwrap();
     fs_extra::dir::copy(
         &package_path,
@@ -1893,11 +1895,12 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
         .find(|refe| matches!(refe.owner, Owner::AddressOwner(_)))
         .unwrap();
 
-    // We will upgrade the package in a `tmp_dir` using the `Move.lock` resulting from publish,
-    // so as not to clobber anything.
-    // The `Move.lock` needs to point to the root directory of the package-to-be-upgraded.
-    // The core implementation does not use support an arbitrary `lock_file` path specified in
-    // `BuildConfig` when the `Move.lock` file is an input for upgrades, so we change the `BuildConfig`
+    // We will upgrade the package in a `tmp_dir` using the `Move.lock` resulting
+    // from publish, so as not to clobber anything.
+    // The `Move.lock` needs to point to the root directory of the
+    // package-to-be-upgraded. The core implementation does not use support an
+    // arbitrary `lock_file` path specified in `BuildConfig` when the
+    // `Move.lock` file is an input for upgrades, so we change the `BuildConfig`
     // `lock_file` to point to the root directory of package-to-be-upgraded.
     let tmp_dir = tempfile::tempdir().unwrap();
     fs_extra::dir::copy(
@@ -2057,7 +2060,8 @@ async fn test_package_management_on_upgrade_command_conflict() -> Result<(), any
     let new = lines.join("\n");
     move_toml.write_at(new.as_bytes(), 0).unwrap();
 
-    // Create a new build config for the upgrade. Initialize its lock file to the package we published.
+    // Create a new build config for the upgrade. Initialize its lock file to the
+    // package we published.
     let build_config_upgrade = BuildConfig::new_for_testing().config;
     let mut upgrade_lock_file_path = upgrade_pkg_path.clone();
     upgrade_lock_file_path.push("Move.lock");
@@ -2430,7 +2434,9 @@ async fn test_active_address_command() -> Result<(), anyhow::Error> {
     let addr1 = context.active_address()?;
 
     // Run a command with address omitted
-    let os = IotaClientCommands::ActiveAddress {}.execute(context).await?;
+    let os = IotaClientCommands::ActiveAddress {}
+        .execute(context)
+        .await?;
 
     let a = if let IotaClientCommandResult::ActiveAddress(Some(v)) = os {
         v
@@ -3425,11 +3431,12 @@ async fn test_pay() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    // Pay command takes the input coins and transfers the given amounts from each input coin (in order)
-    // to the recipients
-    // this test checks if the recipients have received the objects, and if the gas object used is
-    // the right one (not one of the input coins, and in this setup it's the 3rd coin of sender)
-    // we also check if the balances are right!
+    // Pay command takes the input coins and transfers the given amounts from each
+    // input coin (in order) to the recipients
+    // this test checks if the recipients have received the objects, and if the gas
+    // object used is the right one (not one of the input coins, and in this
+    // setup it's the 3rd coin of sender) we also check if the balances are
+    // right!
     if let IotaClientCommandResult::TransactionBlock(response) = pay {
         // check tx status
         assert!(response.status_ok().unwrap());
@@ -3506,8 +3513,8 @@ async fn test_pay_iota() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    // pay iota takes the input coins and transfers from each of them (in order) the amounts to the
-    // respective receipients.
+    // pay iota takes the input coins and transfers from each of them (in order) the
+    // amounts to the respective receipients.
     // check if each recipient has one object, if the tx status is success,
     // and if the gas object used was the first object in the input coins
     // we also check if the balances of each recipient are right!
@@ -3583,9 +3590,10 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    // pay all iota will take the input coins and smash them into one coin and transfer that coin to
-    // the recipient, so we check that the recipient has one object, if the tx status is success,
-    // and if the gas object used was the first object in the input coins
+    // pay all iota will take the input coins and smash them into one coin and
+    // transfer that coin to the recipient, so we check that the recipient has
+    // one object, if the tx status is success, and if the gas object used was
+    // the first object in the input coins
     if let IotaClientCommandResult::TransactionBlock(response) = pay_all_iota {
         let objs_refs = client
             .read_api()
@@ -3638,8 +3646,9 @@ async fn test_transfer() -> Result<(), anyhow::Error> {
     }
     .execute(context)
     .await?;
-    // transfer command will transfer the object_id1 to address2, and use object_id2 as gas
-    // we check if object1 is owned by address 2 and if the gas object used is object_id2
+    // transfer command will transfer the object_id1 to address2, and use object_id2
+    // as gas we check if object1 is owned by address 2 and if the gas object
+    // used is object_id2
     if let IotaClientCommandResult::TransactionBlock(response) = transfer {
         assert!(response.status_ok().unwrap());
         assert_eq!(
@@ -3687,9 +3696,9 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    // transfer iota will transfer the amount from object_id1 to address2, and use the same object
-    // as gas, and we check if the recipient address received the object, and the expected balance
-    // is correct
+    // transfer iota will transfer the amount from object_id1 to address2, and use
+    // the same object as gas, and we check if the recipient address received
+    // the object, and the expected balance is correct
     if let IotaClientCommandResult::TransactionBlock(response) = transfer_iota {
         assert!(response.status_ok().unwrap());
         assert_eq!(
@@ -3750,10 +3759,12 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
             2,
             "Expected to have two coins when calling transfer iota the 2nd time"
         );
-        assert!(objs_refs
-            .data
-            .iter()
-            .any(|x| x.object().unwrap().object_id == object_id1));
+        assert!(
+            objs_refs
+                .data
+                .iter()
+                .any(|x| x.object().unwrap().object_id == object_id1)
+        );
     } else {
         panic!("TransferIota test failed");
     }
@@ -3979,8 +3990,8 @@ async fn test_move_build_bytecode_with_address_resolution() -> Result<(), anyhow
     ])
     .await?;
 
-    // Build the package that depends on 'simple' package. Addresses must resolve successfully
-    // from the `Move.lock` for this command to succeed at all.
+    // Build the package that depends on 'simple' package. Addresses must resolve
+    // successfully from the `Move.lock` for this command to succeed at all.
     let depends_on_simple_tmp_dir = tmp_dir.path().join("depends_on_simple");
     test_with_iota_binary(&[
         "move",

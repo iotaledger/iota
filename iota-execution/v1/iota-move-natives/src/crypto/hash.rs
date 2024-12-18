@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::NativesCostTable;
+use std::{collections::VecDeque, ops::Mul};
+
 use fastcrypto::hash::{Blake2b256, HashFunction, Keccak256};
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::gas_algebra::InternalGas;
@@ -13,7 +14,8 @@ use move_vm_types::{
     values::{Value, VectorRef},
 };
 use smallvec::smallvec;
-use std::{collections::VecDeque, ops::Mul};
+
+use crate::NativesCostTable;
 
 const BLAKE_2B256_BLOCK_SIZE: u16 = 128;
 const KECCAK_256_BLOCK_SIZE: u16 = 136;
@@ -46,12 +48,9 @@ fn hash<H: HashFunction<DIGEST_SIZE>, const DIGEST_SIZE: usize>(
                 .mul((((msg_ref.len() + block_size - 1) / block_size) as u64).into())
     );
 
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![Value::vector_u8(
-            H::digest(msg.as_bytes_ref().as_slice()).digest
-        )],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![
+        Value::vector_u8(H::digest(msg.as_bytes_ref().as_slice()).digest)
+    ]))
 }
 
 #[derive(Clone)]
@@ -64,13 +63,17 @@ pub struct HashKeccak256CostParams {
     pub hash_keccak256_data_cost_per_block: InternalGas,
 }
 
-/***************************************************************************************************
- * native fun keccak256
- * Implementation of the Move native function `hash::keccak256(data: &vector<u8>): vector<u8>`
- *   gas cost: hash_keccak256_cost_base                               | base cost for function call and fixed opers
- *              + hash_keccak256_data_cost_per_byte * msg.len()       | cost depends on length of message
- *              + hash_keccak256_data_cost_per_block * num_blocks     | cost depends on number of blocks in message
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun keccak256
+/// Implementation of the Move native function `hash::keccak256(data:
+/// &vector<u8>): vector<u8>`   gas cost: hash_keccak256_cost_base
+/// | base cost for function call and fixed opers
+///              + hash_keccak256_data_cost_per_byte * msg.len()       | cost
+///                depends on length of message
+///              + hash_keccak256_data_cost_per_block * num_blocks     | cost
+///                depends on number of blocks in message
+/// ****************************************************************************
+/// *******************
 pub fn keccak256(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
@@ -104,13 +107,17 @@ pub struct HashBlake2b256CostParams {
     /// Cost per block of `data`, where a block is 128 bytes
     pub hash_blake2b256_data_cost_per_block: InternalGas,
 }
-/***************************************************************************************************
- * native fun blake2b256
- * Implementation of the Move native function `hash::blake2b256(data: &vector<u8>): vector<u8>`
- *   gas cost: hash_blake2b256_cost_base                               | base cost for function call and fixed opers
- *              + hash_blake2b256_data_cost_per_byte * msg.len()       | cost depends on length of message
- *              + hash_blake2b256_data_cost_per_block * num_blocks     | cost depends on number of blocks in message
- **************************************************************************************************/
+/// ****************************************************************************
+/// ********************* native fun blake2b256
+/// Implementation of the Move native function `hash::blake2b256(data:
+/// &vector<u8>): vector<u8>`   gas cost: hash_blake2b256_cost_base
+/// | base cost for function call and fixed opers
+///              + hash_blake2b256_data_cost_per_byte * msg.len()       | cost
+///                depends on length of message
+///              + hash_blake2b256_data_cost_per_block * num_blocks     | cost
+///                depends on number of blocks in message
+/// ****************************************************************************
+/// *******************
 pub fn blake2b256(
     context: &mut NativeContext,
     ty_args: Vec<Type>,

@@ -5,8 +5,8 @@
 use std::{collections::HashSet, sync::Arc};
 
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
-    crypto::{get_key_pair, AccountKeyPair},
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
@@ -14,13 +14,15 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, ObjectArg, ProgrammableTransaction, VerifiedCertificate,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        CallArg, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        VerifiedCertificate,
     },
 };
+use move_core_types::ident_str;
 
 use crate::{
     authority::{
+        AuthorityState,
         authority_test_utils::{certify_transaction, send_consensus},
         authority_tests::{
             build_programmable_transaction, execute_programmable_transaction,
@@ -28,19 +30,19 @@ use crate::{
         },
         move_integration_tests::build_and_publish_test_package_with_upgrade_cap,
         test_authority_builder::TestAuthorityBuilder,
-        AuthorityState,
     },
     move_call,
 };
-use move_core_types::ident_str;
 
-// The primary use for these tests is to make sure the generated effect sets match what we expect
-// when receiving an object, and if we then perform different types of operations on the received
-// object (e.g., deleting, wrapping, unwrapping, adding as a dynamic field, etc.) and various
-// combinations of that. Some of these tests also check and validate locking behavior around
-// receiving object arguments as well.
+// The primary use for these tests is to make sure the generated effect sets
+// match what we expect when receiving an object, and if we then perform
+// different types of operations on the received object (e.g., deleting,
+// wrapping, unwrapping, adding as a dynamic field, etc.) and various
+// combinations of that. Some of these tests also check and validate locking
+// behavior around receiving object arguments as well.
 
-// Run the test twice -- once with aggressive pruning enabled, and the other with it not enabled.
+// Run the test twice -- once with aggressive pruning enabled, and the other
+// with it not enabled.
 macro_rules! transfer_test_runner {
     (gas_objects: $num:expr, $expr:expr) => {
         let runner = TestRunner::new_with_objects("tto", $num, false).await;
@@ -96,7 +98,8 @@ impl TestRunner {
             &sender_key,
             &gas_object_ids[0],
             base_package_name,
-            /* with_unpublished_deps */ false,
+            // with_unpublished_deps
+            false,
         )
         .await;
 
@@ -233,7 +236,8 @@ impl TestRunner {
         if shared {
             send_consensus(&self.authority_state, &ct).await;
         }
-        // Call `execute_certificate` instead of `execute_certificate_with_execution_error` to make sure we go through TM
+        // Call `execute_certificate` instead of
+        // `execute_certificate_with_execution_error` to make sure we go through TM
         let effects = self
             .authority_state
             .execute_certificate(&ct, &epoch_store)
@@ -254,8 +258,8 @@ impl TestRunner {
 fn get_parent_and_child(
     created: Vec<(ObjectRef, Owner)>,
 ) -> ((ObjectRef, Owner), (ObjectRef, Owner)) {
-    // make sure there is an object with an `AddressOwner` who matches the object ID of another
-    // object.
+    // make sure there is an object with an `AddressOwner` who matches the object ID
+    // of another object.
     let created_addrs: HashSet<_> = created.iter().map(|((i, _, _), _)| i).collect();
     let (child, parent_id) = created
         .iter()
@@ -905,12 +909,13 @@ async fn test_tto_unwrap_add_as_dynamic_field() {
 // This test does this by
 // 1. Creating a parent object and child object
 // 2. Creating a fake parent object
-// 3. Create and sign a transaction `tx1` that tries to receive the child object using
-//    the fake parent.
-// 4. Create and sign a transaction `tx2` that receives the child object using the valid parent
-//    object.
+// 3. Create and sign a transaction `tx1` that tries to receive the child object
+//    using the fake parent.
+// 4. Create and sign a transaction `tx2` that receives the child object using
+//    the valid parent object.
 // 5. Execute `tx2` and verify that it can be executed successfully.
-// 6. Execute `tx1` and verify that it can be executed, but will result in a Move abort.
+// 6. Execute `tx1` and verify that it can be executed, but will result in a
+//    Move abort.
 // The order of steps 5 and 6 are swapped if `flipper` is `true`.
 // The object is deleted instead of received if `should_delete` is `true`.
 async fn verify_tto_not_locked(
@@ -934,7 +939,7 @@ async fn verify_tto_not_locked(
     let fake_parent = effects
         .created()
         .iter()
-        .find(|(obj_ref, _)| obj_ref.0 != parent.0 .0 && obj_ref.0 != child.0 .0)
+        .find(|(obj_ref, _)| obj_ref.0 != parent.0.0 && obj_ref.0 != child.0.0)
         .cloned()
         .unwrap();
 
@@ -959,9 +964,9 @@ async fn verify_tto_not_locked(
         )
         .await;
 
-    // After the other (fake) transaction has been created and signed, sign and execute this
-    // transaction. This should have no issues because the receiving object is not locked by the
-    // signing of the transaction above.
+    // After the other (fake) transaction has been created and signed, sign and
+    // execute this transaction. This should have no issues because the
+    // receiving object is not locked by the signing of the transaction above.
     let valid_cert = runner
         .lock_and_verify_transaction(
             {
@@ -979,8 +984,8 @@ async fn verify_tto_not_locked(
         )
         .await;
 
-    // The order of the execution of these transactions is flipped depending on the value of
-    // flipper. However, the result should be the same in either case.
+    // The order of the execution of these transactions is flipped depending on the
+    // value of flipper. However, the result should be the same in either case.
     let (valid_effects, invalid_effects) = if flipper {
         let invalid_effects = runner
             .execute_certificate(cert_for_fake_parent, false)
@@ -1030,8 +1035,8 @@ fn assert_effects_equivalent(ef1: &TransactionEffects, ef2: &TransactionEffects)
 #[tokio::test]
 async fn test_tto_not_locked() {
     for aggressive_pruning_enabled in [true, false] {
-        // The transaction effects for the valid and invalid transactions should be the same regardless
-        // of the order in which they are run.
+        // The transaction effects for the valid and invalid transactions should be the
+        // same regardless of the order in which they are run.
         let (valid1, invalid1) =
             verify_tto_not_locked(false, false, aggressive_pruning_enabled).await;
         let (valid2, invalid2) =

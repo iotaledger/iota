@@ -2,67 +2,58 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::{fs::File, io::Write, str::FromStr};
+
 use clap::*;
-use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
-use fastcrypto_zkp::zk_login_utils::Bn254FrElement;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::identifier::Identifier;
-use move_core_types::language_storage::{ModuleId, StructTag, TypeTag};
-use pretty_assertions::assert_str_eq;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-use roaring::RoaringBitmap;
-use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
-use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
-use std::str::FromStr;
-use std::{fs::File, io::Write};
-use iota_types::base_types::IotaAddress;
-use iota_types::crypto::{
-    AggregateAuthoritySignature, AuthorityQuorumSignInfo, AuthorityStrongQuorumSignInfo,
-};
-use iota_types::effects::TransactionEvents;
-use iota_types::event::Event;
-use iota_types::execution_status::{
-    CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
-    TypeArgumentError,
-};
-use iota_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
-use iota_types::messages_checkpoint::CertifiedCheckpointSummary;
-use iota_types::messages_grpc::ObjectInfoRequestKind;
-use iota_types::move_package::TypeOrigin;
-use iota_types::object::Object;
-use iota_types::transaction::{SenderSignedData, TransactionData};
-use iota_types::type_input::{StructInput, TypeInput};
-use iota_types::{
-    base_types::MoveObjectType_,
-    crypto::Signer,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSummary,
-        FullCheckpointContents,
-    },
-    transaction::TransactionExpiration,
-};
+use fastcrypto_zkp::{bn254::zk_login::OIDCProvider, zk_login_utils::Bn254FrElement};
 use iota_types::{
     base_types::{
-        self, MoveObjectType, ObjectDigest, ObjectID, TransactionDigest, TransactionEffectsDigest,
+        self, IotaAddress, MoveObjectType, MoveObjectType_, ObjectDigest, ObjectID,
+        TransactionDigest, TransactionEffectsDigest,
     },
     crypto::{
-        get_key_pair, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, AuthoritySignature, KeypairTraits, Signature, IotaKeyPair,
+        AccountKeyPair, AggregateAuthoritySignature, AuthorityKeyPair, AuthorityPublicKeyBytes,
+        AuthorityQuorumSignInfo, AuthoritySignature, AuthorityStrongQuorumSignInfo, IotaKeyPair,
+        KeypairTraits, PublicKey, Signature, Signer, ZkLoginPublicIdentifier, get_key_pair,
+        get_key_pair_from_rng,
     },
+    effects::{
+        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEvents,
+        UnchangedSharedKind,
+    },
+    event::Event,
+    execution_status::{
+        CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
+        TypeArgumentError,
+    },
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointContentsDigest, CheckpointDigest,
+        CheckpointSummary, FullCheckpointContents,
+    },
+    messages_grpc::ObjectInfoRequestKind,
+    move_package::TypeOrigin,
     multisig::{MultiSig, MultiSigPublicKey},
-    object::{Data, Owner},
+    object::{Data, Object, Owner},
     signature::GenericSignature,
     storage::DeleteKind,
     transaction::{
-        Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg, TransactionKind,
+        Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg, SenderSignedData,
+        TransactionData, TransactionExpiration, TransactionKind,
     },
-};
-use iota_types::{
-    crypto::{PublicKey, ZkLoginPublicIdentifier},
-    effects::{IDOperation, ObjectIn, ObjectOut, TransactionEffects, UnchangedSharedKind},
+    type_input::{StructInput, TypeInput},
     utils::DEFAULT_ADDRESS_SEED,
 };
+use move_core_types::{
+    account_address::AccountAddress,
+    identifier::Identifier,
+    language_storage::{ModuleId, StructTag, TypeTag},
+};
+use pretty_assertions::assert_str_eq;
+use rand::{SeedableRng, rngs::StdRng};
+use roaring::RoaringBitmap;
+use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
+use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use typed_store::TypedStoreError;
 fn get_registry() -> Result<Registry> {
     let config = TracerConfig::default()
@@ -73,8 +64,8 @@ fn get_registry() -> Result<Registry> {
     // 1. Record samples for types with custom deserializers.
     // We want to call
     // tracer.trace_value(&mut samples, ...)?;
-    // with all the base types contained in messages, especially the ones with custom serializers;
-    // or involving generics (see [serde_reflection documentation](https://novifinancial.github.io/serde-reflection/serde_reflection/index.html)).
+    // with all the base types contained in messages, especially the ones with
+    // custom serializers; or involving generics (see [serde_reflection documentation](https://novifinancial.github.io/serde-reflection/serde_reflection/index.html)).
 
     let m = ModuleId::new(AccountAddress::ZERO, Identifier::new("foo").unwrap());
     tracer.trace_value(&mut samples, &m).unwrap();
@@ -92,7 +83,8 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &s_addr).unwrap();
     tracer.trace_value(&mut samples, &s_kp).unwrap();
 
-    // We have two signature types: one for Authority Signatures, which don't include the PubKey ...
+    // We have two signature types: one for Authority Signatures, which don't
+    // include the PubKey ...
     let sig: AuthoritySignature = Signer::sign(&kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
     // ... and the user signature which does
@@ -121,12 +113,9 @@ fn get_registry() -> Result<Registry> {
     )
     .unwrap();
 
-    let msg = IntentMessage::new(
-        Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Message".as_bytes().to_vec(),
-        },
-    );
+    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
+        message: "Message".as_bytes().to_vec(),
+    });
 
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &kp2).into();
@@ -155,7 +144,8 @@ fn get_registry() -> Result<Registry> {
     let oid: ObjectID = addr.into();
     tracer.trace_value(&mut samples, &oid).unwrap();
 
-    // ObjectDigest and Transaction digest use the `serde_as`speedup for ser/de => trace them
+    // ObjectDigest and Transaction digest use the `serde_as`speedup for ser/de =>
+    // trace them
     let od = ObjectDigest::random();
     let td = TransactionDigest::random();
     tracer.trace_value(&mut samples, &od).unwrap();

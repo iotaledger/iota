@@ -1,11 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+use std::net::SocketAddr;
+
 use fastcrypto::traits::ToFromBytes;
+use iota_core::authority_client::AuthorityAPI;
+use iota_macros::sim_test;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{PublicKey, Signature, SignatureScheme},
+    error::{IotaError, IotaResult, UserInputError},
+    passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
+    signature::GenericSignature,
+    transaction::{Transaction, TransactionData},
+};
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserValidationMethod};
 use passkey_client::Client;
 use passkey_types::{
+    Bytes, Passkey,
     ctap2::Aaguid,
     rand::random_vec,
     webauthn::{
@@ -14,26 +28,9 @@ use passkey_types::{
         PublicKeyCredentialRequestOptions, PublicKeyCredentialRpEntity, PublicKeyCredentialType,
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
-    Bytes, Passkey,
 };
 use shared_crypto::intent::{Intent, IntentMessage};
-use std::net::SocketAddr;
-use iota_core::authority_client::AuthorityAPI;
-use iota_macros::sim_test;
-use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::crypto::Signature;
-use iota_types::error::UserInputError;
-use iota_types::error::{IotaError, IotaResult};
-use iota_types::signature::GenericSignature;
-use iota_types::transaction::Transaction;
-use iota_types::{
-    base_types::IotaAddress,
-    crypto::{PublicKey, SignatureScheme},
-    passkey_authenticator::{to_signing_message, PasskeyAuthenticator},
-    transaction::TransactionData,
-};
-use test_cluster::TestCluster;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestCluster, TestClusterBuilder};
 use url::Url;
 
 struct MyUserValidationMethod {}
@@ -78,8 +75,8 @@ async fn execute_tx(tx: Transaction, test_cluster: &TestCluster) -> IotaResult {
         .map(|_| ())
 }
 
-/// Register a new passkey, derive its address, fund it with gas and create a test
-/// transaction, then get a response from the passkey from signing.
+/// Register a new passkey, derive its address, fund it with gas and create a
+/// test transaction, then get a response from the passkey from signing.
 async fn create_credential_and_sign_test_tx(
     test_cluster: &TestCluster,
     sender: Option<IotaAddress>,
@@ -155,8 +152,9 @@ async fn create_credential_and_sign_test_tx(
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
-    // Compute the challenge = blake2b_hash(intent_msg(tx)) for passkey credential request.
-    // If change_intent, mangle the intent bytes. If change_tx, mangle the hashed tx bytes.
+    // Compute the challenge = blake2b_hash(intent_msg(tx)) for passkey credential
+    // request. If change_intent, mangle the intent bytes. If change_tx, mangle
+    // the hashed tx bytes.
     let passkey_challenge = if change_intent {
         to_signing_message(&IntentMessage::new(
             Intent::personal_message(),
@@ -233,12 +231,9 @@ async fn test_passkey_feature_deny() {
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let tx = make_good_passkey_tx(response);
     let err = execute_tx(tx, &test_cluster).await.unwrap_err();
-    assert!(matches!(
-        err,
-        IotaError::UserInputError {
-            error: UserInputError::Unsupported(..)
-        }
-    ));
+    assert!(matches!(err, IotaError::UserInputError {
+        error: UserInputError::Unsupported(..)
+    }));
 }
 
 #[sim_test]
@@ -267,12 +262,9 @@ async fn test_passkey_fails_mismatched_challenge() {
     let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid challenge".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid challenge".to_string()
+    });
 
     // Tweak tx_digest bytes in challenge that is sent to passkey.
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, true).await;
@@ -287,12 +279,9 @@ async fn test_passkey_fails_mismatched_challenge() {
     let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Invalid challenge".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Invalid challenge".to_string()
+    });
 }
 
 #[sim_test]
@@ -316,12 +305,9 @@ async fn test_passkey_fails_to_verify_sig() {
     let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
-    assert_eq!(
-        err,
-        IotaError::InvalidSignature {
-            error: "Fails to verify".to_string()
-        }
-    );
+    assert_eq!(err, IotaError::InvalidSignature {
+        error: "Fails to verify".to_string()
+    });
 }
 
 #[sim_test]

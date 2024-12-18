@@ -1,6 +1,5 @@
 use super::TryFromProtoError;
 
-//
 // Event
 //
 
@@ -60,7 +59,6 @@ impl TryFrom<&super::Event> for iota_sdk_types::types::Event {
     }
 }
 
-//
 // TransactionEvents
 //
 

@@ -4,8 +4,9 @@
 
 //! IotaNodeHandle wraps IotaNode in a way suitable for access by test code.
 //!
-//! When starting a IotaNode directly, in a test (as opposed to using Swarm), the node may be
-//! running inside of a simulator node. It is therefore a mistake to do something like:
+//! When starting a IotaNode directly, in a test (as opposed to using Swarm),
+//! the node may be running inside of a simulator node. It is therefore a
+//! mistake to do something like:
 //!
 //! ```ignore
 //!     use test_utils::authority::{start_node, spawn_checkpoint_processes};
@@ -14,8 +15,9 @@
 //!     spawn_checkpoint_processes(config, &[node]).await;
 //! ```
 //!
-//! Because this would cause the checkpointing processes to be running inside the current
-//! simulator node rather than the node in which the IotaNode is running.
+//! Because this would cause the checkpointing processes to be running inside
+//! the current simulator node rather than the node in which the IotaNode is
+//! running.
 //!
 //! IotaNodeHandle provides an easy way to do the right thing here:
 //!
@@ -26,12 +28,13 @@
 //!     });
 //! ```
 //!
-//! Code executed inside of with or with_async will run in the context of the simulator node.
-//! This allows tests to break the simulator abstraction and magically mutate or inspect state that
-//! is conceptually running on a different "machine", but without producing extremely confusing
-//! behavior that might result otherwise. (For instance, any network connection that is initiated
-//! from a task spawned from within a with or with_async will appear to originate from the correct
-//! simulator node.
+//! Code executed inside of with or with_async will run in the context of the
+//! simulator node. This allows tests to break the simulator abstraction and
+//! magically mutate or inspect state that is conceptually running on a
+//! different "machine", but without producing extremely confusing behavior that
+//! might result otherwise. (For instance, any network connection that is
+//! initiated from a task spawned from within a with or with_async will appear
+//! to originate from the correct simulator node.
 //!
 //! It is possible to exfiltrate state:
 //!
@@ -41,12 +44,14 @@
 //!    do_stuff_with_state(state)
 //! ```
 //!
-//! We can't prevent this completely, but we can at least make the right way the easy way.
+//! We can't prevent this completely, but we can at least make the right way the
+//! easy way.
+
+use std::{future::Future, sync::Arc};
+
+use iota_core::authority::AuthorityState;
 
 use super::IotaNode;
-use std::future::Future;
-use std::sync::Arc;
-use iota_core::authority::AuthorityState;
 
 /// Wrap IotaNode to allow correct access to IotaNode in simulator tests.
 pub struct IotaNodeHandle {

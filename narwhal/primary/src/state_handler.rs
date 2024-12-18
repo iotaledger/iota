@@ -3,8 +3,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use config::AuthorityIdentifier;
-use iota_metrics::metered_channel::{Receiver, Sender};
-use iota_metrics::spawn_logged_monitored_task;
+use iota_metrics::{
+    metered_channel::{Receiver, Sender},
+    spawn_logged_monitored_task,
+};
 use tap::TapFallible;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};

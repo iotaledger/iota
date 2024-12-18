@@ -10,7 +10,8 @@ use crate::BuildConfig;
 
 #[test]
 fn generate_struct_layouts() {
-    // build the Iota framework and generate struct layouts to make sure nothing crashes
+    // build the Iota framework and generate struct layouts to make sure nothing
+    // crashes
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
@@ -43,7 +44,8 @@ fn development_mode_not_allowed() {
     let err = BuildConfig::new_for_testing()
         .build(&path)
         .expect_err("Should have failed due to unsupported edition");
-    assert!(err
-        .to_string()
-        .contains(&Edition::DEVELOPMENT.unknown_edition_error().to_string()));
+    assert!(
+        err.to_string()
+            .contains(&Edition::DEVELOPMENT.unknown_edition_error().to_string())
+    );
 }

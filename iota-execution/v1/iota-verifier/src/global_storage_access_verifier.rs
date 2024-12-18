@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::verification_failure;
-use move_binary_format::file_format::{Bytecode, CompiledModule};
 use iota_types::error::ExecutionError;
+use move_binary_format::file_format::{Bytecode, CompiledModule};
+
+use crate::verification_failure;
 
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
     verify_global_storage_access(module)

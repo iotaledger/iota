@@ -2,15 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{str::FromStr, time::Duration};
+
 use anyhow::Result;
 use async_trait::async_trait;
 use aws_config::timeout::TimeoutConfig;
-use aws_sdk_dynamodb::error::SdkError;
-use aws_sdk_dynamodb::types::AttributeValue;
-use aws_sdk_dynamodb::Client;
+use aws_sdk_dynamodb::{Client, error::SdkError, types::AttributeValue};
 use aws_sdk_s3::config::{Credentials, Region};
-use std::str::FromStr;
-use std::time::Duration;
 use iota_data_ingestion_core::ProgressStore;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 

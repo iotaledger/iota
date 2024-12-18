@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use prometheus::Registry;
-use serde::{Deserialize, Serialize};
 use iota_data_ingestion::{ArchivalConfig, ArchivalReducer, ArchivalWorker};
 use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ReaderOptions, ShimProgressStore, WorkerPool,
 };
+use prometheus::Registry;
+use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -8,31 +8,32 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 pub mod checked {
 
-    use crate::iota_types::gas::IotaGasStatusAPI;
-    use crate::temporary_store::TemporaryStore;
     use iota_protocol_config::ProtocolConfig;
-    use iota_types::gas::{deduct_gas, GasCostSummary, IotaGasStatus};
-    use iota_types::gas_model::gas_predicates::{
-        charge_upgrades, dont_charge_budget_on_storage_oog,
-    };
     use iota_types::{
         base_types::{ObjectID, ObjectRef},
         digests::TransactionDigest,
         error::ExecutionError,
-        gas_model::tables::GasStatus,
+        gas::{GasCostSummary, IotaGasStatus, deduct_gas},
+        gas_model::{
+            gas_predicates::{charge_upgrades, dont_charge_budget_on_storage_oog},
+            tables::GasStatus,
+        },
         is_system_package,
         object::Data,
     };
     use tracing::trace;
 
+    use crate::{iota_types::gas::IotaGasStatusAPI, temporary_store::TemporaryStore};
+
     /// Tracks all gas operations for a single transaction.
     /// This is the main entry point for gas accounting.
     /// All the information about gas is stored in this object.
     /// The objective here is two-fold:
-    /// 1- Isolate al version info into a single entry point. This file and the other gas
-    ///    related files are the only one that check for gas version.
-    /// 2- Isolate all gas accounting into a single implementation. Gas objects are not
-    ///    passed around, and they are retrieved from this instance.
+    /// 1- Isolate al version info into a single entry point. This file and the
+    /// other gas    related files are the only one that check for gas
+    /// version. 2- Isolate all gas accounting into a single implementation.
+    /// Gas objects are not    passed around, and they are retrieved from
+    /// this instance.
     #[derive(Debug)]
     pub struct GasCharger {
         tx_digest: TransactionDigest,
@@ -71,14 +72,14 @@ pub mod checked {
             }
         }
 
-        // TODO: there is only one caller to this function that should not exist otherwise.
-        //       Explore way to remove it.
+        // TODO: there is only one caller to this function that should not exist
+        // otherwise.       Explore way to remove it.
         pub(crate) fn gas_coins(&self) -> &[ObjectRef] {
             &self.gas_coins
         }
 
-        // Return the logical gas coin for this transactions or None if no gas coin was present
-        // (system transactions).
+        // Return the logical gas coin for this transactions or None if no gas coin was
+        // present (system transactions).
         pub fn gas_coin(&self) -> Option<ObjectID> {
             self.smashed_gas_coin
         }
@@ -169,7 +170,8 @@ pub mod checked {
             let mut primary_gas_object = temporary_store
                 .objects()
                 .get(&gas_coin_id)
-                // unwrap should be safe because we checked that this exists in `self.objects()` above
+                // unwrap should be safe because we checked that this exists in `self.objects()`
+                // above
                 .unwrap_or_else(|| {
                     panic!(
                         "Invariant violation: gas coin not found in store in txn {}",
@@ -185,7 +187,8 @@ pub mod checked {
             primary_gas_object
                 .data
                 .try_as_move_mut()
-                // unwrap should be safe because we checked that the primary gas object was a coin object above.
+                // unwrap should be safe because we checked that the primary gas object was a coin
+                // object above.
                 .unwrap_or_else(|| {
                     panic!(
                         "Invariant violation: invalid coin object in txn {}",
@@ -196,7 +199,6 @@ pub mod checked {
             temporary_store.mutate_input_object(primary_gas_object);
         }
 
-        //
         // Gas charging operations
         //
 
@@ -244,8 +246,10 @@ pub mod checked {
             self.gas_status.charge_storage_read(total_size)
         }
 
-        /// Resets any mutations, deletions, and events recorded in the store, as well as any storage costs and
-        /// rebates, then Re-runs gas smashing. Effects on store are now as if we were about to begin execution
+        /// Resets any mutations, deletions, and events recorded in the store,
+        /// as well as any storage costs and rebates, then Re-runs gas
+        /// smashing. Effects on store are now as if we were about to begin
+        /// execution
         pub fn reset(&mut self, temporary_store: &mut TemporaryStore<'_>) {
             temporary_store.drop_writes();
             self.gas_status.reset_storage_cost_and_rebate();
@@ -253,15 +257,17 @@ pub mod checked {
         }
 
         /// Entry point for gas charging.
-        /// 1. Compute tx storage gas costs and tx storage rebates, update storage_rebate field of
+        /// 1. Compute tx storage gas costs and tx storage rebates, update
+        ///    storage_rebate field of
         /// mutated objects
-        /// 2. Deduct computation gas costs and storage costs, credit storage rebates.
-        /// The happy path of this function follows (1) + (2) and is fairly simple.
-        /// Most of the complexity is in the unhappy paths:
-        /// - if execution aborted before calling this function, we have to dump all writes +
-        ///   re-smash gas, then charge for storage
-        /// - if we run out of gas while charging for storage, we have to dump all writes +
-        ///   re-smash gas, then charge for storage again
+        /// 2. Deduct computation gas costs and storage costs, credit storage
+        ///    rebates.
+        /// The happy path of this function follows (1) + (2) and is fairly
+        /// simple. Most of the complexity is in the unhappy paths:
+        /// - if execution aborted before calling this function, we have to dump
+        ///   all writes + re-smash gas, then charge for storage
+        /// - if we run out of gas while charging for storage, we have to dump
+        ///   all writes + re-smash gas, then charge for storage again
         pub fn charge_gas<T>(
             &mut self,
             temporary_store: &mut TemporaryStore<'_>,
@@ -295,8 +301,9 @@ pub mod checked {
                 trace!(target: "replay_gas_info", "Gas smashing has occurred for this transaction");
             }
 
-            // system transactions (None smashed_gas_coin)  do not have gas and so do not charge
-            // for storage, however they track storage values to check for conservation rules
+            // system transactions (None smashed_gas_coin)  do not have gas and so do not
+            // charge for storage, however they track storage values to check
+            // for conservation rules
             if let Some(gas_object_id) = self.smashed_gas_coin {
                 if dont_charge_budget_on_storage_oog(self.gas_model_version) {
                     self.handle_storage_and_rebate_v2(temporary_store, execution_result)

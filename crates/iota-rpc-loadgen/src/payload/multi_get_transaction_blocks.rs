@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-
-use crate::payload::{MultiGetTransactionBlocks, ProcessPayload, RpcCommandProcessor, SignerInfo};
 use async_trait::async_trait;
 use futures::future::join_all;
 
 use super::validation::{check_transactions, chunk_entities};
+use crate::payload::{MultiGetTransactionBlocks, ProcessPayload, RpcCommandProcessor, SignerInfo};
 
 #[async_trait]
 impl<'a> ProcessPayload<'a, &'a MultiGetTransactionBlocks> for RpcCommandProcessor {

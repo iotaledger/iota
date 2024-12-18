@@ -4,8 +4,10 @@
 
 use clap::*;
 use colored::Colorize;
-use iota::client_commands::IotaClientCommands::{ProfileTransaction, ReplayBatch, ReplayTransaction};
-use iota::iota_commands::IotaCommand;
+use iota::{
+    client_commands::IotaClientCommands::{ProfileTransaction, ReplayBatch, ReplayTransaction},
+    iota_commands::IotaCommand,
+};
 use iota_types::exit_main;
 use tracing::debug;
 

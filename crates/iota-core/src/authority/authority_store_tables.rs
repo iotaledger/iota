@@ -2,29 +2,33 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
-use crate::authority::authority_store::LockDetailsWrapperDeprecated;
-use serde::{Deserialize, Serialize};
 use std::path::Path;
-use iota_types::accumulator::Accumulator;
-use iota_types::base_types::SequenceNumber;
-use iota_types::digests::TransactionEventsDigest;
-use iota_types::effects::TransactionEffects;
-use iota_types::storage::MarkerValue;
-use typed_store::metrics::SamplingInterval;
-use typed_store::rocks::util::{empty_compaction_filter, reference_count_merge_operator};
-use typed_store::rocks::{
-    default_db_options, read_size_from_env, DBBatch, DBMap, DBMapTableConfigMap, DBOptions,
-    MetricConf,
-};
-use typed_store::traits::{Map, TableSummary, TypedStoreDebug};
 
-use crate::authority::authority_store_types::{
-    get_store_object_pair, try_construct_object, ObjectContentDigest, StoreData,
-    StoreMoveObjectWrapper, StoreObject, StoreObjectPair, StoreObjectValue, StoreObjectWrapper,
+use iota_types::{
+    accumulator::Accumulator, base_types::SequenceNumber, digests::TransactionEventsDigest,
+    effects::TransactionEffects, storage::MarkerValue,
 };
-use crate::authority::epoch_start_configuration::EpochStartConfiguration;
-use typed_store::DBMapUtils;
+use serde::{Deserialize, Serialize};
+use typed_store::{
+    DBMapUtils,
+    metrics::SamplingInterval,
+    rocks::{
+        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
+        read_size_from_env,
+        util::{empty_compaction_filter, reference_count_merge_operator},
+    },
+    traits::{Map, TableSummary, TypedStoreDebug},
+};
+
+use super::*;
+use crate::authority::{
+    authority_store::LockDetailsWrapperDeprecated,
+    authority_store_types::{
+        ObjectContentDigest, StoreData, StoreMoveObjectWrapper, StoreObject, StoreObjectPair,
+        StoreObjectValue, StoreObjectWrapper, get_store_object_pair, try_construct_object,
+    },
+    epoch_start_configuration::EpochStartConfiguration,
+};
 
 const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
 pub(crate) const ENV_VAR_LOCKS_BLOCK_CACHE_SIZE: &str = "LOCKS_BLOCK_CACHE_MB";
@@ -49,52 +53,63 @@ impl AuthorityPerpetualTablesOptions {
     }
 }
 
-/// AuthorityPerpetualTables contains data that must be preserved from one epoch to the next.
+/// AuthorityPerpetualTables contains data that must be preserved from one epoch
+/// to the next.
 #[derive(DBMapUtils)]
 pub struct AuthorityPerpetualTables {
-    /// This is a map between the object (ID, version) and the latest state of the object, namely the
-    /// state that is needed to process new transactions.
-    /// State is represented by `StoreObject` enum, which is either a move module, a move object, or
-    /// a pointer to an object stored in the `indirect_move_objects` table.
+    /// This is a map between the object (ID, version) and the latest state of
+    /// the object, namely the state that is needed to process new
+    /// transactions. State is represented by `StoreObject` enum, which is
+    /// either a move module, a move object, or a pointer to an object
+    /// stored in the `indirect_move_objects` table.
     ///
-    /// Note that while this map can store all versions of an object, we will eventually
-    /// prune old object versions from the db.
+    /// Note that while this map can store all versions of an object, we will
+    /// eventually prune old object versions from the db.
     ///
-    /// IMPORTANT: object versions must *only* be pruned if they appear as inputs in some
-    /// TransactionEffects. Simply pruning all objects but the most recent is an error!
-    /// This is because there can be partially executed transactions whose effects have not yet
-    /// been written out, and which must be retried. But, they cannot be retried unless their input
-    /// objects are still accessible!
+    /// IMPORTANT: object versions must *only* be pruned if they appear as
+    /// inputs in some TransactionEffects. Simply pruning all objects but
+    /// the most recent is an error! This is because there can be partially
+    /// executed transactions whose effects have not yet been written out,
+    /// and which must be retried. But, they cannot be retried unless their
+    /// input objects are still accessible!
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     pub(crate) indirect_move_objects: DBMap<ObjectContentDigest, StoreMoveObjectWrapper>,
 
-    /// This is a map between object references of currently active objects that can be mutated.
+    /// This is a map between object references of currently active objects that
+    /// can be mutated.
     ///
-    /// For old epochs, it may also contain the transaction that they are lock on for use by this
-    /// specific validator. The transaction locks themselves are now in AuthorityPerEpochStore.
+    /// For old epochs, it may also contain the transaction that they are lock
+    /// on for use by this specific validator. The transaction locks
+    /// themselves are now in AuthorityPerEpochStore.
     #[rename = "owned_object_transaction_locks"]
     pub(crate) live_owned_object_markers: DBMap<ObjectRef, Option<LockDetailsWrapperDeprecated>>,
 
-    /// This is a map between the transaction digest and the corresponding transaction that's known to be
-    /// executable. This means that it may have been executed locally, or it may have been synced through
+    /// This is a map between the transaction digest and the corresponding
+    /// transaction that's known to be executable. This means that it may
+    /// have been executed locally, or it may have been synced through
     /// state-sync but hasn't been executed yet.
     pub(crate) transactions: DBMap<TransactionDigest, TrustedTransaction>,
 
-    /// A map between the transaction digest of a certificate to the effects of its execution.
-    /// We store effects into this table in two different cases:
-    /// 1. When a transaction is synced through state_sync, we store the effects here. These effects
-    ///     are known to be final in the network, but may not have been executed locally yet.
-    /// 2. When the transaction is executed locally on this node, we store the effects here. This means that
-    ///     it's possible to store the same effects twice (once for the synced transaction, and once for the executed).
+    /// A map between the transaction digest of a certificate to the effects of
+    /// its execution. We store effects into this table in two different
+    /// cases:
+    /// 1. When a transaction is synced through state_sync, we store the effects
+    ///    here. These effects are known to be final in the network, but may not
+    ///    have been executed locally yet.
+    /// 2. When the transaction is executed locally on this node, we store the
+    ///    effects here. This means that it's possible to store the same effects
+    ///    twice (once for the synced transaction, and once for the executed).
     ///
-    /// It's also possible for the effects to be reverted if the transaction didn't make it into the epoch.
+    /// It's also possible for the effects to be reverted if the transaction
+    /// didn't make it into the epoch.
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
-    /// Transactions that have been executed locally on this node. We need this table since the `effects` table
-    /// doesn't say anything about the execution status of the transaction on this node. When we wait for transactions
-    /// to be executed, we wait for them to appear in this table. When we revert transactions, we remove them from both
-    /// tables.
+    /// Transactions that have been executed locally on this node. We need this
+    /// table since the `effects` table doesn't say anything about the
+    /// execution status of the transaction on this node. When we wait for
+    /// transactions to be executed, we wait for them to appear in this
+    /// table. When we revert transactions, we remove them from both tables.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
     // Currently this is needed in the validator for returning events during process certificates.
@@ -103,9 +118,10 @@ pub struct AuthorityPerpetualTables {
     // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
 
-    /// DEPRECATED in favor of the table of the same name in authority_per_epoch_store.
-    /// Please do not add new accessors/callsites.
-    /// When transaction is executed via checkpoint executor, we store association here
+    /// DEPRECATED in favor of the table of the same name in
+    /// authority_per_epoch_store. Please do not add new
+    /// accessors/callsites. When transaction is executed via checkpoint
+    /// executor, we store association here
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
@@ -117,25 +133,30 @@ pub struct AuthorityPerpetualTables {
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
 
-    /// A singleton table that stores latest pruned checkpoint. Used to keep objects pruner progress
+    /// A singleton table that stores latest pruned checkpoint. Used to keep
+    /// objects pruner progress
     pub(crate) pruned_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 
-    /// Expected total amount of IOTA in the network. This is expected to remain constant
-    /// throughout the lifetime of the network. We check it at the end of each epoch if
-    /// expensive checks are enabled. We cannot use 10B today because in tests we often
-    /// inject extra gas objects into genesis.
+    /// Expected total amount of IOTA in the network. This is expected to remain
+    /// constant throughout the lifetime of the network. We check it at the
+    /// end of each epoch if expensive checks are enabled. We cannot use 10B
+    /// today because in tests we often inject extra gas objects into
+    /// genesis.
     pub(crate) expected_network_iota_amount: DBMap<(), u64>,
 
-    /// Expected imbalance between storage fund balance and the sum of storage rebate of all live objects.
-    /// This could be non-zero due to bugs in earlier protocol versions.
-    /// This number is the result of storage_fund_balance - sum(storage_rebate).
+    /// Expected imbalance between storage fund balance and the sum of storage
+    /// rebate of all live objects. This could be non-zero due to bugs in
+    /// earlier protocol versions. This number is the result of
+    /// storage_fund_balance - sum(storage_rebate).
     pub(crate) expected_storage_fund_imbalance: DBMap<(), i64>,
 
-    /// Table that stores the set of received objects and deleted objects and the version at
-    /// which they were received. This is used to prevent possible race conditions around receiving
-    /// objects (since they are not locked by the transaction manager) and for tracking shared
-    /// objects that have been deleted. This table is meant to be pruned per-epoch, and all
-    /// previous epochs other than the current epoch may be pruned safely.
+    /// Table that stores the set of received objects and deleted objects and
+    /// the version at which they were received. This is used to prevent
+    /// possible race conditions around receiving objects (since they are
+    /// not locked by the transaction manager) and for tracking shared
+    /// objects that have been deleted. This table is meant to be pruned
+    /// per-epoch, and all previous epochs other than the current epoch may
+    /// be pruned safely.
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
 }
 
@@ -195,9 +216,10 @@ impl AuthorityPerpetualTables {
         )
     }
 
-    // This is used by indexer to find the correct version of dynamic field child object.
-    // We do not store the version of the child object, but because of lamport timestamp,
-    // we know the child must have version number less then or eq to the parent.
+    // This is used by indexer to find the correct version of dynamic field child
+    // object. We do not store the version of the child object, but because of
+    // lamport timestamp, we know the child must have version number less then
+    // or eq to the parent.
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
@@ -365,7 +387,10 @@ impl AuthorityPerpetualTables {
         Ok(Some(transaction))
     }
 
-    pub fn get_effects(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEffects>> {
+    pub fn get_effects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TransactionEffects>> {
         let Some(effect_digest) = self.executed_effects.get(digest)? else {
             return Ok(None);
         };
@@ -494,7 +519,8 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    // fallible get object methods for iota-tool, which may need to attempt to read a corrupted database
+    // fallible get object methods for iota-tool, which may need to attempt to read
+    // a corrupted database
     pub fn get_object_fallible(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
         let obj_entry = self
             .objects

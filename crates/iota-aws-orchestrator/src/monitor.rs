@@ -92,7 +92,8 @@ impl Prometheus {
         ]
     }
 
-    /// Generate the commands to update the prometheus configuration and restart prometheus.
+    /// Generate the commands to update the prometheus configuration and restart
+    /// prometheus.
     pub fn setup_commands<I, P>(clients: I, nodes: I, protocol: &P) -> String
     where
         I: IntoIterator<Item = Instance>,
@@ -182,7 +183,8 @@ impl Grafana {
         ]
     }
 
-    /// Generate the commands to update the grafana datasource and restart grafana.
+    /// Generate the commands to update the grafana datasource and restart
+    /// grafana.
     pub fn setup_commands() -> String {
         [
             &format!("(rm -r {} || true)", Self::DATASOURCES_PATH),
@@ -220,9 +222,10 @@ impl Grafana {
 
 #[allow(dead_code)]
 /// Bootstrap the grafana with datasource to connect to the given instances.
-/// NOTE: Only for macOS. Grafana must be installed through homebrew (and not from source). Deeper grafana
-/// configuration can be done through the grafana.ini file (/opt/homebrew/etc/grafana/grafana.ini) or the
-/// plist file (~/Library/LaunchAgents/homebrew.mxcl.grafana.plist).
+/// NOTE: Only for macOS. Grafana must be installed through homebrew (and not
+/// from source). Deeper grafana configuration can be done through the
+/// grafana.ini file (/opt/homebrew/etc/grafana/grafana.ini) or the plist file
+/// (~/Library/LaunchAgents/homebrew.mxcl.grafana.plist).
 pub struct LocalGrafana;
 
 #[allow(dead_code)]
@@ -268,9 +271,10 @@ impl LocalGrafana {
         Ok(())
     }
 
-    /// Generate the content of the datasource file for the given instance. This grafana instance takes
-    /// one datasource per instance and assumes one prometheus server runs per instance.
-    /// NOTE: The datasource file is a yaml file so spaces are important.
+    /// Generate the content of the datasource file for the given instance. This
+    /// grafana instance takes one datasource per instance and assumes one
+    /// prometheus server runs per instance. NOTE: The datasource file is a
+    /// yaml file so spaces are important.
     fn datasource(instance: &Instance, index: usize) -> String {
         [
             "apiVersion: 1",

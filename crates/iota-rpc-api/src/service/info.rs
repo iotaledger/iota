@@ -2,10 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::Result;
-use crate::{types::NodeInfo, RpcService};
 use iota_sdk_types::types::CheckpointDigest;
 use tap::Pipe;
+
+use crate::{Result, RpcService, types::NodeInfo};
 
 impl RpcService {
     pub fn get_node_info(&self) -> Result<NodeInfo> {

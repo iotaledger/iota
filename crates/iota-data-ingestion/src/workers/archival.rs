@@ -2,25 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::io::Cursor;
+
 use anyhow::Result;
 use async_trait::async_trait;
-use byteorder::BigEndian;
-use byteorder::ByteOrder;
+use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
-use object_store::path::Path;
-use object_store::ObjectStore;
-use serde::{Deserialize, Serialize};
-use std::io::Cursor;
 use iota_archival::{
-    create_file_metadata_from_bytes, finalize_manifest, read_manifest_from_bytes, FileType,
-    Manifest, CHECKPOINT_FILE_MAGIC, SUMMARY_FILE_MAGIC,
+    CHECKPOINT_FILE_MAGIC, FileType, Manifest, SUMMARY_FILE_MAGIC, create_file_metadata_from_bytes,
+    finalize_manifest, read_manifest_from_bytes,
 };
-use iota_data_ingestion_core::{create_remote_store_client, Reducer, Worker};
-use iota_storage::blob::{Blob, BlobEncoding};
-use iota_storage::{compress, FileCompression, StorageFormat};
-use iota_types::base_types::{EpochId, ExecutionData};
-use iota_types::full_checkpoint_content::CheckpointData;
-use iota_types::messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents};
+use iota_data_ingestion_core::{Reducer, Worker, create_remote_store_client};
+use iota_storage::{
+    FileCompression, StorageFormat,
+    blob::{Blob, BlobEncoding},
+    compress,
+};
+use iota_types::{
+    base_types::{EpochId, ExecutionData},
+    full_checkpoint_content::CheckpointData,
+    messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents},
+};
+use object_store::{ObjectStore, path::Path};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ArchivalConfig {

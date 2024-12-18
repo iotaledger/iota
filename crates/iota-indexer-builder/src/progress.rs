@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex},
+};
 
 use crate::Task;
 
@@ -113,7 +115,8 @@ impl ProgressSavingPolicy {
                     *last_save_time = Some(tokio::time::Instant::now());
                     return Some(next_to_fill - 1);
                 }
-                // Regardless of whether we made progress, we should save if we have waited long enough
+                // Regardless of whether we made progress, we should save if we have waited long
+                // enough
                 if let Some(v) = last_save_time {
                     if v.elapsed() >= policy.duration && next_to_fill > start_height {
                         *last_save_time = Some(tokio::time::Instant::now());

@@ -2,22 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    AppState, BatchFaucetResponse, BatchStatusFaucetResponse, FaucetConfig, FaucetError,
-    FaucetRequest, FaucetResponse, RequestMetricsLayer,
-};
-
-use axum::{
-    error_handling::HandleErrorLayer,
-    extract::Path,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{get, post},
-    BoxError, Extension, Json, Router,
-};
-use http::Method;
-use iota_metrics::spawn_monitored_task;
-use prometheus::Registry;
 use std::{
     borrow::Cow,
     net::{IpAddr, SocketAddr},
@@ -25,14 +9,29 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+
+use axum::{
+    BoxError, Extension, Json, Router,
+    error_handling::HandleErrorLayer,
+    extract::Path,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+};
+use http::Method;
 use iota_config::IOTA_CLIENT_CONFIG;
+use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use tower::{limit::RateLimitLayer, ServiceBuilder};
+use prometheus::Registry;
+use tower::{ServiceBuilder, limit::RateLimitLayer};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::faucet::Faucet;
+use crate::{
+    AppState, BatchFaucetResponse, BatchStatusFaucetResponse, FaucetConfig, FaucetError,
+    FaucetRequest, FaucetResponse, RequestMetricsLayer, faucet::Faucet,
+};
 
 pub async fn start_faucet(
     app_state: Arc<AppState>,
@@ -78,7 +77,8 @@ pub async fn start_faucet(
     spawn_monitored_task!(async move {
         info!("Starting task to clear WAL.");
         loop {
-            // Every config.wal_retry_interval (Default: 300 seconds) we try to clear the wal coins
+            // Every config.wal_retry_interval (Default: 300 seconds) we try to clear the
+            // wal coins
             tokio::time::sleep(Duration::from_secs(wal_retry_interval)).await;
             app_state.faucet.retry_wal_coins().await.unwrap();
         }
@@ -118,11 +118,10 @@ async fn batch_request_gas(
         let result = spawn_monitored_task!(async move {
             state
                 .faucet
-                .batch_send(
-                    id,
-                    request.recipient,
-                    &vec![state.config.amount; state.config.num_coins],
-                )
+                .batch_send(id, request.recipient, &vec![
+                    state.config.amount;
+                    state.config.num_coins
+                ])
                 .await
         })
         .await
@@ -142,16 +141,16 @@ async fn batch_request_gas(
             }
         }
     } else {
-        // TODO (jian): remove this feature gate when batch has proven to be baked long enough
+        // TODO (jian): remove this feature gate when batch has proven to be baked long
+        // enough
         info!(uuid = ?id, "Falling back to v1 implementation");
         let result = spawn_monitored_task!(async move {
             state
                 .faucet
-                .send(
-                    id,
-                    request.recipient,
-                    &vec![state.config.amount; state.config.num_coins],
-                )
+                .send(id, request.recipient, &vec![
+                    state.config.amount;
+                    state.config.num_coins
+                ])
                 .await
         })
         .await
@@ -216,11 +215,10 @@ async fn request_gas(
             spawn_monitored_task!(async move {
                 state
                     .faucet
-                    .send(
-                        id,
-                        requests.recipient,
-                        &vec![state.config.amount; state.config.num_coins],
-                    )
+                    .send(id, requests.recipient, &vec![
+                        state.config.amount;
+                        state.config.num_coins
+                    ])
                     .await
             })
             .await
@@ -232,7 +230,7 @@ async fn request_gas(
                 Json(FaucetResponse::from(FaucetError::Internal(
                     "Input Error.".to_string(),
                 ))),
-            )
+            );
         }
     };
     match result {

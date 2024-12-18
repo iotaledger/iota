@@ -8,19 +8,20 @@ mod s3;
 
 use std::sync::Arc;
 
-use crate::object_store::http::gcs::GoogleCloudStorage;
-use crate::object_store::http::local::LocalStorage;
-use crate::object_store::http::s3::AmazonS3;
-use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-
-use crate::object_store::ObjectStoreGetExt;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Utc};
 use futures::{StreamExt, TryStreamExt};
-use object_store::path::Path;
-use object_store::{Error, GetResult, GetResultPayload, ObjectMeta};
-use reqwest::header::{HeaderMap, CONTENT_LENGTH, ETAG, LAST_MODIFIED};
-use reqwest::{Client, Method};
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use object_store::{Error, GetResult, GetResultPayload, ObjectMeta, path::Path};
+use reqwest::{
+    Client, Method,
+    header::{CONTENT_LENGTH, ETAG, HeaderMap, LAST_MODIFIED},
+};
+
+use crate::object_store::{
+    ObjectStoreGetExt,
+    http::{gcs::GoogleCloudStorage, local::LocalStorage, s3::AmazonS3},
+};
 
 // http://docs.aws.amazon.com/general/latest/gr/sigv4-create-canonical-request.html
 //
@@ -126,11 +127,13 @@ fn header_meta(location: &Path, headers: &HeaderMap) -> Result<ObjectMeta> {
 
 #[cfg(test)]
 mod tests {
-    use crate::object_store::http::HttpDownloaderBuilder;
-    use object_store::path::Path;
     use std::fs;
+
     use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+    use object_store::path::Path;
     use tempfile::TempDir;
+
+    use crate::object_store::http::HttpDownloaderBuilder;
 
     #[tokio::test]
     pub async fn test_local_download() -> anyhow::Result<()> {

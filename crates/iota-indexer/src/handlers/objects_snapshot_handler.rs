@@ -3,22 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use iota_metrics::get_metrics;
-use iota_metrics::metered_channel::Sender;
-use iota_metrics::spawn_monitored_task;
 use iota_data_ingestion_core::Worker;
+use iota_metrics::{get_metrics, metered_channel::Sender, spawn_monitored_task};
 use iota_rpc_api::CheckpointData;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::config::SnapshotLagConfig;
-use crate::store::PgIndexerStore;
-use crate::types::IndexerResult;
-use crate::{metrics::IndexerMetrics, store::IndexerStore};
-
-use super::checkpoint_handler::CheckpointHandler;
-use super::{CommitterWatermark, ObjectsSnapshotHandlerTables, TransactionObjectChangesToCommit};
-use super::{CommonHandler, Handler};
+use super::{
+    CommitterWatermark, CommonHandler, Handler, ObjectsSnapshotHandlerTables,
+    TransactionObjectChangesToCommit, checkpoint_handler::CheckpointHandler,
+};
+use crate::{
+    config::SnapshotLagConfig,
+    metrics::IndexerMetrics,
+    store::{IndexerStore, PgIndexerStore},
+    types::IndexerResult,
+};
 
 #[derive(Clone)]
 pub struct ObjectsSnapshotHandler {

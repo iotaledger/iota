@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::time::Duration;
+
 use iota_macros::sim_test;
 use iota_test_transaction_builder::publish_basics_package_and_make_counter;
 use iota_types::base_types::dbg_addr;
@@ -29,8 +30,9 @@ async fn test_validator_tx_finalizer_fastpath_tx() {
         .process_transaction(tx, None)
         .await
         .unwrap();
-    // Since 2f+1 signed the tx, i.e. 5 validators have signed the tx, in the worst case where the other 2 wake up first,
-    // it would take 10 + 3 * 1 = 13s for a validator to finalize this.
+    // Since 2f+1 signed the tx, i.e. 5 validators have signed the tx, in the worst
+    // case where the other 2 wake up first, it would take 10 + 3 * 1 = 13s for
+    // a validator to finalize this.
     let tx_digests = [tx_digest];
     tokio::time::timeout(Duration::from_secs(60), async move {
         for node in cluster.all_node_handles() {
@@ -116,9 +118,9 @@ async fn test_validator_tx_finalizer_equivocation() {
             client.handle_transaction(tx2.clone(), None).await.unwrap();
         }
     }
-    // It takes up to 11s (5 + 6 * 1) for each validator to wake up and finalize the txs once.
-    // We wait for long enough and check that no validator will spawn a thread
-    // twice to try to finalize the same txs.
+    // It takes up to 11s (5 + 6 * 1) for each validator to wake up and finalize the
+    // txs once. We wait for long enough and check that no validator will spawn
+    // a thread twice to try to finalize the same txs.
     tokio::time::sleep(Duration::from_secs(30)).await;
     for node in cluster.swarm.validator_node_handles() {
         node.with(|n| {

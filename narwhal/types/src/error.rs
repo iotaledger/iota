@@ -2,14 +2,16 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{CertificateDigest, HeaderDigest, Round, TimestampMs, VoteDigest};
+use std::sync::Arc;
+
 use anemo::PeerId;
 use config::Epoch;
 use fastcrypto::hash::Digest;
 use iota_common::sync::notify_once::NotifyOnce;
-use std::sync::Arc;
 use store::StoreError;
 use thiserror::Error;
+
+use crate::{CertificateDigest, HeaderDigest, Round, TimestampMs, VoteDigest};
 
 #[cfg(test)]
 #[path = "./tests/error_test.rs"]

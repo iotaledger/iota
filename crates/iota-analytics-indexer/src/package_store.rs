@@ -2,23 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
-use move_core_types::account_address::AccountAddress;
+use async_trait::async_trait;
 use iota_package_resolver::{
-    error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
+    Package, PackageStore, PackageStoreWithLruCache, Result, error::Error as PackageResolverError,
 };
 use iota_rpc_api::Client;
-use iota_types::base_types::ObjectID;
-use iota_types::object::Object;
+use iota_types::{base_types::ObjectID, object::Object};
+use move_core_types::account_address::AccountAddress;
 use thiserror::Error;
-use typed_store::rocks::{DBMap, MetricConf};
-use typed_store::traits::TableSummary;
-use typed_store::traits::TypedStoreDebug;
-use typed_store::DBMapUtils;
-use typed_store::{Map, TypedStoreError};
+use typed_store::{
+    DBMapUtils, Map, TypedStoreError,
+    rocks::{DBMap, MetricConf},
+    traits::{TableSummary, TypedStoreDebug},
+};
 
 const STORE: &str = "RocksDB";
 
@@ -63,10 +61,10 @@ impl PackageStoreTables {
     }
 }
 
-/// Store which keeps package objects in a local rocksdb store. It is expected that this store is
-/// kept updated with latest version of package objects while iterating over checkpoints. If the
-/// local db is missing (or gets deleted), packages are fetched from a full node and local store is
-/// updated
+/// Store which keeps package objects in a local rocksdb store. It is expected
+/// that this store is kept updated with latest version of package objects while
+/// iterating over checkpoints. If the local db is missing (or gets deleted),
+/// packages are fetched from a full node and local store is updated
 #[derive(Clone)]
 pub struct LocalDBPackageStore {
     package_store_tables: Arc<PackageStoreTables>,

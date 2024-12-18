@@ -2,22 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use async_graphql::connection::{Connection, CursorType, Edge};
-use async_graphql::*;
+use async_graphql::{
+    connection::{Connection, CursorType, Edge},
+    *,
+};
+use iota_package_resolver::Module as ParsedMoveModule;
+use iota_types::move_package;
 use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Loc;
-use iota_types::move_package;
 
-use crate::consistency::{ConsistentIndexCursor, ConsistentNamedCursor};
-use crate::error::Error;
-use iota_package_resolver::Module as ParsedMoveModule;
-
-use super::cursor::{JsonCursor, Page};
-use super::datatype::MoveDatatype;
-use super::move_enum::MoveEnum;
-use super::move_function::MoveFunction;
-use super::move_struct::MoveStruct;
-use super::{base64::Base64, move_package::MovePackage, iota_address::IotaAddress};
+use super::{
+    base64::Base64,
+    cursor::{JsonCursor, Page},
+    datatype::MoveDatatype,
+    iota_address::IotaAddress,
+    move_enum::MoveEnum,
+    move_function::MoveFunction,
+    move_package::MovePackage,
+    move_struct::MoveStruct,
+};
+use crate::{
+    consistency::{ConsistentIndexCursor, ConsistentNamedCursor},
+    error::Error,
+};
 
 #[derive(Clone)]
 pub(crate) struct MoveModule {
@@ -65,8 +72,8 @@ impl MoveModule {
         self.parsed.bytecode().version
     }
 
-    /// Modules that this module considers friends (these modules can access `public(friend)`
-    /// functions from this module).
+    /// Modules that this module considers friends (these modules can access
+    /// `public(friend)` functions from this module).
     async fn friends(
         &self,
         ctx: &Context<'_>,
@@ -104,8 +111,8 @@ impl MoveModule {
             .extend());
         };
 
-        // Select `friend_decls[lo..hi]` using iterators to enumerate before taking a sub-sequence
-        // from it, to get pairs `(i, friend_decls[i])`.
+        // Select `friend_decls[lo..hi]` using iterators to enumerate before taking a
+        // sub-sequence from it, to get pairs `(i, friend_decls[i])`.
         for c in cs {
             let decl = &bytecode.friend_decls[c.ix];
             let friend_pkg = bytecode.address_identifier_at(decl.address);
@@ -267,7 +274,8 @@ impl MoveModule {
         }
     }
 
-    /// Look-up the definition of a datatype (struct or enum) defined in this module, by its name.
+    /// Look-up the definition of a datatype (struct or enum) defined in this
+    /// module, by its name.
     async fn datatype(&self, name: String) -> Result<Option<MoveDatatype>> {
         match self.struct_impl(name.clone()) {
             Ok(Some(s)) => Ok(Some(MoveDatatype::Struct(s))),
@@ -279,7 +287,8 @@ impl MoveModule {
         }
     }
 
-    /// Iterate through the datatypes (enmums and structs) defined in this module.
+    /// Iterate through the datatypes (enmums and structs) defined in this
+    /// module.
     async fn datatypes(
         &self,
         ctx: &Context<'_>,

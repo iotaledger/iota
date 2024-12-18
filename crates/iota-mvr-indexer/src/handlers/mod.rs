@@ -6,9 +6,8 @@ use std::collections::BTreeMap;
 
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
-
-use serde::{Deserialize, Serialize};
 use iota_rpc_api::CheckpointData;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -103,8 +102,9 @@ impl<T> CommonHandler<T> {
         let mut stream = iota_metrics::metered_channel::ReceiverStream::new(cp_receiver)
             .ready_chunks(checkpoint_commit_batch_size);
 
-        // Mapping of ordered checkpoint data to ensure that we process them in order. The key is
-        // just the checkpoint sequence number, and the tuple is (CommitterWatermark, T).
+        // Mapping of ordered checkpoint data to ensure that we process them in order.
+        // The key is just the checkpoint sequence number, and the tuple is
+        // (CommitterWatermark, T).
         let mut unprocessed: BTreeMap<u64, (CommitterWatermark, _)> = BTreeMap::new();
         let mut tuple_batch = vec![];
         let mut next_cp_to_process = start_checkpoint;
@@ -194,23 +194,26 @@ pub trait Handler<T>: Send + Sync {
     /// read high watermark of the table DB
     async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>>;
 
-    /// Updates the relevant entries on the `watermarks` table with the full `CommitterWatermark`,
-    /// which tracks the latest epoch, cp, and tx sequence number of the committed batch.
+    /// Updates the relevant entries on the `watermarks` table with the full
+    /// `CommitterWatermark`, which tracks the latest epoch, cp, and tx
+    /// sequence number of the committed batch.
     async fn set_watermark_hi(&self, watermark: CommitterWatermark) -> IndexerResult<()>;
 
-    /// By default, return u64::MAX, which means no extra waiting is needed before commiting;
-    /// get max committable checkpoint, for handlers that want to wait for some condition before commiting,
-    /// one use-case is the objects snapshot handler,
-    /// which waits for the lag between snapshot and latest checkpoint to reach a certain threshold.
+    /// By default, return u64::MAX, which means no extra waiting is needed
+    /// before commiting; get max committable checkpoint, for handlers that
+    /// want to wait for some condition before commiting, one use-case is
+    /// the objects snapshot handler, which waits for the lag between
+    /// snapshot and latest checkpoint to reach a certain threshold.
     async fn get_max_committable_checkpoint(&self) -> IndexerResult<u64> {
         Ok(u64::MAX)
     }
 }
 
-/// The indexer writer operates on checkpoint data, which contains information on the current epoch,
-/// checkpoint, and transaction. These three numbers form the watermark upper bound for each
-/// committed table. The reader and pruner are responsible for determining which of the three units
-/// will be used for a particular table.
+/// The indexer writer operates on checkpoint data, which contains information
+/// on the current epoch, checkpoint, and transaction. These three numbers form
+/// the watermark upper bound for each committed table. The reader and pruner
+/// are responsible for determining which of the three units will be used for a
+/// particular table.
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
 pub struct CommitterWatermark {
     pub epoch_hi_inclusive: u64,

@@ -1,49 +1,49 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::bail;
 use async_trait::async_trait;
-use futures::{future, Stream};
-use jsonrpsee::{
-    core::{error::SubscriptionClosed, RpcResult},
-    types::SubscriptionResult,
-    RpcModule, SubscriptionSink,
-};
-use move_bytecode_utils::layout::TypeLayoutBuilder;
-use move_core_types::language_storage::TypeTag;
-use iota_metrics::spawn_monitored_task;
-use serde::Serialize;
+use futures::{Stream, future};
 use iota_core::authority::AuthorityState;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{
-    cap_page_limit, validate_limit, IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics,
-    ReadApiServer, QUERY_MAX_RESULT_LIMIT,
+    IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics, QUERY_MAX_RESULT_LIMIT, ReadApiServer,
+    cap_page_limit, validate_limit,
 };
 use iota_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, IotaObjectDataOptions,
-    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseQuery, TransactionBlocksPage, TransactionFilter,
+    DynamicFieldPage, EventFilter, EventPage, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseQuery,
+    ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
 };
+use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress},
+    base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     error::IotaObjectResponseError,
     event::EventID,
 };
+use jsonrpsee::{
+    RpcModule, SubscriptionSink,
+    core::{RpcResult, error::SubscriptionClosed},
+    types::SubscriptionResult,
+};
+use move_bytecode_utils::layout::TypeLayoutBuilder;
+use move_core_types::language_storage::TypeTag;
+use serde::Serialize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, instrument, warn};
 
 use crate::{
+    IotaRpcModule,
     authority_state::{StateRead, StateReadResult},
     error::{Error, IotaRpcInputError},
     name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError},
-    with_tracing, IotaRpcModule,
+    with_tracing,
 };
 
 pub fn spawn_subscription<S, T>(
@@ -157,7 +157,8 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 .get_owner_objects_with_limit(address, cursor, limit + 1, filter)
                 .map_err(Error::from)?;
 
-            // objects here are of size (limit + 1), where the last one is the cursor for the next page
+            // objects here are of size (limit + 1), where the last one is the cursor for
+            // the next page
             let has_next_page = objects.len() > limit;
             objects.truncate(limit);
             let next_cursor = objects
@@ -404,22 +405,24 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 requests.push(self.state.get_object(&parent_record_id));
             }
 
-            // Couldn't find a `multi_get_object` for this crate (looks like it uses a k,v db)
-            // Always fetching both parent + child at the same time (even for node subdomains),
-            // to avoid sequential db reads. We do this because we do not know if the requested
-            // domain is a node subdomain or a leaf subdomain, and we can save a trip to the db.
+            // Couldn't find a `multi_get_object` for this crate (looks like it uses a k,v
+            // db) Always fetching both parent + child at the same time (even
+            // for node subdomains), to avoid sequential db reads. We do this
+            // because we do not know if the requested domain is a node
+            // subdomain or a leaf subdomain, and we can save a trip to the db.
             let mut results = future::try_join_all(requests).await?;
 
-            // Removing without checking vector len, since it is known (== 1 or 2 depending on whether
-            // it is a subdomain or not).
+            // Removing without checking vector len, since it is known (== 1 or 2 depending
+            // on whether it is a subdomain or not).
             let Some(object) = results.remove(0) else {
                 return Ok(None);
             };
 
             let name_record = NameRecord::try_from(object)?;
 
-            // Handling SLD names & node subdomains is the same (we handle them as `node` records)
-            // We check their expiration, and if not expired, return the target address.
+            // Handling SLD names & node subdomains is the same (we handle them as `node`
+            // records) We check their expiration, and if not expired, return
+            // the target address.
             if !name_record.is_leaf_record() {
                 return if !name_record.is_node_expired(current_timestamp_ms) {
                     Ok(name_record.target_address)

@@ -3,23 +3,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::checkpoints::CheckpointServiceNoop;
-use crate::consensus_handler::SequencedConsensusTransaction;
 use core::default::Default;
-use fastcrypto::hash::MultisetHash;
-use fastcrypto::traits::KeyPair;
+
+use fastcrypto::{hash::MultisetHash, traits::KeyPair};
+use iota_move_build::{BuildConfig, CompiledPackage};
+use iota_types::{
+    crypto::{AccountKeyPair, AuthorityKeyPair, Signature},
+    messages_consensus::ConsensusTransaction,
+    move_package::UpgradePolicy,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    utils::to_sender_signed_transaction,
+};
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
-use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_types::crypto::Signature;
-use iota_types::crypto::{AccountKeyPair, AuthorityKeyPair};
-use iota_types::messages_consensus::ConsensusTransaction;
-use iota_types::move_package::UpgradePolicy;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::utils::to_sender_signed_transaction;
 
-use super::test_authority_builder::TestAuthorityBuilder;
-use super::*;
+use super::{test_authority_builder::TestAuthorityBuilder, *};
+use crate::{checkpoints::CheckpointServiceNoop, consensus_handler::SequencedConsensusTransaction};
 
 pub async fn send_and_confirm_transaction(
     authority: &AuthorityState,
@@ -27,9 +26,9 @@ pub async fn send_and_confirm_transaction(
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     send_and_confirm_transaction_(
         authority,
-        None, /* no fullnode_key_pair */
+        None, // no fullnode_key_pair
         transaction,
-        false, /* no shared objects */
+        false, // no shared objects
     )
     .await
 }
@@ -89,8 +88,8 @@ pub async fn execute_certificate_with_execution_error(
     IotaError,
 > {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
-    // We also check the incremental effects of the transaction on the live object set against StateAccumulator
-    // for testing and regression detection.
+    // We also check the incremental effects of the transaction on the live object
+    // set against StateAccumulator for testing and regression detection.
     // We must do this before sending to consensus, otherwise consensus may already
     // lead to transaction execution and state change.
     let state_acc =
@@ -130,8 +129,10 @@ pub async fn execute_certificate_with_execution_error(
         }
     }
 
-    // Submit the confirmation. *Now* execution actually happens, and it should fail when we try to look up our dummy module.
-    // we unfortunately don't get a very descriptive error message, but we can at least see that something went wrong inside the VM
+    // Submit the confirmation. *Now* execution actually happens, and it should fail
+    // when we try to look up our dummy module. we unfortunately don't get a
+    // very descriptive error message, but we can at least see that something went
+    // wrong inside the VM
     let (result, execution_error_opt) = authority.try_execute_for_test(&certificate).await?;
     let state_after =
         state_acc.accumulate_cached_live_object_set_for_testing(include_wrapped_tombstone);
@@ -229,7 +230,8 @@ pub async fn init_state_with_objects<I: IntoIterator<Item = Object>>(
     objects: I,
 ) -> Arc<AuthorityState> {
     let dir = tempfile::TempDir::new().unwrap();
-    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir).build();
+    let network_config =
+        iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir).build();
     let genesis = network_config.genesis;
     let keypair = network_config.validator_configs[0]
         .protocol_key_pair()
@@ -425,7 +427,8 @@ pub async fn send_consensus_no_execution(authority: &AuthorityState, cert: &Veri
         ConsensusTransaction::new_certificate_message(&authority.name, cert.clone().into_inner()),
     );
 
-    // Call process_consensus_transaction() instead of handle_consensus_transaction(), to avoid actually executing cert.
+    // Call process_consensus_transaction() instead of
+    // handle_consensus_transaction(), to avoid actually executing cert.
     // This allows testing cert execution independently.
     authority
         .epoch_store_for_testing()
@@ -455,7 +458,8 @@ pub async fn send_batch_consensus_no_execution(
         })
         .collect();
 
-    // Call process_consensus_transaction() instead of handle_consensus_transaction(), to avoid actually executing cert.
+    // Call process_consensus_transaction() instead of
+    // handle_consensus_transaction(), to avoid actually executing cert.
     // This allows testing cert execution independently.
     authority
         .epoch_store_for_testing()
@@ -496,11 +500,13 @@ pub fn build_test_modules_with_dep_addr(
     for unpublished_dep in &package.dependency_ids.unpublished {
         let published_id = dep_id_mapping.get(unpublished_dep).unwrap();
         // Make sure we aren't overriding a package
-        assert!(package
-            .dependency_ids
-            .published
-            .insert(*unpublished_dep, *published_id)
-            .is_none())
+        assert!(
+            package
+                .dependency_ids
+                .published
+                .insert(*unpublished_dep, *published_id)
+                .is_none()
+        )
     }
 
     // No unpublished deps
@@ -509,9 +515,10 @@ pub fn build_test_modules_with_dep_addr(
 }
 
 /// Returns the new package's ID and the upgrade cap object ref.
-/// `dep_original_addresses` allows us to fill out mappings in the addresses section of the package manifest. These IDs
-/// must be the original IDs of names.
-/// dep_ids are the IDs of the dependencies of the package, in the latest version (if there were upgrades).
+/// `dep_original_addresses` allows us to fill out mappings in the addresses
+/// section of the package manifest. These IDs must be the original IDs of
+/// names. dep_ids are the IDs of the dependencies of the package, in the latest
+/// version (if there were upgrades).
 pub async fn publish_package_on_single_authority(
     path: &Path,
     sender: IotaAddress,
@@ -554,7 +561,7 @@ pub async fn publish_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-         .0;
+        .0;
     let cap_object = effects
         .data()
         .created()
@@ -606,6 +613,6 @@ pub async fn upgrade_package_on_single_authority(
         .find(|c| c.1 == Owner::Immutable)
         .unwrap()
         .0
-         .0;
+        .0;
     Ok((*effects.transaction_digest(), package_id))
 }

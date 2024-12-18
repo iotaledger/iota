@@ -2,34 +2,36 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{Context, Result};
-use fastcrypto::encoding::{Base64, Encoding};
-use fastcrypto::hash::HashFunction;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fs, path::Path};
-use iota_types::authenticator_state::{get_authenticator_state, AuthenticatorStateInner};
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::clock::Clock;
-use iota_types::committee::CommitteeWithNetworkMetadata;
-use iota_types::crypto::DefaultHash;
-use iota_types::deny_list_v1::{get_coin_deny_list, PerTypeDenyList};
-use iota_types::effects::{TransactionEffects, TransactionEvents};
-use iota_types::gas_coin::TOTAL_SUPPLY_NANOS;
-use iota_types::messages_checkpoint::{
-    CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
+
+use anyhow::{Context, Result};
+use fastcrypto::{
+    encoding::{Base64, Encoding},
+    hash::HashFunction,
 };
-use iota_types::storage::ObjectStore;
-use iota_types::iota_system_state::{
-    get_iota_system_state, get_iota_system_state_wrapper, IotaSystemState, IotaSystemStateTrait,
-    IotaSystemStateWrapper, IotaValidatorGenesis,
-};
-use iota_types::transaction::Transaction;
 use iota_types::{
-    committee::{Committee, EpochId, ProtocolVersion},
+    IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+    authenticator_state::{AuthenticatorStateInner, get_authenticator_state},
+    base_types::{IotaAddress, ObjectID},
+    clock::Clock,
+    committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
+    crypto::DefaultHash,
+    deny_list_v1::{PerTypeDenyList, get_coin_deny_list},
+    effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
+    gas_coin::TOTAL_SUPPLY_NANOS,
+    iota_system_state::{
+        IotaSystemState, IotaSystemStateTrait, IotaSystemStateWrapper, IotaValidatorGenesis,
+        get_iota_system_state, get_iota_system_state_wrapper,
+    },
+    messages_checkpoint::{
+        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, VerifiedCheckpoint,
+    },
     object::Object,
+    storage::ObjectStore,
+    transaction::Transaction,
 };
-use iota_types::{IOTA_BRIDGE_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tracing::trace;
 
 #[derive(Clone, Debug)]
@@ -52,7 +54,8 @@ pub struct UnsignedGenesis {
     pub objects: Vec<Object>,
 }
 
-// Hand implement PartialEq in order to get around the fact that AuthSigs don't impl Eq
+// Hand implement PartialEq in order to get around the fact that AuthSigs don't
+// impl Eq
 impl PartialEq for Genesis {
     fn eq(&self, other: &Self) -> bool {
         self.checkpoint.data() == other.checkpoint.data()
@@ -492,7 +495,9 @@ impl TokenDistributionSchedule {
         }
 
         if total_nanos != TOTAL_SUPPLY_NANOS {
-            panic!("TokenDistributionSchedule adds up to {total_nanos} and not expected {TOTAL_SUPPLY_NANOS}");
+            panic!(
+                "TokenDistributionSchedule adds up to {total_nanos} and not expected {TOTAL_SUPPLY_NANOS}"
+            );
         }
     }
 
@@ -507,8 +512,8 @@ impl TokenDistributionSchedule {
         let mut validators: HashMap<IotaAddress, u64> =
             validators.into_iter().map(|a| (a, 0)).collect();
 
-        // Check that all allocations are for valid validators, while summing up all allocations
-        // for each validator
+        // Check that all allocations are for valid validators, while summing up all
+        // allocations for each validator
         for allocation in &self.allocations {
             if let Some(staked_with_validator) = &allocation.staked_with_validator {
                 *validators
@@ -518,12 +523,14 @@ impl TokenDistributionSchedule {
             }
         }
 
-        // Check that all validators have sufficient stake allocated to ensure they meet the
-        // minimum stake threshold
+        // Check that all validators have sufficient stake allocated to ensure they meet
+        // the minimum stake threshold
         let minimum_required_stake = iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS;
         for (validator, stake) in validators {
             if stake < minimum_required_stake {
-                panic!("validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'");
+                panic!(
+                    "validator {validator} has '{stake}' stake and does not meet the minimum required stake threshold of '{minimum_required_stake}'"
+                );
             }
         }
     }
@@ -557,9 +564,11 @@ impl TokenDistributionSchedule {
 
     /// Helper to read a TokenDistributionSchedule from a csv file.
     ///
-    /// The file is encoded such that the final entry in the CSV file is used to denote the
-    /// allocation to the stake subsidy fund. It must be in the following format:
-    /// `0x0000000000000000000000000000000000000000000000000000000000000000,<amount to stake subsidy fund>,`
+    /// The file is encoded such that the final entry in the CSV file is used to
+    /// denote the allocation to the stake subsidy fund. It must be in the
+    /// following format:
+    /// `0x0000000000000000000000000000000000000000000000000000000000000000,
+    /// <amount to stake subsidy fund>,`
     ///
     /// All entries in a token distribution schedule must add up to 10B Iota.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
@@ -616,7 +625,8 @@ pub struct TokenAllocation {
     pub recipient_address: IotaAddress,
     pub amount_nanos: u64,
 
-    /// Indicates if this allocation should be staked at genesis and with which validator
+    /// Indicates if this allocation should be staked at genesis and with which
+    /// validator
     pub staked_with_validator: Option<IotaAddress>,
 }
 

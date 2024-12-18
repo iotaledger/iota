@@ -2,28 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use diesel::{
+    ExpressionMethods, QueryDsl,
+    backend::Backend,
+    deserialize::{self, FromSql, QueryableByName},
+    row::NamedRow,
+};
+use iota_indexer::{models::transactions::StoredTransaction, schema::transactions};
+use serde::{Deserialize, Serialize};
+
+use super::Query;
 use crate::{
     consistency::Checkpointed,
     filter,
     raw_query::RawQuery,
     types::cursor::{self, Paginated, RawPaginated, ScanLimited, Target},
 };
-use diesel::{
-    backend::Backend,
-    deserialize::{self, FromSql, QueryableByName},
-    row::NamedRow,
-    ExpressionMethods, QueryDsl,
-};
-use serde::{Deserialize, Serialize};
-use iota_indexer::{models::transactions::StoredTransaction, schema::transactions};
-
-use super::Query;
 
 pub(crate) type Cursor = cursor::JsonCursor<TransactionBlockCursor>;
 
-/// The cursor returned for each `TransactionBlock` in a connection's page of results. The
-/// `checkpoint_viewed_at` will set the consistent upper bound for subsequent queries made on this
-/// cursor.
+/// The cursor returned for each `TransactionBlock` in a connection's page of
+/// results. The `checkpoint_viewed_at` will set the consistent upper bound for
+/// subsequent queries made on this cursor.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct TransactionBlockCursor {
     /// The checkpoint sequence number this was viewed at.
@@ -31,16 +31,17 @@ pub(crate) struct TransactionBlockCursor {
     pub checkpoint_viewed_at: u64,
     #[serde(rename = "t")]
     pub tx_sequence_number: u64,
-    /// Whether the cursor was derived from a `scan_limit`. Only applicable to the `startCursor` and
-    /// `endCursor` returned from a Connection's `PageInfo`, and indicates that the cursor may not
+    /// Whether the cursor was derived from a `scan_limit`. Only applicable to
+    /// the `startCursor` and `endCursor` returned from a Connection's
+    /// `PageInfo`, and indicates that the cursor may not
     /// have a corresponding node in the result set.
     #[serde(rename = "i")]
     pub is_scan_limited: bool,
 }
 
-/// Results from raw queries in Diesel can only be deserialized into structs that implements
-/// `QueryableByName`. This struct is used to represent a row of `tx_sequence_number` returned from
-/// subqueries against tx lookup tables.
+/// Results from raw queries in Diesel can only be deserialized into structs
+/// that implements `QueryableByName`. This struct is used to represent a row of
+/// `tx_sequence_number` returned from subqueries against tx lookup tables.
 #[derive(Clone, Debug)]
 pub struct TxLookup {
     pub tx_sequence_number: i64,
@@ -155,11 +156,12 @@ impl RawPaginated<Cursor> for TxLookup {
     }
 }
 
-/// `sql_query` raw queries require `QueryableByName`. The default implementation looks for a table
-/// based on the struct name, and it also expects the struct's fields to reflect the table's
-/// columns. We can override this behavior by implementing `QueryableByName` for our struct. For
-/// `TxBounds`, its fields are derived from `checkpoints`, so we can't leverage the default
-/// implementation directly.
+/// `sql_query` raw queries require `QueryableByName`. The default
+/// implementation looks for a table based on the struct name, and it also
+/// expects the struct's fields to reflect the table's columns. We can override
+/// this behavior by implementing `QueryableByName` for our struct. For
+/// `TxBounds`, its fields are derived from `checkpoints`, so we can't leverage
+/// the default implementation directly.
 impl<DB> QueryableByName<DB> for TxLookup
 where
     DB: Backend,

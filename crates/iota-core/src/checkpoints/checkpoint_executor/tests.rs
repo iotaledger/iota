@@ -2,27 +2,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
-use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_types::gas::GasCostSummary;
-use tempfile::tempdir;
-
 use std::{sync::Arc, time::Duration};
 
-use crate::authority::epoch_start_configuration::{EpochFlag, EpochStartConfiguration};
 use broadcast::{Receiver, Sender};
-use iota_types::committee::ProtocolVersion;
-use iota_types::messages_checkpoint::{ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint};
-use iota_types::supported_protocol_versions::SupportedProtocolVersions;
-use tokio::{sync::broadcast, time::timeout};
-
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use crate::{
-    authority::AuthorityState, checkpoints::CheckpointStore, state_accumulator::StateAccumulator,
+use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
+use iota_types::{
+    committee::ProtocolVersion,
+    gas::GasCostSummary,
+    iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
+    messages_checkpoint::{ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint},
+    supported_protocol_versions::SupportedProtocolVersions,
 };
-use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
-use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
+use tempfile::tempdir;
+use tokio::{sync::broadcast, time::timeout};
 use typed_store::Map;
+
+use super::*;
+use crate::{
+    authority::{
+        AuthorityState,
+        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+        test_authority_builder::TestAuthorityBuilder,
+    },
+    checkpoints::CheckpointStore,
+    state_accumulator::StateAccumulator,
+};
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
 /// picks up where it left off in the event of a mid-epoch node crash.
@@ -42,10 +47,12 @@ pub async fn test_checkpoint_executor_crash_recovery() {
         CommitteeFixture,
     ) = init_executor_test(buffer_size, checkpoint_store.clone()).await;
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .is_none()
+    );
     let checkpoints = sync_new_checkpoints(
         &checkpoint_store,
         &checkpoint_sender,
@@ -106,8 +113,8 @@ pub async fn test_checkpoint_executor_crash_recovery() {
 /// from the next epoch if called after reconfig
 ///
 /// TODO(william) disabling reconfig unit tests here for now until we can work
-/// on correctly inserting transactions, especially the change_epoch tx. As it stands, this
-/// is better tested in existing reconfig simtests
+/// on correctly inserting transactions, especially the change_epoch tx. As it
+/// stands, this is better tested in existing reconfig simtests
 #[tokio::test]
 #[ignore]
 pub async fn test_checkpoint_executor_cross_epoch() {
@@ -128,10 +135,12 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     let epoch = epoch_store.epoch();
     assert_eq!(epoch, 0);
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .is_none()
+    );
 
     // sync 20 checkpoints
     let cold_start_checkpoints = sync_new_checkpoints(
@@ -190,11 +199,13 @@ pub async fn test_checkpoint_executor_cross_epoch() {
     .await;
 
     // Ensure root state hash for epoch does not exist before we close epoch
-    assert!(authority_state
-        .get_accumulator_store()
-        .get_root_state_accumulator_for_epoch(0)
-        .unwrap()
-        .is_none());
+    assert!(
+        authority_state
+            .get_accumulator_store()
+            .get_root_state_accumulator_for_epoch(0)
+            .unwrap()
+            .is_none()
+    );
 
     // Ensure executor reaches end of epoch in a timely manner
     timeout(Duration::from_secs(5), async {
@@ -267,12 +278,12 @@ pub async fn test_checkpoint_executor_cross_epoch() {
         .expect("root state hash for epoch should exist");
 }
 
-/// Test that if we crash at end of epoch / during reconfig, we recover on startup
-/// by starting at the old epoch and immediately retrying reconfig
+/// Test that if we crash at end of epoch / during reconfig, we recover on
+/// startup by starting at the old epoch and immediately retrying reconfig
 ///
 /// TODO(william) disabling reconfig unit tests here for now until we can work
-/// on correctly inserting transactions, especially the change_epoch tx. As it stands, this
-/// is better tested in existing reconfig simtests
+/// on correctly inserting transactions, especially the change_epoch tx. As it
+/// stands, this is better tested in existing reconfig simtests
 #[tokio::test]
 #[ignore]
 pub async fn test_reconfig_crash_recovery() {
@@ -287,15 +298,17 @@ pub async fn test_reconfig_crash_recovery() {
         Sender<VerifiedCheckpoint>,
         CommitteeFixture,
     ) = init_executor_test(
-        10, /* StateSync -> Executor channel buffer size */
+        10, // StateSync -> Executor channel buffer size
         checkpoint_store.clone(),
     )
     .await;
 
-    assert!(checkpoint_store
-        .get_highest_executed_checkpoint_seq_number()
-        .unwrap()
-        .is_none());
+    assert!(
+        checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .unwrap()
+            .is_none()
+    );
 
     // sync 1 checkpoint
     let checkpoint = sync_new_checkpoints(
@@ -344,9 +357,10 @@ pub async fn test_reconfig_crash_recovery() {
     );
 
     // Drop and re-istantiate checkpoint executor without performing reconfig. This
-    // is logically equivalent to reconfig crashing and the node restarting, in which
-    // case executor should be able to infer that, rather than beginning execution of
-    // the next epoch, we should immediately exit so that reconfig can be reattempted.
+    // is logically equivalent to reconfig crashing and the node restarting, in
+    // which case executor should be able to infer that, rather than beginning
+    // execution of the next epoch, we should immediately exit so that reconfig
+    // can be reattempted.
     drop(executor);
     let mut executor = CheckpointExecutor::new_for_tests(
         checkpoint_sender.subscribe(),
@@ -415,8 +429,8 @@ async fn init_executor_test(
 
 /// Creates and simulates syncing of a new checkpoint by StateSync, i.e. new
 /// checkpoint is persisted, along with its contents, highest synced checkpoint
-/// watermark is updated, and message is broadcasted notifying of the newly synced
-/// checkpoint. Returns created checkpoints
+/// watermark is updated, and message is broadcasted notifying of the newly
+/// synced checkpoint. Returns created checkpoints
 fn sync_new_checkpoints(
     checkpoint_store: &CheckpointStore,
     sender: &Sender<VerifiedCheckpoint>,

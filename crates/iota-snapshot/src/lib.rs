@@ -10,53 +10,64 @@ pub mod reader;
 pub mod uploader;
 mod writer;
 
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
+
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
-use indicatif::MultiProgress;
-use indicatif::ProgressBar;
-use indicatif::ProgressStyle;
-use num_enum::IntoPrimitive;
-use num_enum::TryFromPrimitive;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use iota_core::{
+    authority::{
+        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+    },
+    checkpoints::CheckpointStore,
+    epoch::committee_store::CommitteeStore,
+    state_accumulator::WrappedObject,
+};
+use iota_protocol_config::Chain;
+use iota_storage::{
+    FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
+};
+use iota_types::{
+    accumulator::Accumulator,
+    base_types::ObjectID,
+    iota_system_state::{
+        IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
+        get_iota_system_state,
+    },
+    messages_checkpoint::ECMHLiveObjectSetDigest,
+};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use object_store::path::Path;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use iota_core::authority::authority_store_tables::LiveObject;
-use iota_core::authority::epoch_start_configuration::EpochFlag;
-use iota_core::authority::epoch_start_configuration::EpochStartConfiguration;
-use iota_core::checkpoints::CheckpointStore;
-use iota_core::epoch::committee_store::CommitteeStore;
-use iota_core::state_accumulator::WrappedObject;
-use iota_protocol_config::Chain;
-use iota_storage::object_store::util::path_to_filesystem;
-use iota_storage::{compute_sha3_checksum, FileCompression, SHA3_BYTES};
-use iota_types::accumulator::Accumulator;
-use iota_types::base_types::ObjectID;
-use iota_types::messages_checkpoint::ECMHLiveObjectSetDigest;
-use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
-use iota_types::iota_system_state::get_iota_system_state;
-use iota_types::iota_system_state::IotaSystemStateTrait;
 use tokio::time::Instant;
 
-/// The following describes the format of an object file (*.obj) used for persisting live iota objects.
-/// The maximum size per .obj file is 128MB. State snapshot will be taken at the end of every epoch.
-/// Live object set is split into and stored across multiple hash buckets. The hashing function used
-/// for bucketing objects is the same as the one used to build the accumulator tree for computing
-/// state root hash. Buckets are further subdivided into partitions. A partition is a smallest storage
-/// unit which holds a subset of objects in one bucket. Each partition is a single *.obj file where
-/// objects are appended to in an append-only fashion. A new partition is created once the size of
-/// current one reaches the max size i.e. 128MB. Partitions allow a single hash bucket to be consumed
-/// in parallel. Partition files are optionally compressed with the zstd compression format. Partition
-/// filenames follows the format <bucket_number>_<partition_number>.obj. Object references for hash
-/// There is one single ref file per hash bucket. Object references are written in an append-only manner
-/// as well. Finally, the MANIFEST file contains per file metadata of every file in the snapshot directory.
-/// current one reaches the max size i.e. 64MB. Partitions allow a single hash bucket to be consumed
-/// in parallel. Partition files are compressed with the zstd compression format.
-/// State Snapshot Directory Layout
+/// The following describes the format of an object file (*.obj) used for
+/// persisting live iota objects. The maximum size per .obj file is 128MB. State
+/// snapshot will be taken at the end of every epoch. Live object set is split
+/// into and stored across multiple hash buckets. The hashing function used
+/// for bucketing objects is the same as the one used to build the accumulator
+/// tree for computing state root hash. Buckets are further subdivided into
+/// partitions. A partition is a smallest storage unit which holds a subset of
+/// objects in one bucket. Each partition is a single *.obj file where
+/// objects are appended to in an append-only fashion. A new partition is
+/// created once the size of current one reaches the max size i.e. 128MB.
+/// Partitions allow a single hash bucket to be consumed in parallel. Partition
+/// files are optionally compressed with the zstd compression format. Partition
+/// filenames follows the format <bucket_number>_<partition_number>.obj. Object
+/// references for hash There is one single ref file per hash bucket. Object
+/// references are written in an append-only manner as well. Finally, the
+/// MANIFEST file contains per file metadata of every file in the snapshot
+/// directory. current one reaches the max size i.e. 64MB. Partitions allow a
+/// single hash bucket to be consumed in parallel. Partition files are
+/// compressed with the zstd compression format. State Snapshot Directory Layout
 ///  - snapshot/
 ///     - epoch_0/
 ///        - 1_1.obj
@@ -75,47 +86,47 @@ use tokio::time::Instant;
 ///       - ...
 ///
 /// Object File Disk Format
-///┌──────────────────────────────┐
-///│  magic(0x00B7EC75) <4 byte>  │
-///├──────────────────────────────┤
-///│ ┌──────────────────────────┐ │
-///│ │         Object 1         │ │
-///│ ├──────────────────────────┤ │
-///│ │          ...             │ │
-///│ ├──────────────────────────┤ │
-///│ │         Object N         │ │
-///│ └──────────────────────────┘ │
-///└──────────────────────────────┘
+/// ┌──────────────────────────────┐
+/// │  magic(0x00B7EC75) <4 byte>  │
+/// ├──────────────────────────────┤
+/// │ ┌──────────────────────────┐ │
+/// │ │         Object 1         │ │
+/// │ ├──────────────────────────┤ │
+/// │ │          ...             │ │
+/// │ ├──────────────────────────┤ │
+/// │ │         Object N         │ │
+/// │ └──────────────────────────┘ │
+/// └──────────────────────────────┘
 /// Object
-///┌───────────────┬───────────────────┬──────────────┐
-///│ len <uvarint> │ encoding <1 byte> │ data <bytes> │
-///└───────────────┴───────────────────┴──────────────┘
+/// ┌───────────────┬───────────────────┬──────────────┐
+/// │ len <uvarint> │ encoding <1 byte> │ data <bytes> │
+/// └───────────────┴───────────────────┴──────────────┘
 ///
 /// REFERENCE File Disk Format
-///┌──────────────────────────────┐
-///│  magic(0x5EFE5E11) <4 byte>  │
-///├──────────────────────────────┤
-///│ ┌──────────────────────────┐ │
-///│ │         ObjectRef 1      │ │
-///│ ├──────────────────────────┤ │
-///│ │          ...             │ │
-///│ ├──────────────────────────┤ │
-///│ │         ObjectRef N      │ │
-///│ └──────────────────────────┘ │
-///└──────────────────────────────┘
+/// ┌──────────────────────────────┐
+/// │  magic(0x5EFE5E11) <4 byte>  │
+/// ├──────────────────────────────┤
+/// │ ┌──────────────────────────┐ │
+/// │ │         ObjectRef 1      │ │
+/// │ ├──────────────────────────┤ │
+/// │ │          ...             │ │
+/// │ ├──────────────────────────┤ │
+/// │ │         ObjectRef N      │ │
+/// │ └──────────────────────────┘ │
+/// └──────────────────────────────┘
 /// ObjectRef (ObjectID, SequenceNumber, ObjectDigest)
-///┌───────────────┬───────────────────┬──────────────┐
-///│         data (<(address_len + 8 + 32) bytes>)    │
-///└───────────────┴───────────────────┴──────────────┘
+/// ┌───────────────┬───────────────────┬──────────────┐
+/// │         data (<(address_len + 8 + 32) bytes>)    │
+/// └───────────────┴───────────────────┴──────────────┘
 ///
 /// MANIFEST File Disk Format
-///┌──────────────────────────────┐
-///│  magic(0x00C0FFEE) <4 byte>  │
-///├──────────────────────────────┤
-///│   serialized manifest        │
-///├──────────────────────────────┤
-///│      sha3 <32 bytes>         │
-///└──────────────────────────────┘
+/// ┌──────────────────────────────┐
+/// │  magic(0x00C0FFEE) <4 byte>  │
+/// ├──────────────────────────────┤
+/// │   serialized manifest        │
+/// ├──────────────────────────────┤
+/// │      sha3 <32 bytes>         │
+/// └──────────────────────────────┘
 const OBJECT_FILE_MAGIC: u32 = 0x00B7EC75;
 const REFERENCE_FILE_MAGIC: u32 = 0xDEADBEEF;
 const MANIFEST_FILE_MAGIC: u32 = 0x00C0FFEE;

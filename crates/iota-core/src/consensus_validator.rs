@@ -7,17 +7,17 @@ use std::sync::Arc;
 use consensus_core::{TransactionIndex, TransactionVerifier, ValidationError};
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
-use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use iota_types::{
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::Transaction,
 };
+use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 use tap::TapFallible;
 use tracing::{debug, info, warn};
 
 use crate::{
-    authority::{authority_per_epoch_store::AuthorityPerEpochStore, AuthorityState},
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     checkpoints::CheckpointServiceNotify,
     consensus_adapter::ConsensusOverloadChecker,
     transaction_manager::TransactionManager,
@@ -96,8 +96,9 @@ impl IotaTxValidator {
                             "ConsensusTransactionKind::UserTransaction is unsupported".to_string(),
                         ));
                     }
-                    // TODO(fastpath): move deterministic verifications of user transactions here,
-                    // for example validity_check() and verify_transaction().
+                    // TODO(fastpath): move deterministic verifications of user
+                    // transactions here, for example
+                    // validity_check() and verify_transaction().
                 }
             }
         }
@@ -111,7 +112,8 @@ impl IotaTxValidator {
             .verify_certs_and_checkpoints(cert_batch, ckpt_batch)
             .tap_err(|e| warn!("batch verification error: {}", e))?;
 
-        // All checkpoint sigs have been verified, forward them to the checkpoint service
+        // All checkpoint sigs have been verified, forward them to the checkpoint
+        // service
         for ckpt in ckpt_messages {
             self.checkpoint_service
                 .notify_checkpoint_signature(&epoch_store, ckpt)?;
@@ -152,8 +154,9 @@ impl IotaTxValidator {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         tx: Box<Transaction>,
     ) -> IotaResult<()> {
-        // Currently validity_check() and verify_transaction() are not required to be consistent across validators,
-        // so they do not run in validate_transactions(). They can run there once we confirm it is safe.
+        // Currently validity_check() and verify_transaction() are not required to be
+        // consistent across validators, so they do not run in
+        // validate_transactions(). They can run there once we confirm it is safe.
         tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
 
         self.authority_state.check_system_overload(
@@ -254,8 +257,8 @@ mod tests {
         authority::test_authority_builder::TestAuthorityBuilder,
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::{
-            consensus_tests::{test_certificates, test_gas_objects},
             NoopConsensusOverloadChecker,
+            consensus_tests::{test_certificates, test_gas_objects},
         },
         consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     };
@@ -313,10 +316,11 @@ mod tests {
             .into_iter()
             .map(|mut cert| {
                 // set it to an all-zero user signature
-                cert.tx_signatures_mut_for_testing()[0] =
-                    GenericSignature::Signature(iota_types::crypto::Signature::Ed25519IotaSignature(
+                cert.tx_signatures_mut_for_testing()[0] = GenericSignature::Signature(
+                    iota_types::crypto::Signature::Ed25519IotaSignature(
                         Ed25519IotaSignature::default(),
-                    ));
+                    ),
+                );
                 bcs::to_bytes(&ConsensusTransaction::new_certificate_message(&name1, cert)).unwrap()
             })
             .collect();

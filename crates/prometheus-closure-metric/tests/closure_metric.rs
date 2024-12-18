@@ -10,17 +10,16 @@ fn closure_metric_basic() {
         prometheus::opts!("my_closure_metric", "A test closure metric",).variable_label("my_label");
 
     let fn_42 = || 42_u64;
-    let metric0 = ClosureMetric::new(
-        opts,
-        prometheus_closure_metric::ValueType::Gauge,
-        fn_42,
-        &["forty_two"],
-    )
+    let metric0 = ClosureMetric::new(opts, prometheus_closure_metric::ValueType::Gauge, fn_42, &[
+        "forty_two",
+    ])
     .unwrap();
 
-    assert!(prometheus::default_registry()
-        .register(Box::new(metric0))
-        .is_ok());
+    assert!(
+        prometheus::default_registry()
+            .register(Box::new(metric0))
+            .is_ok()
+    );
 
     // Gather the metrics.
     let metric_families = prometheus::default_registry().gather();

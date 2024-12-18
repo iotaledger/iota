@@ -2,33 +2,31 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    env,
+    io::{Write, stderr},
+    path::PathBuf,
+    str::FromStr,
+    sync::{Arc, Mutex, atomic::Ordering},
+    time::Duration,
+};
+
 use atomic_float::AtomicF64;
 use crossterm::tty::IsTty;
 use once_cell::sync::Lazy;
 use opentelemetry::{
-    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
     Context, KeyValue,
+    trace::{Link, SamplingResult, SpanKind, TraceId, TracerProvider as _},
 };
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::trace::Sampler;
 use opentelemetry_sdk::{
-    self, runtime,
-    trace::{BatchSpanProcessor, ShouldSample, TracerProvider},
-    Resource,
+    self, Resource, runtime,
+    trace::{BatchSpanProcessor, Sampler, ShouldSample, TracerProvider},
 };
 use span_latency_prom::PrometheusSpanLatencyLayer;
-use std::path::PathBuf;
-use std::time::Duration;
-use std::{
-    env,
-    io::{stderr, Write},
-    str::FromStr,
-    sync::{atomic::Ordering, Arc, Mutex},
-};
-use tracing::metadata::LevelFilter;
-use tracing::{error, info, Level};
+use tracing::{Level, error, info, metadata::LevelFilter};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
-use tracing_subscriber::{filter, fmt, layer::SubscriberExt, reload, EnvFilter, Layer, Registry};
+use tracing_subscriber::{EnvFilter, Layer, Registry, filter, fmt, layer::SubscriberExt, reload};
 
 use crate::file_exporter::{CachedOpenFile, FileExporter};
 
@@ -41,7 +39,8 @@ pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 /// Configuration for different logging/tracing options
 /// ===
 /// - json_log_output: Output JSON logs to stdout only.
-/// - log_file: If defined, write output to a file starting with this name, ex app.log
+/// - log_file: If defined, write output to a file starting with this name, ex
+///   app.log
 /// - log_level: error/warn/info/debug/trace, defaults to info
 #[derive(Default, Clone, Debug)]
 pub struct TelemetryConfig {
@@ -54,14 +53,15 @@ pub struct TelemetryConfig {
     pub log_file: Option<String>,
     /// Log level to set, defaults to info
     pub log_string: Option<String>,
-    /// Span level - what level of spans should be created.  Note this is not same as logging level
-    /// If set to None, then defaults to INFO
+    /// Span level - what level of spans should be created.  Note this is not
+    /// same as logging level If set to None, then defaults to INFO
     pub span_level: Option<Level>,
     /// Set a panic hook
     pub panic_hook: bool,
     /// Crash on panic
     pub crash_on_panic: bool,
-    /// Optional Prometheus registry - if present, all enabled span latencies are measured
+    /// Optional Prometheus registry - if present, all enabled span latencies
+    /// are measured
     pub prom_registry: Option<prometheus::Registry>,
     pub sample_rate: f64,
     /// Add directive to include trace logs with provided target
@@ -337,9 +337,10 @@ impl TelemetryConfig {
         let config_clone = config.clone();
 
         // Setup an EnvFilter for filtering logging output layers.
-        // NOTE: we don't want to use this to filter all layers.  That causes problems for layers with
-        // different filtering needs, including tokio-console/console-subscriber, and it also doesn't
-        // fit with the span creation needs for distributed tracing and other span-based tools.
+        // NOTE: we don't want to use this to filter all layers.  That causes problems
+        // for layers with different filtering needs, including
+        // tokio-console/console-subscriber, and it also doesn't fit with the
+        // span creation needs for distributed tracing and other span-based tools.
         let mut directives = config.log_string.unwrap_or_else(|| "info".into());
         if let Some(targets) = config.trace_target {
             for target in targets {
@@ -352,8 +353,8 @@ impl TelemetryConfig {
         let log_filter_handle = FilterHandle(reload_handle);
 
         // Separate span level filter.
-        // This is a dumb filter for now - allows all spans that are below a given level.
-        // TODO: implement a sampling filter
+        // This is a dumb filter for now - allows all spans that are below a given
+        // level. TODO: implement a sampling filter
         let span_level = config.span_level.unwrap_or(Level::INFO);
         let span_filter = filter::filter_fn(move |metadata| {
             metadata.is_span() && *metadata.level() <= span_level
@@ -469,19 +470,17 @@ impl TelemetryConfig {
             set_panic_hook(config.crash_on_panic);
         }
 
-        // The guard must be returned and kept in the main fn of the app, as when it's dropped then the output
-        // gets flushed and closed. If this is dropped too early then no output will appear!
+        // The guard must be returned and kept in the main fn of the app, as when it's
+        // dropped then the output gets flushed and closed. If this is dropped
+        // too early then no output will appear!
         let guards = TelemetryGuards::new(config_clone, worker_guard, provider);
 
-        (
-            guards,
-            TracingHandle {
-                log: log_filter_handle,
-                trace: trace_filter_handle,
-                file_output,
-                sampler,
-            },
-        )
+        (guards, TracingHandle {
+            log: log_filter_handle,
+            trace: trace_filter_handle,
+            file_output,
+            sampler,
+        })
     }
 }
 
@@ -550,24 +549,27 @@ pub fn init_for_testing() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use prometheus::proto::MetricType;
     use std::time::Duration;
+
+    use prometheus::proto::MetricType;
     use tracing::{debug, debug_span, info, trace_span, warn};
+
+    use super::*;
 
     #[test]
     #[should_panic]
     fn test_telemetry_init() {
         let registry = prometheus::Registry::new();
-        // Default logging level is INFO, but here we set the span level to DEBUG.  TRACE spans should be ignored.
+        // Default logging level is INFO, but here we set the span level to DEBUG.
+        // TRACE spans should be ignored.
         let config = TelemetryConfig::new()
             .with_span_level(Level::DEBUG)
             .with_prom_registry(&registry);
         let _guard = config.init();
 
         info!(a = 1, "This will be INFO.");
-        // Spans are debug level or below, so they won't be printed out either.  However latencies
-        // should be recorded for at least one span
+        // Spans are debug level or below, so they won't be printed out either.  However
+        // latencies should be recorded for at least one span
         debug_span!("yo span yo").in_scope(|| {
             // This debug log will not print out, log level set to INFO by default
             debug!(a = 2, "This will be DEBUG.");
@@ -596,8 +598,8 @@ mod tests {
         panic!("This should cause error logs to be printed out!");
     }
 
-    // Both the following tests should be able to "race" to initialize logging without causing a
-    // panic
+    // Both the following tests should be able to "race" to initialize logging
+    // without causing a panic
     #[test]
     fn testing_logger_1() {
         init_for_testing();

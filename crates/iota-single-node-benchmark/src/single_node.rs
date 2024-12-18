@@ -2,36 +2,43 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::command::Component;
-use crate::mock_storage::InMemoryObjectStore;
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::Arc;
-use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use iota_core::authority::authority_store_tables::LiveObject;
-use iota_core::authority::test_authority_builder::TestAuthorityBuilder;
-use iota_core::authority::AuthorityState;
-use iota_core::authority_server::{ValidatorService, ValidatorServiceMetrics};
-use iota_core::checkpoints::checkpoint_executor::CheckpointExecutor;
-use iota_core::consensus_adapter::{
-    ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    sync::Arc,
 };
-use iota_core::mock_consensus::{ConsensusMode, MockConsensusClient};
-use iota_core::state_accumulator::StateAccumulator;
+
+use iota_core::{
+    authority::{
+        AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::LiveObject, test_authority_builder::TestAuthorityBuilder,
+    },
+    authority_server::{ValidatorService, ValidatorServiceMetrics},
+    checkpoints::checkpoint_executor::CheckpointExecutor,
+    consensus_adapter::{
+        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
+    },
+    mock_consensus::{ConsensusMode, MockConsensusClient},
+    state_accumulator::StateAccumulator,
+};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
-use iota_types::base_types::{AuthorityName, ObjectRef, IotaAddress, TransactionDigest};
-use iota_types::committee::Committee;
-use iota_types::crypto::{AccountKeyPair, AuthoritySignature, Signer};
-use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use iota_types::executable_transaction::VerifiedExecutableTransaction;
-use iota_types::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
-use iota_types::messages_grpc::HandleTransactionResponse;
-use iota_types::mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider};
-use iota_types::object::Object;
-use iota_types::transaction::{
-    CertifiedTransaction, Transaction, TransactionDataAPI, VerifiedCertificate,
-    VerifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE,
+use iota_types::{
+    base_types::{AuthorityName, IotaAddress, ObjectRef, TransactionDigest},
+    committee::Committee,
+    crypto::{AccountKeyPair, AuthoritySignature, Signer},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    executable_transaction::VerifiedExecutableTransaction,
+    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
+    messages_grpc::HandleTransactionResponse,
+    mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
+    object::Object,
+    transaction::{
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, Transaction, TransactionDataAPI,
+        VerifiedCertificate, VerifiedTransaction,
+    },
 };
 use tokio::sync::broadcast;
+
+use crate::{command::Component, mock_storage::InMemoryObjectStore};
 
 #[derive(Clone)]
 pub struct SingleValidator {
@@ -67,9 +74,9 @@ impl SingleValidator {
             ConsensusAdapterMetrics::new_test(),
             epoch_store.protocol_config().clone(),
         ));
-        // TODO: for validator benchmarking purposes, we should allow for traffic control
-        // to be configurable and introduce traffic control benchmarks to test
-        // against different policies
+        // TODO: for validator benchmarking purposes, we should allow for traffic
+        // control to be configurable and introduce traffic control benchmarks
+        // to test against different policies
         let validator_service = Arc::new(ValidatorService::new_for_tests(
             validator,
             consensus_adapter,
@@ -89,7 +96,8 @@ impl SingleValidator {
         &self.epoch_store
     }
 
-    /// Publish a package, returns the package object and the updated gas object.
+    /// Publish a package, returns the package object and the updated gas
+    /// object.
     pub async fn publish_package(
         &self,
         publish_data: PublishData,
@@ -159,8 +167,9 @@ impl SingleValidator {
             Component::WithTxManager => {
                 let cert = VerifiedCertificate::new_unchecked(cert);
                 if cert.contains_shared_object() {
-                    // For shared objects transactions, `execute_certificate` won't enqueue it because
-                    // it expects consensus to do so. However we don't have consensus, hence the manual enqueue.
+                    // For shared objects transactions, `execute_certificate` won't enqueue it
+                    // because it expects consensus to do so. However we don't
+                    // have consensus, hence the manual enqueue.
                     self.get_validator()
                         .enqueue_certificates_for_execution(vec![cert.clone()], &self.epoch_store);
                 }

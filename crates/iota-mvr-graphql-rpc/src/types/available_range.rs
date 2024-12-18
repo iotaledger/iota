@@ -2,14 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::data::{Conn, Db, DbConnection, QueryExecutor};
-use crate::error::Error;
-
-use super::checkpoint::{Checkpoint, CheckpointId};
 use async_graphql::*;
 use diesel::{CombineDsl, ExpressionMethods, QueryDsl, QueryResult};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use iota_indexer::schema::{checkpoints, objects_snapshot};
+
+use super::checkpoint::{Checkpoint, CheckpointId};
+use crate::{
+    data::{Conn, Db, DbConnection, QueryExecutor},
+    error::Error,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub(crate) struct AvailableRange {
@@ -17,7 +19,8 @@ pub(crate) struct AvailableRange {
     pub last: u64,
 }
 
-/// Range of checkpoints that the RPC is guaranteed to produce a consistent response for.
+/// Range of checkpoints that the RPC is guaranteed to produce a consistent
+/// response for.
 #[Object]
 impl AvailableRange {
     async fn first(&self, ctx: &Context<'_>) -> Result<Option<Checkpoint>> {
@@ -34,7 +37,8 @@ impl AvailableRange {
 }
 
 impl AvailableRange {
-    /// Look up the available range when viewing the data consistently at `checkpoint_viewed_at`.
+    /// Look up the available range when viewing the data consistently at
+    /// `checkpoint_viewed_at`.
     pub(crate) async fn query(db: &Db, checkpoint_viewed_at: u64) -> Result<Self, Error> {
         let Some(range): Option<Self> = db
             .execute(move |conn| {
@@ -52,12 +56,13 @@ impl AvailableRange {
         Ok(range)
     }
 
-    /// Look up the available range when viewing the data consistently at `checkpoint_viewed_at`.
-    /// Made available on the `Conn` type to make it easier to call as part of other queries.
+    /// Look up the available range when viewing the data consistently at
+    /// `checkpoint_viewed_at`. Made available on the `Conn` type to make it
+    /// easier to call as part of other queries.
     ///
-    /// Returns an error if there was an issue querying the database, Ok(None) if the checkpoint
-    /// being viewed is not in the database's available range, or Ok(Some(AvailableRange))
-    /// otherwise.
+    /// Returns an error if there was an issue querying the database, Ok(None)
+    /// if the checkpoint being viewed is not in the database's available
+    /// range, or Ok(Some(AvailableRange)) otherwise.
     pub(crate) async fn result(
         conn: &mut Conn<'_>,
         checkpoint_viewed_at: u64,

@@ -2,20 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::path::Path;
-use std::sync::Arc;
-use iota_types::Identifier;
+use std::{collections::HashMap, path::Path, sync::Arc};
 
-use iota_types::event::EventID;
-use typed_store::rocks::{DBMap, MetricConf};
-use typed_store::traits::TableSummary;
-use typed_store::traits::TypedStoreDebug;
-use typed_store::DBMapUtils;
-use typed_store::Map;
+use iota_types::{Identifier, event::EventID};
+use typed_store::{
+    DBMapUtils, Map,
+    rocks::{DBMap, MetricConf},
+    traits::{TableSummary, TypedStoreDebug},
+};
 
-use crate::error::{BridgeError, BridgeResult};
-use crate::types::{BridgeAction, BridgeActionDigest};
+use crate::{
+    error::{BridgeError, BridgeResult},
+    types::{BridgeAction, BridgeActionDigest},
+};
 
 #[derive(DBMapUtils)]
 pub struct BridgeOrchestratorTables {
@@ -115,9 +114,11 @@ impl BridgeOrchestratorTables {
         &self,
         identifiers: &[Identifier],
     ) -> BridgeResult<Vec<Option<EventID>>> {
-        self.iota_syncer_cursors.multi_get(identifiers).map_err(|e| {
-            BridgeError::StorageError(format!("Couldn't get iota_syncer_cursors: {:?}", e))
-        })
+        self.iota_syncer_cursors
+            .multi_get(identifiers)
+            .map_err(|e| {
+                BridgeError::StorageError(format!("Couldn't get iota_syncer_cursors: {:?}", e))
+            })
     }
 
     pub fn get_eth_event_cursors(
@@ -138,9 +139,8 @@ mod tests {
 
     use iota_types::digests::TransactionDigest;
 
-    use crate::test_utils::get_test_iota_to_eth_bridge_action;
-
     use super::*;
+    use crate::test_utils::get_test_iota_to_eth_bridge_action;
 
     // async: existing runtime is required with typed-store
     #[tokio::test]
@@ -215,10 +215,12 @@ mod tests {
         // update eth event cursor
         let eth_contract_address = ethers::types::Address::random();
         let eth_block_num = 199999u64;
-        assert!(store
-            .get_eth_event_cursors(&[eth_contract_address])
-            .unwrap()[0]
-            .is_none());
+        assert!(
+            store
+                .get_eth_event_cursors(&[eth_contract_address])
+                .unwrap()[0]
+                .is_none()
+        );
         store
             .update_eth_event_cursor(eth_contract_address, eth_block_num)
             .unwrap();
@@ -236,12 +238,20 @@ mod tests {
             tx_digest: TransactionDigest::random(),
             event_seq: 1,
         };
-        assert!(store.get_iota_event_cursors(&[iota_module.clone()]).unwrap()[0].is_none());
+        assert!(
+            store
+                .get_iota_event_cursors(&[iota_module.clone()])
+                .unwrap()[0]
+                .is_none()
+        );
         store
             .update_iota_event_cursor(iota_module.clone(), iota_cursor)
             .unwrap();
         assert_eq!(
-            store.get_iota_event_cursors(&[iota_module.clone()]).unwrap()[0].unwrap(),
+            store
+                .get_iota_event_cursors(&[iota_module.clone()])
+                .unwrap()[0]
+                .unwrap(),
             iota_cursor
         );
     }

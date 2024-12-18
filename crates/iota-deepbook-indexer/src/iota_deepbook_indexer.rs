@@ -2,44 +2,50 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Error};
+use anyhow::{Error, anyhow};
 use async_trait::async_trait;
-use diesel::dsl::now;
-use diesel::{ExpressionMethods, TextExpressionMethods};
-use diesel::{OptionalExtension, QueryDsl, SelectableHelper};
-use diesel_async::scoped_futures::ScopedFutureExt;
-use diesel_async::AsyncConnection;
-use diesel_async::RunQueryDsl;
-use iota_indexer_builder::progress::ProgressSavingPolicy;
-use iota_types::base_types::ObjectID;
-use iota_types::transaction::{Command, TransactionDataAPI};
+use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper, TextExpressionMethods,
+    dsl::now,
+};
+use diesel_async::{AsyncConnection, RunQueryDsl, scoped_futures::ScopedFutureExt};
+use iota_indexer_builder::{
+    LIVE_TASK_TARGET_CHECKPOINT, Task, Tasks,
+    indexer_builder::{DataMapper, IndexerProgressStore, Persistent},
+    iota_datasource::CheckpointTxnData,
+    progress::ProgressSavingPolicy,
+};
+use iota_types::{
+    base_types::ObjectID,
+    effects::TransactionEffectsAPI,
+    event::Event,
+    execution_status::ExecutionStatus,
+    full_checkpoint_content::CheckpointTransaction,
+    transaction::{Command, TransactionDataAPI},
+};
 use tracing::info;
 
-use iota_indexer_builder::indexer_builder::{DataMapper, IndexerProgressStore, Persistent};
-use iota_indexer_builder::iota_datasource::CheckpointTxnData;
-use iota_indexer_builder::{Task, Tasks, LIVE_TASK_TARGET_CHECKPOINT};
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::event::Event;
-use iota_types::execution_status::ExecutionStatus;
-use iota_types::full_checkpoint_content::CheckpointTransaction;
-
-use crate::events::{
-    MoveBalanceEvent, MoveFlashLoanBorrowedEvent, MoveOrderCanceledEvent, MoveOrderExpiredEvent,
-    MoveOrderFilledEvent, MoveOrderModifiedEvent, MoveOrderPlacedEvent, MovePriceAddedEvent,
-    MoveProposalEvent, MoveRebateEvent, MoveStakeEvent, MoveTradeParamsUpdateEvent, MoveVoteEvent,
+use crate::{
+    events::{
+        MoveBalanceEvent, MoveFlashLoanBorrowedEvent, MoveOrderCanceledEvent,
+        MoveOrderExpiredEvent, MoveOrderFilledEvent, MoveOrderModifiedEvent, MoveOrderPlacedEvent,
+        MovePriceAddedEvent, MoveProposalEvent, MoveRebateEvent, MoveStakeEvent,
+        MoveTradeParamsUpdateEvent, MoveVoteEvent,
+    },
+    metrics::DeepBookIndexerMetrics,
+    models,
+    postgres_manager::PgPool,
+    schema,
+    schema::{
+        balances, flashloans, iota_error_transactions, order_fills, order_updates, pool_prices,
+        progress_store::{columns, dsl},
+        proposals, rebates, stakes, trade_params_update, votes,
+    },
+    types::{
+        Balances, Flashloan, IotaTxnError, OrderFill, OrderUpdate, OrderUpdateStatus, PoolPrice,
+        ProcessedTxnData, Proposals, Rebates, Stakes, TradeParamsUpdate, Votes,
+    },
 };
-use crate::metrics::DeepBookIndexerMetrics;
-use crate::postgres_manager::PgPool;
-use crate::schema::progress_store::{columns, dsl};
-use crate::schema::{
-    balances, flashloans, order_fills, order_updates, pool_prices, proposals, rebates, stakes,
-    iota_error_transactions, trade_params_update, votes,
-};
-use crate::types::{
-    Balances, Flashloan, OrderFill, OrderUpdate, OrderUpdateStatus, PoolPrice, ProcessedTxnData,
-    Proposals, Rebates, Stakes, IotaTxnError, TradeParamsUpdate, Votes,
-};
-use crate::{models, schema};
 
 /// Persistent layer impl
 #[derive(Clone)]
@@ -63,7 +69,8 @@ impl PgDeepbookPersistent {
         let mut conn = self.pool.get().await?;
         let cp = dsl::progress_store
             .select(columns::target_checkpoint)
-            // TODO: using like could be error prone, change the progress store schema to stare the task name properly.
+            // TODO: using like could be error prone, change the progress store schema to stare the
+            // task name properly.
             .filter(columns::task_name.like(format!("{prefix} - %")))
             .filter(columns::target_checkpoint.ne(i64::MAX))
             .order_by(columns::target_checkpoint.desc())
@@ -275,7 +282,8 @@ impl IndexerProgressStore for PgDeepbookPersistent {
         let mut conn = self.pool.get().await?;
         // get all unfinished tasks
         let cp: Vec<models::ProgressStore> = dsl::progress_store
-            // TODO: using like could be error prone, change the progress store schema to stare the task name properly.
+            // TODO: using like could be error prone, change the progress store schema to stare the
+            // task name properly.
             .filter(columns::task_name.like(format!("{prefix} - %")))
             .filter(columns::checkpoint.lt(columns::target_checkpoint))
             .order_by(columns::target_checkpoint.desc())
@@ -289,7 +297,8 @@ impl IndexerProgressStore for PgDeepbookPersistent {
         let mut conn = self.pool.get().await?;
         let cp = dsl::progress_store
             .select(columns::checkpoint)
-            // TODO: using like could be error prone, change the progress store schema to stare the task name properly.
+            // TODO: using like could be error prone, change the progress store schema to stare the
+            // task name properly.
             .filter(columns::task_name.like(format!("{prefix} - %")))
             .filter(columns::target_checkpoint.eq(i64::MAX))
             .first::<i64>(&mut conn)

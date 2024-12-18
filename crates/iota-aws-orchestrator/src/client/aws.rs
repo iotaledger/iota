@@ -8,9 +8,9 @@ use std::{
 };
 
 use aws_config::profile::profile_file::{ProfileFileKind, ProfileFiles};
-use aws_sdk_ec2::primitives::Blob;
 use aws_sdk_ec2::{
     config::Region,
+    primitives::Blob,
     types::{
         BlockDeviceMapping, EbsBlockDevice, EphemeralNvmeSupport, Filter, ResourceType, Tag,
         TagSpecification, VolumeType,
@@ -19,12 +19,11 @@ use aws_sdk_ec2::{
 use aws_smithy_http::result::SdkError;
 use serde::Serialize;
 
+use super::{Instance, ServerProviderClient};
 use crate::{
     error::{CloudProviderError, CloudProviderResult},
     settings::Settings,
 };
-
-use super::{Instance, ServerProviderClient};
 
 // Make a request error from an AWS error message.
 impl<T> From<SdkError<T, aws_smithy_runtime_api::client::orchestrator::HttpResponse>>
@@ -76,7 +75,8 @@ impl AwsClient {
         Self { settings, clients }
     }
 
-    /// Parse an AWS response and ignore errors if they mean a request is a duplicate.
+    /// Parse an AWS response and ignore errors if they mean a request is a
+    /// duplicate.
     fn check_but_ignore_duplicates<T, E>(
         response: Result<
             T,
@@ -95,7 +95,8 @@ impl AwsClient {
         Ok(())
     }
 
-    /// Convert an AWS instance into an orchestrator instance (used in the rest of the codebase).
+    /// Convert an AWS instance into an orchestrator instance (used in the rest
+    /// of the codebase).
     fn make_instance(
         &self,
         region: String,
@@ -156,7 +157,8 @@ impl AwsClient {
             })
     }
 
-    /// Create a new security group for the instance (if it doesn't already exist).
+    /// Create a new security group for the instance (if it doesn't already
+    /// exist).
     async fn create_security_group(&self, client: &aws_sdk_ec2::Client) -> CloudProviderResult<()> {
         // Create a security group (if it doesn't already exist).
         let request = client
@@ -197,10 +199,11 @@ impl AwsClient {
         ]
     }
 
-    /// Check whether the instance type specified in the settings supports NVMe drives.
+    /// Check whether the instance type specified in the settings supports NVMe
+    /// drives.
     async fn check_nvme_support(&self) -> CloudProviderResult<bool> {
-        // Get the client for the first region. A given instance type should either have NVMe support
-        // in all regions or in none.
+        // Get the client for the first region. A given instance type should either have
+        // NVMe support in all regions or in none.
         let client = match self
             .settings
             .regions

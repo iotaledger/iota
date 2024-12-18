@@ -1,7 +1,7 @@
-use super::TryFromProtoError;
 use tap::Pipe;
 
-//
+use super::TryFromProtoError;
+
 // Transaction
 //
 
@@ -30,7 +30,6 @@ impl TryFrom<&super::Transaction> for iota_sdk_types::types::Transaction {
     }
 }
 
-//
 // TransactionV1
 //
 
@@ -82,7 +81,6 @@ impl TryFrom<&super::transaction::TransactionV1> for iota_sdk_types::types::Tran
     }
 }
 
-//
 // GasPayment
 //
 
@@ -127,14 +125,14 @@ impl TryFrom<&super::GasPayment> for iota_sdk_types::types::GasPayment {
     }
 }
 
-//
 // TransactionExpiration
 //
 
 impl From<iota_sdk_types::types::TransactionExpiration> for super::TransactionExpiration {
     fn from(value: iota_sdk_types::types::TransactionExpiration) -> Self {
-        use super::transaction_expiration::Expiration;
         use iota_sdk_types::types::TransactionExpiration::*;
+
+        use super::transaction_expiration::Expiration;
 
         let expiration = match value {
             None => Expiration::None(()),
@@ -165,14 +163,14 @@ impl TryFrom<&super::TransactionExpiration> for iota_sdk_types::types::Transacti
     }
 }
 
-//
 // TransactionKind
 //
 
 impl From<iota_sdk_types::types::TransactionKind> for super::TransactionKind {
     fn from(value: iota_sdk_types::types::TransactionKind) -> Self {
-        use super::transaction_kind::Kind;
         use iota_sdk_types::types::TransactionKind::*;
+
+        use super::transaction_kind::Kind;
 
         let kind = match value {
             ProgrammableTransaction(ptb) => Kind::ProgrammableTransaction(ptb.into()),
@@ -230,7 +228,6 @@ impl TryFrom<&super::TransactionKind> for iota_sdk_types::types::TransactionKind
     }
 }
 
-//
 // ConsensusCommitPrologue
 //
 
@@ -363,7 +360,6 @@ impl TryFrom<&super::ConsensusCommitPrologue> for iota_sdk_types::types::Consens
     }
 }
 
-//
 // ConsensusDeterminedVersionAssignments
 //
 
@@ -371,8 +367,9 @@ impl From<iota_sdk_types::types::ConsensusDeterminedVersionAssignments>
     for super::ConsensusDeterminedVersionAssignments
 {
     fn from(value: iota_sdk_types::types::ConsensusDeterminedVersionAssignments) -> Self {
-        use super::consensus_determined_version_assignments::Kind;
         use iota_sdk_types::types::ConsensusDeterminedVersionAssignments::*;
+
+        use super::consensus_determined_version_assignments::Kind;
 
         let kind = match value {
             CancelledTransactions {
@@ -415,7 +412,6 @@ impl TryFrom<&super::ConsensusDeterminedVersionAssignments>
     }
 }
 
-//
 // CancelledTransaction
 //
 
@@ -455,7 +451,6 @@ impl TryFrom<&super::CancelledTransaction> for iota_sdk_types::types::CancelledT
     }
 }
 
-//
 // VersionAssignment
 //
 
@@ -485,7 +480,6 @@ impl TryFrom<&super::VersionAssignment> for iota_sdk_types::types::VersionAssign
     }
 }
 
-//
 // GenesisTransaction
 //
 
@@ -511,7 +505,6 @@ impl TryFrom<&super::GenesisTransaction> for iota_sdk_types::types::GenesisTrans
     }
 }
 
-//
 // RandomnessStateUpdate
 //
 
@@ -559,7 +552,6 @@ impl TryFrom<&super::RandomnessStateUpdate> for iota_sdk_types::types::Randomnes
     }
 }
 
-//
 // AuthenticatorStateUpdate
 //
 
@@ -605,7 +597,6 @@ impl TryFrom<&super::AuthenticatorStateUpdate> for iota_sdk_types::types::Authen
     }
 }
 
-//
 // Jwk
 //
 
@@ -652,7 +643,6 @@ impl TryFrom<&super::Jwk> for iota_sdk_types::types::Jwk {
     }
 }
 
-//
 // JwkId
 //
 
@@ -685,7 +675,6 @@ impl TryFrom<&super::JwkId> for iota_sdk_types::types::JwkId {
     }
 }
 
-//
 // ActiveJwk
 //
 
@@ -723,7 +712,6 @@ impl TryFrom<&super::ActiveJwk> for iota_sdk_types::types::ActiveJwk {
     }
 }
 
-//
 // ChangeEpoch
 //
 
@@ -787,7 +775,6 @@ impl TryFrom<&super::ChangeEpoch> for iota_sdk_types::types::ChangeEpoch {
     }
 }
 
-//
 // SystemPackage
 //
 
@@ -819,14 +806,14 @@ impl TryFrom<&super::SystemPackage> for iota_sdk_types::types::SystemPackage {
     }
 }
 
-//
 // EndOfEpochTransactionkind
 //
 
 impl From<iota_sdk_types::types::EndOfEpochTransactionKind> for super::EndOfEpochTransactionKind {
     fn from(value: iota_sdk_types::types::EndOfEpochTransactionKind) -> Self {
-        use super::end_of_epoch_transaction_kind::Kind;
         use iota_sdk_types::types::EndOfEpochTransactionKind::*;
+
+        use super::end_of_epoch_transaction_kind::Kind;
 
         let kind = match value {
             ChangeEpoch(change_epoch) => Kind::ChangeEpoch(change_epoch.into()),
@@ -875,7 +862,6 @@ impl TryFrom<&super::EndOfEpochTransactionKind>
     }
 }
 
-//
 // AuthenticatorStateExpire
 //
 
@@ -911,7 +897,6 @@ impl TryFrom<&super::AuthenticatorStateExpire> for iota_sdk_types::types::Authen
     }
 }
 
-//
 // ProgrammableTransaction
 //
 
@@ -943,14 +928,14 @@ impl TryFrom<&super::ProgrammableTransaction> for iota_sdk_types::types::Program
     }
 }
 
-//
 // Input
 //
 
 impl From<iota_sdk_types::types::Input> for super::Input {
     fn from(value: iota_sdk_types::types::Input) -> Self {
-        use super::input::Kind;
         use iota_sdk_types::types::Input::*;
+
+        use super::input::Kind;
 
         let kind = match value {
             Pure { value } => Kind::Pure(value.into()),
@@ -1008,14 +993,14 @@ impl TryFrom<&super::Input> for iota_sdk_types::types::Input {
     }
 }
 
-//
 // Argument
 //
 
 impl From<iota_sdk_types::types::Argument> for super::Argument {
     fn from(value: iota_sdk_types::types::Argument) -> Self {
-        use super::argument::Kind;
         use iota_sdk_types::types::Argument::*;
+
+        use super::argument::Kind;
 
         let kind = match value {
             Gas => Kind::Gas(()),
@@ -1058,14 +1043,14 @@ impl TryFrom<&super::Argument> for iota_sdk_types::types::Argument {
     }
 }
 
-//
 // Command
 //
 
 impl From<iota_sdk_types::types::Command> for super::Command {
     fn from(value: iota_sdk_types::types::Command) -> Self {
-        use super::command::Command;
         use iota_sdk_types::types::Command::*;
+
+        use super::command::Command;
 
         let command = match value {
             MoveCall(move_call) => Command::MoveCall(move_call.into()),
@@ -1110,7 +1095,6 @@ impl TryFrom<&super::Command> for iota_sdk_types::types::Command {
     }
 }
 
-//
 // MoveCall
 //
 
@@ -1169,7 +1153,6 @@ impl TryFrom<&super::MoveCall> for iota_sdk_types::types::MoveCall {
     }
 }
 
-//
 // TransferObjects
 //
 
@@ -1202,7 +1185,6 @@ impl TryFrom<&super::TransferObjects> for iota_sdk_types::types::TransferObjects
     }
 }
 
-//
 // SplitCoins
 //
 
@@ -1235,7 +1217,6 @@ impl TryFrom<&super::SplitCoins> for iota_sdk_types::types::SplitCoins {
     }
 }
 
-//
 // MergeCoins
 //
 
@@ -1271,7 +1252,6 @@ impl TryFrom<&super::MergeCoins> for iota_sdk_types::types::MergeCoins {
     }
 }
 
-//
 // Publish
 //
 
@@ -1303,7 +1283,6 @@ impl TryFrom<&super::Publish> for iota_sdk_types::types::Publish {
     }
 }
 
-//
 // MakeMoveVector
 //
 
@@ -1339,7 +1318,6 @@ impl TryFrom<&super::MakeMoveVector> for iota_sdk_types::types::MakeMoveVector {
     }
 }
 
-//
 // Upgrade
 //
 

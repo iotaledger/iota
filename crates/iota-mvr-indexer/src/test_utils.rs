@@ -2,30 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+
+use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_metrics::init_metrics;
+use simulacrum::Simulacrum;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use simulacrum::Simulacrum;
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_json_rpc_types::IotaTransactionBlockResponse;
+use crate::{
+    IndexerMetrics,
+    config::{IngestionConfig, RetentionConfig, SnapshotLagConfig, UploadOptions},
+    database::{Connection, ConnectionPool},
+    db::ConnectionPoolConfig,
+    errors::IndexerError,
+    indexer::Indexer,
+    store::PgIndexerStore,
+    tempdb::{TempDb, get_available_port},
+};
 
-use crate::config::{IngestionConfig, RetentionConfig, SnapshotLagConfig, UploadOptions};
-use crate::database::Connection;
-use crate::database::ConnectionPool;
-use crate::db::ConnectionPoolConfig;
-use crate::errors::IndexerError;
-use crate::indexer::Indexer;
-use crate::store::PgIndexerStore;
-use crate::tempdb::get_available_port;
-use crate::tempdb::TempDb;
-use crate::IndexerMetrics;
-
-/// Wrapper over `Indexer::start_reader` to make it easier to configure an indexer jsonrpc reader
-/// for testing.
+/// Wrapper over `Indexer::start_reader` to make it easier to configure an
+/// indexer jsonrpc reader for testing.
 pub async fn start_indexer_jsonrpc_for_testing(
     db_url: String,
     fullnode_url: String,
@@ -67,9 +64,9 @@ pub async fn start_indexer_jsonrpc_for_testing(
     (handle, token)
 }
 
-/// Wrapper over `Indexer::start_writer_with_config` to make it easier to configure an indexer
-/// writer for testing. If the config options are null, default values that have historically worked
-/// for testing will be used.
+/// Wrapper over `Indexer::start_writer_with_config` to make it easier to
+/// configure an indexer writer for testing. If the config options are null,
+/// default values that have historically worked for testing will be used.
 pub async fn start_indexer_writer_for_testing(
     db_url: String,
     snapshot_config: Option<SnapshotLagConfig>,
@@ -230,7 +227,8 @@ impl<'a> IotaTransactionBlockResponseBuilder<'a> {
     }
 }
 
-/// Set up a test indexer fetching from a REST endpoint served by the given Simulacrum.
+/// Set up a test indexer fetching from a REST endpoint served by the given
+/// Simulacrum.
 pub async fn set_up(
     sim: Arc<Simulacrum>,
     data_ingestion_path: PathBuf,
@@ -256,9 +254,9 @@ pub async fn set_up(
         None,
         None,
         Some(data_ingestion_path),
-        None, /* cancel */
-        None, /* start_checkpoint */
-        None, /* end_checkpoint */
+        None, // cancel
+        None, // start_checkpoint
+        None, // end_checkpoint
     )
     .await;
     (server_handle, pg_store, pg_handle, database)
@@ -290,7 +288,7 @@ pub async fn set_up_with_start_and_end_checkpoints(
         None,
         None,
         Some(data_ingestion_path),
-        None, /* cancel */
+        None, // cancel
         Some(start_checkpoint),
         Some(end_checkpoint),
     )
@@ -319,7 +317,8 @@ pub async fn wait_for_checkpoint(
     Ok(())
 }
 
-/// Wait for the indexer to catch up to the given checkpoint sequence number for objects snapshot.
+/// Wait for the indexer to catch up to the given checkpoint sequence number for
+/// objects snapshot.
 pub async fn wait_for_objects_snapshot(
     pg_store: &PgIndexerStore,
     checkpoint_sequence_number: u64,

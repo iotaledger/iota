@@ -1,11 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use tempfile::TempDir;
-
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use iota_types::crypto::Ed25519IotaSignature;
-use iota_types::crypto::{SignatureScheme, IotaSignatureInner};
+use iota_types::crypto::{Ed25519IotaSignature, IotaSignatureInner, SignatureScheme};
+use tempfile::TempDir;
 #[test]
 fn mnemonic_test() {
     let temp_dir = TempDir::new().unwrap();

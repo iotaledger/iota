@@ -2,38 +2,44 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
-use crate::{
-    base_types::IotaAddress,
-    crypto::{
-        get_key_pair, get_key_pair_from_rng, Ed25519IotaSignature, PublicKey, Signature, IotaKeyPair,
-        IotaSignatureInner, ZkLoginPublicIdentifier,
-    },
-    multisig::{as_indices, MultiSig, MAX_SIGNER_IN_MULTISIG},
-    multisig_legacy::bitmap_to_u16,
-    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
-    signature_verification::VerifiedDigestCache,
-    utils::{
-        keys, load_test_vectors, make_transaction_data, make_zklogin_tx, DEFAULT_ADDRESS_SEED,
-        SHORT_ADDRESS_SEED,
-    },
-    zk_login_authenticator::ZkLoginAuthenticator,
-    zk_login_util::DEFAULT_JWK_BYTES,
-};
+use std::{str::FromStr, sync::Arc};
+
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
 };
-use fastcrypto_zkp::bn254::zk_login::{parse_jwks, JwkId, OIDCProvider, ZkLoginInputs, JWK};
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
-use fastcrypto_zkp::zk_login_utils::Bn254FrElement;
+use fastcrypto_zkp::{
+    bn254::{
+        zk_login::{JWK, JwkId, OIDCProvider, ZkLoginInputs, parse_jwks},
+        zk_login_api::ZkLoginEnv,
+    },
+    zk_login_utils::Bn254FrElement,
+};
 use im::hashmap::HashMap as ImHashMap;
 use once_cell::sync::OnceCell;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use roaring::RoaringBitmap;
 use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
-use std::{str::FromStr, sync::Arc};
+
+use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
+use crate::{
+    base_types::IotaAddress,
+    crypto::{
+        Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner, PublicKey, Signature,
+        ZkLoginPublicIdentifier, get_key_pair, get_key_pair_from_rng,
+    },
+    multisig::{MAX_SIGNER_IN_MULTISIG, MultiSig, as_indices},
+    multisig_legacy::bitmap_to_u16,
+    signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
+    signature_verification::VerifiedDigestCache,
+    utils::{
+        DEFAULT_ADDRESS_SEED, SHORT_ADDRESS_SEED, keys, load_test_vectors, make_transaction_data,
+        make_zklogin_tx,
+    },
+    zk_login_authenticator::ZkLoginAuthenticator,
+    zk_login_util::DEFAULT_JWK_BYTES,
+};
 #[test]
 fn test_combine_sigs() {
     let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair().1);
@@ -45,17 +51,15 @@ fn test_combine_sigs() {
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
 
-    let msg = IntentMessage::new(
-        Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
-    );
+    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
+        message: "Hello".as_bytes().to_vec(),
+    });
     let sig1: GenericSignature = Signature::new_secure(&msg, &kp1).into();
     let sig2 = Signature::new_secure(&msg, &kp2).into();
     let sig3 = Signature::new_secure(&msg, &kp3).into();
 
-    // MultiSigPublicKey contains only 2 public key but 3 signatures are passed, fails to combine.
+    // MultiSigPublicKey contains only 2 public key but 3 signatures are passed,
+    // fails to combine.
     assert!(MultiSig::combine(vec![sig1.clone(), sig2, sig3], multisig_pk.clone()).is_err());
 
     // Cannot create malformed MultiSig.
@@ -64,12 +68,9 @@ fn test_combine_sigs() {
 }
 #[test]
 fn test_serde_roundtrip() {
-    let msg = IntentMessage::new(
-        Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
-    );
+    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
+        message: "Hello".as_bytes().to_vec(),
+    });
 
     for kp in keys() {
         let pk = kp.public();
@@ -143,20 +144,24 @@ fn test_multisig_pk_new() {
     let pk3 = keys[2].public();
 
     // Fails on weight 0.
-    assert!(MultiSigPublicKey::new(
-        vec![pk1.clone(), pk2.clone(), pk3.clone()],
-        vec![0, 1, 1],
-        2
-    )
-    .is_err());
+    assert!(
+        MultiSigPublicKey::new(
+            vec![pk1.clone(), pk2.clone(), pk3.clone()],
+            vec![0, 1, 1],
+            2
+        )
+        .is_err()
+    );
 
     // Fails on threshold 0.
-    assert!(MultiSigPublicKey::new(
-        vec![pk1.clone(), pk2.clone(), pk3.clone()],
-        vec![1, 1, 1],
-        0
-    )
-    .is_err());
+    assert!(
+        MultiSigPublicKey::new(
+            vec![pk1.clone(), pk2.clone(), pk3.clone()],
+            vec![1, 1, 1],
+            0
+        )
+        .is_err()
+    );
 
     // Fails on incorrect array length.
     assert!(
@@ -175,7 +180,8 @@ fn test_multisig_pk_new() {
 #[test]
 fn test_multisig_address() {
     // Pin an hardcoded multisig address generation here. If this fails, the address
-    // generation logic may have changed. If this is intended, update the hardcoded value below.
+    // generation logic may have changed. If this is intended, update the hardcoded
+    // value below.
     let keys = keys();
     let pk1 = keys[0].public();
     let pk2 = keys[1].public();
@@ -198,12 +204,9 @@ fn test_multisig_address() {
 
 #[test]
 fn test_max_sig() {
-    let msg = IntentMessage::new(
-        Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
-    );
+    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
+        message: "Hello".as_bytes().to_vec(),
+    });
     let mut seed = StdRng::from_seed([0; 32]);
     let mut keys = Vec::new();
     let mut pks = Vec::new();
@@ -215,12 +218,14 @@ fn test_max_sig() {
     }
 
     // multisig_pk with larger that max number of pks fails.
-    assert!(MultiSigPublicKey::new(
-        pks.clone(),
-        vec![WeightUnit::MAX; MAX_SIGNER_IN_MULTISIG + 1],
-        ThresholdUnit::MAX
-    )
-    .is_err());
+    assert!(
+        MultiSigPublicKey::new(
+            pks.clone(),
+            vec![WeightUnit::MAX; MAX_SIGNER_IN_MULTISIG + 1],
+            ThresholdUnit::MAX
+        )
+        .is_err()
+    );
 
     // multisig_pk with unreachable threshold fails.
     assert!(MultiSigPublicKey::new(pks.clone()[..5].to_vec(), vec![3; 5], 16).is_err());
@@ -241,7 +246,8 @@ fn test_max_sig() {
     );
     assert!(res.is_err());
 
-    // multisig_pk with max weights for each pk with threshold is 1x max weight validates ok.
+    // multisig_pk with max weights for each pk with threshold is 1x max weight
+    // validates ok.
     let low_threshold_pk = MultiSigPublicKey::new(
         pks.clone()[..10].to_vec(),
         vec![WeightUnit::MAX; 10],
@@ -249,20 +255,21 @@ fn test_max_sig() {
     )
     .unwrap();
     let sig = Signature::new_secure(&msg, &keys[0]).into();
-    assert!(MultiSig::combine(vec![sig; 1], low_threshold_pk)
-        .unwrap()
-        .init_and_validate()
-        .is_ok());
+    assert!(
+        MultiSig::combine(vec![sig; 1], low_threshold_pk)
+            .unwrap()
+            .init_and_validate()
+            .is_ok()
+    );
 }
 
 #[test]
 fn test_to_from_indices() {
     assert!(as_indices(0b11111111110).is_err());
     assert_eq!(as_indices(0b0000010110).unwrap(), vec![1, 2, 4]);
-    assert_eq!(
-        as_indices(0b1111111111).unwrap(),
-        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    );
+    assert_eq!(as_indices(0b1111111111).unwrap(), vec![
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+    ]);
 
     let mut bitmap = RoaringBitmap::new();
     bitmap.insert(1);
@@ -280,12 +287,9 @@ fn multisig_get_pk() {
     let pk2 = keys[1].public();
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
-    let msg = IntentMessage::new(
-        Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
-    );
+    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
+        message: "Hello".as_bytes().to_vec(),
+    });
     let sig1: GenericSignature = Signature::new_secure(&msg, &keys[0]).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &keys[1]).into();
 
@@ -306,12 +310,9 @@ fn multisig_get_indices() {
     let pk3 = keys[2].public();
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![1, 1, 1], 2).unwrap();
-    let msg = IntentMessage::new(
-        Intent::iota_transaction(),
-        PersonalMessage {
-            message: "Hello".as_bytes().to_vec(),
-        },
-    );
+    let msg = IntentMessage::new(Intent::iota_transaction(), PersonalMessage {
+        message: "Hello".as_bytes().to_vec(),
+    });
     let sig1: GenericSignature = Signature::new_secure(&msg, &keys[0]).into();
     let sig2: GenericSignature = Signature::new_secure(&msg, &keys[1]).into();
     let sig3: GenericSignature = Signature::new_secure(&msg, &keys[2]).into();
@@ -327,7 +328,8 @@ fn multisig_get_indices() {
 
     let invalid_multisig = MultiSig::combine(vec![sig3, sig2, sig1], multisig_pk).unwrap();
 
-    // Indexes of public keys in multisig public key instance according to the combined sigs.
+    // Indexes of public keys in multisig public key instance according to the
+    // combined sigs.
     assert!(multi_sig1.get_indices().unwrap() == vec![1, 2]);
     assert!(multi_sig2.get_indices().unwrap() == vec![0, 1, 2]);
     assert!(invalid_multisig.get_indices().unwrap() == vec![0, 1, 2]);
@@ -335,7 +337,8 @@ fn multisig_get_indices() {
 
 #[test]
 fn multisig_zklogin_scenarios() {
-    // consistency test with iota/sdk/typescript/test/unit/cryptography/multisig.test.ts
+    // consistency test with
+    // iota/sdk/typescript/test/unit/cryptography/multisig.test.ts
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
     let ikp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
@@ -351,7 +354,8 @@ fn multisig_zklogin_scenarios() {
         .unwrap(),
     );
 
-    // set up 1-out-of-2 multisig with one zklogin public identifier and one traditional public key.
+    // set up 1-out-of-2 multisig with one zklogin public identifier and one
+    // traditional public key.
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 1).unwrap();
     let multisig_addr = IotaAddress::from(&multisig_pk);
     assert_eq!(
@@ -381,7 +385,8 @@ fn zklogin_in_multisig_works_with_both_addresses() {
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
     let ikp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
 
-    // create a new multisig address based on pk1 and pk2 where pk1 is a zklogin public identifier, with a crafted unpadded bytes.
+    // create a new multisig address based on pk1 and pk2 where pk1 is a zklogin
+    // public identifier, with a crafted unpadded bytes.
     let mut bytes = Vec::new();
     let binding = OIDCProvider::Twitch.get_config();
     let iss_bytes = binding.iss.as_bytes();
@@ -426,7 +431,8 @@ fn zklogin_in_multisig_works_with_both_addresses() {
         &aux_verify_data,
         Arc::new(VerifiedDigestCache::new_empty()),
     );
-    // since the zklogin inputs is crafted, it is expected that the proof verify failed, but all checks before passes.
+    // since the zklogin inputs is crafted, it is expected that the proof verify
+    // failed, but all checks before passes.
     assert!(
         matches!(res, Err(crate::error::IotaError::InvalidSignature { error }) if error.contains("General cryptographic error: Groth16 proof verify failed"))
     );
@@ -473,7 +479,8 @@ fn zklogin_in_multisig_works_with_both_addresses() {
 
 #[test]
 fn test_derive_multisig_address() {
-    // consistency test with typescript: /sdk/typescript/test/unit/cryptography/multisig.test.ts
+    // consistency test with typescript:
+    // /sdk/typescript/test/unit/cryptography/multisig.test.ts
     let pk1 = PublicKey::ZkLogin(
         ZkLoginPublicIdentifier::new(
             &OIDCProvider::Twitch.get_config().iss,

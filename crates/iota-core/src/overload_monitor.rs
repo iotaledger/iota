@@ -2,22 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::AuthorityState;
-use iota_metrics::monitored_scope;
-use std::cmp::{max, min};
-use std::hash::Hasher;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Weak;
-use std::time::Duration;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    cmp::{max, min},
+    hash::Hasher,
+    sync::{
+        Weak,
+        atomic::{AtomicBool, AtomicU32, Ordering},
+    },
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
 use iota_config::node::AuthorityOverloadConfig;
-use iota_types::digests::TransactionDigest;
-use iota_types::error::IotaError;
-use iota_types::error::IotaResult;
-use iota_types::fp_bail;
+use iota_metrics::monitored_scope;
+use iota_types::{
+    digests::TransactionDigest,
+    error::{IotaError, IotaResult},
+    fp_bail,
+};
 use tokio::time::sleep;
 use tracing::{debug, info};
 use twox_hash::XxHash64;
+
+use crate::authority::AuthorityState;
 
 #[derive(Default)]
 pub struct AuthorityOverloadInfo {
@@ -45,11 +51,12 @@ const STEADY_OVERLOAD_REDUCTION_PERCENTAGE: u32 = 10;
 const EXECUTION_RATE_RATIO_FOR_COMPARISON: f64 = 0.95;
 const ADDITIONAL_LOAD_SHEDDING: f64 = 0.02;
 
-// The update interval of the random seed used to determine whether a txn should be rejected.
+// The update interval of the random seed used to determine whether a txn should
+// be rejected.
 const SEED_UPDATE_DURATION_SECS: u64 = 30;
 
-// Monitors the overload signals in `authority_state` periodically, and updates its `overload_info`
-// when the signals indicates overload.
+// Monitors the overload signals in `authority_state` periodically, and updates
+// its `overload_info` when the signals indicates overload.
 pub async fn overload_monitor(
     authority_state: Weak<AuthorityState>,
     config: AuthorityOverloadConfig,
@@ -125,24 +132,25 @@ fn check_authority_overload(
     true
 }
 
-// Calculates the percentage of transactions to drop in order to reduce execution queue.
-// Returns the integer percentage between 0 and 100.
+// Calculates the percentage of transactions to drop in order to reduce
+// execution queue. Returns the integer percentage between 0 and 100.
 fn calculate_load_shedding_percentage(txn_ready_rate: f64, execution_rate: f64) -> u32 {
-    // When transaction ready rate is practically 0, we aren't adding more load to the
-    // execution driver, so no shedding.
+    // When transaction ready rate is practically 0, we aren't adding more load to
+    // the execution driver, so no shedding.
     // TODO: consensus handler or transaction manager can also be overloaded.
     if txn_ready_rate < 1e-10 {
         return 0;
     }
 
-    // Deflate the execution rate to account for the case that execution_rate is close to
-    // txn_ready_rate.
+    // Deflate the execution rate to account for the case that execution_rate is
+    // close to txn_ready_rate.
     if execution_rate * EXECUTION_RATE_RATIO_FOR_COMPARISON > txn_ready_rate {
         return 0;
     }
 
-    // In order to maintain execution queue length, we need to drop at least (1 - executionRate / readyRate).
-    // To reduce the queue length, here we add 10% more transactions to drop.
+    // In order to maintain execution queue length, we need to drop at least (1 -
+    // executionRate / readyRate). To reduce the queue length, here we add 10%
+    // more transactions to drop.
     (((1.0 - execution_rate * EXECUTION_RATE_RATIO_FOR_COMPARISON / txn_ready_rate)
         + ADDITIONAL_LOAD_SHEDDING)
         .min(1.0)
@@ -150,14 +158,15 @@ fn calculate_load_shedding_percentage(txn_ready_rate: f64, execution_rate: f64) 
         .round() as u32
 }
 
-// Given overload signals (`queueing_latency`, `txn_ready_rate`, `execution_rate`), return whether
-// the authority server should enter load shedding mode, and how much percentage of transactions to drop.
-// Note that the final load shedding percentage should also take the current load shedding percentage
-// into consideration. If we are already shedding 40% load, based on the current txn_ready_rate
-// and execution_rate, we need to shed 10% more, the outcome is that we need to shed
-// 40% + (1 - 40%) * 10% = 46%.
-// When txn_ready_rate is less than execution_rate, we gradually reduce load shedding percentage until
-// the queueing latency is back to normal.
+// Given overload signals (`queueing_latency`, `txn_ready_rate`,
+// `execution_rate`), return whether the authority server should enter load
+// shedding mode, and how much percentage of transactions to drop. Note that the
+// final load shedding percentage should also take the current load shedding
+// percentage into consideration. If we are already shedding 40% load, based on
+// the current txn_ready_rate and execution_rate, we need to shed 10% more, the
+// outcome is that we need to shed 40% + (1 - 40%) * 10% = 46%.
+// When txn_ready_rate is less than execution_rate, we gradually reduce load
+// shedding percentage until the queueing latency is back to normal.
 fn check_overload_signals(
     config: &AuthorityOverloadConfig,
     current_load_shedding_percentage: u32,
@@ -165,8 +174,9 @@ fn check_overload_signals(
     txn_ready_rate: f64,
     execution_rate: f64,
 ) -> (bool, u32) {
-    // First, we calculate based on the current `txn_ready_rate` and `execution_rate`,
-    // what's the percentage of traffic to shed from `txn_ready_rate`.
+    // First, we calculate based on the current `txn_ready_rate` and
+    // `execution_rate`, what's the percentage of traffic to shed from
+    // `txn_ready_rate`.
     let additional_load_shedding_percentage;
     if queueing_latency > config.execution_queue_latency_hard_limit {
         let calculated_load_shedding_percentage =
@@ -191,21 +201,23 @@ fn check_overload_signals(
 
     // Next, we calculate the new load shedding percentage.
     let load_shedding_percentage = if additional_load_shedding_percentage > 0 {
-        // When we need to shed more load, since the `txn_ready_rate` is already influenced
-        // by `current_load_shedding_percentage`, we need to calculate the new load shedding
-        // percentage from `current_load_shedding_percentage` and
+        // When we need to shed more load, since the `txn_ready_rate` is already
+        // influenced by `current_load_shedding_percentage`, we need to
+        // calculate the new load shedding percentage from
+        // `current_load_shedding_percentage` and
         // `additional_load_shedding_percentage`.
         current_load_shedding_percentage
             + (100 - current_load_shedding_percentage) * additional_load_shedding_percentage / 100
     } else if txn_ready_rate > config.safe_transaction_ready_rate as f64
         && current_load_shedding_percentage > 10
     {
-        // We don't need to shed more load. However, the enqueue rate is still not minimal.
-        // We gradually reduce load shedding percentage (10% at a time) to gracefully accept
-        // more load.
+        // We don't need to shed more load. However, the enqueue rate is still not
+        // minimal. We gradually reduce load shedding percentage (10% at a time)
+        // to gracefully accept more load.
         current_load_shedding_percentage - STEADY_OVERLOAD_REDUCTION_PERCENTAGE
     } else {
-        // The current transaction ready rate is considered very low. Turn off load shedding mode.
+        // The current transaction ready rate is considered very low. Turn off load
+        // shedding mode.
         0
     };
 
@@ -223,8 +235,8 @@ fn should_reject_tx(
     tx_digest: TransactionDigest,
     temporal_seed: u64,
 ) -> bool {
-    // TODO: we also need to add a secret salt (e.g. first consensus commit in the current epoch),
-    // to prevent gaming the system.
+    // TODO: we also need to add a secret salt (e.g. first consensus commit in the
+    // current epoch), to prevent gaming the system.
     let mut hasher = XxHash64::with_seed(temporal_seed);
     hasher.write(tx_digest.inner());
     let value = hasher.finish();
@@ -236,11 +248,11 @@ pub fn overload_monitor_accept_tx(
     load_shedding_percentage: u32,
     tx_digest: TransactionDigest,
 ) -> IotaResult {
-    // Derive a random seed from the epoch time for transaction selection. Changing the seed every
-    // `SEED_UPDATE_DURATION_SECS` interval allows rejected transaction's retry to have a chance
-    // to go through in the future.
-    // Also, using the epoch time instead of randomly generating a seed allows that all validators
-    // makes the same decision.
+    // Derive a random seed from the epoch time for transaction selection. Changing
+    // the seed every `SEED_UPDATE_DURATION_SECS` interval allows rejected
+    // transaction's retry to have a chance to go through in the future.
+    // Also, using the epoch time instead of randomly generating a seed allows that
+    // all validators makes the same decision.
     let temporal_seed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Iota did not exist prior to 1970")
@@ -248,8 +260,9 @@ pub fn overload_monitor_accept_tx(
         / SEED_UPDATE_DURATION_SECS;
 
     if should_reject_tx(load_shedding_percentage, tx_digest, temporal_seed) {
-        // TODO: using `SEED_UPDATE_DURATION_SECS` is a safe suggestion that the time based seed
-        // is definitely different by then. However, a shorter suggestion may be available.
+        // TODO: using `SEED_UPDATE_DURATION_SECS` is a safe suggestion that the time
+        // based seed is definitely different by then. However, a shorter
+        // suggestion may be available.
         fp_bail!(IotaError::ValidatorOverloadedRetryAfter {
             retry_after_secs: SEED_UPDATE_DURATION_SECS
         });
@@ -260,21 +273,24 @@ pub fn overload_monitor_accept_tx(
 #[cfg(test)]
 #[allow(clippy::disallowed_methods)] // allow unbounded_channel() since tests are simulating txn manager execution driver interaction.
 mod tests {
-    use super::*;
-
-    use crate::authority::test_authority_builder::TestAuthorityBuilder;
-    use rand::{
-        rngs::{OsRng, StdRng},
-        Rng, SeedableRng,
-    };
     use std::sync::Arc;
+
     use iota_macros::sim_test;
-    use tokio::sync::mpsc::unbounded_channel;
-    use tokio::sync::mpsc::UnboundedReceiver;
-    use tokio::sync::mpsc::UnboundedSender;
-    use tokio::sync::oneshot;
-    use tokio::task::JoinHandle;
-    use tokio::time::{interval, Instant, MissedTickBehavior};
+    use rand::{
+        Rng, SeedableRng,
+        rngs::{OsRng, StdRng},
+    };
+    use tokio::{
+        sync::{
+            mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+            oneshot,
+        },
+        task::JoinHandle,
+        time::{Instant, MissedTickBehavior, interval},
+    };
+
+    use super::*;
+    use crate::authority::test_authority_builder::TestAuthorityBuilder;
 
     #[test]
     pub fn test_authority_overload_info() {
@@ -342,35 +358,37 @@ mod tests {
             ..Default::default()
         };
 
-        // When execution queueing latency is within soft limit, don't start overload protection.
+        // When execution queueing latency is within soft limit, don't start overload
+        // protection.
         assert_eq!(
             check_overload_signals(&config, 0, Duration::from_millis(500), 1000.0, 10.0),
             (false, 0)
         );
 
-        // When execution queueing latency hits soft limit and execution rate is higher, don't
-        // start overload protection.
+        // When execution queueing latency hits soft limit and execution rate is higher,
+        // don't start overload protection.
         assert_eq!(
             check_overload_signals(&config, 0, Duration::from_secs(2), 100.0, 120.0),
             (false, 0)
         );
 
-        // When execution queueing latency hits soft limit, but not hard limit, start overload
-        // protection.
+        // When execution queueing latency hits soft limit, but not hard limit, start
+        // overload protection.
         assert_eq!(
             check_overload_signals(&config, 0, Duration::from_secs(2), 100.0, 100.0),
             (true, 7)
         );
 
-        // When execution queueing latency hits hard limit, start more aggressive overload
-        // protection.
+        // When execution queueing latency hits hard limit, start more aggressive
+        // overload protection.
         assert_eq!(
             check_overload_signals(&config, 0, Duration::from_secs(11), 100.0, 100.0),
             (true, 50)
         );
 
-        // When execution queueing latency hits hard limit and calculated shedding percentage
-        // is higher than min_load_shedding_percentage_above_hard_limit.
+        // When execution queueing latency hits hard limit and calculated shedding
+        // percentage is higher than
+        // min_load_shedding_percentage_above_hard_limit.
         assert_eq!(
             check_overload_signals(&config, 0, Duration::from_secs(11), 240.0, 100.0),
             (true, 62)
@@ -389,15 +407,16 @@ mod tests {
             (true, 90)
         );
 
-        // When the system is already shedding 50% of load, and the current txn ready rate
-        // and execution rate require another 20%, the final shedding rate is 60%.
+        // When the system is already shedding 50% of load, and the current txn ready
+        // rate and execution rate require another 20%, the final shedding rate
+        // is 60%.
         assert_eq!(
             check_overload_signals(&config, 50, Duration::from_secs(2), 116.0, 100.0),
             (true, 60)
         );
 
-        // Load shedding percentage is gradually reduced when txn ready rate is lower than
-        // execution rate.
+        // Load shedding percentage is gradually reduced when txn ready rate is lower
+        // than execution rate.
         assert_eq!(
             check_overload_signals(&config, 90, Duration::from_secs(2), 200.0, 300.0),
             (true, 80)
@@ -451,7 +470,8 @@ mod tests {
         assert!(!check_authority_overload(&authority, &config));
     }
 
-    // Creates an AuthorityState and starts an overload monitor that monitors its metrics.
+    // Creates an AuthorityState and starts an overload monitor that monitors its
+    // metrics.
     async fn start_overload_monitor() -> (Arc<AuthorityState>, JoinHandle<()>) {
         let overload_config = AuthorityOverloadConfig::default();
         let state = TestAuthorityBuilder::new()
@@ -465,8 +485,8 @@ mod tests {
         (state, monitor_handle)
     }
 
-    // Starts a load generator that generates a steady workload, and also allow it to accept
-    // burst of request through `burst_rx`.
+    // Starts a load generator that generates a steady workload, and also allow it
+    // to accept burst of request through `burst_rx`.
     // Request tracking is done by the overload monitor inside `authority`.
     fn start_load_generator(
         steady_rate: f64,
@@ -580,8 +600,9 @@ mod tests {
         }
     }
 
-    // Running a workload with consistent steady `generator_rate` and `executor_rate`.
-    // It checks that the dropped requests should in between min_dropping_rate and max_dropping_rate.
+    // Running a workload with consistent steady `generator_rate` and
+    // `executor_rate`. It checks that the dropped requests should in between
+    // min_dropping_rate and max_dropping_rate.
     async fn run_consistent_workload_test(
         generator_rate: f64,
         executor_rate: f64,
@@ -621,15 +642,16 @@ mod tests {
         let _ = monitor_handle.await;
     }
 
-    // Tests that when request generation rate is slower than execution rate, no requests should be dropped.
+    // Tests that when request generation rate is slower than execution rate, no
+    // requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_workload_consistent_no_overload() {
         telemetry_subscribers::init_for_testing();
         run_consistent_workload_test(900.0, 1000.0, 0.0, 0.0).await;
     }
 
-    // Tests that when request generation rate is slightly above execution rate, a small portion of
-    // requests should be dropped.
+    // Tests that when request generation rate is slightly above execution rate, a
+    // small portion of requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_workload_consistent_slightly_overload() {
         telemetry_subscribers::init_for_testing();
@@ -637,8 +659,8 @@ mod tests {
         run_consistent_workload_test(1100.0, 1000.0, 0.05, 0.25).await;
     }
 
-    // Tests that when request generation rate is much higher than execution rate, a large portion of
-    // requests should be dropped.
+    // Tests that when request generation rate is much higher than execution rate, a
+    // large portion of requests should be dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_workload_consistent_overload() {
         telemetry_subscribers::init_for_testing();
@@ -646,7 +668,8 @@ mod tests {
         run_consistent_workload_test(3000.0, 1000.0, 0.6, 0.8).await;
     }
 
-    // Tests that when there is a very short single spike, no request should be dropped.
+    // Tests that when there is a very short single spike, no request should be
+    // dropped.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_workload_single_spike() {
         telemetry_subscribers::init_for_testing();
@@ -684,8 +707,8 @@ mod tests {
         let _ = monitor_handle.await;
     }
 
-    // Tests that when there are regular spikes that keep queueing latency consistently high,
-    // overload monitor should kick in and shed load.
+    // Tests that when there are regular spikes that keep queueing latency
+    // consistently high, overload monitor should kick in and shed load.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     pub async fn test_workload_consistent_short_spike() {
         telemetry_subscribers::init_for_testing();
@@ -720,8 +743,8 @@ mod tests {
         let dropped_ratio = dropped_requests.load(Ordering::SeqCst) as f64
             / total_requests.load(Ordering::SeqCst) as f64;
 
-        // We should drop about 50% of request because the burst throughput is about 2x of
-        // execution rate.
+        // We should drop about 50% of request because the burst throughput is about 2x
+        // of execution rate.
         assert!(0.4 < dropped_ratio);
         assert!(dropped_ratio < 0.6);
 
@@ -729,8 +752,8 @@ mod tests {
         let _ = monitor_handle.await;
     }
 
-    // Tests that the ratio of rejected transactions created randomly matches load shedding percentage in
-    // the overload monitor.
+    // Tests that the ratio of rejected transactions created randomly matches load
+    // shedding percentage in the overload monitor.
     #[test]
     fn test_txn_rejection_rate() {
         for rejection_percentage in 0..=100 {
@@ -752,7 +775,8 @@ mod tests {
         }
     }
 
-    // Tests that rejected transaction will have a chance to be accepted in the future.
+    // Tests that rejected transaction will have a chance to be accepted in the
+    // future.
     #[sim_test]
     async fn test_txn_rejection_over_time() {
         let start_time = Instant::now();

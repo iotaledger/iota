@@ -2,47 +2,51 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abi::EthToIotaTokenBridgeV1;
-use crate::crypto::BridgeAuthorityPublicKeyBytes;
-use crate::crypto::{
-    BridgeAuthorityPublicKey, BridgeAuthorityRecoverableSignature, BridgeAuthoritySignInfo,
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
 };
-use crate::encoding::BridgeMessageEncoding;
-use crate::error::{BridgeError, BridgeResult};
-use crate::events::EmittedIotaToEthTokenBridgeV1;
+
 use enum_dispatch::enum_dispatch;
-use ethers::types::Address as EthAddress;
-use ethers::types::Log;
-use ethers::types::H256;
 pub use ethers::types::H256 as EthTransactionHash;
-use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::hash::{HashFunction, Keccak256};
+use ethers::types::{Address as EthAddress, H256, Log};
+use fastcrypto::{
+    encoding::{Encoding, Hex},
+    hash::{HashFunction, Keccak256},
+};
+use iota_types::{
+    TypeTag,
+    base_types::IotaAddress,
+    bridge::{
+        APPROVAL_THRESHOLD_ADD_TOKENS_ON_EVM, APPROVAL_THRESHOLD_ADD_TOKENS_ON_IOTA,
+        APPROVAL_THRESHOLD_ASSET_PRICE_UPDATE, APPROVAL_THRESHOLD_COMMITTEE_BLOCKLIST,
+        APPROVAL_THRESHOLD_EMERGENCY_PAUSE, APPROVAL_THRESHOLD_EMERGENCY_UNPAUSE,
+        APPROVAL_THRESHOLD_EVM_CONTRACT_UPGRADE, APPROVAL_THRESHOLD_LIMIT_UPDATE,
+        APPROVAL_THRESHOLD_TOKEN_TRANSFER, BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
+        BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER, BridgeChainId, MoveTypeParsedTokenTransferMessage,
+        MoveTypeTokenTransferPayload,
+    },
+    committee::{CommitteeTrait, StakeUnit},
+    crypto::ToFromBytes,
+    digests::{Digest, TransactionDigest},
+    message_envelope::{Envelope, Message, VerifiedEnvelope},
+};
 use num_enum::TryFromPrimitive;
-use rand::seq::SliceRandom;
-use rand::Rng;
+use rand::{Rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentScope;
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Debug;
 use strum_macros::Display;
-use iota_types::base_types::IotaAddress;
-use iota_types::bridge::{
-    BridgeChainId, MoveTypeTokenTransferPayload, APPROVAL_THRESHOLD_ADD_TOKENS_ON_EVM,
-    APPROVAL_THRESHOLD_ADD_TOKENS_ON_IOTA, BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
-    BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER,
+
+use crate::{
+    abi::EthToIotaTokenBridgeV1,
+    crypto::{
+        BridgeAuthorityPublicKey, BridgeAuthorityPublicKeyBytes,
+        BridgeAuthorityRecoverableSignature, BridgeAuthoritySignInfo,
+    },
+    encoding::BridgeMessageEncoding,
+    error::{BridgeError, BridgeResult},
+    events::EmittedIotaToEthTokenBridgeV1,
 };
-use iota_types::bridge::{
-    MoveTypeParsedTokenTransferMessage, APPROVAL_THRESHOLD_ASSET_PRICE_UPDATE,
-    APPROVAL_THRESHOLD_COMMITTEE_BLOCKLIST, APPROVAL_THRESHOLD_EMERGENCY_PAUSE,
-    APPROVAL_THRESHOLD_EMERGENCY_UNPAUSE, APPROVAL_THRESHOLD_EVM_CONTRACT_UPGRADE,
-    APPROVAL_THRESHOLD_LIMIT_UPDATE, APPROVAL_THRESHOLD_TOKEN_TRANSFER,
-};
-use iota_types::committee::CommitteeTrait;
-use iota_types::committee::StakeUnit;
-use iota_types::crypto::ToFromBytes;
-use iota_types::digests::{Digest, TransactionDigest};
-use iota_types::message_envelope::{Envelope, Message, VerifiedEnvelope};
-use iota_types::TypeTag;
 
 pub const BRIDGE_AUTHORITY_TOTAL_VOTING_POWER: u64 = 10000;
 
@@ -153,7 +157,8 @@ impl CommitteeTrait<BridgeAuthorityPublicKeyBytes> for BridgeCommittee {
     // Note: blocklisted members are always excluded.
     fn shuffle_by_stake_with_rng(
         &self,
-        // `preferences` is used as a *flag* here to influence the order of validators to be requested.
+        // `preferences` is used as a *flag* here to influence the order of validators to be
+        // requested.
         //  * if `Some(_)`, then we will request validators in the order of the voting power
         //  * if `None`, we still refer to voting power, but they are shuffled by randomness.
         //  to save gas cost.
@@ -187,7 +192,8 @@ impl CommitteeTrait<BridgeAuthorityPublicKeyBytes> for BridgeCommittee {
         } else {
             candidates
                 .choose_multiple_weighted(rng, candidates.len(), |(_, weight)| *weight as f64)
-                // Unwrap safe: it panics when the third parameter is larger than the size of the slice
+                // Unwrap safe: it panics when the third parameter is larger than the size of the
+                // slice
                 .unwrap()
                 .map(|(name, _)| name)
                 .cloned()
@@ -315,8 +321,9 @@ pub struct EmergencyAction {
 pub struct LimitUpdateAction {
     pub nonce: u64,
     // The chain id that will receive this signed action. It's also the destination chain id
-    // for the limit update. For example, if chain_id is EthMainnet and sending_chain_id is IotaMainnet,
-    // it means we want to update the limit for the IotaMainnet to EthMainnet route.
+    // for the limit update. For example, if chain_id is EthMainnet and sending_chain_id is
+    // IotaMainnet, it means we want to update the limit for the IotaMainnet to EthMainnet
+    // route.
     pub chain_id: BridgeChainId,
     // The sending chain id for the limit update.
     pub sending_chain_id: BridgeChainId,
@@ -615,16 +622,17 @@ impl TryFrom<MoveTypeParsedTokenTransferMessage> for ParsedTokenTransferMessage 
 
 #[cfg(test)]
 mod tests {
-    use crate::test_utils::get_test_authority_and_key;
-    use crate::test_utils::get_test_eth_to_iota_bridge_action;
-    use crate::test_utils::get_test_iota_to_eth_bridge_action;
+    use std::collections::HashSet;
+
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::KeyPair;
-    use std::collections::HashSet;
-    use iota_types::bridge::TOKEN_ID_BTC;
-    use iota_types::crypto::get_key_pair;
+    use iota_types::{bridge::TOKEN_ID_BTC, crypto::get_key_pair};
 
     use super::*;
+    use crate::test_utils::{
+        get_test_authority_and_key, get_test_eth_to_iota_bridge_action,
+        get_test_iota_to_eth_bridge_action,
+    };
 
     #[test]
     fn test_bridge_committee_construction() -> anyhow::Result<()> {

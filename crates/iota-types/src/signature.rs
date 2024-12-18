@@ -2,33 +2,40 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::committee::EpochId;
-use crate::crypto::{
-    CompressedSignature, PublicKey, SignatureScheme, IotaSignature, ZkLoginAuthenticatorAsBytes,
-};
-use crate::digests::ZKLoginInputsDigest;
-use crate::error::IotaError;
-use crate::multisig_legacy::MultiSigLegacy;
-use crate::passkey_authenticator::PasskeyAuthenticator;
-use crate::signature_verification::VerifiedDigestCache;
-use crate::zk_login_authenticator::ZkLoginAuthenticator;
-use crate::{base_types::IotaAddress, crypto::Signature, error::IotaResult, multisig::MultiSig};
+use std::{hash::Hash, sync::Arc};
+
 pub use enum_dispatch::enum_dispatch;
-use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
-use fastcrypto::secp256k1::{Secp256k1PublicKey, Secp256k1Signature};
-use fastcrypto::secp256r1::{Secp256r1PublicKey, Secp256r1Signature};
 use fastcrypto::{
+    ed25519::{Ed25519PublicKey, Ed25519Signature},
     error::FastCryptoError,
+    secp256k1::{Secp256k1PublicKey, Secp256k1Signature},
+    secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-use fastcrypto_zkp::bn254::zk_login::{JwkId, OIDCProvider, JWK};
-use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
+use fastcrypto_zkp::bn254::{
+    zk_login::{JWK, JwkId, OIDCProvider},
+    zk_login_api::ZkLoginEnv,
+};
 use im::hashmap::HashMap as ImHashMap;
 use schemars::JsonSchema;
 use serde::Serialize;
 use shared_crypto::intent::IntentMessage;
-use std::hash::Hash;
-use std::sync::Arc;
+
+use crate::{
+    base_types::IotaAddress,
+    committee::EpochId,
+    crypto::{
+        CompressedSignature, IotaSignature, PublicKey, Signature, SignatureScheme,
+        ZkLoginAuthenticatorAsBytes,
+    },
+    digests::ZKLoginInputsDigest,
+    error::{IotaError, IotaResult},
+    multisig::MultiSig,
+    multisig_legacy::MultiSigLegacy,
+    passkey_authenticator::PasskeyAuthenticator,
+    signature_verification::VerifiedDigestCache,
+    zk_login_authenticator::ZkLoginAuthenticator,
+};
 #[derive(Default, Debug, Clone)]
 pub struct VerifyParams {
     // map from JwkId (iss, kid) => JWK
@@ -80,10 +87,11 @@ pub trait AuthenticatorTrait {
         T: Serialize;
 }
 
-/// Due to the incompatibility of [enum Signature] (which dispatches a trait that
-/// assumes signature and pubkey bytes for verification), here we add a wrapper
-/// enum where member can just implement a lightweight [trait AuthenticatorTrait].
-/// This way MultiSig (and future Authenticators) can implement its own `verify`.
+/// Due to the incompatibility of [enum Signature] (which dispatches a trait
+/// that assumes signature and pubkey bytes for verification), here we add a
+/// wrapper enum where member can just implement a lightweight [trait
+/// AuthenticatorTrait]. This way MultiSig (and future Authenticators) can
+/// implement its own `verify`.
 #[enum_dispatch(AuthenticatorTrait)]
 #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash)]
 pub enum GenericSignature {
@@ -124,8 +132,9 @@ impl GenericSignature {
         self.verify_claims(value, author, verify_params, zklogin_inputs_cache)
     }
 
-    /// Parse [enum CompressedSignature] from trait IotaSignature `flag || sig || pk`.
-    /// This is useful for the MultiSig to combine partial signature into a MultiSig public key.
+    /// Parse [enum CompressedSignature] from trait IotaSignature `flag || sig
+    /// || pk`. This is useful for the MultiSig to combine partial signature
+    /// into a MultiSig public key.
     pub fn to_compressed(&self) -> Result<CompressedSignature, IotaError> {
         match self {
             GenericSignature::Signature(s) => {
@@ -170,7 +179,8 @@ impl GenericSignature {
     }
 
     /// Parse [struct PublicKey] from trait IotaSignature `flag || sig || pk`.
-    /// This is useful for the MultiSig to construct the bitmap in [struct MultiPublicKey].
+    /// This is useful for the MultiSig to construct the bitmap in [struct
+    /// MultiPublicKey].
     pub fn to_public_key(&self) -> Result<PublicKey, IotaError> {
         match self {
             GenericSignature::Signature(s) => {
@@ -207,11 +217,12 @@ impl GenericSignature {
     }
 }
 
-/// GenericSignature encodes a single signature [enum Signature] as is `flag || signature || pubkey`.
-/// It encodes [struct MultiSigLegacy] as the MultiSig flag (0x03) concat with the bcs serializedbytes
-/// of [struct MultiSigLegacy] i.e. `flag || bcs_bytes(MultiSigLegacy)`.
-/// [struct Multisig] is encodede as the MultiSig flag (0x03) concat with the bcs serializedbytes
-/// of [struct Multisig] i.e. `flag || bcs_bytes(Multisig)`.
+/// GenericSignature encodes a single signature [enum Signature] as is `flag ||
+/// signature || pubkey`. It encodes [struct MultiSigLegacy] as the MultiSig
+/// flag (0x03) concat with the bcs serializedbytes of [struct MultiSigLegacy]
+/// i.e. `flag || bcs_bytes(MultiSigLegacy)`. [struct Multisig] is encodede as
+/// the MultiSig flag (0x03) concat with the bcs serializedbytes of [struct
+/// Multisig] i.e. `flag || bcs_bytes(Multisig)`.
 impl ToFromBytes for GenericSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match SignatureScheme::from_flag_byte(
@@ -291,7 +302,8 @@ impl<'de> ::serde::Deserialize<'de> for GenericSignature {
     }
 }
 
-/// This ports the wrapper trait to the verify_secure defined on [enum Signature].
+/// This ports the wrapper trait to the verify_secure defined on [enum
+/// Signature].
 impl AuthenticatorTrait for Signature {
     fn verify_user_authenticator_epoch(&self, _: EpochId, _: Option<EpochId>) -> IotaResult {
         Ok(())

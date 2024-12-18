@@ -2,18 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{fs, path::PathBuf, time::Duration};
+
 use consensus_config::Epoch;
 use iota_metrics::spawn_logged_monitored_task;
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry, IntCounter, IntCounterVec, IntGauge, Registry,
+    IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
-use std::fs;
-use std::path::PathBuf;
-use std::time::Duration;
 use tokio::{
     sync::mpsc,
-    time::{sleep, Instant},
+    time::{Instant, sleep},
 };
 use tracing::{error, info};
 use typed_store::rocks::safe_drop_db;
@@ -66,10 +65,12 @@ impl ConsensusStorePruner {
         let metrics = Metrics::new(registry);
 
         let _handle = spawn_logged_monitored_task!(async {
-            info!("Starting consensus store pruner with epoch retention {epoch_retention} and prune period {epoch_prune_period:?}");
+            info!(
+                "Starting consensus store pruner with epoch retention {epoch_retention} and prune period {epoch_prune_period:?}"
+            );
 
             let mut timeout = tokio::time::interval_at(
-                Instant::now() + Duration::from_secs(60), // allow some time for the node to boot etc before attempting to prune
+                Instant::now() + Duration::from_secs(60), /* allow some time for the node to boot etc before attempting to prune */
                 epoch_prune_period,
             );
 
@@ -94,8 +95,9 @@ impl ConsensusStorePruner {
         Self { tx_remove, _handle }
     }
 
-    /// This method will remove all epoch data stores and directories that are older than the current epoch minus the epoch retention. The method ensures
-    /// that always the `current_epoch` data is retained.
+    /// This method will remove all epoch data stores and directories that are
+    /// older than the current epoch minus the epoch retention. The method
+    /// ensures that always the `current_epoch` data is retained.
     pub async fn prune(&self, current_epoch: Epoch) {
         let result = self.tx_remove.send(current_epoch).await;
         if result.is_err() {
@@ -221,10 +223,12 @@ impl ConsensusStorePruner {
 
 #[cfg(test)]
 mod tests {
-    use crate::epoch::consensus_store_pruner::{ConsensusStorePruner, Metrics};
-    use prometheus::Registry;
     use std::fs;
+
+    use prometheus::Registry;
     use tokio::time::sleep;
+
+    use crate::epoch::consensus_store_pruner::{ConsensusStorePruner, Metrics};
 
     #[tokio::test]
     async fn test_remove_old_epoch_data() {
@@ -255,7 +259,8 @@ mod tests {
         }
 
         {
-            // Every directory should be retained only for 1 epoch. We expect any epoch directories < 99 to be removed.
+            // Every directory should be retained only for 1 epoch. We expect any epoch
+            // directories < 99 to be removed.
             let epoch_retention = 1;
             let current_epoch = 100;
 
@@ -279,7 +284,8 @@ mod tests {
         }
 
         {
-            // Every directory should be retained only for 0 epochs. That means only the current epoch directory should be retained and everything else
+            // Every directory should be retained only for 0 epochs. That means only the
+            // current epoch directory should be retained and everything else
             // deleted.
             let epoch_retention = 0;
             let current_epoch = 100;
@@ -320,7 +326,8 @@ mod tests {
             &Registry::new(),
         );
 
-        // We let the pruner run for a couple of times to prune the old directories. Since the default epoch of 0 is used no dirs should be pruned.
+        // We let the pruner run for a couple of times to prune the old directories.
+        // Since the default epoch of 0 is used no dirs should be pruned.
         sleep(3 * epoch_prune_period).await;
 
         // We expect the directories to be the same as before
@@ -330,7 +337,8 @@ mod tests {
         // Then we update the epoch and instruct to prune for current epoch = 100
         pruner.prune(100).await;
 
-        // We let the pruner run and check again the directories - no directories of epoch < 99 should be left
+        // We let the pruner run and check again the directories - no directories of
+        // epoch < 99 should be left
         sleep(2 * epoch_prune_period).await;
 
         let epoch_dirs = read_epoch_directories(&base_directory);

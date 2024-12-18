@@ -2,45 +2,44 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::*;
-use ethers::providers::Middleware;
-use ethers::types::Address as EthAddress;
-use fastcrypto::encoding::{Encoding, Hex};
-use shared_crypto::intent::Intent;
-use shared_crypto::intent::IntentMessage;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::str::from_utf8;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_bridge::client::bridge_authority_aggregator::BridgeAuthorityAggregator;
-use iota_bridge::crypto::{BridgeAuthorityPublicKey, BridgeAuthorityPublicKeyBytes};
-use iota_bridge::eth_transaction_builder::build_eth_transaction;
-use iota_bridge::metrics::BridgeMetrics;
-use iota_bridge::iota_client::IotaClient;
-use iota_bridge::iota_transaction_builder::build_iota_transaction;
-use iota_bridge::types::BridgeActionType;
-use iota_bridge::utils::{
-    examine_key, generate_bridge_authority_key_and_write_to_file,
-    generate_bridge_client_key_and_write_to_file, generate_bridge_node_config_and_write_to_file,
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::{FromStr, from_utf8},
+    sync::Arc,
+    time::Duration,
 };
-use iota_bridge::utils::{get_eth_contracts, EthBridgeContracts};
+
+use clap::*;
+use ethers::{providers::Middleware, types::Address as EthAddress};
+use fastcrypto::encoding::{Encoding, Hex};
+use iota_bridge::{
+    client::bridge_authority_aggregator::BridgeAuthorityAggregator,
+    crypto::{BridgeAuthorityPublicKey, BridgeAuthorityPublicKeyBytes},
+    eth_transaction_builder::build_eth_transaction,
+    iota_client::IotaClient,
+    iota_transaction_builder::build_iota_transaction,
+    metrics::BridgeMetrics,
+    types::BridgeActionType,
+    utils::{
+        EthBridgeContracts, examine_key, generate_bridge_authority_key_and_write_to_file,
+        generate_bridge_client_key_and_write_to_file,
+        generate_bridge_node_config_and_write_to_file, get_eth_contracts,
+    },
+};
 use iota_bridge_cli::{
-    make_action, select_contract_address, Args, BridgeCliConfig, BridgeCommand,
-    LoadedBridgeCliConfig, Network, SEPOLIA_BRIDGE_PROXY_ADDR,
+    Args, BridgeCliConfig, BridgeCommand, LoadedBridgeCliConfig, Network,
+    SEPOLIA_BRIDGE_PROXY_ADDR, make_action, select_contract_address,
 };
 use iota_config::Config;
-use iota_sdk::IotaClient as IotaSdkClient;
-use iota_sdk::IotaClientBuilder;
-use iota_types::base_types::IotaAddress;
-use iota_types::bridge::BridgeChainId;
-use iota_types::bridge::{MoveTypeCommitteeMember, MoveTypeCommitteeMemberRegistration};
-use iota_types::committee::TOTAL_VOTING_POWER;
-use iota_types::crypto::AuthorityPublicKeyBytes;
-use iota_types::crypto::Signature;
-use iota_types::crypto::ToFromBytes;
-use iota_types::transaction::Transaction;
+use iota_sdk::{IotaClient as IotaSdkClient, IotaClientBuilder};
+use iota_types::{
+    base_types::IotaAddress,
+    bridge::{BridgeChainId, MoveTypeCommitteeMember, MoveTypeCommitteeMemberRegistration},
+    committee::TOTAL_VOTING_POWER,
+    crypto::{AuthorityPublicKeyBytes, Signature, ToFromBytes},
+    transaction::Transaction,
+};
+use shared_crypto::intent::{Intent, IntentMessage};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -283,7 +282,8 @@ async fn main() -> anyhow::Result<()> {
 
         BridgeCommand::ViewBridgeRegistration { iota_rpc_url } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
-            let iota_bridge_client = IotaClient::<IotaSdkClient>::new(&iota_rpc_url, metrics).await?;
+            let iota_bridge_client =
+                IotaClient::<IotaSdkClient>::new(&iota_rpc_url, metrics).await?;
             let bridge_summary = iota_bridge_client
                 .get_bridge_summary()
                 .await
@@ -369,7 +369,8 @@ async fn main() -> anyhow::Result<()> {
             ping,
         } => {
             let metrics = Arc::new(BridgeMetrics::new_for_testing());
-            let iota_bridge_client = IotaClient::<IotaSdkClient>::new(&iota_rpc_url, metrics).await?;
+            let iota_bridge_client =
+                IotaClient::<IotaSdkClient>::new(&iota_rpc_url, metrics).await?;
             let bridge_summary = iota_bridge_client
                 .get_bridge_summary()
                 .await

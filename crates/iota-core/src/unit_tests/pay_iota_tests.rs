@@ -2,23 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_tests::{init_state_with_committee, send_and_confirm_transaction};
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use crate::authority::AuthorityState;
+use std::{collections::HashMap, sync::Arc};
+
 use futures::future::join_all;
-use std::collections::HashMap;
-use std::sync::Arc;
-use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
-use iota_types::crypto::AccountKeyPair;
-use iota_types::effects::{SignedTransactionEffects, TransactionEffectsAPI};
-use iota_types::error::UserInputError;
-use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use iota_types::gas_coin::GasCoin;
-use iota_types::object::Object;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::transaction::TransactionData;
-use iota_types::utils::to_sender_signed_transaction;
-use iota_types::{base_types::dbg_addr, crypto::get_key_pair, error::IotaError};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID, ObjectRef, dbg_addr},
+    crypto::{AccountKeyPair, get_key_pair},
+    effects::{SignedTransactionEffects, TransactionEffectsAPI},
+    error::{IotaError, UserInputError},
+    execution_status::{ExecutionFailureStatus, ExecutionStatus},
+    gas_coin::GasCoin,
+    object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::TransactionData,
+    utils::to_sender_signed_transaction,
+};
+
+use crate::authority::{
+    AuthorityState,
+    authority_tests::{init_state_with_committee, send_and_confirm_transaction},
+    test_authority_builder::TestAuthorityBuilder,
+};
 
 #[tokio::test]
 async fn test_pay_iota_failure_empty_recipients() {
@@ -32,7 +36,7 @@ async fn test_pay_iota_failure_empty_recipients() {
     let effects = res.txn_result.unwrap().into_data();
     assert_eq!(effects.status(), &ExecutionStatus::Success);
     assert_eq!(effects.mutated().len(), 1);
-    assert_eq!(effects.mutated()[0].0 .0, coin_id);
+    assert_eq!(effects.mutated()[0].0.0, coin_id);
     assert!(effects.deleted().is_empty());
     assert!(effects.created().is_empty());
 }
@@ -167,9 +171,9 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(*effects.status(), ExecutionStatus::Success);
     // make sure each recipient receives the specified amount
     assert_eq!(effects.created().len(), 3);
-    let created_obj_id1 = effects.created()[0].0 .0;
-    let created_obj_id2 = effects.created()[1].0 .0;
-    let created_obj_id3 = effects.created()[2].0 .0;
+    let created_obj_id1 = effects.created()[0].0.0;
+    let created_obj_id2 = effects.created()[1].0.0;
+    let created_obj_id3 = effects.created()[2].0.0;
     let created_obj1 = res
         .authority_state
         .get_object(&created_obj_id1)
@@ -203,8 +207,9 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(GasCoin::try_from(&created_obj3)?.value(), coin_val3);
 
     // make sure the first object still belongs to the sender,
-    // the value is equal to all residual values after amounts transferred and gas payment.
-    assert_eq!(effects.mutated()[0].0 .0, object_id);
+    // the value is equal to all residual values after amounts transferred and gas
+    // payment.
+    assert_eq!(effects.mutated()[0].0.0, object_id);
     assert_eq!(
         effects.mutated()[0].1.get_address_owner_address().unwrap(),
         sender
@@ -247,8 +252,8 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
 
     // make sure each recipient receives the specified amount
     assert_eq!(effects.created().len(), 2);
-    let created_obj_id1 = effects.created()[0].0 .0;
-    let created_obj_id2 = effects.created()[1].0 .0;
+    let created_obj_id1 = effects.created()[0].0.0;
+    let created_obj_id2 = effects.created()[1].0.0;
     let created_obj1 = res
         .authority_state
         .get_object(&created_obj_id1)
@@ -270,8 +275,9 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
     assert_eq!(GasCoin::try_from(&created_obj1)?.value(), coin_val1);
     assert_eq!(GasCoin::try_from(&created_obj2)?.value(), coin_val2);
     // make sure the first input coin still belongs to the sender,
-    // the value is equal to all residual values after amounts transferred and gas payment.
-    assert_eq!(effects.mutated()[0].0 .0, object_id1);
+    // the value is equal to all residual values after amounts transferred and gas
+    // payment.
+    assert_eq!(effects.mutated()[0].0.0, object_id1);
     assert_eq!(
         effects.mutated()[0].1.get_address_owner_address().unwrap(),
         sender

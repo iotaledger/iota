@@ -2,19 +2,24 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::response::Bcs;
-use crate::rest::openapi::{
-    ApiEndpoint, OperationBuilder, RequestBodyBuilder, ResponseBuilder, RouteHandler,
-};
-use crate::types::ExecuteTransactionOptions;
-use crate::types::ExecuteTransactionResponse;
-use crate::{Result, RpcService};
-use axum::extract::{Query, State};
-use axum::Json;
-use schemars::JsonSchema;
 use std::net::SocketAddr;
+
+use axum::{
+    Json,
+    extract::{Query, State},
+};
 use iota_sdk_types::types::{
     BalanceChange, Object, SignedTransaction, Transaction, TransactionEffects, TransactionEvents,
+};
+use schemars::JsonSchema;
+
+use crate::{
+    Result, RpcService,
+    response::Bcs,
+    rest::openapi::{
+        ApiEndpoint, OperationBuilder, RequestBodyBuilder, ResponseBuilder, RouteHandler,
+    },
+    types::{ExecuteTransactionOptions, ExecuteTransactionResponse},
 };
 
 pub struct ExecuteTransaction;
@@ -53,9 +58,9 @@ impl ApiEndpoint<RpcService> for ExecuteTransaction {
 
 /// Execute Transaction REST endpoint.
 ///
-/// Handles client transaction submission request by passing off the provided signed transaction to
-/// an internal QuorumDriver which drives execution of the transaction with the current validator
-/// set.
+/// Handles client transaction submission request by passing off the provided
+/// signed transaction to an internal QuorumDriver which drives execution of the
+/// transaction with the current validator set.
 async fn execute_transaction(
     State(state): State<RpcService>,
     Query(options): Query<ExecuteTransactionOptions>,
@@ -105,7 +110,7 @@ impl ApiEndpoint<RpcService> for SimulateTransaction {
 async fn simulate_transaction(
     State(state): State<RpcService>,
     Query(parameters): Query<SimulateTransactionQueryParameters>,
-    //TODO allow accepting JSON as well as BCS
+    // TODO allow accepting JSON as well as BCS
     Bcs(transaction): Bcs<Transaction>,
 ) -> Result<Json<TransactionSimulationResponse>> {
     state

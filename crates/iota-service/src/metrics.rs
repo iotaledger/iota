@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
 use prometheus::Registry;
-use std::net::SocketAddr;
-use std::net::{IpAddr, Ipv4Addr};
 
 pub const METRICS_HOST_PORT: u16 = 9184;
 
@@ -18,7 +18,7 @@ pub use iota_metrics::start_prometheus_server;
 /// own application metrics via
 ///
 /// ```
-/// use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
+/// use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
 ///
 /// pub struct MyMetrics {
 ///     pub requests: IntCounter,
@@ -39,8 +39,8 @@ pub use iota_metrics::start_prometheus_server;
 ///
 /// #[tokio::main]
 /// async fn main() {
-///      let prometheus_registry = iota_service::metrics::start_basic_prometheus_server();
-///      let metrics = MyMetrics::new(&prometheus_registry);
+///     let prometheus_registry = iota_service::metrics::start_basic_prometheus_server();
+///     let metrics = MyMetrics::new(&prometheus_registry);
 /// }
 /// ```
 pub fn start_basic_prometheus_server() -> Registry {

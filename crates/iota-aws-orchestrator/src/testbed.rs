@@ -5,9 +5,10 @@
 use std::time::Duration;
 
 use futures::future::try_join_all;
-use prettytable::{row, Table};
+use prettytable::{Table, row};
 use tokio::time::{self, Instant};
 
+use super::client::Instance;
 use crate::{
     client::ServerProviderClient,
     display,
@@ -16,15 +17,14 @@ use crate::{
     ssh::SshConnection,
 };
 
-use super::client::Instance;
-
 /// Represents a testbed running on a cloud provider.
 pub struct Testbed<C> {
     /// The testbed's settings.
     settings: Settings,
     /// The client interfacing with the cloud provider.
     client: C,
-    /// The state of the testbed (reflecting accurately the state of the machines).
+    /// The state of the testbed (reflecting accurately the state of the
+    /// machines).
     instances: Vec<Instance>,
 }
 
@@ -124,8 +124,9 @@ impl<C: ServerProviderClient> Testbed<C> {
         display::newline();
     }
 
-    /// Populate the testbed by creating the specified amount of instances per region. The total
-    /// number of instances created is thus the specified amount x the number of regions.
+    /// Populate the testbed by creating the specified amount of instances per
+    /// region. The total number of instances created is thus the specified
+    /// amount x the number of regions.
     pub async fn deploy(&mut self, quantity: usize, region: Option<String>) -> TestbedResult<()> {
         display::action(format!("Deploying instances ({quantity} per region)"));
 
@@ -166,8 +167,8 @@ impl<C: ServerProviderClient> Testbed<C> {
         Ok(())
     }
 
-    /// Start the specified number of instances in each region. Returns an error if there are not
-    /// enough available instances.
+    /// Start the specified number of instances in each region. Returns an error
+    /// if there are not enough available instances.
     pub async fn start(&mut self, quantity: usize) -> TestbedResult<()> {
         display::action("Booting instances");
 

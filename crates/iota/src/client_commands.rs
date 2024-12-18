@@ -2,15 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    clever_error_rendering::render_clever_error_opt,
-    client_ptb::ptb::PTB,
-    displays::Pretty,
-    key_identity::{get_identity_address, KeyIdentity},
-    verifier_meter::{AccumulatingMeter, Accumulator},
-};
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     fmt::{Debug, Display, Formatter, Write},
     fs,
     path::{Path, PathBuf},
@@ -18,7 +11,7 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, bail, ensure, Context};
+use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use clap::*;
 use colored::Colorize;
@@ -26,75 +19,80 @@ use fastcrypto::{
     encoding::{Base64, Encoding},
     traits::ToFromBytes,
 };
-use reqwest::StatusCode;
-
-use move_binary_format::CompiledModule;
-use move_bytecode_verifier_meter::Scope;
-use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
-use move_package::BuildConfig as MoveBuildConfig;
-use prometheus::Registry;
-use serde::Serialize;
-use serde_json::{json, Value};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_move::manage_package::resolve_lock_file_path;
-use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
-
-use shared_crypto::intent::Intent;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldInfo,
     DynamicFieldPage, IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData,
-    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::AccountKeystore;
+use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::{
-    build_from_resolution_graph, check_invalid_dependencies, check_unpublished_dependencies,
-    gather_published_ids, BuildConfig, CompiledPackage, PackageDependencies,
+    BuildConfig, CompiledPackage, PackageDependencies, build_from_resolution_graph,
+    check_invalid_dependencies, check_unpublished_dependencies, gather_published_ids,
 };
 use iota_package_management::{LockCommand, PublishedAtError};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_replay::ReplayToolCommand;
 use iota_sdk::{
+    IOTA_COIN_TYPE, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0,
+    IOTA_TESTNET_URL, IotaClient,
     apis::ReadApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
-    IotaClient, IOTA_COIN_TYPE, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0,
-    IOTA_TESTNET_URL,
 };
+use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     crypto::{EmptySignInfo, SignatureScheme},
     digests::TransactionDigest,
     error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
+    iota_serde,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_package::UpgradeCap,
     object::Owner,
     parse_iota_type_tag,
     signature::GenericSignature,
-    iota_serde,
     transaction::{
         SenderSignedData, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
 };
-
 use json_to_table::json_to_table;
+use move_binary_format::CompiledModule;
+use move_bytecode_verifier_meter::Scope;
+use move_core_types::{account_address::AccountAddress, language_storage::TypeTag};
+use move_package::BuildConfig as MoveBuildConfig;
+use prometheus::Registry;
+use reqwest::StatusCode;
+use serde::Serialize;
+use serde_json::{Value, json};
+use shared_crypto::intent::Intent;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{
+        Alignment as TableAlignment, Border as TableBorder, Modify as TableModify,
+        Panel as TablePanel, Style as TableStyle,
         object::{Cell as TableCell, Columns as TableCols, Rows as TableRows},
         span::Span as TableSpan,
         style::HorizontalLine,
-        Alignment as TableAlignment, Border as TableBorder, Modify as TableModify,
-        Panel as TablePanel, Style as TableStyle,
     },
 };
-
 use tracing::{debug, info};
+
+use crate::{
+    clever_error_rendering::render_clever_error_opt,
+    client_ptb::ptb::PTB,
+    displays::Pretty,
+    key_identity::{KeyIdentity, get_identity_address},
+    verifier_meter::{AccumulatingMeter, Accumulator},
+};
 
 #[path = "unit_tests/profiler_tests.rs"]
 #[cfg(test)]
@@ -159,7 +157,8 @@ pub enum IotaClientCommands {
         /// ObjectIDs, Addresses must be hex strings
         #[clap(long, num_args(1..))]
         args: Vec<IotaJsonValue>,
-        /// Optional gas price for this call. Currently use only for testing and not in production environments.
+        /// Optional gas price for this call. Currently use only for testing and
+        /// not in production environments.
         #[clap(hide = true)]
         gas_price: Option<u64>,
 
@@ -174,7 +173,7 @@ pub enum IotaClientCommands {
     /// Query a dynamic field by its address.
     #[clap(name = "dynamic-field")]
     DynamicFieldQuery {
-        ///The ID of the parent object
+        /// The ID of the parent object
         #[clap(name = "object_id")]
         id: ObjectID,
         /// Optional paging cursor
@@ -188,9 +187,12 @@ pub enum IotaClientCommands {
     /// List all Iota environments
     Envs,
 
-    /// Execute a Signed Transaction. This is useful when the user prefers to sign elsewhere and use this command to execute.
+    /// Execute a Signed Transaction. This is useful when the user prefers to
+    /// sign elsewhere and use this command to execute.
     ExecuteSignedTx {
-        /// BCS serialized transaction data bytes without its type tag, as base64 encoded string. This is the output of iota client command using --serialize-unsigned-transaction.
+        /// BCS serialized transaction data bytes without its type tag, as
+        /// base64 encoded string. This is the output of iota client command
+        /// using --serialize-unsigned-transaction.
         #[clap(long)]
         tx_bytes: String,
 
@@ -200,12 +202,15 @@ pub enum IotaClientCommands {
     },
     /// Execute a combined serialized SenderSignedData string.
     ExecuteCombinedSignedTx {
-        /// BCS serialized sender signed data, as base64 encoded string. This is the output of iota client command using --serialize-signed-transaction.
+        /// BCS serialized sender signed data, as base64 encoded string. This is
+        /// the output of iota client command using
+        /// --serialize-signed-transaction.
         #[clap(long)]
         signed_tx_bytes: String,
     },
 
-    /// Request gas coin from faucet. By default, it will use the active address and the active network.
+    /// Request gas coin from faucet. By default, it will use the active address
+    /// and the active network.
     #[clap[name = "faucet"]]
     Faucet {
         /// Address (or its alias)
@@ -239,14 +244,16 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
     },
 
-    /// Generate new address and keypair with keypair scheme flag {ed25519 | secp256k1 | secp256r1}
-    /// with optional derivation path, default to m/44'/784'/0'/0'/0' for ed25519 or
-    /// m/54'/784'/0'/0/0 for secp256k1 or m/74'/784'/0'/0/0 for secp256r1. Word length can be
-    /// { word12 | word15 | word18 | word21 | word24} default to word12 if not specified.
+    /// Generate new address and keypair with keypair scheme flag {ed25519 |
+    /// secp256k1 | secp256r1} with optional derivation path, default to
+    /// m/44'/784'/0'/0'/0' for ed25519 or m/54'/784'/0'/0/0 for secp256k1
+    /// or m/74'/784'/0'/0/0 for secp256r1. Word length can be { word12 |
+    /// word15 | word18 | word21 | word24} default to word12 if not specified.
     #[clap(name = "new-address")]
     NewAddress {
         key_scheme: SignatureScheme,
-        /// The alias must start with a letter and can contain only letters, digits, hyphens (-), or underscores (_).
+        /// The alias must start with a letter and can contain only letters,
+        /// digits, hyphens (-), or underscores (_).
         alias: Option<String>,
         word_length: Option<String>,
         derivation_path: Option<DerivationPath>,
@@ -276,11 +283,12 @@ pub enum IotaClientCommands {
         #[clap(long)]
         bcs: bool,
     },
-    /// Obtain all objects owned by the address. It also accepts an address by its alias.
+    /// Obtain all objects owned by the address. It also accepts an address by
+    /// its alias.
     #[clap(name = "objects")]
     Objects {
-        /// Address owning the object. If no address is provided, it will show all
-        /// objects owned by `iota client active-address`.
+        /// Address owning the object. If no address is provided, it will show
+        /// all objects owned by `iota client active-address`.
         #[clap(name = "owner_address")]
         address: Option<KeyIdentity>,
     },
@@ -288,7 +296,8 @@ pub enum IotaClientCommands {
     /// Length of recipients must be the same as that of amounts.
     #[clap(name = "pay")]
     Pay {
-        /// The input coins to be used for pay recipients, following the specified amounts.
+        /// The input coins to be used for pay recipients, following the
+        /// specified amounts.
         #[clap(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
 
@@ -305,14 +314,17 @@ pub enum IotaClientCommands {
         opts: OptsWithGas,
     },
 
-    /// Pay all residual IOTA coins to the recipient with input coins, after deducting the gas cost.
-    /// The input coins also include the coin for gas payment, so no extra gas coin is required.
+    /// Pay all residual IOTA coins to the recipient with input coins, after
+    /// deducting the gas cost. The input coins also include the coin for
+    /// gas payment, so no extra gas coin is required.
     PayAllIota {
-        /// The input coins to be used for pay recipients, including the gas coin.
+        /// The input coins to be used for pay recipients, including the gas
+        /// coin.
         #[clap(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
 
-        /// The recipient address (or its alias if it's an address in the keystore).
+        /// The recipient address (or its alias if it's an address in the
+        /// keystore).
         #[clap(long)]
         recipient: KeyIdentity,
 
@@ -320,11 +332,13 @@ pub enum IotaClientCommands {
         opts: Opts,
     },
 
-    /// Pay IOTA coins to recipients following following specified amounts, with input coins.
-    /// Length of recipients must be the same as that of amounts.
-    /// The input coins also include the coin for gas payment, so no extra gas coin is required.
+    /// Pay IOTA coins to recipients following following specified amounts, with
+    /// input coins. Length of recipients must be the same as that of
+    /// amounts. The input coins also include the coin for gas payment, so
+    /// no extra gas coin is required.
     PayIota {
-        /// The input coins to be used for pay recipients, including the gas coin.
+        /// The input coins to be used for pay recipients, including the gas
+        /// coin.
         #[clap(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
 
@@ -359,12 +373,14 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
 
-        /// Publish the package without checking whether compiling dependencies from source results
-        /// in bytecode matching the dependencies found on-chain.
+        /// Publish the package without checking whether compiling dependencies
+        /// from source results in bytecode matching the dependencies
+        /// found on-chain.
         #[clap(long)]
         skip_dependency_verification: bool,
 
-        /// Also publish transitive dependencies that have not already been published.
+        /// Also publish transitive dependencies that have not already been
+        /// published.
         #[clap(long)]
         with_unpublished_dependencies: bool,
     },
@@ -392,8 +408,8 @@ pub enum IotaClientCommands {
         /// commands. It accepts also the alias of the address.
         #[clap(long)]
         address: Option<KeyIdentity>,
-        /// The RPC server URL (e.g., local rpc server, devnet rpc server, etc) to be
-        /// used for subsequent commands.
+        /// The RPC server URL (e.g., local rpc server, devnet rpc server, etc)
+        /// to be used for subsequent commands.
         #[clap(long)]
         env: Option<String>,
     },
@@ -422,8 +438,8 @@ pub enum IotaClientCommands {
     },
 
     /// Transfer IOTA, and pay gas with the same IOTA coin object.
-    /// If amount is specified, only the amount is transferred; otherwise the entire object
-    /// is transferred.
+    /// If amount is specified, only the amount is transferred; otherwise the
+    /// entire object is transferred.
     #[clap(name = "transfer-iota")]
     TransferIota {
         /// Recipient address (or its alias if it's an address in the keystore)
@@ -434,7 +450,8 @@ pub enum IotaClientCommands {
         #[clap(long)]
         iota_coin_object_id: ObjectID,
 
-        /// The amount to transfer, if not specified, the entire coin object will be transferred.
+        /// The amount to transfer, if not specified, the entire coin object
+        /// will be transferred.
         #[clap(long)]
         amount: Option<u64>,
 
@@ -460,12 +477,14 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
 
-        /// Publish the package without checking whether compiling dependencies from source results
-        /// in bytecode matching the dependencies found on-chain.
+        /// Publish the package without checking whether compiling dependencies
+        /// from source results in bytecode matching the dependencies
+        /// found on-chain.
         #[clap(long)]
         skip_dependency_verification: bool,
 
-        /// Also publish transitive dependencies that have not already been published.
+        /// Also publish transitive dependencies that have not already been
+        /// published.
         #[clap(long)]
         with_unpublished_dependencies: bool,
     },
@@ -473,18 +492,20 @@ pub enum IotaClientCommands {
     /// Run the bytecode verifier on the package
     #[clap(name = "verify-bytecode-meter")]
     VerifyBytecodeMeter {
-        /// Path to directory containing a Move package, (defaults to the current directory)
+        /// Path to directory containing a Move package, (defaults to the
+        /// current directory)
         #[clap(name = "package", long, global = true)]
         package_path: Option<PathBuf>,
 
-        /// Protocol version to use for the bytecode verifier (defaults to the latest protocol
-        /// version)
+        /// Protocol version to use for the bytecode verifier (defaults to the
+        /// latest protocol version)
         #[clap(name = "protocol-version", long)]
         protocol_version: Option<u64>,
 
-        /// Paths to specific pre-compiled module bytecode to verify (instead of an entire package).
-        /// Multiple modules can be verified by passing multiple --module flags. They will be
-        /// treated as if they were one package (subject to the overall package limit).
+        /// Paths to specific pre-compiled module bytecode to verify (instead of
+        /// an entire package). Multiple modules can be verified by
+        /// passing multiple --module flags. They will be treated as if
+        /// they were one package (subject to the overall package limit).
         #[clap(name = "module", long, action = clap::ArgAction::Append, global = true)]
         module_paths: Vec<PathBuf>,
 
@@ -493,7 +514,8 @@ pub enum IotaClientCommands {
         build_config: MoveBuildConfig,
     },
 
-    /// Verify local Move packages against on-chain packages, and optionally their dependencies.
+    /// Verify local Move packages against on-chain packages, and optionally
+    /// their dependencies.
     #[clap(name = "verify-source")]
     VerifySource {
         /// Path to directory containing a Move package
@@ -512,26 +534,35 @@ pub enum IotaClientCommands {
         #[clap(long)]
         skip_source: bool,
 
-        /// If specified, override the addresses for the package's own modules with this address.
-        /// Only works for unpublished modules (whose addresses are currently 0x0).
+        /// If specified, override the addresses for the package's own modules
+        /// with this address. Only works for unpublished modules (whose
+        /// addresses are currently 0x0).
         #[clap(long)]
         address_override: Option<ObjectID>,
     },
 
-    /// Profile the gas usage of a transaction. Unless an output filepath is not specified, outputs a file `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a flamegraph tool such as speedscope.
+    /// Profile the gas usage of a transaction. Unless an output filepath is not
+    /// specified, outputs a file
+    /// `gas_profile_{tx_digest}_{unix_timestamp}.json` which can be opened in a
+    /// flamegraph tool such as speedscope.
     #[clap(name = "profile-transaction")]
     ProfileTransaction {
         /// The digest of the transaction to replay
         #[arg(long, short)]
         tx_digest: String,
 
-        /// If specified, overrides the filepath of the output profile, for example -- /temp/my_profile_name.json will write output to `/temp/my_profile_name_{tx_digest}_{unix_timestamp}.json`
-        /// If an output filepath is not specified, it will output a file `gas_profile_{tx_digest}_{unix_timestamp}.json` to the working directory
+        /// If specified, overrides the filepath of the output profile, for
+        /// example -- /temp/my_profile_name.json will write output to
+        /// `/temp/my_profile_name_{tx_digest}_{unix_timestamp}.json` If
+        /// an output filepath is not specified, it will output a file
+        /// `gas_profile_{tx_digest}_{unix_timestamp}.json` to the working
+        /// directory
         #[arg(long, short)]
         profile_output: Option<PathBuf>,
     },
 
-    /// Replay a given transaction to view transaction effects. Set environment variable MOVE_VM_STEP=1 to debug.
+    /// Replay a given transaction to view transaction effects. Set environment
+    /// variable MOVE_VM_STEP=1 to debug.
     #[clap(name = "replay-transaction")]
     ReplayTransaction {
         /// The digest of the transaction to replay
@@ -546,11 +577,13 @@ pub enum IotaClientCommands {
         #[arg(long)]
         ptb_info: bool,
 
-        /// Optional version of the executor to use, if not specified defaults to the one originally used for the transaction.
+        /// Optional version of the executor to use, if not specified defaults
+        /// to the one originally used for the transaction.
         #[arg(long, short, allow_hyphen_values = true)]
         executor_version: Option<i64>,
 
-        /// Optional protocol version to use, if not specified defaults to the one originally used for the transaction.
+        /// Optional protocol version to use, if not specified defaults to the
+        /// one originally used for the transaction.
         #[arg(long, short, allow_hyphen_values = true)]
         protocol_version: Option<i64>,
     },
@@ -558,11 +591,13 @@ pub enum IotaClientCommands {
     /// Replay transactions listed in a file.
     #[clap(name = "replay-batch")]
     ReplayBatch {
-        /// The path to the file of transaction digests to replay, with one digest per line
+        /// The path to the file of transaction digests to replay, with one
+        /// digest per line
         #[arg(long, short)]
         path: PathBuf,
 
-        /// If an error is encountered during a transaction, this specifies whether to terminate or continue
+        /// If an error is encountered during a transaction, this specifies
+        /// whether to terminate or continue
         #[arg(long, short)]
         terminate_early: bool,
     },
@@ -570,15 +605,18 @@ pub enum IotaClientCommands {
     /// Replay all transactions in a range of checkpoints.
     #[command(name = "replay-checkpoint")]
     ReplayCheckpoints {
-        /// The starting checkpoint sequence number of the range of checkpoints to replay
+        /// The starting checkpoint sequence number of the range of checkpoints
+        /// to replay
         #[arg(long, short)]
         start: u64,
 
-        /// The ending checkpoint sequence number of the range of checkpoints to replay
+        /// The ending checkpoint sequence number of the range of checkpoints to
+        /// replay
         #[arg(long, short)]
         end: u64,
 
-        /// If an error is encountered during a transaction, this specifies whether to terminate or continue
+        /// If an error is encountered during a transaction, this specifies
+        /// whether to terminate or continue
         #[arg(long, short)]
         terminate_early: bool,
     },
@@ -587,9 +625,10 @@ pub enum IotaClientCommands {
 /// Global options for most transaction execution related commands
 #[derive(Args, Debug)]
 pub struct Opts {
-    /// An optional gas budget for this transaction (in NANOS). If gas budget is not provided, the
-    /// tool will first perform a dry run to estimate the gas cost, and then it will execute the
-    /// transaction. Please note that this incurs a small cost in performance due to the additional
+    /// An optional gas budget for this transaction (in NANOS). If gas budget is
+    /// not provided, the tool will first perform a dry run to estimate the
+    /// gas cost, and then it will execute the transaction. Please note that
+    /// this incurs a small cost in performance due to the additional
     /// dry run call.
     #[arg(long)]
     pub gas_budget: Option<u64>,
@@ -599,15 +638,18 @@ pub struct Opts {
     /// Perform a dev inspect
     #[arg(long)]
     pub dev_inspect: bool,
-    /// Instead of executing the transaction, serialize the bcs bytes of the unsigned transaction data
-    /// (TransactionData) using base64 encoding, and print out the string <TX_BYTES>. The string can
-    /// be used to execute transaction with `iota client execute-signed-tx --tx-bytes <TX_BYTES>`.
+    /// Instead of executing the transaction, serialize the bcs bytes of the
+    /// unsigned transaction data (TransactionData) using base64 encoding,
+    /// and print out the string <TX_BYTES>. The string can be used to
+    /// execute transaction with `iota client execute-signed-tx --tx-bytes
+    /// <TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_unsigned_transaction: bool,
-    /// Instead of executing the transaction, serialize the bcs bytes of the signed transaction data
-    /// (SenderSignedData) using base64 encoding, and print out the string <SIGNED_TX_BYTES>. The
-    /// string can be used to execute transaction with
-    /// `iota client execute-combined-signed-tx --signed-tx-bytes <SIGNED_TX_BYTES>`.
+    /// Instead of executing the transaction, serialize the bcs bytes of the
+    /// signed transaction data (SenderSignedData) using base64 encoding,
+    /// and print out the string <SIGNED_TX_BYTES>. The string can be used
+    /// to execute transaction with `iota client execute-combined-signed-tx
+    /// --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
 }
@@ -616,7 +658,8 @@ pub struct Opts {
 #[derive(Args, Debug)]
 pub struct OptsWithGas {
     /// ID of the gas object for gas payment.
-    /// If not provided, a gas object with at least gas_budget value will be selected
+    /// If not provided, a gas object with at least gas_budget value will be
+    /// selected
     #[clap(long)]
     pub gas: Option<ObjectID>,
     #[clap(flatten)]
@@ -624,7 +667,8 @@ pub struct OptsWithGas {
 }
 
 impl Opts {
-    /// Uses the passed gas_budget for the gas budget variable and sets all other flags to false.
+    /// Uses the passed gas_budget for the gas budget variable and sets all
+    /// other flags to false.
     pub fn for_testing(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -634,8 +678,8 @@ impl Opts {
             serialize_signed_transaction: false,
         }
     }
-    /// Uses the passed gas_budget for the gas budget variable, sets dry run to true,
-    /// and sets all other flags to false.
+    /// Uses the passed gas_budget for the gas budget variable, sets dry run to
+    /// true, and sets all other flags to false.
     pub fn for_testing_dry_run(gas_budget: u64) -> Self {
         Self {
             gas_budget: Some(gas_budget),
@@ -648,16 +692,16 @@ impl Opts {
 }
 
 impl OptsWithGas {
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas budget variable.
-    /// All other flags are set to false.
+    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
+    /// budget variable. All other flags are set to false.
     pub fn for_testing(gas: Option<ObjectID>, gas_budget: u64) -> Self {
         Self {
             gas,
             rest: Opts::for_testing(gas_budget),
         }
     }
-    /// Sets the gas object to gas, and uses the passed gas_budget for the gas budget variable.
-    /// Dry run is set to true, all other flags to false.
+    /// Sets the gas object to gas, and uses the passed gas_budget for the gas
+    /// budget variable. Dry run is set to true, all other flags to false.
     pub fn for_testing_dry_run(gas: Option<ObjectID>, gas_budget: u64) -> Self {
         Self {
             gas,
@@ -1163,18 +1207,15 @@ impl IotaClientCommands {
                 let client = context.get_client().await?;
                 let tx_read = client
                     .read_api()
-                    .get_transaction_with_options(
-                        digest,
-                        IotaTransactionBlockResponseOptions {
-                            show_input: true,
-                            show_raw_input: false,
-                            show_effects: true,
-                            show_events: true,
-                            show_object_changes: true,
-                            show_balance_changes: false,
-                            show_raw_effects: false,
-                        },
-                    )
+                    .get_transaction_with_options(digest, IotaTransactionBlockResponseOptions {
+                        show_input: true,
+                        show_raw_input: false,
+                        show_effects: true,
+                        show_events: true,
+                        show_object_changes: true,
+                        show_balance_changes: false,
+                        show_raw_effects: false,
+                    })
                     .await?;
                 IotaClientCommandResult::TransactionBlock(tx_read)
             }
@@ -1188,11 +1229,13 @@ impl IotaClientCommands {
                 args,
                 opts,
             } => {
-                // Convert all numeric input to String, this will allow number input from the CLI
-                // without failing IotaJSON's checks.
+                // Convert all numeric input to String, this will allow number input from the
+                // CLI without failing IotaJSON's checks.
                 let args = args
                     .into_iter()
-                    .map(|value| IotaJsonValue::new(convert_number_to_string(value.to_json_value())))
+                    .map(|value| {
+                        IotaJsonValue::new(convert_number_to_string(value.to_json_value()))
+                    })
                     .collect::<Result<_, _>>()?;
 
                 let type_args = type_args
@@ -1298,7 +1341,9 @@ impl IotaClientCommands {
 
                 if let Some(gas) = opts.gas {
                     if input_coins.contains(&gas) {
-                        bail!("Gas coin is in input coins of Pay transaction, use PayIota transaction instead!");
+                        bail!(
+                            "Gas coin is in input coins of Pay transaction, use PayIota transaction instead!"
+                        );
                     }
                 }
 
@@ -1453,8 +1498,12 @@ impl IotaClientCommands {
                         let network = match env.rpc.as_str() {
                             IOTA_DEVNET_URL => "https://faucet.devnet.iota.io/v1/gas",
                             IOTA_TESTNET_URL => "https://faucet.testnet.iota.io/v1/gas",
-                            IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => "http://127.0.0.1:9123/gas",
-                            _ => bail!("Cannot recognize the active network. Please provide the gas faucet full URL.")
+                            IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => {
+                                "http://127.0.0.1:9123/gas"
+                            }
+                            _ => bail!(
+                                "Cannot recognize the active network. Please provide the gas faucet full URL."
+                            ),
                         };
                         network.to_string()
                     } else {
@@ -1662,7 +1711,10 @@ impl IotaClientCommands {
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
         let env = Some(env.into());
-        ensure!(config.get_env(&env).is_some(), "Environment config not found for [{env:?}], add new environment config using the `iota client new-env` command.");
+        ensure!(
+            config.get_env(&env).is_some(),
+            "Environment config not found for [{env:?}], add new environment config using the `iota client new-env` command."
+        );
         config.active_env = env;
         Ok(())
     }
@@ -1763,8 +1815,8 @@ pub(crate) async fn upgrade_package(
         .ok_or_else(|| anyhow!("Upgrade capability is not a Move Object"))?
         .deserialize()?;
     // We keep the existing policy -- no fancy policies or changing the upgrade
-    // policy at the moment. To change the policy you can call a Move function in the
-    // `package` module to change this policy.
+    // policy at the moment. To change the policy you can call a Move function in
+    // the `package` module to change this policy.
     let upgrade_policy = upgrade_cap.policy;
     let package_digest = compiled_package.get_package_digest(with_unpublished_dependencies);
 
@@ -1981,7 +2033,11 @@ impl Display for IotaClientCommandResult {
                 }
 
                 let mut builder = TableBuilder::default();
-                builder.set_header(vec!["gasCoinId", "nanosBalance (NANOS)", "iotaBalance (IOTA)"]);
+                builder.set_header(vec![
+                    "gasCoinId",
+                    "nanosBalance (NANOS)",
+                    "iotaBalance (IOTA)",
+                ]);
                 for coin in &gas_coins {
                     builder.push_record(vec![
                         coin.gas_coin_id.to_string(),
@@ -2155,7 +2211,8 @@ impl Display for IotaClientCommandResult {
             } => {
                 let mut builder = TableBuilder::default();
 
-                /// Convert ticks to string, using commas as thousands separators
+                /// Convert ticks to string, using commas as thousands
+                /// separators
                 fn format_ticks(ticks: u128) -> String {
                     let ticks = ticks.to_string();
                     let mut formatted = String::with_capacity(ticks.len() + ticks.len() / 3);
@@ -2308,7 +2365,8 @@ impl IotaClientCommandResult {
         };
         // Log line by line
         for line in line.lines() {
-            // Logs write to a file on the side.  Print to stdout and also log to file, for tests to pass.
+            // Logs write to a file on the side.  Print to stdout and also log to file, for
+            // tests to pass.
             println!("{line}");
             info!("{line}")
         }
@@ -2567,11 +2625,15 @@ pub async fn request_tokens_from_faucet(
             if let Some(err) = faucet_resp.error {
                 bail!("Faucet request was unsuccessful: {err}")
             } else {
-                println!("Request successful. It can take up to 1 minute to get the coin. Run iota client gas to check your gas coins.");
+                println!(
+                    "Request successful. It can take up to 1 minute to get the coin. Run iota client gas to check your gas coins."
+                );
             }
         }
         StatusCode::TOO_MANY_REQUESTS => {
-            bail!("Faucet service received too many requests from this IP address. Please try again after 60 minutes.");
+            bail!(
+                "Faucet service received too many requests from this IP address. Please try again after 60 minutes."
+            );
         }
         StatusCode::SERVICE_UNAVAILABLE => {
             bail!("Faucet service is currently overloaded or unavailable. Please try again later.");
@@ -2752,8 +2814,8 @@ pub async fn execute_dry_run(
 /// * the maximum between A and B, where:
 ///
 /// A = computation cost + GAS_SAFE_OVERHEAD * reference gas price
-/// B = computation cost + storage cost - storage rebate + GAS_SAFE_OVERHEAD * reference gas price
-/// overhead
+/// B = computation cost + storage cost - storage rebate + GAS_SAFE_OVERHEAD *
+/// reference gas price overhead
 ///
 /// This gas estimate is computed exactly as in the TypeScript SDK
 /// <https://github.com/iotaledger/iota/blob/3c4369270605f78a243842098b7029daf8d883d9/sdk/typescript/src/transactions/TransactionBlock.ts#L845-L858>
@@ -2769,7 +2831,9 @@ pub async fn estimate_gas_budget(
     let Ok(IotaClientCommandResult::DryRun(dry_run)) =
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await
     else {
-        bail!("Could not automatically determine the gas budget. Please supply one using the --gas-budget flag.")
+        bail!(
+            "Could not automatically determine the gas budget. Please supply one using the --gas-budget flag."
+        )
     };
 
     let rgp = client.read_api().get_reference_gas_price().await?;
@@ -2805,9 +2869,11 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 
 /// Dry run, execute, or serialize a transaction.
 ///
-/// This basically extracts the logical code for each command that deals with dry run, executing,
-/// or serializing a transaction and puts it in a function to reduce code duplication.
-// TODO (stefan): Add gas_price option for all commands and remove it from this function
+/// This basically extracts the logical code for each command that deals with
+/// dry run, executing, or serializing a transaction and puts it in a function
+/// to reduce code duplication.
+// TODO (stefan): Add gas_price option for all commands and remove it from this
+// function
 pub(crate) async fn dry_run_or_execute_or_serialize(
     signer: IotaAddress,
     tx_kind: TransactionKind,

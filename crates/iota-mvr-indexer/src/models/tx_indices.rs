@@ -2,6 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use diesel::prelude::*;
+use itertools::Itertools;
+
 use crate::{
     schema::{
         tx_affected_addresses, tx_affected_objects, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
@@ -9,8 +12,6 @@ use crate::{
     },
     types::TxIndex,
 };
-use diesel::prelude::*;
-use itertools::Itertools;
 
 #[derive(QueryableByName)]
 pub struct TxSequenceNumber {

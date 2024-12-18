@@ -2,24 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+    sync::Arc,
+    time::Duration,
+};
+
 use indexmap::IndexSet;
-use move_binary_format::file_format::Visibility;
-use move_binary_format::normalized::Type;
-use move_core_types::language_storage::StructTag;
-use rand::rngs::StdRng;
-use std::collections::{HashMap, HashSet};
-use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
 use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
 use iota_move_build::BuildConfig;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress};
-use iota_types::execution_config_utils::to_binary_config;
-use iota_types::object::{Object, Owner};
-use iota_types::storage::WriteKind;
-use iota_types::transaction::{CallArg, ObjectArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH};
-use iota_types::{Identifier, IOTA_FRAMEWORK_ADDRESS};
+use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS, Identifier,
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    execution_config_utils::to_binary_config,
+    object::{Object, Owner},
+    storage::WriteKind,
+    transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
+};
+use move_binary_format::{file_format::Visibility, normalized::Type};
+use move_core_types::language_storage::StructTag;
+use rand::rngs::StdRng;
 use test_cluster::TestCluster;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};
@@ -100,8 +104,8 @@ pub type OwnedObjects = HashMap<StructTag, IndexSet<ObjectRef>>;
 
 pub type ImmObjects = Arc<RwLock<HashMap<StructTag, Vec<ObjectRef>>>>;
 
-/// Map from StructTag to a vector of shared objects, where each shared object is a tuple of
-/// (object ID, initial shared version).
+/// Map from StructTag to a vector of shared objects, where each shared object
+/// is a tuple of (object ID, initial shared version).
 pub type SharedObjects = Arc<RwLock<HashMap<StructTag, Vec<(ObjectID, SequenceNumber)>>>>;
 
 pub struct SurferState {
@@ -289,7 +293,8 @@ impl SurferState {
                         if !matches!(func.visibility, Visibility::Public) && !func.is_entry {
                             return None;
                         }
-                        // Surfer doesn't support chaining transactions in a programmable transaction yet.
+                        // Surfer doesn't support chaining transactions in a programmable
+                        // transaction yet.
                         if !func.return_.is_empty() {
                             return None;
                         }

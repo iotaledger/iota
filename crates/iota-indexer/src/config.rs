@@ -2,15 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::db::ConnectionPoolConfig;
-use crate::{backfill::BackfillTaskKind, handlers::pruner::PrunableTable};
-use clap::{Args, Parser, Subcommand};
-use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
-use strum::IntoEnumIterator;
+
+use clap::{Args, Parser, Subcommand};
 use iota_json_rpc::name_service::NameServiceConfig;
-use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::base_types::{IotaAddress, ObjectID};
+use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 use url::Url;
+
+use crate::{
+    backfill::BackfillTaskKind, db::ConnectionPoolConfig, handlers::pruner::PrunableTable,
+};
 
 /// The primary purpose of objects_history is to serve consistency query.
 /// A short retention is sufficient.
@@ -115,13 +118,14 @@ pub struct IngestionConfig {
     )]
     pub checkpoint_download_queue_size: usize,
 
-    /// Start checkpoint to ingest from, this is optional and if not provided, the ingestion will
-    /// start from the next checkpoint after the latest committed checkpoint.
+    /// Start checkpoint to ingest from, this is optional and if not provided,
+    /// the ingestion will start from the next checkpoint after the latest
+    /// committed checkpoint.
     #[arg(long, env = "START_CHECKPOINT")]
     pub start_checkpoint: Option<u64>,
 
-    /// End checkpoint to ingest until, this is optional and if not provided, the ingestion will
-    /// continue until u64::MAX.
+    /// End checkpoint to ingest until, this is optional and if not provided,
+    /// the ingestion will continue until u64::MAX.
     #[arg(long, env = "END_CHECKPOINT")]
     pub end_checkpoint: Option<u64>,
 
@@ -132,8 +136,8 @@ pub struct IngestionConfig {
     )]
     pub checkpoint_download_timeout: u64,
 
-    /// Limit indexing parallelism on big checkpoints to avoid OOMing by limiting the total size of
-    /// the checkpoint download queue.
+    /// Limit indexing parallelism on big checkpoints to avoid OOMing by
+    /// limiting the total size of the checkpoint download queue.
     #[arg(
         long,
         default_value_t = Self::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE_BYTES,
@@ -201,9 +205,9 @@ pub enum Command {
         pruning_options: PruningOptions,
         #[command(flatten)]
         upload_options: UploadOptions,
-        /// If true, the indexer will run in MVR mode. It will only index data to
-        /// `objects_snapshot`, `objects_history`, `packages`, `checkpoints`, and `epochs` to
-        /// support MVR queries.
+        /// If true, the indexer will run in MVR mode. It will only index data
+        /// to `objects_snapshot`, `objects_history`, `packages`,
+        /// `checkpoints`, and `epochs` to support MVR queries.
         #[clap(long, default_value_t = false)]
         mvr_mode: bool,
     },
@@ -219,16 +223,17 @@ pub enum Command {
     /// Run through the migration scripts.
     RunMigrations,
     /// Backfill DB tables for some ID range [\start, \end].
-    /// The tool will automatically slice it into smaller ranges and for each range,
-    /// it first makes a read query to the DB to get data needed for backfill if needed,
-    /// which then can be processed and written back to the DB.
-    /// To add a new backfill, add a new module and implement the `BackfillTask` trait.
-    /// full_objects_history.rs provides an example to do SQL-only backfills.
-    /// system_state_summary_json.rs provides an example to do SQL + processing backfills.
+    /// The tool will automatically slice it into smaller ranges and for each
+    /// range, it first makes a read query to the DB to get data needed for
+    /// backfill if needed, which then can be processed and written back to
+    /// the DB. To add a new backfill, add a new module and implement the
+    /// `BackfillTask` trait. full_objects_history.rs provides an example to
+    /// do SQL-only backfills. system_state_summary_json.rs provides an
+    /// example to do SQL + processing backfills.
     RunBackFill {
         /// Start of the range to backfill, inclusive.
-        /// It can be a checkpoint number or an epoch or any other identifier that can be used to
-        /// slice the backfill range.
+        /// It can be a checkpoint number or an epoch or any other identifier
+        /// that can be used to slice the backfill range.
         start: usize,
         /// End of the range to backfill, inclusive.
         end: usize,
@@ -248,14 +253,15 @@ pub struct PruningOptions {
     pub pruning_config_path: Option<PathBuf>,
 }
 
-/// Represents the default retention policy and overrides for prunable tables. Instantiated only if
-/// `PruningOptions` is provided on indexer start.
+/// Represents the default retention policy and overrides for prunable tables.
+/// Instantiated only if `PruningOptions` is provided on indexer start.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetentionConfig {
     /// Default retention policy for all tables.
     pub epochs_to_keep: u64,
-    /// A map of tables to their respective retention policies that will override the default.
-    /// Prunable tables not named here will use the default retention policy.
+    /// A map of tables to their respective retention policies that will
+    /// override the default. Prunable tables not named here will use the
+    /// default retention policy.
     #[serde(default)]
     pub overrides: HashMap<PrunableTable, u64>,
 }
@@ -289,9 +295,10 @@ impl PruningOptions {
 }
 
 impl RetentionConfig {
-    /// Create a new `RetentionConfig` with the specified default retention and overrides. Call
-    /// `finalize()` on the instance to update the `policies` field with the default retention
-    /// policy for all tables that do not have an override specified.
+    /// Create a new `RetentionConfig` with the specified default retention and
+    /// overrides. Call `finalize()` on the instance to update the
+    /// `policies` field with the default retention policy for all tables
+    /// that do not have an override specified.
     pub fn new(epochs_to_keep: u64, overrides: HashMap<PrunableTable, u64>) -> Self {
         Self {
             epochs_to_keep,
@@ -309,10 +316,11 @@ impl RetentionConfig {
         Self::new(epochs_to_keep, HashMap::new())
     }
 
-    /// Consumes this struct to produce a full mapping of every prunable table and its retention
-    /// policy. By default, every prunable table will have the default retention policy from
-    /// `epochs_to_keep`. Some tables like `objects_history` will observe a different default
-    /// retention policy. These default values are overridden by any entries in `overrides`.
+    /// Consumes this struct to produce a full mapping of every prunable table
+    /// and its retention policy. By default, every prunable table will have
+    /// the default retention policy from `epochs_to_keep`. Some tables like
+    /// `objects_history` will observe a different default retention policy.
+    /// These default values are overridden by any entries in `overrides`.
     pub fn retention_policies(self) -> HashMap<PrunableTable, u64> {
         let RetentionConfig {
             epochs_to_keep,
@@ -444,10 +452,12 @@ pub struct BenchmarkConfig {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::io::Write;
+
     use tap::Pipe;
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     fn parse_args<'a, T>(args: impl IntoIterator<Item = &'a str>) -> Result<T, clap::error::Error>
     where

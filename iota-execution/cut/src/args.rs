@@ -2,45 +2,48 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{self, bail, Result};
+use std::{env, path::PathBuf, str::FromStr};
+
+use anyhow::{self, Result, bail};
 use clap::{ArgAction, Parser};
-use std::env;
-use std::path::PathBuf;
-use std::str::FromStr;
 use thiserror::Error;
 
-/// Tool for cutting duplicate versions of a subset of crates in a git repository.
+/// Tool for cutting duplicate versions of a subset of crates in a git
+/// repository.
 ///
-/// Duplicated crate dependencies are redirected so that if a crate is duplicated with its
-/// dependency, the duplicate's dependency points to the duplicated dependency.  Package names are
-/// updated to avoid conflicts with their original. Duplicates respect membership or exclusion from
-/// a workspace.
+/// Duplicated crate dependencies are redirected so that if a crate is
+/// duplicated with its dependency, the duplicate's dependency points to the
+/// duplicated dependency.  Package names are updated to avoid conflicts with
+/// their original. Duplicates respect membership or exclusion from a workspace.
 #[derive(Parser)]
 #[command(author, version, rename_all = "kebab-case")]
 pub(crate) struct Args {
-    /// Name of the feature the crates are being cut for -- duplicated crate package names will be
-    /// suffixed with a hyphen followed by this feature name.
+    /// Name of the feature the crates are being cut for -- duplicated crate
+    /// package names will be suffixed with a hyphen followed by this
+    /// feature name.
     #[arg(short, long)]
     pub feature: String,
 
-    /// Root of repository -- all source and destination paths must be within this path, and it must
-    /// contain the repo's `workspace` configuration.  Defaults to the parent of the working
-    /// directory that contains a .git directory.
+    /// Root of repository -- all source and destination paths must be within
+    /// this path, and it must contain the repo's `workspace` configuration.
+    /// Defaults to the parent of the working directory that contains a .git
+    /// directory.
     pub root: Option<PathBuf>,
 
-    /// Add a directory to duplicate crates from, along with the destination to duplicate it to, and
-    /// optionally a suffix to remove from package names within this directory, all separated by
-    /// colons.
+    /// Add a directory to duplicate crates from, along with the destination to
+    /// duplicate it to, and optionally a suffix to remove from package
+    /// names within this directory, all separated by colons.
     ///
-    /// Only crates (directories containing a `Cargo.toml` file) found under the source (first) path
-    /// whose package names were supplied as a `--package` will be duplicated at the destination
-    /// (second) path.  Copying will preserve the directory structure from the source directory to
-    /// the destination directory.
+    /// Only crates (directories containing a `Cargo.toml` file) found under the
+    /// source (first) path whose package names were supplied as a
+    /// `--package` will be duplicated at the destination (second) path.
+    /// Copying will preserve the directory structure from the source directory
+    /// to the destination directory.
     #[arg(short, long = "dir")]
     pub directories: Vec<Directory>,
 
-    /// Package names to include in the cut (this must match the package name in its source
-    /// location, including any suffixes)
+    /// Package names to include in the cut (this must match the package name in
+    /// its source location, including any suffixes)
     #[arg(short, long = "package")]
     pub packages: Vec<String>,
 
@@ -112,14 +115,11 @@ mod tests {
         let src = cwd.join("src");
         let dst = cwd.join("dst");
 
-        assert_eq!(
-            dir,
-            Directory {
-                src,
-                dst,
-                suffix: Some("suffix".to_string()),
-            }
-        )
+        assert_eq!(dir, Directory {
+            src,
+            dst,
+            suffix: Some("suffix".to_string()),
+        })
     }
 
     #[test]
@@ -131,14 +131,11 @@ mod tests {
         let src = cwd.join("src");
         let dst = cwd.join("dst");
 
-        assert_eq!(
-            dir,
-            Directory {
-                src,
-                dst,
-                suffix: None,
-            }
-        )
+        assert_eq!(dir, Directory {
+            src,
+            dst,
+            suffix: None,
+        })
     }
 
     #[test]

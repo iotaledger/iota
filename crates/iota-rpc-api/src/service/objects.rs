@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::GetObjectOptions;
-use crate::types::ObjectResponse;
-use crate::Result;
-use crate::RpcService;
-use iota_sdk_types::types::ObjectId;
-use iota_sdk_types::types::Version;
+use iota_sdk_types::types::{ObjectId, Version};
 use tap::Pipe;
+
+use crate::{
+    Result, RpcService,
+    types::{GetObjectOptions, ObjectResponse},
+};
 
 impl RpcService {
     pub fn get_object(

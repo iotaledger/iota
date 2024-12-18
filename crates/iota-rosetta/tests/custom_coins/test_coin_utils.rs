@@ -2,33 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
-use anyhow::{anyhow, Result};
-
-use move_cli::base;
-use shared_crypto::intent::Intent;
+use anyhow::{Result, anyhow};
 use iota_json_rpc_types::{
-    ObjectChange, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery, IotaRawData,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery, IotaRawData,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_move_build::BuildConfig as MoveBuildConfig;
-
 use iota_sdk::IotaClient;
-use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
-use iota_types::coin::COIN_MODULE_NAME;
-use iota_types::gas_coin::GasCoin;
-use iota_types::object::Owner;
-use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
-use iota_types::transaction::{
-    Command, ObjectArg, Transaction, TransactionData, TransactionDataAPI,
+use iota_types::{
+    IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
+    base_types::{IotaAddress, ObjectID, ObjectRef},
+    coin::COIN_MODULE_NAME,
+    gas_coin::GasCoin,
+    object::Owner,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    quorum_driver_types::ExecuteTransactionRequestType,
+    transaction::{Command, ObjectArg, Transaction, TransactionData, TransactionDataAPI},
 };
-use iota_types::{Identifier, TypeTag, IOTA_FRAMEWORK_PACKAGE_ID};
+use move_cli::base;
+use shared_crypto::intent::Intent;
 use test_cluster::TestClusterBuilder;
-
 use tracing::debug;
 
 const DEFAULT_GAS_BUDGET: u64 = 900_000_000;
@@ -119,7 +115,9 @@ pub async fn select_gas(
             });
         }
     }
-    Err(anyhow!("Cannot find gas coin for signer address [{signer_addr}] with amount sufficient for the required gas amount [{budget}]."))
+    Err(anyhow!(
+        "Cannot find gas coin for signer address [{signer_addr}] with amount sufficient for the required gas amount [{budget}]."
+    ))
 }
 
 #[derive(Debug)]
@@ -142,14 +140,10 @@ pub async fn init_package(
 
     let tx_kind = client
         .transaction_builder()
-        .publish_tx_kind(
-            sender,
-            modules_bytes,
-            vec![
-                ObjectID::from_hex_literal("0x1").unwrap(),
-                ObjectID::from_hex_literal("0x2").unwrap(),
-            ],
-        )
+        .publish_tx_kind(sender, modules_bytes, vec![
+            ObjectID::from_hex_literal("0x1").unwrap(),
+            ObjectID::from_hex_literal("0x2").unwrap(),
+        ])
         .await?;
 
     let gas_data = select_gas(client, sender, None, None, vec![], None).await?;

@@ -2,19 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{error::code, metrics::Metrics};
+use std::{fmt::Write, net::SocketAddr, sync::Arc};
+
 use async_graphql::{
+    PathSegment, Response, ServerError, ServerResult, ValidationResult, Variables,
     extensions::{
         Extension, ExtensionContext, ExtensionFactory, NextExecute, NextParseQuery, NextResolve,
         NextValidation, ResolveInfo,
     },
     parser::types::{ExecutableDocument, OperationType, Selection},
-    PathSegment, Response, ServerError, ServerResult, ValidationResult, Variables,
 };
 use async_graphql_value::ConstValue;
-use std::{fmt::Write, net::SocketAddr, sync::Arc};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
+
+use crate::{error::code, metrics::Metrics};
 
 #[derive(Clone, Debug)]
 pub struct LoggerConfig {
@@ -52,8 +54,8 @@ struct LoggerExtension {
 
 #[async_trait::async_trait]
 impl Extension for LoggerExtension {
-    // This hook is used to get the top level node name for recording in the metrics which top
-    // level nodes are being called.
+    // This hook is used to get the top level node name for recording in the metrics
+    // which top level nodes are being called.
     async fn resolve(
         &self,
         ctx: &ExtensionContext<'_>,

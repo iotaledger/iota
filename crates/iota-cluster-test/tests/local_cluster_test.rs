@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_cluster_test::{config::ClusterTestOpt, ClusterTest};
+use iota_cluster_test::{ClusterTest, config::ClusterTestOpt};
 
 #[tokio::test]
 async fn cluster_test() {
@@ -13,10 +13,9 @@ async fn cluster_test() {
 
 #[tokio::test]
 async fn test_iota_cluster() {
-    use reqwest::StatusCode;
-    use iota_cluster_test::cluster::Cluster;
-    use iota_cluster_test::cluster::LocalNewCluster;
+    use iota_cluster_test::cluster::{Cluster, LocalNewCluster};
     use iota_graphql_rpc::client::simple_client::SimpleClient;
+    use reqwest::StatusCode;
     use tokio::time::sleep;
 
     telemetry_subscribers::init_for_testing();

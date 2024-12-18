@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::data_types::PgTimestamp;
-use diesel::{Identifiable, Insertable, Queryable, QueryableByName, Selectable};
-
+use diesel::{
+    Identifiable, Insertable, Queryable, QueryableByName, Selectable, data_types::PgTimestamp,
+};
+use iota_indexer_builder::{LIVE_TASK_TARGET_CHECKPOINT, Task};
 use serde::Serialize;
-use iota_indexer_builder::{Task, LIVE_TASK_TARGET_CHECKPOINT};
 
 use crate::schema::{
-    balances, balances_summary, flashloans, order_fills, order_updates, pool_prices, pools,
-    progress_store, proposals, rebates, stakes, iota_error_transactions, trade_params_update, votes,
+    balances, balances_summary, flashloans, iota_error_transactions, order_fills, order_updates,
+    pool_prices, pools, progress_store, proposals, rebates, stakes, trade_params_update, votes,
 };
 
 #[derive(Queryable, Selectable, Insertable, Identifiable, Debug)]

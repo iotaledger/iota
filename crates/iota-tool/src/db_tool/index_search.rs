@@ -2,21 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
-use serde::{de::DeserializeOwned, Serialize};
-use std::{path::PathBuf, str::FromStr};
-use iota_types::digests::TransactionDigest;
-use typed_store::rocks::{DBMap, MetricConf};
-use typed_store::traits::Map;
+use std::{fmt::Debug, path::PathBuf, str::FromStr};
 
-use crate::get_db_entries;
-use move_core_types::language_storage::ModuleId;
-use std::fmt::Debug;
+use anyhow::anyhow;
 use iota_core::jsonrpc_index::IndexStoreTables;
 use iota_types::{
-    base_types::{ObjectID, IotaAddress, TxSequenceNumber},
     Identifier, TypeTag,
+    base_types::{IotaAddress, ObjectID, TxSequenceNumber},
+    digests::TransactionDigest,
 };
+use move_core_types::language_storage::ModuleId;
+use serde::{Serialize, de::DeserializeOwned};
+use typed_store::{
+    rocks::{DBMap, MetricConf},
+    traits::Map,
+};
+
+use crate::get_db_entries;
 
 #[derive(Clone, Debug)]
 pub enum SearchRange<T: Serialize + Clone + Debug> {
@@ -36,8 +38,8 @@ where
     }
 }
 
-/// Until we use a proc macro to auto derive this, we have to make sure to update the
-/// `search_index` function below when adding new tables.
+/// Until we use a proc macro to auto derive this, we have to make sure to
+/// update the `search_index` function below when adding new tables.
 pub fn search_index(
     db_path: PathBuf,
     table_name: String,

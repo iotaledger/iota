@@ -2,78 +2,87 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::exchange_rates_task::TriggerExchangeRatesTask;
-use super::system_package_task::SystemPackageTask;
-use super::watermark_task::{ChainIdentifierLock, Watermark, WatermarkLock, WatermarkTask};
-use crate::config::{
-    ConnectionConfig, ServiceConfig, Version, MAX_CONCURRENT_REQUESTS,
-    RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD,
+use std::{
+    any::Any,
+    convert::Infallible,
+    net::{SocketAddr, TcpStream},
+    sync::Arc,
+    time::{Duration, Instant},
 };
-use crate::data::move_registry_data_loader::MoveRegistryDataLoader;
-use crate::data::package_resolver::{DbPackageStore, PackageResolver};
-use crate::data::{DataLoader, Db};
-use crate::extensions::directive_checker::DirectiveChecker;
-use crate::metrics::Metrics;
-use crate::mutation::Mutation;
-use crate::types::datatype::IMoveDatatype;
-use crate::types::move_object::IMoveObject;
-use crate::types::object::IObject;
-use crate::types::owner::IOwner;
-use crate::{
-    config::ServerConfig,
-    context_data::db_data_provider::PgManager,
-    error::Error,
-    extensions::{
-        feature_gate::FeatureGate,
-        logger::Logger,
-        query_limits_checker::{PayloadSize, QueryLimitsChecker, ShowUsage},
-        timeout::Timeout,
-    },
-    server::version::set_version_middleware,
-    types::query::{Query, IotaGraphQLSchema},
+
+use async_graphql::{
+    EmptySubscription, Schema, SchemaBuilder,
+    extensions::{ApolloTracing, ExtensionFactory, Tracing},
 };
-use async_graphql::extensions::ApolloTracing;
-use async_graphql::extensions::Tracing;
-use async_graphql::EmptySubscription;
-use async_graphql::{extensions::ExtensionFactory, Schema, SchemaBuilder};
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
-use axum::body::Body;
-use axum::extract::FromRef;
-use axum::extract::{ConnectInfo, Query as AxumQuery, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::middleware::{self};
-use axum::response::IntoResponse;
-use axum::routing::{get, post, MethodRouter, Route};
-use axum::Extension;
-use axum::Router;
-use axum_extra::headers::ContentLength;
-use axum_extra::TypedHeader;
+use axum::{
+    Extension, Router,
+    body::Body,
+    extract::{ConnectInfo, FromRef, Query as AxumQuery, State},
+    http::{HeaderMap, StatusCode},
+    middleware::{self},
+    response::IntoResponse,
+    routing::{MethodRouter, Route, get, post},
+};
+use axum_extra::{TypedHeader, headers::ContentLength};
 use chrono::Utc;
 use http::{HeaderValue, Method, Request};
-use iota_metrics::spawn_monitored_task;
-use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
-use std::convert::Infallible;
-use std::net::TcpStream;
-use std::sync::Arc;
-use std::time::Duration;
-use std::{any::Any, net::SocketAddr, time::Instant};
 use iota_graphql_rpc_headers::LIMITS_HEADER;
 use iota_indexer::db::check_db_migration_consistency;
+use iota_metrics::spawn_monitored_task;
+use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
 use iota_sdk::IotaClientBuilder;
-use tokio::join;
-use tokio::sync::OnceCell;
+use tokio::{join, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-/// The default allowed maximum lag between the current timestamp and the checkpoint timestamp.
+use super::{
+    exchange_rates_task::TriggerExchangeRatesTask,
+    system_package_task::SystemPackageTask,
+    watermark_task::{ChainIdentifierLock, Watermark, WatermarkLock, WatermarkTask},
+};
+use crate::{
+    config::{
+        ConnectionConfig, MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD,
+        ServerConfig, ServiceConfig, Version,
+    },
+    context_data::db_data_provider::PgManager,
+    data::{
+        DataLoader, Db,
+        move_registry_data_loader::MoveRegistryDataLoader,
+        package_resolver::{DbPackageStore, PackageResolver},
+    },
+    error::Error,
+    extensions::{
+        directive_checker::DirectiveChecker,
+        feature_gate::FeatureGate,
+        logger::Logger,
+        query_limits_checker::{PayloadSize, QueryLimitsChecker, ShowUsage},
+        timeout::Timeout,
+    },
+    metrics::Metrics,
+    mutation::Mutation,
+    server::version::set_version_middleware,
+    types::{
+        datatype::IMoveDatatype,
+        move_object::IMoveObject,
+        object::IObject,
+        owner::IOwner,
+        query::{IotaGraphQLSchema, Query},
+    },
+};
+
+/// The default allowed maximum lag between the current timestamp and the
+/// checkpoint timestamp.
 const DEFAULT_MAX_CHECKPOINT_LAG: Duration = Duration::from_secs(300);
 
 pub(crate) struct Server {
-    // pub server: HyperServer<HyperAddrIncoming, IntoMakeServiceWithConnectInfo<Router, SocketAddr>>,
+    // pub server: HyperServer<HyperAddrIncoming, IntoMakeServiceWithConnectInfo<Router,
+    // SocketAddr>>,
     router: Router,
     address: String,
     watermark_task: WatermarkTask,
@@ -83,13 +92,15 @@ pub(crate) struct Server {
 }
 
 impl Server {
-    /// Start the GraphQL service and any background tasks it is dependent on. When a cancellation
-    /// signal is received, the method waits for all tasks to complete before returning.
+    /// Start the GraphQL service and any background tasks it is dependent on.
+    /// When a cancellation signal is received, the method waits for all
+    /// tasks to complete before returning.
     pub async fn run(mut self) -> Result<(), Error> {
         get_or_init_server_start_time().await;
 
-        // A handle that spawns a background task to periodically update the `Watermark`, which
-        // consists of the checkpoint upper bound and current epoch.
+        // A handle that spawns a background task to periodically update the
+        // `Watermark`, which consists of the checkpoint upper bound and current
+        // epoch.
         let watermark_task = {
             info!("Starting watermark update task");
             spawn_monitored_task!(async move {
@@ -97,7 +108,8 @@ impl Server {
             })
         };
 
-        // A handle that spawns a background task to evict system packages on epoch changes.
+        // A handle that spawns a background task to evict system packages on epoch
+        // changes.
         let system_package_task = {
             info!("Starting system package task");
             spawn_monitored_task!(async move {
@@ -131,8 +143,9 @@ impl Server {
             })
         };
 
-        // Wait for all tasks to complete. This ensures that the service doesn't fully shut down
-        // until all tasks and the server have completed their shutdown processes.
+        // Wait for all tasks to complete. This ensures that the service doesn't fully
+        // shut down until all tasks and the server have completed their
+        // shutdown processes.
         let _ = join!(
             watermark_task,
             system_package_task,
@@ -224,8 +237,8 @@ impl ServerBuilder {
         self.schema.finish()
     }
 
-    /// Prepares the components of the server to be run. Finalizes the graphql schema, and expects
-    /// the `Db` and `Router` to have been initialized.
+    /// Prepares the components of the server to be run. Finalizes the graphql
+    /// schema, and expects the `Db` and `Router` to have been initialized.
     fn build_components(
         self,
     ) -> (
@@ -358,8 +371,8 @@ impl ServerBuilder {
         })
     }
 
-    /// Instantiate a `ServerBuilder` from a `ServerConfig`, typically called when building the
-    /// graphql service for production usage.
+    /// Instantiate a `ServerBuilder` from a `ServerConfig`, typically called
+    /// when building the graphql service for production usage.
     pub async fn from_config(
         config: &ServerConfig,
         version: &Version,
@@ -454,7 +467,9 @@ impl ServerBuilder {
                     .map_err(|e| Error::Internal(format!("Failed to create IotaClient: {}", e)))?,
             )
         } else {
-            warn!("No fullnode url found in config. `dryRunTransactionBlock` and `executeTransactionBlock` will not work");
+            warn!(
+                "No fullnode url found in config. `dryRunTransactionBlock` and `executeTransactionBlock` will not work"
+            );
             None
         };
 
@@ -523,8 +538,9 @@ pub fn export_schema() -> String {
     schema_builder().finish().sdl()
 }
 
-/// Entry point for graphql requests. Each request is stamped with a unique ID, a `ShowUsage` flag
-/// if set in the request headers, and the watermark as set by the background task.
+/// Entry point for graphql requests. Each request is stamped with a unique ID,
+/// a `ShowUsage` flag if set in the request headers, and the watermark as set
+/// by the background task.
 async fn graphql_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     TypedHeader(ContentLength(content_length)): TypedHeader<ContentLength>,
@@ -543,15 +559,16 @@ async fn graphql_handler(
     }
 
     // Capture the IP address of the client
-    // Note: if a load balancer is used it must be configured to forward the client IP address
+    // Note: if a load balancer is used it must be configured to forward the client
+    // IP address
     req.data.insert(addr);
     req.data.insert(Watermark::new(watermark_lock).await);
     req.data.insert(chain_identifier_lock.read().await);
 
     let result = schema.execute(req).await;
 
-    // If there are errors, insert them as an extension so that the Metrics callback handler can
-    // pull it out later.
+    // If there are errors, insert them as an extension so that the Metrics callback
+    // handler can pull it out later.
     let mut extensions = axum::http::Extensions::new();
     if result.is_err() {
         extensions.insert(GraphqlErrors(std::sync::Arc::new(result.errors.clone())));
@@ -593,8 +610,8 @@ impl ResponseHandler for MetricsCallbackHandler {
     fn on_error<E>(self, _error: &E) {
         // Do nothing if the whole service errored
         //
-        // in Axum this isn't possible since all services are required to have an error type of
-        // Infallible
+        // in Axum this isn't possible since all services are required to have
+        // an error type of Infallible
     }
 }
 
@@ -638,8 +655,9 @@ struct HealthParam {
 
 /// Endpoint for querying the health of the service.
 /// It returns 500 for any internal error, including not connecting to the DB,
-/// and 504 if the checkpoint timestamp is too far behind the current timestamp as per the
-/// max checkpoint timestamp lag query parameter, or the default value if not provided.
+/// and 504 if the checkpoint timestamp is too far behind the current timestamp
+/// as per the max checkpoint timestamp lag query parameter, or the default
+/// value if not provided.
 async fn health_check(
     State(connection): State<ConnectionConfig>,
     Extension(watermark_lock): Extension<WatermarkLock>,
@@ -681,29 +699,30 @@ async fn get_or_init_server_start_time() -> &'static Instant {
 
 #[cfg(test)]
 pub mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use async_graphql::{
+        Request, Response, Variables,
+        extensions::{Extension, ExtensionContext, NextExecute},
+    };
+    use iota_pg_temp_db::get_available_port;
+    use iota_sdk::IotaClient;
+    use iota_types::{digests::get_mainnet_chain_identifier, transaction::TransactionData};
+    use serde_json::json;
+    use uuid::Uuid;
+
     use super::*;
-    use crate::test_infra::cluster::{prep_executor_cluster, start_cluster};
-    use crate::types::chain_identifier::ChainIdentifier;
     use crate::{
         config::{ConnectionConfig, Limits, ServiceConfig, Version},
         context_data::db_data_provider::PgManager,
         extensions::{query_limits_checker::QueryLimitsChecker, timeout::Timeout},
+        test_infra::cluster::{prep_executor_cluster, start_cluster},
+        types::chain_identifier::ChainIdentifier,
     };
-    use async_graphql::{
-        extensions::{Extension, ExtensionContext, NextExecute},
-        Request, Response, Variables,
-    };
-    use serde_json::json;
-    use std::sync::Arc;
-    use std::time::Duration;
-    use iota_pg_temp_db::get_available_port;
-    use iota_sdk::IotaClient;
-    use iota_types::digests::get_mainnet_chain_identifier;
-    use iota_types::transaction::TransactionData;
-    use uuid::Uuid;
 
-    /// Prepares a schema for tests dealing with extensions. Returns a `ServerBuilder` that can be
-    /// further extended with `context_data` and `extension` for testing.
+    /// Prepares a schema for tests dealing with extensions. Returns a
+    /// `ServerBuilder` that can be further extended with `context_data` and
+    /// `extension` for testing.
     async fn prep_schema(db_url: String, service_config: Option<ServiceConfig>) -> ServerBuilder {
         let connection_config = ConnectionConfig {
             port: get_available_port(),
@@ -782,8 +801,9 @@ pub mod tests {
         cluster
             .wait_for_checkpoint_catchup(1, Duration::from_secs(30))
             .await;
-        // timeout test includes mutation timeout, which requires a [IotaClient] to be able to run
-        // the test, and a transaction. [WalletContext] gives access to everything that's needed.
+        // timeout test includes mutation timeout, which requires a [IotaClient] to be
+        // able to run the test, and a transaction. [WalletContext] gives access
+        // to everything that's needed.
         let wallet = &cluster.network.validator_fullnode_handle.wallet;
         let db_url = cluster.network.graphql_connection_config.db_url.clone();
 
@@ -857,8 +877,8 @@ pub mod tests {
         assert_eq!(errs, vec![exp]);
 
         // Should timeout for mutation
-        // Create a transaction and sign it, and use the tx_bytes + signatures for the GraphQL
-        // executeTransactionBlock mutation call.
+        // Create a transaction and sign it, and use the tx_bytes + signatures for the
+        // GraphQL executeTransactionBlock mutation call.
         let addresses = wallet.get_addresses();
         let gas = wallet
             .get_one_gas_object_owned_by_address(addresses[0])
@@ -1095,10 +1115,9 @@ pub mod tests {
             .into_iter()
             .map(|e| e.message)
             .collect();
-        assert_eq!(
-            err,
-            vec!["Connection's page size of 51 exceeds max of 50".to_string()]
-        );
+        assert_eq!(err, vec![
+            "Connection's page size of 51 exceeds max of 50".to_string()
+        ]);
     }
 
     #[tokio::test]
@@ -1159,8 +1178,8 @@ pub mod tests {
         assert_eq!(resp.status(), reqwest::StatusCode::GATEWAY_TIMEOUT);
     }
 
-    /// Execute a GraphQL request with `limits` in place, expecting an error to be returned.
-    /// Returns the list of errors returned.
+    /// Execute a GraphQL request with `limits` in place, expecting an error to
+    /// be returned. Returns the list of errors returned.
     async fn execute_for_error(db_url: &str, limits: Limits, request: Request) -> String {
         let service_config = ServiceConfig {
             limits,
@@ -1464,8 +1483,8 @@ pub mod tests {
     async fn test_payload_multiple_execution_exceeded() {
         let cluster = prep_executor_cluster().await;
         let db_url = cluster.graphql_connection_config.db_url.clone();
-        // First check that the limit is large enough to hold one transaction's parameters (by
-        // checking that we hit the read limit).
+        // First check that the limit is large enough to hold one transaction's
+        // parameters (by checking that we hit the read limit).
         let err = execute_for_error(
             &db_url,
             Limits {
@@ -1523,8 +1542,8 @@ pub mod tests {
     async fn test_payload_multiple_dry_run_exceeded() {
         let cluster = prep_executor_cluster().await;
         let db_url = cluster.graphql_connection_config.db_url.clone();
-        // First check that tx limit is large enough to hold one transaction's parameters (by
-        // checking that we hit the read limit).
+        // First check that tx limit is large enough to hold one transaction's
+        // parameters (by checking that we hit the read limit).
         let err = execute_for_error(
             &db_url,
             Limits {
@@ -1585,8 +1604,8 @@ pub mod tests {
     async fn test_payload_execution_multiple_sigs_exceeded() {
         let cluster = prep_executor_cluster().await;
         let db_url = cluster.graphql_connection_config.db_url.clone();
-        // First check that the limit is large enough to hold a transaction with a single signature
-        // (by checking that we hite the read limit).
+        // First check that the limit is large enough to hold a transaction with a
+        // single signature (by checking that we hite the read limit).
         let err = execute_for_error(
             &db_url,
             Limits {
@@ -1643,8 +1662,8 @@ pub mod tests {
     async fn test_payload_sig_var_execution_exceeded() {
         let cluster = prep_executor_cluster().await;
         let db_url = cluster.graphql_connection_config.db_url.clone();
-        // Variables can show up in the sub-structure of a GraphQL value as well, and we need to
-        // count those as well.
+        // Variables can show up in the sub-structure of a GraphQL value as well, and we
+        // need to count those as well.
         assert_eq!(
             execute_for_error(
                 &db_url,
@@ -1677,8 +1696,8 @@ pub mod tests {
         );
     }
 
-    /// Check if the error indicates that the request passed the overall size check and the
-    /// transaction payload check.
+    /// Check if the error indicates that the request passed the overall size
+    /// check and the transaction payload check.
     fn passed_tx_checks(err: &str) -> bool {
         !err.starts_with("Overall request too large")
             && !err.starts_with("Transaction payload too large")
@@ -1688,11 +1707,11 @@ pub mod tests {
     async fn test_payload_reusing_vars_execution() {
         let cluster = prep_executor_cluster().await;
         let db_url = cluster.graphql_connection_config.db_url.clone();
-        // Test that when variables are re-used as execution params, the size of the variable is
-        // only counted once.
+        // Test that when variables are re-used as execution params, the size of the
+        // variable is only counted once.
 
-        // First, check that `error_passed_tx_checks` is working, by submitting a request that will
-        // fail the initial payload check.
+        // First, check that `error_passed_tx_checks` is working, by submitting a
+        // request that will fail the initial payload check.
         assert!(!passed_tx_checks(
             &execute_for_error(
                 &db_url,
@@ -1721,8 +1740,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        // Then check that a request that uses the variable once passes the transaction limit
-        // check.
+        // Then check that a request that uses the variable once passes the transaction
+        // limit check.
         assert!(passed_tx_checks(
             &execute_for_error(
                 &db_url,
@@ -1745,8 +1764,8 @@ pub mod tests {
             .await
         ));
 
-        // Then check that a request that introduces an extra signature, but without re-using the
-        // variable fails the transaction limit.
+        // Then check that a request that introduces an extra signature, but without
+        // re-using the variable fails the transaction limit.
         assert!(!passed_tx_checks(
             &execute_for_error(
                 &db_url,
@@ -1769,8 +1788,8 @@ pub mod tests {
             .await
         ));
 
-        // And then when that use is replaced by re-using the variable, we should be under the
-        // transaction payload limit again.
+        // And then when that use is replaced by re-using the variable, we should be
+        // under the transaction payload limit again.
         assert!(passed_tx_checks(
             &execute_for_error(
                 &db_url,
@@ -1798,7 +1817,8 @@ pub mod tests {
     async fn test_payload_reusing_vars_dry_run() {
         let cluster = prep_executor_cluster().await;
         let db_url = cluster.graphql_connection_config.db_url.clone();
-        // Like `test_payload_reusing_vars_execution` but the variable is used in a dry-run.
+        // Like `test_payload_reusing_vars_execution` but the variable is used in a
+        // dry-run.
 
         let limits = Limits {
             max_tx_payload_size: 20,

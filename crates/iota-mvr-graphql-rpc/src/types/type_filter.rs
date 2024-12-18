@@ -2,16 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{string_input::impl_string_input, iota_address::IotaAddress};
-use crate::filter;
-use crate::raw_query::RawQuery;
-use async_graphql::*;
-use move_core_types::language_storage::StructTag;
 use std::{fmt, result::Result, str::FromStr};
+
+use async_graphql::*;
 use iota_types::{
-    parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
-    parse_iota_type_tag, TypeTag,
+    TypeTag, parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
+    parse_iota_type_tag,
 };
+use move_core_types::language_storage::StructTag;
+
+use super::{iota_address::IotaAddress, string_input::impl_string_input};
+use crate::{filter, raw_query::RawQuery};
 
 /// A GraphQL scalar containing a filter on types that requires an exact match.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -23,9 +24,10 @@ pub(crate) enum TypeFilter {
     /// Filter the type by the package or module it's from.
     ByModule(ModuleFilter),
 
-    /// If the struct tag has type parameters, treat it as an exact filter on that instantiation,
-    /// otherwise treat it as either a filter on all generic instantiations of the type, or an exact
-    /// match on the type with no type parameters. E.g.
+    /// If the struct tag has type parameters, treat it as an exact filter on
+    /// that instantiation, otherwise treat it as either a filter on all
+    /// generic instantiations of the type, or an exact match on the type
+    /// with no type parameters. E.g.
     ///
     ///  0x2::coin::Coin
     ///
@@ -130,9 +132,10 @@ impl TypeFilter {
         query
     }
 
-    /// Try to create a filter whose results are the intersection of the results of the input
-    /// filters (`self` and `other`). This may not be possible if the resulting filter is
-    /// inconsistent (e.g. a filter that requires the module member's package to be at two different
+    /// Try to create a filter whose results are the intersection of the results
+    /// of the input filters (`self` and `other`). This may not be possible
+    /// if the resulting filter is inconsistent (e.g. a filter that requires
+    /// the module member's package to be at two different
     /// addresses simultaneously), in which case `None` is returned.
     pub(crate) fn intersect(self, other: Self) -> Option<Self> {
         use ModuleFilter as M;
@@ -178,9 +181,10 @@ impl TypeFilter {
 }
 
 impl FqNameFilter {
-    /// Try to create a filter whose results are the intersection of the results of the input
-    /// filters (`self` and `other`). This may not be possible if the resulting filter is
-    /// inconsistent (e.g. a filter that requires the module member's package to be at two different
+    /// Try to create a filter whose results are the intersection of the results
+    /// of the input filters (`self` and `other`). This may not be possible
+    /// if the resulting filter is inconsistent (e.g. a filter that requires
+    /// the module member's package to be at two different
     /// addresses simultaneously), in which case `None` is returned.
     pub(crate) fn intersect(self, other: Self) -> Option<Self> {
         use FqNameFilter as F;
@@ -205,9 +209,10 @@ impl FqNameFilter {
 }
 
 impl ModuleFilter {
-    /// Try to create a filter whose results are the intersection of the results of the input
-    /// filters (`self` and `other`). This may not be possible if the resulting filter is
-    /// inconsistent (e.g. a filter that requires the module's package to be at two different
+    /// Try to create a filter whose results are the intersection of the results
+    /// of the input filters (`self` and `other`). This may not be possible
+    /// if the resulting filter is inconsistent (e.g. a filter that requires
+    /// the module's package to be at two different
     /// addresses simultaneously), in which case `None` is returned.
     pub(crate) fn intersect(self, other: Self) -> Option<Self> {
         match (&self, &other) {
@@ -330,8 +335,9 @@ impl From<StructTag> for TypeFilter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use expect_test::expect;
+
+    use super::*;
 
     #[test]
     fn test_valid_exact_type_filters() {

@@ -2,25 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::State;
-use axum::{Extension, Json};
+use axum::{Extension, Json, extract::State};
 use axum_extra::extract::WithRejection;
+use fastcrypto::encoding::Hex;
+use iota_types::base_types::ObjectID;
 use serde_json::json;
 use strum::IntoEnumIterator;
 
-use fastcrypto::encoding::Hex;
-use iota_types::base_types::ObjectID;
-
-use crate::errors::{Error, ErrorType};
-use crate::types::{
-    Allow, Case, NetworkIdentifier, NetworkListResponse, NetworkOptionsResponse, NetworkRequest,
-    NetworkStatusResponse, OperationStatus, OperationType, Peer, SyncStatus, Version,
+use crate::{
+    IotaEnv, OnlineServerContext,
+    errors::{Error, ErrorType},
+    types::{
+        Allow, Case, NetworkIdentifier, NetworkListResponse, NetworkOptionsResponse,
+        NetworkRequest, NetworkStatusResponse, OperationStatus, OperationType, Peer, SyncStatus,
+        Version,
+    },
 };
-use crate::{OnlineServerContext, IotaEnv};
 
 /// This module implements the [Rosetta Network API](https://www.rosetta-api.org/docs/NetworkApi.html)
 
-/// This endpoint returns a list of NetworkIdentifiers that the Rosetta server supports.
+/// This endpoint returns a list of NetworkIdentifiers that the Rosetta server
+/// supports.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/NetworkApi.html#networklist)
 pub async fn list(Extension(env): Extension<IotaEnv>) -> Result<NetworkListResponse, Error> {
@@ -83,7 +85,8 @@ pub async fn status(
     })
 }
 
-/// This endpoint returns the version information and allowed network-specific types for a NetworkIdentifier.
+/// This endpoint returns the version information and allowed network-specific
+/// types for a NetworkIdentifier.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/NetworkApi.html#networkoptions)
 pub async fn options(

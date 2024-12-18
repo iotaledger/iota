@@ -2,19 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use shared_crypto::intent::Intent;
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
-use iota_rpc_api::client::reqwest::StatusCode;
-use iota_rpc_api::client::sdk::Client as RestClient;
-use iota_rpc_api::rest::transactions::ResolveTransactionQueryParameters;
-use iota_rpc_api::Client;
-use iota_sdk_types::types::unresolved;
-use iota_sdk_types::types::Argument;
-use iota_sdk_types::types::Command;
-use iota_sdk_types::types::TransactionExpiration;
-use iota_types::base_types::IotaAddress;
-use iota_types::effects::TransactionEffectsAPI;
+use iota_rpc_api::{
+    Client,
+    client::{reqwest::StatusCode, sdk::Client as RestClient},
+    rest::transactions::ResolveTransactionQueryParameters,
+};
+use iota_sdk_types::types::{Argument, Command, TransactionExpiration, unresolved};
+use iota_types::{base_types::IotaAddress, effects::TransactionEffectsAPI};
+use shared_crypto::intent::Intent;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -148,10 +145,11 @@ async fn resolve_transaction_transfer_with_sponsor() {
         .sign_secure(&sponsor, &transaction_data, Intent::iota_transaction())
         .unwrap();
 
-    let signed_transaction = iota_types::transaction::Transaction::from_data(
-        transaction_data,
-        vec![sender_sig, sponsor_sig],
-    );
+    let signed_transaction =
+        iota_types::transaction::Transaction::from_data(transaction_data, vec![
+            sender_sig,
+            sponsor_sig,
+        ]);
     let effects = client
         .execute_transaction(&Default::default(), &signed_transaction)
         .await

@@ -2,31 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{anyhow, Context, Result};
+use std::{sync::Arc, time::Duration};
+
+use anyhow::{Context, Result, anyhow};
 use clap::*;
-
+use iota_benchmark::{
+    benchmark_setup::Env,
+    drivers::{BenchmarkCmp, BenchmarkStats, bench_driver::BenchDriver, driver::Driver},
+    options::Opts,
+    system_state_observer::SystemStateObserver,
+    workloads::workload_configuration::WorkloadConfiguration,
+};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use prometheus::Registry;
-use rand::seq::SliceRandom;
-use rand::Rng;
-use iota_protocol_config::Chain;
-use tokio::time::sleep;
-
-use std::sync::Arc;
-use std::time::Duration;
-use iota_benchmark::drivers::bench_driver::BenchDriver;
-use iota_benchmark::drivers::driver::Driver;
-use iota_benchmark::drivers::BenchmarkCmp;
-use iota_benchmark::drivers::BenchmarkStats;
-use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-
-use iota_benchmark::benchmark_setup::Env;
-use iota_benchmark::options::Opts;
-
-use iota_benchmark::workloads::workload_configuration::WorkloadConfiguration;
-
-use iota_benchmark::system_state_observer::SystemStateObserver;
-use tokio::runtime::Builder;
-use tokio::sync::Barrier;
+use rand::{Rng, seq::SliceRandom};
+use tokio::{runtime::Builder, sync::Barrier, time::sleep};
 
 /// To spin up a local cluster and direct some load
 /// at it with 50/50 shared and owned traffic, use

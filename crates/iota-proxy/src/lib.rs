@@ -13,9 +13,9 @@ pub mod prom_to_mimir;
 pub mod remote_write;
 
 /// var extracts environment variables at runtime with a default fallback value
-/// if a default is not provided, the value is simply an empty string if not found
-/// This function will return the provided default if env::var cannot find the key
-/// or if the key is somehow malformed.
+/// if a default is not provided, the value is simply an empty string if not
+/// found This function will return the provided default if env::var cannot find
+/// the key or if the key is somehow malformed.
 #[macro_export]
 macro_rules! var {
     ($key:expr) => {
@@ -34,21 +34,21 @@ macro_rules! var {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::admin::Labels;
-    use crate::histogram_relay::HistogramRelay;
-    use crate::prom_to_mimir::tests::*;
+    use std::{net::TcpListener, time::Duration};
 
-    use crate::{admin::CertKeyPair, config::RemoteWriteConfig, peers::IotaNodeProvider};
-    use axum::http::StatusCode;
-    use axum::routing::post;
-    use axum::Router;
-    use prometheus::Encoder;
-    use prometheus::PROTOBUF_FORMAT;
-    use protobuf::RepeatedField;
-    use std::net::TcpListener;
-    use std::time::Duration;
+    use axum::{Router, http::StatusCode, routing::post};
     use iota_tls::{ClientCertVerifier, TlsAcceptor};
+    use prometheus::{Encoder, PROTOBUF_FORMAT};
+    use protobuf::RepeatedField;
+
+    use super::*;
+    use crate::{
+        admin::{CertKeyPair, Labels},
+        config::RemoteWriteConfig,
+        histogram_relay::HistogramRelay,
+        peers::IotaNodeProvider,
+        prom_to_mimir::tests::*,
+    };
 
     async fn run_dummy_remote_write(listener: TcpListener) {
         /// i accept everything, send me the trash
@@ -66,8 +66,9 @@ mod tests {
     }
 
     async fn run_dummy_remote_write_very_slow(listener: TcpListener) {
-        /// i accept everything, send me the trash, but i will sleep and never return before a timeout
-        /// this is for testing slow clients and this is the easiest way to do so without adding a special
+        /// i accept everything, send me the trash, but i will sleep and never
+        /// return before a timeout this is for testing slow clients and
+        /// this is the easiest way to do so without adding a special
         /// route in the server to do so
         async fn handler() -> StatusCode {
             // Simulate a route that hangs while waiting for a client to send data
@@ -85,14 +86,17 @@ mod tests {
         axum::serve(listener, app).await.unwrap();
     }
 
-    /// test_axum_acceptor is a basic e2e test that creates a mock remote_write post endpoint and has a simple
-    /// iota-node client that posts data to the proxy using the protobuf format.  The server processes this
-    /// data and sends it to the mock remote_write which accepts everything.  Future work is to make this more
-    /// robust and expand the scope of coverage, probabaly moving this test elsewhere and renaming it.
+    /// test_axum_acceptor is a basic e2e test that creates a mock remote_write
+    /// post endpoint and has a simple iota-node client that posts data to
+    /// the proxy using the protobuf format.  The server processes this data
+    /// and sends it to the mock remote_write which accepts everything.  Future
+    /// work is to make this more robust and expand the scope of coverage,
+    /// probabaly moving this test elsewhere and renaming it.
     #[tokio::test]
     async fn test_axum_acceptor() {
         // generate self-signed certificates
-        let CertKeyPair(client_priv_cert, client_pub_key) = admin::generate_self_cert("iota".into());
+        let CertKeyPair(client_priv_cert, client_pub_key) =
+            admin::generate_self_cert("iota".into());
         let CertKeyPair(server_priv_cert, _) = admin::generate_self_cert("localhost".into());
 
         // create a fake rpc server
@@ -161,7 +165,8 @@ mod tests {
         // Client request is rejected because it isn't in the allowlist
         client.get(&server_url).send().await.unwrap_err();
 
-        // Insert the client's public key into the allowlist and verify the request is successful
+        // Insert the client's public key into the allowlist and verify the request is
+        // successful
         allower.get_iota_mut().write().unwrap().insert(
             client_pub_key.to_owned(),
             peers::AllowedPeer {
@@ -201,7 +206,8 @@ mod tests {
     #[tokio::test]
     async fn test_client_timeout() {
         // generate self-signed certificates
-        let CertKeyPair(client_priv_cert, client_pub_key) = admin::generate_self_cert("iota".into());
+        let CertKeyPair(client_priv_cert, client_pub_key) =
+            admin::generate_self_cert("iota".into());
         let CertKeyPair(server_priv_cert, _) = admin::generate_self_cert("localhost".into());
 
         // create a fake rpc server
@@ -238,9 +244,10 @@ mod tests {
             "dummy user agent",
         );
 
-        // this will affect other tests if they are run in parallel, but we only have two tests, so it shouldn't be an issue (yet)
-        // even still, the other tests complete very fast so those tests would also need to slow down by orders and orders to be
-        // bothered by this env var
+        // this will affect other tests if they are run in parallel, but we only have
+        // two tests, so it shouldn't be an issue (yet) even still, the other
+        // tests complete very fast so those tests would also need to slow down by
+        // orders and orders to be bothered by this env var
         std::env::set_var("NODE_CLIENT_TIMEOUT", "5");
 
         let app = admin::app(
@@ -276,7 +283,8 @@ mod tests {
         // Client request is rejected because it isn't in the allowlist
         client.get(&server_url).send().await.unwrap_err();
 
-        // Insert the client's public key into the allowlist and verify the request is successful
+        // Insert the client's public key into the allowlist and verify the request is
+        // successful
         allower.get_iota_mut().write().unwrap().insert(
             client_pub_key.to_owned(),
             peers::AllowedPeer {

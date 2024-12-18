@@ -2,17 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
+
 use anyhow::anyhow;
 use arc_swap::Guard;
 use async_trait::async_trait;
-use move_core_types::language_storage::TypeTag;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
-use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use iota_core::authority::AuthorityState;
-use iota_core::execution_cache::ObjectCacheRead;
-use iota_core::jsonrpc_index::TotalBalance;
-use iota_core::subscription_handler::SubscriptionHandler;
+use iota_core::{
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    execution_cache::ObjectCacheRead,
+    jsonrpc_index::TotalBalance,
+    subscription_handler::SubscriptionHandler,
+};
 use iota_json_rpc_types::{
     Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
     IotaObjectDataFilter, TransactionFilter,
@@ -20,31 +23,31 @@ use iota_json_rpc_types::{
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
-use iota_types::base_types::{
-    MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, IotaAddress,
+use iota_types::{
+    base_types::{IotaAddress, MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber},
+    bridge::Bridge,
+    committee::{Committee, EpochId},
+    digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest},
+    dynamic_field::DynamicFieldInfo,
+    effects::TransactionEffects,
+    error::{IotaError, UserInputError},
+    event::EventID,
+    governance::StakedIota,
+    iota_serde::BigInt,
+    iota_system_state::IotaSystemState,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
+        VerifiedCheckpoint,
+    },
+    object::{Object, ObjectRead, PastObjectRead},
+    storage::{BackingPackageStore, ObjectStore, WriteKind},
+    transaction::{Transaction, TransactionData, TransactionKind},
 };
-use iota_types::bridge::Bridge;
-use iota_types::committee::{Committee, EpochId};
-use iota_types::digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest};
-use iota_types::dynamic_field::DynamicFieldInfo;
-use iota_types::effects::TransactionEffects;
-use iota_types::error::{IotaError, UserInputError};
-use iota_types::event::EventID;
-use iota_types::governance::StakedIota;
-use iota_types::messages_checkpoint::{
-    CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-    VerifiedCheckpoint,
-};
-use iota_types::object::{Object, ObjectRead, PastObjectRead};
-use iota_types::storage::{BackingPackageStore, ObjectStore, WriteKind};
-use iota_types::iota_serde::BigInt;
-use iota_types::iota_system_state::IotaSystemState;
-use iota_types::transaction::{Transaction, TransactionData, TransactionKind};
-use thiserror::Error;
-use tokio::task::JoinError;
-
 #[cfg(test)]
 use mockall::automock;
+use move_core_types::language_storage::TypeTag;
+use thiserror::Error;
+use tokio::task::JoinError;
 
 use crate::ObjectProvider;
 
@@ -541,8 +544,9 @@ impl StateRead for AuthorityState {
     }
 }
 
-/// This implementation allows `S` to be a dynamically sized type (DST) that implements ObjectProvider
-/// Valid as `S` is referenced only, and memory management is handled by `Arc`
+/// This implementation allows `S` to be a dynamically sized type (DST) that
+/// implements ObjectProvider Valid as `S` is referenced only, and memory
+/// management is handled by `Arc`
 #[async_trait]
 impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     type Error = StateReadError;
@@ -618,9 +622,10 @@ pub enum StateReadClientError {
 }
 
 /// `StateReadError` is the error type for callers to work with.
-/// It captures all possible errors that can occur while reading state, classifying them into two categories.
-/// Unless `StateReadError` is the final error state before returning to caller, the app may still want error context.
-/// This context is preserved in `Internal` and `Client` variants.
+/// It captures all possible errors that can occur while reading state,
+/// classifying them into two categories. Unless `StateReadError` is the final
+/// error state before returning to caller, the app may still want error
+/// context. This context is preserved in `Internal` and `Client` variants.
 #[derive(Debug, Error)]
 pub enum StateReadError {
     // iota_json_rpc::Error will do the final conversion to generic error message

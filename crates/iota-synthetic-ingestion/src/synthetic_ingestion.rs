@@ -2,16 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use simulacrum::Simulacrum;
-use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
+
 use iota_storage::blob::Blob;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::crypto::get_account_key_pair;
-use iota_types::effects::TransactionEffectsAPI;
-use iota_types::full_checkpoint_content::CheckpointData;
-use iota_types::gas_coin::NANOS_PER_IOTA;
-use iota_types::utils::to_sender_signed_transaction;
+use iota_types::{
+    crypto::get_account_key_pair, effects::TransactionEffectsAPI,
+    full_checkpoint_content::CheckpointData, gas_coin::NANOS_PER_IOTA,
+    utils::to_sender_signed_transaction,
+};
+use simulacrum::Simulacrum;
 use tokio::fs;
 use tracing::info;
 
@@ -21,7 +21,8 @@ pub struct Config {
     #[clap(long)]
     pub ingestion_dir: PathBuf,
     /// Customize the first checkpoint sequence number in the workload.
-    /// This is useful if we want to generate workload to benchmark a non-empty database.
+    /// This is useful if we want to generate workload to benchmark a non-empty
+    /// database.
     #[clap(long, default_value_t = 0)]
     pub starting_checkpoint: u64,
     /// Total number of synthetic checkpoints to generate.
@@ -55,8 +56,9 @@ pub async fn generate_ingestion(config: Config) {
     let (sender, keypair) = get_account_key_pair();
     let mut gas_object = {
         let effects = sim.request_gas(sender, NANOS_PER_IOTA * 1000000).unwrap();
-        // `request_gas` will create a transaction, which we don't want to include in the benchmark.
-        // Put it in a checkpoint and then remove the checkpoint file.
+        // `request_gas` will create a transaction, which we don't want to include in
+        // the benchmark. Put it in a checkpoint and then remove the checkpoint
+        // file.
         sim.create_checkpoint();
         fs::remove_file(ingestion_dir.join("1.chk")).await.unwrap();
         effects.created()[0].0
@@ -105,10 +107,12 @@ pub async fn read_ingestion_data(path: &PathBuf) -> anyhow::Result<BTreeMap<u64,
 
 #[cfg(test)]
 mod tests {
-    use crate::synthetic_ingestion::generate_ingestion;
     use std::path::PathBuf;
+
     use iota_storage::blob::Blob;
     use iota_types::full_checkpoint_content::CheckpointData;
+
+    use crate::synthetic_ingestion::generate_ingestion;
 
     #[tokio::test]
     async fn test_ingestion_from_zero() {

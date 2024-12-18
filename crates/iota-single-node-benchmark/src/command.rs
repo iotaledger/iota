@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
+
+use clap::{Parser, Subcommand, ValueEnum};
 use strum_macros::EnumIter;
 
 #[derive(Parser)]
@@ -54,21 +55,25 @@ pub enum Component {
     ExecutionOnly,
     /// Baseline includes the execution and storage layer only.
     Baseline,
-    /// On top of Baseline, this schedules transactions through the transaction manager.
+    /// On top of Baseline, this schedules transactions through the transaction
+    /// manager.
     WithTxManager,
-    /// This goes through the `handle_certificate` entry point on authority_server, which includes
-    /// certificate verification, transaction manager, as well as a noop consensus layer. The noop
-    /// consensus layer does absolutely nothing when receiving a transaction in consensus.
+    /// This goes through the `handle_certificate` entry point on
+    /// authority_server, which includes certificate verification,
+    /// transaction manager, as well as a noop consensus layer. The noop
+    /// consensus layer does absolutely nothing when receiving a transaction in
+    /// consensus.
     ValidatorWithoutConsensus,
-    /// Similar to ValidatorWithNoopConsensus, but the consensus layer contains a fake consensus
-    /// protocol that basically sequences transactions in order. It then verify the transaction
-    /// and store the sequenced transactions into the store. It covers the consensus-independent
+    /// Similar to ValidatorWithNoopConsensus, but the consensus layer contains
+    /// a fake consensus protocol that basically sequences transactions in
+    /// order. It then verify the transaction and store the sequenced
+    /// transactions into the store. It covers the consensus-independent
     /// portion of the code in consensus handler.
     ValidatorWithFakeConsensus,
     /// Benchmark only validator signing component: `handle_transaction`.
     TxnSigning,
-    /// Benchmark the checkpoint executor by constructing a full epoch of checkpoints, execute
-    /// all transactions in them and measure time.
+    /// Benchmark the checkpoint executor by constructing a full epoch of
+    /// checkpoints, execute all transactions in them and measure time.
     CheckpointExecutor,
 }
 
@@ -150,7 +155,8 @@ pub enum WorkloadKind {
 impl WorkloadKind {
     pub(crate) fn gas_object_num_per_account(&self) -> u64 {
         match self {
-            // Each transaction will always have 1 gas object, plus the number of owned objects that will be transferred.
+            // Each transaction will always have 1 gas object, plus the number of owned objects that
+            // will be transferred.
             WorkloadKind::PTB { num_transfers, .. } => *num_transfers + 1,
             WorkloadKind::Publish { .. } => 1,
         }

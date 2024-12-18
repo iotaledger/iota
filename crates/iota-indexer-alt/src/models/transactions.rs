@@ -2,10 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::schema::{
-    kv_transactions, tx_affected_addresses, tx_affected_objects, tx_balance_changes, tx_calls,
-    tx_digests, tx_kinds,
-};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSqlRow},
@@ -14,9 +10,14 @@ use diesel::{
     serialize,
     sql_types::SmallInt,
 };
-use serde::{Deserialize, Serialize};
 use iota_field_count::FieldCount;
 use iota_types::object::Owner;
+use serde::{Deserialize, Serialize};
+
+use crate::schema::{
+    kv_transactions, tx_affected_addresses, tx_affected_objects, tx_balance_changes, tx_calls,
+    tx_digests, tx_kinds,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BalanceChange {
@@ -27,8 +28,9 @@ pub enum BalanceChange {
         /// Type of the Coin (just the one-time witness type).
         coin_type: String,
 
-        /// The amount the balance changed by. A negative amount means the net flow of value is
-        /// from the owner, and a positive amount means the net flow of value is to the owner.
+        /// The amount the balance changed by. A negative amount means the net
+        /// flow of value is from the owner, and a positive amount means
+        /// the net flow of value is to the owner.
         amount: i128,
     },
 }

@@ -2,27 +2,30 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::address::Address;
-use super::coin_metadata::CoinMetadata;
-use super::cursor::Page;
-use super::dynamic_field::DynamicField;
-use super::dynamic_field::DynamicFieldName;
-use super::move_package::MovePackage;
-use super::stake::StakedIota;
-use super::iotans_registration::{DomainFormat, NameService, IotaNSRegistration};
-use crate::data::Db;
-use crate::types::balance::{self, Balance};
-use crate::types::coin::Coin;
-use crate::types::move_object::MoveObject;
-use crate::types::object::{self, Object, ObjectFilter};
-use crate::types::iota_address::IotaAddress;
-use crate::types::type_filter::ExactTypeFilter;
-
-use async_graphql::connection::Connection;
-use async_graphql::*;
+use async_graphql::{connection::Connection, *};
 use iota_json_rpc::name_service::NameServiceConfig;
-use iota_types::dynamic_field::DynamicFieldType;
-use iota_types::gas_coin::GAS;
+use iota_types::{dynamic_field::DynamicFieldType, gas_coin::GAS};
+
+use super::{
+    address::Address,
+    coin_metadata::CoinMetadata,
+    cursor::Page,
+    dynamic_field::{DynamicField, DynamicFieldName},
+    iotans_registration::{DomainFormat, IotaNSRegistration, NameService},
+    move_package::MovePackage,
+    stake::StakedIota,
+};
+use crate::{
+    data::Db,
+    types::{
+        balance::{self, Balance},
+        coin::Coin,
+        iota_address::IotaAddress,
+        move_object::MoveObject,
+        object::{self, Object, ObjectFilter},
+        type_filter::ExactTypeFilter,
+    },
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Owner {
@@ -31,17 +34,19 @@ pub(crate) struct Owner {
     pub checkpoint_viewed_at: u64,
     /// Root parent object version for dynamic fields.
     ///
-    /// This enables consistent dynamic field reads in the case of chained dynamic object fields,
-    /// e.g., `Parent -> DOF1 -> DOF2`. In such cases, the object versions may end up like
-    /// `Parent >= DOF1, DOF2` but `DOF1 < DOF2`. Thus, database queries for dynamic fields must
+    /// This enables consistent dynamic field reads in the case of chained
+    /// dynamic object fields, e.g., `Parent -> DOF1 -> DOF2`. In such
+    /// cases, the object versions may end up like `Parent >= DOF1, DOF2`
+    /// but `DOF1 < DOF2`. Thus, database queries for dynamic fields must
     /// bound the object versions by the version of the root object of the tree.
     ///
-    /// Also, if this Owner is an object itself, `root_version` will be used to bound its version
-    /// from above in [`Owner::as_object`].
+    /// Also, if this Owner is an object itself, `root_version` will be used to
+    /// bound its version from above in [`Owner::as_object`].
     ///
-    /// Essentially, lamport timestamps of objects are updated for all top-level mutable objects
-    /// provided as inputs to a transaction as well as any mutated dynamic child objects. However,
-    /// any dynamic child objects that were loaded but not actually mutated don't end up having
+    /// Essentially, lamport timestamps of objects are updated for all top-level
+    /// mutable objects provided as inputs to a transaction as well as any
+    /// mutated dynamic child objects. However, any dynamic child objects
+    /// that were loaded but not actually mutated don't end up having
     /// their versions updated.
     pub root_version: Option<u64>,
 }
@@ -53,10 +58,11 @@ pub(crate) struct OwnerImpl {
     pub checkpoint_viewed_at: u64,
 }
 
-/// Interface implemented by GraphQL types representing entities that can own objects. Object owners
-/// are identified by an address which can represent either the public key of an account or another
-/// object. The same address can only refer to an account or an object, never both, but it is not
-/// possible to know which up-front.
+/// Interface implemented by GraphQL types representing entities that can own
+/// objects. Object owners are identified by an address which can represent
+/// either the public key of an account or another object. The same address can
+/// only refer to an account or an object, never both, but it is not possible to
+/// know which up-front.
 #[allow(clippy::duplicated_attributes)]
 #[derive(Interface)]
 #[graphql(
@@ -138,9 +144,10 @@ pub(crate) enum IOwner {
     IotaNSRegistration(IotaNSRegistration),
 }
 
-/// An Owner is an entity that can own an object. Each Owner is identified by a IotaAddress which
-/// represents either an Address (corresponding to a public key of an account) or an Object, but
-/// never both (it is not known up-front whether a given Owner is an Address or an Object).
+/// An Owner is an entity that can own an object. Each Owner is identified by a
+/// IotaAddress which represents either an Address (corresponding to a public
+/// key of an account) or an Object, but never both (it is not known up-front
+/// whether a given Owner is an Address or an Object).
 #[Object]
 impl Owner {
     pub(crate) async fn address(&self) -> IotaAddress {
@@ -162,8 +169,8 @@ impl Owner {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this object or address. If type is not
-    /// supplied, it defaults to `0x2::iota::IOTA`.
+    /// Total balance of all coins with marker type owned by this object or
+    /// address. If type is not supplied, it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -188,7 +195,8 @@ impl Owner {
 
     /// The coin objects for this object or address.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -203,7 +211,8 @@ impl Owner {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedIota` objects owned by this object or address.
+    /// The `0x3::staking_pool::StakedIota` objects owned by this object or
+    /// address.
     pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
@@ -217,7 +226,8 @@ impl Owner {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this object or address.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// object or address.
     pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
@@ -226,8 +236,8 @@ impl Owner {
         OwnerImpl::from(self).default_iotans_name(ctx, format).await
     }
 
-    /// The IotaNSRegistration NFTs owned by this object or address. These grant the owner the
-    /// capability to manage the associated domain.
+    /// The IotaNSRegistration NFTs owned by this object or address. These grant
+    /// the owner the capability to manage the associated domain.
     pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
@@ -263,11 +273,12 @@ impl Owner {
         .extend()
     }
 
-    /// Access a dynamic field on an object using its name. Names are arbitrary Move values whose
-    /// type have `copy`, `drop`, and `store`, and are specified using their type, and their BCS
-    /// contents, Base64 encoded.
+    /// Access a dynamic field on an object using its name. Names are arbitrary
+    /// Move values whose type have `copy`, `drop`, and `store`, and are
+    /// specified using their type, and their BCS contents, Base64 encoded.
     ///
-    /// This field exists as a convenience when accessing a dynamic field on a wrapped object.
+    /// This field exists as a convenience when accessing a dynamic field on a
+    /// wrapped object.
     async fn dynamic_field(
         &self,
         ctx: &Context<'_>,
@@ -278,12 +289,14 @@ impl Owner {
             .await
     }
 
-    /// Access a dynamic object field on an object using its name. Names are arbitrary Move values
-    /// whose type have `copy`, `drop`, and `store`, and are specified using their type, and their
-    /// BCS contents, Base64 encoded. The value of a dynamic object field can also be accessed
+    /// Access a dynamic object field on an object using its name. Names are
+    /// arbitrary Move values whose type have `copy`, `drop`, and `store`,
+    /// and are specified using their type, and their BCS contents, Base64
+    /// encoded. The value of a dynamic object field can also be accessed
     /// off-chain directly via its address (e.g. using `Query.object`).
     ///
-    /// This field exists as a convenience when accessing a dynamic field on a wrapped object.
+    /// This field exists as a convenience when accessing a dynamic field on a
+    /// wrapped object.
     async fn dynamic_object_field(
         &self,
         ctx: &Context<'_>,
@@ -296,7 +309,8 @@ impl Owner {
 
     /// The dynamic fields and dynamic object fields on an object.
     ///
-    /// This field exists as a convenience when accessing a dynamic field on a wrapped object.
+    /// This field exists as a convenience when accessing a dynamic field on a
+    /// wrapped object.
     async fn dynamic_fields(
         &self,
         ctx: &Context<'_>,
@@ -453,8 +467,9 @@ impl OwnerImpl {
         .extend()
     }
 
-    // Dynamic field related functions are part of the `IMoveObject` interface, but are provided
-    // here to implement convenience functions on `Owner` and `Object` to access dynamic fields.
+    // Dynamic field related functions are part of the `IMoveObject` interface, but
+    // are provided here to implement convenience functions on `Owner` and
+    // `Object` to access dynamic fields.
 
     pub(crate) async fn dynamic_field(
         &self,

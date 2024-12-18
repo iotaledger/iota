@@ -2,27 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::binary_config::BinaryConfig;
-use move_binary_format::compatibility::Compatibility;
-use move_binary_format::CompiledModule;
+use std::fmt::Formatter;
+
+use iota_types::{
+    BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID,
+    base_types::{ObjectID, ObjectRef},
+    digests::TransactionDigest,
+    move_package::MovePackage,
+    object::{OBJECT_START_VERSION, Object},
+    storage::ObjectStore,
+};
+use move_binary_format::{
+    CompiledModule, binary_config::BinaryConfig, compatibility::Compatibility,
+};
 use move_core_types::gas_algebra::InternalGas;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::fmt::Formatter;
-use iota_types::base_types::ObjectRef;
-use iota_types::storage::ObjectStore;
-use iota_types::{
-    base_types::ObjectID,
-    digests::TransactionDigest,
-    move_package::MovePackage,
-    object::{Object, OBJECT_START_VERSION},
-    MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
-};
-use iota_types::{BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID};
 use tracing::error;
 
-/// Represents a system package in the framework, that's built from the source code inside
-/// iota-framework.
+/// Represents a system package in the framework, that's built from the source
+/// code inside iota-framework.
 #[derive(Clone, Serialize, PartialEq, Eq, Deserialize)]
 pub struct SystemPackage {
     pub id: ObjectID,
@@ -104,35 +104,28 @@ macro_rules! define_system_packages {
 pub struct BuiltInFramework;
 impl BuiltInFramework {
     pub fn iter_system_packages() -> impl Iterator<Item = &'static SystemPackage> {
-        // All system packages in the current build should be registered here, and this is the only
-        // place we need to worry about if any of them changes.
-        // TODO: Is it possible to derive dependencies from the bytecode instead of manually specifying them?
+        // All system packages in the current build should be registered here, and this
+        // is the only place we need to worry about if any of them changes.
+        // TODO: Is it possible to derive dependencies from the bytecode instead of
+        // manually specifying them?
         define_system_packages!([
             (MOVE_STDLIB_PACKAGE_ID, "move-stdlib", []),
-            (
+            (IOTA_FRAMEWORK_PACKAGE_ID, "iota-framework", [
+                MOVE_STDLIB_PACKAGE_ID
+            ]),
+            (IOTA_SYSTEM_PACKAGE_ID, "iota-system", [
+                MOVE_STDLIB_PACKAGE_ID,
+                IOTA_FRAMEWORK_PACKAGE_ID
+            ]),
+            (DEEPBOOK_PACKAGE_ID, "deepbook", [
+                MOVE_STDLIB_PACKAGE_ID,
+                IOTA_FRAMEWORK_PACKAGE_ID
+            ]),
+            (BRIDGE_PACKAGE_ID, "bridge", [
+                MOVE_STDLIB_PACKAGE_ID,
                 IOTA_FRAMEWORK_PACKAGE_ID,
-                "iota-framework",
-                [MOVE_STDLIB_PACKAGE_ID]
-            ),
-            (
-                IOTA_SYSTEM_PACKAGE_ID,
-                "iota-system",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            ),
-            (
-                DEEPBOOK_PACKAGE_ID,
-                "deepbook",
-                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
-            ),
-            (
-                BRIDGE_PACKAGE_ID,
-                "bridge",
-                [
-                    MOVE_STDLIB_PACKAGE_ID,
-                    IOTA_FRAMEWORK_PACKAGE_ID,
-                    IOTA_SYSTEM_PACKAGE_ID
-                ]
-            )
+                IOTA_SYSTEM_PACKAGE_ID
+            ])
         ])
         .iter()
     }
@@ -160,17 +153,18 @@ pub fn legacy_test_cost() -> InternalGas {
     InternalGas::new(0)
 }
 
-/// Check whether the framework defined by `modules` is compatible with the framework that is
-/// already on-chain (i.e. stored in `object_store`) at `id`.
+/// Check whether the framework defined by `modules` is compatible with the
+/// framework that is already on-chain (i.e. stored in `object_store`) at `id`.
 ///
-/// - Returns `None` if the current package at `id` cannot be loaded, or the compatibility check
-///   fails (This is grounds not to upgrade).
-/// - Panics if the object at `id` can be loaded but is not a package -- this is an invariant
-///   violation.
-/// - Returns the digest of the current framework (and version) if it is equivalent to the new
-///   framework (indicates support for a protocol upgrade without a framework upgrade).
-/// - Returns the digest of the new framework (and version) if it is compatible (indicates
-///   support for a protocol upgrade with a framework upgrade).
+/// - Returns `None` if the current package at `id` cannot be loaded, or the
+///   compatibility check fails (This is grounds not to upgrade).
+/// - Panics if the object at `id` can be loaded but is not a package -- this is
+///   an invariant violation.
+/// - Returns the digest of the current framework (and version) if it is
+///   equivalent to the new framework (indicates support for a protocol upgrade
+///   without a framework upgrade).
+/// - Returns the digest of the new framework (and version) if it is compatible
+///   (indicates support for a protocol upgrade with a framework upgrade).
 pub async fn compare_system_package<S: ObjectStore>(
     object_store: &S,
     id: &ObjectID,
@@ -186,12 +180,14 @@ pub async fn compare_system_package<S: ObjectStore>(
             return Some(
                 Object::new_system_package(
                     modules,
-                    // note: execution_engine assumes any system package with version OBJECT_START_VERSION is freshly created
-                    // rather than upgraded
+                    // note: execution_engine assumes any system package with version
+                    // OBJECT_START_VERSION is freshly created rather than
+                    // upgraded
                     OBJECT_START_VERSION,
                     dependencies,
-                    // Genesis is fine here, we only use it to calculate an object ref that we can use
-                    // for all validators to commit to the same bytes in the update
+                    // Genesis is fine here, we only use it to calculate an object ref that we can
+                    // use for all validators to commit to the same bytes in
+                    // the update
                     TransactionDigest::genesis_marker(),
                 )
                 .compute_object_reference(),

@@ -2,15 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::indexer_reader::IndexerReader;
 use std::time::Duration;
+
 use iota_types::SYSTEM_PACKAGE_ADDRESSES;
 use tokio_util::sync::CancellationToken;
 
-/// Background task responsible for evicting system packages from the package resolver's cache after
-/// detecting an epoch boundary.
+use crate::indexer_reader::IndexerReader;
+
+/// Background task responsible for evicting system packages from the package
+/// resolver's cache after detecting an epoch boundary.
 pub(crate) struct SystemPackageTask {
-    /// Holds the DB connection and also the package resolver to evict packages from.
+    /// Holds the DB connection and also the package resolver to evict packages
+    /// from.
     reader: IndexerReader,
     /// Signal to cancel the task.
     cancel: CancellationToken,

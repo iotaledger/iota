@@ -2,54 +2,49 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::hash::MultisetHash;
-use fastcrypto::traits::KeyPair;
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
+
+use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use futures::future::join_all;
-use move_core_types::account_address::AccountAddress;
-use move_core_types::ident_str;
-use shared_crypto::intent::{Intent, IntentScope};
-use std::collections::BTreeMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-use iota_config::genesis::Genesis;
-use iota_config::local_ip_utils;
-use iota_config::node::AuthorityOverloadConfig;
+use iota_config::{genesis::Genesis, local_ip_utils, node::AuthorityOverloadConfig};
 use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_macros::nondeterministic;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_protocol_config::ProtocolConfig;
-use iota_types::base_types::{random_object_ref, ObjectID};
-use iota_types::crypto::{
-    generate_proof_of_possession, get_key_pair, AccountKeyPair, AuthorityPublicKeyBytes,
-    NetworkKeyPair, IotaKeyPair,
-};
-use iota_types::crypto::{AuthorityKeyPair, Signer};
-use iota_types::effects::{SignedTransactionEffects, TestEffectsBuilder};
-use iota_types::error::IotaError;
-use iota_types::signature_verification::VerifiedDigestCache;
-use iota_types::transaction::ObjectArg;
-use iota_types::transaction::{
-    CallArg, SignedTransaction, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-};
-use iota_types::utils::create_fake_transaction;
-use iota_types::utils::to_sender_signed_transaction;
 use iota_types::{
-    base_types::{AuthorityName, ExecutionDigests, ObjectRef, IotaAddress, TransactionDigest},
+    base_types::{
+        AuthorityName, ExecutionDigests, IotaAddress, ObjectID, ObjectRef, TransactionDigest,
+        random_object_ref,
+    },
     committee::Committee,
-    crypto::{AuthoritySignInfo, AuthoritySignature},
+    crypto::{
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
+        AuthoritySignature, IotaKeyPair, NetworkKeyPair, Signer, generate_proof_of_possession,
+        get_key_pair,
+    },
+    effects::{SignedTransactionEffects, TestEffectsBuilder},
+    error::IotaError,
     message_envelope::Message,
     object::Object,
-    transaction::CertifiedTransaction,
+    signature_verification::VerifiedDigestCache,
+    transaction::{
+        CallArg, CertifiedTransaction, ObjectArg, SignedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData,
+    },
+    utils::{create_fake_transaction, to_sender_signed_transaction},
 };
+use move_core_types::{account_address::AccountAddress, ident_str};
+use shared_crypto::intent::{Intent, IntentScope};
 use tokio::time::timeout;
 use tracing::{info, warn};
 
-use crate::authority::{test_authority_builder::TestAuthorityBuilder, AuthorityState};
-use crate::authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder, TimeoutConfig};
-use crate::state_accumulator::StateAccumulator;
-use crate::test_authority_clients::LocalAuthorityClient;
+use crate::{
+    authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
+    authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder, TimeoutConfig},
+    state_accumulator::StateAccumulator,
+    test_authority_clients::LocalAuthorityClient,
+};
 
 const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 
@@ -75,11 +70,13 @@ pub async fn send_and_confirm_transaction(
             .try_into_verified_for_testing(&committee, &Default::default())
             .unwrap();
 
-    // Submit the confirmation. *Now* execution actually happens, and it should fail when we try to look up our dummy module.
-    // we unfortunately don't get a very descriptive error message, but we can at least see that something went wrong inside the VM
+    // Submit the confirmation. *Now* execution actually happens, and it should fail
+    // when we try to look up our dummy module. we unfortunately don't get a
+    // very descriptive error message, but we can at least see that something went
+    // wrong inside the VM
     //
-    // We also check the incremental effects of the transaction on the live object set against StateAccumulator
-    // for testing and regression detection
+    // We also check the incremental effects of the transaction on the live object
+    // set against StateAccumulator for testing and regression detection
     let state_acc =
         StateAccumulator::new_for_tests(authority.get_accumulator_store().clone(), &epoch_store);
     let include_wrapped_tombstone = !authority
@@ -105,8 +102,8 @@ pub async fn send_and_confirm_transaction(
     Ok((certificate.into_inner(), result.into_inner()))
 }
 
-// note: clippy is confused about this being dead - it appears to only be used in cfg(test), but
-// adding #[cfg(test)] causes other targets to fail
+// note: clippy is confused about this being dead - it appears to only be used
+// in cfg(test), but adding #[cfg(test)] causes other targets to fail
 #[allow(dead_code)]
 pub(crate) fn init_state_parameters_from_rng<R>(rng: &mut R) -> (Genesis, AuthorityKeyPair)
 where

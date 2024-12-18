@@ -2,14 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::collection_types::VecMap;
-use crate::event::Event;
-use crate::id::{ID, UID};
-use crate::IOTA_FRAMEWORK_ADDRESS;
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use move_core_types::language_storage::StructTag;
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::Deserialize;
+
+use crate::{
+    IOTA_FRAMEWORK_ADDRESS,
+    collection_types::VecMap,
+    event::Event,
+    id::{ID, UID},
+};
 
 pub const DISPLAY_MODULE_NAME: &IdentStr = ident_str!("display");
 pub const DISPLAY_CREATED_EVENT_NAME: &IdentStr = ident_str!("DisplayCreated");
@@ -50,8 +51,8 @@ impl DisplayVersionUpdatedEvent {
             && inner.name.as_ident_str() == DISPLAY_VERSION_UPDATED_EVENT_NAME
     }
 
-    // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T> and returns a reference
-    // to the inner type T if so.
+    // Checks if the provided `StructTag` is a DisplayVersionUpdatedEvent<T> and
+    // returns a reference to the inner type T if so.
     pub fn inner_type(inner: &StructTag) -> Option<&StructTag> {
         use move_core_types::language_storage::TypeTag;
 

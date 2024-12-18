@@ -5,6 +5,7 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use std::{path::Path, sync::Arc};
+
 use iota_transactional_test_runner::{
     run_test_impl,
     test_adapter::{IotaTestAdapter, PRE_COMPILED},

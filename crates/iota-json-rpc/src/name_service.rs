@@ -2,19 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::ident_str;
-use move_core_types::identifier::IdentStr;
-use move_core_types::language_storage::StructTag;
+use std::{fmt, marker::PhantomData, str::FromStr};
+
+use iota_types::{
+    TypeTag,
+    base_types::{IotaAddress, ObjectID},
+    collection_types::VecMap,
+    dynamic_field::Field,
+    id::{ID, UID},
+    object::{MoveObject, Object},
+};
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use std::marker::PhantomData;
-use std::str::FromStr;
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::collection_types::VecMap;
-use iota_types::dynamic_field::Field;
-use iota_types::id::{ID, UID};
-use iota_types::object::{MoveObject, Object};
-use iota_types::TypeTag;
 
 const NAME_SERVICE_DOMAIN_MODULE: &IdentStr = ident_str!("domain");
 const NAME_SERVICE_DOMAIN_STRUCT: &IdentStr = ident_str!("Domain");

@@ -2,55 +2,37 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use reqwest::header::HeaderValue;
-use reqwest::StatusCode;
-use reqwest::Url;
-use iota_sdk_types::types::unresolved::Transaction as UnresolvedTransaction;
-use iota_sdk_types::types::Address;
-use iota_sdk_types::types::CheckpointData;
-use iota_sdk_types::types::CheckpointDigest;
-use iota_sdk_types::types::CheckpointSequenceNumber;
-use iota_sdk_types::types::EpochId;
-use iota_sdk_types::types::Object;
-use iota_sdk_types::types::ObjectId;
-use iota_sdk_types::types::SignedCheckpointSummary;
-use iota_sdk_types::types::SignedTransaction;
-use iota_sdk_types::types::StructTag;
-use iota_sdk_types::types::Transaction;
-use iota_sdk_types::types::TransactionDigest;
-use iota_sdk_types::types::ValidatorCommittee;
-use iota_sdk_types::types::Version;
+use iota_sdk_types::types::{
+    Address, CheckpointData, CheckpointDigest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
+    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, TransactionDigest,
+    ValidatorCommittee, Version, unresolved::Transaction as UnresolvedTransaction,
+};
+use reqwest::{StatusCode, Url, header::HeaderValue};
 use tap::Pipe;
 
-use crate::rest::accounts::AccountOwnedObjectInfo;
-use crate::rest::accounts::ListAccountOwnedObjectsQueryParameters;
-use crate::rest::checkpoints::ListCheckpointsPaginationParameters;
-use crate::rest::coins::CoinInfo;
-use crate::rest::health::Threshold;
-use crate::rest::objects::DynamicFieldInfo;
-use crate::rest::objects::ListDynamicFieldsQueryParameters;
-use crate::rest::system::GasInfo;
-use crate::rest::system::ProtocolConfigResponse;
-use crate::rest::system::SystemStateSummary;
-use crate::rest::system::X_IOTA_MAX_SUPPORTED_PROTOCOL_VERSION;
-use crate::rest::system::X_IOTA_MIN_SUPPORTED_PROTOCOL_VERSION;
-use crate::rest::transactions::ListTransactionsCursorParameters;
-use crate::rest::transactions::ResolveTransactionQueryParameters;
-use crate::rest::transactions::ResolveTransactionResponse;
-use crate::rest::transactions::TransactionSimulationResponse;
-use crate::types::CheckpointResponse;
-use crate::types::ExecuteTransactionOptions;
-use crate::types::ExecuteTransactionResponse;
-use crate::types::NodeInfo;
-use crate::types::TransactionResponse;
-use crate::types::X_IOTA_CHAIN;
-use crate::types::X_IOTA_CHAIN_ID;
-use crate::types::X_IOTA_CHECKPOINT_HEIGHT;
-use crate::types::X_IOTA_CURSOR;
-use crate::types::X_IOTA_EPOCH;
-use crate::types::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT;
-use crate::types::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS;
-use crate::types::X_IOTA_TIMESTAMP_MS;
+use crate::{
+    rest::{
+        accounts::{AccountOwnedObjectInfo, ListAccountOwnedObjectsQueryParameters},
+        checkpoints::ListCheckpointsPaginationParameters,
+        coins::CoinInfo,
+        health::Threshold,
+        objects::{DynamicFieldInfo, ListDynamicFieldsQueryParameters},
+        system::{
+            GasInfo, ProtocolConfigResponse, SystemStateSummary,
+            X_IOTA_MAX_SUPPORTED_PROTOCOL_VERSION, X_IOTA_MIN_SUPPORTED_PROTOCOL_VERSION,
+        },
+        transactions::{
+            ListTransactionsCursorParameters, ResolveTransactionQueryParameters,
+            ResolveTransactionResponse, TransactionSimulationResponse,
+        },
+    },
+    types::{
+        CheckpointResponse, ExecuteTransactionOptions, ExecuteTransactionResponse, NodeInfo,
+        TransactionResponse, X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT,
+        X_IOTA_CURSOR, X_IOTA_EPOCH, X_IOTA_LOWEST_AVAILABLE_CHECKPOINT,
+        X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS, X_IOTA_TIMESTAMP_MS,
+    },
+};
 
 static USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"),);
 

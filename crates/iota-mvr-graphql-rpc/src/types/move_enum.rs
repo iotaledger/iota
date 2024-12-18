@@ -5,14 +5,13 @@
 use async_graphql::*;
 use iota_package_resolver::{DataDef, MoveData, VariantDef};
 
-use crate::error::Error;
-
 use super::{
+    iota_address::IotaAddress,
     move_module::MoveModule,
     move_struct::{MoveField, MoveStructTypeParameter},
-    open_move_type::{abilities, MoveAbility},
-    iota_address::IotaAddress,
+    open_move_type::{MoveAbility, abilities},
 };
+use crate::error::Error;
 
 pub(crate) struct MoveEnum {
     defining_id: IotaAddress,
@@ -64,15 +63,16 @@ impl MoveEnum {
         Some(&self.abilities)
     }
 
-    /// Constraints on the enum's formal type parameters.  Move bytecode does not name type
-    /// parameters, so when they are referenced (e.g. in field types) they are identified by their
-    /// index in this list.
+    /// Constraints on the enum's formal type parameters.  Move bytecode does
+    /// not name type parameters, so when they are referenced (e.g. in field
+    /// types) they are identified by their index in this list.
     pub(crate) async fn type_parameters(&self) -> Option<&Vec<MoveStructTypeParameter>> {
         Some(&self.type_parameters)
     }
 
-    /// The names and types of the enum's fields.  Field types reference type parameters, by their
-    /// index in the defining enum's `typeParameters` list.
+    /// The names and types of the enum's fields.  Field types reference type
+    /// parameters, by their index in the defining enum's `typeParameters`
+    /// list.
     pub(crate) async fn variants(&self) -> Option<&Vec<MoveEnumVariant>> {
         Some(&self.variants)
     }
@@ -85,8 +85,9 @@ impl MoveEnumVariant {
         &self.name
     }
 
-    /// The names and types of the variant's fields.  Field types reference type parameters, by their
-    /// index in the defining enum's `typeParameters` list.
+    /// The names and types of the variant's fields.  Field types reference type
+    /// parameters, by their index in the defining enum's `typeParameters`
+    /// list.
     pub(crate) async fn fields(&self) -> Option<&Vec<MoveField>> {
         Some(&self.fields)
     }
@@ -109,8 +110,8 @@ impl MoveEnum {
             .collect();
 
         let MoveData::Enum(variants) = def.data else {
-            // This should never happen, as the data should always be an enum if we're calling
-            // this function. So signal an internal error if it does.
+            // This should never happen, as the data should always be an enum if we're
+            // calling this function. So signal an internal error if it does.
             return Err(Error::Internal(format!(
                 "Expected enum data, but got: {:?}",
                 def.data

@@ -4,14 +4,14 @@
 
 //! The IotaBridgeStatus observable monitors whether the Iota Bridge is paused.
 
-use crate::iota_bridge_watchdog::Observable;
-use crate::iota_client::IotaBridgeClient;
-use async_trait::async_trait;
-use prometheus::IntGauge;
 use std::sync::Arc;
 
+use async_trait::async_trait;
+use prometheus::IntGauge;
 use tokio::time::Duration;
 use tracing::{error, info};
+
+use crate::{iota_bridge_watchdog::Observable, iota_client::IotaBridgeClient};
 
 pub struct IotaBridgeStatus {
     iota_client: Arc<IotaBridgeClient>,
@@ -20,7 +20,10 @@ pub struct IotaBridgeStatus {
 
 impl IotaBridgeStatus {
     pub fn new(iota_client: Arc<IotaBridgeClient>, metric: IntGauge) -> Self {
-        Self { iota_client, metric }
+        Self {
+            iota_client,
+            metric,
+        }
     }
 }
 

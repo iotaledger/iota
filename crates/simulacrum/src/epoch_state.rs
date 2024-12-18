@@ -15,12 +15,11 @@ use iota_types::{
     effects::TransactionEffects,
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
-    metrics::BytecodeVerifierMetrics,
-    metrics::LimitsMetrics,
     iota_system_state::{
-        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
         IotaSystemState, IotaSystemStateTrait,
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
+    metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     transaction::{TransactionDataAPI, VerifiedTransaction},
 };
 
@@ -33,8 +32,9 @@ pub struct EpochState {
     limits_metrics: Arc<LimitsMetrics>,
     bytecode_verifier_metrics: Arc<BytecodeVerifierMetrics>,
     executor: Arc<dyn Executor + Send + Sync>,
-    /// A counter that advances each time we advance the clock in order to ensure that each update
-    /// txn has a unique digest. This is reset on epoch changes
+    /// A counter that advances each time we advance the clock in order to
+    /// ensure that each update txn has a unique digest. This is reset on
+    /// epoch changes
     next_consensus_round: u64,
 }
 
@@ -122,8 +122,8 @@ impl EpochState {
             &receiving_object_refs,
         )?;
 
-        // Run the transaction input checks that would run when submitting the txn to a validator
-        // for signing
+        // Run the transaction input checks that would run when submitting the txn to a
+        // validator for signing
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             &self.protocol_config,
             self.epoch_start_state.reference_gas_price(),

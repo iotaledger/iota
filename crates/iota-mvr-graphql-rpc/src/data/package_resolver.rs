@@ -2,20 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeSet, HashMap};
-use std::sync::Arc;
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use async_graphql::dataloader::Loader;
 use async_trait::async_trait;
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::scoped_futures::ScopedFutureExt;
-use move_core_types::account_address::AccountAddress;
-use iota_indexer::models::packages::StoredPackage;
-use iota_indexer::schema::packages;
-use iota_package_resolver::Resolver;
+use iota_indexer::{models::packages::StoredPackage, schema::packages};
 use iota_package_resolver::{
-    error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
+    Package, PackageStore, PackageStoreWithLruCache, Resolver, Result,
+    error::Error as PackageResolverError,
 };
+use move_core_types::account_address::AccountAddress;
 
 use super::{DataLoader, Db, DbConnection, QueryExecutor};
 
@@ -24,8 +25,8 @@ const STORE: &str = "PostgresDB";
 pub(crate) type PackageCache = PackageStoreWithLruCache<DbPackageStore>;
 pub(crate) type PackageResolver = Arc<Resolver<PackageCache>>;
 
-/// Store which fetches package for the given address from the backend db on every call
-/// to `fetch`
+/// Store which fetches package for the given address from the backend db on
+/// every call to `fetch`
 pub struct DbPackageStore(DataLoader);
 
 /// `DataLoader` key for fetching the latest version of a `Package` by its ID.

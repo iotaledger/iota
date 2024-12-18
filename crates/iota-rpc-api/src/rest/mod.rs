@@ -5,13 +5,13 @@
 use std::sync::Arc;
 
 use axum::{
+    Router,
     response::{Redirect, ResponseParts},
     routing::get,
-    Router,
 };
-
-use crate::{reader::StateReader, response, RpcService};
 use openapi::ApiEndpoint;
+
+use crate::{RpcService, reader::StateReader, response};
 
 pub mod accept;
 pub mod accounts;
@@ -134,8 +134,7 @@ impl axum::extract::FromRef<RpcService>
 }
 
 pub fn info(version: &'static str) -> openapiv3::v3_1::Info {
-    use openapiv3::v3_1::Contact;
-    use openapiv3::v3_1::License;
+    use openapiv3::v3_1::{Contact, License};
 
     openapiv3::v3_1::Info {
         title: "Iota Node Api".to_owned(),
@@ -160,10 +159,10 @@ async fn redirect(axum::extract::Path(path): axum::extract::Path<String>) -> Red
 }
 
 pub(crate) mod _schemars {
-    use schemars::schema::InstanceType;
-    use schemars::schema::Metadata;
-    use schemars::schema::SchemaObject;
-    use schemars::JsonSchema;
+    use schemars::{
+        JsonSchema,
+        schema::{InstanceType, Metadata, SchemaObject},
+    };
 
     pub(crate) struct U64;
 

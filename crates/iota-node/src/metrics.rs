@@ -1,20 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use iota_common::metrics::{push_metrics, MetricsPushClient};
+use std::time::Duration;
+
+use iota_common::metrics::{MetricsPushClient, push_metrics};
+use iota_metrics::RegistryService;
+use iota_network::tonic::Code;
 use iota_network_stack::metrics::MetricsCallbackProvider;
 use prometheus::{
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
+    HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
 };
 
-use std::time::Duration;
-use iota_network::tonic::Code;
-
-use iota_metrics::RegistryService;
-
-/// Starts a task to periodically push metrics to a configured endpoint if a metrics push endpoint
-/// is configured.
+/// Starts a task to periodically push metrics to a configured endpoint if a
+/// metrics push endpoint is configured.
 pub fn start_metrics_push_task(config: &iota_config::NodeConfig, registry: RegistryService) {
     use fastcrypto::traits::KeyPair;
     use iota_config::node::MetricsConfig;
@@ -35,7 +34,8 @@ pub fn start_metrics_push_task(config: &iota_config::NodeConfig, registry: Regis
         _ => return,
     };
 
-    // make a copy so we can make a new client later when we hit errors posting metrics
+    // make a copy so we can make a new client later when we hit errors posting
+    // metrics
     let config_copy = config.clone();
     let mut client = MetricsPushClient::new(config_copy.network_key_pair().copy());
 
@@ -180,9 +180,10 @@ impl MetricsCallbackProvider for GrpcMetrics {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
     use iota_metrics::start_prometheus_server;
     use prometheus::{IntCounter, Registry};
-    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     #[tokio::test]
     pub async fn test_metrics_endpoint_with_multiple_registries_add_remove() {

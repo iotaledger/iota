@@ -5,10 +5,10 @@
 pub mod config;
 pub mod error;
 pub mod events;
+pub mod iota_deepbook_indexer;
 pub mod metrics;
 pub mod models;
 pub mod postgres_manager;
 pub mod schema;
 pub mod server;
-pub mod iota_deepbook_indexer;
 pub mod types;

@@ -10,7 +10,7 @@ use std::{
 };
 
 use reqwest::Url;
-use serde::{de::Error, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de::Error};
 
 use crate::{
     client::Instance,
@@ -50,8 +50,9 @@ pub enum CloudProvider {
 /// The testbed settings. Those are topically specified in a file.
 #[derive(Deserialize, Clone)]
 pub struct Settings {
-    /// The testbed unique id. This allows multiple users to run concurrent testbeds on the
-    /// same cloud provider's account without interference with each others.
+    /// The testbed unique id. This allows multiple users to run concurrent
+    /// testbeds on the same cloud provider's account without interference
+    /// with each others.
     pub testbed_id: String,
     /// The cloud provider hosting the testbed.
     pub cloud_provider: CloudProvider,
@@ -59,23 +60,28 @@ pub struct Settings {
     pub token_file: PathBuf,
     /// The ssh private key to access the instances.
     pub ssh_private_key_file: PathBuf,
-    /// The corresponding ssh public key registered on the instances. If not specified. the
-    /// public key defaults the same path as the private key with an added extension 'pub'.
+    /// The corresponding ssh public key registered on the instances. If not
+    /// specified. the public key defaults the same path as the private key
+    /// with an added extension 'pub'.
     pub ssh_public_key_file: Option<PathBuf>,
     /// The list of cloud provider regions to deploy the testbed.
     pub regions: Vec<String>,
-    /// The specs of the instances to deploy. Those are dependent on the cloud provider, e.g.,
-    /// specifying 't3.medium' creates instances with 2 vCPU and 4GBo of ram on AWS.
+    /// The specs of the instances to deploy. Those are dependent on the cloud
+    /// provider, e.g., specifying 't3.medium' creates instances with 2 vCPU
+    /// and 4GBo of ram on AWS.
     pub specs: String,
     /// The details of the git reposit to deploy.
     pub repository: Repository,
-    /// The working directory on the remote instance (containing all configuration files).
+    /// The working directory on the remote instance (containing all
+    /// configuration files).
     #[serde(default = "default_working_dir")]
     pub working_dir: PathBuf,
-    /// The directory (on the local machine) where to save benchmarks measurements.
+    /// The directory (on the local machine) where to save benchmarks
+    /// measurements.
     #[serde(default = "default_results_dir")]
     pub results_dir: PathBuf,
-    /// The directory (on the local machine) where to download logs files from the instances.
+    /// The directory (on the local machine) where to download logs files from
+    /// the instances.
     #[serde(default = "default_logs_dir")]
     pub logs_dir: PathBuf,
 }
@@ -155,7 +161,8 @@ impl Settings {
         }
     }
 
-    /// Check whether the input instance matches the criteria described in the settings.
+    /// Check whether the input instance matches the criteria described in the
+    /// settings.
     pub fn filter_instances(&self, instance: &Instance) -> bool {
         self.regions.contains(&instance.region)
             && instance.specs.to_lowercase().replace('.', "")

@@ -8,15 +8,16 @@ use itertools::Itertools;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use quote::quote;
-use syn::Type::{self};
 use syn::{
-    parse_macro_input, AngleBracketedGenericArguments, Attribute, Generics, ItemStruct, Lit, Meta,
-    PathArguments,
+    AngleBracketedGenericArguments, Attribute, Generics, ItemStruct, Lit, Meta, PathArguments,
+    Type::{self},
+    parse_macro_input,
 };
 
 // This is used as default when none is specified
 const DEFAULT_DB_OPTIONS_CUSTOM_FN: &str = "typed_store::rocks::default_db_options";
-// Custom function which returns the option and overrides the defaults for this table
+// Custom function which returns the option and overrides the defaults for this
+// table
 const DB_OPTIONS_CUSTOM_FUNCTION: &str = "default_options_override_fn";
 // Use a different name for the column than the identifier
 const DB_OPTIONS_RENAME: &str = "rename";
@@ -34,7 +35,8 @@ impl Default for GeneralTableOptions {
     }
 }
 
-// Extracts the field names, field types, inner types (K,V in {map_type_name}<K, V>), and the options attrs
+// Extracts the field names, field types, inner types (K,V in {map_type_name}<K,
+// V>), and the options attrs
 fn extract_struct_info(
     input: ItemStruct,
     allowed_map_type_names: HashSet<String>,
@@ -143,24 +145,32 @@ fn get_options_override_function(attr: &Attribute) -> syn::Result<String> {
         _ => {
             return Err(syn::Error::new_spanned(
                 meta,
-                format!("Expected function name in format `#[{DB_OPTIONS_CUSTOM_FUNCTION} = {{function_name}}]`"),
-            ))
+                format!(
+                    "Expected function name in format `#[{DB_OPTIONS_CUSTOM_FUNCTION} = {{function_name}}]`"
+                ),
+            ));
         }
     };
 
     if !val.path.is_ident(DB_OPTIONS_CUSTOM_FUNCTION) {
         return Err(syn::Error::new_spanned(
             meta,
-            format!("Expected function name in format `#[{DB_OPTIONS_CUSTOM_FUNCTION} = {{function_name}}]`"),
+            format!(
+                "Expected function name in format `#[{DB_OPTIONS_CUSTOM_FUNCTION} = {{function_name}}]`"
+            ),
         ));
     }
 
     let fn_name = match val.lit {
         Lit::Str(fn_name) => fn_name,
-        _ => return Err(syn::Error::new_spanned(
-            meta,
-            format!("Expected function name in format `#[{DB_OPTIONS_CUSTOM_FUNCTION} = {{function_name}}]`"),
-        ))
+        _ => {
+            return Err(syn::Error::new_spanned(
+                meta,
+                format!(
+                    "Expected function name in format `#[{DB_OPTIONS_CUSTOM_FUNCTION} = {{function_name}}]`"
+                ),
+            ));
+        }
     };
     Ok(fn_name.value())
 }
@@ -601,7 +611,7 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(SallyDB, attributes(default_options_override_fn))]
 pub fn derive_sallydb_general(input: TokenStream) -> TokenStream {
-    //log_syntax!("here");
+    // log_syntax!("here");
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
     let generics = &input.generics;
@@ -615,7 +625,8 @@ pub fn derive_sallydb_general(input: TokenStream) -> TokenStream {
         .collect();
 
     // TODO: use `parse_quote` over `parse()`
-    // TODO: Eventually this should return a Vec<Vec<GeneralTableOptions>> to capture default table options for each column type i.e. RockDB, TestDB, etc
+    // TODO: Eventually this should return a Vec<Vec<GeneralTableOptions>> to
+    // capture default table options for each column type i.e. RockDB, TestDB, etc
     let ExtractedStructInfo {
         field_names,
         inner_types,

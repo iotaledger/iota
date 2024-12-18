@@ -4,14 +4,15 @@
 
 use std::ops::RangeInclusive;
 
-use crate::{crypto::DefaultHash, digests::Digest};
 use fastcrypto::hash::HashFunction;
-use serde::{Deserialize, Serialize};
 pub use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use serde::{Deserialize, Serialize};
+
+use crate::{crypto::DefaultHash, digests::Digest};
 
 /// Models the set of protocol versions supported by a validator.
-/// The `iota-node` binary will always use the SYSTEM_DEFAULT constant, but for testing we need
-/// to be able to inject arbitrary versions into IotaNode.
+/// The `iota-node` binary will always use the SYSTEM_DEFAULT constant, but for
+/// testing we need to be able to inject arbitrary versions into IotaNode.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct SupportedProtocolVersions {
     pub min: ProtocolVersion,
@@ -24,8 +25,8 @@ impl SupportedProtocolVersions {
         max: ProtocolVersion::MAX,
     };
 
-    /// Use by VersionedProtocolMessage implementors to describe in which range of versions a
-    /// message variant is supported.
+    /// Use by VersionedProtocolMessage implementors to describe in which range
+    /// of versions a message variant is supported.
     pub fn new_for_message(min: u64, max: u64) -> Self {
         let min = ProtocolVersion::new(min);
         let max = ProtocolVersion::new(max);
@@ -53,8 +54,8 @@ impl SupportedProtocolVersions {
 }
 
 /// Models the set of protocol versions supported by a validator.
-/// The `iota-node` binary will always use the SYSTEM_DEFAULT constant, but for testing we need
-/// to be able to inject arbitrary versions into IotaNode.
+/// The `iota-node` binary will always use the SYSTEM_DEFAULT constant, but for
+/// testing we need to be able to inject arbitrary versions into IotaNode.
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct SupportedProtocolVersionsWithHashes {
     pub versions: Vec<(ProtocolVersion, Digest)>,
@@ -68,8 +69,8 @@ impl SupportedProtocolVersionsWithHashes {
             .map(|(_, digest)| *digest)
     }
 
-    // Ideally this would be in iota-protocol-config, but iota-types depends on iota-protocol-config,
-    // so it would introduce a circular dependency.
+    // Ideally this would be in iota-protocol-config, but iota-types depends on
+    // iota-protocol-config, so it would introduce a circular dependency.
     fn protocol_config_digest(config: &ProtocolConfig) -> Digest {
         let mut digest = DefaultHash::default();
         bcs::serialize_into(&mut digest, &config).expect("serialization cannot fail");

@@ -2,10 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::schema::packages;
-use crate::types::IndexedPackage;
-
 use diesel::prelude::*;
+
+use crate::{schema::packages, types::IndexedPackage};
 
 #[derive(Queryable, Insertable, Selectable, Clone, Debug, Identifiable)]
 #[diesel(table_name = packages, primary_key(package_id))]

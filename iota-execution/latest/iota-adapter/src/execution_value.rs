@@ -2,12 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::file_format::AbilitySet;
-use move_core_types::{identifier::IdentStr, resolver::ResourceResolver};
-use move_vm_types::loaded_data::runtime_types::Type;
-use serde::Deserialize;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber, IotaAddress},
+    base_types::{IotaAddress, ObjectID, SequenceNumber},
     coin::Coin,
     error::{ExecutionError, ExecutionErrorKind, IotaError},
     execution_status::CommandArgumentError,
@@ -15,6 +11,10 @@ use iota_types::{
     storage::{BackingPackageStore, ChildObjectResolver, StorageView},
     transfer::Receiving,
 };
+use move_binary_format::file_format::AbilitySet;
+use move_core_types::{identifier::IdentStr, resolver::ResourceResolver};
+use move_vm_types::loaded_data::runtime_types::Type;
+use serde::Deserialize;
 
 pub trait IotaResolver: ResourceResolver<Error = IotaError> + BackingPackageStore {
     fn as_backing_package_store(&self) -> &dyn BackingPackageStore;
@@ -95,9 +95,9 @@ pub struct InputValue {
 
 #[derive(Clone, Debug)]
 pub struct ResultValue {
-    /// This is used primarily for values that have `copy` but not `drop` as they must have been
-    /// copied after the last borrow, otherwise we cannot consider the last "copy" to be instead
-    /// a "move" of the value.
+    /// This is used primarily for values that have `copy` but not `drop` as
+    /// they must have been copied after the last borrow, otherwise we
+    /// cannot consider the last "copy" to be instead a "move" of the value.
     pub last_usage_kind: Option<UsageKind>,
     pub value: Option<Value>,
 }
@@ -226,7 +226,8 @@ impl Value {
 
 impl ObjectValue {
     /// # Safety
-    /// We must have the Type is the coin type, but we are unable to check it at this spot
+    /// We must have the Type is the coin type, but we are unable to check it at
+    /// this spot
     pub unsafe fn coin(type_: Type, coin: Coin) -> Self {
         Self {
             type_,

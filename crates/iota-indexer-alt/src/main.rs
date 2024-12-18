@@ -4,16 +4,14 @@
 
 use std::path::Path;
 
-use anyhow::bail;
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use clap::Parser;
-use iota_indexer_alt::args::Args;
-use iota_indexer_alt::args::Command;
-use iota_indexer_alt::config::IndexerConfig;
-use iota_indexer_alt::config::Merge;
-use iota_indexer_alt::models::MIGRATIONS;
-use iota_indexer_alt::start_indexer;
+use iota_indexer_alt::{
+    args::{Args, Command},
+    config::{IndexerConfig, Merge},
+    models::MIGRATIONS,
+    start_indexer,
+};
 use iota_indexer_alt_framework::db::reset_database;
 use tokio::fs;
 
@@ -89,8 +87,12 @@ async fn main() -> Result<()> {
             let indexer_config: IndexerConfig = toml::from_str(&config_contents)
                 .context("Failed to parse configuration TOML file.")?;
 
-            iota_indexer_alt::benchmark::run_benchmark(args.db_args, benchmark_args, indexer_config)
-                .await?;
+            iota_indexer_alt::benchmark::run_benchmark(
+                args.db_args,
+                benchmark_args,
+                indexer_config,
+            )
+            .await?;
         }
     }
 

@@ -4,16 +4,15 @@
 
 use std::sync::Arc;
 
-use crate::database::ConnectionPool;
-use crate::schema::objects;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use diesel::ExpressionMethods;
-use diesel::QueryDsl;
+use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
-use move_core_types::account_address::AccountAddress;
-use iota_package_resolver::{error::Error as PackageResolverError, Package, PackageStore};
+use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
 use iota_types::object::Object;
+use move_core_types::account_address::AccountAddress;
+
+use crate::{database::ConnectionPool, schema::objects};
 
 /// A package resolver that reads packages from the database.
 #[derive(Clone)]

@@ -2,22 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::borrow::Cow;
-use std::marker::PhantomData;
+use std::{borrow::Cow, marker::PhantomData};
 
-use async_graphql::connection::{
-    ConnectionNameType, CursorType, DefaultConnectionName, DefaultEdgeName, Edge, EdgeNameType,
-    EmptyFields, EnableNodesField, NodesFieldSwitcherSealed, PageInfo,
+use async_graphql::{
+    Object, ObjectType, OutputType, TypeName,
+    connection::{
+        ConnectionNameType, CursorType, DefaultConnectionName, DefaultEdgeName, Edge, EdgeNameType,
+        EmptyFields, EnableNodesField, NodesFieldSwitcherSealed, PageInfo,
+    },
 };
-use async_graphql::{Object, ObjectType, OutputType, TypeName};
 
-/// Mirrors the `Connection` type from async-graphql, with the exception that if `start_cursor` and/
-/// or `end_cursor` is set on the struct, then when `page_info` is called, it will use those values
-/// before deferring to `edges`. The default implementation derives these cursors from the first and
-/// last element of `edges`, so if `edges` is empty, both are set to null. This is undesirable for
-/// queries that make use of `scan_limit`; when the scan limit is reached, a caller can continue to
-/// paginate forwards or backwards until all candidates in the scanning range have been visited,
-/// even if the current page yields no results.
+/// Mirrors the `Connection` type from async-graphql, with the exception that if
+/// `start_cursor` and/ or `end_cursor` is set on the struct, then when
+/// `page_info` is called, it will use those values before deferring to `edges`.
+/// The default implementation derives these cursors from the first and
+/// last element of `edges`, so if `edges` is empty, both are set to null. This
+/// is undesirable for queries that make use of `scan_limit`; when the scan
+/// limit is reached, a caller can continue to paginate forwards or backwards
+/// until all candidates in the scanning range have been visited, even if the
+/// current page yields no results.
 pub(crate) struct ScanConnection<
     Cursor,
     Node,
@@ -55,8 +58,8 @@ where
 {
     /// Information to aid in pagination.
     async fn page_info(&self) -> PageInfo {
-        // Unlike the default implementation, this Connection will use `start_cursor` and
-        // `end_cursor` if they are `Some`.
+        // Unlike the default implementation, this Connection will use `start_cursor`
+        // and `end_cursor` if they are `Some`.
         PageInfo {
             has_previous_page: self.has_previous_page,
             has_next_page: self.has_next_page,

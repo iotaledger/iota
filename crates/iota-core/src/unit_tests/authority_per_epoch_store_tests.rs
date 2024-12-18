@@ -4,9 +4,10 @@
 
 use std::time::Duration;
 
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
 use iota_types::base_types::TransactionDigest;
 use tokio::time::timeout;
+
+use crate::authority::test_authority_builder::TestAuthorityBuilder;
 
 #[tokio::test]
 async fn test_notify_read_executed_transactions_to_checkpoint() {
@@ -29,7 +30,8 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
         )
         .expect("Should not fail");
 
-    // Now register to get notified for the addition of some of the above transactions
+    // Now register to get notified for the addition of some of the above
+    // transactions
     let txes_to_be_notified_cloned = txes_to_be_notified.clone();
     let handle = tokio::spawn(async move {
         let notify = store.transactions_executed_in_checkpoint_notify(txes_to_be_notified_cloned);
@@ -42,7 +44,8 @@ async fn test_notify_read_executed_transactions_to_checkpoint() {
         .insert_finalized_transactions(&txes_to_be_notified[1..], checkpoint_sequence_2)
         .expect("Should not fail");
 
-    // We should get notified about all the transactions having been executed via checkpoints
+    // We should get notified about all the transactions having been executed via
+    // checkpoints
     let _ = timeout(Duration::from_secs(5), handle)
         .await
         .expect("Should not timeout")

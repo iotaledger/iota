@@ -2,34 +2,34 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::balance::{self, Balance};
-use super::base64::Base64;
-use super::big_int::BigInt;
-use super::coin::CoinDowncastError;
-use super::coin_metadata::{CoinMetadata, CoinMetadataDowncastError};
-use super::cursor::Page;
-use super::display::DisplayEntry;
-use super::dynamic_field::{DynamicField, DynamicFieldName};
-use super::move_type::MoveType;
-use super::move_value::MoveValue;
-use super::object::{self, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus};
-use super::owner::OwnerImpl;
-use super::stake::StakedIotaDowncastError;
-use super::iota_address::IotaAddress;
-use super::iotans_registration::{DomainFormat, IotaNSRegistration, IotaNSRegistrationDowncastError};
-use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
-use super::type_filter::ExactTypeFilter;
-use super::uint53::UInt53;
-use super::{coin::Coin, object::Object};
-use crate::connection::ScanConnection;
-use crate::data::Db;
-use crate::error::Error;
-use crate::types::stake::StakedIota;
-use async_graphql::connection::Connection;
-use async_graphql::*;
+use async_graphql::{connection::Connection, *};
 use iota_json_rpc::name_service::NameServiceConfig;
-use iota_types::object::{Data, MoveObject as NativeMoveObject};
-use iota_types::TypeTag;
+use iota_types::{
+    TypeTag,
+    object::{Data, MoveObject as NativeMoveObject},
+};
+
+use super::{
+    balance::{self, Balance},
+    base64::Base64,
+    big_int::BigInt,
+    coin::{Coin, CoinDowncastError},
+    coin_metadata::{CoinMetadata, CoinMetadataDowncastError},
+    cursor::Page,
+    display::DisplayEntry,
+    dynamic_field::{DynamicField, DynamicFieldName},
+    iota_address::IotaAddress,
+    iotans_registration::{DomainFormat, IotaNSRegistration, IotaNSRegistrationDowncastError},
+    move_type::MoveType,
+    move_value::MoveValue,
+    object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus},
+    owner::OwnerImpl,
+    stake::StakedIotaDowncastError,
+    transaction_block::{self, TransactionBlock, TransactionBlockFilter},
+    type_filter::ExactTypeFilter,
+    uint53::UInt53,
+};
+use crate::{connection::ScanConnection, data::Db, error::Error, types::stake::StakedIota};
 
 #[derive(Clone)]
 pub(crate) struct MoveObject {
@@ -49,8 +49,8 @@ pub(crate) enum MoveObjectDowncastError {
     NotAMoveObject,
 }
 
-/// This interface is implemented by types that represent a Move object on-chain (A Move value whose
-/// type has `key`).
+/// This interface is implemented by types that represent a Move object on-chain
+/// (A Move value whose type has `key`).
 #[allow(clippy::duplicated_attributes)]
 #[derive(Interface)]
 #[graphql(
@@ -118,8 +118,9 @@ pub(crate) enum IMoveObject {
     IotaNSRegistration(IotaNSRegistration),
 }
 
-/// The representation of an object as a Move Object, which exposes additional information
-/// (content, module that governs it, version, is transferrable, etc.) about this object.
+/// The representation of an object as a Move Object, which exposes additional
+/// information (content, module that governs it, version, is transferrable,
+/// etc.) about this object.
 #[Object]
 impl MoveObject {
     pub(crate) async fn address(&self) -> IotaAddress {
@@ -141,8 +142,8 @@ impl MoveObject {
             .await
     }
 
-    /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::iota::IOTA`.
+    /// Total balance of all coins with marker type owned by this object. If
+    /// type is not supplied, it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -167,7 +168,8 @@ impl MoveObject {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
+    /// `type` is a filter on the coin's type parameter, defaulting to
+    /// `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -196,7 +198,8 @@ impl MoveObject {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this object.
+    /// The domain explicitly configured as the default domain pointing to this
+    /// object.
     pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
@@ -207,8 +210,8 @@ impl MoveObject {
             .await
     }
 
-    /// The IotaNSRegistration NFTs owned by this object. These grant the owner the capability to
-    /// manage the associated domain.
+    /// The IotaNSRegistration NFTs owned by this object. These grant the owner
+    /// the capability to manage the associated domain.
     pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
@@ -226,18 +229,21 @@ impl MoveObject {
         ObjectImpl(&self.super_).version().await
     }
 
-    /// The current status of the object as read from the off-chain store. The possible states are:
-    /// NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or
-    /// system package upgrade transaction. LIVE, the version returned is the most recent for the
-    /// object, and it is not deleted or wrapped at that version. HISTORICAL, the object was
-    /// referenced at a specific version or checkpoint, so is fetched from historical tables and may
-    /// not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or
-    /// wrapped and only partial information can be loaded."
+    /// The current status of the object as read from the off-chain store. The
+    /// possible states are: NOT_INDEXED, the object is loaded from
+    /// serialized data, such as the contents of a genesis or system package
+    /// upgrade transaction. LIVE, the version returned is the most recent for
+    /// the object, and it is not deleted or wrapped at that version.
+    /// HISTORICAL, the object was referenced at a specific version or
+    /// checkpoint, so is fetched from historical tables and may not be the
+    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
+    /// or wrapped and only partial information can be loaded."
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
 
-    /// 32-byte hash that identifies the object's contents, encoded as a Base58 string.
+    /// 32-byte hash that identifies the object's contents, encoded as a Base58
+    /// string.
     pub(crate) async fn digest(&self) -> Option<String> {
         ObjectImpl(&self.super_).digest().await
     }
@@ -257,32 +263,38 @@ impl MoveObject {
             .await
     }
 
-    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
-    /// recalculated based on the present storage gas price.
+    /// The amount of IOTA we would rebate if this object gets deleted or
+    /// mutated. This number is recalculated based on the present storage
+    /// gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_).storage_rebate().await
     }
 
     /// The transaction blocks that sent objects to this object.
     ///
-    /// `scanLimit` restricts the number of candidate transactions scanned when gathering a page of
-    /// results. It is required for queries that apply more than two complex filters (on function,
-    /// kind, sender, recipient, input object, changed object, or ids), and can be at most
+    /// `scanLimit` restricts the number of candidate transactions scanned when
+    /// gathering a page of results. It is required for queries that apply
+    /// more than two complex filters (on function, kind, sender, recipient,
+    /// input object, changed object, or ids), and can be at most
     /// `serviceConfig.maxScanLimit`.
     ///
-    /// When the scan limit is reached the page will be returned even if it has fewer than `first`
-    /// results when paginating forward (`last` when paginating backwards). If there are more
-    /// transactions to scan, `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
-    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set to the last
-    /// transaction that was scanned as opposed to the last (or first) transaction in the page.
+    /// When the scan limit is reached the page will be returned even if it has
+    /// fewer than `first` results when paginating forward (`last` when
+    /// paginating backwards). If there are more transactions to scan,
+    /// `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
+    /// `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
+    /// to the last transaction that was scanned as opposed to the last (or
+    /// first) transaction in the page.
     ///
-    /// Requesting the next (or previous) page after this cursor will resume the search, scanning
-    /// the next `scanLimit` many transactions in the direction of pagination, and so on until all
-    /// transactions in the scanning range have been visited.
+    /// Requesting the next (or previous) page after this cursor will resume the
+    /// search, scanning the next `scanLimit` many transactions in the
+    /// direction of pagination, and so on until all transactions in the
+    /// scanning range have been visited.
     ///
-    /// By default, the scanning range includes all transactions known to GraphQL, but it can be
-    /// restricted by the `after` and `before` cursors, and the `beforeCheckpoint`,
-    /// `afterCheckpoint` and `atCheckpoint` filters.
+    /// By default, the scanning range includes all transactions known to
+    /// GraphQL, but it can be restricted by the `after` and `before`
+    /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
+    /// `atCheckpoint` filters.
     pub(crate) async fn received_transaction_blocks(
         &self,
         ctx: &Context<'_>,
@@ -303,33 +315,34 @@ impl MoveObject {
         ObjectImpl(&self.super_).bcs().await
     }
 
-    /// Displays the contents of the Move object in a JSON string and through GraphQL types. Also
-    /// provides the flat representation of the type signature, and the BCS of the corresponding
-    /// data.
+    /// Displays the contents of the Move object in a JSON string and through
+    /// GraphQL types. Also provides the flat representation of the type
+    /// signature, and the BCS of the corresponding data.
     pub(crate) async fn contents(&self) -> Option<MoveValue> {
         MoveObjectImpl(self).contents().await
     }
 
-    /// Determines whether a transaction can transfer this object, using the TransferObjects
-    /// transaction command or `iota::transfer::public_transfer`, both of which require the object to
+    /// Determines whether a transaction can transfer this object, using the
+    /// TransferObjects transaction command or
+    /// `iota::transfer::public_transfer`, both of which require the object to
     /// have the `key` and `store` abilities.
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         MoveObjectImpl(self).has_public_transfer(ctx).await
     }
 
-    /// The set of named templates defined on-chain for the type of this object, to be handled
-    /// off-chain. The server substitutes data from the object into these templates to generate a
-    /// display string per template.
+    /// The set of named templates defined on-chain for the type of this object,
+    /// to be handled off-chain. The server substitutes data from the object
+    /// into these templates to generate a display string per template.
     pub(crate) async fn display(&self, ctx: &Context<'_>) -> Result<Option<Vec<DisplayEntry>>> {
         ObjectImpl(&self.super_).display(ctx).await
     }
 
-    /// Access a dynamic field on an object using its name. Names are arbitrary Move values whose
-    /// type have `copy`, `drop`, and `store`, and are specified using their type, and their BCS
-    /// contents, Base64 encoded.
+    /// Access a dynamic field on an object using its name. Names are arbitrary
+    /// Move values whose type have `copy`, `drop`, and `store`, and are
+    /// specified using their type, and their BCS contents, Base64 encoded.
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     pub(crate) async fn dynamic_field(
         &self,
         ctx: &Context<'_>,
@@ -340,13 +353,14 @@ impl MoveObject {
             .await
     }
 
-    /// Access a dynamic object field on an object using its name. Names are arbitrary Move values
-    /// whose type have `copy`, `drop`, and `store`, and are specified using their type, and their
-    /// BCS contents, Base64 encoded. The value of a dynamic object field can also be accessed
+    /// Access a dynamic object field on an object using its name. Names are
+    /// arbitrary Move values whose type have `copy`, `drop`, and `store`,
+    /// and are specified using their type, and their BCS contents, Base64
+    /// encoded. The value of a dynamic object field can also be accessed
     /// off-chain directly via its address (e.g. using `Query.object`).
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     pub(crate) async fn dynamic_object_field(
         &self,
         ctx: &Context<'_>,
@@ -359,8 +373,8 @@ impl MoveObject {
 
     /// The dynamic fields and dynamic object fields on an object.
     ///
-    /// Dynamic fields on wrapped objects can be accessed by using the same API under the Owner
-    /// type.
+    /// Dynamic fields on wrapped objects can be accessed by using the same API
+    /// under the Owner type.
     pub(crate) async fn dynamic_fields(
         &self,
         ctx: &Context<'_>,
@@ -385,7 +399,8 @@ impl MoveObject {
         }
     }
 
-    /// Attempts to convert the Move object into a `0x3::staking_pool::StakedIota`.
+    /// Attempts to convert the Move object into a
+    /// `0x3::staking_pool::StakedIota`.
     async fn as_staked_iota(&self) -> Result<Option<StakedIota>> {
         match StakedIota::try_from(self) {
             Ok(coin) => Ok(Some(coin)),
@@ -410,7 +425,10 @@ impl MoveObject {
     }
 
     /// Attempts to convert the Move object into a `IotaNSRegistration` object.
-    async fn as_iotans_registration(&self, ctx: &Context<'_>) -> Result<Option<IotaNSRegistration>> {
+    async fn as_iotans_registration(
+        &self,
+        ctx: &Context<'_>,
+    ) -> Result<Option<IotaNSRegistration>> {
         let cfg: &NameServiceConfig = ctx.data_unchecked();
         let tag = IotaNSRegistration::type_(cfg.package_address.into());
 
@@ -459,9 +477,10 @@ impl MoveObject {
 
     /// Query the database for a `page` of Move objects, optionally `filter`-ed.
     ///
-    /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this page was
-    /// queried for. Each entity returned in the connection will inherit this checkpoint, so that
-    /// when viewing that entity's state, it will be as if it was read at the same checkpoint.
+    /// `checkpoint_viewed_at` represents the checkpoint sequence number at
+    /// which this page was queried for. Each entity returned in the
+    /// connection will inherit this checkpoint, so that when viewing that
+    /// entity's state, it will be as if it was read at the same checkpoint.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<object::Cursor>,

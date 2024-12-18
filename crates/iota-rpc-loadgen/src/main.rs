@@ -5,21 +5,25 @@
 mod load_test;
 mod payload;
 
+use std::{
+    error::Error,
+    path::PathBuf,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
 use anyhow::Result;
 use clap::Parser;
-use payload::AddressQueryType;
-
-use std::error::Error;
-use std::path::PathBuf;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
+use payload::AddressQueryType;
 use tracing::info;
 
-use crate::load_test::{LoadTest, LoadTestConfig};
-use crate::payload::{
-    load_addresses_from_file, load_digests_from_file, load_objects_from_file, Command,
-    RpcCommandProcessor, SignerInfo,
+use crate::{
+    load_test::{LoadTest, LoadTestConfig},
+    payload::{
+        Command, RpcCommandProcessor, SignerInfo, load_addresses_from_file, load_digests_from_file,
+        load_objects_from_file,
+    },
 };
 
 #[derive(Parser)]
@@ -174,7 +178,9 @@ fn get_log_file_path(dir_path: String) -> String {
 async fn main() -> Result<(), Box<dyn Error>> {
     let tracing_level = "debug";
     let network_tracing_level = "info";
-    let log_filter = format!("{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level}");
+    let log_filter = format!(
+        "{tracing_level},h2={network_tracing_level},tower={network_tracing_level},hyper={network_tracing_level},tonic::transport={network_tracing_level}"
+    );
     let opts = Opts::parse();
 
     let log_filename = get_log_file_path(opts.logs_directory);

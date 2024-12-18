@@ -1,22 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use anyhow::{bail, Result};
-use axum::{extract::Extension, http::StatusCode, routing::get, Router};
-use once_cell::sync::Lazy;
-use prometheus::proto::{Metric, MetricFamily};
-use prometheus::{register_counter_vec, register_histogram_vec};
-use prometheus::{CounterVec, HistogramVec};
-use std::net::TcpListener;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::{
     collections::VecDeque,
+    net::TcpListener,
     sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use anyhow::{Result, bail};
+use axum::{Router, extract::Extension, http::StatusCode, routing::get};
+use once_cell::sync::Lazy;
+use prometheus::{
+    CounterVec, HistogramVec,
+    proto::{Metric, MetricFamily},
+    register_counter_vec, register_histogram_vec,
 };
 use tower::ServiceBuilder;
-use tower_http::trace::{DefaultOnResponse, TraceLayer};
-use tower_http::LatencyUnit;
-use tracing::{info, Level};
+use tower_http::{
+    LatencyUnit,
+    trace::{DefaultOnResponse, TraceLayer},
+};
+use tracing::{Level, info};
 
 use crate::var;
 
@@ -45,7 +50,8 @@ static RELAY_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
 
 // Creates a new http server that has as a sole purpose to expose
 // and endpoint that prometheus agent can use to poll for the metrics.
-// A RegistryService is returned that can be used to get access in prometheus Registries.
+// A RegistryService is returned that can be used to get access in prometheus
+// Registries.
 pub fn start_prometheus_server(listener: TcpListener) -> HistogramRelay {
     let relay = HistogramRelay::new();
     let app = Router::new()
@@ -94,8 +100,9 @@ impl HistogramRelay {
         Self::default()
     }
     /// submit will take metric family submissions and store them for scraping
-    /// in doing so, it will also wrap each entry in a timestamp which will be use
-    /// for pruning old entries on each submission call. this may not be ideal long term.
+    /// in doing so, it will also wrap each entry in a timestamp which will be
+    /// use for pruning old entries on each submission call. this may not be
+    /// ideal long term.
     pub fn submit(&self, data: Vec<MetricFamily>) {
         RELAY_PRESSURE.with_label_values(&["submit"]).inc();
         let timer = RELAY_DURATION.with_label_values(&["submit"]).start_timer();
@@ -128,7 +135,8 @@ impl HistogramRelay {
     pub fn export(&self) -> Result<String> {
         RELAY_PRESSURE.with_label_values(&["export"]).inc();
         let timer = RELAY_DURATION.with_label_values(&["export"]).start_timer();
-        // totally drain all metrics whenever we get a scrape request from the metrics handler
+        // totally drain all metrics whenever we get a scrape request from the metrics
+        // handler
         let mut queue = self
             .0
             .lock()

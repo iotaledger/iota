@@ -2,9 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::Request;
-use axum::middleware::Next;
-use axum::response::Response;
+use axum::{extract::Request, middleware::Next, response::Response};
 use iota_metrics::{add_server_timing, get_server_timing, with_new_server_timing};
 use simple_server_timing_header::Timer;
 

@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::data_types::PgTimestamp;
-use diesel::{Identifiable, Insertable, Queryable, Selectable};
-
-use iota_indexer_builder::{Task, LIVE_TASK_TARGET_CHECKPOINT};
+use diesel::{Identifiable, Insertable, Queryable, Selectable, data_types::PgTimestamp};
+use iota_indexer_builder::{LIVE_TASK_TARGET_CHECKPOINT, Task};
 
 use crate::schema::{
-    governance_actions, progress_store, iota_error_transactions, iota_progress_store, token_transfer,
-    token_transfer_data,
+    governance_actions, iota_error_transactions, iota_progress_store, progress_store,
+    token_transfer, token_transfer_data,
 };
 
 #[derive(Queryable, Selectable, Insertable, Identifiable, Debug)]

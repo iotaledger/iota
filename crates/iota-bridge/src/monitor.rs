@@ -5,24 +5,28 @@
 //! `BridgeMonitor` receives all `IotaBridgeEvent` and `EthBridgeEvent`
 //! and handles them accordingly.
 
-use crate::abi::{
-    EthBridgeCommitteeEvents, EthBridgeConfigEvents, EthBridgeEvent, EthBridgeLimiterEvents,
-    EthCommitteeUpgradeableContractEvents, EthIotaBridgeEvents,
-};
-use crate::client::bridge_authority_aggregator::BridgeAuthorityAggregator;
-use crate::crypto::BridgeAuthorityPublicKeyBytes;
-use crate::events::{BlocklistValidatorEvent, CommitteeMemberUrlUpdateEvent};
-use crate::events::{EmergencyOpEvent, IotaBridgeEvent};
-use crate::metrics::BridgeMetrics;
-use crate::retry_with_max_elapsed_time;
-use crate::iota_client::{IotaClient, IotaClientInner};
-use crate::types::{BridgeCommittee, IsBridgePaused};
+use std::{collections::HashMap, sync::Arc};
+
 use arc_swap::ArcSwap;
-use std::collections::HashMap;
-use std::sync::Arc;
 use iota_types::TypeTag;
 use tokio::time::Duration;
 use tracing::{error, info, warn};
+
+use crate::{
+    abi::{
+        EthBridgeCommitteeEvents, EthBridgeConfigEvents, EthBridgeEvent, EthBridgeLimiterEvents,
+        EthCommitteeUpgradeableContractEvents, EthIotaBridgeEvents,
+    },
+    client::bridge_authority_aggregator::BridgeAuthorityAggregator,
+    crypto::BridgeAuthorityPublicKeyBytes,
+    events::{
+        BlocklistValidatorEvent, CommitteeMemberUrlUpdateEvent, EmergencyOpEvent, IotaBridgeEvent,
+    },
+    iota_client::{IotaClient, IotaClientInner},
+    metrics::BridgeMetrics,
+    retry_with_max_elapsed_time,
+    types::{BridgeCommittee, IsBridgePaused},
+};
 
 const REFRESH_BRIDGE_RETRY_TIMES: u64 = 3;
 
@@ -273,7 +277,8 @@ where
                     bump_eth_counter!("limit_updated");
                 }
                 // This event is deprecated but we keep it for ABI compatibility
-                // TODO: We can safely update abi and remove it once the testnet bridge contract is upgraded
+                // TODO: We can safely update abi and remove it once the testnet bridge contract is
+                // upgraded
                 EthBridgeLimiterEvents::HourlyTransferAmountUpdatedFilter(_) => (),
                 EthBridgeLimiterEvents::ContractUpgradedFilter(_) => {
                     bump_eth_counter!("limiter_contract_upgraded");
@@ -355,8 +360,10 @@ async fn get_latest_bridge_committee_with_url_update_event<C: IotaClientInner>(
         };
         let member = committee.member(&BridgeAuthorityPublicKeyBytes::from(&event.member));
         let Some(member) = member else {
-            // This is possible when a node is processing an older event while the member quit at a later point, which is fine.
-            // Or fullnode returns a stale committee that the member hasn't joined, which is rare and tricy to handle so we just log it.
+            // This is possible when a node is processing an older event while the member
+            // quit at a later point, which is fine. Or fullnode returns a stale
+            // committee that the member hasn't joined, which is rare and tricy to handle so
+            // we just log it.
             warn!(
                 "Committee member not found in the committee: {:?}",
                 event.member
@@ -367,9 +374,12 @@ async fn get_latest_bridge_committee_with_url_update_event<C: IotaClientInner>(
             return committee;
         }
         // If url does not match, it could be:
-        // 1. the query is sent to a stale fullnode that does not have the latest data yet
-        // 2. the node is processing an older message, and the latest url has changed again
-        // In either case, we retry a few times. If it still fails to match, we assume it's the latter case.
+        // 1. the query is sent to a stale fullnode that does not have the latest data
+        //    yet
+        // 2. the node is processing an older message, and the latest url has changed
+        //    again
+        // In either case, we retry a few times. If it still fails to match, we assume
+        // it's the latter case.
         tokio::time::sleep(staleness_retry_interval).await;
         remaining_retry_times -= 1;
         if remaining_retry_times == 0 {
@@ -420,9 +430,12 @@ async fn get_latest_bridge_committee_with_blocklist_event<C: IotaClientInner>(
             return committee;
         }
         // If there is any match, it could be:
-        // 1. the query is sent to a stale fullnode that does not have the latest data yet
-        // 2. the node is processing an older message, and the latest blocklist status has changed again
-        // In either case, we retry a few times. If it still fails to match, we assume it's the latter case.
+        // 1. the query is sent to a stale fullnode that does not have the latest data
+        //    yet
+        // 2. the node is processing an older message, and the latest blocklist status
+        //    has changed again
+        // In either case, we retry a few times. If it still fails to match, we assume
+        // it's the latter case.
         tokio::time::sleep(staleness_retry_interval).await;
         remaining_retry_times -= 1;
         if remaining_retry_times == 0 {
@@ -442,9 +455,10 @@ async fn get_latest_bridge_pause_status_with_emergency_event<C: IotaClientInner>
 ) -> IsBridgePaused {
     let mut remaining_retry_times = REFRESH_BRIDGE_RETRY_TIMES;
     loop {
-        let Ok(Ok(summary)) =
-            retry_with_max_elapsed_time!(iota_client.get_bridge_summary(), Duration::from_secs(600))
-        else {
+        let Ok(Ok(summary)) = retry_with_max_elapsed_time!(
+            iota_client.get_bridge_summary(),
+            Duration::from_secs(600)
+        ) else {
             error!("Failed to get bridge summary after retry");
             continue;
         };
@@ -452,9 +466,12 @@ async fn get_latest_bridge_pause_status_with_emergency_event<C: IotaClientInner>
             return summary.is_frozen;
         }
         // If the onchain status does not match, it could be:
-        // 1. the query is sent to a stale fullnode that does not have the latest data yet
-        // 2. the node is processing an older message, and the latest status has changed again
-        // In either case, we retry a few times. If it still fails to match, we assume it's the latter case.
+        // 1. the query is sent to a stale fullnode that does not have the latest data
+        //    yet
+        // 2. the node is processing an older message, and the latest status has changed
+        //    again
+        // In either case, we retry a few times. If it still fails to match, we assume
+        // it's the latter case.
         tokio::time::sleep(staleness_retry_interval).await;
         remaining_retry_times -= 1;
         if remaining_retry_times == 0 {
@@ -471,21 +488,21 @@ async fn get_latest_bridge_pause_status_with_emergency_event<C: IotaClientInner>
 mod tests {
     use std::str::FromStr;
 
-    use super::*;
-    use crate::events::{init_all_struct_tags, NewTokenEvent};
-    use crate::test_utils::{
-        bridge_committee_to_bridge_committee_summary, get_test_authority_and_key,
-    };
-    use crate::types::{BridgeAuthority, BRIDGE_PAUSED, BRIDGE_UNPAUSED};
     use fastcrypto::traits::KeyPair;
+    use iota_types::{
+        base_types::IotaAddress,
+        bridge::{BridgeCommitteeSummary, MoveTypeCommitteeMember},
+        crypto::{ToFromBytes, get_key_pair},
+    };
     use prometheus::Registry;
-    use iota_types::base_types::IotaAddress;
-    use iota_types::bridge::BridgeCommitteeSummary;
-    use iota_types::bridge::MoveTypeCommitteeMember;
-    use iota_types::crypto::get_key_pair;
 
-    use crate::{iota_mock_client::IotaMockClient, types::BridgeCommittee};
-    use iota_types::crypto::ToFromBytes;
+    use super::*;
+    use crate::{
+        events::{NewTokenEvent, init_all_struct_tags},
+        iota_mock_client::IotaMockClient,
+        test_utils::{bridge_committee_to_bridge_committee_summary, get_test_authority_and_key},
+        types::{BRIDGE_PAUSED, BRIDGE_UNPAUSED, BridgeAuthority, BridgeCommittee},
+    };
 
     #[tokio::test]
     async fn test_get_latest_bridge_committee_with_url_update_event() {
@@ -501,16 +518,13 @@ mod tests {
             new_url: "http://new.url".to_string(),
         };
         let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -530,19 +544,17 @@ mod tests {
         );
         assert!(timer.elapsed().as_millis() < 500);
 
-        // Test the case where the onchain url is older. Then update onchain url in 1 second.
-        // Since the retry interval is 2 seconds, it should return the next retry.
+        // Test the case where the onchain url is older. Then update onchain url in 1
+        // second. Since the retry interval is 2 seconds, it should return the
+        // next retry.
         let old_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://old.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://old.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -570,16 +582,13 @@ mod tests {
         // Test the case where the onchain url is newer. It should retry up to
         // REFRESH_BRIDGE_RETRY_TIMES time then return the onchain record.
         let newer_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -605,16 +614,13 @@ mod tests {
         let pk_as_bytes2 = BridgeAuthorityPublicKeyBytes::from(&pk2);
         let pk_bytes2 = pk_as_bytes2.as_bytes().to_vec();
         let newer_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes2.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes2.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes2.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes2.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -651,16 +657,13 @@ mod tests {
             public_keys: vec![pk.clone()],
         };
         let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: true,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -675,22 +678,20 @@ mod tests {
         assert!(committee.member(&pk_as_bytes).unwrap().is_blocklisted);
         assert!(timer.elapsed().as_millis() < 500);
 
-        // Test the case where the onchain status is the same as the event (unblocklisted)
+        // Test the case where the onchain status is the same as the event
+        // (unblocklisted)
         let event = BlocklistValidatorEvent {
             blocklisted: false,
             public_keys: vec![pk.clone()],
         };
         let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -705,19 +706,17 @@ mod tests {
         assert!(!committee.member(&pk_as_bytes).unwrap().is_blocklisted);
         assert!(timer.elapsed().as_millis() < 500);
 
-        // Test the case where the onchain status is older. Then update onchain status in 1 second.
-        // Since the retry interval is 2 seconds, it should return the next retry.
+        // Test the case where the onchain status is older. Then update onchain status
+        // in 1 second. Since the retry interval is 2 seconds, it should return
+        // the next retry.
         let old_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: true,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -742,16 +741,13 @@ mod tests {
         // Test the case where the onchain url is newer. It should retry up to
         // REFRESH_BRIDGE_RETRY_TIMES time then return the onchain record.
         let newer_summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
-                    blocklisted: true,
-                },
-            )],
+            members: vec![(pk_bytes.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
+                blocklisted: true,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -774,16 +770,13 @@ mod tests {
         let pk_as_bytes2 = BridgeAuthorityPublicKeyBytes::from(&pk2);
         let pk_bytes2 = pk_as_bytes2.as_bytes().to_vec();
         let summary = BridgeCommitteeSummary {
-            members: vec![(
-                pk_bytes2.clone(),
-                MoveTypeCommitteeMember {
-                    iota_address: IotaAddress::random_for_testing_only(),
-                    bridge_pubkey_bytes: pk_bytes2.clone(),
-                    voting_power: 10000,
-                    http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
-                    blocklisted: false,
-                },
-            )],
+            members: vec![(pk_bytes2.clone(), MoveTypeCommitteeMember {
+                iota_address: IotaAddress::random_for_testing_only(),
+                bridge_pubkey_bytes: pk_bytes2.clone(),
+                voting_power: 10000,
+                http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
+                blocklisted: false,
+            })],
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
@@ -810,26 +803,20 @@ mod tests {
         };
         let summary = BridgeCommitteeSummary {
             members: vec![
-                (
-                    pk_bytes.clone(),
-                    MoveTypeCommitteeMember {
-                        iota_address: IotaAddress::random_for_testing_only(),
-                        bridge_pubkey_bytes: pk_bytes.clone(),
-                        voting_power: 5000,
-                        http_rest_url: "http://pk.url".to_string().as_bytes().to_vec(),
-                        blocklisted: true,
-                    },
-                ),
-                (
-                    pk_bytes2.clone(),
-                    MoveTypeCommitteeMember {
-                        iota_address: IotaAddress::random_for_testing_only(),
-                        bridge_pubkey_bytes: pk_bytes2.clone(),
-                        voting_power: 5000,
-                        http_rest_url: "http://pk2.url".to_string().as_bytes().to_vec(),
-                        blocklisted: false,
-                    },
-                ),
+                (pk_bytes.clone(), MoveTypeCommitteeMember {
+                    iota_address: IotaAddress::random_for_testing_only(),
+                    bridge_pubkey_bytes: pk_bytes.clone(),
+                    voting_power: 5000,
+                    http_rest_url: "http://pk.url".to_string().as_bytes().to_vec(),
+                    blocklisted: true,
+                }),
+                (pk_bytes2.clone(), MoveTypeCommitteeMember {
+                    iota_address: IotaAddress::random_for_testing_only(),
+                    bridge_pubkey_bytes: pk_bytes2.clone(),
+                    voting_power: 5000,
+                    http_rest_url: "http://pk2.url".to_string().as_bytes().to_vec(),
+                    blocklisted: false,
+                }),
             ],
             member_registration: vec![],
             last_committee_update_epoch: 0,
@@ -881,8 +868,9 @@ mod tests {
         );
         assert!(timer.elapsed().as_millis() < 500);
 
-        // Test the case where the onchain status (paused) is older. Then update onchain status in 1 second.
-        // Since the retry interval is 2 seconds, it should return the next retry.
+        // Test the case where the onchain status (paused) is older. Then update onchain
+        // status in 1 second. Since the retry interval is 2 seconds, it should
+        // return the next retry.
         iota_client_mock.set_is_bridge_paused(BRIDGE_PAUSED);
         let timer = std::time::Instant::now();
         // update the bridge to unpaused in 1 second
@@ -902,8 +890,8 @@ mod tests {
         let elapsed = timer.elapsed().as_millis();
         assert!(elapsed > 1000 && elapsed < 3000, "{}", elapsed);
 
-        // Test the case where the onchain status (paused) is newer. It should retry up to
-        // REFRESH_BRIDGE_RETRY_TIMES time then return the onchain record.
+        // Test the case where the onchain status (paused) is newer. It should retry up
+        // to REFRESH_BRIDGE_RETRY_TIMES time then return the onchain record.
         iota_client_mock.set_is_bridge_paused(BRIDGE_PAUSED);
         let timer = std::time::Instant::now();
         assert!(

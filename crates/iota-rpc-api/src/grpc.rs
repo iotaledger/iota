@@ -2,11 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use http::{Request, Response};
 use std::convert::Infallible;
+
+use http::{Request, Response};
 use tap::Pipe;
 use tonic::{
-    body::{boxed, BoxBody},
+    body::{BoxBody, boxed},
     server::NamedService,
 };
 use tower::{Service, ServiceExt};
@@ -133,7 +134,7 @@ impl crate::proto::node::node_server::Node for crate::RpcService {
                 return Err(tonic::Status::new(
                     tonic::Code::InvalidArgument,
                     "only one of `sequence_number` or `digest` can be provided",
-                ))
+                ));
             }
             (Some(sequence_number), None) => Some(
                 crate::service::checkpoints::CheckpointId::SequenceNumber(sequence_number),
@@ -167,7 +168,7 @@ impl crate::proto::node::node_server::Node for crate::RpcService {
                 return Err(tonic::Status::new(
                     tonic::Code::InvalidArgument,
                     "only one of `sequence_number` or `digest` can be provided",
-                ))
+                ));
             }
             (Some(sequence_number), None) => {
                 crate::service::checkpoints::CheckpointId::SequenceNumber(sequence_number)
@@ -182,7 +183,7 @@ impl crate::proto::node::node_server::Node for crate::RpcService {
                 return Err(tonic::Status::new(
                     tonic::Code::InvalidArgument,
                     "must provided one of `sequence_number` or `digest`",
-                ))
+                ));
             }
         };
 
@@ -207,7 +208,7 @@ impl crate::proto::node::node_server::Node for crate::RpcService {
                 return Err(tonic::Status::new(
                     tonic::Code::InvalidArgument,
                     "only one of `transaction` or `transaction_bcs` can be provided",
-                ))
+                ));
             }
             (Some(transaction), None) => (&transaction).try_into().map_err(|e| {
                 tonic::Status::new(
@@ -224,7 +225,7 @@ impl crate::proto::node::node_server::Node for crate::RpcService {
                 return Err(tonic::Status::new(
                     tonic::Code::InvalidArgument,
                     "one of `transaction` or `transaction_bcs` must be provided",
-                ))
+                ));
             }
         };
         let signatures = request

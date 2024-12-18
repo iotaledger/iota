@@ -4,18 +4,19 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::AccountKeyPair,
     object::Owner,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, Command, Transaction, TransactionData, TransactionDataAPI},
     utils::to_sender_signed_transaction,
 };
+use move_core_types::{identifier::Identifier, language_storage::TypeTag};
 
-use crate::ProgrammableTransactionBuilder;
-use crate::{convert_move_call_args, workloads::Gas, BenchMoveCallArg, ExecutionEffects};
-use iota_types::transaction::Command;
+use crate::{
+    BenchMoveCallArg, ExecutionEffects, ProgrammableTransactionBuilder, convert_move_call_args,
+    workloads::Gas,
+};
 
 /// A Iota account and all of the objects it owns
 #[derive(Debug)]
@@ -58,10 +59,12 @@ impl IotaAccount {
     }
 }
 
-/// Utility struct tracking keys for known accounts, owned objects, shared objects, and immutable objects
+/// Utility struct tracking keys for known accounts, owned objects, shared
+/// objects, and immutable objects
 #[derive(Debug, Default)]
 pub struct InMemoryWallet {
-    accounts: BTreeMap<IotaAddress, IotaAccount>, // TODO: track shared and immutable objects as well
+    accounts: BTreeMap<IotaAddress, IotaAccount>, /* TODO: track shared and immutable objects as
+                                                   * well */
 }
 
 impl InMemoryWallet {
@@ -96,10 +99,11 @@ impl InMemoryWallet {
             for obj in effects.deleted() {
                 // by construction, every deleted object either
                 // 1. belongs to the tx sender directly (e.g., sender owned the object)
-                // 2. belongs to the sender indirectly (e.g., deleted object was a dynamic field of a object the sender owned)
+                // 2. belongs to the sender indirectly (e.g., deleted object was a dynamic field
+                //    of a object the sender owned)
                 // 3. is shared (though we do not yet support deletion of shared objects)
-                // so, we just try to delete everything from the sender's account here, though it's
-                // worth noting that (2) and (3) are possible.
+                // so, we just try to delete everything from the sender's account here, though
+                // it's worth noting that (2) and (3) are possible.
                 sender_account.delete(&obj.0);
             }
         } // else, tx sender is not an account we can spend from, we don't care

@@ -2,19 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-use std::{path::PathBuf, sync::RwLock};
-use tracing::info;
+use std::{
+    path::PathBuf,
+    sync::{Arc, RwLock},
+};
 
 use clap::Parser;
-
-use telemetry_subscribers::TelemetryConfig;
-
 use iota_source_validation_service::{
-    host_port, initialize, parse_config, serve, start_prometheus_server, watch_for_upgrades,
-    AppState, DirectorySource, Network, PackageSource, RepositorySource, SourceServiceMetrics,
-    METRICS_HOST_PORT,
+    AppState, DirectorySource, METRICS_HOST_PORT, Network, PackageSource, RepositorySource,
+    SourceServiceMetrics, host_port, initialize, parse_config, serve, start_prometheus_server,
+    watch_for_upgrades,
 };
+use telemetry_subscribers::TelemetryConfig;
+use tracing::info;
 
 #[derive(Parser, Debug)]
 struct Args {

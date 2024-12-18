@@ -4,31 +4,33 @@
 
 use std::collections::HashSet;
 
-use super::*;
-use crate::authority::{authority_tests::init_state_with_objects, AuthorityState};
-use crate::checkpoints::CheckpointServiceNoop;
-use crate::consensus_handler::SequencedConsensusTransaction;
-use crate::mock_consensus::with_block_status;
 use consensus_core::{BlockRef, BlockStatus};
 use fastcrypto::traits::KeyPair;
-use move_core_types::{account_address::AccountAddress, ident_str};
-use parking_lot::Mutex;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-use iota_types::crypto::{deterministic_random_account_key, AccountKeyPair};
-use iota_types::gas::GasCostSummary;
-use iota_types::messages_checkpoint::{
-    CheckpointContents, CheckpointSignatureMessage, CheckpointSummary, SignedCheckpointSummary,
-};
-use iota_types::utils::{make_committee_key, to_sender_signed_transaction};
-use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
 use iota_types::{
-    base_types::{ExecutionDigests, ObjectID, IotaAddress},
+    IOTA_FRAMEWORK_PACKAGE_ID,
+    base_types::{ExecutionDigests, IotaAddress, ObjectID},
+    crypto::{AccountKeyPair, deterministic_random_account_key},
+    gas::GasCostSummary,
+    messages_checkpoint::{
+        CheckpointContents, CheckpointSignatureMessage, CheckpointSummary, SignedCheckpointSummary,
+    },
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, ObjectArg, TransactionData, VerifiedTransaction,
-        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        CallArg, CertifiedTransaction, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        TransactionData, VerifiedTransaction,
     },
+    utils::{make_committee_key, to_sender_signed_transaction},
+};
+use move_core_types::{account_address::AccountAddress, ident_str};
+use parking_lot::Mutex;
+use rand::{SeedableRng, rngs::StdRng};
+
+use super::*;
+use crate::{
+    authority::{AuthorityState, authority_tests::init_state_with_objects},
+    checkpoints::CheckpointServiceNoop,
+    consensus_handler::SequencedConsensusTransaction,
+    mock_consensus::with_block_status,
 };
 
 /// Fixture: a few test gas objects.
@@ -54,7 +56,8 @@ pub async fn test_certificates(
     test_certificates_with_gas_objects(authority, &test_gas_objects(), shared_object).await
 }
 
-/// Fixture: create a few test certificates containing a shared object using specified gas objects.
+/// Fixture: create a few test certificates containing a shared object using
+/// specified gas objects.
 pub async fn test_certificates_with_gas_objects(
     authority: &AuthorityState,
     gas_objects: &[Object],
@@ -82,9 +85,10 @@ pub async fn test_certificates_with_gas_objects(
             IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!(module).to_owned(),
             ident_str!(function).to_owned(),
-            /* type_args */ vec![],
+            // type_args
+            vec![],
             gas_object.compute_object_reference(),
-            /* args */
+            // args
             vec![
                 CallArg::Object(shared_object_arg),
                 CallArg::Pure(16u64.to_le_bytes().to_vec()),
@@ -163,7 +167,8 @@ pub async fn test_user_transaction(
         IOTA_FRAMEWORK_PACKAGE_ID,
         ident_str!(module).to_owned(),
         ident_str!(function).to_owned(),
-        /* type_args */ vec![],
+        // type_args
+        vec![],
         gas_object.compute_object_reference(),
         object_args,
         rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -317,8 +322,9 @@ async fn submit_transaction_to_consensus_adapter() {
         block_status_receivers,
     );
 
-    // Submit the transaction and ensure the adapter reports success to the caller. Note
-    // that consensus may drop some transactions (so we may need to resubmit them).
+    // Submit the transaction and ensure the adapter reports success to the caller.
+    // Note that consensus may drop some transactions (so we may need to
+    // resubmit them).
     let transaction = ConsensusTransaction::new_certificate_message(&state.name, certificate);
     let waiter = adapter
         .submit(
@@ -343,7 +349,8 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
     let certificates = test_certificates(&state, shared_object).await;
     let epoch_store = state.epoch_store_for_testing();
 
-    // Mark the first two transactions to be "executed via checkpoint" and the other two to appear via consensus output.
+    // Mark the first two transactions to be "executed via checkpoint" and the other
+    // two to appear via consensus output.
     assert_eq!(certificates.len(), 4);
 
     let mut process_via_checkpoint = HashSet::new();
@@ -351,15 +358,14 @@ async fn submit_multiple_transactions_to_consensus_adapter() {
     process_via_checkpoint.insert(*certificates[1].digest());
 
     // Make a new consensus adapter instance.
-    let adapter = make_consensus_adapter_for_test(
-        state.clone(),
-        process_via_checkpoint,
-        false,
-        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
-    );
+    let adapter =
+        make_consensus_adapter_for_test(state.clone(), process_via_checkpoint, false, vec![
+            with_block_status(BlockStatus::Sequenced(BlockRef::MIN)),
+        ]);
 
-    // Submit the transaction and ensure the adapter reports success to the caller. Note
-    // that consensus may drop some transactions (so we may need to resubmit them).
+    // Submit the transaction and ensure the adapter reports success to the caller.
+    // Note that consensus may drop some transactions (so we may need to
+    // resubmit them).
     let transactions = certificates
         .into_iter()
         .map(|certificate| ConsensusTransaction::new_certificate_message(&state.name, certificate))
@@ -387,12 +393,10 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
     let epoch_store = state.epoch_store_for_testing();
 
     // Make a new consensus adapter instance.
-    let adapter = make_consensus_adapter_for_test(
-        state,
-        HashSet::new(),
-        false,
-        vec![with_block_status(BlockStatus::Sequenced(BlockRef::MIN))],
-    );
+    let adapter =
+        make_consensus_adapter_for_test(state, HashSet::new(), false, vec![with_block_status(
+            BlockStatus::Sequenced(BlockRef::MIN),
+        )]);
 
     let checkpoint_summary = CheckpointSummary::new(
         &ProtocolConfig::get_for_max_version_UNSAFE(),

@@ -1,6 +1,7 @@
-use super::types as proto;
 use iota_sdk_types::types::*;
 use test_strategy::proptest;
+
+use super::types as proto;
 
 macro_rules! protobuf_roundtrip_test {
     ($type:ident, $proto:ty) => {

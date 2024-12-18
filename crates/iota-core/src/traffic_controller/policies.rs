@@ -3,18 +3,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, net::IpAddr, sync::Arc};
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap, VecDeque},
+    fmt::Debug,
+    hash::Hash,
+    net::IpAddr,
+    sync::Arc,
+    time::{Duration, Instant, SystemTime},
+};
 
 use count_min_sketch::CountMinSketch32;
 use iota_metrics::spawn_monitored_task;
-use parking_lot::RwLock;
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, VecDeque};
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::time::Duration;
-use std::time::{Instant, SystemTime};
 use iota_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType, Weight};
+use parking_lot::RwLock;
 use tracing::{info, trace};
 
 const HIGHEST_RATES_CAPACITY: usize = 20;
@@ -45,10 +47,11 @@ pub struct TrafficSketch {
     /// the number of bits used to represent the count in the sketch. Since
     /// we only count on a sketch for a window of `update_interval`, we only
     /// need enough precision to represent the max expected unique IP addresses
-    /// we may see in that window. For a 10 second period, we might conservatively
-    /// expect 100,000, which can be represented in 17 bits, but not 16. We can
-    /// potentially lower the memory consumption by using CountMinSketch16, which
-    /// will reliably support up to ~65,000 unique IP addresses in the window.
+    /// we may see in that window. For a 10 second period, we might
+    /// conservatively expect 100,000, which can be represented in 17 bits,
+    /// but not 16. We can potentially lower the memory consumption by using
+    /// CountMinSketch16, which will reliably support up to ~65,000 unique
+    /// IP addresses in the window.
     sketches: VecDeque<CountMinSketch32<SketchKey>>,
     window_size: Duration,
     update_interval: Duration,
@@ -98,7 +101,10 @@ impl TrafficSketch {
             update_interval >= Duration::from_secs(1),
             "Update interval too short, must be at least 1 second"
         );
-        assert!(num_sketches <= 10, "Given parameters require too many sketches to be stored. Reduce window size or increase update interval.");
+        assert!(
+            num_sketches <= 10,
+            "Given parameters require too many sketches to be stored. Reduce window size or increase update interval."
+        );
         let mem_estimate = (num_sketches as usize)
             * CountMinSketch32::<IpAddr>::estimate_memory(
                 sketch_capacity,
@@ -106,7 +112,10 @@ impl TrafficSketch {
                 sketch_tolerance,
             )
             .expect("Failed to estimate memory for CountMinSketch32");
-        assert!(mem_estimate < 128_000_000, "Memory estimate for traffic sketch exceeds 128MB. Reduce window size or increase update interval.");
+        assert!(
+            mem_estimate < 128_000_000,
+            "Memory estimate for traffic sketch exceeds 128MB. Reduce window size or increase update interval."
+        );
 
         let mut sketches = VecDeque::with_capacity(num_sketches as usize);
         for _ in 0..num_sketches {
@@ -379,9 +388,7 @@ impl FreqThresholdPolicy {
             let req_rate = self.sketch.get_request_rate(&key);
             trace!(
                 "FreqThresholdPolicy handling tally -- req_rate: {:?}, client_threshold: {:?}, client: {:?}",
-                req_rate,
-                self.client_threshold,
-                source,
+                req_rate, self.client_threshold, source,
             );
             if req_rate >= self.client_threshold as f64 {
                 Some(source)
@@ -514,28 +521,27 @@ impl TestPanicOnInvocationPolicy {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::net::{IpAddr, Ipv4Addr};
+
     use iota_macros::sim_test;
     use iota_types::traffic_control::{
         DEFAULT_SKETCH_CAPACITY, DEFAULT_SKETCH_PROBABILITY, DEFAULT_SKETCH_TOLERANCE,
     };
+
+    use super::*;
 
     #[sim_test]
     async fn test_freq_threshold_policy() {
         // Create freq policy that will block on average frequency 2 requests per second
         // for proxied connections and 4 requests per second for direct connections
         // as observed over a 5 second window.
-        let mut policy = FreqThresholdPolicy::new(
-            PolicyConfig::default(),
-            FreqThresholdConfig {
-                client_threshold: 5,
-                proxied_client_threshold: 2,
-                window_size_secs: 5,
-                update_interval_secs: 1,
-                ..Default::default()
-            },
-        );
+        let mut policy = FreqThresholdPolicy::new(PolicyConfig::default(), FreqThresholdConfig {
+            client_threshold: 5,
+            proxied_client_threshold: 2,
+            window_size_secs: 5,
+            update_interval_secs: 1,
+            ..Default::default()
+        });
         // alice and bob connection from different IPs through the
         // same fullnode, thus have the same connection IP on
         // validator, but different proxy IPs

@@ -2,41 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use self::{
-    address::{AddressFromBytesCostParams, AddressFromU256CostParams, AddressToU256CostParams},
-    crypto::{bls12381, ecdsa_k1, ecdsa_r1, ecvrf, ed25519, groth16, hash, hmac},
-    crypto::{
-        bls12381::{Bls12381Bls12381MinPkVerifyCostParams, Bls12381Bls12381MinSigVerifyCostParams},
-        ecdsa_k1::{
-            EcdsaK1DecompressPubkeyCostParams, EcdsaK1EcrecoverCostParams,
-            EcdsaK1Secp256k1VerifyCostParams,
-        },
-        ecdsa_r1::{EcdsaR1EcrecoverCostParams, EcdsaR1Secp256R1VerifyCostParams},
-        ecvrf::EcvrfEcvrfVerifyCostParams,
-        ed25519::Ed25519VerifyCostParams,
-        groth16::{
-            Groth16PrepareVerifyingKeyCostParams, Groth16VerifyGroth16ProofInternalCostParams,
-        },
-        hash::{HashBlake2b256CostParams, HashKeccak256CostParams},
-        hmac::HmacHmacSha3256CostParams,
-    },
-    dynamic_field::{
-        DynamicFieldAddChildObjectCostParams, DynamicFieldBorrowChildObjectCostParams,
-        DynamicFieldHasChildObjectCostParams, DynamicFieldHasChildObjectWithTyCostParams,
-        DynamicFieldHashTypeAndKeyCostParams, DynamicFieldRemoveChildObjectCostParams,
-    },
-    event::EventEmitCostParams,
-    object::{BorrowUidCostParams, DeleteImplCostParams, RecordNewIdCostParams},
-    transfer::{
-        TransferFreezeObjectCostParams, TransferInternalCostParams, TransferShareObjectCostParams,
-    },
-    tx_context::TxContextDeriveIdCostParams,
-    types::TypesIsOneTimeWitnessCostParams,
-    validator::ValidatorValidateMetadataBcsCostParams,
-};
-use crate::crypto::zklogin;
-use crate::crypto::zklogin::{CheckZkloginIdCostParams, CheckZkloginIssuerCostParams};
+use std::sync::Arc;
+
 use better_any::{Tid, TidAble};
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, MOVE_STDLIB_ADDRESS};
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
     annotated_value as A,
@@ -53,10 +23,51 @@ use move_vm_types::{
     natives::function::NativeResult,
     values::{Struct, Value},
 };
-use std::sync::Arc;
-use iota_protocol_config::ProtocolConfig;
-use iota_types::{MOVE_STDLIB_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS};
 use transfer::TransferReceiveObjectInternalCostParams;
+
+use self::{
+    address::{AddressFromBytesCostParams, AddressFromU256CostParams, AddressToU256CostParams},
+    crypto::{
+        bls12381,
+        bls12381::{Bls12381Bls12381MinPkVerifyCostParams, Bls12381Bls12381MinSigVerifyCostParams},
+        ecdsa_k1,
+        ecdsa_k1::{
+            EcdsaK1DecompressPubkeyCostParams, EcdsaK1EcrecoverCostParams,
+            EcdsaK1Secp256k1VerifyCostParams,
+        },
+        ecdsa_r1,
+        ecdsa_r1::{EcdsaR1EcrecoverCostParams, EcdsaR1Secp256R1VerifyCostParams},
+        ecvrf,
+        ecvrf::EcvrfEcvrfVerifyCostParams,
+        ed25519,
+        ed25519::Ed25519VerifyCostParams,
+        groth16,
+        groth16::{
+            Groth16PrepareVerifyingKeyCostParams, Groth16VerifyGroth16ProofInternalCostParams,
+        },
+        hash,
+        hash::{HashBlake2b256CostParams, HashKeccak256CostParams},
+        hmac,
+        hmac::HmacHmacSha3256CostParams,
+    },
+    dynamic_field::{
+        DynamicFieldAddChildObjectCostParams, DynamicFieldBorrowChildObjectCostParams,
+        DynamicFieldHasChildObjectCostParams, DynamicFieldHasChildObjectWithTyCostParams,
+        DynamicFieldHashTypeAndKeyCostParams, DynamicFieldRemoveChildObjectCostParams,
+    },
+    event::EventEmitCostParams,
+    object::{BorrowUidCostParams, DeleteImplCostParams, RecordNewIdCostParams},
+    transfer::{
+        TransferFreezeObjectCostParams, TransferInternalCostParams, TransferShareObjectCostParams,
+    },
+    tx_context::TxContextDeriveIdCostParams,
+    types::TypesIsOneTimeWitnessCostParams,
+    validator::ValidatorValidateMetadataBcsCostParams,
+};
+use crate::crypto::{
+    zklogin,
+    zklogin::{CheckZkloginIdCostParams, CheckZkloginIssuerCostParams},
+};
 
 mod address;
 mod crypto;
@@ -763,8 +774,8 @@ pub fn get_object_id(object: Value) -> Result<Value, PartialVMError> {
     get_nested_struct_field(object, &[0, 0, 0])
 }
 
-// Extract a field value that's nested inside value `v`. The offset of each nesting
-// is determined by `offsets`.
+// Extract a field value that's nested inside value `v`. The offset of each
+// nesting is determined by `offsets`.
 pub fn get_nested_struct_field(mut v: Value, offsets: &[usize]) -> Result<Value, PartialVMError> {
     for offset in offsets {
         v = get_nth_struct_field(v, *offset)?;
@@ -777,7 +788,8 @@ pub fn get_nth_struct_field(v: Value, n: usize) -> Result<Value, PartialVMError>
     Ok(itr.nth(n).unwrap())
 }
 
-/// Returns the struct tag, non-annotated type layout, and fully annotated type layout of `ty`.
+/// Returns the struct tag, non-annotated type layout, and fully annotated type
+/// layout of `ty`.
 pub(crate) fn get_tag_and_layouts(
     context: &NativeContext,
     ty: &Type,
@@ -788,7 +800,7 @@ pub(crate) fn get_tag_and_layouts(
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                     .with_message("Iota verifier guarantees this is a struct".to_string()),
-            )
+            );
         }
     };
     let Some(layout) = context.type_to_type_layout(ty)? else {

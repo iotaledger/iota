@@ -2,13 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::Registry;
+use std::env;
 
 use anyhow::Result;
 use clap::*;
-use std::env;
-use iota_security_watchdog::scheduler::SchedulerService;
-use iota_security_watchdog::SecurityWatchdogConfig;
+use iota_security_watchdog::{SecurityWatchdogConfig, scheduler::SchedulerService};
+use prometheus::Registry;
 
 #[tokio::main]
 async fn main() -> Result<()> {

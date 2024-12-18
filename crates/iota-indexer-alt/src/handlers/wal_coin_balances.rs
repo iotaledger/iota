@@ -9,16 +9,15 @@ use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
 use iota_indexer_alt_framework::{
     db,
-    pipeline::{concurrent::Handler, Processor},
+    pipeline::{Processor, concurrent::Handler},
 };
 use iota_types::full_checkpoint_content::CheckpointData;
 
+use super::sum_coin_balances::SumCoinBalances;
 use crate::{
     models::objects::{StoredObjectUpdate, StoredSumCoinBalance, StoredWalCoinBalance},
     schema::wal_coin_balances,
 };
-
-use super::sum_coin_balances::SumCoinBalances;
 
 pub(crate) struct WalCoinBalances;
 

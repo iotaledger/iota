@@ -14,41 +14,44 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use cfg_if::cfg_if;
 use consensus_config::{AuthorityIndex, NetworkKeyPair, NetworkPublicKey};
-use futures::{stream, Stream, StreamExt as _};
-use hyper_util::rt::{tokio::TokioIo, TokioTimer};
-use hyper_util::service::TowerToHyperService;
+use futures::{Stream, StreamExt as _, stream};
+use hyper_util::{
+    rt::{TokioTimer, tokio::TokioIo},
+    service::TowerToHyperService,
+};
 use iota_common::sync::notify_once::NotifyOnce;
 use iota_metrics::monitored_future;
 use iota_network_stack::{
+    Multiaddr,
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
-    Multiaddr,
 };
-use parking_lot::RwLock;
 use iota_tls::AllowPublicKeys;
+use parking_lot::RwLock;
 use tokio::{
     pin,
     task::JoinSet,
-    time::{timeout, Instant},
+    time::{Instant, timeout},
 };
 use tokio_rustls::TlsAcceptor;
-use tokio_stream::{iter, Iter};
+use tokio_stream::{Iter, iter};
 use tonic::{Request, Response, Streaming};
 use tower_http::{
-    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
     ServiceBuilderExt,
+    trace::{DefaultMakeSpan, DefaultOnFailure, TraceLayer},
 };
 use tracing::{debug, error, info, trace, warn};
 
 use super::{
+    BlockStream, NetworkClient, NetworkManager, NetworkService,
     metrics_layer::{MetricsCallbackMaker, MetricsResponseCallback, SizedRequest, SizedResponse},
     tonic_gen::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
     },
-    BlockStream, NetworkClient, NetworkManager, NetworkService,
 };
 use crate::{
+    CommitIndex, Round,
     block::{BlockRef, VerifiedBlock},
     commit::CommitRange,
     context::Context,
@@ -57,22 +60,22 @@ use crate::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
     },
-    CommitIndex, Round,
 };
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
 const MAX_FETCH_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
-// Maximum total bytes fetched in a single fetch_blocks() call, after combining the responses.
+// Maximum total bytes fetched in a single fetch_blocks() call, after combining
+// the responses.
 const MAX_TOTAL_FETCHED_BYTES: usize = 128 * 1024 * 1024;
 
 // Maximum number of connections in backlog.
 #[cfg(not(msim))]
 const MAX_CONNECTIONS_BACKLOG: u32 = 1024;
 
-// The time we are willing to wait for a connection to get gracefully shutdown before we attempt to
-// forcefully shutdown its task.
+// The time we are willing to wait for a connection to get gracefully shutdown
+// before we attempt to forcefully shutdown its task.
 const CONNECTION_SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(1);
 
 // Implements Tonic RPC client for Consensus.
@@ -107,7 +110,8 @@ impl TonicClient {
     }
 }
 
-// TODO: make sure callsites do not send request to own index, and return error otherwise.
+// TODO: make sure callsites do not send request to own index, and return error
+// otherwise.
 #[async_trait]
 impl NetworkClient for TonicClient {
     const SUPPORT_STREAMING: bool = true;
@@ -658,12 +662,14 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
     }
 }
 
-/// Manages the lifecycle of Tonic network client and service. Typical usage during initialization:
+/// Manages the lifecycle of Tonic network client and service. Typical usage
+/// during initialization:
 /// 1. Create a new `TonicManager`.
 /// 2. Take `TonicClient` from `TonicManager::client()`.
 /// 3. Create consensus components.
 /// 4. Create `TonicService` for consensus service handler.
-/// 5. Install `TonicService` to `TonicManager` with `TonicManager::install_service()`.
+/// 5. Install `TonicService` to `TonicManager` with
+///    `TonicManager::install_service()`.
 pub(crate) struct TonicManager {
     context: Arc<Context>,
     network_keypair: NetworkKeyPair,
@@ -706,8 +712,8 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
         info!("Starting tonic service");
 
         let authority = self.context.committee.authority(self.context.own_index);
-        // By default, bind to the unspecified address to allow the actual address to be assigned.
-        // But bind to localhost if it is requested.
+        // By default, bind to the unspecified address to allow the actual address to be
+        // assigned. But bind to localhost if it is requested.
         let own_address = if authority.address.is_localhost_ip() {
             authority.address.clone()
         } else {
@@ -979,8 +985,8 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}` into
-/// a host:port string.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/udp/{port}`
+/// into a host:port string.
 fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     let mut iter = addr.iter();
 
@@ -1002,8 +1008,8 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}` into
-/// a SocketAddr value.
+/// Attempts to convert a multiaddr of the form `/[ip4,ip6]/{}/[udp,tcp]/{port}`
+/// into a SocketAddr value.
 fn to_socket_addr(addr: &Multiaddr) -> Result<SocketAddr, &'static str> {
     let mut iter = addr.iter();
 

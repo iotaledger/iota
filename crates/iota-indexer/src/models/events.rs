@@ -2,23 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::str::FromStr;
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use diesel::prelude::*;
+use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
+use iota_package_resolver::{PackageStore, Resolver};
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    digests::TransactionDigest,
+    event::EventID,
+    object::bounded_visitor::BoundedVisitor,
+    parse_iota_struct_tag,
+};
 use move_core_types::identifier::Identifier;
 
-use iota_json_rpc_types::{type_and_fields_from_move_event_data, BcsEvent, IotaEvent};
-use iota_package_resolver::{PackageStore, Resolver};
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::digests::TransactionDigest;
-use iota_types::event::EventID;
-use iota_types::object::bounded_visitor::BoundedVisitor;
-use iota_types::parse_iota_struct_tag;
-
-use crate::errors::IndexerError;
-use crate::schema::events;
-use crate::types::IndexedEvent;
+use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
 
 #[derive(Queryable, QueryableByName, Selectable, Insertable, Debug, Clone)]
 #[diesel(table_name = events)]
@@ -83,7 +81,7 @@ impl StoredEvent {
             None => {
                 return Err(IndexerError::PersistentStorageDataCorruptionError(
                     "Event senders element should not be null".to_string(),
-                ))
+                ));
             }
         };
 
@@ -125,9 +123,10 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
     use iota_types::event::Event;
+    use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
+
+    use super::*;
 
     #[test]
     fn test_canonical_string_of_event_type() {

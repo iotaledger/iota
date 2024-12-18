@@ -2,42 +2,45 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store::{ExecutionLockWriteGuard, IotaLockResult};
-use crate::authority::epoch_start_configuration::EpochFlag;
-use crate::authority::epoch_start_configuration::EpochStartConfiguration;
-use crate::authority::AuthorityStore;
-use crate::state_accumulator::AccumulatorStore;
-use crate::transaction_outputs::TransactionOutputs;
+use std::{future::ready, sync::Arc};
 
-use futures::{future::BoxFuture, FutureExt};
+use futures::{FutureExt, future::BoxFuture};
 use iota_common::sync::notify_read::NotifyRead;
-use prometheus::Registry;
-use std::future::ready;
-use std::sync::Arc;
 use iota_protocol_config::ProtocolVersion;
 use iota_storage::package_object_cache::PackageObjectCache;
-use iota_types::accumulator::Accumulator;
-use iota_types::base_types::VerifiedExecutionData;
-use iota_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber};
-use iota_types::bridge::{get_bridge, Bridge};
-use iota_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
-use iota_types::effects::{TransactionEffects, TransactionEvents};
-use iota_types::error::IotaResult;
-use iota_types::message_envelope::Message;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use iota_types::object::Object;
-use iota_types::storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject};
-use iota_types::iota_system_state::{get_iota_system_state, IotaSystemState};
-use iota_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
+use iota_types::{
+    accumulator::Accumulator,
+    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
+    bridge::{Bridge, get_bridge},
+    digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
+    effects::{TransactionEffects, TransactionEvents},
+    error::IotaResult,
+    iota_system_state::{IotaSystemState, get_iota_system_state},
+    message_envelope::Message,
+    messages_checkpoint::CheckpointSequenceNumber,
+    object::Object,
+    storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject},
+    transaction::{VerifiedSignedTransaction, VerifiedTransaction},
+};
+use prometheus::Registry;
 use tap::TapFallible;
 use tracing::instrument;
 use typed_store::Map;
 
 use super::{
-    implement_passthrough_traits, CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics,
-    ExecutionCacheReconfigAPI, ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI,
-    TransactionCacheRead,
+    CheckpointCache, ExecutionCacheCommit, ExecutionCacheMetrics, ExecutionCacheReconfigAPI,
+    ExecutionCacheWrite, ObjectCacheRead, StateSyncAPI, TestingAPI, TransactionCacheRead,
+    implement_passthrough_traits,
+};
+use crate::{
+    authority::{
+        AuthorityStore,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store::{ExecutionLockWriteGuard, IotaLockResult},
+        epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+    },
+    state_accumulator::AccumulatorStore,
+    transaction_outputs::TransactionOutputs,
 };
 
 pub struct PassthroughCache {
@@ -264,15 +267,18 @@ impl ExecutionCacheWrite for PassthroughCache {
             let tx_digest = *tx_outputs.transaction.digest();
             let effects_digest = tx_outputs.effects.digest();
 
-            // NOTE: We just check here that locks exist, not that they are locked to a specific TX. Why?
-            // 1. Lock existence prevents re-execution of old certs when objects have been upgraded
-            // 2. Not all validators lock, just 2f+1, so transaction should proceed regardless
-            //    (But the lock should exist which means previous transactions finished)
-            // 3. Equivocation possible (different TX) but as long as 2f+1 approves current TX its
-            //    fine
-            // 4. Locks may have existed when we started processing this tx, but could have since
-            //    been deleted by a concurrent tx that finished first. In that case, check if the
-            //    tx effects exist.
+            // NOTE: We just check here that locks exist, not that they are locked to a
+            // specific TX. Why?
+            // 1. Lock existence prevents re-execution of old certs when objects have been
+            //    upgraded
+            // 2. Not all validators lock, just 2f+1, so transaction should proceed
+            //    regardless (But the lock should exist which means previous transactions
+            //    finished)
+            // 3. Equivocation possible (different TX) but as long as 2f+1 approves current
+            //    TX its fine
+            // 4. Locks may have existed when we started processing this tx, but could have
+            //    since been deleted by a concurrent tx that finished first. In that case,
+            //    check if the tx effects exist.
             self.store
                 .check_owned_objects_are_live(&tx_outputs.locks_to_delete)
                 .expect("db error");
@@ -357,12 +363,14 @@ impl ExecutionCacheCommit for PassthroughCache {
         _epoch: EpochId,
         _digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, ()> {
-        // Nothing needs to be done since they were already committed in write_transaction_outputs
+        // Nothing needs to be done since they were already committed in
+        // write_transaction_outputs
         ready(()).boxed()
     }
 
     fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, ()> {
-        // Nothing needs to be done since they were already committed in write_transaction_outputs
+        // Nothing needs to be done since they were already committed in
+        // write_transaction_outputs
         ready(()).boxed()
     }
 }

@@ -4,19 +4,20 @@
 
 extern crate core;
 
-use std::collections::btree_map::Entry::Occupied;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, btree_map::Entry::Occupied};
 
-use schemars::gen::{SchemaGenerator, SchemaSettings};
-use schemars::schema::SchemaObject;
-use schemars::JsonSchema;
+use schemars::{
+    JsonSchema,
+    gen::{SchemaGenerator, SchemaSettings},
+    schema::SchemaObject,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use versions::Versioning;
 
 /// OPEN-RPC documentation following the OpenRPC specification <https://spec.open-rpc.org>
-/// The implementation is partial, only required fields and subset of optional fields
-/// in the specification are implemented catered to Iota's need.
+/// The implementation is partial, only required fields and subset of optional
+/// fields in the specification are implemented catered to Iota's need.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Project {
     openrpc: String,
@@ -406,18 +407,15 @@ impl RpcModuleDocBuilder {
             Some(doc.trim().to_string())
         };
         let name = format!("{}_{}", namespace, name);
-        self.methods.insert(
-            name.clone(),
-            Method {
-                name,
-                description,
-                params,
-                result,
-                tags,
-                examples: Vec::new(),
-                deprecated,
-            },
-        );
+        self.methods.insert(name.clone(), Method {
+            name,
+            description,
+            params,
+            result,
+            tags,
+            examples: Vec::new(),
+            deprecated,
+        });
     }
 
     pub fn create_content_descriptor<T: JsonSchema>(

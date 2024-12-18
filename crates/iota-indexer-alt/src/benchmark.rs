@@ -5,9 +5,9 @@
 use std::{path::PathBuf, time::Instant};
 
 use iota_indexer_alt_framework::{
-    db::{reset_database, DbArgs},
-    ingestion::ClientArgs,
     IndexerArgs,
+    db::{DbArgs, reset_database},
+    ingestion::ClientArgs,
 };
 use iota_synthetic_ingestion::synthetic_ingestion::read_ingestion_data;
 
@@ -19,8 +19,8 @@ pub struct BenchmarkArgs {
     #[arg(long)]
     ingestion_path: PathBuf,
 
-    /// Only run the following pipelines. If not provided, all pipelines found in the
-    /// configuration file will be run.
+    /// Only run the following pipelines. If not provided, all pipelines found
+    /// in the configuration file will be run.
     #[arg(long, action = clap::ArgAction::Append)]
     pipeline: Vec<String>,
 }
@@ -61,7 +61,7 @@ pub async fn run_benchmark(
         indexer_args,
         client_args,
         indexer_config,
-        false, /* with_genesis */
+        false, // with_genesis
     )
     .await?;
 

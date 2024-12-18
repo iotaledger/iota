@@ -2,13 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{Reducer, Worker, MAX_CHECKPOINTS_IN_PROGRESS};
+use std::collections::HashMap;
+
 use anyhow::Result;
 use futures::StreamExt;
-use std::collections::HashMap;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+
+use crate::{MAX_CHECKPOINTS_IN_PROGRESS, Reducer, Worker};
 
 pub(crate) async fn reduce<W: Worker>(
     task_name: String,
@@ -17,7 +19,8 @@ pub(crate) async fn reduce<W: Worker>(
     executor_progress_sender: mpsc::Sender<(String, CheckpointSequenceNumber)>,
     reducer: Option<Box<dyn Reducer<W::Result>>>,
 ) -> Result<()> {
-    // convert to a stream of MAX size. This way, each iteration of the loop will process all ready messages
+    // convert to a stream of MAX size. This way, each iteration of the loop will
+    // process all ready messages
     let mut stream =
         ReceiverStream::new(progress_receiver).ready_chunks(MAX_CHECKPOINTS_IN_PROGRESS);
     let mut unprocessed = HashMap::new();

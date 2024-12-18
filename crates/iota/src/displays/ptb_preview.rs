@@ -2,17 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::fmt::{Display, Formatter};
+
+use tabled::{
+    builder::Builder as TableBuilder,
+    settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},
+};
+
 use crate::{
     client_ptb::{
         ast::{GAS_BUDGET, GAS_COIN, JSON, SUMMARY, WARN_SHADOWS},
         ptb::PTBPreview,
     },
     sp,
-};
-use std::fmt::{Display, Formatter};
-use tabled::{
-    builder::Builder as TableBuilder,
-    settings::{style::HorizontalLine, Panel as TablePanel, Style as TableStyle},
 };
 
 impl<'a> Display for PTBPreview<'a> {
@@ -40,8 +42,8 @@ impl<'a> Display for PTBPreview<'a> {
         if self.program.warn_shadows_set {
             builder.push_record([WARN_SHADOWS, "true"]);
         }
-        // while theoretically it cannot happen because parsing the PTB requires at least a
-        // gas-budget which leads to having at least 1 row,
+        // while theoretically it cannot happen because parsing the PTB requires at
+        // least a gas-budget which leads to having at least 1 row,
         // check that there are actual rows in the table
         if builder.count_rows() < 1 {
             return write!(f, "PTB is empty.");

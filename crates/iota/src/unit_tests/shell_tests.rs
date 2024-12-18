@@ -2,19 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-use std::env;
-use std::sync::Arc;
-
-use rustyline::completion::Completer;
-use rustyline::history::History;
-use rustyline::Context;
+use std::{collections::BTreeMap, env, sync::Arc};
 
 use iota_types::base_types::ObjectID;
+use rustyline::{Context, completion::Completer, history::History};
 
-use crate::shell::split_and_unescape;
 use crate::shell::{
-    substitute_env_variables, CacheKey, CommandStructure, CompletionCache, ShellHelper,
+    CacheKey, CommandStructure, CompletionCache, ShellHelper, split_and_unescape,
+    substitute_env_variables,
 };
 
 #[test]
@@ -47,7 +42,8 @@ fn test_substitute_env_variables() {
     let test_string_3 = "$OBJECT_ID_2".to_string();
     assert_eq!(random_id_2, substitute_env_variables(test_string_3));
 
-    // Substitution will not happen if the variable is not found, and should not fail
+    // Substitution will not happen if the variable is not found, and should not
+    // fail
     let test_string_4 = "$THIS_VARIABLE_DOES_NOT_EXISTS".to_string();
     assert_eq!(
         test_string_4.clone(),
@@ -165,10 +161,14 @@ fn test_completer_with_cache() {
     };
 
     // CacheKey::flag applies to all flags regardless of the command name
-    completion_cache.write().unwrap().insert(
-        CacheKey::flag("--gas"),
-        vec!["Gas1".to_string(), "Gas2".to_string(), "Gas3".to_string()],
-    );
+    completion_cache
+        .write()
+        .unwrap()
+        .insert(CacheKey::flag("--gas"), vec![
+            "Gas1".to_string(),
+            "Gas2".to_string(),
+            "Gas3".to_string(),
+        ]);
 
     let (_, candidates) = helper
         .complete("command1 --gas ", 1, &Context::new(&History::new()))
@@ -193,11 +193,15 @@ fn test_completer_with_cache() {
         .collect::<Vec<_>>();
     assert_eq!(vec!["Gas1", "Gas2", "Gas3", "--address"], candidates);
 
-    // CacheKey::new only apply the completion values to the flag with matching command name
-    completion_cache.write().unwrap().insert(
-        CacheKey::new("command1", "--address"),
-        vec!["Address1".to_string(), "Address2".to_string()],
-    );
+    // CacheKey::new only apply the completion values to the flag with matching
+    // command name
+    completion_cache
+        .write()
+        .unwrap()
+        .insert(CacheKey::new("command1", "--address"), vec![
+            "Address1".to_string(),
+            "Address2".to_string(),
+        ]);
     let (_, candidates) = helper
         .complete("command1 --address ", 1, &Context::new(&History::new()))
         .unwrap();

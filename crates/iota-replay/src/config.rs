@@ -4,11 +4,12 @@
 
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr};
 
-use crate::types::ReplayEngineError;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tracing::info;
+
+use crate::types::ReplayEngineError;
 
 pub const DEFAULT_CONFIG_PATH: &str = "~/.iota-replay/network-config.yaml";
 
@@ -145,7 +146,8 @@ pub fn url_from_str(s: &str) -> Result<Uri, ReplayEngineError> {
     })
 }
 
-/// If rpc_url is provided, use it. Otherwise, load the network config from the config file.
+/// If rpc_url is provided, use it. Otherwise, load the network config from the
+/// config file.
 pub fn get_rpc_url(
     rpc_url: Option<String>,
     config_path: Option<PathBuf>,

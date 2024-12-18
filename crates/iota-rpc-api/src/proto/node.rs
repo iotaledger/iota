@@ -1,14 +1,15 @@
-use super::types::proto_to_timestamp_ms;
-use super::types::timestamp_ms_to_proto;
-use super::TryFromProtoError;
 use tap::Pipe;
+
+use super::{
+    TryFromProtoError,
+    types::{proto_to_timestamp_ms, timestamp_ms_to_proto},
+};
 
 #[rustfmt::skip]
 #[path = "generated/iota.node.v2.rs"]
 mod generated;
 pub use generated::*;
 
-//
 // BalanceChange
 //
 
@@ -49,7 +50,6 @@ impl TryFrom<&BalanceChange> for iota_sdk_types::types::BalanceChange {
     }
 }
 
-//
 // NodeInfo
 //
 
@@ -131,7 +131,6 @@ impl TryFrom<&GetNodeInfoResponse> for crate::types::NodeInfo {
     }
 }
 
-//
 // GetObjectOptions
 //
 
@@ -149,7 +148,6 @@ impl From<GetObjectOptions> for crate::types::GetObjectOptions {
     }
 }
 
-//
 // ObjectResponse
 //
 
@@ -209,7 +207,6 @@ impl TryFrom<&GetObjectResponse> for crate::types::ObjectResponse {
     }
 }
 
-//
 // GetCheckpointOptions
 //
 
@@ -253,7 +250,6 @@ impl From<GetCheckpointOptions> for crate::types::GetCheckpointOptions {
     }
 }
 
-//
 // GetTransactionOptions
 //
 
@@ -305,7 +301,6 @@ impl From<GetTransactionOptions> for crate::types::GetTransactionOptions {
     }
 }
 
-//
 // ExecuteTransactionOptions
 //
 
@@ -349,7 +344,6 @@ impl From<ExecuteTransactionOptions> for crate::types::ExecuteTransactionOptions
     }
 }
 
-//
 // GetFullCheckpointOptions
 //
 
@@ -433,7 +427,6 @@ impl From<GetFullCheckpointOptions> for crate::types::GetFullCheckpointOptions {
     }
 }
 
-//
 // TransactionResponse
 //
 
@@ -531,7 +524,6 @@ impl TryFrom<&GetTransactionResponse> for crate::types::TransactionResponse {
     }
 }
 
-//
 // CheckpointResponse
 //
 
@@ -601,7 +593,6 @@ impl TryFrom<&GetCheckpointResponse> for crate::types::CheckpointResponse {
     }
 }
 
-//
 // FullCheckpointResponse
 //
 
@@ -680,7 +671,6 @@ impl TryFrom<&GetFullCheckpointResponse> for crate::types::FullCheckpointRespons
     }
 }
 
-//
 // FullCheckpointObject
 //
 
@@ -740,7 +730,6 @@ impl TryFrom<&FullCheckpointObject> for crate::types::FullCheckpointObject {
     }
 }
 
-//
 // FullCheckpointTransaction
 //
 
@@ -845,7 +834,6 @@ impl TryFrom<&FullCheckpointTransaction> for crate::types::FullCheckpointTransac
     }
 }
 
-//
 // ExecuteTransactionResponse
 //
 
@@ -921,14 +909,12 @@ impl TryFrom<&ExecuteTransactionResponse> for crate::types::ExecuteTransactionRe
     }
 }
 
-//
 // EffectsFinality
 //
 
 impl From<crate::types::EffectsFinality> for crate::proto::node::EffectsFinality {
     fn from(value: crate::types::EffectsFinality) -> Self {
-        use crate::proto::node::effects_finality::Finality;
-        use crate::types::EffectsFinality::*;
+        use crate::{proto::node::effects_finality::Finality, types::EffectsFinality::*};
 
         let finality = match value {
             Certified { signature } => Finality::Certified(signature.into()),

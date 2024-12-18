@@ -9,30 +9,32 @@
 
 #![allow(non_upper_case_globals)]
 
-use crate::crypto::BridgeAuthorityPublicKey;
-use crate::error::BridgeError;
-use crate::error::BridgeResult;
-use crate::types::BridgeAction;
-use crate::types::IotaToEthBridgeAction;
+use std::str::FromStr;
+
 use ethers::types::Address as EthAddress;
-use fastcrypto::encoding::Encoding;
-use fastcrypto::encoding::Hex;
+use fastcrypto::encoding::{Encoding, Hex};
+use iota_json_rpc_types::IotaEvent;
+use iota_types::{
+    BRIDGE_PACKAGE_ID, TypeTag,
+    base_types::IotaAddress,
+    bridge::{
+        BridgeChainId, MoveTypeBridgeMessageKey, MoveTypeCommitteeMember,
+        MoveTypeCommitteeMemberRegistration,
+    },
+    collection_types::VecMap,
+    crypto::ToFromBytes,
+    digests::TransactionDigest,
+    parse_iota_type_tag,
+};
 use move_core_types::language_storage::StructTag;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use iota_json_rpc_types::IotaEvent;
-use iota_types::base_types::IotaAddress;
-use iota_types::bridge::BridgeChainId;
-use iota_types::bridge::MoveTypeBridgeMessageKey;
-use iota_types::bridge::MoveTypeCommitteeMember;
-use iota_types::bridge::MoveTypeCommitteeMemberRegistration;
-use iota_types::collection_types::VecMap;
-use iota_types::crypto::ToFromBytes;
-use iota_types::digests::TransactionDigest;
-use iota_types::parse_iota_type_tag;
-use iota_types::TypeTag;
-use iota_types::BRIDGE_PACKAGE_ID;
+
+use crate::{
+    crypto::BridgeAuthorityPublicKey,
+    error::{BridgeError, BridgeResult},
+    types::{BridgeAction, IotaToEthBridgeAction},
+};
 
 // `TokendDepositedEvent` emitted in bridge.move
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -438,22 +440,23 @@ impl IotaBridgeEvent {
 pub mod tests {
     use std::collections::HashSet;
 
-    use super::*;
-    use crate::crypto::BridgeAuthorityKeyPair;
-    use crate::e2e_tests::test_utils::BridgeTestClusterBuilder;
-    use crate::types::BridgeAction;
-    use crate::types::IotaToEthBridgeAction;
     use ethers::types::Address as EthAddress;
-    use iota_json_rpc_types::BcsEvent;
-    use iota_json_rpc_types::IotaEvent;
-    use iota_types::base_types::ObjectID;
-    use iota_types::base_types::IotaAddress;
-    use iota_types::bridge::BridgeChainId;
-    use iota_types::bridge::TOKEN_ID_IOTA;
-    use iota_types::crypto::get_key_pair;
-    use iota_types::digests::TransactionDigest;
-    use iota_types::event::EventID;
-    use iota_types::Identifier;
+    use iota_json_rpc_types::{BcsEvent, IotaEvent};
+    use iota_types::{
+        Identifier,
+        base_types::{IotaAddress, ObjectID},
+        bridge::{BridgeChainId, TOKEN_ID_IOTA},
+        crypto::get_key_pair,
+        digests::TransactionDigest,
+        event::EventID,
+    };
+
+    use super::*;
+    use crate::{
+        crypto::BridgeAuthorityKeyPair,
+        e2e_tests::test_utils::BridgeTestClusterBuilder,
+        types::{BridgeAction, IotaToEthBridgeAction},
+    };
 
     /// Returns a test IotaEvent and corresponding BridgeAction
     pub fn get_test_iota_event_and_action(identifier: Identifier) -> (IotaEvent, BridgeAction) {
@@ -527,7 +530,10 @@ pub mod tests {
             .await;
         let mut mask = 0u8;
         for event in events.iter() {
-            match IotaBridgeEvent::try_from_iota_event(event).unwrap().unwrap() {
+            match IotaBridgeEvent::try_from_iota_event(event)
+                .unwrap()
+                .unwrap()
+            {
                 IotaBridgeEvent::CommitteeMemberRegistration(_event) => mask |= 0x1,
                 IotaBridgeEvent::CommitteeUpdateEvent(_event) => mask |= 0x2,
                 IotaBridgeEvent::TokenRegistrationEvent(_event) => mask |= 0x4,

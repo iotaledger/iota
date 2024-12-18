@@ -4,6 +4,7 @@
 
 #[cfg(not(msim))]
 use std::path::Path;
+
 #[cfg(not(msim))]
 use iota_types::transaction::{CallArg, ObjectArg};
 
@@ -13,8 +14,10 @@ const TEST_DIR: &str = "tests";
 #[cfg(not(msim))]
 #[tokio::main]
 async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
-    use iota::client_ptb::ptb::{to_source_string, PTB};
-    use iota::client_ptb::{error::build_error_reports, ptb::PTBPreview};
+    use iota::client_ptb::{
+        error::build_error_reports,
+        ptb::{PTB, PTBPreview, to_source_string},
+    };
     use test_cluster::TestClusterBuilder;
 
     let _ = miette::set_hook(Box::new(|_| {
@@ -50,13 +53,10 @@ async fn test_ptb_files(path: &Path) -> datatest_stable::Result<()> {
     // Preview (This is based on the parsed commands).
     let mut results = vec![];
     results.push(" === PREVIEW === ".to_string());
-    results.push(format!(
-        "{}",
-        PTBPreview {
-            program: &program,
-            program_metadata: &program_meta
-        }
-    ));
+    results.push(format!("{}", PTBPreview {
+        program: &program,
+        program_metadata: &program_meta
+    }));
 
     // === BUILD PTB ===
     let test_cluster = TestClusterBuilder::new().build().await;

@@ -7,15 +7,16 @@ use std::{
     sync::Arc,
 };
 
-use super::{
-    auth::AllowedPeersUpdatable, metrics::Metrics, server::Server, Handle, RandomnessEventLoop,
-    RandomnessMessage, RandomnessServer,
-};
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{auth::RequireAuthorizationLayer, inflight_limit};
 use iota_config::p2p::RandomnessConfig;
 use iota_types::{base_types::AuthorityName, committee::EpochId, crypto::RandomnessRound};
 use tokio::sync::mpsc;
+
+use super::{
+    Handle, RandomnessEventLoop, RandomnessMessage, RandomnessServer, auth::AllowedPeersUpdatable,
+    metrics::Metrics, server::Server,
+};
 
 /// Randomness Service Builder.
 pub struct Builder {

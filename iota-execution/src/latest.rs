@@ -2,14 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::PathBuf;
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
-use move_binary_format::CompiledModule;
-use move_vm_config::verifier::{MeterConfig, VerifierConfig};
+use iota_adapter_latest::{
+    adapter::{new_move_vm, run_metered_move_bytecode_verifier},
+    execution_engine::{execute_genesis_state_update, execute_transaction_to_effects},
+    execution_mode,
+    type_layout_resolver::TypeLayoutResolver,
+};
+use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{ObjectRef, IotaAddress, TxContext},
+    base_types::{IotaAddress, ObjectRef, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
@@ -19,23 +23,16 @@ use iota_types::{
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
+    storage::BackingStore,
     transaction::{CheckedInputObjects, ProgrammableTransaction, TransactionKind},
 };
-
-use move_bytecode_verifier_meter::Meter;
-use move_vm_runtime_latest::move_vm::MoveVM;
-use iota_adapter_latest::adapter::{new_move_vm, run_metered_move_bytecode_verifier};
-use iota_adapter_latest::execution_engine::{
-    execute_genesis_state_update, execute_transaction_to_effects,
-};
-use iota_adapter_latest::type_layout_resolver::TypeLayoutResolver;
-use iota_move_natives_latest::all_natives;
-use iota_types::storage::BackingStore;
 use iota_verifier_latest::meter::IotaVerifierMeter;
+use move_binary_format::CompiledModule;
+use move_bytecode_verifier_meter::Meter;
+use move_vm_config::verifier::{MeterConfig, VerifierConfig};
+use move_vm_runtime_latest::move_vm::MoveVM;
 
-use crate::executor;
-use crate::verifier;
-use iota_adapter_latest::execution_mode;
+use crate::{executor, verifier};
 
 pub(crate) struct Executor(Arc<MoveVM>);
 

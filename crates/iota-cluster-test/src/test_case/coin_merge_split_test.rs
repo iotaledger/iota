@@ -2,14 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{helper::ObjectChecker, TestCaseImpl, TestContext};
 use async_trait::async_trait;
-use jsonrpsee::rpc_params;
 use iota_json_rpc_types::{IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse};
-use iota_types::base_types::{ObjectID, IotaAddress};
-use iota_types::object::Owner;
-use iota_types::iota_serde::BigInt;
+use iota_types::{
+    base_types::{IotaAddress, ObjectID},
+    iota_serde::BigInt,
+    object::Owner,
+};
+use jsonrpsee::rpc_params;
 use tracing::{debug, info};
+
+use crate::{TestCaseImpl, TestContext, helper::ObjectChecker};
 
 pub struct CoinMergeSplitTest;
 
@@ -62,7 +65,8 @@ impl TestCaseImpl for CoinMergeSplitTest {
         info!("Testing coin merge.");
         let mut coins_merged = Vec::new();
         let mut txes = Vec::new();
-        // We on purpose linearize the merge operations, otherwise the primary coin may be locked
+        // We on purpose linearize the merge operations, otherwise the primary coin may
+        // be locked
         for new_coin in new_coins {
             let coin_to_merge = new_coin.reference.object_id;
             debug!(

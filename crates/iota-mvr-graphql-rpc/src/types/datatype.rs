@@ -4,15 +4,17 @@
 
 use async_graphql::*;
 
-use super::move_enum::MoveEnum;
-use super::move_module::MoveModule;
-use super::move_struct::{MoveStruct, MoveStructTypeParameter};
-use super::open_move_type::MoveAbility;
+use super::{
+    move_enum::MoveEnum,
+    move_module::MoveModule,
+    move_struct::{MoveStruct, MoveStructTypeParameter},
+    open_move_type::MoveAbility,
+};
 
-/// Interface implemented by all GraphQL types that represent a Move datatype (either structs or
-/// enums). This interface is used to provide a way to access fields that are shared by both
-/// structs and enums, e.g., the module that the datatype belongs to, the name of the datatype,
-/// type parameters etc.
+/// Interface implemented by all GraphQL types that represent a Move datatype
+/// (either structs or enums). This interface is used to provide a way to access
+/// fields that are shared by both structs and enums, e.g., the module that the
+/// datatype belongs to, the name of the datatype, type parameters etc.
 #[derive(Interface)]
 #[graphql(
     name = "IMoveDatatype",
@@ -44,9 +46,9 @@ pub(crate) enum MoveDatatype {
     Enum(MoveEnum),
 }
 
-/// The generic representation of a Move datatype (either a struct or an enum) which exposes common
-/// fields and information (module, name, abilities, type parameters etc.) that is shared across
-/// them.
+/// The generic representation of a Move datatype (either a struct or an enum)
+/// which exposes common fields and information (module, name, abilities, type
+/// parameters etc.) that is shared across them.
 #[Object]
 impl MoveDatatype {
     async fn module(&self, ctx: &Context<'_>) -> Result<MoveModule> {

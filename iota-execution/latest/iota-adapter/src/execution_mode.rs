@@ -2,11 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::execution_value::{RawValueType, Value};
-use crate::type_resolver::TypeTagResolver;
-use move_core_types::language_storage::TypeTag;
 use iota_types::{
     error::ExecutionError, execution::ExecutionResult, transaction::Argument, transfer::Receiving,
+};
+use move_core_types::language_storage::TypeTag;
+
+use crate::{
+    execution_value::{RawValueType, Value},
+    type_resolver::TypeTagResolver,
 };
 
 pub type TransactionIndex = usize;
@@ -20,8 +23,9 @@ pub trait ExecutionMode {
     /// Controls the calling of arbitrary Move functions
     fn allow_arbitrary_function_calls() -> bool;
 
-    /// Controls the ability to instantiate any Move function parameter with a Pure call arg.
-    ///  In other words, you can instantiate any struct or object or other value with its BCS byte
+    /// Controls the ability to instantiate any Move function parameter with a
+    /// Pure call arg.  In other words, you can instantiate any struct or
+    /// object or other value with its BCS byte
     fn allow_arbitrary_values() -> bool;
 
     /// Do not perform conservation checks after execution.
@@ -145,9 +149,9 @@ impl ExecutionMode for Genesis {
 #[derive(Copy, Clone)]
 pub struct System;
 
-/// Execution mode for executing a system transaction, including the epoch change
-/// transaction and the consensus commit prologue. In this mode, we allow calls to
-/// any function bypassing visibility.
+/// Execution mode for executing a system transaction, including the epoch
+/// change transaction and the consensus commit prologue. In this mode, we allow
+/// calls to any function bypassing visibility.
 impl ExecutionMode for System {
     type ArgumentUpdates = ();
     type ExecutionResults = ();
@@ -194,9 +198,9 @@ impl ExecutionMode for System {
     }
 }
 
-/// WARNING! Using this mode will bypass all normal checks around Move entry functions! This
-/// includes the various rules for function arguments, meaning any object can be created just from
-/// BCS bytes!
+/// WARNING! Using this mode will bypass all normal checks around Move entry
+/// functions! This includes the various rules for function arguments, meaning
+/// any object can be created just from BCS bytes!
 pub struct DevInspect<const SKIP_ALL_CHECKS: bool>;
 
 impl<const SKIP_ALL_CHECKS: bool> ExecutionMode for DevInspect<SKIP_ALL_CHECKS> {

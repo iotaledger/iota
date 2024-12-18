@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoError;
-use jsonrpsee::core::Error as RpcError;
-use jsonrpsee::types::error::CallError;
 use iota_json_rpc::name_service::NameServiceError;
+use iota_types::{
+    base_types::ObjectIDParseError,
+    error::{IotaError, IotaObjectResponseError, UserInputError},
+};
+use jsonrpsee::{core::Error as RpcError, types::error::CallError};
 use thiserror::Error;
-
-use iota_types::base_types::ObjectIDParseError;
-use iota_types::error::{IotaError, IotaObjectResponseError, UserInputError};
 
 #[derive(Debug, Error)]
 pub struct DataDownloadError {
@@ -41,7 +41,9 @@ pub enum IndexerError {
     #[error("Indexer failed to deserialize event from events table with error: `{0}`")]
     EventDeserializationError(String),
 
-    #[error("Fullnode returns unexpected responses, which may block indexers from proceeding, with error: `{0}`")]
+    #[error(
+        "Fullnode returns unexpected responses, which may block indexers from proceeding, with error: `{0}`"
+    )]
     UnexpectedFullnodeResponseError(String),
 
     #[error("Indexer failed to transform data with error: `{0}`")]

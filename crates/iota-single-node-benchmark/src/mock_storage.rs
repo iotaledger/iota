@@ -2,23 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
+use iota_storage::package_object_cache::PackageObjectCache;
+use iota_types::{
+    base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VersionNumber},
+    error::{IotaError, IotaResult},
+    inner_temporary_store::InnerTemporaryStore,
+    object::{Object, Owner},
+    storage::{
+        BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore, PackageObject,
+        ParentSync, get_module_by_id,
+    },
+    transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey},
+};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 use once_cell::unsync::OnceCell;
 use prometheus::core::{Atomic, AtomicU64};
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use iota_storage::package_object_cache::PackageObjectCache;
-use iota_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VersionNumber};
-use iota_types::error::{IotaError, IotaResult};
-use iota_types::inner_temporary_store::InnerTemporaryStore;
-use iota_types::object::{Object, Owner};
-use iota_types::storage::{
-    get_module_by_id, BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore,
-    PackageObject, ParentSync,
-};
-use iota_types::transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey};
 
 #[derive(Clone)]
 pub(crate) struct InMemoryObjectStore {
@@ -40,9 +45,10 @@ impl InMemoryObjectStore {
         self.num_object_reads.get()
     }
 
-    // TODO: This function is out-of-sync with read_objects_for_execution from transaction_input_loader.rs.
-    // For instance, it does not support the use of deleted shared objects.
-    // We will need a trait to unify the these functions. (similarly the one in simulacrum)
+    // TODO: This function is out-of-sync with read_objects_for_execution from
+    // transaction_input_loader.rs. For instance, it does not support the use of
+    // deleted shared objects. We will need a trait to unify the these
+    // functions. (similarly the one in simulacrum)
     pub(crate) fn read_objects_for_execution(
         &self,
         shared_locks: &dyn GetSharedLocks,

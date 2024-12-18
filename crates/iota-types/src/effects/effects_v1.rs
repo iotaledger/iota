@@ -2,19 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{
-    random_object_ref, EpochId, ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest,
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt::{Display, Formatter, Write},
 };
-use crate::digests::{ObjectDigest, TransactionEventsDigest};
-use crate::effects::{InputSharedObject, TransactionEffectsAPI, UnchangedSharedKind};
-use crate::execution_status::ExecutionStatus;
-use crate::gas::GasCostSummary;
-use crate::object::Owner;
+
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashSet};
-use std::fmt::{Display, Formatter, Write};
 
 use super::{IDOperation, ObjectChange};
+use crate::{
+    base_types::{
+        EpochId, IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        random_object_ref,
+    },
+    digests::{ObjectDigest, TransactionEventsDigest},
+    effects::{InputSharedObject, TransactionEffectsAPI, UnchangedSharedKind},
+    execution_status::ExecutionStatus,
+    gas::GasCostSummary,
+    object::Owner,
+};
 
 /// The response from processing a transaction or a certified transaction
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize)]
@@ -24,10 +30,11 @@ pub struct TransactionEffectsV1 {
     /// The epoch when this transaction was executed.
     executed_epoch: EpochId,
     gas_used: GasCostSummary,
-    /// The version that every modified (mutated or deleted) object had before it was modified by
-    /// this transaction.
+    /// The version that every modified (mutated or deleted) object had before
+    /// it was modified by this transaction.
     modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
-    /// The object references of the shared objects used in this transaction. Empty if no shared objects were used.
+    /// The object references of the shared objects used in this transaction.
+    /// Empty if no shared objects were used.
     shared_objects: Vec<ObjectRef>,
     /// The transaction digest
     transaction_digest: TransactionDigest,
@@ -39,17 +46,18 @@ pub struct TransactionEffectsV1 {
     /// ObjectRef and owner of mutated objects, including gas object.
     mutated: Vec<(ObjectRef, Owner)>,
     /// ObjectRef and owner of objects that are unwrapped in this transaction.
-    /// Unwrapped objects are objects that were wrapped into other objects in the past,
-    /// and just got extracted out.
+    /// Unwrapped objects are objects that were wrapped into other objects in
+    /// the past, and just got extracted out.
     unwrapped: Vec<(ObjectRef, Owner)>,
     /// Object Refs of objects now deleted (the new refs).
     deleted: Vec<ObjectRef>,
-    /// Object refs of objects previously wrapped in other objects but now deleted.
+    /// Object refs of objects previously wrapped in other objects but now
+    /// deleted.
     unwrapped_then_deleted: Vec<ObjectRef>,
     /// Object refs of objects now wrapped in other objects.
     wrapped: Vec<ObjectRef>,
-    /// The updated gas object reference. Have a dedicated field for convenient access.
-    /// It's also included in mutated.
+    /// The updated gas object reference. Have a dedicated field for convenient
+    /// access. It's also included in mutated.
     gas_object: (ObjectRef, Owner),
     /// The digest of the events emitted during execution,
     /// can be None if the transaction does not emit any event.

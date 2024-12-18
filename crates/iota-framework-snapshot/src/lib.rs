@@ -2,15 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::{fs, io::Read, path::PathBuf};
+use std::{collections::BTreeMap, fs, io::Read, path::PathBuf};
+
 use iota_framework::SystemPackage;
-use iota_types::base_types::ObjectID;
 use iota_types::{
-    BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
-    IOTA_SYSTEM_PACKAGE_ID,
+    BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, base_types::ObjectID,
 };
+use serde::{Deserialize, Serialize};
 
 pub type SnapshotManifest = BTreeMap<u64, SingleSnapshot>;
 
@@ -18,7 +17,8 @@ pub type SnapshotManifest = BTreeMap<u64, SingleSnapshot>;
 pub struct SingleSnapshot {
     /// Git revision that this snapshot is taken on.
     git_revision: String,
-    /// List of file names (also identical to object ID) of the bytecode package files.
+    /// List of file names (also identical to object ID) of the bytecode package
+    /// files.
     package_ids: Vec<ObjectID>,
 }
 
@@ -50,13 +50,10 @@ pub fn load_bytecode_snapshot_manifest() -> SnapshotManifest {
 pub fn update_bytecode_snapshot_manifest(git_revision: &str, version: u64, files: Vec<ObjectID>) {
     let mut snapshot = load_bytecode_snapshot_manifest();
 
-    snapshot.insert(
-        version,
-        SingleSnapshot {
-            git_revision: git_revision.to_string(),
-            package_ids: files,
-        },
-    );
+    snapshot.insert(version, SingleSnapshot {
+        git_revision: git_revision.to_string(),
+        package_ids: files,
+    });
 
     let json =
         serde_json::to_string_pretty(&snapshot).expect("Could not serialize SnapshotManifest");

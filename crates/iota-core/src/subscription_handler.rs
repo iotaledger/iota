@@ -4,21 +4,19 @@
 
 use std::sync::Arc;
 
+use iota_json_rpc_types::{
+    EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
+};
+use iota_types::{error::IotaResult, transaction::TransactionData};
 use prometheus::{
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, IntCounterVec,
-    IntGaugeVec, Registry,
+    IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry,
 };
 use tokio_stream::Stream;
 use tracing::{error, instrument, trace};
 
 use crate::streamer::Streamer;
-use iota_json_rpc_types::{
-    EffectsWithInput, EventFilter, IotaTransactionBlockEffects, IotaTransactionBlockEvents,
-    TransactionFilter,
-};
-use iota_json_rpc_types::{IotaEvent, IotaTransactionBlockEffectsAPI};
-use iota_types::error::IotaResult;
-use iota_types::transaction::TransactionData;
 
 #[cfg(test)]
 #[path = "unit_tests/subscription_handler_tests.rs"]
@@ -62,7 +60,8 @@ impl SubscriptionMetrics {
 
 pub struct SubscriptionHandler {
     event_streamer: Streamer<IotaEvent, IotaEvent, EventFilter>,
-    transaction_streamer: Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
+    transaction_streamer:
+        Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
 }
 
 impl SubscriptionHandler {

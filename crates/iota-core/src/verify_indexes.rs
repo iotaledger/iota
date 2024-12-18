@@ -4,16 +4,20 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use crate::jsonrpc_index::{CoinIndexKey2, CoinInfo, IndexStore};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use iota_types::{base_types::ObjectInfo, object::Owner};
 use tracing::info;
 use typed_store::traits::Map;
 
-use crate::{authority::authority_store_tables::LiveObject, state_accumulator::AccumulatorStore};
+use crate::{
+    authority::authority_store_tables::LiveObject,
+    jsonrpc_index::{CoinIndexKey2, CoinInfo, IndexStore},
+    state_accumulator::AccumulatorStore,
+};
 
-/// This is a very expensive function that verifies some of the secondary indexes. This is done by
-/// iterating through the live object set and recalculating these secodary indexes.
+/// This is a very expensive function that verifies some of the secondary
+/// indexes. This is done by iterating through the live object set and
+/// recalculating these secodary indexes.
 pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) -> Result<()> {
     info!("Begin running index verification checks");
 
@@ -57,7 +61,9 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
         })?;
 
         if calculated_info != info {
-            bail!("owner_index: entry {key:?} is different: expected {calculated_info:?} found {info:?}");
+            bail!(
+                "owner_index: entry {key:?} is different: expected {calculated_info:?} found {info:?}"
+            );
         }
     }
 
@@ -76,7 +82,9 @@ pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) ->
         })?;
 
         if calculated_info != info {
-            bail!("coin_index: entry {key:?} is different: expected {calculated_info:?} found {info:?}");
+            bail!(
+                "coin_index: entry {key:?} is different: expected {calculated_info:?} found {info:?}"
+            );
         }
     }
     tracing::info!("Coin index is good");

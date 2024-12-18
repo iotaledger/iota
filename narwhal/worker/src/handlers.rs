@@ -3,25 +3,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anemo::{types::response::StatusCode, Network};
+use std::{collections::HashSet, time::Duration};
+
+use anemo::{Network, types::response::StatusCode};
 use anyhow::Result;
 use async_trait::async_trait;
 use config::{AuthorityIdentifier, Committee, WorkerCache, WorkerId};
 use fastcrypto::hash::Hash;
-use itertools::Itertools;
-use network::{client::NetworkClient, WorkerToPrimaryClient};
-use std::{collections::HashSet, time::Duration};
-use store::{rocks::DBMap, Map};
 use iota_protocol_config::ProtocolConfig;
+use itertools::Itertools;
+use network::{WorkerToPrimaryClient, client::NetworkClient};
+use store::{Map, rocks::DBMap};
 use tracing::{debug, trace};
 use types::{
-    now, validate_batch_version, Batch, BatchAPI, BatchDigest, FetchBatchesRequest,
-    FetchBatchesResponse, MetadataAPI, PrimaryToWorker, RequestBatchesRequest,
-    RequestBatchesResponse, WorkerBatchMessage, WorkerOthersBatchMessage, WorkerSynchronizeMessage,
-    WorkerToWorker, WorkerToWorkerClient,
+    Batch, BatchAPI, BatchDigest, FetchBatchesRequest, FetchBatchesResponse, MetadataAPI,
+    PrimaryToWorker, RequestBatchesRequest, RequestBatchesResponse, WorkerBatchMessage,
+    WorkerOthersBatchMessage, WorkerSynchronizeMessage, WorkerToWorker, WorkerToWorkerClient, now,
+    validate_batch_version,
 };
 
-use crate::{batch_fetcher::BatchFetcher, TransactionValidator};
+use crate::{TransactionValidator, batch_fetcher::BatchFetcher};
 
 #[cfg(test)]
 #[path = "tests/handlers_tests.rs"]

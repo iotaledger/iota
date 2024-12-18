@@ -5,10 +5,10 @@
 use async_graphql::*;
 use iota_types::base_types::ObjectRef as NativeObjectRef;
 
-use super::{object::Object, iota_address::IotaAddress, uint53::UInt53};
+use super::{iota_address::IotaAddress, object::Object, uint53::UInt53};
 
-// A helper type representing the read of a specific version of an object. Intended to be
-// "flattened" into other GraphQL types.
+// A helper type representing the read of a specific version of an object.
+// Intended to be "flattened" into other GraphQL types.
 #[derive(Clone, Eq, PartialEq)]
 pub(crate) struct ObjectRead {
     pub native: NativeObjectRef,
@@ -28,8 +28,8 @@ impl ObjectRead {
         self.version_impl().into()
     }
 
-    /// 32-byte hash that identifies the object's contents at this version, encoded as a Base58
-    /// string.
+    /// 32-byte hash that identifies the object's contents at this version,
+    /// encoded as a Base58 string.
     async fn digest(&self) -> String {
         self.native.2.base58_encode()
     }

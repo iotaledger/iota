@@ -2,25 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::net::SocketAddr;
-use std::num::NonZeroUsize;
-use std::string::ToString;
-use std::sync::Arc;
+use std::{net::SocketAddr, num::NonZeroUsize, string::ToString, sync::Arc};
 
-use axum::routing::post;
-use axum::{Extension, Router};
+use axum::{Extension, Router, routing::post};
+use iota_sdk::{IOTA_COIN_TYPE, IotaClient};
 use lru::LruCache;
 use move_core_types::language_storage::TypeTag;
 use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 use tracing::info;
 
-use iota_sdk::{IotaClient, IOTA_COIN_TYPE};
-
-use crate::errors::Error;
-use crate::errors::Error::MissingMetadata;
-use crate::state::{CheckpointBlockProvider, OnlineServerContext};
-use crate::types::{Currency, CurrencyMetadata, IotaEnv};
+use crate::{
+    errors::{Error, Error::MissingMetadata},
+    state::{CheckpointBlockProvider, OnlineServerContext},
+    types::{Currency, CurrencyMetadata, IotaEnv},
+};
 
 #[cfg(test)]
 #[path = "unit_tests/lib_tests.rs"]

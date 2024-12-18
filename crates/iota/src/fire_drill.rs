@@ -2,9 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A tool to semi automate fire drills. It still requires some manual work today. For example,
+//! A tool to semi automate fire drills. It still requires some manual work
+//! today. For example,
 //! 1. update iptables for new tpc/udp ports
-//! 2. restart the node in a new epoch when config file will be reloaded and take effects
+//! 2. restart the node in a new epoch when config file will be reloaded and
+//!    take effects
 //!
 //! Example usage:
 //! iota fire-drill metadata-rotation \
@@ -12,24 +14,30 @@
 //! --account-key-path account.key \
 //! --fullnode-rpc-url http://fullnode-my-local-net:9000
 
+use std::path::{Path, PathBuf};
+
 use anyhow::bail;
 use clap::*;
-use fastcrypto::ed25519::Ed25519KeyPair;
-use fastcrypto::traits::{KeyPair, ToFromBytes};
-use move_core_types::ident_str;
-use std::path::{Path, PathBuf};
-use iota_config::node::{AuthorityKeyPairWithPath, KeyPairWithPath};
-use iota_config::{local_ip_utils, Config, NodeConfig, PersistedConfig};
+use fastcrypto::{
+    ed25519::Ed25519KeyPair,
+    traits::{KeyPair, ToFromBytes},
+};
+use iota_config::{
+    Config, NodeConfig, PersistedConfig, local_ip_utils,
+    node::{AuthorityKeyPairWithPath, KeyPairWithPath},
+};
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptions};
 use iota_keys::keypair_file::read_keypair_from_file;
-use iota_sdk::{rpc_types::IotaTransactionBlockEffectsAPI, IotaClient, IotaClientBuilder};
-use iota_types::base_types::{ObjectRef, IotaAddress};
-use iota_types::crypto::{generate_proof_of_possession, get_key_pair, IotaKeyPair};
-use iota_types::multiaddr::{Multiaddr, Protocol};
-use iota_types::transaction::{
-    CallArg, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
+use iota_types::{
+    IOTA_SYSTEM_PACKAGE_ID,
+    base_types::{IotaAddress, ObjectRef},
+    committee::EpochId,
+    crypto::{IotaKeyPair, generate_proof_of_possession, get_authority_key_pair, get_key_pair},
+    multiaddr::{Multiaddr, Protocol},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, Transaction, TransactionData},
 };
-use iota_types::{committee::EpochId, crypto::get_authority_key_pair, IOTA_SYSTEM_PACKAGE_ID};
+use move_core_types::ident_str;
 use tracing::info;
 
 #[derive(Parser)]
@@ -76,7 +84,9 @@ async fn run_metadata_rotation(metadata_rotation: MetadataRotation) -> anyhow::R
     let iota_client = IotaClientBuilder::default().build(fullnode_rpc_url).await?;
     let iota_address = IotaAddress::from(&account_key.public());
     let starting_epoch = current_epoch(&iota_client).await?;
-    info!("Running Metadata Rotation fire drill for validator address {iota_address} in epoch {starting_epoch}.");
+    info!(
+        "Running Metadata Rotation fire drill for validator address {iota_address} in epoch {starting_epoch}."
+    );
 
     // Prepare new metadata for next epoch
     let new_config_path =
@@ -356,7 +366,10 @@ async fn execute_tx(
     Ok(())
 }
 
-async fn wait_for_next_epoch(iota_client: &IotaClient, target_epoch: EpochId) -> anyhow::Result<()> {
+async fn wait_for_next_epoch(
+    iota_client: &IotaClient,
+    target_epoch: EpochId,
+) -> anyhow::Result<()> {
     loop {
         let epoch_id = current_epoch(iota_client).await?;
         if epoch_id > target_epoch {

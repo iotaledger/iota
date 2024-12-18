@@ -4,7 +4,7 @@
 
 use std::{borrow::Cow, time::Duration};
 
-use chrono::{naive::NaiveDateTime, DateTime, Utc};
+use chrono::{DateTime, Utc, naive::NaiveDateTime};
 use diesel::{dsl::sql, prelude::*, sql_types};
 use diesel_async::RunQueryDsl;
 use iota_field_count::FieldCount;
@@ -48,15 +48,16 @@ pub(crate) struct PrunerWatermark<'p> {
     /// The pipeline in question
     pub pipeline: Cow<'p, str>,
 
-    /// How long to wait from when this query ran on the database until this information can be
-    /// used to prune the database. This number could be negative, meaning no waiting is necessary.
+    /// How long to wait from when this query ran on the database until this
+    /// information can be used to prune the database. This number could be
+    /// negative, meaning no waiting is necessary.
     pub wait_for: i64,
 
     /// The pruner can delete up to this checkpoint, (exclusive).
     pub reader_lo: i64,
 
-    /// The pruner has already deleted up to this checkpoint (exclusive), so can continue from this
-    /// point.
+    /// The pruner has already deleted up to this checkpoint (exclusive), so can
+    /// continue from this point.
     pub pruner_hi: i64,
 }
 
@@ -106,8 +107,9 @@ impl<'p> CommitterWatermark<'p> {
         DateTime::from_timestamp_millis(self.timestamp_ms_hi_inclusive).unwrap_or_default()
     }
 
-    /// Upsert the high watermark as long as it raises the watermark stored in the database.
-    /// Returns a boolean indicating whether the watermark was actually updated or not.
+    /// Upsert the high watermark as long as it raises the watermark stored in
+    /// the database. Returns a boolean indicating whether the watermark was
+    /// actually updated or not.
     ///
     /// TODO(amnn): Test this (depends on supporting migrations and tempdb).
     pub(crate) async fn update(&self, conn: &mut Connection<'_>) -> QueryResult<bool> {
@@ -132,10 +134,12 @@ impl<'p> ReaderWatermark<'p> {
         }
     }
 
-    /// Update the reader low watermark for an existing watermark row, as long as this raises the
-    /// watermark, and updates the timestamp this update happened to the database's current time.
+    /// Update the reader low watermark for an existing watermark row, as long
+    /// as this raises the watermark, and updates the timestamp this update
+    /// happened to the database's current time.
     ///
-    /// Returns a boolean indicating whether the watermark was actually updated or not.
+    /// Returns a boolean indicating whether the watermark was actually updated
+    /// or not.
     pub(crate) async fn update(&self, conn: &mut Connection<'_>) -> QueryResult<bool> {
         Ok(diesel::update(watermarks::table)
             .set((self, watermarks::pruner_timestamp.eq(diesel::dsl::now)))
@@ -148,13 +152,14 @@ impl<'p> ReaderWatermark<'p> {
 }
 
 impl PrunerWatermark<'static> {
-    /// Get the bounds for the region that the pruner still has to prune for the given `pipeline`,
-    /// along with a duration to wait before acting on this information, based on the time at which
-    /// the pruner last updated the bounds, and the configured `delay`.
+    /// Get the bounds for the region that the pruner still has to prune for the
+    /// given `pipeline`, along with a duration to wait before acting on
+    /// this information, based on the time at which the pruner last updated
+    /// the bounds, and the configured `delay`.
     ///
-    /// The pruner is allowed to prune the region between the returned `pruner_hi` (inclusive) and
-    /// `reader_lo` (exclusive) after `wait_for` milliseconds have passed since this response was
-    /// returned.
+    /// The pruner is allowed to prune the region between the returned
+    /// `pruner_hi` (inclusive) and `reader_lo` (exclusive) after `wait_for`
+    /// milliseconds have passed since this response was returned.
     pub(crate) async fn get(
         conn: &mut Connection<'_>,
         pipeline: &'static str,
@@ -185,13 +190,14 @@ impl PrunerWatermark<'static> {
 }
 
 impl<'p> PrunerWatermark<'p> {
-    /// How long to wait before the pruner can act on this information, or `None`, if there is no
-    /// need to wait.
+    /// How long to wait before the pruner can act on this information, or
+    /// `None`, if there is no need to wait.
     pub(crate) fn wait_for(&self) -> Option<Duration> {
         (self.wait_for > 0).then(|| Duration::from_millis(self.wait_for as u64))
     }
 
-    /// Whether the pruner has any work left to do on the range in this watermark.
+    /// Whether the pruner has any work left to do on the range in this
+    /// watermark.
     pub(crate) fn is_empty(&self) -> bool {
         self.pruner_hi >= self.reader_lo
     }
@@ -203,10 +209,11 @@ impl<'p> PrunerWatermark<'p> {
         (from, to)
     }
 
-    /// Update the pruner high watermark (only) for an existing watermark row, as long as this
-    /// raises the watermark.
+    /// Update the pruner high watermark (only) for an existing watermark row,
+    /// as long as this raises the watermark.
     ///
-    /// Returns a boolean indicating whether the watermark was actually updated or not.
+    /// Returns a boolean indicating whether the watermark was actually updated
+    /// or not.
     pub(crate) async fn update(&self, conn: &mut Connection<'_>) -> QueryResult<bool> {
         Ok(diesel::update(watermarks::table)
             .set(watermarks::pruner_hi.eq(self.pruner_hi))

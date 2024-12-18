@@ -3,45 +3,59 @@
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
-use crate::{
-    compute_sha3_checksum, create_file_metadata, FileCompression, FileMetadata, FileType, Manifest,
-    ManifestV1, FILE_MAX_BYTES, MAGIC_BYTES, MANIFEST_FILE_MAGIC, OBJECT_FILE_MAGIC,
-    OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES,
+use std::{
+    collections::{HashMap, hash_map::Entry::Vacant},
+    fs,
+    fs::{File, OpenOptions},
+    io::{BufWriter, Seek, SeekFrom, Write},
+    num::NonZeroUsize,
+    path::PathBuf,
+    sync::Arc,
 };
-use anyhow::{anyhow, Context, Result};
+
+use anyhow::{Context, Result, anyhow};
 use byteorder::{BigEndian, ByteOrder};
 use fastcrypto::hash::MultisetHash;
 use futures::StreamExt;
 use integer_encoding::VarInt;
-use object_store::path::Path;
-use object_store::DynObjectStore;
-use std::collections::hash_map::Entry::Vacant;
-use std::collections::HashMap;
-use std::fs;
-use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Seek, SeekFrom, Write};
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::sync::Arc;
 use iota_config::object_storage_config::ObjectStoreConfig;
-use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
-use iota_core::authority::CHAIN_IDENTIFIER;
-use iota_core::state_accumulator::StateAccumulator;
+use iota_core::{
+    authority::{
+        CHAIN_IDENTIFIER,
+        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
+    },
+    state_accumulator::StateAccumulator,
+};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_storage::blob::{Blob, BlobEncoding, BLOB_ENCODING_BYTES};
-use iota_storage::object_store::util::{copy_file, delete_recursively, path_to_filesystem};
-use iota_types::accumulator::Accumulator;
-use iota_types::base_types::{ObjectID, ObjectRef};
-use iota_types::messages_checkpoint::ECMHLiveObjectSetDigest;
-use iota_types::iota_system_state::get_iota_system_state;
-use iota_types::iota_system_state::IotaSystemStateTrait;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::task::JoinHandle;
+use iota_storage::{
+    blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
+    object_store::util::{copy_file, delete_recursively, path_to_filesystem},
+};
+use iota_types::{
+    accumulator::Accumulator,
+    base_types::{ObjectID, ObjectRef},
+    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
+    messages_checkpoint::ECMHLiveObjectSetDigest,
+};
+use object_store::{DynObjectStore, path::Path};
+use tokio::{
+    sync::{
+        mpsc,
+        mpsc::{Receiver, Sender},
+    },
+    task::JoinHandle,
+};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::debug;
 
-/// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj files and *.ref file
+use crate::{
+    FILE_MAX_BYTES, FileCompression, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
+    Manifest, ManifestV1, OBJECT_FILE_MAGIC, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC,
+    SEQUENCE_NUM_BYTES, compute_sha3_checksum, create_file_metadata,
+};
+
+/// LiveObjectSetWriterV1 writes live object set. It creates multiple *.obj
+/// files and *.ref file
 struct LiveObjectSetWriterV1 {
     dir_path: PathBuf,
     bucket_num: u32,
@@ -207,8 +221,8 @@ impl LiveObjectSetWriterV1 {
     }
 }
 
-/// StateSnapshotWriterV1 writes snapshot files to a local staging dir and simultaneously uploads them
-/// to a remote object store
+/// StateSnapshotWriterV1 writes snapshot files to a local staging dir and
+/// simultaneously uploads them to a remote object store
 pub struct StateSnapshotWriterV1 {
     local_staging_dir: PathBuf,
     file_compression: FileCompression,
@@ -458,7 +472,8 @@ impl StateSnapshotWriterV1 {
     }
 
     fn bucket_func(_object: &LiveObject) -> u32 {
-        // TODO: Use the hash bucketing function used for accumulator tree if there is one
+        // TODO: Use the hash bucketing function used for accumulator tree if there is
+        // one
         1u32
     }
 

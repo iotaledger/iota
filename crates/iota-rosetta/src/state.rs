@@ -2,19 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use futures::future::try_join_all;
-use std::sync::Arc;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
-use iota_sdk::rpc_types::Checkpoint;
-use iota_sdk::IotaClient;
+use iota_sdk::{IotaClient, rpc_types::Checkpoint};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
-use crate::operations::Operations;
-use crate::types::{
-    Block, BlockHash, BlockIdentifier, BlockResponse, Transaction, TransactionIdentifier,
+use crate::{
+    CoinMetadataCache, Error,
+    operations::Operations,
+    types::{Block, BlockHash, BlockIdentifier, BlockResponse, Transaction, TransactionIdentifier},
 };
-use crate::{CoinMetadataCache, Error};
 
 #[cfg(test)]
 #[path = "unit_tests/balance_changing_tx_tests.rs"]

@@ -1,26 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use anyhow::{bail, Context, Result};
-use fastcrypto::ed25519::Ed25519PublicKey;
-use fastcrypto::encoding::Base64;
-use fastcrypto::encoding::Encoding;
-use fastcrypto::traits::ToFromBytes;
-use futures::stream::{self, StreamExt};
-use once_cell::sync::Lazy;
-use prometheus::{register_counter_vec, register_histogram_vec};
-use prometheus::{CounterVec, HistogramVec};
-use serde::Deserialize;
-use std::collections::BTreeMap;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
     time::Duration,
 };
+
+use anyhow::{Context, Result, bail};
+use fastcrypto::{
+    ed25519::Ed25519PublicKey,
+    encoding::{Base64, Encoding},
+    traits::ToFromBytes,
+};
+use futures::stream::{self, StreamExt};
 use iota_tls::Allower;
-use iota_types::base_types::IotaAddress;
-use iota_types::bridge::BridgeSummary;
-use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
+use iota_types::{
+    base_types::IotaAddress, bridge::BridgeSummary,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+};
+use once_cell::sync::Lazy;
+use prometheus::{CounterVec, HistogramVec, register_counter_vec, register_histogram_vec};
+use serde::Deserialize;
 use tracing::{debug, error, info, warn};
 use url::Url;
 
@@ -56,10 +57,12 @@ pub struct AllowedPeer {
     pub public_key: Ed25519PublicKey,
 }
 
-/// IotaNodeProvider queries the iota blockchain and keeps a record of known validators based on the response from
-/// iota_getValidators.  The node name, public key and other info is extracted from the chain and stored in this
-/// data structure.  We pass this struct to the tls verifier and it depends on the state contained within.
-/// Handlers also use this data in an Extractor extension to check incoming clients on the http api against known keys.
+/// IotaNodeProvider queries the iota blockchain and keeps a record of known
+/// validators based on the response from iota_getValidators.  The node name,
+/// public key and other info is extracted from the chain and stored in this
+/// data structure.  We pass this struct to the tls verifier and it depends on
+/// the state contained within. Handlers also use this data in an Extractor
+/// extension to check incoming clients on the http api against known keys.
 #[derive(Debug, Clone)]
 pub struct IotaNodeProvider {
     iota_nodes: AllowedPeers,
@@ -83,7 +86,8 @@ impl IotaNodeProvider {
         rpc_poll_interval: Duration,
         static_peers: Vec<AllowedPeer>,
     ) -> Self {
-        // build our hashmap with the static pub keys. we only do this one time at binary startup.
+        // build our hashmap with the static pub keys. we only do this one time at
+        // binary startup.
         let static_nodes: HashMap<Ed25519PublicKey, AllowedPeer> = static_peers
             .into_iter()
             .map(|v| (v.public_key.clone(), v))
@@ -330,9 +334,10 @@ impl IotaNodeProvider {
     }
 }
 
-/// extract will get the network pubkey bytes from a IotaValidatorSummary type.  This type comes from a
-/// full node rpc result.  See get_validators for details.  The key here, if extracted successfully, will
-/// ultimately be stored in the allow list and let us communicate with those actual peers via tls.
+/// extract will get the network pubkey bytes from a IotaValidatorSummary type.
+/// This type comes from a full node rpc result.  See get_validators for
+/// details.  The key here, if extracted successfully, will ultimately be stored
+/// in the allow list and let us communicate with those actual peers via tls.
 fn extract(
     summary: IotaSystemStateSummary,
 ) -> impl Iterator<Item = (Ed25519PublicKey, AllowedPeer)> {
@@ -343,13 +348,10 @@ fn extract(
                     "adding public key {:?} for iota validator {:?}",
                     public_key, vm.name
                 );
-                Some((
-                    public_key.clone(),
-                    AllowedPeer {
-                        name: vm.name,
-                        public_key,
-                    },
-                )) // scoped to filter_map
+                Some((public_key.clone(), AllowedPeer {
+                    name: vm.name,
+                    public_key,
+                })) // scoped to filter_map
             }
             Err(error) => {
                 error!(
@@ -368,7 +370,8 @@ async fn extract_bridge(
     metrics_keys: MetricsPubKeys,
 ) -> Vec<(Ed25519PublicKey, AllowedPeer)> {
     {
-        // Clean up the cache: retain only the metrics keys of the up-to-date bridge validator set
+        // Clean up the cache: retain only the metrics keys of the up-to-date bridge
+        // validator set
         let mut metrics_keys_write = metrics_keys.write().unwrap();
         metrics_keys_write.retain(|url, _| {
             summary.committee.members.iter().any(|(_, cm)| {
@@ -491,13 +494,10 @@ async fn extract_bridge(
                         return fallback_to_cached_key(&metrics_keys, &url_str, &bridge_name);
                     }
                 };
-                Some((
-                    metrics_pub_key.clone(),
-                    AllowedPeer {
-                        public_key: metrics_pub_key,
-                        name: bridge_name,
-                    },
-                ))
+                Some((metrics_pub_key.clone(), AllowedPeer {
+                    public_key: metrics_pub_key,
+                    name: bridge_name,
+                }))
             }
         })
         .collect()
@@ -517,13 +517,10 @@ fn fallback_to_cached_key(
             url_str,
             "Using cached metrics public key after request failure"
         );
-        Some((
-            cached_key.clone(),
-            AllowedPeer {
-                public_key: cached_key.clone(),
-                name: bridge_name.to_string(),
-            },
-        ))
+        Some((cached_key.clone(), AllowedPeer {
+            public_key: cached_key.clone(),
+            name: bridge_name.to_string(),
+        }))
     } else {
         warn!(
             url_str,
@@ -540,23 +537,27 @@ fn append_path_segment(mut url: Url, segment: &str) -> Option<Url> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::admin::{generate_self_cert, CertKeyPair};
-    use serde::Serialize;
-    use iota_types::base_types::IotaAddress;
-    use iota_types::bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeCommitteeMember};
-    use iota_types::iota_system_state::iota_system_state_summary::{
-        IotaSystemStateSummary, IotaValidatorSummary,
+    use iota_types::{
+        base_types::IotaAddress,
+        bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeCommitteeMember},
+        iota_system_state::iota_system_state_summary::{
+            IotaSystemStateSummary, IotaValidatorSummary,
+        },
     };
+    use serde::Serialize;
 
-    /// creates a test that binds our proxy use case to the structure in iota_getLatestIotaSystemState
-    /// most of the fields are garbage, but we will send the results of the serde process to a private decode
+    use super::*;
+    use crate::admin::{CertKeyPair, generate_self_cert};
+
+    /// creates a test that binds our proxy use case to the structure in
+    /// iota_getLatestIotaSystemState most of the fields are garbage, but we
+    /// will send the results of the serde process to a private decode
     /// function that should always work if the structure is valid for our use
     #[test]
     fn depend_on_iota_iota_system_state_summary() {
         let CertKeyPair(_, client_pub_key) = generate_self_cert("iota".into());
-        // all fields here just satisfy the field types, with exception to active_validators, we use
-        // some of those.
+        // all fields here just satisfy the field types, with exception to
+        // active_validators, we use some of those.
         let depends_on = IotaSystemStateSummary {
             active_validators: vec![IotaValidatorSummary {
                 network_pubkey_bytes: Vec::from(client_pub_key.as_bytes()),
@@ -586,14 +587,11 @@ mod tests {
     async fn test_extract_bridge_invalid_bridge_url() {
         let summary = BridgeSummary {
             committee: BridgeCommitteeSummary {
-                members: vec![(
-                    vec![],
-                    MoveTypeCommitteeMember {
-                        iota_address: IotaAddress::ZERO,
-                        http_rest_url: "invalid_bridge_url".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                )],
+                members: vec![(vec![], MoveTypeCommitteeMember {
+                    iota_address: IotaAddress::ZERO,
+                    http_rest_url: "invalid_bridge_url".as_bytes().to_vec(),
+                    ..Default::default()
+                })],
                 ..Default::default()
             },
             ..Default::default()
@@ -620,14 +618,11 @@ mod tests {
     async fn test_extract_bridge_interrupted_response() {
         let summary = BridgeSummary {
             committee: BridgeCommitteeSummary {
-                members: vec![(
-                    vec![],
-                    MoveTypeCommitteeMember {
-                        iota_address: IotaAddress::ZERO,
-                        http_rest_url: "https://unresponsive_bridge_url".as_bytes().to_vec(),
-                        ..Default::default()
-                    },
-                )],
+                members: vec![(vec![], MoveTypeCommitteeMember {
+                    iota_address: IotaAddress::ZERO,
+                    http_rest_url: "https://unresponsive_bridge_url".as_bytes().to_vec(),
+                    ..Default::default()
+                })],
                 ..Default::default()
             },
             ..Default::default()

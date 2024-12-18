@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Provides wrappers to tokio mpsc channels, with metrics on total items sent, received and inflight.
+//! Provides wrappers to tokio mpsc channels, with metrics on total items sent,
+//! received and inflight.
 
 use std::task::{Context, Poll};
 
@@ -62,8 +63,10 @@ impl<T> Sender<T> {
             })
     }
 
-    // TODO: facade [`send_timeout`](tokio::mpsc::Sender::send_timeout) under the tokio feature flag "time"
-    // TODO: facade [`blocking_send`](tokio::mpsc::Sender::blocking_send) under the tokio feature flag "sync"
+    // TODO: facade [`send_timeout`](tokio::mpsc::Sender::send_timeout) under the
+    // tokio feature flag "time" TODO: facade
+    // [`blocking_send`](tokio::mpsc::Sender::blocking_send) under the tokio feature
+    // flag "sync"
 
     /// Checks if the channel has been closed. This happens when the
     /// [`Receiver`] is dropped, or when the [`Receiver::close`] method is
@@ -84,8 +87,8 @@ impl<T> Sender<T> {
         })
     }
 
-    /// Tries to acquire a slot in the channel without waiting for the slot to become
-    /// available.
+    /// Tries to acquire a slot in the channel without waiting for the slot to
+    /// become available.
     /// Increments the gauge in case of a successful `try_reserve`.
     pub fn try_reserve(&self) -> Result<Permit<'_, T>, TrySendError<()>> {
         self.inner.try_reserve().map(|val| {
@@ -172,8 +175,9 @@ impl<'a, T> Permit<'a, T> {
 
 impl<'a, T> Drop for Permit<'a, T> {
     fn drop(&mut self) {
-        // In the case the permit is dropped without sending, we still want to decrease the occupancy of the channel.
-        // Otherwise, receiver should be responsible for decreasing the inflight gauge.
+        // In the case the permit is dropped without sending, we still want to decrease
+        // the occupancy of the channel. Otherwise, receiver should be
+        // responsible for decreasing the inflight gauge.
         if self.permit.is_some() {
             if let Some(inflight_ref) = self.inflight_ref {
                 inflight_ref.dec();
@@ -226,7 +230,8 @@ impl<T> Clone for WeakSender<T> {
     }
 }
 
-/// Wraps [`mpsc::Receiver`] with gauges counting the inflight and received items.
+/// Wraps [`mpsc::Receiver`] with gauges counting the inflight and received
+/// items.
 #[derive(Debug)]
 pub struct Receiver<T> {
     inner: mpsc::Receiver<T>,
@@ -325,7 +330,8 @@ pub fn channel<T>(name: &str, size: usize) -> (Sender<T>, Receiver<T>) {
     )
 }
 
-/// Wraps [`mpsc::UnboundedSender`] with gauges counting the sent and inflight items.
+/// Wraps [`mpsc::UnboundedSender`] with gauges counting the sent and inflight
+/// items.
 #[derive(Debug)]
 pub struct UnboundedSender<T> {
     inner: mpsc::UnboundedSender<T>,
@@ -394,7 +400,8 @@ impl<T> Clone for UnboundedSender<T> {
     }
 }
 
-/// Wraps [`mpsc::WeakUnboundedSender`] with gauges counting the sent and inflight items.
+/// Wraps [`mpsc::WeakUnboundedSender`] with gauges counting the sent and
+/// inflight items.
 #[derive(Debug)]
 pub struct WeakUnboundedSender<T> {
     inner: mpsc::WeakUnboundedSender<T>,
@@ -423,7 +430,8 @@ impl<T> Clone for WeakUnboundedSender<T> {
     }
 }
 
-/// Wraps [`mpsc::UnboundedReceiver`] with gauges counting the inflight and received items.
+/// Wraps [`mpsc::UnboundedReceiver`] with gauges counting the inflight and
+/// received items.
 #[derive(Debug)]
 pub struct UnboundedReceiver<T> {
     inner: mpsc::UnboundedReceiver<T>,
@@ -504,7 +512,8 @@ impl<T> UnboundedReceiver<T> {
 
 impl<T> Unpin for UnboundedReceiver<T> {}
 
-/// Wraps [`mpsc::unbounded_channel()`] to create a pair of `UnboundedSender` and `UnboundedReceiver`
+/// Wraps [`mpsc::unbounded_channel()`] to create a pair of `UnboundedSender`
+/// and `UnboundedReceiver`
 pub fn unbounded_channel<T>(name: &str) -> (UnboundedSender<T>, UnboundedReceiver<T>) {
     let metrics = get_metrics();
     #[allow(clippy::disallowed_methods)]
@@ -527,7 +536,7 @@ pub fn unbounded_channel<T>(name: &str) -> (UnboundedSender<T>, UnboundedReceive
 mod test {
     use std::task::{Context, Poll};
 
-    use futures::{task::noop_waker, FutureExt as _};
+    use futures::{FutureExt as _, task::noop_waker};
     use prometheus::Registry;
     use tokio::sync::mpsc::error::TrySendError;
 

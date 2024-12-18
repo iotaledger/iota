@@ -4,17 +4,21 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use crate::base_types::{ObjectID, ObjectRef};
-use crate::effects::{
-    IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsAPI, TransactionEvents,
-};
-use crate::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents};
-use crate::object::Object;
-use crate::storage::BackingPackageStore;
-use crate::transaction::Transaction;
 use itertools::Either;
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
+
+use crate::{
+    base_types::{ObjectID, ObjectRef},
+    effects::{
+        IDOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsAPI,
+        TransactionEvents,
+    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    object::Object,
+    storage::BackingPackageStore,
+    transaction::Transaction,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointData {
@@ -24,7 +28,8 @@ pub struct CheckpointData {
 }
 
 impl CheckpointData {
-    // returns the latest versions of the output objects that still exist at the end of the checkpoint
+    // returns the latest versions of the output objects that still exist at the end
+    // of the checkpoint
     pub fn latest_live_output_objects(&self) -> Vec<&Object> {
         let mut latest_live_objects = BTreeMap::new();
         for tx in self.transactions.iter() {
@@ -38,7 +43,8 @@ impl CheckpointData {
         latest_live_objects.into_values().collect()
     }
 
-    // returns the object refs that are eventually deleted or wrapped in the current checkpoint
+    // returns the object refs that are eventually deleted or wrapped in the current
+    // checkpoint
     pub fn eventually_removed_object_refs_post_version(&self) -> Vec<ObjectRef> {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.transactions.iter() {
@@ -52,8 +58,8 @@ impl CheckpointData {
         eventually_removed_object_refs.into_values().collect()
     }
 
-    /// Returns all objects that are used as input to the transactions in the checkpoint,
-    /// and already exist prior to the checkpoint.
+    /// Returns all objects that are used as input to the transactions in the
+    /// checkpoint, and already exist prior to the checkpoint.
     pub fn checkpoint_input_objects(&self) -> BTreeMap<ObjectID, &Object> {
         let mut output_objects_seen = HashSet::new();
         let mut checkpoint_input_objects = BTreeMap::new();
@@ -89,9 +95,11 @@ pub struct CheckpointTransaction {
     pub effects: TransactionEffects,
     /// The events, if any, emitted by this transactions during execution
     pub events: Option<TransactionEvents>,
-    /// The state of all inputs to this transaction as they were prior to execution.
+    /// The state of all inputs to this transaction as they were prior to
+    /// execution.
     pub input_objects: Vec<Object>,
-    /// The state of all output objects created or mutated or unwrapped by this transaction.
+    /// The state of all output objects created or mutated or unwrapped by this
+    /// transaction.
     pub output_objects: Vec<Object>,
 }
 
@@ -101,11 +109,12 @@ impl CheckpointTransaction {
         // Iterator over id and versions for all deleted or wrapped objects
         match &self.effects {
             TransactionEffects::V1(v1) => Either::Left(
-                // Effects v1 has deleted and wrapped objects versions as the "new" version, not the
-                // old one that was actually removed. So we need to take these and then look them
-                // up in the `modified_at_versions`.
-                // No need to chain unwrapped_then_deleted because these objects must have been wrapped
-                // before the transaction, hence they will not be in modified_at_versions / input_objects.
+                // Effects v1 has deleted and wrapped objects versions as the "new" version, not
+                // the old one that was actually removed. So we need to take these
+                // and then look them up in the `modified_at_versions`.
+                // No need to chain unwrapped_then_deleted because these objects must have been
+                // wrapped before the transaction, hence they will not be in
+                // modified_at_versions / input_objects.
                 v1.deleted().iter().chain(v1.wrapped()).map(|(id, _, _)| {
                     // lookup the old version for mutated objects
                     let (_, old_version) = v1

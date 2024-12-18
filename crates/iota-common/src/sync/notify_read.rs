@@ -2,18 +2,18 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use futures::future::{join_all, Either};
-use parking_lot::Mutex;
-use parking_lot::MutexGuard;
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
-use std::future::Future;
-use std::hash::{Hash, Hasher};
-use std::mem;
-use std::pin::Pin;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
-use std::task::{Context, Poll};
+use std::{
+    collections::{HashMap, hash_map::DefaultHasher},
+    future::Future,
+    hash::{Hash, Hasher},
+    mem,
+    pin::Pin,
+    sync::atomic::{AtomicUsize, Ordering},
+    task::{Context, Poll},
+};
+
+use futures::future::{Either, join_all};
+use parking_lot::{Mutex, MutexGuard};
 use tokio::sync::oneshot;
 
 type Registrations<V> = Vec<oneshot::Sender<V>>;
@@ -33,7 +33,8 @@ impl<K: Eq + Hash + Clone, V: Clone> NotifyRead<K, V> {
         }
     }
 
-    /// Asynchronously notifies waiters and return number of remaining pending registration
+    /// Asynchronously notifies waiters and return number of remaining pending
+    /// registration
     pub fn notify(&self, key: &K, value: &V) -> usize {
         let registrations = self.pending(key).remove(key);
         let Some(registrations) = registrations else {
@@ -137,7 +138,8 @@ impl<K: Eq + Hash + Clone + Unpin, V: Clone + Unpin> NotifyRead<K, V> {
 }
 
 /// Registration resolves to the value but also provides safe cancellation
-/// When Registration is dropped before it is resolved, we de-register from the pending list
+/// When Registration is dropped before it is resolved, we de-register from the
+/// pending list
 pub struct Registration<'a, K: Eq + Hash + Clone, V: Clone> {
     this: &'a NotifyRead<K, V>,
     registration: Option<(K, oneshot::Receiver<V>)>,
@@ -178,8 +180,9 @@ impl<K: Eq + Hash + Clone, V: Clone> Default for NotifyRead<K, V> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use futures::future::join_all;
+
+    use super::*;
 
     #[tokio::test]
     pub async fn test_notify_read() {

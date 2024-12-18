@@ -12,7 +12,6 @@ use std::{
 
 use tokio::time::{self, Instant};
 
-use crate::monitor::Monitor;
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkParametersGenerator, BenchmarkType},
     client::Instance,
@@ -21,6 +20,7 @@ use crate::{
     faults::CrashRecoverySchedule,
     logs::LogsAnalyzer,
     measurement::{Measurement, MeasurementsCollection},
+    monitor::Monitor,
     protocol::{ProtocolCommands, ProtocolMetrics},
     settings::Settings,
     ssh::{CommandContext, CommandStatus, SshConnectionManager},
@@ -30,14 +30,15 @@ use crate::{
 pub struct Orchestrator<P, T> {
     /// The testbed's settings.
     settings: Settings,
-    /// The state of the testbed (reflecting accurately the state of the machines).
+    /// The state of the testbed (reflecting accurately the state of the
+    /// machines).
     instances: Vec<Instance>,
     /// The type of the benchmark parameters.
     benchmark_type: PhantomData<T>,
     /// Provider-specific commands to install on the instance.
     instance_setup_commands: Vec<String>,
-    /// Protocol-specific commands generator to generate the protocol configuration files,
-    /// boot clients and nodes, etc.
+    /// Protocol-specific commands generator to generate the protocol
+    /// configuration files, boot clients and nodes, etc.
     protocol_commands: P,
     /// The interval between measurements collection.
     scrape_interval: Duration,
@@ -51,10 +52,12 @@ pub struct Orchestrator<P, T> {
     skip_testbed_configuration: bool,
     /// Whether to downloading and analyze the client and node log files.
     log_processing: bool,
-    /// Number of instances running only load generators (not nodes). If this value is set
-    /// to zero, the orchestrator runs a load generate collocated with each node.
+    /// Number of instances running only load generators (not nodes). If this
+    /// value is set to zero, the orchestrator runs a load generate
+    /// collocated with each node.
     dedicated_clients: usize,
-    /// Whether to forgo a grafana and prometheus instance and leave the testbed unmonitored.
+    /// Whether to forgo a grafana and prometheus instance and leave the testbed
+    /// unmonitored.
     skip_monitoring: bool,
 }
 
@@ -131,8 +134,9 @@ impl<P, T> Orchestrator<P, T> {
         self
     }
 
-    /// Select on which instances of the testbed to run the benchmarks. This function returns two vector
-    /// of instances; the first contains the instances on which to run the load generators and the second
+    /// Select on which instances of the testbed to run the benchmarks. This
+    /// function returns two vector of instances; the first contains the
+    /// instances on which to run the load generators and the second
     /// contains the instances on which to run the nodes.
     pub fn select_instances(
         &self,
@@ -198,8 +202,8 @@ impl<P, T> Orchestrator<P, T> {
             }
         }
 
-        // Spawn a load generate collocated with each node if there are no instances dedicated
-        // to excursively run load generators.
+        // Spawn a load generate collocated with each node if there are no instances
+        // dedicated to excursively run load generators.
         if client_instances.is_empty() {
             client_instances = nodes_instances.clone();
         }
@@ -308,13 +312,14 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         Ok(())
     }
 
-    /// Update all instances to use the version of the codebase specified in the setting file.
+    /// Update all instances to use the version of the codebase specified in the
+    /// setting file.
     pub async fn update(&self) -> TestbedResult<()> {
         display::action("Updating all instances");
 
-        // Update all active instances. This requires compiling the codebase in release (which
-        // may take a long time) so we run the command in the background to avoid keeping alive
-        // many ssh connections for too long.
+        // Update all active instances. This requires compiling the codebase in release
+        // (which may take a long time) so we run the command in the background
+        // to avoid keeping alive many ssh connections for too long.
         let commit = &self.settings.repository.commit;
         let command = [
             "git fetch -f",
@@ -352,7 +357,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Select instances to configure.
         let (clients, nodes, _) = self.select_instances(parameters)?;
 
-        // Generate the genesis configuration file and the keystore allowing access to gas objects.
+        // Generate the genesis configuration file and the keystore allowing access to
+        // gas objects.
         let command = self.protocol_commands.genesis_command(nodes.iter());
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new().with_execute_from_path(repo_name.into());
@@ -446,7 +452,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let mut metrics_commands = self.protocol_commands.clients_metrics_command(clients);
 
         // TODO: Remove this when narwhal client latency metrics are available.
-        // We will be getting latency metrics directly from narwhal nodes instead from the nw client
+        // We will be getting latency metrics directly from narwhal nodes instead from
+        // the nw client
         metrics_commands.append(&mut self.protocol_commands.nodes_metrics_command(nodes.clone()));
 
         let mut aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
@@ -528,7 +535,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         .collect();
         fs::create_dir_all(&path).expect("Failed to create log directory");
 
-        // NOTE: Our ssh library does not seem to be able to transfers files in parallel reliably.
+        // NOTE: Our ssh library does not seem to be able to transfers files in parallel
+        // reliably.
         let mut log_parsers = Vec::new();
 
         // Download the clients log files.
@@ -616,11 +624,12 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             // Deploy the load generators.
             self.run_clients(&parameters).await?;
 
-            // Wait for the benchmark to terminate. Then save the results and print a summary.
+            // Wait for the benchmark to terminate. Then save the results and print a
+            // summary.
             let aggregator = self.run(&parameters).await?;
             aggregator.display_summary();
             generator.register_result(aggregator);
-            //drop(monitor);
+            // drop(monitor);
 
             // Kill the nodes and clients (without deleting the log files).
             self.cleanup(false).await?;
