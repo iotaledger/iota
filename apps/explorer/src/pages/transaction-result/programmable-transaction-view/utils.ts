@@ -25,7 +25,7 @@ export function flattenIotaArguments(data: (IotaArgument | IotaArgument[])[]): s
                     return `NestedResult(${value.NestedResult[0]}, ${value.NestedResult[1]})`;
                 }
             } else if (typeof value === 'string'){
-                return `Address(${value})`;
+                return value;
             } else {
                 throw new Error('Not a correct flattenable data');
             }
