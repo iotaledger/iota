@@ -195,7 +195,7 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         // First iterate the outputs
-        while let Some(output) = self.outputs.next() {
+        for output in self.outputs.by_ref() {
             if let Ok((header, inner)) = &output {
                 if let Some(address) =
                     get_address_if_vesting_output(header, inner, self.snapshot_timestamp_s)
