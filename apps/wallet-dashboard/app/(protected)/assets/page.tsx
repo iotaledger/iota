@@ -32,6 +32,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         isFetching,
         fetchNextPage,
         hasNextPage,
+        refetch,
     } = useGetNFTs(account?.address);
 
     const assets: IotaObjectData[] = (() => {
@@ -89,7 +90,11 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     />
                 )}
                 {selectedAsset && (
-                    <AssetDialog onClose={() => setSelectedAsset(null)} asset={selectedAsset} />
+                    <AssetDialog
+                        onClose={() => setSelectedAsset(null)}
+                        asset={selectedAsset}
+                        refetchAssets={refetch}
+                    />
                 )}
             </div>
         </Panel>

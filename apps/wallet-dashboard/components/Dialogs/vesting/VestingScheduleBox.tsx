@@ -8,7 +8,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { LockLocked } from '@iota/ui-icons';
 
 interface VestingScheduleBoxProps {
-    amount: number;
+    amount: bigint;
     expirationTimestampMs: number;
 }
 
