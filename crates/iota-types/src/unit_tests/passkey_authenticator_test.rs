@@ -41,6 +41,7 @@ use crate::{
 
 /// Helper struct to initialize passkey client.
 pub struct MyUserValidationMethod {}
+
 #[async_trait::async_trait]
 impl UserValidationMethod for MyUserValidationMethod {
     type PasskeyItem = Passkey;
@@ -56,12 +57,12 @@ impl UserValidationMethod for MyUserValidationMethod {
     async fn check_user<'a>(
         &self,
         _credential: Option<&'a Self::PasskeyItem>,
-        presence: bool,
-        verification: bool,
+        _presence: bool,
+        _verification: bool,
     ) -> Result<UserCheck, Ctap2Error> {
         Ok(UserCheck {
-            presence,
-            verification,
+            presence: true,
+            verification: true,
         })
     }
 }
