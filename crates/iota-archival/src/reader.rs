@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -16,16 +17,16 @@ use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use sui_config::node::ArchiveReaderConfig;
-use sui_storage::object_store::http::HttpDownloaderBuilder;
-use sui_storage::object_store::util::get;
-use sui_storage::object_store::ObjectStoreGetExt;
-use sui_storage::{compute_sha3_checksum_for_bytes, make_iterator, verify_checkpoint};
-use sui_types::messages_checkpoint::{
+use iota_config::node::ArchiveReaderConfig;
+use iota_storage::object_store::http::HttpDownloaderBuilder;
+use iota_storage::object_store::util::get;
+use iota_storage::object_store::ObjectStoreGetExt;
+use iota_storage::{compute_sha3_checksum_for_bytes, make_iterator, verify_checkpoint};
+use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointSequenceNumber,
     FullCheckpointContents as CheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
 };
-use sui_types::storage::WriteStore;
+use iota_types::storage::WriteStore;
 use tokio::sync::oneshot::Sender;
 use tokio::sync::{oneshot, Mutex};
 use tracing::info;

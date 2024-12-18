@@ -1,5 +1,5 @@
-error[Sui E02004]: invalid one-time witness declaration
-  ┌─ tests/sui_mode/one_time_witness/many_fields_invalid.move:5:12
+error[Iota E02004]: invalid one-time witness declaration
+  ┌─ tests/iota_mode/one_time_witness/many_fields_invalid.move:5:12
   │
 5 │     struct M has drop { some_field: bool, some_field2: bool  }
   │            ^                              ----------- Found more than one field. One-time witness types must have no fields, or exactly one field of type 'bool'

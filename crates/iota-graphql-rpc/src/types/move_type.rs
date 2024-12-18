@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
 use move_binary_format::file_format::AbilitySet;
 use move_core_types::{annotated_value as A, language_storage::TypeTag};
 use serde::{Deserialize, Serialize};
-use sui_types::base_types::MoveObjectType;
-use sui_types::type_input::TypeInput;
+use iota_types::base_types::MoveObjectType;
+use iota_types::type_input::TypeInput;
 
 use crate::data::package_resolver::PackageResolver;
 use crate::error::Error;
@@ -339,7 +340,7 @@ impl TryFrom<A::MoveFieldLayout> for MoveFieldLayout {
     }
 }
 
-/// Error from seeing a `signer` value or type, which shouldn't be possible in Sui Move.
+/// Error from seeing a `signer` value or type, which shouldn't be possible in Iota Move.
 pub(crate) fn unexpected_signer_error() -> Error {
     Error::Internal("Unexpected value of type: signer.".to_string())
 }

@@ -1,5 +1,5 @@
 ---
-source: crates/sui-protocol-config/src/lib.rs
+source: crates/iota-protocol-config/src/lib.rs
 assertion_line: 3238
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
 ---

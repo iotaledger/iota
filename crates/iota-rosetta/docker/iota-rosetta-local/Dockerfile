@@ -1,5 +1,5 @@
 FROM ubuntu:latest AS chef
-WORKDIR sui
+WORKDIR iota
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
 RUN apt-get update && apt-get install -y build-essential libssl-dev pkg-config curl cmake clang ca-certificates
@@ -14,20 +14,20 @@ RUN curl -sSfL https://raw.githubusercontent.com/coinbase/rosetta-cli/master/scr
 COPY Cargo.toml Cargo.lock ./
 COPY consensus consensus
 COPY crates crates
-COPY sui-execution sui-execution
+COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
-RUN cargo build --release --bin sui --bin sui-rosetta
+RUN cargo build --release --bin iota --bin iota-rosetta
 
 # Production Image
 FROM ubuntu:latest AS runtime
-WORKDIR sui
+WORKDIR iota
 RUN apt-get update && apt-get install -y ca-certificates
-COPY --from=builder /sui/target/release/sui /usr/local/bin
-COPY --from=builder /sui/target/release/sui-rosetta /usr/local/bin
-COPY --from=builder /sui/bin/rosetta-cli /usr/local/bin
-COPY --from=builder /sui/crates/sui-config/data/fullnode-template.yaml /sui/devnet/fullnode.yaml
-RUN /usr/local/bin/sui genesis
+COPY --from=builder /iota/target/release/iota /usr/local/bin
+COPY --from=builder /iota/target/release/iota-rosetta /usr/local/bin
+COPY --from=builder /iota/bin/rosetta-cli /usr/local/bin
+COPY --from=builder /iota/crates/iota-config/data/fullnode-template.yaml /iota/devnet/fullnode.yaml
+RUN /usr/local/bin/iota genesis
 
 ARG BUILD_DATE
 LABEL build-date=$BUILD_DATE

@@ -1,28 +1,29 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use sui_json_rpc_types::{DelegatedStake, SuiCommittee, ValidatorApys};
-use sui_open_rpc_macros::open_rpc;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
+use iota_json_rpc_types::{DelegatedStake, IotaCommittee, ValidatorApys};
+use iota_open_rpc_macros::open_rpc;
+use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::iota_serde::BigInt;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 
-#[open_rpc(namespace = "suix", tag = "Governance Read API")]
-#[rpc(server, client, namespace = "suix")]
+#[open_rpc(namespace = "iotax", tag = "Governance Read API")]
+#[rpc(server, client, namespace = "iotax")]
 pub trait GovernanceReadApi {
     /// Return one or more [DelegatedStake]. If a Stake was withdrawn its status will be Unstaked.
     #[method(name = "getStakesByIds")]
     async fn get_stakes_by_ids(
         &self,
-        staked_sui_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedStake>>;
 
     /// Return all [DelegatedStake].
     #[method(name = "getStakes")]
-    async fn get_stakes(&self, owner: SuiAddress) -> RpcResult<Vec<DelegatedStake>>;
+    async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>>;
 
     /// Return the committee information for the asked `epoch`.
     #[method(name = "getCommitteeInfo")]
@@ -30,11 +31,11 @@ pub trait GovernanceReadApi {
         &self,
         /// The epoch of interest. If None, default to the latest epoch
         epoch: Option<BigInt<u64>>,
-    ) -> RpcResult<SuiCommittee>;
+    ) -> RpcResult<IotaCommittee>;
 
-    /// Return the latest SUI system state object on-chain.
-    #[method(name = "getLatestSuiSystemState")]
-    async fn get_latest_sui_system_state(&self) -> RpcResult<SuiSystemStateSummary>;
+    /// Return the latest IOTA system state object on-chain.
+    #[method(name = "getLatestIotaSystemState")]
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummary>;
 
     /// Return the reference gas price for the network
     #[method(name = "getReferenceGasPrice")]

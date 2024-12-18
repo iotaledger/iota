@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module adversarial::adversarial {
     use std::vector;
-    use sui::bcs;
-    use sui::object::{Self, UID};
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer;
-    use sui::event;
-    use sui::dynamic_field::{add, borrow};
+    use iota::bcs;
+    use iota::object::{Self, UID};
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer;
+    use iota::event;
+    use iota::dynamic_field::{add, borrow};
     use std::string::Self;
     use std::ascii;
 

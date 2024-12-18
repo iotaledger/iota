@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
@@ -9,7 +10,7 @@ use crate::{
 };
 
 pub mod narwhal;
-pub mod sui;
+pub mod iota;
 
 /// The minimum interface that the protocol should implement to allow benchmarks from
 /// the orchestrator.

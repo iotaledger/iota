@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -6,7 +7,7 @@ use std::collections::BTreeMap;
 use async_graphql::*;
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::scoped_futures::ScopedFutureExt;
-use sui_indexer::schema::{epochs, feature_flags, protocol_configs};
+use iota_indexer::schema::{epochs, feature_flags, protocol_configs};
 
 use crate::{
     data::{Db, DbConnection, QueryExecutor},

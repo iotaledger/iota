@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use serde_json::json;
@@ -6,19 +7,19 @@ use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use rosetta_client::start_rosetta_test_server;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_keys::keystore::AccountKeystore;
-use sui_rosetta::operations::Operations;
-use sui_rosetta::types::Currencies;
-use sui_rosetta::types::{
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_keys::keystore::AccountKeystore;
+use iota_rosetta::operations::Operations;
+use iota_rosetta::types::Currencies;
+use iota_rosetta::types::{
     AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, Currency, NetworkIdentifier,
-    SubAccount, SubAccountType, SuiEnv,
+    SubAccount, SubAccountType, IotaEnv,
 };
-use sui_rosetta::CoinMetadataCache;
-use sui_sdk::rpc_types::{SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
-use sui_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::utils::to_sender_signed_transaction;
+use iota_rosetta::CoinMetadataCache;
+use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::utils::to_sender_signed_transaction;
 use test_cluster::TestClusterBuilder;
 
 use crate::rosetta_client::RosettaEndpoint;
@@ -26,7 +27,7 @@ use crate::rosetta_client::RosettaEndpoint;
 mod rosetta_client;
 
 #[tokio::test]
-async fn test_get_staked_sui() {
+async fn test_get_staked_iota() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let address = test_cluster.get_address_0();
     let client = test_cluster.wallet.get_client().await.unwrap();
@@ -37,8 +38,8 @@ async fn test_get_staked_sui() {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     let network_identifier = NetworkIdentifier {
-        blockchain: "sui".to_string(),
-        network: SuiEnv::LocalNet,
+        blockchain: "iota".to_string(),
+        network: IotaEnv::LocalNet,
     };
     // Verify initial balance and stake
     let request = AccountBalanceRequest {
@@ -76,14 +77,14 @@ async fn test_get_staked_sui() {
         .await;
     assert_eq!(response.balances[0].value, 0);
 
-    // Stake some sui
+    // Stake some iota
     let validator = client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await
         .unwrap()
         .active_validators[0]
-        .sui_address;
+        .iota_address;
     let coins = client
         .coin_read_api()
         .get_coins(address, None, None, None)
@@ -107,7 +108,7 @@ async fn test_get_staked_sui() {
         .quorum_driver_api()
         .execute_transaction_block(
             tx,
-            SuiTransactionBlockResponseOptions::new(),
+            IotaTransactionBlockResponseOptions::new(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
@@ -137,11 +138,11 @@ async fn test_stake() {
 
     let validator = client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await
         .unwrap()
         .active_validators[0]
-        .sui_address;
+        .iota_address;
 
     let ops = serde_json::from_value(json!(
         [{
@@ -160,7 +161,7 @@ async fn test_stake() {
         .read_api()
         .get_transaction_with_options(
             response.transaction_identifier.hash,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
                 .with_balance_changes()
@@ -169,10 +170,10 @@ async fn test_stake() {
         .await
         .unwrap();
 
-    println!("Sui TX: {tx:?}");
+    println!("Iota TX: {tx:?}");
 
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
 
@@ -201,11 +202,11 @@ async fn test_stake_all() {
 
     let validator = client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await
         .unwrap()
         .active_validators[0]
-        .sui_address;
+        .iota_address;
 
     let ops = serde_json::from_value(json!(
         [{
@@ -223,7 +224,7 @@ async fn test_stake_all() {
         .read_api()
         .get_transaction_with_options(
             response.transaction_identifier.hash,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
                 .with_balance_changes()
@@ -232,10 +233,10 @@ async fn test_stake_all() {
         .await
         .unwrap();
 
-    println!("Sui TX: {tx:?}");
+    println!("Iota TX: {tx:?}");
 
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
 
@@ -270,11 +271,11 @@ async fn test_withdraw_stake() {
     // First add some stakes
     let validator = client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await
         .unwrap()
         .active_validators[0]
-        .sui_address;
+        .iota_address;
 
     let ops = serde_json::from_value(json!(
         [{
@@ -293,7 +294,7 @@ async fn test_withdraw_stake() {
         .read_api()
         .get_transaction_with_options(
             response.transaction_identifier.hash,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
                 .with_balance_changes()
@@ -302,16 +303,16 @@ async fn test_withdraw_stake() {
         .await
         .unwrap();
 
-    println!("Sui TX: {tx:?}");
+    println!("Iota TX: {tx:?}");
 
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
     // verify balance
     let network_identifier = NetworkIdentifier {
-        blockchain: "sui".to_string(),
-        network: SuiEnv::LocalNet,
+        blockchain: "iota".to_string(),
+        network: IotaEnv::LocalNet,
     };
     let response = rosetta_client
         .get_balance(
@@ -343,7 +344,7 @@ async fn test_withdraw_stake() {
         .read_api()
         .get_transaction_with_options(
             response.transaction_identifier.hash,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
                 .with_balance_changes()
@@ -353,10 +354,10 @@ async fn test_withdraw_stake() {
         .unwrap();
 
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
-    println!("Sui TX: {tx:?}");
+    println!("Iota TX: {tx:?}");
     let coin_cache = CoinMetadataCache::new(client, NonZeroUsize::new(2).unwrap());
     let ops2 = Operations::try_from_response(tx, &coin_cache)
         .await
@@ -384,7 +385,7 @@ async fn test_withdraw_stake() {
 }
 
 #[tokio::test]
-async fn test_pay_sui() {
+async fn test_pay_iota() {
     let test_cluster = TestClusterBuilder::new().build().await;
     let sender = test_cluster.get_address_0();
     let recipient = test_cluster.get_address_1();
@@ -396,12 +397,12 @@ async fn test_pay_sui() {
     let ops = serde_json::from_value(json!(
         [{
             "operation_identifier":{"index":0},
-            "type":"PaySui",
+            "type":"PayIota",
             "account": { "address" : recipient.to_string() },
             "amount" : { "value": "1000000000" }
         },{
             "operation_identifier":{"index":1},
-            "type":"PaySui",
+            "type":"PayIota",
             "account": { "address" : sender.to_string() },
             "amount" : { "value": "-1000000000" }
         }]
@@ -414,7 +415,7 @@ async fn test_pay_sui() {
         .read_api()
         .get_transaction_with_options(
             response.transaction_identifier.hash,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
                 .with_balance_changes()
@@ -424,10 +425,10 @@ async fn test_pay_sui() {
         .unwrap();
 
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
-    println!("Sui TX: {tx:?}");
+    println!("Iota TX: {tx:?}");
     let coin_cache = CoinMetadataCache::new(client, NonZeroUsize::new(2).unwrap());
     let ops2 = Operations::try_from_response(tx, &coin_cache)
         .await
@@ -441,7 +442,7 @@ async fn test_pay_sui() {
 }
 
 #[tokio::test]
-async fn test_pay_sui_multiple_times() {
+async fn test_pay_iota_multiple_times() {
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(36000000)
         .build()
@@ -459,12 +460,12 @@ async fn test_pay_sui_multiple_times() {
         let ops = serde_json::from_value(json!(
             [{
                 "operation_identifier":{"index":0},
-                "type":"PaySui",
+                "type":"PayIota",
                 "account": { "address" : recipient.to_string() },
                 "amount" : { "value": "1000000000" }
             },{
                 "operation_identifier":{"index":1},
-                "type":"PaySui",
+                "type":"PayIota",
                 "account": { "address" : sender.to_string() },
                 "amount" : { "value": "-1000000000" }
             }]
@@ -477,7 +478,7 @@ async fn test_pay_sui_multiple_times() {
             .read_api()
             .get_transaction_with_options(
                 response.transaction_identifier.hash,
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_input()
                     .with_effects()
                     .with_balance_changes()
@@ -485,9 +486,9 @@ async fn test_pay_sui_multiple_times() {
             )
             .await
             .unwrap();
-        println!("Sui TX: {tx:?}");
+        println!("Iota TX: {tx:?}");
         assert_eq!(
-            &SuiExecutionStatus::Success,
+            &IotaExecutionStatus::Success,
             tx.effects.as_ref().unwrap().status()
         );
         let ops2 = Operations::try_from_response(tx, &coin_cache)

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_tests::{send_consensus, send_consensus_no_execution};
@@ -18,8 +19,8 @@ use crate::test_utils::{
     init_local_authorities, init_local_authorities_with_overload_thresholds,
     make_transfer_object_move_transaction,
 };
-use sui_protocol_config::ProtocolConfig;
-use sui_types::error::SuiError;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::error::IotaError;
 
 use std::collections::BTreeSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -27,16 +28,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use itertools::Itertools;
-use sui_config::node::AuthorityOverloadConfig;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::TransactionDigest;
-use sui_types::committee::Committee;
-use sui_types::crypto::{get_key_pair, AccountKeyPair};
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::error::SuiResult;
-use sui_types::object::{Object, Owner};
-use sui_types::transaction::CertifiedTransaction;
-use sui_types::transaction::{
+use iota_config::node::AuthorityOverloadConfig;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::TransactionDigest;
+use iota_types::committee::Committee;
+use iota_types::crypto::{get_key_pair, AccountKeyPair};
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::error::IotaResult;
+use iota_types::object::{Object, Owner};
+use iota_types::transaction::CertifiedTransaction;
+use iota_types::transaction::{
     Transaction, VerifiedCertificate, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
 };
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -458,7 +459,7 @@ async fn try_sign_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
     txn: &Transaction,
-) -> SuiResult<VerifiedCertificate> {
+) -> IotaResult<VerifiedCertificate> {
     for client in authority_clients.iter().take(3) {
         client
             .handle_transaction(txn.clone(), Some(make_socket_addr()))
@@ -792,8 +793,8 @@ async fn test_authority_txn_signing_pushback() {
         .handle_transaction_for_benchmarking(tx.clone())
         .await;
     assert!(matches!(
-        SuiError::from(response.err().unwrap()),
-        SuiError::ValidatorOverloadedRetryAfter { .. }
+        IotaError::from(response.err().unwrap()),
+        IotaError::ValidatorOverloadedRetryAfter { .. }
     ));
 
     // Check that the input object should be locked by the above transaction.
@@ -813,7 +814,7 @@ async fn test_authority_txn_signing_pushback() {
             .err()
             .unwrap()
             .into(),
-        SuiError::ValidatorOverloadedRetryAfter { .. }
+        IotaError::ValidatorOverloadedRetryAfter { .. }
     ));
 
     // Send another transaction, that send the same object to a different recipient.
@@ -834,7 +835,7 @@ async fn test_authority_txn_signing_pushback() {
             .err()
             .unwrap()
             .into(),
-        SuiError::ObjectLockConflict { .. }
+        IotaError::ObjectLockConflict { .. }
     ));
 
     // Clear the authority overload status.
@@ -938,7 +939,7 @@ async fn test_authority_txn_execution_pushback() {
             .err()
             .unwrap()
             .into(),
-        SuiError::ValidatorOverloadedRetryAfter { .. }
+        IotaError::ValidatorOverloadedRetryAfter { .. }
     ));
 
     // Clear the validator overload status and retry the certificate. It should succeed.

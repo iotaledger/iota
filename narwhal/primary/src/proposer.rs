@@ -1,17 +1,18 @@
 // Copyright(C) Facebook, Inc. and its affiliates.
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::consensus::LeaderSchedule;
 use crate::metrics::PrimaryMetrics;
 use config::{AuthorityIdentifier, Committee, WorkerId};
 use fastcrypto::hash::Hash as _;
-use mysten_metrics::metered_channel::{Receiver, Sender};
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::metered_channel::{Receiver, Sender};
+use iota_metrics::spawn_logged_monitored_task;
 use std::collections::{BTreeMap, VecDeque};
 use std::{cmp::Ordering, sync::Arc};
 use storage::ProposerStore;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::time::{sleep_until, Instant};
 use tokio::{
     sync::{oneshot, watch},

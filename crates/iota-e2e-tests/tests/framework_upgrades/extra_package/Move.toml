@@ -1,12 +1,12 @@
 [package]
-name = "SuiExtra"
+name = "IotaExtra"
 version = "0.0.1"
 edition = "2024.beta"
 
 [dependencies]
-SuiSystem = { local = "../../../../sui-framework/packages/sui-system" }
-Sui = { local = "../../../../sui-framework/packages/sui-framework" }
-MoveStdlib = { local = "../../../../sui-framework/packages/move-stdlib" }
+IotaSystem = { local = "../../../../iota-framework/packages/iota-system" }
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+MoveStdlib = { local = "../../../../iota-framework/packages/move-stdlib" }
 
 [addresses]
-sui_extra = "0x42"
+iota_extra = "0x42"

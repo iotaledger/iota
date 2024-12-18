@@ -1,5 +1,5 @@
 ---
-source: crates/sui-config/tests/snapshot_tests.rs
+source: crates/iota-config/tests/snapshot_tests.rs
 expression: genesis.clock()
 ---
 id:

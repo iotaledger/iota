@@ -15,4 +15,4 @@ You will find the `*.vsce` file with the current version of the package.
 
 ## Submitting changes
 
-To submit your changes, please, open a PR to the https://github.com/MystenLabs/sui.git repository.
+To submit your changes, please, open a PR to the https://github.com/iotaledger/iota.git repository.

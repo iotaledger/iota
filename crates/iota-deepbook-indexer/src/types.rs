@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use bigdecimal::BigDecimal;
-use sui_types::base_types::{SuiAddress, TransactionDigest};
+use iota_types::base_types::{IotaAddress, TransactionDigest};
 
 use std::fmt::{Display, Formatter};
 
@@ -14,7 +15,7 @@ use crate::models::PoolPrice as DBPoolPrice;
 use crate::models::Proposals as DBProposals;
 use crate::models::Rebates as DBRebates;
 use crate::models::Stakes as DBStakes;
-use crate::models::SuiErrorTransactions;
+use crate::models::IotaErrorTransactions;
 use crate::models::TradeParamsUpdate as DBTradeParamsUpdate;
 use crate::models::Votes as DBVotes;
 
@@ -30,7 +31,7 @@ pub enum ProcessedTxnData {
     Stakes(Stakes),
     TradeParamsUpdate(TradeParamsUpdate),
     Votes(Votes),
-    Error(SuiTxnError),
+    Error(IotaTxnError),
 }
 
 #[derive(Clone, Debug)]
@@ -412,18 +413,18 @@ impl Votes {
 }
 
 #[derive(Clone, Debug)]
-pub struct SuiTxnError {
+pub struct IotaTxnError {
     pub(crate) tx_digest: TransactionDigest,
-    pub(crate) sender: SuiAddress,
+    pub(crate) sender: IotaAddress,
     pub(crate) timestamp_ms: u64,
     pub(crate) failure_status: String,
     pub(crate) package: String,
     pub(crate) cmd_idx: Option<u64>,
 }
 
-impl SuiTxnError {
-    pub(crate) fn to_db(&self) -> SuiErrorTransactions {
-        SuiErrorTransactions {
+impl IotaTxnError {
+    pub(crate) fn to_db(&self) -> IotaErrorTransactions {
+        IotaErrorTransactions {
             txn_digest: self.tx_digest.to_string(),
             sender_address: self.sender.to_string(),
             timestamp_ms: self.timestamp_ms as i64,

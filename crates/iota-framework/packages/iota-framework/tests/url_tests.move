@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::url_tests {
-    use sui::url;
+module iota::url_tests {
+    use iota::url;
 
     const EUrlStringMismatch: u64 = 1;
 

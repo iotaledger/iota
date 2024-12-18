@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { DelegatedStake } from '@mysten/sui/client';
+import type { DelegatedStake } from '@iota/iota-sdk/client';
 
-// Helper function to get the delegation by stakedSuiId
+// Helper function to get the delegation by stakedIotaId
 export const getDelegationDataByStakeId = (
 	delegationsStake: DelegatedStake[],
-	stakeSuiId: string,
+	stakeIotaId: string,
 ) => {
 	let stake = null;
 	for (const { stakes } of delegationsStake) {
-		stake = stakes.find(({ stakedSuiId }) => stakedSuiId === stakeSuiId) || null;
+		stake = stakes.find(({ stakedIotaId }) => stakedIotaId === stakeIotaId) || null;
 		if (stake) return stake;
 	}
 

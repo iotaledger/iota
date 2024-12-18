@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::consistency::ConsistentIndexCursor;
@@ -8,27 +9,27 @@ use crate::types::cursor::{JsonCursor, Page};
 use async_graphql::connection::{Connection, CursorType, Edge};
 use async_graphql::dataloader::Loader;
 use std::collections::{BTreeMap, HashMap};
-use sui_indexer::apis::GovernanceReadApi;
-use sui_types::committee::EpochId;
-use sui_types::sui_system_state::PoolTokenExchangeRate;
+use iota_indexer::apis::GovernanceReadApi;
+use iota_types::committee::EpochId;
+use iota_types::iota_system_state::PoolTokenExchangeRate;
 
-use sui_types::base_types::SuiAddress as NativeSuiAddress;
+use iota_types::base_types::IotaAddress as NativeIotaAddress;
 
 use super::big_int::BigInt;
 use super::move_object::MoveObject;
 use super::object::Object;
 use super::owner::Owner;
-use super::sui_address::SuiAddress;
+use super::iota_address::IotaAddress;
 use super::uint53::UInt53;
 use super::validator_credentials::ValidatorCredentials;
 use super::{address::Address, base64::Base64};
 use crate::error::Error;
 use async_graphql::*;
-use sui_indexer::apis::governance_api::exchange_rates;
-use sui_types::sui_system_state::sui_system_state_summary::SuiValidatorSummary as NativeSuiValidatorSummary;
+use iota_indexer::apis::governance_api::exchange_rates;
+use iota_types::iota_system_state::iota_system_state_summary::IotaValidatorSummary as NativeIotaValidatorSummary;
 #[derive(Clone, Debug)]
 pub(crate) struct Validator {
-    pub validator_summary: NativeSuiValidatorSummary,
+    pub validator_summary: NativeIotaValidatorSummary,
     pub at_risk: Option<u64>,
     pub report_records: Option<Vec<Address>>,
     /// The checkpoint sequence number at which this was viewed at.
@@ -48,7 +49,7 @@ type EpochStakeSubsidyStarted = u64;
 impl Loader<u64> for Db {
     type Value = (
         EpochStakeSubsidyStarted,
-        BTreeMap<NativeSuiAddress, Vec<(EpochId, PoolTokenExchangeRate)>>,
+        BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>,
     );
     type Error = Error;
 
@@ -60,18 +61,18 @@ impl Loader<u64> for Db {
             u64,
             (
                 EpochStakeSubsidyStarted,
-                BTreeMap<NativeSuiAddress, Vec<(EpochId, PoolTokenExchangeRate)>>,
+                BTreeMap<NativeIotaAddress, Vec<(EpochId, PoolTokenExchangeRate)>>,
             ),
         >,
         Error,
     > {
-        let latest_sui_system_state = self
+        let latest_iota_system_state = self
             .inner
-            .get_latest_sui_system_state()
+            .get_latest_iota_system_state()
             .await
-            .map_err(|_| Error::Internal("Failed to fetch latest Sui system state".to_string()))?;
+            .map_err(|_| Error::Internal("Failed to fetch latest Iota system state".to_string()))?;
         let governance_api = GovernanceReadApi::new(self.inner.clone());
-        let exchange_rates = exchange_rates(&governance_api, &latest_sui_system_state)
+        let exchange_rates = exchange_rates(&governance_api, &latest_iota_system_state)
             .await
             .map_err(|e| Error::Internal(format!("Error fetching exchange rates. {e}")))?;
         let mut results = BTreeMap::new();
@@ -83,13 +84,13 @@ impl Loader<u64> for Db {
         // If no epoch is passed in the key, then we default to the latest epoch - 1
         // for the same reasons as above.
         let epoch_to_filter_out = if let Some(epoch) = keys.first() {
-            if epoch == &latest_sui_system_state.epoch {
+            if epoch == &latest_iota_system_state.epoch {
                 *epoch - 1
             } else {
                 *epoch
             }
         } else {
-            latest_sui_system_state.epoch - 1
+            latest_iota_system_state.epoch - 1
         };
 
         // filter the exchange rates to only include data for the epochs that are less than or
@@ -109,13 +110,13 @@ impl Loader<u64> for Db {
 
         let requested_epoch = match keys.first() {
             Some(x) => *x,
-            None => latest_sui_system_state.epoch,
+            None => latest_iota_system_state.epoch,
         };
 
         let mut r = HashMap::new();
         r.insert(
             requested_epoch,
-            (latest_sui_system_state.stake_subsidy_start_epoch, results),
+            (latest_iota_system_state.stake_subsidy_start_epoch, results),
         );
 
         Ok(r)
@@ -129,7 +130,7 @@ impl Validator {
     /// The validator's address.
     async fn address(&self) -> Address {
         Address {
-            address: SuiAddress::from(self.validator_summary.sui_address),
+            address: IotaAddress::from(self.validator_summary.iota_address),
             checkpoint_viewed_at: self.checkpoint_viewed_at,
         }
     }
@@ -213,12 +214,12 @@ impl Validator {
     }
 
     /// The ID of this validator's `0x3::staking_pool::StakingPool`.
-    async fn staking_pool_id(&self) -> SuiAddress {
+    async fn staking_pool_id(&self) -> IotaAddress {
         self.validator_summary.staking_pool_id.into()
     }
 
     /// The validator's current exchange object. The exchange rate is used to determine
-    /// the amount of SUI tokens that each past SUI staker can withdraw in the future.
+    /// the amount of IOTA tokens that each past IOTA staker can withdraw in the future.
     #[graphql(
         deprecation = "The exchange object is a wrapped object. Access its dynamic fields through \
         the `exchangeRatesTable` query."
@@ -229,7 +230,7 @@ impl Validator {
 
     /// A wrapped object containing the validator's exchange rates. This is a table from epoch
     /// number to `PoolTokenExchangeRate` value. The exchange rate is used to determine the amount
-    /// of SUI tokens that each past SUI staker can withdraw in the future.
+    /// of IOTA tokens that each past IOTA staker can withdraw in the future.
     async fn exchange_rates_table(&self) -> Result<Option<Owner>> {
         Ok(Some(Owner {
             address: self.validator_summary.exchange_rates_id.into(),
@@ -250,10 +251,10 @@ impl Validator {
             .map(UInt53::from)
     }
 
-    /// The total number of SUI tokens in this pool.
-    async fn staking_pool_sui_balance(&self) -> Option<BigInt> {
+    /// The total number of IOTA tokens in this pool.
+    async fn staking_pool_iota_balance(&self) -> Option<BigInt> {
         Some(BigInt::from(
-            self.validator_summary.staking_pool_sui_balance,
+            self.validator_summary.staking_pool_iota_balance,
         ))
     }
 
@@ -273,9 +274,9 @@ impl Validator {
     }
 
     /// Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
-    async fn pending_total_sui_withdraw(&self) -> Option<BigInt> {
+    async fn pending_total_iota_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
-            self.validator_summary.pending_total_sui_withdraw,
+            self.validator_summary.pending_total_iota_withdraw,
         ))
     }
 
@@ -303,7 +304,7 @@ impl Validator {
         Some(self.validator_summary.commission_rate)
     }
 
-    /// The total number of SUI tokens in this pool plus
+    /// The total number of IOTA tokens in this pool plus
     /// the pending stake amount for this epoch.
     async fn next_epoch_stake(&self) -> Option<BigInt> {
         Some(BigInt::from(self.validator_summary.next_epoch_stake))
@@ -372,11 +373,11 @@ impl Validator {
             .await?
             .ok_or_else(|| Error::Internal("DataLoading exchange rates failed".to_string()))?;
         let rates = exchange_rates
-            .get(&self.validator_summary.sui_address)
+            .get(&self.validator_summary.iota_address)
             .ok_or_else(|| {
                 Error::Internal(format!(
                     "Failed to get the exchange rate for this validator address {} for requested epoch {}",
-                    self.validator_summary.sui_address, self.requested_for_epoch
+                    self.validator_summary.iota_address, self.requested_for_epoch
                 ))
             })?;
 
@@ -387,7 +388,7 @@ impl Validator {
 }
 
 impl Validator {
-    pub fn operation_cap_id(&self) -> SuiAddress {
-        SuiAddress::from_array(**self.validator_summary.operation_cap_id)
+    pub fn operation_cap_id(&self) -> IotaAddress {
+        IotaAddress::from_array(**self.validator_summary.operation_cap_id)
     }
 }

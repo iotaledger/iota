@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -21,18 +22,18 @@ use crate::base_types::{MoveObjectType, ObjectIDParseError};
 use crate::coin::{Coin, CoinMetadata, TreasuryCap};
 use crate::crypto::{default_hash, deterministic_random_account_key};
 use crate::error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult};
-use crate::error::{SuiError, SuiResult};
+use crate::error::{IotaError, IotaResult};
 use crate::gas_coin::GAS;
 use crate::is_system_package;
 use crate::layout_resolver::LayoutResolver;
 use crate::move_package::MovePackage;
 use crate::{
     base_types::{
-        ObjectDigest, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest,
+        ObjectDigest, ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest,
     },
     gas_coin::GasCoin,
 };
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 
 use self::balance_traversal::BalanceTraversal;
 use self::bounded_visitor::BoundedVisitor;
@@ -215,8 +216,8 @@ impl MoveObject {
         self.type_.is_coin()
     }
 
-    pub fn is_staked_sui(&self) -> bool {
-        self.type_.is_staked_sui()
+    pub fn is_staked_iota(&self) -> bool {
+        self.type_.is_staked_iota()
     }
 
     pub fn is_clock(&self) -> bool {
@@ -298,17 +299,17 @@ impl MoveObject {
     /// Get a `MoveStructLayout` for `self`.
     /// The `resolver` value must contain the module that declares `self.type_` and the (transitive)
     /// dependencies of `self.type_` in order for this to succeed. Failure will result in an `ObjectSerializationError`
-    pub fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, SuiError> {
+    pub fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError> {
         Self::get_struct_layout_from_struct_tag(self.type_().clone().into(), resolver)
     }
 
     pub fn get_struct_layout_from_struct_tag(
         struct_tag: StructTag,
         resolver: &impl GetModule,
-    ) -> Result<MoveStructLayout, SuiError> {
+    ) -> Result<MoveStructLayout, IotaError> {
         let type_ = TypeTag::Struct(Box::new(struct_tag));
         let layout = TypeLayoutBuilder::build_with_types(&type_, resolver).map_err(|e| {
-            SuiError::ObjectSerializationError {
+            IotaError::ObjectSerializationError {
                 error: e.to_string(),
             }
         })?;
@@ -321,9 +322,9 @@ impl MoveObject {
     }
 
     /// Convert `self` to the JSON representation dictated by `layout`.
-    pub fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, SuiError> {
+    pub fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
         BoundedVisitor::deserialize_struct(&self.contents, layout).map_err(|e| {
-            SuiError::ObjectSerializationError {
+            IotaError::ObjectSerializationError {
                 error: e.to_string(),
             }
         })
@@ -333,7 +334,7 @@ impl MoveObject {
     pub fn to_move_struct_with_resolver(
         &self,
         resolver: &impl GetModule,
-    ) -> Result<MoveStruct, SuiError> {
+    ) -> Result<MoveStruct, IotaError> {
         self.to_move_struct(&self.get_layout(resolver)?)
     }
 
@@ -353,8 +354,8 @@ impl MoveObject {
         self.contents.len() + serialized_type_tag_size + 1 + 8
     }
 
-    /// Get the total amount of SUI embedded in `self`. Intended for testing purposes
-    pub fn get_total_sui(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, SuiError> {
+    /// Get the total amount of IOTA embedded in `self`. Intended for testing purposes
+    pub fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
         let balances = self.get_coin_balances(layout_resolver)?;
         Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
     }
@@ -366,7 +367,7 @@ impl MoveObject {
     pub fn get_coin_balances(
         &self,
         layout_resolver: &mut dyn LayoutResolver,
-    ) -> Result<BTreeMap<TypeTag, u64>, SuiError> {
+    ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
         if let Some(type_tag) = self.type_.coin_type_maybe() {
             let balance = self.get_coin_value_unsafe();
@@ -380,7 +381,7 @@ impl MoveObject {
 
             let mut traversal = BalanceTraversal::default();
             MoveValue::visit_deserialize(&self.contents, &layout.into_layout(), &mut traversal)
-                .map_err(|e| SuiError::ObjectSerializationError {
+                .map_err(|e| IotaError::ObjectSerializationError {
                     error: e.to_string(),
                 })?;
 
@@ -396,7 +397,7 @@ pub enum Data {
     Move(MoveObject),
     /// Map from each module name to raw serialized Move module bytes
     Package(MovePackage),
-    // ... Sui "native" types go here
+    // ... Iota "native" types go here
 }
 
 impl Data {
@@ -470,10 +471,10 @@ impl Data {
 #[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
 pub enum Owner {
     /// Object is exclusively owned by a single address, and is mutable.
-    AddressOwner(SuiAddress),
+    AddressOwner(IotaAddress),
     /// Object is exclusively owned by a single object, and is mutable.
-    /// The object ID is converted to SuiAddress as SuiAddress is universal.
-    ObjectOwner(SuiAddress),
+    /// The object ID is converted to IotaAddress as IotaAddress is universal.
+    ObjectOwner(IotaAddress),
     /// Object is shared, can be used by any address, and is mutable.
     Shared {
         /// The version at which the object became shared
@@ -499,12 +500,12 @@ pub enum Owner {
 )]
 #[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
 pub enum Authenticator {
-    /// The contained SuiAddress exclusively has all permissions: read, write, delete, transfer
-    SingleOwner(SuiAddress),
+    /// The contained IotaAddress exclusively has all permissions: read, write, delete, transfer
+    SingleOwner(IotaAddress),
 }
 
 impl Authenticator {
-    pub fn as_single_owner(&self) -> &SuiAddress {
+    pub fn as_single_owner(&self) -> &IotaAddress {
         // NOTE: Existing callers are written assuming that only singly-owned
         // ConsensusV2 objects exist. If additional Authenticator variants are
         // added, do not simply panic here. Instead, change the return type of
@@ -518,23 +519,23 @@ impl Authenticator {
 impl Owner {
     // NOTE: only return address of AddressOwner, otherwise return error,
     // ObjectOwner's address is converted from object id, thus we will skip it.
-    pub fn get_address_owner_address(&self) -> SuiResult<SuiAddress> {
+    pub fn get_address_owner_address(&self) -> IotaResult<IotaAddress> {
         match self {
             Self::AddressOwner(address) => Ok(*address),
             Self::Shared { .. }
             | Self::Immutable
             | Self::ObjectOwner(_)
-            | Self::ConsensusV2 { .. } => Err(SuiError::UnexpectedOwnerType),
+            | Self::ConsensusV2 { .. } => Err(IotaError::UnexpectedOwnerType),
         }
     }
 
     // NOTE: this function will return address of both AddressOwner and ObjectOwner,
-    // address of ObjectOwner is converted from object id, even though the type is SuiAddress.
-    pub fn get_owner_address(&self) -> SuiResult<SuiAddress> {
+    // address of ObjectOwner is converted from object id, even though the type is IotaAddress.
+    pub fn get_owner_address(&self) -> IotaResult<IotaAddress> {
         match self {
             Self::AddressOwner(address) | Self::ObjectOwner(address) => Ok(*address),
             Self::Shared { .. } | Self::Immutable | Self::ConsensusV2 { .. } => {
-                Err(SuiError::UnexpectedOwnerType)
+                Err(IotaError::UnexpectedOwnerType)
             }
         }
     }
@@ -558,7 +559,7 @@ impl Owner {
 
 impl PartialEq<ObjectID> for Owner {
     fn eq(&self, other: &ObjectID) -> bool {
-        let other_id: SuiAddress = (*other).into();
+        let other_id: IotaAddress = (*other).into();
         match self {
             Self::ObjectOwner(id) => id == &other_id,
             Self::AddressOwner(_)
@@ -620,7 +621,7 @@ pub struct ObjectInner {
     pub owner: Owner,
     /// The digest of the transaction that created or last mutated this object
     pub previous_transaction: TransactionDigest,
-    /// The amount of SUI we would rebate if this object gets deleted.
+    /// The amount of IOTA we would rebate if this object gets deleted.
     /// This number is re-calculated each time the object is mutated based on
     /// the present storage gas price.
     pub storage_rebate: u64,
@@ -800,7 +801,7 @@ impl ObjectInner {
         self.owner.is_shared()
     }
 
-    pub fn get_single_owner(&self) -> Option<SuiAddress> {
+    pub fn get_single_owner(&self) -> Option<IotaAddress> {
         self.owner.get_owner_address().ok()
     }
 
@@ -866,7 +867,7 @@ impl ObjectInner {
     }
 
     // TODO: use `MoveObj::get_balance_unsafe` instead.
-    // context: https://github.com/MystenLabs/sui/pull/10679#discussion_r1165877816
+    // context: https://github.com/iotaledger/iota/pull/10679#discussion_r1165877816
     pub fn as_coin_maybe(&self) -> Option<Coin> {
         if let Some(move_object) = self.data.try_as_move() {
             let coin: Coin = bcs::from_bytes(move_object.contents()).ok()?;
@@ -909,7 +910,7 @@ impl ObjectInner {
             Owner::ConsensusV2 { authenticator, .. } => {
                 DEFAULT_OWNER_SIZE
                     + match authenticator.as_ref() {
-                        Authenticator::SingleOwner(_) => 8, // marginal cost to store both SuiAddress and SequenceNumber
+                        Authenticator::SingleOwner(_) => 8, // marginal cost to store both IotaAddress and SequenceNumber
                     }
             }
         };
@@ -922,7 +923,7 @@ impl ObjectInner {
     }
 
     /// Change the owner of `self` to `new_owner`.
-    pub fn transfer(&mut self, new_owner: SuiAddress) {
+    pub fn transfer(&mut self, new_owner: IotaAddress) {
         self.owner = Owner::AddressOwner(new_owner);
     }
 
@@ -932,7 +933,7 @@ impl ObjectInner {
     pub fn get_layout(
         &self,
         resolver: &impl GetModule,
-    ) -> Result<Option<MoveStructLayout>, SuiError> {
+    ) -> Result<Option<MoveStructLayout>, IotaError> {
         match &self.data {
             Data::Move(m) => Ok(Some(m.get_layout(resolver)?)),
             Data::Package(_) => Ok(None),
@@ -942,13 +943,13 @@ impl ObjectInner {
     /// Treat the object type as a Move struct with one type parameter,
     /// like this: `S<T>`.
     /// Returns the inner parameter type `T`.
-    pub fn get_move_template_type(&self) -> SuiResult<TypeTag> {
-        let move_struct = self.data.struct_tag().ok_or_else(|| SuiError::TypeError {
+    pub fn get_move_template_type(&self) -> IotaResult<TypeTag> {
+        let move_struct = self.data.struct_tag().ok_or_else(|| IotaError::TypeError {
             error: "Object must be a Move object".to_owned(),
         })?;
         fp_ensure!(
             move_struct.type_params.len() == 1,
-            SuiError::TypeError {
+            IotaError::TypeError {
                 error: "Move object struct must have one type parameter".to_owned()
             }
         );
@@ -964,11 +965,11 @@ impl ObjectInner {
 
 // Testing-related APIs.
 impl Object {
-    /// Get the total amount of SUI embedded in `self`, including both Move objects and the storage rebate
-    pub fn get_total_sui(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, SuiError> {
+    /// Get the total amount of IOTA embedded in `self`, including both Move objects and the storage rebate
+    pub fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
         Ok(self.storage_rebate
             + match &self.data {
-                Data::Move(m) => m.get_total_sui(layout_resolver)?,
+                Data::Move(m) => m.get_total_iota(layout_resolver)?,
                 Data::Package(_) => 0,
             })
     }
@@ -1007,7 +1008,7 @@ impl Object {
         Object::new_move(obj, owner, TransactionDigest::genesis_marker())
     }
 
-    pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: SuiAddress, gas: u64) -> Self {
+    pub fn with_id_owner_gas_for_testing(id: ObjectID, owner: IotaAddress, gas: u64) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
             has_public_transfer: true,
@@ -1071,7 +1072,7 @@ impl Object {
         .into()
     }
 
-    pub fn with_id_owner_for_testing(id: ObjectID, owner: SuiAddress) -> Self {
+    pub fn with_id_owner_for_testing(id: ObjectID, owner: IotaAddress) -> Self {
         // For testing, we provide sufficient gas by default.
         Self::with_id_owner_gas_for_testing(id, owner, GAS_VALUE_FOR_TESTING)
     }
@@ -1079,7 +1080,7 @@ impl Object {
     pub fn with_id_owner_version_for_testing(
         id: ObjectID,
         version: SequenceNumber,
-        owner: SuiAddress,
+        owner: IotaAddress,
     ) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
@@ -1096,13 +1097,13 @@ impl Object {
         .into()
     }
 
-    pub fn with_owner_for_testing(owner: SuiAddress) -> Self {
+    pub fn with_owner_for_testing(owner: IotaAddress) -> Self {
         Self::with_id_owner_for_testing(ObjectID::random(), owner)
     }
 
     /// Generate a new gas coin worth `value` with a random object ID and owner
     /// For testing purposes only
-    pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: SuiAddress) -> Self {
+    pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: IotaAddress) -> Self {
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectID::random(), value);
         Object::new_move(
             obj,
@@ -1274,7 +1275,7 @@ impl Display for PastObjectRead {
 mod tests {
     use crate::object::{Object, Owner, OBJECT_START_VERSION};
     use crate::{
-        base_types::{ObjectID, SuiAddress, TransactionDigest},
+        base_types::{ObjectID, IotaAddress, TransactionDigest},
         gas_coin::GasCoin,
     };
 
@@ -1285,7 +1286,7 @@ mod tests {
             GasCoin::new_for_testing_with_id(ObjectID::ZERO, 123).to_object(OBJECT_START_VERSION);
         let o = Object::new_move(
             g,
-            Owner::AddressOwner(SuiAddress::ZERO),
+            Owner::AddressOwner(IotaAddress::ZERO),
             TransactionDigest::ZERO,
         );
         let bytes = bcs::to_bytes(&o).unwrap();

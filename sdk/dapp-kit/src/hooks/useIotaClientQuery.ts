@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient } from '@mysten/sui/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 import type {
 	UndefinedInitialDataOptions,
 	UseQueryOptions,
@@ -11,22 +12,22 @@ import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useMemo } from 'react';
 
 import type { PartialBy } from '../types/utilityTypes.js';
-import { useSuiClientContext } from './useSuiClient.js';
+import { useIotaClientContext } from './useIotaClient.js';
 
-export type SuiRpcMethodName = {
-	[K in keyof SuiClient]: SuiClient[K] extends ((input: any) => Promise<any>) | (() => Promise<any>)
+export type IotaRpcMethodName = {
+	[K in keyof IotaClient]: IotaClient[K] extends ((input: any) => Promise<any>) | (() => Promise<any>)
 		? K
 		: never;
-}[keyof SuiClient];
+}[keyof IotaClient];
 
-export type SuiRpcMethods = {
-	[K in SuiRpcMethodName]: SuiClient[K] extends (input: infer P) => Promise<infer R>
+export type IotaRpcMethods = {
+	[K in IotaRpcMethodName]: IotaClient[K] extends (input: infer P) => Promise<infer R>
 		? {
 				name: K;
 				result: R;
 				params: P;
 			}
-		: SuiClient[K] extends () => Promise<infer R>
+		: IotaClient[K] extends () => Promise<infer R>
 			? {
 					name: K;
 					result: R;
@@ -35,31 +36,31 @@ export type SuiRpcMethods = {
 			: never;
 };
 
-export type UseSuiClientQueryOptions<T extends keyof SuiRpcMethods, TData> = PartialBy<
-	Omit<UseQueryOptions<SuiRpcMethods[T]['result'], Error, TData, unknown[]>, 'queryFn'>,
+export type UseIotaClientQueryOptions<T extends keyof IotaRpcMethods, TData> = PartialBy<
+	Omit<UseQueryOptions<IotaRpcMethods[T]['result'], Error, TData, unknown[]>, 'queryFn'>,
 	'queryKey'
 >;
 
-export type GetSuiClientQueryOptions<T extends keyof SuiRpcMethods> = {
-	client: SuiClient;
+export type GetIotaClientQueryOptions<T extends keyof IotaRpcMethods> = {
+	client: IotaClient;
 	network: string;
 	method: T;
 	options?: PartialBy<
-		Omit<UndefinedInitialDataOptions<SuiRpcMethods[T]['result']>, 'queryFn'>,
+		Omit<UndefinedInitialDataOptions<IotaRpcMethods[T]['result']>, 'queryFn'>,
 		'queryKey'
 	>;
-} & (undefined extends SuiRpcMethods[T]['params']
-	? { params?: SuiRpcMethods[T]['params'] }
-	: { params: SuiRpcMethods[T]['params'] });
+} & (undefined extends IotaRpcMethods[T]['params']
+	? { params?: IotaRpcMethods[T]['params'] }
+	: { params: IotaRpcMethods[T]['params'] });
 
-export function getSuiClientQuery<T extends keyof SuiRpcMethods>({
+export function getIotaClientQuery<T extends keyof IotaRpcMethods>({
 	client,
 	network,
 	method,
 	params,
 	options,
-}: GetSuiClientQueryOptions<T>) {
-	return queryOptions<SuiRpcMethods[T]['result']>({
+}: GetIotaClientQueryOptions<T>) {
+	return queryOptions<IotaRpcMethods[T]['result']>({
 		...options,
 		queryKey: [network, method, params],
 		queryFn: async () => {
@@ -68,56 +69,56 @@ export function getSuiClientQuery<T extends keyof SuiRpcMethods>({
 	});
 }
 
-export function useSuiClientQuery<
-	T extends keyof SuiRpcMethods,
-	TData = SuiRpcMethods[T]['result'],
+export function useIotaClientQuery<
+	T extends keyof IotaRpcMethods,
+	TData = IotaRpcMethods[T]['result'],
 >(
-	...args: undefined extends SuiRpcMethods[T]['params']
-		? [method: T, params?: SuiRpcMethods[T]['params'], options?: UseSuiClientQueryOptions<T, TData>]
-		: [method: T, params: SuiRpcMethods[T]['params'], options?: UseSuiClientQueryOptions<T, TData>]
+	...args: undefined extends IotaRpcMethods[T]['params']
+		? [method: T, params?: IotaRpcMethods[T]['params'], options?: UseIotaClientQueryOptions<T, TData>]
+		: [method: T, params: IotaRpcMethods[T]['params'], options?: UseIotaClientQueryOptions<T, TData>]
 ): UseQueryResult<TData, Error> {
 	const [method, params, { queryKey = [], ...options } = {}] = args as [
 		method: T,
-		params?: SuiRpcMethods[T]['params'],
-		options?: UseSuiClientQueryOptions<T, TData>,
+		params?: IotaRpcMethods[T]['params'],
+		options?: UseIotaClientQueryOptions<T, TData>,
 	];
 
-	const suiContext = useSuiClientContext();
+	const iotaContext = useIotaClientContext();
 
 	return useQuery({
 		...options,
-		queryKey: [suiContext.network, method, params, ...queryKey],
+		queryKey: [iotaContext.network, method, params, ...queryKey],
 		queryFn: async () => {
-			return await suiContext.client[method](params as never);
+			return await iotaContext.client[method](params as never);
 		},
 	});
 }
 
-export function useSuiClientSuspenseQuery<
-	T extends keyof SuiRpcMethods,
-	TData = SuiRpcMethods[T]['result'],
+export function useIotaClientSuspenseQuery<
+	T extends keyof IotaRpcMethods,
+	TData = IotaRpcMethods[T]['result'],
 >(
-	...args: undefined extends SuiRpcMethods[T]['params']
-		? [method: T, params?: SuiRpcMethods[T]['params'], options?: UndefinedInitialDataOptions<TData>]
-		: [method: T, params: SuiRpcMethods[T]['params'], options?: UndefinedInitialDataOptions<TData>]
+	...args: undefined extends IotaRpcMethods[T]['params']
+		? [method: T, params?: IotaRpcMethods[T]['params'], options?: UndefinedInitialDataOptions<TData>]
+		: [method: T, params: IotaRpcMethods[T]['params'], options?: UndefinedInitialDataOptions<TData>]
 ) {
 	const [method, params, options = {}] = args as [
 		method: T,
-		params?: SuiRpcMethods[T]['params'],
+		params?: IotaRpcMethods[T]['params'],
 		options?: UndefinedInitialDataOptions<TData>,
 	];
 
-	const suiContext = useSuiClientContext();
+	const iotaContext = useIotaClientContext();
 
 	const query = useMemo(() => {
-		return getSuiClientQuery<T>({
-			client: suiContext.client,
-			network: suiContext.network,
+		return getIotaClientQuery<T>({
+			client: iotaContext.client,
+			network: iotaContext.network,
 			method,
 			params,
 			options,
 		});
-	}, [suiContext.client, suiContext.network, method, params, options]);
+	}, [iotaContext.client, iotaContext.network, method, params, options]);
 
 	return useSuspenseQuery(query);
 }

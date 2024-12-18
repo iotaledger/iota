@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module random::random_test {
-    use sui::object::UID;
-    use sui::object;
-    use sui::tx_context::TxContext;
-    use sui::transfer;
-    use sui::random;
+    use iota::object::UID;
+    use iota::object;
+    use iota::tx_context::TxContext;
+    use iota::transfer;
+    use iota::random;
 
 
     // Test transactions that use the same shared object, sometimes with Random and sometimes without.

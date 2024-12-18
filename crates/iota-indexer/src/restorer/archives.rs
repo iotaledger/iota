@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::num::NonZeroUsize;
 
 use prometheus::Registry;
-use sui_types::digests::CheckpointDigest;
+use iota_types::digests::CheckpointDigest;
 use tracing::info;
 
-use sui_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
-use sui_config::node::ArchiveReaderConfig;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
+use iota_config::node::ArchiveReaderConfig;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 
 use crate::errors::IndexerError;
 use crate::types::IndexerResult;

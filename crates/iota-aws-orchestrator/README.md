@@ -52,7 +52,7 @@ Create a file called `settings.json` that contains all the configuration paramet
   ],
   "specs": "m5d.8xlarge",
   "repository": {
-    "url": "https://github.com/MystenLabs/sui.git",
+    "url": "https://github.com/iotaledger/iota.git",
     "commit": "main"
   },
   "results_directory": "./results",
@@ -66,23 +66,23 @@ If you're working with a private GitHub repository, you can include a [private a
 
 ```json
 "repository": {
-  "url": "http://[your_token]@github.com/mystenlabs/sui.git",
+  "url": "http://[your_token]@github.com/iotaledger/iota.git",
   "commit": "main"
 }
 ```
 
 ## Step 3. Create a testbed
 
-The `sui-aws-orchestrator` binary provides various functionalities for creating, starting, stopping, and destroying instances. You can use the following command to boot 2 instances per region (if the settings file specifies 10 regions, as shown in the example above, a total of 20 instances will be created):
+The `iota-aws-orchestrator` binary provides various functionalities for creating, starting, stopping, and destroying instances. You can use the following command to boot 2 instances per region (if the settings file specifies 10 regions, as shown in the example above, a total of 20 instances will be created):
 
 ```bash
-cargo run --bin sui-aws-orchestrator -- testbed deploy --instances 2
+cargo run --bin iota-aws-orchestrator -- testbed deploy --instances 2
 ```
 
 To check the current status of the testbed instances, use the following command:
 
 ```bash
-cargo run --bin sui-aws-orchestrator testbed status
+cargo run --bin iota-aws-orchestrator testbed status
 ```
 
 Instances listed with a green number are available and ready for use, while instances listed with a red number are stopped.
@@ -92,13 +92,13 @@ needing more instances down the line.
 
 ## Step 4. Choose protocol
 
-There is support to benchmark either Sui or Narwhal only. To choose which protocol to benchmark, you can set the `Protocol` & `BenchmarkType` field [here](https://github.com/MystenLabs/sui/blob/main/crates/sui-aws-orchestrator/src/main.rs#L33-L34)
+There is support to benchmark either Iota or Narwhal only. To choose which protocol to benchmark, you can set the `Protocol` & `BenchmarkType` field [here](https://github.com/iotaledger/iota/blob/develop/crates/iota-aws-orchestrator/src/main.rs#L33-L34)
 
 ```
-// Sui
-use protocol::sui::{SuiBenchmarkType, SuiProtocol};
-type Protocol = SuiProtocol;
-type BenchmarkType = SuiBenchmarkType;
+// Iota
+use protocol::iota::{IotaBenchmarkType, IotaProtocol};
+type Protocol = IotaProtocol;
+type BenchmarkType = IotaBenchmarkType;
 // Narwhal
 use protocol::narwhal::{NarwhalBenchmarkType, NarwhalProtocol};
 type Protocol = NarwhalProtocol;
@@ -110,10 +110,10 @@ type BenchmarkType = NarwhalBenchmarkType;
 Running benchmarks involves installing the specified version of the codebase on the remote machines and running one validator and one load generator per instance. For example, the following command benchmarks a committee of 10 validators under a constant load of 200 tx/s for 3 minutes:
 
 ```bash
-cargo run --bin sui-aws-orchestrator -- benchmark --committee 10 fixed-load --loads 200 --duration 180
+cargo run --bin iota-aws-orchestrator -- benchmark --committee 10 fixed-load --loads 200 --duration 180
 ```
 
-In a network of 10 validators, each with a corresponding load generator, each load generator submits a fixed load of 20 tx/s. Performance measurements are collected by regularly scraping the Prometheus metrics exposed by the load generators. The `sui-aws-orchestrator` binary provides additional commands to run a specific number of load generators on separate machines.
+In a network of 10 validators, each with a corresponding load generator, each load generator submits a fixed load of 20 tx/s. Performance measurements are collected by regularly scraping the Prometheus metrics exposed by the load generators. The `iota-aws-orchestrator` binary provides additional commands to run a specific number of load generators on separate machines.
 
 ## Step 6. Monitoring
 
@@ -123,7 +123,7 @@ The orchestrator provides facilities to monitor metrics on clients and nodes. Th
 After you have found yourself that you don't need the deployed testbed anymore you can simply run
 
 ```
-cargo run --bin sui-aws-orchestrator -- testbed destroy
+cargo run --bin iota-aws-orchestrator -- testbed destroy
 ```
 
 that will terminate all the deployed EC2 instances. Keep in mind that AWS is not immediately deleting the terminated instances - this could take a few hours - so in case you want to immediately deploy a new testbed it would be advised
@@ -131,9 +131,9 @@ to use a different `testbed_id` in the `settings.json` to avoid any later confli
 
 ## FAQ
 
-### I am getting an error "Failed to read settings file '"crates/sui-aws-orchestrator/assets/settings.json"': No such file or directory"
-To run the tool a `settings.json` file with the deployment configuration should be under the directory `crates/sui-aws-orchestrator/assets`. Also, please make sure
-that you run the orchestrator from the top level repo folder, ex `/sui $ cargo run --bin sui-aws-orchestrator`
+### I am getting an error "Failed to read settings file '"crates/iota-aws-orchestrator/assets/settings.json"': No such file or directory"
+To run the tool a `settings.json` file with the deployment configuration should be under the directory `crates/iota-aws-orchestrator/assets`. Also, please make sure
+that you run the orchestrator from the top level repo folder, ex `/iota $ cargo run --bin iota-aws-orchestrator`
 
 ### I am getting an error "IncorrectInstanceState" with message "The instance 'i-xxxxxxx' is not in a state from which it can be started."" when I try to run a benchmark
 When a testbed is deployed the EC2 instances are tagged with the `testbed_id` as dictated in the `settings.json` file. When trying to run a benchmark the tool will try to list
@@ -149,7 +149,7 @@ In the common case to successfully run a benchmark we need to have enough instan
 * the grafana dashboard
 * the benchmarking clients
 
-for example when running the command `cargo run --bin sui-aws-orchestrator -- benchmark --committee 4 fixed-load --loads 500 --duration 500`, we'll need the following amount of instances available:
+for example when running the command `cargo run --bin iota-aws-orchestrator -- benchmark --committee 4 fixed-load --loads 500 --duration 500`, we'll need the following amount of instances available:
 * `4 instances` to run the validators (since we set `--committee 4`)
 * `1 instance` to run the grafana dashboard (by default only 1 is needed)
 * no additional instances to run the benchmarking clients, as those will be co-deployed on the validator nodes

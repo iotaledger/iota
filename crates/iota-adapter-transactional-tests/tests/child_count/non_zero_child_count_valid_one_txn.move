@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // DEPRECATED child count no longer tracked
@@ -10,22 +11,22 @@
 //# publish
 
 module test::m {
-    use sui::dynamic_object_field as ofield;
+    use iota::dynamic_object_field as ofield;
 
     public struct S has key, store {
-        id: sui::object::UID,
+        id: iota::object::UID,
     }
 
     public struct R has key, store {
-        id: sui::object::UID,
+        id: iota::object::UID,
         s: S,
     }
 
     public entry fun share(ctx: &mut TxContext) {
-        let mut id = sui::object::new(ctx);
-        let child = S { id: sui::object::new(ctx) };
+        let mut id = iota::object::new(ctx);
+        let child = S { id: iota::object::new(ctx) };
         ofield::add(&mut id, 0, child);
-        sui::transfer::public_share_object(S { id })
+        iota::transfer::public_share_object(S { id })
     }
 
 }

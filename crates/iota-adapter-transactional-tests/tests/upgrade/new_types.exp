@@ -44,8 +44,8 @@ task 7, lines 78-80:
 Owner: Shared( 2 )
 Version: 2
 Contents: Test_DepV1::DepM1::DepObj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(6,0),
         },
     },
@@ -64,8 +64,8 @@ task 9, lines 85-88:
 Owner: Shared( 2 )
 Version: 7
 Contents: Test_DepV1::DepM1::DepObj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(6,0),
         },
     },
@@ -84,8 +84,8 @@ task 11, lines 93-96:
 Owner: Shared( 2 )
 Version: 8
 Contents: Test_DepV1::DepM1::DepObj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(6,0),
         },
     },
@@ -104,8 +104,8 @@ task 13, line 101:
 Owner: Shared( 2 )
 Version: 9
 Contents: Test_DepV1::DepM1::DepObj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(6,0),
         },
     },

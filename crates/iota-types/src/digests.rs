@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{env, fmt};
 
-use crate::{error::SuiError, sui_serde::Readable};
+use crate::{error::IotaError, iota_serde::Readable};
 use fastcrypto::encoding::{Base58, Encoding, Hex};
 use once_cell::sync::{Lazy, OnceCell};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
-use sui_protocol_config::Chain;
+use iota_protocol_config::Chain;
 use tracing::info;
 
 /// A representation of a 32 byte digest
@@ -86,11 +87,11 @@ impl From<[u8; 32]> for Digest {
 }
 
 impl TryFrom<Vec<u8>> for Digest {
-    type Error = SuiError;
+    type Error = IotaError;
 
-    fn try_from(bytes: Vec<u8>) -> Result<Self, SuiError> {
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
         let bytes: [u8; 32] =
-            <[u8; 32]>::try_from(&bytes[..]).map_err(|_| SuiError::InvalidDigestLength {
+            <[u8; 32]>::try_from(&bytes[..]).map_err(|_| IotaError::InvalidDigestLength {
                 expected: 32,
                 actual: bytes.len(),
             })?;
@@ -165,16 +166,16 @@ pub static TESTNET_CHAIN_IDENTIFIER: OnceCell<ChainIdentifier> = OnceCell::new()
 
 /// For testing purposes or bootstrapping regenesis chain configuration, you can set
 /// this environment variable to force protocol config to use a specific Chain.
-const SUI_PROTOCOL_CONFIG_CHAIN_OVERRIDE_ENV_VAR_NAME: &str = "SUI_PROTOCOL_CONFIG_CHAIN_OVERRIDE";
+const IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE_ENV_VAR_NAME: &str = "IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE";
 
-static SUI_PROTOCOL_CONFIG_CHAIN_OVERRIDE: Lazy<Option<Chain>> = Lazy::new(|| {
-    if let Ok(s) = env::var(SUI_PROTOCOL_CONFIG_CHAIN_OVERRIDE_ENV_VAR_NAME) {
-        info!("SUI_PROTOCOL_CONFIG_CHAIN_OVERRIDE: {:?}", s);
+static IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE: Lazy<Option<Chain>> = Lazy::new(|| {
+    if let Ok(s) = env::var(IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE_ENV_VAR_NAME) {
+        info!("IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE: {:?}", s);
         match s.as_str() {
             "mainnet" => Some(Chain::Mainnet),
             "testnet" => Some(Chain::Testnet),
             "" => None,
-            _ => panic!("unrecognized SUI_PROTOCOL_CONFIG_CHAIN_OVERRIDE: {s:?}"),
+            _ => panic!("unrecognized IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE: {s:?}"),
         }
     } else {
         None
@@ -209,7 +210,7 @@ impl ChainIdentifier {
             id if *id == testnet_id => Chain::Testnet,
             _ => Chain::Unknown,
         };
-        if let Some(override_chain) = *SUI_PROTOCOL_CONFIG_CHAIN_OVERRIDE {
+        if let Some(override_chain) = *IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE {
             if chain != Chain::Unknown {
                 panic!("not allowed to override real chain {chain:?}");
             }
@@ -327,9 +328,9 @@ impl From<[u8; 32]> for CheckpointDigest {
 }
 
 impl TryFrom<Vec<u8>> for CheckpointDigest {
-    type Error = SuiError;
+    type Error = IotaError;
 
-    fn try_from(bytes: Vec<u8>) -> Result<Self, SuiError> {
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
         Digest::try_from(bytes).map(CheckpointDigest)
     }
 }
@@ -418,9 +419,9 @@ impl AsRef<[u8; 32]> for CheckpointContentsDigest {
 }
 
 impl TryFrom<Vec<u8>> for CheckpointContentsDigest {
-    type Error = SuiError;
+    type Error = IotaError;
 
-    fn try_from(bytes: Vec<u8>) -> Result<Self, SuiError> {
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
         Digest::try_from(bytes).map(CheckpointContentsDigest)
     }
 }
@@ -540,7 +541,7 @@ impl TransactionDigest {
     /// ie. for an object there is no parent digest.
     /// Note that this is not the same as the digest of the genesis transaction,
     /// which cannot be known ahead of time.
-    // TODO(https://github.com/MystenLabs/sui/issues/65): we can pick anything here
+    // TODO(https://github.com/iotaledger/iota/issues/65): we can pick anything here
     pub const fn genesis_marker() -> Self {
         Self::ZERO
     }
@@ -619,20 +620,20 @@ impl fmt::UpperHex for TransactionDigest {
 }
 
 impl TryFrom<&[u8]> for TransactionDigest {
-    type Error = crate::error::SuiError;
+    type Error = crate::error::IotaError;
 
-    fn try_from(bytes: &[u8]) -> Result<Self, crate::error::SuiError> {
+    fn try_from(bytes: &[u8]) -> Result<Self, crate::error::IotaError> {
         let arr: [u8; 32] = bytes
             .try_into()
-            .map_err(|_| crate::error::SuiError::InvalidTransactionDigest)?;
+            .map_err(|_| crate::error::IotaError::InvalidTransactionDigest)?;
         Ok(Self::new(arr))
     }
 }
 
 impl TryFrom<Vec<u8>> for TransactionDigest {
-    type Error = crate::error::SuiError;
+    type Error = crate::error::IotaError;
 
-    fn try_from(bytes: Vec<u8>) -> Result<Self, SuiError> {
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
         Digest::try_from(bytes).map(TransactionDigest)
     }
 }
@@ -699,9 +700,9 @@ impl AsRef<[u8; 32]> for TransactionEffectsDigest {
 }
 
 impl TryFrom<Vec<u8>> for TransactionEffectsDigest {
-    type Error = SuiError;
+    type Error = IotaError;
 
-    fn try_from(bytes: Vec<u8>) -> Result<Self, SuiError> {
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
         Digest::try_from(bytes).map(TransactionEffectsDigest)
     }
 }
@@ -789,9 +790,9 @@ impl AsRef<[u8; 32]> for TransactionEventsDigest {
 }
 
 impl TryFrom<Vec<u8>> for TransactionEventsDigest {
-    type Error = SuiError;
+    type Error = IotaError;
 
-    fn try_from(bytes: Vec<u8>) -> Result<Self, SuiError> {
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
         Digest::try_from(bytes).map(TransactionEventsDigest)
     }
 }
@@ -976,12 +977,12 @@ impl fmt::UpperHex for ObjectDigest {
 }
 
 impl TryFrom<&[u8]> for ObjectDigest {
-    type Error = crate::error::SuiError;
+    type Error = crate::error::IotaError;
 
-    fn try_from(bytes: &[u8]) -> Result<Self, crate::error::SuiError> {
+    fn try_from(bytes: &[u8]) -> Result<Self, crate::error::IotaError> {
         let arr: [u8; 32] = bytes
             .try_into()
-            .map_err(|_| crate::error::SuiError::InvalidTransactionDigest)?;
+            .map_err(|_| crate::error::IotaError::InvalidTransactionDigest)?;
         Ok(Self::new(arr))
     }
 }
@@ -1074,7 +1075,7 @@ mod test {
         let chain_id = ChainIdentifier::from_chain_short_id(&String::from("35834a8a"));
         assert_eq!(
             chain_id.unwrap().chain(),
-            sui_protocol_config::Chain::Mainnet
+            iota_protocol_config::Chain::Mainnet
         );
     }
 
@@ -1083,7 +1084,7 @@ mod test {
         let chain_id = ChainIdentifier::from_chain_short_id(&String::from("4c78adac"));
         assert_eq!(
             chain_id.unwrap().chain(),
-            sui_protocol_config::Chain::Testnet
+            iota_protocol_config::Chain::Testnet
         );
     }
 

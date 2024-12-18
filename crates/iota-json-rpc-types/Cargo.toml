@@ -1,7 +1,7 @@
 [package]
-name = "sui-json-rpc-types"
+name = "iota-json-rpc-types"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -17,9 +17,9 @@ colored.workspace = true
 itertools.workspace = true
 tracing.workspace = true
 bcs.workspace = true
-sui-protocol-config.workspace = true
-sui-macros.workspace = true
-sui-enum-compat-util.workspace = true
+iota-protocol-config.workspace = true
+iota-macros.workspace = true
+iota-enum-compat-util.workspace = true
 enum_dispatch.workspace = true
 json_to_table.workspace = true
 tabled.workspace = true
@@ -28,7 +28,7 @@ move-binary-format.workspace = true
 move-core-types.workspace = true
 move-bytecode-utils.workspace = true
 
-mysten-metrics.workspace = true
-sui-types.workspace = true
-sui-json.workspace = true
-sui-package-resolver.workspace = true
+iota-metrics.workspace = true
+iota-types.workspace = true
+iota-json.workspace = true
+iota-package-resolver.workspace = true

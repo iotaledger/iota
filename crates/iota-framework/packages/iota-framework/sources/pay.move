@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// This module provides handy functionality for wallets and `sui::Coin` management.
-module sui::pay;
+/// This module provides handy functionality for wallets and `iota::Coin` management.
+module iota::pay;
 
-use sui::coin::Coin;
+use iota::coin::Coin;
 
 /// For when empty vector is supplied into join function.
 const ENoCoins: u64 = 0;

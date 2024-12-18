@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /*
@@ -15,9 +16,9 @@ use crate::quorum_driver::reconfig_observer::{OnsiteReconfigObserver, ReconfigOb
 use crate::quorum_driver::{QuorumDriverHandler, QuorumDriverHandlerBuilder, QuorumDriverMetrics};
 use futures::future::{select, Either, Future};
 use futures::FutureExt;
-use mysten_common::sync::notify_read::NotifyRead;
-use mysten_metrics::{add_server_timing, spawn_logged_monitored_task, spawn_monitored_task};
-use mysten_metrics::{TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX};
+use iota_common::sync::notify_read::NotifyRead;
+use iota_metrics::{add_server_timing, spawn_logged_monitored_task, spawn_monitored_task};
+use iota_metrics::{TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX};
 use prometheus::core::{AtomicI64, AtomicU64, GenericCounter, GenericGauge};
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
@@ -29,17 +30,17 @@ use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
-use sui_types::base_types::TransactionDigest;
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::quorum_driver_types::{
+use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
+use iota_types::base_types::TransactionDigest;
+use iota_types::error::{IotaError, IotaResult};
+use iota_types::quorum_driver_types::{
     ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
     FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult,
     QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
 };
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::transaction::{TransactionData, VerifiedTransaction};
-use sui_types::transaction_executor::SimulateTransactionResult;
+use iota_types::iota_system_state::IotaSystemState;
+use iota_types::transaction::{TransactionData, VerifiedTransaction};
+use iota_types::transaction_executor::SimulateTransactionResult;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::broadcast::Receiver;
 use tokio::task::JoinHandle;
@@ -65,7 +66,7 @@ impl TransactiondOrchestrator<NetworkAuthorityClient> {
     pub fn new_with_auth_aggregator(
         validators: Arc<AuthorityAggregator<NetworkAuthorityClient>>,
         validator_state: Arc<AuthorityState>,
-        reconfig_channel: Receiver<SuiSystemState>,
+        reconfig_channel: Receiver<IotaSystemState>,
         parent_path: &Path,
         prometheus_registry: &Registry,
     ) -> Self {
@@ -299,7 +300,7 @@ where
         transaction: VerifiedTransaction,
         request: ExecuteTransactionRequestV3,
         client_addr: Option<SocketAddr>,
-    ) -> SuiResult<impl Future<Output = SuiResult<QuorumDriverResult>> + '_> {
+    ) -> IotaResult<impl Future<Output = IotaResult<QuorumDriverResult>> + '_> {
         let tx_digest = *transaction.digest();
         let ticket = self.notifier.register_one(&tx_digest);
         // TODO(william) need to also write client adr to pending tx log below
@@ -346,7 +347,7 @@ where
         validator_state: &Arc<AuthorityState>,
         transaction: &VerifiedTransaction,
         metrics: &TransactionOrchestratorMetrics,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let tx_digest = *transaction.digest();
         metrics.local_execution_in_flight.inc();
         let _metrics_guard =
@@ -382,7 +383,7 @@ where
                     LOCAL_EXECUTION_TIMEOUT
                 );
                 metrics.local_execution_timeout.inc();
-                Err(SuiError::TimeoutError)
+                Err(IotaError::TimeoutError)
             }
             Ok(_) => {
                 metrics.local_execution_success.inc();
@@ -597,7 +598,7 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_request_latency",
             "Time spent in processing one Transaction Orchestrator request",
             &["tx_type"],
-            mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+            iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
             registry,
         )
         .unwrap();
@@ -605,7 +606,7 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_wait_for_finality_latency",
             "Time spent in waiting for one Transaction Orchestrator request gets finalized",
             &["tx_type"],
-            mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+            iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
             registry,
         )
         .unwrap();
@@ -613,7 +614,7 @@ impl TransactionOrchestratorMetrics {
             "tx_orchestrator_local_execution_latency",
             "Time spent in waiting for one Transaction Orchestrator gets locally executed",
             &["tx_type"],
-            mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+            iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
             registry,
         )
         .unwrap();
@@ -682,7 +683,7 @@ impl TransactionOrchestratorMetrics {
 }
 
 #[async_trait::async_trait]
-impl<A> sui_types::transaction_executor::TransactionExecutor for TransactiondOrchestrator<A>
+impl<A> iota_types::transaction_executor::TransactionExecutor for TransactiondOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
@@ -697,7 +698,7 @@ where
     fn simulate_transaction(
         &self,
         transaction: TransactionData,
-    ) -> Result<SimulateTransactionResult, SuiError> {
+    ) -> Result<SimulateTransactionResult, IotaError> {
         self.validator_state.simulate_transaction(transaction)
     }
 }

@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use sui_synthetic_ingestion::synthetic_ingestion::{generate_ingestion, Config};
+use iota_synthetic_ingestion::synthetic_ingestion::{generate_ingestion, Config};
 
 #[tokio::main]
 async fn main() {

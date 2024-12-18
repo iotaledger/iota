@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{file_format::SignatureToken, CompiledModule};
@@ -8,12 +9,12 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{id::UID, SUI_FRAMEWORK_ADDRESS};
+use crate::{id::UID, IOTA_FRAMEWORK_ADDRESS};
 
 pub const CLOCK_MODULE_NAME: &IdentStr = ident_str!("clock");
 pub const CLOCK_STRUCT_NAME: &IdentStr = ident_str!("Clock");
-pub const RESOLVED_SUI_CLOCK: (&AccountAddress, &IdentStr, &IdentStr) =
-    (&SUI_FRAMEWORK_ADDRESS, CLOCK_MODULE_NAME, CLOCK_STRUCT_NAME);
+pub const RESOLVED_IOTA_CLOCK: (&AccountAddress, &IdentStr, &IdentStr) =
+    (&IOTA_FRAMEWORK_ADDRESS, CLOCK_MODULE_NAME, CLOCK_STRUCT_NAME);
 pub const CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME: &IdentStr =
     ident_str!("consensus_commit_prologue");
 
@@ -30,19 +31,19 @@ impl Clock {
 
     pub fn type_() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: CLOCK_MODULE_NAME.to_owned(),
             name: CLOCK_STRUCT_NAME.to_owned(),
             type_params: vec![],
         }
     }
 
-    /// Detects a `&mut sui::clock::Clock` or `sui::clock::Clock` in the signature.
+    /// Detects a `&mut iota::clock::Clock` or `iota::clock::Clock` in the signature.
     pub fn is_mutable(view: &CompiledModule, s: &SignatureToken) -> bool {
         use SignatureToken as S;
         match s {
             S::MutableReference(inner) => Self::is_mutable(view, inner),
-            S::Datatype(idx) => resolve_struct(view, *idx) == RESOLVED_SUI_CLOCK,
+            S::Datatype(idx) => resolve_struct(view, *idx) == RESOLVED_IOTA_CLOCK,
             _ => false,
         }
     }

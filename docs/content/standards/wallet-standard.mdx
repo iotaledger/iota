@@ -3,9 +3,9 @@ title: Wallet Standard
 description: The Wallet standard defines how wallets can automatically be discovered and interacted with from dApps.
 ---
 
-Browser extension wallets built for Sui use the [Wallet standard](https://github.com/wallet-standard/wallet-standard/). This is a cross-chain standard that defines how dApps can automatically discover and interact with wallets.
+Browser extension wallets built for Iota use the [Wallet standard](https://github.com/wallet-standard/wallet-standard/). This is a cross-chain standard that defines how dApps can automatically discover and interact with wallets.
 
-If you are building a wallet, the helper library `@mysten/wallet-standard` provides types and utilities to help get started.
+If you are building a wallet, the helper library `@iota/wallet-standard` provides types and utilities to help get started.
 
 ## Working with wallets
 
@@ -14,10 +14,10 @@ The Wallet standard includes features to help build wallets.
 ### Creating a wallet interface
 
 Create a class that represents your wallet. Use the `Wallet` interface from
-`@mysten/wallet-standard` to help ensure your class adheres to the standard.
+`@iota/wallet-standard` to help ensure your class adheres to the standard.
 
 ```tsx
-import { SUI_DEVNET_CHAIN, Wallet } from '@mysten/wallet-standard';
+import { IOTA_DEVNET_CHAIN, Wallet } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
 	get version() {
@@ -30,33 +30,33 @@ class YourWallet implements Wallet {
 	get icon() {
 		return 'some-icon-data-url';
 	}
-	// Return the Sui chains that your wallet supports.
+	// Return the Iota chains that your wallet supports.
 	get chains() {
-		return [SUI_DEVNET_CHAIN];
+		return [IOTA_DEVNET_CHAIN];
 	}
 }
 ```
 
 ### Implementing features
 
-Features are standard methods consumers can use to interact with a wallet. To be listed in the Sui
+Features are standard methods consumers can use to interact with a wallet. To be listed in the Iota
 wallet adapter, you must implement the following features in your wallet:
 
 - `standard:connect` - Use to initiate a connection to the wallet.
 - `standard:events` - Use to listen for changes that happen within the wallet, such as accounts
   being added or removed.
-- `sui:signPersonalMessage` - Use to prompt the user to sign a personal message and return the
+- `iota:signPersonalMessage` - Use to prompt the user to sign a personal message and return the
   message signature back to the dApp. Use this to verify the user’s public key.
-- `sui:signTransaction` - Use to prompt the user to sign a transaction and return the serialized
+- `iota:signTransaction` - Use to prompt the user to sign a transaction and return the serialized
   transaction and signature back to the dApp. This method does not submit the transaction for
   execution.
-- `sui:signAndExecuteTransaction` - Use to prompt the user to sign a transaction, then submit it
+- `iota:signAndExecuteTransaction` - Use to prompt the user to sign a transaction, then submit it
   for execution to the blockchain.
-- `sui:reportTransactionEffects` - Use to report the effects of a transaction executed in the dApp
+- `iota:reportTransactionEffects` - Use to report the effects of a transaction executed in the dApp
   to the wallet. This allows the wallet to update its internal state to reflect the changes the transaction makes.
-- `sui:signTransactionBlock` - The previous version of `sui:signTransaction`. Still
+- `iota:signTransactionBlock` - The previous version of `iota:signTransaction`. Still
   implemented for compatibility with dApps that have not updated to the new feature.
-- `sui:signAndExecuteTransactionBlock` - The previous version of `sui:signAndExecuteTransaction`. Still implemented for compatibility with dApps that have not updated to the new feature.
+- `iota:signAndExecuteTransactionBlock` - The previous version of `iota:signAndExecuteTransaction`. Still implemented for compatibility with dApps that have not updated to the new feature.
 
 Implement these features in your wallet class under the `features` property:
 
@@ -66,17 +66,17 @@ import {
   ConnectMethod,
   EventsFeature,
   EventsOnMethod,
-  SuiFeatures,
-  SuiSignPersonalMessageMethod,
-  SuiSignTransactionMethod,
-  SuiSignAndExecuteTransactionMethod,
-  SuiReportTransactionEffectsMethod
-} from "@mysten/wallet-standard";
+  IotaFeatures,
+  IotaSignPersonalMessageMethod,
+  IotaSignTransactionMethod,
+  IotaSignAndExecuteTransactionMethod,
+  IotaReportTransactionEffectsMethod
+} from "@iota/wallet-standard";
 
 class YourWallet implements Wallet {
 	/* ... existing code from above ... */
 
-  get features(): ConnectFeature & EventsFeature & SuiFeatures {
+  get features(): ConnectFeature & EventsFeature & IotaFeatures {
     return {
       "standard:connect": {
         version: "1.0.0",
@@ -86,19 +86,19 @@ class YourWallet implements Wallet {
         version: "1.0.0",
         on: this.#on,
       },
-			"sui:signPersonalMessage": {
+			"iota:signPersonalMessage": {
         version: "1.0.0",
 				signPersonalMessage: this.#signPersonalMessage,
 			},
-      "sui:signTransaction": {
+      "iota:signTransaction": {
         version: "2.0.0",
         signTransaction: this.#signTransaction,
       },
-      "sui:signAndExecuteTransaction": {
+      "iota:signAndExecuteTransaction": {
         version: "2.0.0",
         signAndExecuteTransaction: this.#signAndExecuteTransactionBlock,
       },
-      "sui:reportTransactionEffects": {
+      "iota:reportTransactionEffects": {
         version: "1.0.0",
         reportTransactionEffects: this.#reportTransactionEffects,
     };
@@ -112,19 +112,19 @@ class YourWallet implements Wallet {
     // Your wallet's connect implementation
   };
 
-	#signPersonalMessage: SuiSignPersonalMessageMethod = () => {
+	#signPersonalMessage: IotaSignPersonalMessageMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
-  #signTransaction: SuiSignTransactionMethod = () => {
+  #signTransaction: IotaSignTransactionMethod = () => {
     // Your wallet's signTransaction implementation
   };
 
-  #signAndExecuteTransaction: SuiSignAndExecuteTransactionMethod = () => {
+  #signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod = () => {
     // Your wallet's signAndExecuteTransaction implementation
   };
 
-  #reportTransactionEffects: SuiReportTransactionEffectsMethod = () => {
+  #reportTransactionEffects: IotaReportTransactionEffectsMethod = () => {
     // Your wallet's reportTransactionEffects implementation
   };
 }
@@ -140,7 +140,7 @@ The accounts use the `ReadonlyWalletAccount` class to construct an account match
 required interface.
 
 ```tsx
-import { ReadonlyWalletAccount } from '@mysten/wallet-standard';
+import { ReadonlyWalletAccount } from '@iota/wallet-standard';
 
 class YourWallet implements Wallet {
 	get accounts() {
@@ -149,16 +149,16 @@ class YourWallet implements Wallet {
 			(walletAccount) =>
 				// Return
 				new ReadonlyWalletAccount({
-					address: walletAccount.suiAddress,
+					address: walletAccount.iotaAddress,
 					publicKey: walletAccount.pubkey,
-					// The Sui chains that your wallet supports.
-					chains: [SUI_DEVNET_CHAIN],
+					// The Iota chains that your wallet supports.
+					chains: [IOTA_DEVNET_CHAIN],
 					// The features that this account supports. This can be a subset of the wallet's supported features.
 					// These features must exist on the wallet as well.
 					features: [
-						'sui:signPersonalMessage',
-						'sui:signTransactionBlock',
-						'sui:signAndExecuteTransactionBlock',
+						'iota:signPersonalMessage',
+						'iota:signTransactionBlock',
+						'iota:signAndExecuteTransactionBlock',
 					],
 				}),
 		);
@@ -172,37 +172,37 @@ After you have a compatible interface for your wallet, use the `registerWallet`
 function to register it.
 
 ```tsx
-import { registerWallet } from '@mysten/wallet-standard';
+import { registerWallet } from '@iota/wallet-standard';
 
 registerWallet(new YourWallet());
 ```
 
 ### Best practices for efficient transaction execution
 
-The Wallet standard has been updated from its original design to better support changes in the Sui ecosystem. For example, the GraphQL service was introduced after Mainnet launched. The `sui:signAndExecuteTransactionBlock` feature is closely tied to the JSON RPC options and data structures, so its continued maintenance becomes increasingly difficult as the GraphQL service becomes more ubiquitous.
+The Wallet standard has been updated from its original design to better support changes in the Iota ecosystem. For example, the GraphQL service was introduced after Mainnet launched. The `iota:signAndExecuteTransactionBlock` feature is closely tied to the JSON RPC options and data structures, so its continued maintenance becomes increasingly difficult as the GraphQL service becomes more ubiquitous.
 
-Consequently, the Wallet standard introduced the `sui:signAndExecuteTransaction` feature. The features of this method are more useful, regardless of which API you use to execute transactions. This usefulness comes at the expense
-of flexibility in what `sui:signAndExecuteTransaction` returns.
+Consequently, the Wallet standard introduced the `iota:signAndExecuteTransaction` feature. The features of this method are more useful, regardless of which API you use to execute transactions. This usefulness comes at the expense
+of flexibility in what `iota:signAndExecuteTransaction` returns.
 
-To solve this problem, use the `sui:signTransaction` feature to sign transactions, and
+To solve this problem, use the `iota:signTransaction` feature to sign transactions, and
 leave transaction execution to the dApp. The dApp can query for additional data during
-execution using whichever API it chooses. This is consistent with the default `@mysten/dapp-kit` uses for the `useSignAndExecuteTransaction` hook, and enables dApps to take
+execution using whichever API it chooses. This is consistent with the default `@iota/dapp-kit` uses for the `useSignAndExecuteTransaction` hook, and enables dApps to take
 advantage of read-after-write consistency when interacting with the Full-node based JSON RPC.
 
 The downside of this strategy is that wallets often use different RPC nodes than the dApp,
 and might not have indexed the previous transaction when executing multiple transactions in rapid
 succession. This leads to building transactions using stale data that fail upon execution.
 
-To mitigate this, wallets can use the `sui:reportTransactionEffects` feature so that dApps can report
+To mitigate this, wallets can use the `iota:reportTransactionEffects` feature so that dApps can report
 the effects of transactions to the wallet. Transaction effects contain the updated versions and
 digests of any objects that a transaction uses or creates. By caching these values, wallets can build
 transactions without needing to resolve the most recent versions through an API call.
 
-The `@mysten/sui/transaction` SDK exports the `SerialTransactionExecutor` class, which you can use
+The `@iota/iota-sdk/transaction` SDK exports the `SerialTransactionExecutor` class, which you can use
 to build transactions using an object cache. The class has a method to update its internal cache using the
 effects of a transaction.
 
-Using the combination of `sui:signTransaction` and `sui:reportTransactionEffects`, dApps can use
+Using the combination of `iota:signTransaction` and `iota:reportTransactionEffects`, dApps can use
 either API to execute transactions and query for any data the API exposes. The dApp can then report the effects of the transaction to the wallet, and the wallet can then execute transactions without running into issues caused by a lagging indexer.
 
 ## Managing wallets
@@ -214,7 +214,7 @@ The Wallet standard includes features to help your apps interact with wallets.
 To query the installed wallets in a user's browser, use the `get` function of `getWallets`.
 
 ```tsx
-import { getWallets } from '@mysten/wallet-standard';
+import { getWallets } from '@iota/wallet-standard';
 
 const availableWallets = getWallets().get();
 ```
@@ -255,18 +255,18 @@ wallet.features['standard:disconnect'].disconnect();
 
 Upon wallet connection, your app has the necessary information to execute transactions, such as address and method.
 
-Construct the transaction separately with the `@mysten/sui` library and then sign it with the private key of the user. Use the `sui:signTransaction` feature to achieve this:
+Construct the transaction separately with the `@iota/iota-sdk` library and then sign it with the private key of the user. Use the `iota:signTransaction` feature to achieve this:
 
 ```tsx
-wallet.features[sui:signTransaction].singTransaction(<Transaction>, <WalletAccount>);
+wallet.features[iota:signTransaction].singTransaction(<Transaction>, <WalletAccount>);
 ```
 
 Similar to connections, this process opens a pop-up dialog for the user to either accept or decline the transaction. Upon accepting, the function returns an object in the form `{bytes: String, signature: Uint8Array}`. The `bytes` value is the `b64` encoding of the transaction and the `signature` value is the transaction signature.
 
-To execute the transaction, use `SuiClient` from `@mysten/sui`:
+To execute the transaction, use `IotaClient` from `@iota/iota-sdk`:
 
 ```tsx
-const client: SuiClient
+const client: IotaClient
 client.executeTransactionBlock({
     transactionBlock: bytes,
     signature: signature,
@@ -277,9 +277,9 @@ client.executeTransactionBlock({
 Your app then sends the transaction effects back to the wallet, which reports results to the user. The wallet expects the effects to be `b64` encoded.
 
 ```tsx
-import { toBase64 } from '@mysten/sui/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 
-wallet.features['sui:reportTransactionEffects'].reportTransactionEffects(
+wallet.features['iota:reportTransactionEffects'].reportTransactionEffects(
     effects: Array.isArray(transactionResponse.effects) ? toBase64(
         Uint8Array.from(transactionResponse.effects) : transactionResponse.effects,
         account: wallet.accounts[0], // for example
@@ -289,7 +289,7 @@ wallet.features['sui:reportTransactionEffects'].reportTransactionEffects(
 
 ### Transactions - abbreviated approach
 
-Many wallets abstract the above flow into one feature: `sui:signAndExecuteTransaction`. The required arguments for this feature are the raw transaction and the options with the desired information to be included in the response:
+Many wallets abstract the above flow into one feature: `iota:signAndExecuteTransaction`. The required arguments for this feature are the raw transaction and the options with the desired information to be included in the response:
 
 - `showEffects`: Include the transaction effects.
 - `showEvents`: Include the transaction events.
@@ -330,4 +330,4 @@ These values are all arrays containing the new or changed items. Consequently, e
 
 ### Implementation example
 
-Mysten Labs offers a bare bones scaffold for React-based applications called `@mysten/dapp-kit`. See the [dApp Kit documentation](https://sdk.mystenlabs.com/dapp-kit) for more informqtion.
+IOTA Foundation offers a bare bones scaffold for React-based applications called `@iota/dapp-kit`. See the [dApp Kit documentation](https://docs.iota.org/references/ts-sdk/dapp-kit) for more informqtion.

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::abi::EthERC20;
 use crate::metered_eth_provider::MeteredEthHttpProvier;
-use crate::sui_bridge_watchdog::Observable;
+use crate::iota_bridge_watchdog::Observable;
 use async_trait::async_trait;
 use ethers::providers::Provider;
 use ethers::types::{Address as EthAddress, U256};

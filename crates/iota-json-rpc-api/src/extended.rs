@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 
-use sui_json_rpc_types::{
-    CheckpointedObjectID, EpochInfo, EpochPage, QueryObjectsPage, SuiObjectResponseQuery,
+use iota_json_rpc_types::{
+    CheckpointedObjectID, EpochInfo, EpochPage, QueryObjectsPage, IotaObjectResponseQuery,
 };
-use sui_open_rpc_macros::open_rpc;
-use sui_types::sui_serde::BigInt;
+use iota_open_rpc_macros::open_rpc;
+use iota_types::iota_serde::BigInt;
 
-#[open_rpc(namespace = "suix", tag = "Extended API")]
-#[rpc(server, client, namespace = "suix")]
+#[open_rpc(namespace = "iotax", tag = "Extended API")]
+#[rpc(server, client, namespace = "iotax")]
 pub trait ExtendedApi {
     /// Return a list of epoch info
     #[method(name = "getEpochs")]
@@ -34,7 +35,7 @@ pub trait ExtendedApi {
     async fn query_objects(
         &self,
         /// the objects query criteria.
-        query: SuiObjectResponseQuery,
+        query: IotaObjectResponseQuery,
         /// An optional paging cursor. If provided, the query will start from the next item after the specified cursor. Default to start from the first item if not specified.
         cursor: Option<CheckpointedObjectID>,
         /// Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.

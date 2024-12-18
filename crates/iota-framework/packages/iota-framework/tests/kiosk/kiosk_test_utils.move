@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::kiosk_test_utils {
-    use sui::sui::SUI;
-    use sui::coin::{Self, Coin};
-    use sui::package::{Self, Publisher};
-    use sui::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap};
-    use sui::kiosk::{Self, Kiosk, KioskOwnerCap};
+module iota::kiosk_test_utils {
+    use iota::iota::IOTA;
+    use iota::coin::{Self, Coin};
+    use iota::package::{Self, Publisher};
+    use iota::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap};
+    use iota::kiosk::{Self, Kiosk, KioskOwnerCap};
 
     public struct OTW has drop {}
     public struct Asset has key, store { id: UID }
@@ -32,8 +33,8 @@ module sui::kiosk_test_utils {
         (policy, cap)
     }
 
-    /// Prepare: Get Sui
-    public fun get_sui(amount: u64, ctx: &mut TxContext): Coin<SUI> {
+    /// Prepare: Get Iota
+    public fun get_iota(amount: u64, ctx: &mut TxContext): Coin<IOTA> {
         coin::mint_for_testing(amount, ctx)
     }
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[macro_export]
@@ -17,7 +18,7 @@ macro_rules! debug_fatal {
         } else {
             tracing::error!(debug_fatal = true, $($arg)*);
             let location = concat!(file!(), ':', line!());
-            if let Some(metrics) = mysten_metrics::get_metrics() {
+            if let Some(metrics) = iota_metrics::get_metrics() {
                 metrics.system_invariant_violations.with_label_values(&[location]).inc();
             }
         }

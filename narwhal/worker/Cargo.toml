@@ -2,7 +2,7 @@
 name = "narwhal-worker"
 version = "0.1.0"
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 publish = false
 
@@ -32,9 +32,9 @@ network = { path = "../network", package = "narwhal-network" }
 types = { path = "../types", package = "narwhal-types" }
 prometheus.workspace = true
 store = { path = "../../crates/typed-store", package = "typed-store" }
-mysten-network = { path = "../../crates/mysten-network"}
-mysten-metrics = { path = "../../crates/mysten-metrics" }
-sui-protocol-config = { path = "../../crates/sui-protocol-config" }
+iota-network-stack = { path = "../../crates/iota-network-stack"}
+iota-metrics = { path = "../../crates/iota-metrics" }
+iota-protocol-config = { path = "../../crates/iota-protocol-config" }
 
 anemo.workspace = true
 anemo-tower.workspace = true

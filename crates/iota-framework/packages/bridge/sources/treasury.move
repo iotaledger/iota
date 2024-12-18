@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::treasury {
@@ -7,17 +8,17 @@ module bridge::treasury {
     use std::type_name;
     use std::type_name::TypeName;
 
-    use sui::address;
-    use sui::bag;
-    use sui::bag::Bag;
-    use sui::coin::{Self, Coin, TreasuryCap, CoinMetadata};
-    use sui::event::emit;
-    use sui::hex;
-    use sui::object_bag::{Self, ObjectBag};
-    use sui::package;
-    use sui::package::UpgradeCap;
-    use sui::vec_map;
-    use sui::vec_map::VecMap;
+    use iota::address;
+    use iota::bag;
+    use iota::bag::Bag;
+    use iota::coin::{Self, Coin, TreasuryCap, CoinMetadata};
+    use iota::event::emit;
+    use iota::hex;
+    use iota::object_bag::{Self, ObjectBag};
+    use iota::package;
+    use iota::package::UpgradeCap;
+    use iota::vec_map;
+    use iota::vec_map::VecMap;
 
     const EUnsupportedTokenType: u64 = 1;
     const EInvalidUpgradeCap: u64 = 2;

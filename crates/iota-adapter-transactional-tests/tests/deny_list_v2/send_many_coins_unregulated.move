@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --accounts A B --addresses test=0x0
 
 //# publish --sender A
 module test::coin {
-    use sui::coin;
+    use iota::coin;
 
     public struct COIN has drop {}
 
@@ -26,13 +27,13 @@ module test::coin {
     }
 
     public fun send_1(coin: &mut coin::Coin<COIN>, ctx: &mut TxContext) {
-        use sui::transfer::public_transfer;
+        use iota::transfer::public_transfer;
         public_transfer(coin.split(1, ctx), @0);
     }
 
     public fun send_10(coin: &mut coin::Coin<COIN>, ctx: &mut TxContext) {
-        use sui::transfer::public_transfer;
-        use sui::address;
+        use iota::transfer::public_transfer;
+        use iota::address;
         let mut i = 0u64;
         while (i < 10) {
             public_transfer(coin.split(1, ctx), address::from_u256(i as u256));
@@ -41,8 +42,8 @@ module test::coin {
     }
 
     public fun send_100(coin: &mut coin::Coin<COIN>, ctx: &mut TxContext) {
-        use sui::transfer::public_transfer;
-        use sui::address;
+        use iota::transfer::public_transfer;
+        use iota::address;
         let mut i = 0u64;
         while (i < 100) {
             public_transfer(coin.split(1, ctx), address::from_u256(i as u256));

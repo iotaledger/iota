@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
@@ -10,8 +11,8 @@ use aws_sdk_dynamodb::Client;
 use aws_sdk_s3::config::{Credentials, Region};
 use std::str::FromStr;
 use std::time::Duration;
-use sui_data_ingestion_core::ProgressStore;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_data_ingestion_core::ProgressStore;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 pub struct DynamoDBProgressStore {
     client: Client,

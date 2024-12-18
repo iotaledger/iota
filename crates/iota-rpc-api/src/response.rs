@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
@@ -12,9 +13,9 @@ use crate::{
     rest::APPLICATION_BCS,
     rest::TEXT_PLAIN_UTF_8,
     types::{
-        X_SUI_CHAIN, X_SUI_CHAIN_ID, X_SUI_CHECKPOINT_HEIGHT, X_SUI_EPOCH,
-        X_SUI_LOWEST_AVAILABLE_CHECKPOINT, X_SUI_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
-        X_SUI_TIMESTAMP_MS,
+        X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT, X_IOTA_EPOCH,
+        X_IOTA_LOWEST_AVAILABLE_CHECKPOINT, X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
+        X_IOTA_TIMESTAMP_MS,
     },
     RpcService,
 };
@@ -134,26 +135,26 @@ pub async fn append_info_headers(
     let mut headers = HeaderMap::new();
 
     if let Ok(chain_id) = state.chain_id().to_string().try_into() {
-        headers.insert(X_SUI_CHAIN_ID, chain_id);
+        headers.insert(X_IOTA_CHAIN_ID, chain_id);
     }
 
     if let Ok(chain) = state.chain_id().chain().as_str().try_into() {
-        headers.insert(X_SUI_CHAIN, chain);
+        headers.insert(X_IOTA_CHAIN, chain);
     }
 
     if let Ok(latest_checkpoint) = state.reader.inner().get_latest_checkpoint() {
-        headers.insert(X_SUI_EPOCH, latest_checkpoint.epoch().into());
+        headers.insert(X_IOTA_EPOCH, latest_checkpoint.epoch().into());
         headers.insert(
-            X_SUI_CHECKPOINT_HEIGHT,
+            X_IOTA_CHECKPOINT_HEIGHT,
             latest_checkpoint.sequence_number.into(),
         );
-        headers.insert(X_SUI_TIMESTAMP_MS, latest_checkpoint.timestamp_ms.into());
+        headers.insert(X_IOTA_TIMESTAMP_MS, latest_checkpoint.timestamp_ms.into());
     }
 
     if let Ok(lowest_available_checkpoint) = state.reader.inner().get_lowest_available_checkpoint()
     {
         headers.insert(
-            X_SUI_LOWEST_AVAILABLE_CHECKPOINT,
+            X_IOTA_LOWEST_AVAILABLE_CHECKPOINT,
             lowest_available_checkpoint.into(),
         );
     }
@@ -164,7 +165,7 @@ pub async fn append_info_headers(
         .get_lowest_available_checkpoint_objects()
     {
         headers.insert(
-            X_SUI_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
+            X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS,
             lowest_available_checkpoint_objects.into(),
         );
     }

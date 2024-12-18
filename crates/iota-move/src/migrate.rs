@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
@@ -7,7 +8,7 @@ use move_package::BuildConfig as MoveBuildConfig;
 use std::path::Path;
 
 #[derive(Parser)]
-#[group(id = "sui-move-migrate")]
+#[group(id = "iota-move-migrate")]
 pub struct Migrate {
     #[clap(flatten)]
     pub migrate: migrate::Migrate,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses t1=0x0 t2=0x0 --shared-object-deletion true
@@ -6,15 +7,15 @@
 //# publish
 
 module t2::o2 {
-    use sui::sui::SUI;
-    use sui::coin::{Self, Coin};
+    use iota::iota::IOTA;
+    use iota::coin::{Self, Coin};
 
     public struct Obj2 has key, store {
         id: UID,
     }
 
     public fun mint_shared_coin(ctx: &mut TxContext) {
-        transfer::public_share_object(coin::zero<SUI>(ctx))
+        transfer::public_share_object(coin::zero<IOTA>(ctx))
     }
 
     public fun create(ctx: &mut TxContext) {
@@ -33,13 +34,13 @@ module t2::o2 {
         object::delete(id);
     }
 
-    public fun pop_coin(mut o2: vector<Coin<SUI>>): Coin<SUI> {
+    public fun pop_coin(mut o2: vector<Coin<IOTA>>): Coin<IOTA> {
         let o = vector::pop_back(&mut o2);
         vector::destroy_empty(o2);
         o
     }
 
-    public fun share_coin(o2: Coin<SUI>) {
+    public fun share_coin(o2: Coin<IOTA>) {
         transfer::public_share_object(o2);
     }
 }

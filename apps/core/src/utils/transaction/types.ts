@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { BalanceChangeSummary } from './getBalanceChangeSummary';
@@ -14,7 +15,7 @@ export type TransactionSummary = {
 	objectSummary: ObjectChangeSummary | null;
 } | null;
 
-export type SuiObjectChangeTypes =
+export type IotaObjectChangeTypes =
 	| 'published'
 	| 'transferred'
 	| 'mutated'

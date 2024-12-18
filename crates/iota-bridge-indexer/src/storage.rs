@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, Error};
@@ -14,10 +15,10 @@ use diesel_async::RunQueryDsl;
 use crate::models::ProgressStore;
 use crate::postgres_manager::PgPool;
 use crate::schema::progress_store::{columns, dsl};
-use crate::schema::{sui_error_transactions, token_transfer, token_transfer_data};
+use crate::schema::{iota_error_transactions, token_transfer, token_transfer_data};
 use crate::{schema, ProcessedTxnData};
-use sui_indexer_builder::indexer_builder::{IndexerProgressStore, Persistent};
-use sui_indexer_builder::{
+use iota_indexer_builder::indexer_builder::{IndexerProgressStore, Persistent};
+use iota_indexer_builder::{
     progress::ProgressSavingPolicy, Task, Tasks, LIVE_TASK_TARGET_CHECKPOINT,
 };
 
@@ -148,7 +149,7 @@ impl Persistent<ProcessedTxnData> for PgBridgePersistent {
                                     .await?;
                             }
                             ProcessedTxnData::Error(e) => {
-                                diesel::insert_into(sui_error_transactions::table)
+                                diesel::insert_into(iota_error_transactions::table)
                                     .values(&e.to_db())
                                     .on_conflict_do_nothing()
                                     .execute(conn)

@@ -2,32 +2,32 @@
 [Ledger Developer Portal](https://developers.ledger.com/),
 [Ledger Developer Discord](https://developers.ledger.com/discord-pro)
 
-# ledgerjs-hw-app-sui
+# ledgerjs-hw-app-iota
 
-[Ledger Hardware Wallet](https://www.ledger.com/) JavaScript bindings for [Sui](https://sui.io/),
+[Ledger Hardware Wallet](https://www.ledger.com/) JavaScript bindings for [Iota](https://iota.org/),
 based on [LedgerJS](https://github.com/LedgerHQ/ledgerjs).
 
-## Using LedgerJS for Sui
+## Using LedgerJS for Iota
 
 Here is a sample app for Node:
 
 ```javascript
 const Transport = require('@ledgerhq/hw-transport').default;
-const Sui = require('@mysten/ledgerjs-hw-app-sui').default;
+const Iota = require('@iota/ledgerjs-hw-app-iota').default;
 
 const getPublicKey = async () => {
-	const sui = new Sui(await Transport.create());
-	return await sui.getPublicKey("44'/784'/0'/0'/0'");
+	const iota = new Iota(await Transport.create());
+	return await iota.getPublicKey("44'/784'/0'/0'/0'");
 };
 
 const signTransaction = async () => {
-	const sui = new Sui(await Transport.create());
-	return await sui.signTransaction("44'/784'/0'/0'/0'", '<transaction contents>');
+	const iota = new Iota(await Transport.create());
+	return await iota.signTransaction("44'/784'/0'/0'/0'", '<transaction contents>');
 };
 
 const getVersion = async () => {
-	const sui = new Sui(await Transport.create());
-	return await sui.getVersion();
+	const iota = new Iota(await Transport.create());
+	return await iota.getVersion();
 };
 
 const doAll = async () => {
@@ -43,7 +43,7 @@ doAll().catch((err) => console.log(err));
 
 ### Table of Contents
 
-- [Sui](#sui)
+- [Iota](#iota)
   - [Parameters](#parameters)
   - [Examples](#examples)
   - [getPublicKey](#getpublickey)
@@ -61,20 +61,20 @@ doAll().catch((err) => console.log(err));
 - `transport` **`Transport<any>`**
 - `scrambleKey`
   **[string](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/String)**
-  (optional, default `"Sui"`)
+  (optional, default `"Iota"`)
 
 ### Examples
 
 ```javascript
-import Sui from 'ledgerjs-hw-app-sui';
+import Iota from 'ledgerjs-hw-app-iota';
 
 const transport = await Transport.create();
-const sui = new Sui(transport);
+const iota = new Iota(transport);
 ```
 
 ### getPublicKey
 
-Gets the Sui address for a given BIP-32 path.
+Gets the Iota address for a given BIP-32 path.
 
 #### Parameters
 
@@ -88,7 +88,7 @@ Gets the Sui address for a given BIP-32 path.
 #### Examples
 
 ```javascript
-const publicKey = await sui.getPublicKey("44'/784'/0'/0'/0'");
+const publicKey = await iota.getPublicKey("44'/784'/0'/0'/0'");
 ```
 
 Returns
@@ -108,7 +108,7 @@ Sign a transaction with a given BIP-32 path.
 #### Examples
 
 ```javascript
-const publicKey = await sui.signTransaction("44'/784'/0'/0'/0'", '<transaction contents>');
+const publicKey = await iota.signTransaction("44'/784'/0'/0'/0'", '<transaction contents>');
 ```
 
 Returns
@@ -122,7 +122,7 @@ Get the version of the application installed on the hardware device.
 #### Examples
 
 ```javascript
-console.log(await sui.getVersion());
+console.log(await iota.getVersion());
 ```
 
 for version 0.1.0, it produces something like

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This component is used to display beta tag.
@@ -18,7 +19,7 @@ export default function BetaTag(props) {
     <Admonition
       title="Beta Feature"
       icon="⚙️"
-      className={`${props.slim ? "" : "!my-12"} bg-sui-blue-light border-sui-blue-dark dark:bg-sui-blue-dark dark:border-sui-blue-light`}
+      className={`${props.slim ? "" : "!my-12"} bg-iota-blue-light border-iota-blue-dark dark:bg-iota-blue-dark dark:border-iota-blue-light`}
     >
       <p className="pt-2">
         This content describes a beta feature or service. Beta features and

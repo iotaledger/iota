@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui::vec_map;
+module iota::vec_map;
 
 /// This key already exists in the map
 const EKeyAlreadyExists: u64 = 0;

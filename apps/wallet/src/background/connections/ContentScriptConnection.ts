@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { createMessage } from '_messages';
@@ -32,7 +33,7 @@ import {
 	type SignMessageRequest,
 } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { type SignedTransaction } from '_src/ui/app/WalletSigner';
-import { type SuiTransactionBlockResponse } from '@mysten/sui/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import type { Runtime } from 'webextension-polyfill';
 
 import { getAccountsStatusData } from '../accounts';
@@ -41,7 +42,7 @@ import { requestUserApproval } from '../qredo';
 import { Connection } from './Connection';
 
 export class ContentScriptConnection extends Connection {
-	public static readonly CHANNEL: PortChannelName = 'sui_content<->background';
+	public static readonly CHANNEL: PortChannelName = 'iota_content<->background';
 	public readonly origin: string;
 	public readonly pagelink?: string | undefined;
 	public readonly originFavIcon: string | undefined;
@@ -95,7 +96,7 @@ export class ContentScriptConnection extends Connection {
 					createMessage<ExecuteTransactionResponse>(
 						{
 							type: 'execute-transaction-response',
-							result: result as SuiTransactionBlockResponse,
+							result: result as IotaTransactionBlockResponse,
 						},
 						msg.id,
 					),

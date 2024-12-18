@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -9,7 +10,7 @@ use rustyline::completion::Completer;
 use rustyline::history::History;
 use rustyline::Context;
 
-use sui_types::base_types::ObjectID;
+use iota_types::base_types::ObjectID;
 
 use crate::shell::split_and_unescape;
 use crate::shell::{

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
@@ -6,19 +7,19 @@ use prometheus::{
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry, IntCounter,
     IntCounterVec, IntGauge, IntGaugeVec, Registry,
 };
-use sui_indexer_builder::metrics::IndexerMetricProvider;
+use iota_indexer_builder::metrics::IndexerMetricProvider;
 
 #[derive(Clone, Debug)]
 pub struct BridgeIndexerMetrics {
-    pub(crate) total_sui_bridge_transactions: IntCounter,
-    pub(crate) total_sui_token_deposited: IntCounter,
-    pub(crate) total_sui_token_transfer_approved: IntCounter,
-    pub(crate) total_sui_token_transfer_claimed: IntCounter,
-    pub(crate) total_sui_bridge_txn_other: IntCounter,
+    pub(crate) total_iota_bridge_transactions: IntCounter,
+    pub(crate) total_iota_token_deposited: IntCounter,
+    pub(crate) total_iota_token_transfer_approved: IntCounter,
+    pub(crate) total_iota_token_transfer_claimed: IntCounter,
+    pub(crate) total_iota_bridge_txn_other: IntCounter,
     pub(crate) total_eth_bridge_transactions: IntCounter,
     pub(crate) total_eth_token_deposited: IntCounter,
     pub(crate) total_eth_token_transfer_claimed: IntCounter,
-    pub(crate) last_committed_sui_checkpoint: IntGauge,
+    pub(crate) last_committed_iota_checkpoint: IntGauge,
     pub(crate) backfill_tasks_remaining_checkpoints: IntGaugeVec,
     pub(crate) tasks_processed_checkpoints: IntCounterVec,
     pub(crate) tasks_latest_retrieved_checkpoints: IntGaugeVec,
@@ -28,33 +29,33 @@ pub struct BridgeIndexerMetrics {
 impl BridgeIndexerMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
-            total_sui_bridge_transactions: register_int_counter_with_registry!(
-                "bridge_indexer_total_sui_bridge_transactions",
-                "Total number of sui bridge transactions",
+            total_iota_bridge_transactions: register_int_counter_with_registry!(
+                "bridge_indexer_total_iota_bridge_transactions",
+                "Total number of iota bridge transactions",
                 registry,
             )
             .unwrap(),
-            total_sui_token_deposited: register_int_counter_with_registry!(
-                "bridge_indexer_total_sui_token_deposited",
-                "Total number of sui token deposited transactions",
+            total_iota_token_deposited: register_int_counter_with_registry!(
+                "bridge_indexer_total_iota_token_deposited",
+                "Total number of iota token deposited transactions",
                 registry,
             )
             .unwrap(),
-            total_sui_token_transfer_approved: register_int_counter_with_registry!(
-                "bridge_indexer_total_sui_token_transfer_approved",
-                "Total number of sui token approved transactions",
+            total_iota_token_transfer_approved: register_int_counter_with_registry!(
+                "bridge_indexer_total_iota_token_transfer_approved",
+                "Total number of iota token approved transactions",
                 registry,
             )
             .unwrap(),
-            total_sui_token_transfer_claimed: register_int_counter_with_registry!(
-                "bridge_indexer_total_sui_token_transfer_claimed",
-                "Total number of sui token claimed transactions",
+            total_iota_token_transfer_claimed: register_int_counter_with_registry!(
+                "bridge_indexer_total_iota_token_transfer_claimed",
+                "Total number of iota token claimed transactions",
                 registry,
             )
             .unwrap(),
-            total_sui_bridge_txn_other: register_int_counter_with_registry!(
-                "bridge_indexer_total_sui_bridge_txn_other",
-                "Total number of other sui bridge transactions",
+            total_iota_bridge_txn_other: register_int_counter_with_registry!(
+                "bridge_indexer_total_iota_bridge_txn_other",
+                "Total number of other iota bridge transactions",
                 registry,
             )
             .unwrap(),
@@ -76,9 +77,9 @@ impl BridgeIndexerMetrics {
                 registry,
             )
             .unwrap(),
-            last_committed_sui_checkpoint: register_int_gauge_with_registry!(
-                "bridge_indexer_last_committed_sui_checkpoint",
-                "The latest sui checkpoint that indexer committed to DB",
+            last_committed_iota_checkpoint: register_int_gauge_with_registry!(
+                "bridge_indexer_last_committed_iota_checkpoint",
+                "The latest iota checkpoint that indexer committed to DB",
                 registry,
             )
             .unwrap(),

@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_const)]
-module sui_system::staking_pool {
-    use sui::balance::{Self, Balance};
-    use sui::sui::SUI;
-    use sui::table::{Self, Table};
-    use sui::bag::Bag;
-    use sui::bag;
+module iota_system::staking_pool {
+    use iota::balance::{Self, Balance};
+    use iota::iota::IOTA;
+    use iota::table::{Self, Table};
+    use iota::bag::Bag;
+    use iota::bag;
 
-    /// StakedSui objects cannot be split to below this amount.
-    const MIN_STAKING_THRESHOLD: u64 = 1_000_000_000; // 1 SUI
+    /// StakedIota objects cannot be split to below this amount.
+    const MIN_STAKING_THRESHOLD: u64 = 1_000_000_000; // 1 IOTA
 
     const EInsufficientPoolTokenBalance: u64 = 0;
     const EWrongPool: u64 = 1;
     const EWithdrawAmountCannotBeZero: u64 = 2;
-    const EInsufficientSuiTokenBalance: u64 = 3;
+    const EInsufficientIotaTokenBalance: u64 = 3;
     const EInsufficientRewardsPoolBalance: u64 = 4;
     const EDestroyNonzeroBalance: u64 = 5;
     const ETokenTimeLockIsSome: u64 = 6;
@@ -24,14 +25,14 @@ module sui_system::staking_pool {
     const ETokenBalancesDoNotMatchExchangeRate: u64 = 9;
     const EDelegationToInactivePool: u64 = 10;
     const EDeactivationOfInactivePool: u64 = 11;
-    const EIncompatibleStakedSui: u64 = 12;
+    const EIncompatibleStakedIota: u64 = 12;
     const EWithdrawalInSameEpoch: u64 = 13;
     const EPoolAlreadyActive: u64 = 14;
     const EPoolNotPreactive: u64 = 15;
     const EActivationOfInactivePool: u64 = 16;
-    const EDelegationOfZeroSui: u64 = 17;
-    const EStakedSuiBelowThreshold: u64 = 18;
-    const ECannotMintFungibleStakedSuiYet: u64 = 19;
+    const EDelegationOfZeroIota: u64 = 17;
+    const EStakedIotaBelowThreshold: u64 = 18;
+    const ECannotMintFungibleStakedIotaYet: u64 = 19;
     const EInvariantFailure: u64 = 20;
 
     /// A staking pool embedded in each validator struct in the system state object.
@@ -43,11 +44,11 @@ module sui_system::staking_pool {
         /// The epoch at which this staking pool ceased to be active. `None` = {pre-active, active},
         /// `Some(<epoch_number>)` if in-active, and it was de-activated at epoch `<epoch_number>`.
         deactivation_epoch: Option<u64>,
-        /// The total number of SUI tokens in this pool, including the SUI in the rewards_pool, as well as in all the principal
-        /// in the `StakedSui` object, updated at epoch boundaries.
-        sui_balance: u64,
+        /// The total number of IOTA tokens in this pool, including the IOTA in the rewards_pool, as well as in all the principal
+        /// in the `StakedIota` object, updated at epoch boundaries.
+        iota_balance: u64,
         /// The epoch stake rewards will be added here at the end of each epoch.
-        rewards_pool: Balance<SUI>,
+        rewards_pool: Balance<IOTA>,
         /// Total number of pool tokens issued by the pool.
         pool_token_balance: u64,
         /// Exchange rate history of previous epochs. Key is the epoch number.
@@ -57,36 +58,36 @@ module sui_system::staking_pool {
         /// Pending stake amount for this epoch, emptied at epoch boundaries.
         pending_stake: u64,
         /// Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
-        /// This includes both the principal and rewards SUI withdrawn.
-        pending_total_sui_withdraw: u64,
+        /// This includes both the principal and rewards IOTA withdrawn.
+        pending_total_iota_withdraw: u64,
         /// Pending pool token withdrawn during the current epoch, emptied at epoch boundaries.
         pending_pool_token_withdraw: u64,
         /// Any extra fields that's not defined statically.
         extra_fields: Bag,
     }
 
-    /// Struct representing the exchange rate of the stake pool token to SUI.
+    /// Struct representing the exchange rate of the stake pool token to IOTA.
     public struct PoolTokenExchangeRate has store, copy, drop {
-        sui_amount: u64,
+        iota_amount: u64,
         pool_token_amount: u64,
     }
 
-    /// A self-custodial object holding the staked SUI tokens.
-    public struct StakedSui has key, store {
+    /// A self-custodial object holding the staked IOTA tokens.
+    public struct StakedIota has key, store {
         id: UID,
         /// ID of the staking pool we are staking with.
         pool_id: ID,
         /// The epoch at which the stake becomes active.
         stake_activation_epoch: u64,
-        /// The staked SUI tokens.
-        principal: Balance<SUI>,
+        /// The staked IOTA tokens.
+        principal: Balance<IOTA>,
     }
 
-    /// An alternative to `StakedSui` that holds the pool token amount instead of the SUI balance.
-    /// StakedSui objects can be converted to FungibleStakedSuis after the initial warmup period. 
-    /// The advantage of this is that you can now merge multiple StakedSui objects from different 
-    /// activation epochs into a single FungibleStakedSui object.
-    public struct FungibleStakedSui has key, store {
+    /// An alternative to `StakedIota` that holds the pool token amount instead of the IOTA balance.
+    /// StakedIota objects can be converted to FungibleStakedIotas after the initial warmup period. 
+    /// The advantage of this is that you can now merge multiple StakedIota objects from different 
+    /// activation epochs into a single FungibleStakedIota object.
+    public struct FungibleStakedIota has key, store {
         id: UID,
         /// ID of the staking pool we are staking with.
         pool_id: ID,
@@ -95,16 +96,16 @@ module sui_system::staking_pool {
     }
 
     /// Holds useful information
-    public struct FungibleStakedSuiData has key, store {
+    public struct FungibleStakedIotaData has key, store {
         id: UID,
-        /// fungible_staked_sui supply
+        /// fungible_staked_iota supply
         total_supply: u64,
         /// principal balance. Rewards are withdrawn from the reward pool
-        principal: Balance<SUI>,
+        principal: Balance<IOTA>,
     }
 
     // === dynamic field keys ===
-    public struct FungibleStakedSuiDataKey has copy, store, drop {}
+    public struct FungibleStakedIotaDataKey has copy, store, drop {}
 
     // ==== initializer ====
 
@@ -115,12 +116,12 @@ module sui_system::staking_pool {
             id: object::new(ctx),
             activation_epoch: option::none(),
             deactivation_epoch: option::none(),
-            sui_balance: 0,
+            iota_balance: 0,
             rewards_pool: balance::zero(),
             pool_token_balance: 0,
             exchange_rates,
             pending_stake: 0,
-            pending_total_sui_withdraw: 0,
+            pending_total_iota_withdraw: 0,
             pending_pool_token_withdraw: 0,
             extra_fields: bag::new(ctx),
         }
@@ -131,49 +132,49 @@ module sui_system::staking_pool {
     /// Request to stake to a staking pool. The stake starts counting at the beginning of the next epoch,
     public(package) fun request_add_stake(
         pool: &mut StakingPool,
-        stake: Balance<SUI>,
+        stake: Balance<IOTA>,
         stake_activation_epoch: u64,
         ctx: &mut TxContext
-    ) : StakedSui {
-        let sui_amount = stake.value();
+    ) : StakedIota {
+        let iota_amount = stake.value();
         assert!(!is_inactive(pool), EDelegationToInactivePool);
-        assert!(sui_amount > 0, EDelegationOfZeroSui);
-        let staked_sui = StakedSui {
+        assert!(iota_amount > 0, EDelegationOfZeroIota);
+        let staked_iota = StakedIota {
             id: object::new(ctx),
             pool_id: object::id(pool),
             stake_activation_epoch,
             principal: stake,
         };
-        pool.pending_stake = pool.pending_stake + sui_amount;
-        staked_sui
+        pool.pending_stake = pool.pending_stake + iota_amount;
+        staked_iota
     }
 
     /// Request to withdraw the given stake plus rewards from a staking pool.
-    /// Both the principal and corresponding rewards in SUI are withdrawn.
+    /// Both the principal and corresponding rewards in IOTA are withdrawn.
     /// A proportional amount of pool token withdraw is recorded and processed at epoch change time.
     public(package) fun request_withdraw_stake(
         pool: &mut StakingPool,
-        staked_sui: StakedSui,
+        staked_iota: StakedIota,
         ctx: &TxContext
-    ) : Balance<SUI> {
+    ) : Balance<IOTA> {
         // stake is inactive
-        if (staked_sui.stake_activation_epoch > ctx.epoch()) {
-            let principal = unwrap_staked_sui(staked_sui);
+        if (staked_iota.stake_activation_epoch > ctx.epoch()) {
+            let principal = unwrap_staked_iota(staked_iota);
             pool.pending_stake = pool.pending_stake - principal.value();
 
             return principal
         };
 
         let (pool_token_withdraw_amount, mut principal_withdraw) =
-            withdraw_from_principal(pool, staked_sui);
+            withdraw_from_principal(pool, staked_iota);
         let principal_withdraw_amount = principal_withdraw.value();
 
         let rewards_withdraw = withdraw_rewards(
             pool, principal_withdraw_amount, pool_token_withdraw_amount, ctx.epoch()
         );
-        let total_sui_withdraw_amount = principal_withdraw_amount + rewards_withdraw.value();
+        let total_iota_withdraw_amount = principal_withdraw_amount + rewards_withdraw.value();
 
-        pool.pending_total_sui_withdraw = pool.pending_total_sui_withdraw + total_sui_withdraw_amount;
+        pool.pending_total_iota_withdraw = pool.pending_total_iota_withdraw + total_iota_withdraw_amount;
         pool.pending_pool_token_withdraw = pool.pending_pool_token_withdraw + pool_token_withdraw_amount;
 
         // If the pool is inactive, we immediately process the withdrawal.
@@ -184,91 +185,91 @@ module sui_system::staking_pool {
         principal_withdraw
     }
 
-    public(package) fun redeem_fungible_staked_sui(
+    public(package) fun redeem_fungible_staked_iota(
         pool: &mut StakingPool,
-        fungible_staked_sui: FungibleStakedSui,
+        fungible_staked_iota: FungibleStakedIota,
         ctx: &TxContext
-    ) : Balance<SUI> {
-        let FungibleStakedSui { id, pool_id, value } = fungible_staked_sui;
+    ) : Balance<IOTA> {
+        let FungibleStakedIota { id, pool_id, value } = fungible_staked_iota;
         assert!(pool_id == object::id(pool), EWrongPool);
 
         object::delete(id);
 
         let latest_exchange_rate = pool_token_exchange_rate_at_epoch(pool, tx_context::epoch(ctx));
-        let fungible_staked_sui_data: &mut FungibleStakedSuiData = bag::borrow_mut(
+        let fungible_staked_iota_data: &mut FungibleStakedIotaData = bag::borrow_mut(
             &mut pool.extra_fields, 
-            FungibleStakedSuiDataKey {}
+            FungibleStakedIotaDataKey {}
         );
 
-        let (principal_amount, rewards_amount) = calculate_fungible_staked_sui_withdraw_amount(
+        let (principal_amount, rewards_amount) = calculate_fungible_staked_iota_withdraw_amount(
             latest_exchange_rate,
             value,
-            balance::value(&fungible_staked_sui_data.principal),
-            fungible_staked_sui_data.total_supply
+            balance::value(&fungible_staked_iota_data.principal),
+            fungible_staked_iota_data.total_supply
         );
 
-        fungible_staked_sui_data.total_supply = fungible_staked_sui_data.total_supply - value;
+        fungible_staked_iota_data.total_supply = fungible_staked_iota_data.total_supply - value;
 
-        let mut sui_out = balance::split(&mut fungible_staked_sui_data.principal, principal_amount);
+        let mut iota_out = balance::split(&mut fungible_staked_iota_data.principal, principal_amount);
         balance::join(
-            &mut sui_out,
+            &mut iota_out,
             balance::split(&mut pool.rewards_pool, rewards_amount)
         );
 
-        pool.pending_total_sui_withdraw = pool.pending_total_sui_withdraw + balance::value(&sui_out);
+        pool.pending_total_iota_withdraw = pool.pending_total_iota_withdraw + balance::value(&iota_out);
         pool.pending_pool_token_withdraw = pool.pending_pool_token_withdraw + value;
 
-        sui_out
+        iota_out
     }
 
     /// written in separate function so i can test with random values
     /// returns (principal_withdraw_amount, rewards_withdraw_amount)
-    fun calculate_fungible_staked_sui_withdraw_amount(
+    fun calculate_fungible_staked_iota_withdraw_amount(
         latest_exchange_rate: PoolTokenExchangeRate,
-        fungible_staked_sui_value: u64,
-        fungible_staked_sui_data_principal_amount: u64, // fungible_staked_sui_data.principal.value()
-        fungible_staked_sui_data_total_supply: u64, // fungible_staked_sui_data.total_supply
+        fungible_staked_iota_value: u64,
+        fungible_staked_iota_data_principal_amount: u64, // fungible_staked_iota_data.principal.value()
+        fungible_staked_iota_data_total_supply: u64, // fungible_staked_iota_data.total_supply
     ) : (u64, u64) {
-        // 1. if the entire FungibleStakedSuiData supply is redeemed, how much sui should we receive?
-        let total_sui_amount = get_sui_amount(&latest_exchange_rate, fungible_staked_sui_data_total_supply);
+        // 1. if the entire FungibleStakedIotaData supply is redeemed, how much iota should we receive?
+        let total_iota_amount = get_iota_amount(&latest_exchange_rate, fungible_staked_iota_data_total_supply);
 
-        // min with total_sui_amount to prevent underflow
-        let fungible_staked_sui_data_principal_amount = std::u64::min(
-            fungible_staked_sui_data_principal_amount,
-            total_sui_amount
+        // min with total_iota_amount to prevent underflow
+        let fungible_staked_iota_data_principal_amount = std::u64::min(
+            fungible_staked_iota_data_principal_amount,
+            total_iota_amount
         );
 
         // 2. how much do we need to withdraw from the rewards pool?
-        let total_rewards = total_sui_amount - fungible_staked_sui_data_principal_amount;
+        let total_rewards = total_iota_amount - fungible_staked_iota_data_principal_amount;
 
-        // 3. proportionally withdraw from both wrt the fungible_staked_sui_value.
-        let principal_withdraw_amount = ((fungible_staked_sui_value as u128)
-            * (fungible_staked_sui_data_principal_amount as u128)
-            / (fungible_staked_sui_data_total_supply as u128)) as u64;
+        // 3. proportionally withdraw from both wrt the fungible_staked_iota_value.
+        let principal_withdraw_amount = ((fungible_staked_iota_value as u128)
+            * (fungible_staked_iota_data_principal_amount as u128)
+            / (fungible_staked_iota_data_total_supply as u128)) as u64;
 
-        let rewards_withdraw_amount = ((fungible_staked_sui_value as u128)
+        let rewards_withdraw_amount = ((fungible_staked_iota_value as u128)
             * (total_rewards as u128)
-            / (fungible_staked_sui_data_total_supply as u128)) as u64;
+            / (fungible_staked_iota_data_total_supply as u128)) as u64;
 
         // invariant check, just in case
-        let expected_sui_amount = get_sui_amount(&latest_exchange_rate, fungible_staked_sui_value);
-        assert!(principal_withdraw_amount + rewards_withdraw_amount <= expected_sui_amount, EInvariantFailure);
+        let expected_iota_amount = get_iota_amount(&latest_exchange_rate, fungible_staked_iota_value);
+        assert!(principal_withdraw_amount + rewards_withdraw_amount <= expected_iota_amount, EInvariantFailure);
 
         (principal_withdraw_amount, rewards_withdraw_amount)
     }
 
-    /// Convert the given staked SUI to an FungibleStakedSui object
-    public(package) fun convert_to_fungible_staked_sui(
+    /// Convert the given staked IOTA to an FungibleStakedIota object
+    public(package) fun convert_to_fungible_staked_iota(
         pool: &mut StakingPool,
-        staked_sui: StakedSui,
+        staked_iota: StakedIota,
         ctx: &mut TxContext
-    ) : FungibleStakedSui {
-        let StakedSui { id, pool_id, stake_activation_epoch, principal } = staked_sui;
+    ) : FungibleStakedIota {
+        let StakedIota { id, pool_id, stake_activation_epoch, principal } = staked_iota;
 
         assert!(pool_id == object::id(pool), EWrongPool);
         assert!(
             tx_context::epoch(ctx) >= stake_activation_epoch, 
-            ECannotMintFungibleStakedSuiYet
+            ECannotMintFungibleStakedIotaYet
         );
 
         object::delete(id);
@@ -284,11 +285,11 @@ module sui_system::staking_pool {
             balance::value(&principal)
         );
 
-        if (!bag::contains(&pool.extra_fields, FungibleStakedSuiDataKey {})) {
+        if (!bag::contains(&pool.extra_fields, FungibleStakedIotaDataKey {})) {
             bag::add(
                 &mut pool.extra_fields, 
-                FungibleStakedSuiDataKey {}, 
-                FungibleStakedSuiData { 
+                FungibleStakedIotaDataKey {}, 
+                FungibleStakedIotaData { 
                     id: object::new(ctx), 
                     total_supply: pool_token_amount, 
                     principal
@@ -296,34 +297,34 @@ module sui_system::staking_pool {
             );
         } 
         else {
-            let fungible_staked_sui_data: &mut FungibleStakedSuiData = bag::borrow_mut(
+            let fungible_staked_iota_data: &mut FungibleStakedIotaData = bag::borrow_mut(
                 &mut pool.extra_fields, 
-                FungibleStakedSuiDataKey {}
+                FungibleStakedIotaDataKey {}
             );
-            fungible_staked_sui_data.total_supply = fungible_staked_sui_data.total_supply + pool_token_amount;
-            balance::join(&mut fungible_staked_sui_data.principal, principal);
+            fungible_staked_iota_data.total_supply = fungible_staked_iota_data.total_supply + pool_token_amount;
+            balance::join(&mut fungible_staked_iota_data.principal, principal);
         };
 
-        FungibleStakedSui {
+        FungibleStakedIota {
             id: object::new(ctx),
             pool_id,
             value: pool_token_amount,
         }
     }
 
-    /// Withdraw the principal SUI stored in the StakedSui object, and calculate the corresponding amount of pool
+    /// Withdraw the principal IOTA stored in the StakedIota object, and calculate the corresponding amount of pool
     /// tokens using exchange rate at staking epoch.
-    /// Returns values are amount of pool tokens withdrawn and withdrawn principal portion of SUI.
+    /// Returns values are amount of pool tokens withdrawn and withdrawn principal portion of IOTA.
     public(package) fun withdraw_from_principal(
         pool: &StakingPool,
-        staked_sui: StakedSui,
-    ) : (u64, Balance<SUI>) {
+        staked_iota: StakedIota,
+    ) : (u64, Balance<IOTA>) {
 
         // Check that the stake information matches the pool.
-        assert!(staked_sui.pool_id == object::id(pool), EWrongPool);
+        assert!(staked_iota.pool_id == object::id(pool), EWrongPool);
 
-        let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_epoch(pool, staked_sui.stake_activation_epoch);
-        let principal_withdraw = unwrap_staked_sui(staked_sui);
+        let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_epoch(pool, staked_iota.stake_activation_epoch);
+        let principal_withdraw = unwrap_staked_iota(staked_iota);
         let pool_token_withdraw_amount = get_token_amount(
 		&exchange_rate_at_staking_epoch,
 		principal_withdraw.value()
@@ -335,25 +336,25 @@ module sui_system::staking_pool {
         )
     }
 
-    fun unwrap_staked_sui(staked_sui: StakedSui): Balance<SUI> {
-        let StakedSui {
+    fun unwrap_staked_iota(staked_iota: StakedIota): Balance<IOTA> {
+        let StakedIota {
             id,
             pool_id: _,
             stake_activation_epoch: _,
             principal,
-        } = staked_sui;
+        } = staked_iota;
         object::delete(id);
         principal
     }
 
-    /// Allows calling `.into_balance()` on `StakedSui` to invoke `unwrap_staked_sui`
-    public use fun unwrap_staked_sui as StakedSui.into_balance;
+    /// Allows calling `.into_balance()` on `StakedIota` to invoke `unwrap_staked_iota`
+    public use fun unwrap_staked_iota as StakedIota.into_balance;
 
     // ==== functions called at epoch boundaries ===
 
-    /// Called at epoch advancement times to add rewards (in SUI) to the staking pool.
-    public(package) fun deposit_rewards(pool: &mut StakingPool, rewards: Balance<SUI>) {
-        pool.sui_balance = pool.sui_balance + rewards.value();
+    /// Called at epoch advancement times to add rewards (in IOTA) to the staking pool.
+    public(package) fun deposit_rewards(pool: &mut StakingPool, rewards: Balance<IOTA>) {
+        pool.iota_balance = pool.iota_balance + rewards.value();
         pool.rewards_pool.join(rewards);
     }
 
@@ -363,7 +364,7 @@ module sui_system::staking_pool {
         process_pending_stake(pool);
         pool.exchange_rates.add(
             new_epoch,
-            PoolTokenExchangeRate { sui_amount: pool.sui_balance, pool_token_amount: pool.pool_token_balance },
+            PoolTokenExchangeRate { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance },
         );
         check_balance_invariants(pool, new_epoch);
     }
@@ -371,9 +372,9 @@ module sui_system::staking_pool {
     /// Called at epoch boundaries to process pending stake withdraws requested during the epoch.
     /// Also called immediately upon withdrawal if the pool is inactive.
     fun process_pending_stake_withdraw(pool: &mut StakingPool) {
-        pool.sui_balance = pool.sui_balance - pool.pending_total_sui_withdraw;
+        pool.iota_balance = pool.iota_balance - pool.pending_total_iota_withdraw;
         pool.pool_token_balance = pool.pool_token_balance - pool.pending_pool_token_withdraw;
-        pool.pending_total_sui_withdraw = 0;
+        pool.pending_total_iota_withdraw = 0;
         pool.pending_pool_token_withdraw = 0;
     }
 
@@ -381,30 +382,30 @@ module sui_system::staking_pool {
     public(package) fun process_pending_stake(pool: &mut StakingPool) {
         // Use the most up to date exchange rate with the rewards deposited and withdraws effectuated.
         let latest_exchange_rate =
-            PoolTokenExchangeRate { sui_amount: pool.sui_balance, pool_token_amount: pool.pool_token_balance };
-        pool.sui_balance = pool.sui_balance + pool.pending_stake;
-        pool.pool_token_balance = get_token_amount(&latest_exchange_rate, pool.sui_balance);
+            PoolTokenExchangeRate { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance };
+        pool.iota_balance = pool.iota_balance + pool.pending_stake;
+        pool.pool_token_balance = get_token_amount(&latest_exchange_rate, pool.iota_balance);
         pool.pending_stake = 0;
     }
 
     /// This function does the following:
-    ///     1. Calculates the total amount of SUI (including principal and rewards) that the provided pool tokens represent
+    ///     1. Calculates the total amount of IOTA (including principal and rewards) that the provided pool tokens represent
     ///        at the current exchange rate.
     ///     2. Using the above number and the given `principal_withdraw_amount`, calculates the rewards portion of the
     ///        stake we should withdraw.
     ///     3. Withdraws the rewards portion from the rewards pool at the current exchange rate. We only withdraw the rewards
-    ///        portion because the principal portion was already taken out of the staker's self custodied StakedSui.
+    ///        portion because the principal portion was already taken out of the staker's self custodied StakedIota.
     fun withdraw_rewards(
         pool: &mut StakingPool,
         principal_withdraw_amount: u64,
         pool_token_withdraw_amount: u64,
         epoch: u64,
-    ) : Balance<SUI> {
+    ) : Balance<IOTA> {
         let exchange_rate = pool_token_exchange_rate_at_epoch(pool, epoch);
-        let total_sui_withdraw_amount = get_sui_amount(&exchange_rate, pool_token_withdraw_amount);
+        let total_iota_withdraw_amount = get_iota_amount(&exchange_rate, pool_token_withdraw_amount);
         let mut reward_withdraw_amount =
-            if (total_sui_withdraw_amount >= principal_withdraw_amount)
-                total_sui_withdraw_amount - principal_withdraw_amount
+            if (total_iota_withdraw_amount >= principal_withdraw_amount)
+                total_iota_withdraw_amount - principal_withdraw_amount
             else 0;
         // This may happen when we are withdrawing everything from the pool and
         // the rewards pool balance may be less than reward_withdraw_amount.
@@ -442,20 +443,20 @@ module sui_system::staking_pool {
 
     // ==== getters and misc utility functions ====
 
-    public fun sui_balance(pool: &StakingPool): u64 { pool.sui_balance }
+    public fun iota_balance(pool: &StakingPool): u64 { pool.iota_balance }
 
-    public fun pool_id(staked_sui: &StakedSui): ID { staked_sui.pool_id }
+    public fun pool_id(staked_iota: &StakedIota): ID { staked_iota.pool_id }
 
-    public use fun fungible_staked_sui_pool_id as FungibleStakedSui.pool_id;
-    public fun fungible_staked_sui_pool_id(fungible_staked_sui: &FungibleStakedSui): ID { fungible_staked_sui.pool_id }
+    public use fun fungible_staked_iota_pool_id as FungibleStakedIota.pool_id;
+    public fun fungible_staked_iota_pool_id(fungible_staked_iota: &FungibleStakedIota): ID { fungible_staked_iota.pool_id }
 
-    public fun staked_sui_amount(staked_sui: &StakedSui): u64 { staked_sui.principal.value() }
+    public fun staked_iota_amount(staked_iota: &StakedIota): u64 { staked_iota.principal.value() }
 
-    /// Allows calling `.amount()` on `StakedSui` to invoke `staked_sui_amount`
-    public use fun staked_sui_amount as StakedSui.amount;
+    /// Allows calling `.amount()` on `StakedIota` to invoke `staked_iota_amount`
+    public use fun staked_iota_amount as StakedIota.amount;
 
-    public fun stake_activation_epoch(staked_sui: &StakedSui): u64 {
-        staked_sui.stake_activation_epoch
+    public fun stake_activation_epoch(staked_iota: &StakedIota): u64 {
+        staked_iota.stake_activation_epoch
     }
 
     /// Returns true if the input staking pool is preactive.
@@ -468,29 +469,29 @@ module sui_system::staking_pool {
         pool.deactivation_epoch.is_some()
     }
 
-    public use fun fungible_staked_sui_value as FungibleStakedSui.value;
-    public fun fungible_staked_sui_value(fungible_staked_sui: &FungibleStakedSui): u64 { fungible_staked_sui.value }
+    public use fun fungible_staked_iota_value as FungibleStakedIota.value;
+    public fun fungible_staked_iota_value(fungible_staked_iota: &FungibleStakedIota): u64 { fungible_staked_iota.value }
 
-    public use fun split_fungible_staked_sui as FungibleStakedSui.split;
-    public fun split_fungible_staked_sui(
-        fungible_staked_sui: &mut FungibleStakedSui, 
+    public use fun split_fungible_staked_iota as FungibleStakedIota.split;
+    public fun split_fungible_staked_iota(
+        fungible_staked_iota: &mut FungibleStakedIota, 
         split_amount: u64, 
         ctx: &mut TxContext
-    ): FungibleStakedSui {
-        assert!(split_amount <= fungible_staked_sui.value, EInsufficientPoolTokenBalance);
+    ): FungibleStakedIota {
+        assert!(split_amount <= fungible_staked_iota.value, EInsufficientPoolTokenBalance);
 
-        fungible_staked_sui.value = fungible_staked_sui.value - split_amount;
+        fungible_staked_iota.value = fungible_staked_iota.value - split_amount;
 
-        FungibleStakedSui {
+        FungibleStakedIota {
             id: object::new(ctx),
-            pool_id: fungible_staked_sui.pool_id,
+            pool_id: fungible_staked_iota.pool_id,
             value: split_amount,
         }
     }
 
-    public use fun join_fungible_staked_sui as FungibleStakedSui.join;
-    public fun join_fungible_staked_sui(self: &mut FungibleStakedSui, other: FungibleStakedSui) {
-        let FungibleStakedSui { id, pool_id, value } = other;
+    public use fun join_fungible_staked_iota as FungibleStakedIota.join;
+    public fun join_fungible_staked_iota(self: &mut FungibleStakedIota, other: FungibleStakedIota) {
+        let FungibleStakedIota { id, pool_id, value } = other;
         assert!(self.pool_id == pool_id, EWrongPool);
 
         object::delete(id);
@@ -498,17 +499,17 @@ module sui_system::staking_pool {
         self.value = self.value + value;
     }
 
-    /// Split StakedSui `self` to two parts, one with principal `split_amount`,
+    /// Split StakedIota `self` to two parts, one with principal `split_amount`,
     /// and the remaining principal is left in `self`.
-    /// All the other parameters of the StakedSui like `stake_activation_epoch` or `pool_id` remain the same.
-    public fun split(self: &mut StakedSui, split_amount: u64, ctx: &mut TxContext): StakedSui {
+    /// All the other parameters of the StakedIota like `stake_activation_epoch` or `pool_id` remain the same.
+    public fun split(self: &mut StakedIota, split_amount: u64, ctx: &mut TxContext): StakedIota {
         let original_amount = self.principal.value();
-        assert!(split_amount <= original_amount, EInsufficientSuiTokenBalance);
+        assert!(split_amount <= original_amount, EInsufficientIotaTokenBalance);
         let remaining_amount = original_amount - split_amount;
         // Both resulting parts should have at least MIN_STAKING_THRESHOLD.
-        assert!(remaining_amount >= MIN_STAKING_THRESHOLD, EStakedSuiBelowThreshold);
-        assert!(split_amount >= MIN_STAKING_THRESHOLD, EStakedSuiBelowThreshold);
-        StakedSui {
+        assert!(remaining_amount >= MIN_STAKING_THRESHOLD, EStakedIotaBelowThreshold);
+        assert!(split_amount >= MIN_STAKING_THRESHOLD, EStakedIotaBelowThreshold);
+        StakedIota {
             id: object::new(ctx),
             pool_id: self.pool_id,
             stake_activation_epoch: self.stake_activation_epoch,
@@ -516,20 +517,20 @@ module sui_system::staking_pool {
         }
     }
 
-    /// Split the given StakedSui to the two parts, one with principal `split_amount`,
+    /// Split the given StakedIota to the two parts, one with principal `split_amount`,
     /// transfer the newly split part to the sender address.
-    public entry fun split_staked_sui(stake: &mut StakedSui, split_amount: u64, ctx: &mut TxContext) {
+    public entry fun split_staked_iota(stake: &mut StakedIota, split_amount: u64, ctx: &mut TxContext) {
         transfer::transfer(split(stake, split_amount, ctx), ctx.sender());
     }
 
-    /// Allows calling `.split_to_sender()` on `StakedSui` to invoke `split_staked_sui`
-    public use fun split_staked_sui as StakedSui.split_to_sender;
+    /// Allows calling `.split_to_sender()` on `StakedIota` to invoke `split_staked_iota`
+    public use fun split_staked_iota as StakedIota.split_to_sender;
 
-    /// Consume the staked sui `other` and add its value to `self`.
+    /// Consume the staked iota `other` and add its value to `self`.
     /// Aborts if some of the staking parameters are incompatible (pool id, stake activation epoch, etc.)
-    public entry fun join_staked_sui(self: &mut StakedSui, other: StakedSui) {
-        assert!(is_equal_staking_metadata(self, &other), EIncompatibleStakedSui);
-        let StakedSui {
+    public entry fun join_staked_iota(self: &mut StakedIota, other: StakedIota) {
+        assert!(is_equal_staking_metadata(self, &other), EIncompatibleStakedIota);
+        let StakedIota {
             id,
             pool_id: _,
             stake_activation_epoch: _,
@@ -540,11 +541,11 @@ module sui_system::staking_pool {
         self.principal.join(principal);
     }
 
-    /// Allows calling `.join()` on `StakedSui` to invoke `join_staked_sui`
-    public use fun join_staked_sui as StakedSui.join;
+    /// Allows calling `.join()` on `StakedIota` to invoke `join_staked_iota`
+    public use fun join_staked_iota as StakedIota.join;
 
-    /// Returns true if all the staking parameters of the staked sui except the principal are identical
-    public fun is_equal_staking_metadata(self: &StakedSui, other: &StakedSui): bool {
+    /// Returns true if all the staking parameters of the staked iota except the principal are identical
+    public fun is_equal_staking_metadata(self: &StakedIota, other: &StakedIota): bool {
         (self.pool_id == other.pool_id) &&
         (self.stake_activation_epoch == other.stake_activation_epoch)
     }
@@ -576,15 +577,15 @@ module sui_system::staking_pool {
 
     /// Returns the total withdrawal from the staking pool this epoch.
     public fun pending_stake_withdraw_amount(staking_pool: &StakingPool): u64 {
-        staking_pool.pending_total_sui_withdraw
+        staking_pool.pending_total_iota_withdraw
     }
 
     public(package) fun exchange_rates(pool: &StakingPool): &Table<u64, PoolTokenExchangeRate> {
         &pool.exchange_rates
     }
 
-    public fun sui_amount(exchange_rate: &PoolTokenExchangeRate): u64 {
-        exchange_rate.sui_amount
+    public fun iota_amount(exchange_rate: &PoolTokenExchangeRate): u64 {
+        exchange_rate.iota_amount
     }
 
     public fun pool_token_amount(exchange_rate: &PoolTokenExchangeRate): u64 {
@@ -597,63 +598,63 @@ module sui_system::staking_pool {
         is_preactive(pool) || (*pool.activation_epoch.borrow() > epoch)
     }
 
-    fun get_sui_amount(exchange_rate: &PoolTokenExchangeRate, token_amount: u64): u64 {
+    fun get_iota_amount(exchange_rate: &PoolTokenExchangeRate, token_amount: u64): u64 {
         // When either amount is 0, that means we have no stakes with this pool.
         // The other amount might be non-zero when there's dust left in the pool.
-        if (exchange_rate.sui_amount == 0 || exchange_rate.pool_token_amount == 0) {
+        if (exchange_rate.iota_amount == 0 || exchange_rate.pool_token_amount == 0) {
             return token_amount
         };
-        let res = exchange_rate.sui_amount as u128
+        let res = exchange_rate.iota_amount as u128
                 * (token_amount as u128)
                 / (exchange_rate.pool_token_amount as u128);
         res as u64
     }
 
-    fun get_token_amount(exchange_rate: &PoolTokenExchangeRate, sui_amount: u64): u64 {
+    fun get_token_amount(exchange_rate: &PoolTokenExchangeRate, iota_amount: u64): u64 {
         // When either amount is 0, that means we have no stakes with this pool.
         // The other amount might be non-zero when there's dust left in the pool.
-        if (exchange_rate.sui_amount == 0 || exchange_rate.pool_token_amount == 0) {
-            return sui_amount
+        if (exchange_rate.iota_amount == 0 || exchange_rate.pool_token_amount == 0) {
+            return iota_amount
         };
         let res = exchange_rate.pool_token_amount as u128
-                * (sui_amount as u128)
-                / (exchange_rate.sui_amount as u128);
+                * (iota_amount as u128)
+                / (exchange_rate.iota_amount as u128);
         res as u64
     }
 
     fun initial_exchange_rate(): PoolTokenExchangeRate {
-        PoolTokenExchangeRate { sui_amount: 0, pool_token_amount: 0 }
+        PoolTokenExchangeRate { iota_amount: 0, pool_token_amount: 0 }
     }
 
     fun check_balance_invariants(pool: &StakingPool, epoch: u64) {
         let exchange_rate = pool_token_exchange_rate_at_epoch(pool, epoch);
-        // check that the pool token balance and sui balance ratio matches the exchange rate stored.
-        let expected = get_token_amount(&exchange_rate, pool.sui_balance);
+        // check that the pool token balance and iota balance ratio matches the exchange rate stored.
+        let expected = get_token_amount(&exchange_rate, pool.iota_balance);
         let actual = pool.pool_token_balance;
         assert!(expected == actual, ETokenBalancesDoNotMatchExchangeRate)
     }
 
     // ==== test-related functions ====
 
-    // Given the `staked_sui` receipt calculate the current rewards (in terms of SUI) for it.
+    // Given the `staked_iota` receipt calculate the current rewards (in terms of IOTA) for it.
     #[test_only]
     public fun calculate_rewards(
         pool: &StakingPool,
-        staked_sui: &StakedSui,
+        staked_iota: &StakedIota,
         current_epoch: u64,
     ): u64 {
-        let staked_amount = staked_sui_amount(staked_sui);
+        let staked_amount = staked_iota_amount(staked_iota);
         let pool_token_withdraw_amount = {
-            let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_epoch(pool, staked_sui.stake_activation_epoch);
+            let exchange_rate_at_staking_epoch = pool_token_exchange_rate_at_epoch(pool, staked_iota.stake_activation_epoch);
             get_token_amount(&exchange_rate_at_staking_epoch, staked_amount)
         };
 
         let new_epoch_exchange_rate = pool_token_exchange_rate_at_epoch(pool, current_epoch);
-        let total_sui_withdraw_amount = get_sui_amount(&new_epoch_exchange_rate, pool_token_withdraw_amount);
+        let total_iota_withdraw_amount = get_iota_amount(&new_epoch_exchange_rate, pool_token_withdraw_amount);
 
         let mut reward_withdraw_amount =
-            if (total_sui_withdraw_amount >= staked_amount)
-                total_sui_withdraw_amount - staked_amount
+            if (total_iota_withdraw_amount >= staked_amount)
+                total_iota_withdraw_amount - staked_amount
             else 0;
         reward_withdraw_amount = reward_withdraw_amount.min(pool.rewards_pool.value());
 
@@ -661,24 +662,24 @@ module sui_system::staking_pool {
     }
 
     #[test_only]
-    public(package) fun fungible_staked_sui_data(pool: &StakingPool): &FungibleStakedSuiData {
-        bag::borrow(&pool.extra_fields, FungibleStakedSuiDataKey {})
+    public(package) fun fungible_staked_iota_data(pool: &StakingPool): &FungibleStakedIotaData {
+        bag::borrow(&pool.extra_fields, FungibleStakedIotaDataKey {})
     }
 
     #[test_only]
-    public use fun fungible_staked_sui_data_total_supply as FungibleStakedSuiData.total_supply;
+    public use fun fungible_staked_iota_data_total_supply as FungibleStakedIotaData.total_supply;
 
     #[test_only]
-    public(package) fun fungible_staked_sui_data_total_supply(fungible_staked_sui_data: &FungibleStakedSuiData): u64 {
-        fungible_staked_sui_data.total_supply
+    public(package) fun fungible_staked_iota_data_total_supply(fungible_staked_iota_data: &FungibleStakedIotaData): u64 {
+        fungible_staked_iota_data.total_supply
     }
 
     #[test_only]
-    public use fun fungible_staked_sui_data_principal_value as FungibleStakedSuiData.principal_value;
+    public use fun fungible_staked_iota_data_principal_value as FungibleStakedIotaData.principal_value;
 
     #[test_only]
-    public(package) fun fungible_staked_sui_data_principal_value(fungible_staked_sui_data: &FungibleStakedSuiData): u64 {
-        fungible_staked_sui_data.principal.value()
+    public(package) fun fungible_staked_iota_data_principal_value(fungible_staked_iota_data: &FungibleStakedIotaData): u64 {
+        fungible_staked_iota_data.principal.value()
     }
 
     #[test_only]
@@ -687,12 +688,12 @@ module sui_system::staking_pool {
     }
 
     #[test_only]
-    public(package) fun create_fungible_staked_sui_for_testing(
+    public(package) fun create_fungible_staked_iota_for_testing(
         self: &StakingPool,
         value: u64,
         ctx: &mut TxContext
-    ) : FungibleStakedSui {
-        FungibleStakedSui {
+    ) : FungibleStakedIota {
+        FungibleStakedIota {
             id: object::new(ctx),
             pool_id: object::id(self),
             value,
@@ -702,55 +703,55 @@ module sui_system::staking_pool {
     // ==== tests ====
 
     #[random_test]
-    fun test_calculate_fungible_staked_sui_withdraw_amount(
-        mut total_sui_amount: u64,
+    fun test_calculate_fungible_staked_iota_withdraw_amount(
+        mut total_iota_amount: u64,
         // these are all in basis points
         mut pool_token_frac: u16,
-        mut fungible_staked_sui_data_total_supply_frac: u16,
-        mut fungible_staked_sui_data_principal_frac: u16,
-        mut fungible_staked_sui_value_bps: u16
+        mut fungible_staked_iota_data_total_supply_frac: u16,
+        mut fungible_staked_iota_data_principal_frac: u16,
+        mut fungible_staked_iota_value_bps: u16
     ) {
         use std::u128::max;
 
-        total_sui_amount = std::u64::max(total_sui_amount, 1);
+        total_iota_amount = std::u64::max(total_iota_amount, 1);
 
         pool_token_frac = pool_token_frac % 10000;
-        fungible_staked_sui_data_total_supply_frac = fungible_staked_sui_data_total_supply_frac % 10000;
-        fungible_staked_sui_data_principal_frac = fungible_staked_sui_data_principal_frac % 10000;
-        fungible_staked_sui_value_bps = fungible_staked_sui_value_bps % 10000;
+        fungible_staked_iota_data_total_supply_frac = fungible_staked_iota_data_total_supply_frac % 10000;
+        fungible_staked_iota_data_principal_frac = fungible_staked_iota_data_principal_frac % 10000;
+        fungible_staked_iota_value_bps = fungible_staked_iota_value_bps % 10000;
 
 
         let total_pool_token_amount = max(
-            (total_sui_amount as u128) * (pool_token_frac as u128) / 10000,
+            (total_iota_amount as u128) * (pool_token_frac as u128) / 10000,
             1
         );
 
         let exchange_rate = PoolTokenExchangeRate {
-            sui_amount: total_sui_amount,
+            iota_amount: total_iota_amount,
             pool_token_amount: total_pool_token_amount as u64,
         };
 
-        let fungible_staked_sui_data_total_supply = max(
-            total_pool_token_amount * (fungible_staked_sui_data_total_supply_frac as u128) / 10000,
+        let fungible_staked_iota_data_total_supply = max(
+            total_pool_token_amount * (fungible_staked_iota_data_total_supply_frac as u128) / 10000,
             1
         );
-        let fungible_staked_sui_value = fungible_staked_sui_data_total_supply
-            * (fungible_staked_sui_value_bps as u128) / 10000;
+        let fungible_staked_iota_value = fungible_staked_iota_data_total_supply
+            * (fungible_staked_iota_value_bps as u128) / 10000;
 
-        let max_principal = get_sui_amount(&exchange_rate, fungible_staked_sui_data_total_supply as u64);
-        let fungible_staked_sui_data_principal_amount = max(
-            (max_principal as u128) * (fungible_staked_sui_data_principal_frac as u128) / 10000,
+        let max_principal = get_iota_amount(&exchange_rate, fungible_staked_iota_data_total_supply as u64);
+        let fungible_staked_iota_data_principal_amount = max(
+            (max_principal as u128) * (fungible_staked_iota_data_principal_frac as u128) / 10000,
             1
         );
 
-        let (principal_amount, rewards_amount) = calculate_fungible_staked_sui_withdraw_amount(
+        let (principal_amount, rewards_amount) = calculate_fungible_staked_iota_withdraw_amount(
             exchange_rate,
-            fungible_staked_sui_value as u64,
-            fungible_staked_sui_data_principal_amount as u64,
-            fungible_staked_sui_data_total_supply as u64,
+            fungible_staked_iota_value as u64,
+            fungible_staked_iota_data_principal_amount as u64,
+            fungible_staked_iota_data_total_supply as u64,
         );
 
-        let expected_out = get_sui_amount(&exchange_rate, fungible_staked_sui_value as u64);
+        let expected_out = get_iota_amount(&exchange_rate, fungible_staked_iota_value as u64);
 
         assert!(principal_amount + rewards_amount <= expected_out, 0);
 

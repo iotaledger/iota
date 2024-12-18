@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { createMessage } from '_messages';
@@ -30,8 +31,8 @@ import {
 } from '_src/shared/messaging/messages/payloads/QredoConnect';
 import { type SignedMessage, type SignedTransaction } from '_src/ui/app/WalletSigner';
 import type { AppDispatch } from '_store';
-import { type SuiTransactionBlockResponse } from '@mysten/sui/client';
-import { toBase64 } from '@mysten/sui/utils';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
 
@@ -95,7 +96,7 @@ export class BackgroundClient {
 	public sendTransactionRequestResponse(
 		txID: string,
 		approved: boolean,
-		txResult?: SuiTransactionBlockResponse | SignedMessage,
+		txResult?: IotaTransactionBlockResponse | SignedMessage,
 		txResultError?: string,
 		txSigned?: SignedTransaction,
 	) {
@@ -619,7 +620,7 @@ export class BackgroundClient {
 	}
 
 	private createPortStream() {
-		this._portStream = PortStream.connectToBackgroundService('sui_ui<->background');
+		this._portStream = PortStream.connectToBackgroundService('iota_ui<->background');
 		this._portStream.onDisconnect.subscribe(() => {
 			this.createPortStream();
 		});

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Generic Move and native functions for group operations.
-module sui::group_ops;
+module iota::group_ops;
 
-use sui::bcs;
+use iota::bcs;
 
 #[allow(unused_const)]
 const ENotSupported: u64 = 0; // Operation is not supported by the network.

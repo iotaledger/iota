@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses Test=0x0
 
 //# publish
 module Test::f {
-    use sui::event;
+    use iota::event;
 
     public enum F has copy, drop {
         V1,

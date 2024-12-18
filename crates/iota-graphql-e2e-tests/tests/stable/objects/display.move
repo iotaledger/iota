@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses Test=0x0 --accounts A --simulator
 
 //# publish --sender A
 module Test::boars {
-    use sui::package;
-    use sui::url::{Self, Url};
-    use sui::display;
+    use iota::package;
+    use iota::url::{Self, Url};
+    use iota::display;
     use std::string::{utf8, String};
 
     /// For when a witness type passed is not an OTW.

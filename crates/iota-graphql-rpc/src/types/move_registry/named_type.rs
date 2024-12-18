@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -7,7 +8,7 @@ use std::str::FromStr;
 use async_graphql::Context;
 use futures::future;
 use regex::{Captures, Regex};
-use sui_types::{base_types::ObjectID, TypeTag};
+use iota_types::{base_types::ObjectID, TypeTag};
 
 use crate::{data::package_resolver::PackageResolver, error::Error};
 
@@ -144,7 +145,7 @@ fn replace_all_result(
 mod tests {
     use std::collections::HashMap;
 
-    use sui_types::base_types::ObjectID;
+    use iota_types::base_types::ObjectID;
 
     use super::NamedType;
 

@@ -13,6 +13,6 @@
 # Too many arguments
 --move-call std::option::is_none<u64> "a b"
 # Missing type argument -- we 
---move-call sui::coin::destroy_zero @0x1
+--move-call iota::coin::destroy_zero @0x1
 # Too many type args -- won't catch this until we run
 --move-call std::option::is_none<u64, bool> a

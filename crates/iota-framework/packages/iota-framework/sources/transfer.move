@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_const)]
-module sui::transfer;
+module iota::transfer;
 
 /// This represents the ability to `receive` an object of type `T`.
 /// This type is ephemeral per-transaction and cannot be stored on-chain.
@@ -41,7 +42,7 @@ const ESharedObjectOperationNotSupported: u64 = 4;
 /// which (in turn) ensures that `obj` has a globally unique ID. Note that if the recipient
 /// address represents an object ID, the `obj` sent will be inaccessible after the transfer
 /// (though they will be retrievable at a future date once new features are added).
-/// This function has custom rules performed by the Sui Move bytecode verifier that ensures
+/// This function has custom rules performed by the Iota Move bytecode verifier that ensures
 /// that `T` is an object defined in the module where `transfer` is invoked. Use
 /// `public_transfer` to transfer an object with `store` outside of its module.
 public fun transfer<T: key>(obj: T, recipient: address) {
@@ -59,7 +60,7 @@ public fun public_transfer<T: key + store>(obj: T, recipient: address) {
 
 /// Freeze `obj`. After freezing `obj` becomes immutable and can no longer be transferred or
 /// mutated.
-/// This function has custom rules performed by the Sui Move bytecode verifier that ensures
+/// This function has custom rules performed by the Iota Move bytecode verifier that ensures
 /// that `T` is an object defined in the module where `freeze_object` is invoked. Use
 /// `public_freeze_object` to freeze an object with `store` outside of its module.
 public fun freeze_object<T: key>(obj: T) {
@@ -77,7 +78,7 @@ public fun public_freeze_object<T: key + store>(obj: T) {
 /// This is irreversible, i.e. once an object is shared, it will stay shared forever.
 /// Aborts with `ESharedNonNewObject` of the object being shared was not created in this
 /// transaction. This restriction may be relaxed in the future.
-/// This function has custom rules performed by the Sui Move bytecode verifier that ensures
+/// This function has custom rules performed by the Iota Move bytecode verifier that ensures
 /// that `T` is an object defined in the module where `share_object` is invoked. Use
 /// `public_share_object` to share an object with `store` outside of its module.
 public fun share_object<T: key>(obj: T) {
@@ -96,7 +97,7 @@ public fun public_share_object<T: key + store>(obj: T) {
 /// Given mutable (i.e., locked) access to the `parent` and a `Receiving` argument
 /// referencing an object of type `T` owned by `parent` use the `to_receive`
 /// argument to receive and return the referenced owned object of type `T`.
-/// This function has custom rules performed by the Sui Move bytecode verifier that ensures
+/// This function has custom rules performed by the Iota Move bytecode verifier that ensures
 /// that `T` is an object defined in the module where `receive` is invoked. Use
 /// `public_receive` to receivne an object with `store` outside of its module.
 public fun receive<T: key>(parent: &mut UID, to_receive: Receiving<T>): T {

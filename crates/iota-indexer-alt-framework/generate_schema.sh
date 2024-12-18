@@ -1,8 +1,9 @@
 #!/bin/bash
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 #
-# Update sui-indexer's generated src/schema.rs based on the schema after
+# Update iota-indexer's generated src/schema.rs based on the schema after
 # running all its migrations on a clean database. Expects the first argument to
 # be a port to run the temporary database on (defaults to 5433).
 
@@ -67,11 +68,11 @@ done
 # Run all migrations on the new database
 diesel migration run                                                          \
   --database-url "postgres://postgres:postgrespw@localhost:$PORT"             \
-  --migration-dir "$REPO/crates/sui-indexer-alt-framework/migrations"
+  --migration-dir "$REPO/crates/iota-indexer-alt-framework/migrations"
 
 # Generate the schema.rs file, excluding partition tables and including the
 # copyright notice.
 diesel print-schema                                                           \
   --database-url "postgres://postgres:postgrespw@localhost:$PORT"             \
-  --patch-file "$REPO/crates/sui-indexer-alt-framework/schema.patch"          \
-  > "$REPO/crates/sui-indexer-alt-framework/src/schema.rs"
+  --patch-file "$REPO/crates/iota-indexer-alt-framework/schema.patch"          \
+  > "$REPO/crates/iota-indexer-alt-framework/src/schema.rs"

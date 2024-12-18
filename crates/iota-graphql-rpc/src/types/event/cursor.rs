@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -14,7 +15,7 @@ use diesel::{
     BoolExpressionMethods, ExpressionMethods, QueryDsl,
 };
 use serde::{Deserialize, Serialize};
-use sui_indexer::{models::events::StoredEvent, schema::events};
+use iota_indexer::{models::events::StoredEvent, schema::events};
 
 use super::Query;
 

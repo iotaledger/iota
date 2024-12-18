@@ -5,7 +5,7 @@ published-at = "0xd0"
 edition = "development"
 
 [dependencies]
-Sui = { local = "../sui" }
+Iota = { local = "../iota" }
 
 [addresses]
 d = "0xd0"

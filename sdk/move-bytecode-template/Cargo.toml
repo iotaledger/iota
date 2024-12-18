@@ -2,9 +2,9 @@
 name = "move-bytecode-template"
 description = "WASM variant of the move-binary-format which allows bytecode templates"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
-repository = "https://github.com/mystenlabs/sui.git"
+repository = "https://github.com/iotaledger/iota.git"
 license = "Apache-2.0"
 publish = false
 

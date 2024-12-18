@@ -1,14 +1,14 @@
-// Protobuf definitions of public Sui core types
+// Protobuf definitions of public Iota core types
 //
 // This file contains a complete set of protobuf definitions for all of the
-// public sui core types. All sui types are intended to have a 1:1 mapping to a
+// public iota core types. All iota types are intended to have a 1:1 mapping to a
 // protobuf message defined in this file and be able to roundtrip to/from their
 // rust and protobuf definitions assuming a sufficiently up-to-date version of
 // both these definitions.
 
 syntax = "proto3";
 
-package sui.types;
+package iota.types;
 
 import "google/protobuf/empty.proto";
 
@@ -723,8 +723,8 @@ message FailureStatus {
     /// The modules in the package must have their self-addresses set to zero.
     google.protobuf.Empty publish_error_non_zero_address = 11;
 
-    /// Sui Move Bytecode Verification Error.
-    google.protobuf.Empty sui_move_verification_error = 12;
+    /// Iota Move Bytecode Verification Error.
+    google.protobuf.Empty iota_move_verification_error = 12;
 
     //
     // MoveVm Errors
@@ -790,8 +790,8 @@ message FailureStatus {
     /// Certificate is on the deny list
     google.protobuf.Empty certificate_denied = 31;
 
-    /// Sui Move Bytecode verification timed out.
-    google.protobuf.Empty sui_move_verification_timedout = 32;
+    /// Iota Move Bytecode verification timed out.
+    google.protobuf.Empty iota_move_verification_timedout = 32;
 
     /// The requested shared object operation is not allowed
     google.protobuf.Empty shared_object_operation_not_allowed = 33;

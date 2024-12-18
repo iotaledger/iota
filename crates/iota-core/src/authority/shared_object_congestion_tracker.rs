@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::authority_per_epoch_store::AuthorityEpochTables;
@@ -7,11 +8,11 @@ use crate::consensus_handler::VerifiedSequencedConsensusTransaction;
 use narwhal_types::Round;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use sui_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-use sui_types::base_types::{ObjectID, TransactionDigest};
-use sui_types::error::SuiResult;
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::transaction::{Argument, SharedInputObject, TransactionDataAPI};
+use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
+use iota_types::base_types::{ObjectID, TransactionDigest};
+use iota_types::error::IotaResult;
+use iota_types::executable_transaction::VerifiedExecutableTransaction;
+use iota_types::transaction::{Argument, SharedInputObject, TransactionDataAPI};
 use tracing::trace;
 
 // SharedObjectCongestionTracker stores the accumulated cost of executing transactions on an object, for
@@ -84,7 +85,7 @@ impl SharedObjectCongestionTracker {
         round: Round,
         for_randomness: bool,
         transactions: &[VerifiedSequencedConsensusTransaction],
-    ) -> SuiResult<Self> {
+    ) -> IotaResult<Self> {
         let max_accumulated_txn_cost_per_object_in_commit =
             protocol_config.max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option();
         Ok(Self::new(
@@ -256,7 +257,7 @@ impl SharedObjectCongestionTracker {
         let mut number_of_move_call = 0;
         let mut number_of_move_input = 0;
         for command in cert.transaction_data().kind().iter_commands() {
-            if let sui_types::transaction::Command::MoveCall(move_call) = command {
+            if let iota_types::transaction::Command::MoveCall(move_call) = command {
                 number_of_move_call += 1;
                 for aug in move_call.arguments.iter() {
                     if let Argument::Input(_) = aug {
@@ -301,12 +302,12 @@ mod object_cost_tests {
     use super::*;
 
     use rstest::rstest;
-    use sui_test_transaction_builder::TestTransactionBuilder;
-    use sui_types::base_types::{random_object_ref, SequenceNumber};
-    use sui_types::crypto::{get_key_pair, AccountKeyPair};
-    use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-    use sui_types::transaction::{CallArg, ObjectArg, VerifiedTransaction};
-    use sui_types::Identifier;
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::base_types::{random_object_ref, SequenceNumber};
+    use iota_types::crypto::{get_key_pair, AccountKeyPair};
+    use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+    use iota_types::transaction::{CallArg, ObjectArg, VerifiedTransaction};
+    use iota_types::Identifier;
 
     fn construct_shared_input_objects(objects: &[(ObjectID, bool)]) -> Vec<SharedInputObject> {
         objects

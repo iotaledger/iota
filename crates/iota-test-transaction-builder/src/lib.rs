@@ -1,42 +1,43 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::ident_str;
 use shared_crypto::intent::{Intent, IntentMessage};
 use std::path::PathBuf;
-use sui_genesis_builder::validator_info::GenesisValidatorMetadata;
-use sui_move_build::{BuildConfig, CompiledPackage};
-use sui_sdk::rpc_types::{
-    get_new_package_obj_from_response, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse,
+use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
+use iota_move_build::{BuildConfig, CompiledPackage};
+use iota_sdk::rpc_types::{
+    get_new_package_obj_from_response, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse,
 };
-use sui_sdk::wallet_context::WalletContext;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::crypto::{get_key_pair, AccountKeyPair, Signature, Signer};
-use sui_types::digests::TransactionDigest;
-use sui_types::multisig::{BitmapUnit, MultiSig, MultiSigPublicKey};
-use sui_types::multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy};
-use sui_types::object::Owner;
-use sui_types::signature::GenericSignature;
-use sui_types::sui_system_state::SUI_SYSTEM_MODULE_NAME;
-use sui_types::transaction::{
+use iota_sdk::wallet_context::WalletContext;
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress};
+use iota_types::crypto::{get_key_pair, AccountKeyPair, Signature, Signer};
+use iota_types::digests::TransactionDigest;
+use iota_types::multisig::{BitmapUnit, MultiSig, MultiSigPublicKey};
+use iota_types::multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy};
+use iota_types::object::Owner;
+use iota_types::signature::GenericSignature;
+use iota_types::iota_system_state::IOTA_SYSTEM_MODULE_NAME;
+use iota_types::transaction::{
     CallArg, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
     DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
     TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
 };
-use sui_types::SUI_RANDOMNESS_STATE_OBJECT_ID;
-use sui_types::{TypeTag, SUI_SYSTEM_PACKAGE_ID};
+use iota_types::IOTA_RANDOMNESS_STATE_OBJECT_ID;
+use iota_types::{TypeTag, IOTA_SYSTEM_PACKAGE_ID};
 
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
-    sender: SuiAddress,
+    sender: IotaAddress,
     gas_object: ObjectRef,
     gas_price: u64,
     gas_budget: Option<u64>,
 }
 
 impl TestTransactionBuilder {
-    pub fn new(sender: SuiAddress, gas_object: ObjectRef, gas_price: u64) -> Self {
+    pub fn new(sender: IotaAddress, gas_object: ObjectRef, gas_price: u64) -> Self {
         Self {
             test_data: TestTransactionData::Empty,
             sender,
@@ -46,7 +47,7 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn sender(&self) -> SuiAddress {
+    pub fn sender(&self) -> IotaAddress {
         self.sender
     }
 
@@ -155,7 +156,7 @@ impl TestTransactionBuilder {
                 CallArg::Pure(bcs::to_bytes("example_nft_name").unwrap()),
                 CallArg::Pure(bcs::to_bytes("example_nft_description").unwrap()),
                 CallArg::Pure(
-                    bcs::to_bytes("https://sui.io/_nuxt/img/sui-logo.8d3c44e.svg").unwrap(),
+                    bcs::to_bytes("https://iota.org/_nuxt/img/iota-logo.8d3c44e.svg").unwrap(),
                 ),
             ],
         )
@@ -170,13 +171,13 @@ impl TestTransactionBuilder {
         )
     }
 
-    pub fn call_staking(self, stake_coin: ObjectRef, validator: SuiAddress) -> Self {
+    pub fn call_staking(self, stake_coin: ObjectRef, validator: IotaAddress) -> Self {
         self.move_call(
-            SUI_SYSTEM_PACKAGE_ID,
-            SUI_SYSTEM_MODULE_NAME.as_str(),
+            IOTA_SYSTEM_PACKAGE_ID,
+            IOTA_SYSTEM_MODULE_NAME.as_str(),
             "request_add_stake",
             vec![
-                CallArg::SUI_SYSTEM_MUT,
+                CallArg::IOTA_SYSTEM_MUT,
                 CallArg::Object(ObjectArg::ImmOrOwnedObject(stake_coin)),
                 CallArg::Pure(bcs::to_bytes(&validator).unwrap()),
             ],
@@ -193,7 +194,7 @@ impl TestTransactionBuilder {
             "random",
             "new",
             vec![CallArg::Object(ObjectArg::SharedObject {
-                id: SUI_RANDOMNESS_STATE_OBJECT_ID,
+                id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
                 initial_shared_version: randomness_initial_shared_version,
                 mutable: false,
             })],
@@ -202,10 +203,10 @@ impl TestTransactionBuilder {
 
     pub fn call_request_add_validator(self) -> Self {
         self.move_call(
-            SUI_SYSTEM_PACKAGE_ID,
-            SUI_SYSTEM_MODULE_NAME.as_str(),
+            IOTA_SYSTEM_PACKAGE_ID,
+            IOTA_SYSTEM_MODULE_NAME.as_str(),
             "request_add_validator",
-            vec![CallArg::SUI_SYSTEM_MUT],
+            vec![CallArg::IOTA_SYSTEM_MUT],
         )
     }
 
@@ -214,11 +215,11 @@ impl TestTransactionBuilder {
         validator: &GenesisValidatorMetadata,
     ) -> Self {
         self.move_call(
-            SUI_SYSTEM_PACKAGE_ID,
-            SUI_SYSTEM_MODULE_NAME.as_str(),
+            IOTA_SYSTEM_PACKAGE_ID,
+            IOTA_SYSTEM_MODULE_NAME.as_str(),
             "request_add_validator_candidate",
             vec![
-                CallArg::SUI_SYSTEM_MUT,
+                CallArg::IOTA_SYSTEM_MUT,
                 CallArg::Pure(bcs::to_bytes(&validator.protocol_public_key).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.network_public_key).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.worker_public_key).unwrap()),
@@ -239,20 +240,20 @@ impl TestTransactionBuilder {
 
     pub fn call_request_remove_validator(self) -> Self {
         self.move_call(
-            SUI_SYSTEM_PACKAGE_ID,
-            SUI_SYSTEM_MODULE_NAME.as_str(),
+            IOTA_SYSTEM_PACKAGE_ID,
+            IOTA_SYSTEM_MODULE_NAME.as_str(),
             "request_remove_validator",
-            vec![CallArg::SUI_SYSTEM_MUT],
+            vec![CallArg::IOTA_SYSTEM_MUT],
         )
     }
 
-    pub fn transfer(mut self, object: ObjectRef, recipient: SuiAddress) -> Self {
+    pub fn transfer(mut self, object: ObjectRef, recipient: IotaAddress) -> Self {
         self.test_data = TestTransactionData::Transfer(TransferData { object, recipient });
         self
     }
 
-    pub fn transfer_sui(mut self, amount: Option<u64>, recipient: SuiAddress) -> Self {
-        self.test_data = TestTransactionData::TransferSui(TransferSuiData { amount, recipient });
+    pub fn transfer_iota(mut self, amount: Option<u64>, recipient: IotaAddress) -> Self {
+        self.test_data = TestTransactionData::TransferIota(TransferIotaData { amount, recipient });
         self
     }
 
@@ -316,7 +317,7 @@ impl TestTransactionBuilder {
                     .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
                 self.gas_price,
             ),
-            TestTransactionData::TransferSui(data) => TransactionData::new_transfer_sui(
+            TestTransactionData::TransferIota(data) => TransactionData::new_transfer_iota(
                 data.recipient,
                 self.sender,
                 data.amount,
@@ -378,7 +379,7 @@ impl TestTransactionBuilder {
         bitmap: BitmapUnit,
     ) -> Transaction {
         let data = self.build();
-        let intent_msg = IntentMessage::new(Intent::sui_transaction(), data.clone());
+        let intent_msg = IntentMessage::new(Intent::iota_transaction(), data.clone());
 
         let mut signatures = Vec::with_capacity(signers.len());
         for signer in signers {
@@ -401,7 +402,7 @@ impl TestTransactionBuilder {
         signers: &[&dyn Signer<Signature>],
     ) -> Transaction {
         let data = self.build();
-        let intent = Intent::sui_transaction();
+        let intent = Intent::iota_transaction();
         let intent_msg = IntentMessage::new(intent.clone(), data.clone());
 
         let mut signatures = Vec::with_capacity(signers.len());
@@ -420,7 +421,7 @@ impl TestTransactionBuilder {
 enum TestTransactionData {
     Move(MoveData),
     Transfer(TransferData),
-    TransferSui(TransferSuiData),
+    TransferIota(TransferIotaData),
     Publish(PublishData),
     Programmable(ProgrammableTransaction),
     Empty,
@@ -444,12 +445,12 @@ pub enum PublishData {
 
 struct TransferData {
     object: ObjectRef,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
 }
 
-struct TransferSuiData {
+struct TransferIotaData {
     amount: Option<u64>,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
 }
 
 /// A helper function to make Transactions with controlled accounts in WalletContext.
@@ -476,7 +477,7 @@ pub async fn batch_make_transfer_transactions(
             if res.len() >= max_txn_num {
                 return res;
             }
-            let data = TransactionData::new_transfer_sui(
+            let data = TransactionData::new_transfer_iota(
                 recipient,
                 address,
                 Some(2),
@@ -491,23 +492,23 @@ pub async fn batch_make_transfer_transactions(
     res
 }
 
-pub async fn make_transfer_sui_transaction(
+pub async fn make_transfer_iota_transaction(
     context: &WalletContext,
-    recipient: Option<SuiAddress>,
+    recipient: Option<IotaAddress>,
     amount: Option<u64>,
 ) -> Transaction {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
         &TestTransactionBuilder::new(sender, gas_object, gas_price)
-            .transfer_sui(amount, recipient.unwrap_or(sender))
+            .transfer_iota(amount, recipient.unwrap_or(sender))
             .build(),
     )
 }
 
 pub async fn make_staking_transaction(
     context: &WalletContext,
-    validator_address: SuiAddress,
+    validator_address: IotaAddress,
 ) -> Transaction {
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;
@@ -601,12 +602,12 @@ pub async fn publish_basics_package_and_make_counter(
 /// Must be called after calling `publish_basics_package_and_make_counter`.
 pub async fn increment_counter(
     context: &WalletContext,
-    sender: SuiAddress,
+    sender: IotaAddress,
     gas_object_id: Option<ObjectID>,
     package_id: ObjectID,
     counter_id: ObjectID,
     initial_shared_version: SequenceNumber,
-) -> SuiTransactionBlockResponse {
+) -> IotaTransactionBlockResponse {
     let gas_object = if let Some(gas_object_id) = gas_object_id {
         context.get_object_ref(gas_object_id).await.unwrap()
     } else {
@@ -629,7 +630,7 @@ pub async fn increment_counter(
 pub async fn emit_new_random_u128(
     context: &WalletContext,
     package_id: ObjectID,
-) -> SuiTransactionBlockResponse {
+) -> IotaTransactionBlockResponse {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
 
@@ -637,8 +638,8 @@ pub async fn emit_new_random_u128(
     let random_obj = client
         .read_api()
         .get_object_with_options(
-            SUI_RANDOMNESS_STATE_OBJECT_ID,
-            SuiObjectDataOptions::new().with_owner(),
+            IOTA_RANDOMNESS_STATE_OBJECT_ID,
+            IotaObjectDataOptions::new().with_owner(),
         )
         .await
         .unwrap()
@@ -655,7 +656,7 @@ pub async fn emit_new_random_u128(
         panic!("Expect Randomness to be shared object")
     };
     let random_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: SUI_RANDOMNESS_STATE_OBJECT_ID,
+        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
         initial_shared_version,
         mutable: false,
     });
@@ -692,7 +693,7 @@ pub async fn publish_nfts_package(
 pub async fn create_nft(
     context: &WalletContext,
     package_id: ObjectID,
-) -> (SuiAddress, ObjectID, TransactionDigest) {
+) -> (IotaAddress, ObjectID, TransactionDigest) {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let rgp = context.get_reference_gas_price().await.unwrap();
 
@@ -719,10 +720,10 @@ pub async fn create_nft(
 /// Executes a transaction to delete the given NFT.
 pub async fn delete_nft(
     context: &WalletContext,
-    sender: SuiAddress,
+    sender: IotaAddress,
     package_id: ObjectID,
     nft_to_delete: ObjectRef,
-) -> SuiTransactionBlockResponse {
+) -> IotaTransactionBlockResponse {
     let gas = context
         .get_one_gas_object_owned_by_address(sender)
         .await

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
@@ -62,7 +63,7 @@ export function Onramp() {
 					onClick={() => {
 						mutate();
 					}}
-					className="w-full p-4 bg-sui/10 rounded-2xl flex flex-col gap-2.5 cursor-pointer border boder-solid border-hero/20 hover:border-hero/40"
+					className="w-full p-4 bg-iota/10 rounded-2xl flex flex-col gap-2.5 cursor-pointer border boder-solid border-hero/20 hover:border-hero/40"
 				>
 					<span className="flex w-full">
 						<preferredProvider.icon className="mr-auto w-10 h-10" />

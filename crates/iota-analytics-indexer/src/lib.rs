@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::ops::Range;
@@ -17,15 +18,15 @@ use snowflake_api::{QueryResult, SnowflakeApi};
 use strum_macros::EnumIter;
 use tracing::info;
 
-use sui_config::object_storage_config::ObjectStoreConfig;
-use sui_data_ingestion_core::Worker;
-use sui_rpc_api::CheckpointData;
-use sui_storage::object_store::util::{
+use iota_config::object_storage_config::ObjectStoreConfig;
+use iota_data_ingestion_core::Worker;
+use iota_rpc_api::CheckpointData;
+use iota_storage::object_store::util::{
     find_all_dirs_with_epoch_prefix, find_all_files_with_epoch_prefix,
 };
-use sui_types::base_types::EpochId;
-use sui_types::dynamic_field::DynamicFieldType;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::base_types::EpochId;
+use iota_types::dynamic_field::DynamicFieldType;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use crate::analytics_metrics::AnalyticsMetrics;
 use crate::analytics_processor::AnalyticsProcessor;
@@ -70,7 +71,7 @@ const WRAPPED_OBJECT_PREFIX: &str = "wrapped_object";
 
 #[derive(Parser, Clone, Debug)]
 #[clap(
-    name = "Sui Analytics Indexer",
+    name = "Iota Analytics Indexer",
     about = "Indexer service to upload data for the analytics pipeline.",
     rename_all = "kebab-case"
 )]
@@ -113,7 +114,7 @@ pub struct AnalyticsIndexerConfig {
     pub file_type: FileType,
     #[clap(
         long,
-        default_value = "https://checkpoints.mainnet.sui.io",
+        default_value = "https://checkpoints.mainnet.iota.io",
         global = true
     )]
     pub remote_store_url: String,
@@ -123,7 +124,7 @@ pub struct AnalyticsIndexerConfig {
         value_enum,
         long,
         global = true,
-        default_value = "/opt/sui/db/package_cache"
+        default_value = "/opt/iota/db/package_cache"
     )]
     pub package_cache_path: PathBuf,
     #[clap(long, default_value = None, global = true)]

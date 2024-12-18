@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
@@ -6,15 +7,15 @@ use std::{collections::HashSet, sync::Arc};
 
 use move_binary_format::CompiledModule;
 use move_vm_config::verifier::{MeterConfig, VerifierConfig};
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{
-    base_types::{ObjectRef, SuiAddress, TxContext},
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    base_types::{ObjectRef, IotaAddress, TxContext},
     committee::EpochId,
     digests::TransactionDigest,
     effects::TransactionEffects,
-    error::{ExecutionError, SuiError, SuiResult},
+    error::{ExecutionError, IotaError, IotaResult},
     execution::{ExecutionResult, TypeLayoutStore},
-    gas::SuiGasStatus,
+    gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
@@ -23,15 +24,15 @@ use sui_types::{
 
 use move_bytecode_verifier_meter::Meter;
 use move_vm_runtime_v2::move_vm::MoveVM;
-use sui_adapter_v2::adapter::{new_move_vm, run_metered_move_bytecode_verifier};
-use sui_adapter_v2::execution_engine::{
+use iota_adapter_v2::adapter::{new_move_vm, run_metered_move_bytecode_verifier};
+use iota_adapter_v2::execution_engine::{
     execute_genesis_state_update, execute_transaction_to_effects,
 };
-use sui_adapter_v2::execution_mode;
-use sui_adapter_v2::type_layout_resolver::TypeLayoutResolver;
-use sui_move_natives_v2::all_natives;
-use sui_types::storage::BackingStore;
-use sui_verifier_v2::meter::SuiVerifierMeter;
+use iota_adapter_v2::execution_mode;
+use iota_adapter_v2::type_layout_resolver::TypeLayoutResolver;
+use iota_move_natives_v2::all_natives;
+use iota_types::storage::BackingStore;
+use iota_verifier_v2::meter::IotaVerifierMeter;
 
 use crate::executor;
 use crate::verifier;
@@ -48,7 +49,7 @@ impl Executor {
         protocol_config: &ProtocolConfig,
         silent: bool,
         enable_profiler: Option<PathBuf>,
-    ) -> Result<Self, SuiError> {
+    ) -> Result<Self, IotaError> {
         Ok(Executor(Arc::new(new_move_vm(
             all_natives(silent),
             protocol_config,
@@ -75,13 +76,13 @@ impl executor::Executor for Executor {
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
         gas_coins: Vec<ObjectRef>,
-        gas_status: SuiGasStatus,
+        gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: SuiAddress,
+        transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
     ) -> (
         InnerTemporaryStore,
-        SuiGasStatus,
+        IotaGasStatus,
         TransactionEffects,
         Result<(), ExecutionError>,
     ) {
@@ -114,14 +115,14 @@ impl executor::Executor for Executor {
         epoch_timestamp_ms: u64,
         input_objects: CheckedInputObjects,
         gas_coins: Vec<ObjectRef>,
-        gas_status: SuiGasStatus,
+        gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: SuiAddress,
+        transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
         skip_all_checks: bool,
     ) -> (
         InnerTemporaryStore,
-        SuiGasStatus,
+        IotaGasStatus,
         TransactionEffects,
         Result<Vec<ExecutionResult>, ExecutionError>,
     ) {
@@ -192,7 +193,7 @@ impl executor::Executor for Executor {
 
 impl<'m> verifier::Verifier for Verifier<'m> {
     fn meter(&self, config: MeterConfig) -> Box<dyn Meter> {
-        Box::new(SuiVerifierMeter::new(config))
+        Box::new(IotaVerifierMeter::new(config))
     }
 
     fn meter_compiled_modules(
@@ -200,7 +201,7 @@ impl<'m> verifier::Verifier for Verifier<'m> {
         _protocol_config: &ProtocolConfig,
         modules: &[CompiledModule],
         meter: &mut dyn Meter,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         run_metered_move_bytecode_verifier(modules, &self.config, meter, self.metrics)
     }
 }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{fs::File, io::BufReader, path::PathBuf, str::FromStr};
@@ -9,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tracing::info;
 
-pub const DEFAULT_CONFIG_PATH: &str = "~/.sui-replay/network-config.yaml";
+pub const DEFAULT_CONFIG_PATH: &str = "~/.iota-replay/network-config.yaml";
 
 #[serde_as]
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -104,7 +105,7 @@ impl Default for ReplayableNetworkConfigSet {
             name: "testnet".to_string(),
             epoch_zero_start_timestamp: 0,
             epoch_zero_rgp: 0,
-            public_full_node: url_from_str("https://fullnode.testnet.sui.io:443")
+            public_full_node: url_from_str("https://fullnode.testnet.iota.io:443")
                 .expect("invalid socket address")
                 .to_string(),
         };
@@ -112,7 +113,7 @@ impl Default for ReplayableNetworkConfigSet {
             name: "devnet".to_string(),
             epoch_zero_start_timestamp: 0,
             epoch_zero_rgp: 0,
-            public_full_node: url_from_str("https://fullnode.devnet.sui.io:443")
+            public_full_node: url_from_str("https://fullnode.devnet.iota.io:443")
                 .expect("invalid socket address")
                 .to_string(),
         };
@@ -120,7 +121,7 @@ impl Default for ReplayableNetworkConfigSet {
             name: "mainnet".to_string(),
             epoch_zero_start_timestamp: 0,
             epoch_zero_rgp: 0,
-            public_full_node: url_from_str("https://fullnode.mainnet.sui.io:443")
+            public_full_node: url_from_str("https://fullnode.mainnet.iota.io:443")
                 .expect("invalid socket address")
                 .to_string(),
         };

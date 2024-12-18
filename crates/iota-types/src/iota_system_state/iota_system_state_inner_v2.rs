@@ -1,24 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::epoch_start_sui_system_state::EpochStartValidatorInfoV1;
-use super::sui_system_state_inner_v1::ValidatorV1;
-use super::sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary};
-use super::{AdvanceEpochParams, SuiSystemStateTrait};
+use super::epoch_start_iota_system_state::EpochStartValidatorInfoV1;
+use super::iota_system_state_inner_v1::ValidatorV1;
+use super::iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary};
+use super::{AdvanceEpochParams, IotaSystemStateTrait};
 use crate::balance::Balance;
-use crate::base_types::SuiAddress;
+use crate::base_types::IotaAddress;
 use crate::collection_types::{Bag, Table, TableVec, VecMap, VecSet};
 use crate::committee::{CommitteeWithNetworkMetadata, NetworkMetadata};
-use crate::error::SuiError;
+use crate::error::IotaError;
 use crate::storage::ObjectStore;
-use crate::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
-use crate::sui_system_state::get_validators_from_table_vec;
-use crate::sui_system_state::sui_system_state_inner_v1::{
+use crate::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
+use crate::iota_system_state::get_validators_from_table_vec;
+use crate::iota_system_state::iota_system_state_inner_v1::{
     StakeSubsidyV1, StorageFundV1, ValidatorSetV1,
 };
 use serde::{Deserialize, Serialize};
 
-/// Rust version of the Move sui::sui_system::SystemParametersV2 type
+/// Rust version of the Move iota::iota_system::SystemParametersV2 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SystemParametersV2 {
     /// The duration of an epoch, in milliseconds.
@@ -53,9 +54,9 @@ pub struct SystemParametersV2 {
     pub extra_fields: Bag,
 }
 
-/// Rust version of the Move sui_system::sui_system::SuiSystemStateInnerV2 type
+/// Rust version of the Move iota_system::iota_system::IotaSystemStateInnerV2 type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SuiSystemStateInnerV2 {
+pub struct IotaSystemStateInnerV2 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
@@ -63,7 +64,7 @@ pub struct SuiSystemStateInnerV2 {
     pub storage_fund: StorageFundV1,
     pub parameters: SystemParametersV2,
     pub reference_gas_price: u64,
-    pub validator_report_records: VecMap<SuiAddress, VecSet<SuiAddress>>,
+    pub validator_report_records: VecMap<IotaAddress, VecSet<IotaAddress>>,
     pub stake_subsidy: StakeSubsidyV1,
     pub safe_mode: bool,
     pub safe_mode_storage_rewards: Balance,
@@ -75,7 +76,7 @@ pub struct SuiSystemStateInnerV2 {
     // TODO: Use getters instead of all pub.
 }
 
-impl SuiSystemStateTrait for SuiSystemStateInnerV2 {
+impl IotaSystemStateTrait for IotaSystemStateInnerV2 {
     fn epoch(&self) -> u64 {
         self.epoch
     }
@@ -124,7 +125,7 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV2 {
             .iter()
             .map(|validator| {
                 let verified_metadata = validator.verified_metadata();
-                let name = verified_metadata.sui_pubkey_bytes();
+                let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
                     (
@@ -144,14 +145,14 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV2 {
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
         &self,
         object_store: &S,
-    ) -> Result<Vec<SuiValidatorSummary>, SuiError> {
+    ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
         let table_id = self.validators.pending_active_validators.contents.id;
         let table_size = self.validators.pending_active_validators.contents.size;
         let validators: Vec<ValidatorV1> =
             get_validators_from_table_vec(&object_store, table_id, table_size)?;
         Ok(validators
             .into_iter()
-            .map(|v| v.into_sui_validator_summary())
+            .map(|v| v.into_iota_validator_summary())
             .collect())
     }
 
@@ -169,11 +170,11 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV2 {
                 .map(|validator| {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
-                        sui_address: metadata.sui_address,
+                        iota_address: metadata.iota_address,
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
                         narwhal_network_pubkey: metadata.network_pubkey.clone(),
                         narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
-                        sui_net_address: metadata.net_address.clone(),
+                        iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         narwhal_primary_address: metadata.primary_address.clone(),
                         narwhal_worker_address: metadata.worker_address.clone(),
@@ -185,9 +186,9 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV2 {
         )
     }
 
-    fn into_sui_system_state_summary(self) -> SuiSystemStateSummary {
-        // If you are making any changes to SuiSystemStateV1 or any of its dependent types before
-        // mainnet, please also update SuiSystemStateSummary and its corresponding TS type.
+    fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
+        // If you are making any changes to IotaSystemStateV1 or any of its dependent types before
+        // mainnet, please also update IotaSystemStateSummary and its corresponding TS type.
         // Post-mainnet, we will need to introduce a new version.
         let Self {
             epoch,
@@ -262,7 +263,7 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV2 {
             epoch_start_timestamp_ms,
             extra_fields: _,
         } = self;
-        SuiSystemStateSummary {
+        IotaSystemStateSummary {
             epoch,
             protocol_version,
             system_state_version,
@@ -285,7 +286,7 @@ impl SuiSystemStateTrait for SuiSystemStateInnerV2 {
             total_stake,
             active_validators: active_validators
                 .into_iter()
-                .map(|v| v.into_sui_validator_summary())
+                .map(|v| v.into_iota_validator_summary())
                 .collect(),
             pending_active_validators_id,
             pending_active_validators_size,

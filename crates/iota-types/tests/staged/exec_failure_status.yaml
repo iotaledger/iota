@@ -9,7 +9,7 @@
 7: InsufficientCoinBalance
 8: CoinBalanceOverflow
 9: PublishErrorNonZeroAddress
-10: SuiMoveVerificationError
+10: IotaMoveVerificationError
 11: MovePrimitiveRuntimeError
 12: MoveAbort
 13: VMVerificationOrDeserializationError
@@ -29,7 +29,7 @@
 27: PackageUpgradeError
 28: WrittenObjectsTooLarge
 29: CertificateDenied
-30: SuiMoveVerificationTimedout
+30: IotaMoveVerificationTimedout
 31: SharedObjectOperationNotAllowed
 32: InputObjectDeleted
 33: ExecutionCancelledDueToSharedObjectCongestion

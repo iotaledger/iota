@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState, useEffect } from "react";
@@ -90,7 +91,7 @@ const Rpc = () => {
         <div className="mx-8">
           <div className="">
             <h1 className="fixed bg-white dark:bg-ifm-background-color-dark w-full py-4 top-14">
-              Sui JSON-RPC Reference - Version: {openrpc.info.version}
+              Iota JSON-RPC Reference - Version: {openrpc.info.version}
             </h1>
             
               <div className="">

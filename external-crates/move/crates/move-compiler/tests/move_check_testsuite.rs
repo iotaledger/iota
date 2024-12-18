@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, fs, path::Path};
@@ -15,7 +16,7 @@ use move_compiler::{
     editions::{Edition, Flavor},
     linters::{self, LintLevel},
     shared::{Flags, NumericalAddress, PackageConfig, PackagePaths},
-    sui_mode, Compiler, PASS_PARSER,
+    iota_mode, Compiler, PASS_PARSER,
 };
 
 /// Shared flag to keep any temporary results of the test
@@ -27,14 +28,14 @@ const MIGRATION_EXT: &str = "migration";
 const IDE_EXT: &str = "ide";
 
 const LINTER_DIR: &str = "linter";
-const SUI_MODE_DIR: &str = "sui_mode";
+const IOTA_MODE_DIR: &str = "iota_mode";
 const MOVE_2024_DIR: &str = "move_2024";
 const DEV_DIR: &str = "development";
 
 fn default_testing_addresses(flavor: Flavor) -> BTreeMap<String, NumericalAddress> {
     let mut mapping = vec![
         ("std", "0x1"),
-        ("sui", "0x2"),
+        ("iota", "0x2"),
         ("M", "0x40"),
         ("A", "0x41"),
         ("B", "0x42"),
@@ -43,8 +44,8 @@ fn default_testing_addresses(flavor: Flavor) -> BTreeMap<String, NumericalAddres
         ("b", "0x45"),
         ("k", "0x19"),
     ];
-    if flavor == Flavor::Sui {
-        mapping.extend([("sui", "0x2"), ("sui_system", "0x3")]);
+    if flavor == Flavor::Iota {
+        mapping.extend([("iota", "0x2"), ("iota_system", "0x3")]);
     }
     mapping
         .into_iter()
@@ -55,8 +56,8 @@ fn default_testing_addresses(flavor: Flavor) -> BTreeMap<String, NumericalAddres
 fn move_check_testsuite(path: &Path) -> datatest_stable::Result<()> {
     let path_contains = |s| path.components().any(|c| c.as_os_str() == s);
     let lint = path_contains(LINTER_DIR);
-    let flavor = if path_contains(SUI_MODE_DIR) {
-        Flavor::Sui
+    let flavor = if path_contains(IOTA_MODE_DIR) {
+        Flavor::Iota
     } else {
         Flavor::default()
     };
@@ -228,11 +229,11 @@ pub fn run_test_inner(
         .set_flags(flags)
         .set_default_config(package_config);
 
-    if flavor == Flavor::Sui {
-        let (prefix, filters) = sui_mode::linters::known_filters();
+    if flavor == Flavor::Iota {
+        let (prefix, filters) = iota_mode::linters::known_filters();
         compiler = compiler.add_custom_known_filters(prefix, filters);
         if lint {
-            compiler = compiler.add_visitors(sui_mode::linters::linter_visitors(LintLevel::All))
+            compiler = compiler.add_visitors(iota_mode::linters::linter_visitors(LintLevel::All))
         }
     }
     let (prefix, filters) = linters::known_filters();

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::accumulator::Accumulator;
@@ -12,19 +13,19 @@ use crate::crypto::{
 };
 use crate::digests::Digest;
 use crate::effects::{TestEffectsBuilder, TransactionEffectsAPI};
-use crate::error::SuiResult;
+use crate::error::IotaResult;
 use crate::gas::GasCostSummary;
 use crate::message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope};
 use crate::signature::GenericSignature;
 use crate::storage::ReadStore;
-use crate::sui_serde::AsProtocolVersion;
-use crate::sui_serde::BigInt;
-use crate::sui_serde::Readable;
+use crate::iota_serde::AsProtocolVersion;
+use crate::iota_serde::BigInt;
+use crate::iota_serde::Readable;
 use crate::transaction::{Transaction, TransactionData};
-use crate::{base_types::AuthorityName, committee::Committee, error::SuiError};
+use crate::{base_types::AuthorityName, committee::Committee, error::IotaError};
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
-use mysten_metrics::histogram::Histogram as MystenHistogram;
+use iota_metrics::histogram::Histogram as IotaHistogram;
 use once_cell::sync::OnceCell;
 use prometheus::Histogram;
 use schemars::JsonSchema;
@@ -34,7 +35,7 @@ use shared_crypto::intent::{Intent, IntentScope};
 use std::fmt::{Debug, Display, Formatter};
 use std::slice::Iter;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -240,10 +241,10 @@ impl CheckpointSummary {
         }
     }
 
-    pub fn verify_epoch(&self, epoch: EpochId) -> SuiResult {
+    pub fn verify_epoch(&self, epoch: EpochId) -> IotaResult {
         fp_ensure!(
             self.epoch == epoch,
-            SuiError::WrongEpoch {
+            IotaError::WrongEpoch {
                 expected_epoch: epoch,
                 actual_epoch: self.epoch,
             }
@@ -265,7 +266,7 @@ impl CheckpointSummary {
             .map(|e| e.next_epoch_committee.as_slice())
     }
 
-    pub fn report_checkpoint_age(&self, metrics: &Histogram, metrics_deprecated: &MystenHistogram) {
+    pub fn report_checkpoint_age(&self, metrics: &Histogram, metrics_deprecated: &IotaHistogram) {
         SystemTime::now()
             .duration_since(self.timestamp())
             .map(|latency| {
@@ -327,16 +328,16 @@ pub type VerifiedCheckpoint = VerifiedEnvelope<CheckpointSummary, AuthorityStron
 pub type TrustedCheckpoint = TrustedEnvelope<CheckpointSummary, AuthorityStrongQuorumSignInfo>;
 
 impl CertifiedCheckpointSummary {
-    pub fn verify_authority_signatures(&self, committee: &Committee) -> SuiResult {
+    pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
         self.data().verify_epoch(self.auth_sig().epoch)?;
         self.auth_sig().verify_secure(
             self.data(),
-            Intent::sui_app(IntentScope::CheckpointSummary),
+            Intent::iota_app(IntentScope::CheckpointSummary),
             committee,
         )
     }
 
-    pub fn try_into_verified(self, committee: &Committee) -> SuiResult<VerifiedCheckpoint> {
+    pub fn try_into_verified(self, committee: &Committee) -> IotaResult<VerifiedCheckpoint> {
         self.verify_authority_signatures(committee)?;
         Ok(VerifiedCheckpoint::new_from_verified(self))
     }
@@ -345,14 +346,14 @@ impl CertifiedCheckpointSummary {
         &self,
         committee: &Committee,
         contents: Option<&CheckpointContents>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         self.verify_authority_signatures(committee)?;
 
         if let Some(contents) = contents {
             let content_digest = *contents.digest();
             fp_ensure!(
                 content_digest == self.data().content_digest,
-                SuiError::GenericAuthorityError{error:format!("Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions", self.data(), content_digest, contents.size())}
+                IotaError::GenericAuthorityError{error:format!("Checkpoint contents digest mismatch: summary={:?}, received content digest {:?}, received {} transactions", self.data(), content_digest, contents.size())}
             );
         }
 
@@ -370,11 +371,11 @@ impl CertifiedCheckpointSummary {
 }
 
 impl SignedCheckpointSummary {
-    pub fn verify_authority_signatures(&self, committee: &Committee) -> SuiResult {
+    pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
         self.data().verify_epoch(self.auth_sig().epoch)?;
         self.auth_sig().verify_secure(
             self.data(),
-            Intent::sui_app(IntentScope::CheckpointSummary),
+            Intent::iota_app(IntentScope::CheckpointSummary),
             committee,
         )
     }
@@ -382,7 +383,7 @@ impl SignedCheckpointSummary {
     pub fn try_into_verified(
         self,
         committee: &Committee,
-    ) -> SuiResult<VerifiedEnvelope<CheckpointSummary, AuthoritySignInfo>> {
+    ) -> IotaResult<VerifiedEnvelope<CheckpointSummary, AuthoritySignInfo>> {
         self.verify_authority_signatures(committee)?;
         Ok(VerifiedEnvelope::<CheckpointSummary, AuthoritySignInfo>::new_from_verified(self))
     }
@@ -401,7 +402,7 @@ pub struct CheckpointSignatureMessage {
 }
 
 impl CheckpointSignatureMessage {
-    pub fn verify(&self, committee: &Committee) -> SuiResult {
+    pub fn verify(&self, committee: &Committee) -> IotaResult {
         self.summary.verify_authority_signatures(committee)
     }
 }

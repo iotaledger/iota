@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::mock_account::Account;
 use crate::tx_generator::TxGenerator;
 use move_core_types::identifier::Identifier;
 use std::collections::HashMap;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{CallArg, ObjectArg, Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress};
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::transaction::{CallArg, ObjectArg, Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
 
 pub struct MoveTxGenerator {
     move_package: ObjectID,
     num_transfers: u64,
     use_native_transfer: bool,
     computation: u8,
-    root_objects: HashMap<SuiAddress, ObjectRef>,
+    root_objects: HashMap<IotaAddress, ObjectRef>,
     shared_objects: Vec<(ObjectID, SequenceNumber)>,
     num_mints: u16,
     nft_size: u16,
@@ -28,7 +29,7 @@ impl MoveTxGenerator {
         num_transfers: u64,
         use_native_transfer: bool,
         computation: u8,
-        root_objects: HashMap<SuiAddress, ObjectRef>,
+        root_objects: HashMap<IotaAddress, ObjectRef>,
         shared_objects: Vec<(ObjectID, SequenceNumber)>,
         num_mints: u16,
         nft_size: u16,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -25,7 +26,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 use std::collections::VecDeque;
-use sui_types::{base_types::MoveObjectType, dynamic_field::derive_dynamic_field_id};
+use iota_types::{base_types::MoveObjectType, dynamic_field::derive_dynamic_field_id};
 use tracing::instrument;
 
 const E_KEY_DOES_NOT_EXIST: u64 = 1;
@@ -216,7 +217,7 @@ pub fn add_child_object(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Sui verifier guarantees this is a struct".to_string()),
+                    .with_message("Iota verifier guarantees this is a struct".to_string()),
             )
         }
     };
@@ -474,7 +475,7 @@ pub fn has_child_object_with_ty(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Sui verifier guarantees this is a struct".to_string()),
+                    .with_message("Iota verifier guarantees this is a struct".to_string()),
             )
         }
     };
@@ -507,7 +508,7 @@ fn get_tag_and_layouts(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Sui verifier guarantees this is a struct".to_string()),
+                    .with_message("Iota verifier guarantees this is a struct".to_string()),
             )
         }
     };

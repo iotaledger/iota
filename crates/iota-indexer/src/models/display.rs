@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
 use serde::Deserialize;
 
-use sui_types::display::DisplayVersionUpdatedEvent;
+use iota_types::display::DisplayVersionUpdatedEvent;
 
 use crate::schema::display;
 
@@ -18,7 +19,7 @@ pub struct StoredDisplay {
 }
 
 impl StoredDisplay {
-    pub fn try_from_event(event: &sui_types::event::Event) -> Option<Self> {
+    pub fn try_from_event(event: &iota_types::event::Event) -> Option<Self> {
         let (ty, display_event) = DisplayVersionUpdatedEvent::try_from_event(event)?;
 
         Some(Self {

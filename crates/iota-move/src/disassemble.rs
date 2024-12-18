@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
@@ -13,7 +14,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[group(id = "sui-move-disassemmble")]
+#[group(id = "iota-move-disassemmble")]
 pub struct Disassemble {
     /// Path to a .mv file to disassemble
     #[clap(name = "module_path")]

@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority_client::AuthorityAPI;
@@ -12,21 +13,21 @@ use prometheus::{
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use sui_types::crypto::AuthorityPublicKeyBytes;
-use sui_types::effects::{SignedTransactionEffects, TransactionEffectsAPI};
-use sui_types::messages_checkpoint::{
+use iota_types::crypto::AuthorityPublicKeyBytes;
+use iota_types::effects::{SignedTransactionEffects, TransactionEffectsAPI};
+use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
 };
-use sui_types::messages_grpc::{
+use iota_types::messages_grpc::{
     HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
     ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest,
     TransactionStatus, VerifiedObjectInfoResponse,
 };
-use sui_types::messages_safe_client::PlainTransactionInfoResponse;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::{base_types::*, committee::*, fp_ensure};
-use sui_types::{
-    error::{SuiError, SuiResult},
+use iota_types::messages_safe_client::PlainTransactionInfoResponse;
+use iota_types::iota_system_state::IotaSystemState;
+use iota_types::{base_types::*, committee::*, fp_ensure};
+use iota_types::{
+    error::{IotaError, IotaResult},
     transaction::*,
 };
 use tap::TapFallible;
@@ -73,7 +74,7 @@ impl SafeClientMetricsBase {
                 "safe_client_latency",
                 "RPC latency observed by safe client aggregator, group by method",
                 &["method"],
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -183,10 +184,10 @@ impl<C: Clone> SafeClient<C> {
         &mut self.authority_client
     }
 
-    fn get_committee(&self, epoch_id: &EpochId) -> SuiResult<Arc<Committee>> {
+    fn get_committee(&self, epoch_id: &EpochId) -> IotaResult<Arc<Committee>> {
         self.committee_store
             .get_committee(epoch_id)?
-            .ok_or(SuiError::MissingCommitteeAtEpoch(*epoch_id))
+            .ok_or(IotaError::MissingCommitteeAtEpoch(*epoch_id))
     }
 
     fn check_signed_effects_plain(
@@ -194,11 +195,11 @@ impl<C: Clone> SafeClient<C> {
         digest: &TransactionDigest,
         signed_effects: SignedTransactionEffects,
         expected_effects_digest: Option<&TransactionEffectsDigest>,
-    ) -> SuiResult<SignedTransactionEffects> {
+    ) -> IotaResult<SignedTransactionEffects> {
         // Check it has the right signer
         fp_ensure!(
             signed_effects.auth_sig().authority == self.address,
-            SuiError::ByzantineAuthoritySuspicion {
+            IotaError::ByzantineAuthoritySuspicion {
                 authority: self.address,
                 reason: format!(
                     "Unexpected validator address in the signed effects signature: {:?}",
@@ -209,7 +210,7 @@ impl<C: Clone> SafeClient<C> {
         // Checks it concerns the right tx
         fp_ensure!(
             signed_effects.data().transaction_digest() == digest,
-            SuiError::ByzantineAuthoritySuspicion {
+            IotaError::ByzantineAuthoritySuspicion {
                 authority: self.address,
                 reason: "Unexpected tx digest in the signed effects".to_string()
             }
@@ -218,7 +219,7 @@ impl<C: Clone> SafeClient<C> {
         if let Some(effects_digest) = expected_effects_digest {
             fp_ensure!(
                 signed_effects.digest() == effects_digest,
-                SuiError::ByzantineAuthoritySuspicion {
+                IotaError::ByzantineAuthoritySuspicion {
                     authority: self.address,
                     reason: "Effects digest does not match with expected digest".to_string()
                 }
@@ -233,10 +234,10 @@ impl<C: Clone> SafeClient<C> {
         digest: &TransactionDigest,
         transaction: Transaction,
         status: TransactionStatus,
-    ) -> SuiResult<PlainTransactionInfoResponse> {
+    ) -> IotaResult<PlainTransactionInfoResponse> {
         fp_ensure!(
             digest == transaction.digest(),
-            SuiError::ByzantineAuthoritySuspicion {
+            IotaError::ByzantineAuthoritySuspicion {
                 authority: self.address,
                 reason: "Signed transaction digest does not match with expected digest".to_string()
             }
@@ -258,7 +259,7 @@ impl<C: Clone> SafeClient<C> {
                             cert,
                         );
                         ct.verify_committee_sigs_only(&committee).map_err(|e| {
-                            SuiError::FailedToVerifyTxCertWithExecutedEffects {
+                            IotaError::FailedToVerifyTxCertWithExecutedEffects {
                                 validator_name: self.address,
                                 error: e.to_string(),
                             }
@@ -283,7 +284,7 @@ impl<C: Clone> SafeClient<C> {
         &self,
         request: &ObjectInfoRequest,
         response: ObjectInfoResponse,
-    ) -> SuiResult<VerifiedObjectInfoResponse> {
+    ) -> IotaResult<VerifiedObjectInfoResponse> {
         let ObjectInfoResponse {
             object,
             layout: _,
@@ -292,7 +293,7 @@ impl<C: Clone> SafeClient<C> {
 
         fp_ensure!(
             request.object_id == object.id(),
-            SuiError::ByzantineAuthoritySuspicion {
+            IotaError::ByzantineAuthoritySuspicion {
                 authority: self.address,
                 reason: "Object id mismatch in the response".to_string()
             }
@@ -310,12 +311,12 @@ impl<C> SafeClient<C>
 where
     C: AuthorityAPI + Send + Sync + Clone + 'static,
 {
-    /// Initiate a new transfer to a Sui or Primary account.
+    /// Initiate a new transfer to a Iota or Primary account.
     pub async fn handle_transaction(
         &self,
         transaction: Transaction,
         client_addr: Option<SocketAddr>,
-    ) -> Result<PlainTransactionInfoResponse, SuiError> {
+    ) -> Result<PlainTransactionInfoResponse, IotaError> {
         let _timer = self.metrics.handle_transaction_latency.start_timer();
         let digest = *transaction.digest();
         let response = self
@@ -334,7 +335,7 @@ where
         &self,
         digest: &TransactionDigest,
         response: HandleCertificateResponseV2,
-    ) -> SuiResult<HandleCertificateResponseV2> {
+    ) -> IotaResult<HandleCertificateResponseV2> {
         let signed_effects =
             self.check_signed_effects_plain(digest, response.signed_effects, None)?;
 
@@ -350,7 +351,7 @@ where
         &self,
         certificate: CertifiedTransaction,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, SuiError> {
+    ) -> Result<HandleCertificateResponseV2, IotaError> {
         let digest = *certificate.digest();
         let _timer = self.metrics.handle_certificate_latency.start_timer();
         let response = self
@@ -376,7 +377,7 @@ where
             output_objects,
             auxiliary_data,
         }: HandleCertificateResponseV3,
-    ) -> SuiResult<HandleCertificateResponseV3> {
+    ) -> IotaResult<HandleCertificateResponseV3> {
         let effects = self.check_signed_effects_plain(digest, effects, None)?;
 
         // Check Events
@@ -384,7 +385,7 @@ where
             (None, None) | (None, Some(_)) => {}
             (Some(events), None) => {
                 if !events.data.is_empty() {
-                    return Err(SuiError::ByzantineAuthoritySuspicion {
+                    return Err(IotaError::ByzantineAuthoritySuspicion {
                         authority: self.address,
                         reason: "Returned events but no event digest present in the signed effects"
                             .to_string(),
@@ -394,7 +395,7 @@ where
             (Some(events), Some(events_digest)) => {
                 fp_ensure!(
                     &events.digest() == events_digest,
-                    SuiError::ByzantineAuthoritySuspicion {
+                    IotaError::ByzantineAuthoritySuspicion {
                         authority: self.address,
                         reason: "Returned events don't match events digest in the signed effects"
                             .to_string()
@@ -417,7 +418,7 @@ where
                     .get(&object_ref.0)
                     .is_some_and(|expect| &object_ref == expect)
                 {
-                    return Err(SuiError::ByzantineAuthoritySuspicion {
+                    return Err(IotaError::ByzantineAuthoritySuspicion {
                         authority: self.address,
                         reason: "Returned input object that wasn't present in the signed effects"
                             .to_string(),
@@ -440,7 +441,7 @@ where
                     .get(&object_ref.0)
                     .is_some_and(|expect| &object_ref == expect)
                 {
-                    return Err(SuiError::ByzantineAuthoritySuspicion {
+                    return Err(IotaError::ByzantineAuthoritySuspicion {
                         authority: self.address,
                         reason: "Returned output object that wasn't present in the signed effects"
                             .to_string(),
@@ -463,7 +464,7 @@ where
         &self,
         request: HandleCertificateRequestV3,
         client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, SuiError> {
+    ) -> Result<HandleCertificateResponseV3, IotaError> {
         let digest = *request.certificate.digest();
         let _timer = self.metrics.handle_certificate_latency.start_timer();
         let response = self
@@ -482,7 +483,7 @@ where
     pub async fn handle_object_info_request(
         &self,
         request: ObjectInfoRequest,
-    ) -> Result<VerifiedObjectInfoResponse, SuiError> {
+    ) -> Result<VerifiedObjectInfoResponse, IotaError> {
         self.metrics.total_requests_handle_object_info_request.inc();
 
         let _timer = self.metrics.handle_obj_info_latency.start_timer();
@@ -505,7 +506,7 @@ where
     pub async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
-    ) -> Result<PlainTransactionInfoResponse, SuiError> {
+    ) -> Result<PlainTransactionInfoResponse, IotaError> {
         self.metrics
             .total_requests_handle_transaction_info_request
             .inc();
@@ -535,13 +536,13 @@ where
         &self,
         expected_seq: Option<CheckpointSequenceNumber>,
         checkpoint: &Option<CertifiedCheckpointSummary>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let observed_seq = checkpoint.as_ref().map(|c| c.sequence_number);
 
         if let (Some(e), Some(o)) = (expected_seq, observed_seq) {
             fp_ensure!(
                 e == o,
-                SuiError::from("Expected checkpoint number doesn't match with returned")
+                IotaError::from("Expected checkpoint number doesn't match with returned")
             );
         }
         Ok(())
@@ -552,14 +553,14 @@ where
         request_content: bool,
         checkpoint: &Option<T>,
         contents: &Option<O>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         match (request_content, checkpoint, contents) {
             // If content is requested, checkpoint is not None, but we are not getting any content,
             // it's an error.
             // If content is not requested, or checkpoint is None, yet we are still getting content,
             // it's an error.
             (true, Some(_), None) | (false, _, Some(_)) | (_, None, Some(_)) => Err(
-                SuiError::from("Checkpoint contents inconsistent with request"),
+                IotaError::from("Checkpoint contents inconsistent with request"),
             ),
             _ => Ok(()),
         }
@@ -569,7 +570,7 @@ where
         &self,
         request: &CheckpointRequest,
         response: &CheckpointResponse,
-    ) -> SuiResult {
+    ) -> IotaResult {
         // Verify response data was correct for request
         let CheckpointResponse {
             checkpoint,
@@ -592,7 +593,7 @@ where
     pub async fn handle_checkpoint(
         &self,
         request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, SuiError> {
+    ) -> Result<CheckpointResponse, IotaError> {
         let resp = self
             .authority_client
             .handle_checkpoint(request.clone())
@@ -605,7 +606,7 @@ where
     }
 
     #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
-    pub async fn handle_system_state_object(&self) -> Result<SuiSystemState, SuiError> {
+    pub async fn handle_system_state_object(&self) -> Result<IotaSystemState, IotaError> {
         self.authority_client
             .handle_system_state_object(SystemStateRequest { _unused: false })
             .await

@@ -1,39 +1,40 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_sdk::SuiClientBuilder;
+use iota_sdk::IotaClientBuilder;
 
-// This example shows the few basic ways to connect to a Sui network.
+// This example shows the few basic ways to connect to a Iota network.
 // There are several in-built methods for connecting to the
-// Sui devnet, tesnet, and localnet (running locally),
+// Iota devnet, tesnet, and localnet (running locally),
 // as well as a custom way for connecting to custom URLs.
 // The example prints out the API versions of the different networks,
 // and finally, it prints the list of available RPC methods
 // and the list of subscriptions.
-// Note that running this code will fail if there is no Sui network
+// Note that running this code will fail if there is no Iota network
 // running locally on the default address: 127.0.0.1:9000
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let sui = SuiClientBuilder::default()
+    let iota = IotaClientBuilder::default()
         .build("http://127.0.0.1:9000") // local network address
         .await?;
-    println!("Sui local network version: {}", sui.api_version());
+    println!("Iota local network version: {}", iota.api_version());
 
-    // local Sui network, like the above one but using the dedicated function
-    let sui_local = SuiClientBuilder::default().build_localnet().await?;
-    println!("Sui local network version: {}", sui_local.api_version());
+    // local Iota network, like the above one but using the dedicated function
+    let iota_local = IotaClientBuilder::default().build_localnet().await?;
+    println!("Iota local network version: {}", iota_local.api_version());
 
-    // Sui devnet -- https://fullnode.devnet.sui.io:443
-    let sui_devnet = SuiClientBuilder::default().build_devnet().await?;
-    println!("Sui devnet version: {}", sui_devnet.api_version());
+    // Iota devnet -- https://fullnode.devnet.iota.io:443
+    let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
+    println!("Iota devnet version: {}", iota_devnet.api_version());
 
-    // Sui testnet -- https://fullnode.testnet.sui.io:443
-    let sui_testnet = SuiClientBuilder::default().build_testnet().await?;
-    println!("Sui testnet version: {}", sui_testnet.api_version());
+    // Iota testnet -- https://fullnode.testnet.iota.io:443
+    let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
+    println!("Iota testnet version: {}", iota_testnet.api_version());
 
-    println!("{:?}", sui_local.available_rpc_methods());
-    println!("{:?}", sui_local.available_subscriptions());
+    println!("{:?}", iota_local.available_rpc_methods());
+    println!("{:?}", iota_local.available_subscriptions());
 
     Ok(())
 }

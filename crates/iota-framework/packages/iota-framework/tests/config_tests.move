@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::config_tests {
+module iota::config_tests {
 
-    use sui::config::{Self, Config};
-    use sui::test_scenario as ts;
+    use iota::config::{Self, Config};
+    use iota::test_scenario as ts;
     use std::unit_test::assert_eq;
 
     const SENDER: address = @42;
@@ -14,7 +15,7 @@ module sui::config_tests {
     public struct Wrapped<T>(T) has copy, drop, store;
 
     fun config_create<WriteCap>(cap: &mut WriteCap, ctx: &mut TxContext) {
-        sui::config::share(sui::config::new(cap, ctx))
+        iota::config::share(iota::config::new(cap, ctx))
     }
 
     #[test]
@@ -134,7 +135,7 @@ module sui::config_tests {
         ts.end();
     }
 
-    #[test, expected_failure(abort_code = sui::config::EAlreadySetForEpoch)]
+    #[test, expected_failure(abort_code = iota::config::EAlreadySetForEpoch)]
     fun add_for_next_epoch_aborts_in_same_epoch() {
         let mut ts = ts::begin(SENDER);
         config_create(&mut WriteCap(), ts.ctx());
@@ -145,7 +146,7 @@ module sui::config_tests {
         abort 0
     }
 
-    #[test, expected_failure(abort_code = sui::config::ENotSetForEpoch)]
+    #[test, expected_failure(abort_code = iota::config::ENotSetForEpoch)]
     fun borrow_for_next_epoch_mut_aborts_in_new_epoch() {
         let mut ts = ts::begin(SENDER);
         config_create(&mut WriteCap(), ts.ctx());
@@ -343,7 +344,7 @@ module sui::config_tests {
         ts.end();
     }
 
-    #[test, expected_failure(abort_code = sui::dynamic_field::EFieldTypeMismatch)]
+    #[test, expected_failure(abort_code = iota::dynamic_field::EFieldTypeMismatch)]
     fun test_remove_fail_on_type_mismatch() {
         let mut ts = ts::begin(SENDER);
         config_create(&mut WriteCap(), ts.ctx());
@@ -357,7 +358,7 @@ module sui::config_tests {
         abort 0
     }
 
-    #[test, expected_failure(abort_code = sui::dynamic_field::EFieldTypeMismatch)]
+    #[test, expected_failure(abort_code = iota::dynamic_field::EFieldTypeMismatch)]
     fun test_add_fail_on_type_mismatch() {
         let mut ts = ts::begin(SENDER);
         config_create(&mut WriteCap(), ts.ctx());

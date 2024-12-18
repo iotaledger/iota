@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 use std::{path::Path, sync::Arc};
-use sui_transactional_test_runner::{
+use iota_transactional_test_runner::{
     run_test_impl,
-    test_adapter::{SuiTestAdapter, PRE_COMPILED},
+    test_adapter::{IotaTestAdapter, PRE_COMPILED},
 };
 
 datatest_stable::harness!(
@@ -24,7 +25,7 @@ datatest_stable::harness!(
 async fn run_test(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     telemetry_subscribers::init_for_testing();
     if !cfg!(msim) {
-        run_test_impl::<SuiTestAdapter>(path, Some(Arc::new(PRE_COMPILED.clone()))).await?;
+        run_test_impl::<IotaTestAdapter>(path, Some(Arc::new(PRE_COMPILED.clone()))).await?;
     }
     Ok(())
 }

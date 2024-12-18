@@ -1,45 +1,46 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abi::{eth_sui_bridge, EthSuiBridge};
+use crate::abi::{eth_iota_bridge, EthIotaBridge};
 use crate::client::bridge_authority_aggregator::BridgeAuthorityAggregator;
 use crate::crypto::BridgeAuthorityKeyPair;
 use crate::e2e_tests::test_utils::TestClusterWrapperBuilder;
 use crate::e2e_tests::test_utils::{
-    get_signatures, initiate_bridge_erc20_to_sui, initiate_bridge_eth_to_sui,
-    initiate_bridge_sui_to_eth, send_eth_tx_and_get_tx_receipt, BridgeTestClusterBuilder,
+    get_signatures, initiate_bridge_erc20_to_iota, initiate_bridge_eth_to_iota,
+    initiate_bridge_iota_to_eth, send_eth_tx_and_get_tx_receipt, BridgeTestClusterBuilder,
 };
 use crate::eth_transaction_builder::build_eth_transaction;
 use crate::events::{
-    SuiBridgeEvent, SuiToEthTokenBridgeV1, TokenTransferApproved, TokenTransferClaimed,
+    IotaBridgeEvent, IotaToEthTokenBridgeV1, TokenTransferApproved, TokenTransferClaimed,
 };
-use crate::sui_transaction_builder::build_add_tokens_on_sui_transaction;
+use crate::iota_transaction_builder::build_add_tokens_on_iota_transaction;
 use crate::types::{AddTokensOnEvmAction, BridgeAction};
-use crate::utils::publish_and_register_coins_return_add_coins_on_sui_action;
+use crate::utils::publish_and_register_coins_return_add_coins_on_iota_action;
 use crate::BRIDGE_ENABLE_PROTOCOL_VERSION;
 use ethers::prelude::*;
 use ethers::types::Address as EthAddress;
 use std::collections::HashSet;
-use sui_json_rpc_api::BridgeReadApiClient;
-use sui_types::crypto::get_key_pair;
+use iota_json_rpc_api::BridgeReadApiClient;
+use iota_types::crypto::get_key_pair;
 use test_cluster::TestClusterBuilder;
 
 use std::path::Path;
 
 use std::sync::Arc;
-use sui_json_rpc_types::{SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
-use sui_types::bridge::{
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_types::bridge::{
     get_bridge, BridgeChainId, BridgeTokenMetadata, BridgeTrait, TOKEN_ID_ETH,
 };
-use sui_types::SUI_BRIDGE_OBJECT_ID;
+use iota_types::IOTA_BRIDGE_OBJECT_ID;
 use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-async fn test_bridge_from_eth_to_sui_to_eth() {
+async fn test_bridge_from_eth_to_iota_to_eth() {
     telemetry_subscribers::init_for_testing();
 
     let eth_chain_id = BridgeChainId::EthCustom as u8;
-    let sui_chain_id = BridgeChainId::SuiCustom as u8;
+    let iota_chain_id = BridgeChainId::IotaCustom as u8;
     let timer = std::time::Instant::now();
     let mut bridge_test_cluster = BridgeTestClusterBuilder::new()
         .with_eth_env(true)
@@ -57,11 +58,11 @@ async fn test_bridge_from_eth_to_sui_to_eth() {
         .await
         .unwrap();
 
-    let sui_address = bridge_test_cluster.sui_user_address();
+    let iota_address = bridge_test_cluster.iota_user_address();
     let amount = 42;
-    let sui_amount = amount * 100_000_000;
+    let iota_amount = amount * 100_000_000;
 
-    initiate_bridge_eth_to_sui(&bridge_test_cluster, amount, 0)
+    initiate_bridge_eth_to_iota(&bridge_test_cluster, amount, 0)
         .await
         .unwrap();
     let events = bridge_test_cluster
@@ -77,9 +78,9 @@ async fn test_bridge_from_eth_to_sui_to_eth() {
     assert_eq!(events.len(), 2);
 
     let eth_coin = bridge_test_cluster
-        .sui_client()
+        .iota_client()
         .coin_read_api()
-        .get_all_coins(sui_address, None, None)
+        .get_all_coins(iota_address, None, None)
         .await
         .unwrap()
         .data
@@ -87,9 +88,9 @@ async fn test_bridge_from_eth_to_sui_to_eth() {
         .find(|c| c.coin_type.contains("ETH"))
         .expect("Recipient should have received ETH coin now")
         .clone();
-    assert_eq!(eth_coin.balance, sui_amount);
+    assert_eq!(eth_coin.balance, iota_amount);
     info!(
-        "[Timer] Eth to Sui bridge transfer finished in {:?}",
+        "[Timer] Eth to Iota bridge transfer finished in {:?}",
         timer.elapsed()
     );
     let timer = std::time::Instant::now();
@@ -98,19 +99,19 @@ async fn test_bridge_from_eth_to_sui_to_eth() {
     let eth_address_1 = EthAddress::random();
     let nonce = 0;
 
-    let sui_to_eth_bridge_action = initiate_bridge_sui_to_eth(
+    let iota_to_eth_bridge_action = initiate_bridge_iota_to_eth(
         &bridge_test_cluster,
         eth_address_1,
         eth_coin.object_ref(),
         nonce,
-        sui_amount,
+        iota_amount,
     )
     .await
     .unwrap();
     let events = bridge_test_cluster
         .new_bridge_events(
             HashSet::from_iter([
-                SuiToEthTokenBridgeV1.get().unwrap().clone(),
+                IotaToEthTokenBridgeV1.get().unwrap().clone(),
                 TokenTransferApproved.get().unwrap().clone(),
                 TokenTransferClaimed.get().unwrap().clone(),
             ]),
@@ -120,7 +121,7 @@ async fn test_bridge_from_eth_to_sui_to_eth() {
     // There are exactly 1 deposit and 1 approved event
     assert_eq!(events.len(), 2);
     info!(
-        "[Timer] Sui to Eth bridge transfer approved in {:?}",
+        "[Timer] Iota to Eth bridge transfer approved in {:?}",
         timer.elapsed()
     );
     let timer = std::time::Instant::now();
@@ -128,15 +129,15 @@ async fn test_bridge_from_eth_to_sui_to_eth() {
     // Test `get_parsed_token_transfer_message`
     let parsed_msg = bridge_test_cluster
         .bridge_client()
-        .get_parsed_token_transfer_message(sui_chain_id, nonce)
+        .get_parsed_token_transfer_message(iota_chain_id, nonce)
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(parsed_msg.source_chain as u8, sui_chain_id);
+    assert_eq!(parsed_msg.source_chain as u8, iota_chain_id);
     assert_eq!(parsed_msg.seq_num, nonce);
     assert_eq!(
         parsed_msg.parsed_payload.sender_address,
-        sui_address.to_vec()
+        iota_address.to_vec()
     );
     assert_eq!(
         &parsed_msg.parsed_payload.target_address,
@@ -144,20 +145,20 @@ async fn test_bridge_from_eth_to_sui_to_eth() {
     );
     assert_eq!(parsed_msg.parsed_payload.target_chain, eth_chain_id);
     assert_eq!(parsed_msg.parsed_payload.token_type, TOKEN_ID_ETH);
-    assert_eq!(parsed_msg.parsed_payload.amount, sui_amount);
+    assert_eq!(parsed_msg.parsed_payload.amount, iota_amount);
 
-    let message = eth_sui_bridge::Message::from(sui_to_eth_bridge_action);
-    let signatures = get_signatures(bridge_test_cluster.bridge_client(), nonce, sui_chain_id).await;
+    let message = eth_iota_bridge::Message::from(iota_to_eth_bridge_action);
+    let signatures = get_signatures(bridge_test_cluster.bridge_client(), nonce, iota_chain_id).await;
 
-    let eth_sui_bridge = EthSuiBridge::new(
-        bridge_test_cluster.contracts().sui_bridge,
+    let eth_iota_bridge = EthIotaBridge::new(
+        bridge_test_cluster.contracts().iota_bridge,
         eth_signer.clone().into(),
     );
-    let call = eth_sui_bridge.transfer_bridged_tokens_with_signatures(signatures, message);
+    let call = eth_iota_bridge.transfer_bridged_tokens_with_signatures(signatures, message);
     let eth_claim_tx_receipt = send_eth_tx_and_get_tx_receipt(call).await;
     assert_eq!(eth_claim_tx_receipt.status.unwrap().as_u64(), 1);
     info!(
-        "[Timer] Sui to Eth bridge transfer claimed in {:?}",
+        "[Timer] Iota to Eth bridge transfer claimed in {:?}",
         timer.elapsed()
     );
     // Assert eth_address_1 has received ETH
@@ -167,10 +168,10 @@ async fn test_bridge_from_eth_to_sui_to_eth() {
     );
 }
 
-// Test add new coins on both Sui and Eth
+// Test add new coins on both Iota and Eth
 // Also test bridge ndoe handling `NewTokenEvent``
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
-async fn test_add_new_coins_on_sui_and_eth() {
+async fn test_add_new_coins_on_iota_and_eth() {
     telemetry_subscribers::init_for_testing();
     let mut bridge_test_cluster = BridgeTestClusterBuilder::new()
         .with_eth_env(true)
@@ -180,13 +181,13 @@ async fn test_add_new_coins_on_sui_and_eth() {
         .await;
     let bridge_arg = bridge_test_cluster.get_mut_bridge_arg().await.unwrap();
 
-    // Register tokens on Sui
+    // Register tokens on Iota
     let token_id = 5;
-    let token_sui_decimal = 9; // this needs to match ka.move
+    let token_iota_decimal = 9; // this needs to match ka.move
     let token_price = 10000;
-    let sender = bridge_test_cluster.sui_user_address();
+    let sender = bridge_test_cluster.iota_user_address();
     info!("Published new token");
-    let sui_action = publish_and_register_coins_return_add_coins_on_sui_action(
+    let iota_action = publish_and_register_coins_return_add_coins_on_iota_action(
         bridge_test_cluster.wallet(),
         bridge_arg,
         vec![Path::new("../../bridge/move/tokens/mock/ka").into()],
@@ -202,15 +203,15 @@ async fn test_add_new_coins_on_sui_and_eth() {
         native: true,
         token_ids: vec![token_id],
         token_addresses: vec![new_token_erc_address],
-        token_sui_decimals: vec![token_sui_decimal],
+        token_iota_decimals: vec![token_iota_decimal],
         token_prices: vec![token_price],
     });
 
     info!("Starting bridge cluster");
 
     bridge_test_cluster.set_approved_governance_actions_for_next_start(vec![
-        vec![sui_action.clone(), eth_action.clone()],
-        vec![sui_action.clone()],
+        vec![iota_action.clone(), eth_action.clone()],
+        vec![iota_action.clone()],
         vec![eth_action.clone()],
     ]);
     bridge_test_cluster.start_bridge_cluster().await;
@@ -227,16 +228,16 @@ async fn test_add_new_coins_on_sui_and_eth() {
             .expect("Failed to get bridge committee"),
     );
     let agg = BridgeAuthorityAggregator::new_for_testing(bridge_committee);
-    let certified_sui_action = agg
-        .request_committee_signatures(sui_action)
+    let certified_iota_action = agg
+        .request_committee_signatures(iota_action)
         .await
-        .expect("Failed to request committee signatures for AddTokensOnSuiAction");
+        .expect("Failed to request committee signatures for AddTokensOnIotaAction");
     let certified_eth_action = agg
         .request_committee_signatures(eth_action.clone())
         .await
         .expect("Failed to request committee signatures for AddTokensOnEvmAction");
 
-    let tx = build_add_tokens_on_sui_transaction(
+    let tx = build_add_tokens_on_iota_transaction(
         sender,
         &bridge_test_cluster
             .wallet()
@@ -244,7 +245,7 @@ async fn test_add_new_coins_on_sui_and_eth() {
             .await
             .unwrap()
             .unwrap(),
-        certified_sui_action,
+        certified_iota_action,
         bridge_arg,
         1000,
     )
@@ -252,18 +253,18 @@ async fn test_add_new_coins_on_sui_and_eth() {
 
     let response = bridge_test_cluster.sign_and_execute_transaction(&tx).await;
     let effects = response.effects.unwrap();
-    assert_eq!(effects.status(), &SuiExecutionStatus::Success);
+    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
     assert!(response.events.unwrap().data.iter().any(|e| {
-        let sui_bridge_event = SuiBridgeEvent::try_from_sui_event(e).unwrap().unwrap();
-        match sui_bridge_event {
-            SuiBridgeEvent::NewTokenEvent(e) => {
+        let iota_bridge_event = IotaBridgeEvent::try_from_iota_event(e).unwrap().unwrap();
+        match iota_bridge_event {
+            IotaBridgeEvent::NewTokenEvent(e) => {
                 assert_eq!(e.token_id, token_id);
                 true
             }
             _ => false,
         }
     }));
-    info!("Approved new token on Sui");
+    info!("Approved new token on Iota");
 
     // Assert new token is correctly added
     let treasury_summary = bridge_test_cluster
@@ -310,7 +311,7 @@ async fn test_add_new_coins_on_sui_and_eth() {
     assert_eq!(dp, 9);
     assert_eq!(price, token_price);
 
-    initiate_bridge_erc20_to_sui(
+    initiate_bridge_erc20_to_iota(
         &bridge_test_cluster,
         100,
         new_token_erc_address,
@@ -337,7 +338,7 @@ async fn test_create_bridge_state_object() {
             assert!(node
                 .state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(SUI_BRIDGE_OBJECT_ID)
+                .get_latest_object_ref_or_tombstone(IOTA_BRIDGE_OBJECT_ID)
                 .is_none());
         });
     }
@@ -354,7 +355,7 @@ async fn test_create_bridge_state_object() {
         h.with(|node| {
             node.state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(SUI_BRIDGE_OBJECT_ID)
+                .get_latest_object_ref_or_tombstone(IOTA_BRIDGE_OBJECT_ID)
                 .expect("auth state object should exist");
         });
     }
@@ -377,7 +378,7 @@ async fn test_committee_registration() {
         test_cluster
             .inner
             .fullnode_handle
-            .sui_node
+            .iota_node
             .state()
             .get_object_store(),
     )

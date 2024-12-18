@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::ReplayEngineError;
@@ -12,24 +13,24 @@ use rand::Rng;
 use std::collections::BTreeMap;
 use std::num::NonZeroUsize;
 use std::str::FromStr;
-use sui_core::authority::NodeStateDump;
-use sui_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use sui_json_rpc_types::EventFilter;
-use sui_json_rpc_types::SuiEvent;
-use sui_json_rpc_types::SuiGetPastObjectRequest;
-use sui_json_rpc_types::SuiObjectData;
-use sui_json_rpc_types::SuiObjectDataOptions;
-use sui_json_rpc_types::SuiObjectResponse;
-use sui_json_rpc_types::SuiPastObjectResponse;
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_sdk::SuiClient;
-use sui_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
-use sui_types::digests::TransactionDigest;
-use sui_types::object::Object;
-use sui_types::transaction::SenderSignedData;
-use sui_types::transaction::TransactionDataAPI;
-use sui_types::transaction::{EndOfEpochTransactionKind, TransactionKind};
+use iota_core::authority::NodeStateDump;
+use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
+use iota_json_rpc_types::EventFilter;
+use iota_json_rpc_types::IotaEvent;
+use iota_json_rpc_types::IotaGetPastObjectRequest;
+use iota_json_rpc_types::IotaObjectData;
+use iota_json_rpc_types::IotaObjectDataOptions;
+use iota_json_rpc_types::IotaObjectResponse;
+use iota_json_rpc_types::IotaPastObjectResponse;
+use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_sdk::IotaClient;
+use iota_types::base_types::{ObjectID, SequenceNumber, VersionNumber};
+use iota_types::digests::TransactionDigest;
+use iota_types::object::Object;
+use iota_types::transaction::SenderSignedData;
+use iota_types::transaction::TransactionDataAPI;
+use iota_types::transaction::{EndOfEpochTransactionKind, TransactionKind};
 
 /// This trait defines the interfaces for fetching data from some local or remote store
 #[async_trait]
@@ -57,7 +58,7 @@ pub(crate) trait DataFetcher {
     async fn get_transaction(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<SuiTransactionBlockResponse, ReplayEngineError>;
+    ) -> Result<IotaTransactionBlockResponse, ReplayEngineError>;
 
     async fn get_loaded_child_objects(
         &self,
@@ -81,7 +82,7 @@ pub(crate) trait DataFetcher {
     async fn get_epoch_change_events(
         &self,
         reverse: bool,
-    ) -> Result<Vec<SuiEvent>, ReplayEngineError>;
+    ) -> Result<Vec<IotaEvent>, ReplayEngineError>;
 
     async fn get_chain_id(&self) -> Result<String, ReplayEngineError>;
 
@@ -162,7 +163,7 @@ impl DataFetcher for Fetchers {
     async fn get_transaction(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<SuiTransactionBlockResponse, ReplayEngineError> {
+    ) -> Result<IotaTransactionBlockResponse, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.get_transaction(tx_digest).await,
             Fetchers::NodeStateDump(q) => q.get_transaction(tx_digest).await,
@@ -216,7 +217,7 @@ impl DataFetcher for Fetchers {
     async fn get_epoch_change_events(
         &self,
         reverse: bool,
-    ) -> Result<Vec<SuiEvent>, ReplayEngineError> {
+    ) -> Result<Vec<IotaEvent>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.get_epoch_change_events(reverse).await,
             Fetchers::NodeStateDump(q) => q.get_epoch_change_events(reverse).await,
@@ -246,7 +247,7 @@ const EPOCH_INFO_CACHE_CAPACITY: Option<NonZeroUsize> = NonZeroUsize::new(10_000
 
 pub struct RemoteFetcher {
     /// This is used to download items not in store
-    pub rpc_client: SuiClient,
+    pub rpc_client: IotaClient,
     /// Cache versioned objects
     pub versioned_object_cache: RwLock<LruCache<(ObjectID, VersionNumber), Object>>,
     /// Cache non-versioned objects
@@ -287,7 +288,7 @@ impl Clone for RemoteFetcher {
 }
 
 impl RemoteFetcher {
-    pub fn new(rpc_client: SuiClient) -> Self {
+    pub fn new(rpc_client: IotaClient) -> Self {
         Self {
             rpc_client,
             versioned_object_cache: RwLock::new(LruCache::new(
@@ -354,11 +355,11 @@ impl DataFetcher for RemoteFetcher {
         // First check which we have in cache
         let (cached, to_fetch) = self.check_versioned_cache(objects);
 
-        let options = SuiObjectDataOptions::bcs_lossless();
+        let options = IotaObjectDataOptions::bcs_lossless();
 
         let objs: Vec<_> = to_fetch
             .iter()
-            .map(|(object_id, version)| SuiGetPastObjectRequest {
+            .map(|(object_id, version)| IotaGetPastObjectRequest {
                 object_id: *object_id,
                 version: *version,
             })
@@ -403,7 +404,7 @@ impl DataFetcher for RemoteFetcher {
             .read_api()
             .try_get_object_before_version(*object_id, version_upper_bound)
             .await
-            .map_err(|q| ReplayEngineError::SuiRpcError { err: q.to_string() })?;
+            .map_err(|q| ReplayEngineError::IotaRpcError { err: q.to_string() })?;
         convert_past_obj_response(response)
     }
 
@@ -414,7 +415,7 @@ impl DataFetcher for RemoteFetcher {
         // First check which we have in cache
         let (cached, to_fetch) = self.check_latest_cache(objects);
 
-        let options = SuiObjectDataOptions::bcs_lossless();
+        let options = IotaObjectDataOptions::bcs_lossless();
 
         let objectsx = to_fetch.chunks(*QUERY_MAX_RESULT_LIMIT).map(|q| {
             self.rpc_client
@@ -429,7 +430,7 @@ impl DataFetcher for RemoteFetcher {
             .map_err(ReplayEngineError::from)?
             .iter()
             .flatten()
-            .map(obj_from_sui_obj_response)
+            .map(obj_from_iota_obj_response)
             .collect::<Result<Vec<_>, _>>()
             .map(|mut x| {
                 // Add the cached objects to the result
@@ -451,15 +452,15 @@ impl DataFetcher for RemoteFetcher {
             .read_api()
             .get_checkpoint(id.into())
             .await
-            .map_err(|q| ReplayEngineError::SuiRpcError { err: q.to_string() })?
+            .map_err(|q| ReplayEngineError::IotaRpcError { err: q.to_string() })?
             .transactions)
     }
 
     async fn get_transaction(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<SuiTransactionBlockResponse, ReplayEngineError> {
-        let tx_fetch_opts = SuiTransactionBlockResponseOptions::full_content();
+    ) -> Result<IotaTransactionBlockResponse, ReplayEngineError> {
+        let tx_fetch_opts = IotaTransactionBlockResponseOptions::full_content();
 
         self.rpc_client
             .read_api()
@@ -566,11 +567,11 @@ impl DataFetcher for RemoteFetcher {
     async fn get_epoch_change_events(
         &self,
         reverse: bool,
-    ) -> Result<Vec<SuiEvent>, ReplayEngineError> {
+    ) -> Result<Vec<IotaEvent>, ReplayEngineError> {
         let struct_tag_str = EPOCH_CHANGE_STRUCT_TAG.to_string();
         let struct_tag = StructTag::from_str(&struct_tag_str)?;
 
-        let mut epoch_change_events: Vec<SuiEvent> = vec![];
+        let mut epoch_change_events: Vec<IotaEvent> = vec![];
         let mut has_next_page = true;
         let mut cursor = None;
 
@@ -607,19 +608,19 @@ impl DataFetcher for RemoteFetcher {
     }
 }
 
-fn convert_past_obj_response(resp: SuiPastObjectResponse) -> Result<Object, ReplayEngineError> {
+fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, ReplayEngineError> {
     match resp {
-        SuiPastObjectResponse::VersionFound(o) => obj_from_sui_obj_data(&o),
-        SuiPastObjectResponse::ObjectDeleted(r) => Err(ReplayEngineError::ObjectDeleted {
+        IotaPastObjectResponse::VersionFound(o) => obj_from_iota_obj_data(&o),
+        IotaPastObjectResponse::ObjectDeleted(r) => Err(ReplayEngineError::ObjectDeleted {
             id: r.object_id,
             version: r.version,
             digest: r.digest,
         }),
-        SuiPastObjectResponse::ObjectNotExists(id) => Err(ReplayEngineError::ObjectNotExist { id }),
-        SuiPastObjectResponse::VersionNotFound(id, version) => {
+        IotaPastObjectResponse::ObjectNotExists(id) => Err(ReplayEngineError::ObjectNotExist { id }),
+        IotaPastObjectResponse::VersionNotFound(id, version) => {
             Err(ReplayEngineError::ObjectVersionNotFound { id, version })
         }
-        SuiPastObjectResponse::VersionTooHigh {
+        IotaPastObjectResponse::VersionTooHigh {
             object_id,
             asked_version,
             latest_version,
@@ -631,19 +632,19 @@ fn convert_past_obj_response(resp: SuiPastObjectResponse) -> Result<Object, Repl
     }
 }
 
-fn obj_from_sui_obj_response(o: &SuiObjectResponse) -> Result<Object, ReplayEngineError> {
+fn obj_from_iota_obj_response(o: &IotaObjectResponse) -> Result<Object, ReplayEngineError> {
     let o = o.object().map_err(ReplayEngineError::from)?.clone();
-    obj_from_sui_obj_data(&o)
+    obj_from_iota_obj_data(&o)
 }
 
-fn obj_from_sui_obj_data(o: &SuiObjectData) -> Result<Object, ReplayEngineError> {
+fn obj_from_iota_obj_data(o: &IotaObjectData) -> Result<Object, ReplayEngineError> {
     match TryInto::<Object>::try_into(o.clone()) {
         Ok(obj) => Ok(obj),
         Err(e) => Err(e.into()),
     }
 }
 
-pub fn extract_epoch_and_version(ev: SuiEvent) -> Result<(u64, u64), ReplayEngineError> {
+pub fn extract_epoch_and_version(ev: IotaEvent) -> Result<(u64, u64), ReplayEngineError> {
     if let serde_json::Value::Object(w) = ev.parsed_json {
         let epoch = u64::from_str(&w["epoch"].to_string().replace('\"', "")).unwrap();
         let version = u64::from_str(&w["protocol_version"].to_string().replace('\"', "")).unwrap();
@@ -765,7 +766,7 @@ impl DataFetcher for NodeStateDumpFetcher {
     async fn get_transaction(
         &self,
         _tx_digest: &TransactionDigest,
-    ) -> Result<SuiTransactionBlockResponse, ReplayEngineError> {
+    ) -> Result<IotaTransactionBlockResponse, ReplayEngineError> {
         unimplemented!("get_transaction for state dump is not implemented")
     }
 
@@ -808,7 +809,7 @@ impl DataFetcher for NodeStateDumpFetcher {
     async fn get_epoch_change_events(
         &self,
         _reverse: bool,
-    ) -> Result<Vec<SuiEvent>, ReplayEngineError> {
+    ) -> Result<Vec<IotaEvent>, ReplayEngineError> {
         unimplemented!("get_epoch_change_events for state dump is not implemented")
     }
 

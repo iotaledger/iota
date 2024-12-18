@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// This module implements tests for the request formation and approval in the
 /// `TokenPolicy`.
-module sui::token_request_tests {
+module iota::token_request_tests {
     use std::option::none;
-    use sui::token;
-    use sui::token_test_utils::{Self as test, TEST};
+    use iota::token;
+    use iota::token_test_utils::{Self as test, TEST};
 
     public struct Rule1 has drop {}
     public struct Rule2 has drop {}

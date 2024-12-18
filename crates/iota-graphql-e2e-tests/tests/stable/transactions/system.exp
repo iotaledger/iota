@@ -315,13 +315,13 @@ Response: {
                           {
                             "cursor": "eyJuIjoic3VpX3N5c3RlbSIsImMiOjB9",
                             "node": {
-                              "name": "sui_system"
+                              "name": "iota_system"
                             }
                           },
                           {
                             "cursor": "eyJuIjoic3VpX3N5c3RlbV9zdGF0ZV9pbm5lciIsImMiOjB9",
                             "node": {
-                              "name": "sui_system_state_inner"
+                              "name": "iota_system_state_inner"
                             }
                           },
                           {
@@ -366,7 +366,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::sui_system::SuiSystemState"
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::iota_system::IotaSystemState"
                         },
                         "json": {
                           "id": "0x0000000000000000000000000000000000000000000000000000000000000005",
@@ -623,7 +623,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>"
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         },
                         "json": {
                           "id": "0x0335ba15e3aa99b0aa2ead1bbb1f09bd0334ca87844645728b03fd9ae60d6fb8",
@@ -745,7 +745,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>"
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         },
                         "json": {
                           "id": "0x433fc1353e363ad6a756ce9711eb0b38604f070fd307869d009b884db80af456",
@@ -783,7 +783,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000003::sui_system_state_inner::SuiSystemStateInner>"
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::dynamic_field::Field<u64,0x0000000000000000000000000000000000000000000000000000000000000003::iota_system_state_inner::IotaSystemStateInner>"
                         },
                         "json": {
                           "id": "0x6af2a2b7ca60bf76174adfd3e9c4957f8e937759603182f9b46c7f6c5f19c6d2",
@@ -797,7 +797,7 @@ Response: {
                               "active_validators": [
                                 {
                                   "metadata": {
-                                    "sui_address": "0xa7b032703878aa74c3126935789fd1d4d7e111d5911b09247d6963061c312b5a",
+                                    "iota_address": "0xa7b032703878aa74c3126935789fd1d4d7e111d5911b09247d6963061c312b5a",
                                     "protocol_pubkey_bytes": [
                                       168,
                                       10,
@@ -1046,7 +1046,7 @@ Response: {
                                     "id": "0x2a53a31f00aeeba15b260d54f2b45cdf308be82e4c8f4c19c63dcb982802db66",
                                     "activation_epoch": "0",
                                     "deactivation_epoch": null,
-                                    "sui_balance": "20000000000000000",
+                                    "iota_balance": "20000000000000000",
                                     "rewards_pool": {
                                       "value": "0"
                                     },
@@ -1056,7 +1056,7 @@ Response: {
                                       "size": "1"
                                     },
                                     "pending_stake": "0",
-                                    "pending_total_sui_withdraw": "0",
+                                    "pending_total_iota_withdraw": "0",
                                     "pending_pool_token_withdraw": "0",
                                     "extra_fields": {
                                       "id": "0x90c24adbc8fec1e91c044efa396a6234dbce74d2720182425fec01b4a2420033",
@@ -1166,13 +1166,13 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::CoinMetadata<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>"
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::coin::CoinMetadata<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"
                         },
                         "json": {
                           "id": "0x6b90736c10c8d72d53413ef936d3293bd32335bd9b8506713dab1f80b08ea20c",
                           "decimals": 9,
-                          "name": "Sui",
-                          "symbol": "SUI",
+                          "name": "Iota",
+                          "symbol": "IOTA",
                           "description": "",
                           "icon_url": null
                         }
@@ -1188,7 +1188,7 @@ Response: {
                     "asMoveObject": {
                       "contents": {
                         "type": {
-                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedSui"
+                          "repr": "0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedIota"
                         },
                         "json": {
                           "id": "0x938454a8d15e26afabb58f703ec6709d8831a613d30f7bfa8a17edc1327eadd7",
@@ -1240,7 +1240,7 @@ Response: {
                   },
                   "amount": "30000000000000000",
                   "coinType": {
-                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
+                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   }
                 },
                 {
@@ -1249,7 +1249,7 @@ Response: {
                   },
                   "amount": "300000000000000",
                   "coinType": {
-                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI"
+                    "repr": "0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA"
                   }
                 }
               ]

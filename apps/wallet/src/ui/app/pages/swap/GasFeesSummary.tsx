@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
 import { DescriptionItem } from '_pages/approval-request/transaction-request/DescriptionList';
-import { getGasSummary, useCoinMetadata, useFormatCoin } from '@mysten/core';
-import { type DryRunTransactionBlockResponse } from '@mysten/sui/client';
-import { SUI_TYPE_ARG } from '@mysten/sui/utils';
+import { getGasSummary, useCoinMetadata, useFormatCoin } from '@iota/core';
+import { type DryRunTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 
 interface GasFeesSummaryProps {
@@ -26,7 +27,7 @@ export function GasFeesSummary({
 		return getGasSummary(transaction);
 	}, [transaction]);
 	const totalGas = gasSummary?.totalGas;
-	const [gasAmount, gasSymbol] = useFormatCoin(totalGas, SUI_TYPE_ARG);
+	const [gasAmount, gasSymbol] = useFormatCoin(totalGas, IOTA_TYPE_ARG);
 
 	const { data: accessFeeMetadata } = useCoinMetadata(accessFeeType);
 

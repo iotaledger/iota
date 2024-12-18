@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::consensus::ConsensusRound;
 use crate::{metrics::PrimaryMetrics, synchronizer::Synchronizer};
@@ -8,8 +9,8 @@ use config::{AuthorityIdentifier, Committee};
 use crypto::NetworkPublicKey;
 use futures::{stream::FuturesUnordered, StreamExt};
 use itertools::Itertools;
-use mysten_metrics::metered_channel::Receiver;
-use mysten_metrics::{monitored_future, monitored_scope, spawn_logged_monitored_task};
+use iota_metrics::metered_channel::Receiver;
+use iota_metrics::{monitored_future, monitored_scope, spawn_logged_monitored_task};
 use network::PrimaryToPrimaryRpc;
 use rand::{rngs::ThreadRng, seq::SliceRandom};
 use std::{
@@ -18,7 +19,7 @@ use std::{
     time::Duration,
 };
 use storage::CertificateStore;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{
     sync::watch,
     task::{spawn_blocking, JoinHandle, JoinSet},

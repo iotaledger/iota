@@ -1,14 +1,15 @@
 
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 #[allow(unused_use)]
-module sui::authenticator_state_tests {
+module iota::authenticator_state_tests {
     use std::string::String;
 
-    use sui::test_scenario;
-    use sui::authenticator_state::{
+    use iota::test_scenario;
+    use iota::authenticator_state::{
         Self,
         AuthenticatorState,
         create_active_jwk,

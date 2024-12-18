@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::ExecutionErrorKind;
-use crate::error::SuiError;
+use crate::error::IotaError;
 use crate::{
     balance::{Balance, Supply},
     error::ExecutionError,
     object::{Data, Object},
 };
-use crate::{base_types::ObjectID, id::UID, SUI_FRAMEWORK_ADDRESS};
+use crate::{base_types::ObjectID, id::UID, IOTA_FRAMEWORK_ADDRESS};
 use move_core_types::{
     annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout},
     ident_str,
@@ -28,7 +29,7 @@ pub const PAY_JOIN_FUNC_NAME: &IdentStr = ident_str!("join");
 pub const PAY_SPLIT_N_FUNC_NAME: &IdentStr = ident_str!("divide_and_keep");
 pub const PAY_SPLIT_VEC_FUNC_NAME: &IdentStr = ident_str!("split_vec");
 
-// Rust version of the Move sui::coin::Coin type
+// Rust version of the Move iota::coin::Coin type
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
 pub struct Coin {
     pub id: UID,
@@ -45,7 +46,7 @@ impl Coin {
 
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             name: COIN_STRUCT_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![type_param],
@@ -54,7 +55,7 @@ impl Coin {
 
     /// Is this other StructTag representing a Coin?
     pub fn is_coin(other: &StructTag) -> bool {
-        other.address == SUI_FRAMEWORK_ADDRESS
+        other.address == IOTA_FRAMEWORK_ADDRESS
             && other.module.as_ident_str() == COIN_MODULE_NAME
             && other.name.as_ident_str() == COIN_STRUCT_NAME
     }
@@ -128,7 +129,7 @@ impl Coin {
     }
 }
 
-// Rust version of the Move sui::coin::TreasuryCap type
+// Rust version of the Move iota::coin::TreasuryCap type
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct TreasuryCap {
     pub id: UID,
@@ -137,21 +138,21 @@ pub struct TreasuryCap {
 
 impl TreasuryCap {
     pub fn is_treasury_type(other: &StructTag) -> bool {
-        other.address == SUI_FRAMEWORK_ADDRESS
+        other.address == IOTA_FRAMEWORK_ADDRESS
             && other.module.as_ident_str() == COIN_MODULE_NAME
             && other.name.as_ident_str() == COIN_TREASURE_CAP_NAME
     }
 
     /// Create a TreasuryCap from BCS bytes
-    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, SuiError> {
-        bcs::from_bytes(content).map_err(|err| SuiError::ObjectDeserializationError {
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserializationError {
             error: format!("Unable to deserialize TreasuryCap object: {}", err),
         })
     }
 
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             name: COIN_TREASURE_CAP_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
@@ -172,7 +173,7 @@ impl TreasuryCap {
 }
 
 impl TryFrom<Object> for TreasuryCap {
-    type Error = SuiError;
+    type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
@@ -183,13 +184,13 @@ impl TryFrom<Object> for TreasuryCap {
             Data::Package(_) => {}
         }
 
-        Err(SuiError::TypeError {
+        Err(IotaError::TypeError {
             error: format!("Object type is not a TreasuryCap: {:?}", object),
         })
     }
 }
 
-// Rust version of the Move sui::coin::CoinMetadata type
+// Rust version of the Move iota::coin::CoinMetadata type
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Eq, PartialEq)]
 pub struct CoinMetadata {
     pub id: UID,
@@ -208,21 +209,21 @@ pub struct CoinMetadata {
 impl CoinMetadata {
     /// Is this other StructTag representing a CoinMetadata?
     pub fn is_coin_metadata(other: &StructTag) -> bool {
-        other.address == SUI_FRAMEWORK_ADDRESS
+        other.address == IOTA_FRAMEWORK_ADDRESS
             && other.module.as_ident_str() == COIN_MODULE_NAME
             && other.name.as_ident_str() == COIN_METADATA_STRUCT_NAME
     }
 
     /// Create a coin from BCS bytes
-    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, SuiError> {
-        bcs::from_bytes(content).map_err(|err| SuiError::ObjectDeserializationError {
+    pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
+        bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserializationError {
             error: format!("Unable to deserialize CoinMetadata object: {}", err),
         })
     }
 
     pub fn type_(type_param: StructTag) -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             name: COIN_METADATA_STRUCT_NAME.to_owned(),
             module: COIN_MODULE_NAME.to_owned(),
             type_params: vec![TypeTag::Struct(Box::new(type_param))],
@@ -243,14 +244,14 @@ impl CoinMetadata {
 }
 
 impl TryFrom<Object> for CoinMetadata {
-    type Error = SuiError;
+    type Error = IotaError;
     fn try_from(object: Object) -> Result<Self, Self::Error> {
         TryFrom::try_from(&object)
     }
 }
 
 impl TryFrom<&Object> for CoinMetadata {
-    type Error = SuiError;
+    type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
             Data::Move(o) => {
@@ -261,7 +262,7 @@ impl TryFrom<&Object> for CoinMetadata {
             Data::Package(_) => {}
         }
 
-        Err(SuiError::TypeError {
+        Err(IotaError::TypeError {
             error: format!("Object type is not a CoinMetadata: {:?}", object),
         })
     }

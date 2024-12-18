@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(test)]
 mod tests {
-    use suioplib::cli::lib::utils::validate_project_name;
+    use iotaoplib::cli::lib::utils::validate_project_name;
 
     #[test]
     fn test_validate_project_name_valid() {

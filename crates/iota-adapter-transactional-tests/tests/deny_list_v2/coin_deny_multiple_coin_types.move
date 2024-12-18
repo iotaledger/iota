@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test verifies when sending two objects of different coin types in the same transaction,
@@ -10,7 +11,7 @@
 
 //# publish --sender A
 module test::regulated_coin1 {
-    use sui::coin;
+    use iota::coin;
 
     public struct REGULATED_COIN1 has drop {}
 
@@ -34,7 +35,7 @@ module test::regulated_coin1 {
 }
 
 module test::regulated_coin2 {
-    use sui::coin;
+    use iota::coin;
 
     public struct REGULATED_COIN2 has drop {}
 
@@ -64,7 +65,7 @@ module test::regulated_coin2 {
 //# view-object 1,2
 
 // Deny account A for coin2.
-//# run sui::coin::deny_list_v2_add --args object(0x403) object(1,6) @A --type-args test::regulated_coin2::REGULATED_COIN2 --sender A
+//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,6) @A --type-args test::regulated_coin2::REGULATED_COIN2 --sender A
 
 //# programmable --sender A --inputs object(1,1) object(1,2) @A
 //> TransferObjects([Input(0), Input(1)], Input(2))

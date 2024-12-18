@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // ==================================================================================
@@ -46,13 +47,13 @@ procedure {:inline 1} $2_tx_context_derive_id(tx_hash: Vec (int), ids_created: i
 // Native event
 
 
-{%- for instance in sui_event_instances %}
+{%- for instance in iota_event_instances %}
 
 {%- set S = "'" ~ instance.suffix ~ "'" -%}
 {%- set T = instance.name -%}
 
 // ----------------------------------------------------------------------------------
-// Native Sui event implementation for object type `{{instance.suffix}}`
+// Native Iota event implementation for object type `{{instance.suffix}}`
 
 procedure {:inline 1} $2_event_emit{{S}}(event: {{T}});
 
@@ -62,13 +63,13 @@ procedure {:inline 1} $2_event_emit{{S}}(event: {{T}});
 // Native types
 
 
-{%- for instance in sui_types_instances %}
+{%- for instance in iota_types_instances %}
 
 {%- set S = "'" ~ instance.suffix ~ "'" -%}
 {%- set T = instance.name -%}
 
 // ----------------------------------------------------------------------------------
-// Native Sui types implementation for object type `{{instance.suffix}}`
+// Native Iota types implementation for object type `{{instance.suffix}}`
 
 procedure {:inline 1} $2_types_is_one_time_witness{{S}}(_: {{T}}) returns (res: bool);
 
@@ -111,7 +112,7 @@ procedure {:inline 1} $2_dynamic_field_has_child_object_with_ty{{S}}(parent: int
 {%- set T = instance.name -%}
 
 // ----------------------------------------------------------------------------------
-// Native Sui prover implementation for object type `{{instance.suffix}}`
+// Native Iota prover implementation for object type `{{instance.suffix}}`
 
 function $2_prover_vec_remove{{S}}(v: Vec ({{T}}), elem_idx: int): Vec ({{T}}) {
     RemoveAtVec(v, elem_idx)

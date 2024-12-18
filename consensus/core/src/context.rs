@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::SystemTime};
@@ -6,7 +7,7 @@ use std::{sync::Arc, time::SystemTime};
 use consensus_config::{AuthorityIndex, Committee, Parameters};
 #[cfg(test)]
 use consensus_config::{NetworkKeyPair, ProtocolKeyPair};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 #[cfg(test)]
 use tempfile::TempDir;
 use tokio::time::Instant;

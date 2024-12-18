@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use colored::Colorize;
 use itertools::Itertools;
 use move_binary_format::file_format::{Ability, AbilitySet, DatatypeTyParameter, Visibility};
 use move_binary_format::normalized::{
-    Enum as NormalizedEnum, Field as NormalizedField, Function as SuiNormalizedFunction,
+    Enum as NormalizedEnum, Field as NormalizedField, Function as IotaNormalizedFunction,
     Module as NormalizedModule, Struct as NormalizedStruct, Type as NormalizedType,
 };
 use move_core_types::annotated_value::{MoveStruct, MoveValue, MoveVariant};
@@ -18,20 +19,20 @@ use serde_with::serde_as;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
-use sui_macros::EnumVariantOrder;
+use iota_macros::EnumVariantOrder;
 use tracing::warn;
 
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::sui_serde::SuiStructTag;
+use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::iota_serde::IotaStructTag;
 
-pub type SuiMoveTypeParameterIndex = u16;
+pub type IotaMoveTypeParameterIndex = u16;
 
 #[cfg(test)]
-#[path = "unit_tests/sui_move_tests.rs"]
-mod sui_move_tests;
+#[path = "unit_tests/iota_move_tests.rs"]
+mod iota_move_tests;
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
-pub enum SuiMoveAbility {
+pub enum IotaMoveAbility {
     Copy,
     Drop,
     Store,
@@ -39,12 +40,12 @@ pub enum SuiMoveAbility {
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
-pub struct SuiMoveAbilitySet {
-    pub abilities: Vec<SuiMoveAbility>,
+pub struct IotaMoveAbilitySet {
+    pub abilities: Vec<IotaMoveAbility>,
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
-pub enum SuiMoveVisibility {
+pub enum IotaMoveVisibility {
     Private,
     Public,
     Friend,
@@ -52,36 +53,36 @@ pub enum SuiMoveVisibility {
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SuiMoveStructTypeParameter {
-    pub constraints: SuiMoveAbilitySet,
+pub struct IotaMoveStructTypeParameter {
+    pub constraints: IotaMoveAbilitySet,
     pub is_phantom: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
-pub struct SuiMoveNormalizedField {
+pub struct IotaMoveNormalizedField {
     pub name: String,
     #[serde(rename = "type")]
-    pub type_: SuiMoveNormalizedType,
+    pub type_: IotaMoveNormalizedType,
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SuiMoveNormalizedStruct {
-    pub abilities: SuiMoveAbilitySet,
-    pub type_parameters: Vec<SuiMoveStructTypeParameter>,
-    pub fields: Vec<SuiMoveNormalizedField>,
+pub struct IotaMoveNormalizedStruct {
+    pub abilities: IotaMoveAbilitySet,
+    pub type_parameters: Vec<IotaMoveStructTypeParameter>,
+    pub fields: Vec<IotaMoveNormalizedField>,
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SuiMoveNormalizedEnum {
-    pub abilities: SuiMoveAbilitySet,
-    pub type_parameters: Vec<SuiMoveStructTypeParameter>,
-    pub variants: BTreeMap<String, Vec<SuiMoveNormalizedField>>,
+pub struct IotaMoveNormalizedEnum {
+    pub abilities: IotaMoveAbilitySet,
+    pub type_parameters: Vec<IotaMoveStructTypeParameter>,
+    pub variants: BTreeMap<String, Vec<IotaMoveNormalizedField>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
-pub enum SuiMoveNormalizedType {
+pub enum IotaMoveNormalizedType {
     Bool,
     U8,
     U16,
@@ -96,44 +97,44 @@ pub enum SuiMoveNormalizedType {
         address: String,
         module: String,
         name: String,
-        type_arguments: Vec<SuiMoveNormalizedType>,
+        type_arguments: Vec<IotaMoveNormalizedType>,
     },
-    Vector(Box<SuiMoveNormalizedType>),
-    TypeParameter(SuiMoveTypeParameterIndex),
-    Reference(Box<SuiMoveNormalizedType>),
-    MutableReference(Box<SuiMoveNormalizedType>),
+    Vector(Box<IotaMoveNormalizedType>),
+    TypeParameter(IotaMoveTypeParameterIndex),
+    Reference(Box<IotaMoveNormalizedType>),
+    MutableReference(Box<IotaMoveNormalizedType>),
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SuiMoveNormalizedFunction {
-    pub visibility: SuiMoveVisibility,
+pub struct IotaMoveNormalizedFunction {
+    pub visibility: IotaMoveVisibility,
     pub is_entry: bool,
-    pub type_parameters: Vec<SuiMoveAbilitySet>,
-    pub parameters: Vec<SuiMoveNormalizedType>,
-    pub return_: Vec<SuiMoveNormalizedType>,
+    pub type_parameters: Vec<IotaMoveAbilitySet>,
+    pub parameters: Vec<IotaMoveNormalizedType>,
+    pub return_: Vec<IotaMoveNormalizedType>,
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
-pub struct SuiMoveModuleId {
+pub struct IotaMoveModuleId {
     address: String,
     name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SuiMoveNormalizedModule {
+pub struct IotaMoveNormalizedModule {
     pub file_format_version: u32,
     pub address: String,
     pub name: String,
-    pub friends: Vec<SuiMoveModuleId>,
-    pub structs: BTreeMap<String, SuiMoveNormalizedStruct>,
+    pub friends: Vec<IotaMoveModuleId>,
+    pub structs: BTreeMap<String, IotaMoveNormalizedStruct>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub enums: BTreeMap<String, SuiMoveNormalizedEnum>,
-    pub exposed_functions: BTreeMap<String, SuiMoveNormalizedFunction>,
+    pub enums: BTreeMap<String, IotaMoveNormalizedEnum>,
+    pub exposed_functions: BTreeMap<String, IotaMoveNormalizedFunction>,
 }
 
-impl PartialEq for SuiMoveNormalizedModule {
+impl PartialEq for IotaMoveNormalizedModule {
     fn eq(&self, other: &Self) -> bool {
         self.file_format_version == other.file_format_version
             && self.address == other.address
@@ -141,7 +142,7 @@ impl PartialEq for SuiMoveNormalizedModule {
     }
 }
 
-impl From<NormalizedModule> for SuiMoveNormalizedModule {
+impl From<NormalizedModule> for IotaMoveNormalizedModule {
     fn from(module: NormalizedModule) -> Self {
         Self {
             file_format_version: module.file_format_version,
@@ -150,20 +151,20 @@ impl From<NormalizedModule> for SuiMoveNormalizedModule {
             friends: module
                 .friends
                 .into_iter()
-                .map(|module_id| SuiMoveModuleId {
+                .map(|module_id| IotaMoveModuleId {
                     address: module_id.address().to_hex_literal(),
                     name: module_id.name().to_string(),
                 })
-                .collect::<Vec<SuiMoveModuleId>>(),
+                .collect::<Vec<IotaMoveModuleId>>(),
             structs: module
                 .structs
                 .into_iter()
-                .map(|(name, struct_)| (name.to_string(), SuiMoveNormalizedStruct::from(struct_)))
-                .collect::<BTreeMap<String, SuiMoveNormalizedStruct>>(),
+                .map(|(name, struct_)| (name.to_string(), IotaMoveNormalizedStruct::from(struct_)))
+                .collect::<BTreeMap<String, IotaMoveNormalizedStruct>>(),
             enums: module
                 .enums
                 .into_iter()
-                .map(|(name, enum_)| (name.to_string(), SuiMoveNormalizedEnum::from(enum_)))
+                .map(|(name, enum_)| (name.to_string(), IotaMoveNormalizedEnum::from(enum_)))
                 .collect(),
             exposed_functions: module
                 .functions
@@ -171,68 +172,68 @@ impl From<NormalizedModule> for SuiMoveNormalizedModule {
                 .filter_map(|(name, function)| {
                     // TODO: Do we want to expose the private functions as well?
                     (function.is_entry || function.visibility != Visibility::Private)
-                        .then(|| (name.to_string(), SuiMoveNormalizedFunction::from(function)))
+                        .then(|| (name.to_string(), IotaMoveNormalizedFunction::from(function)))
                 })
-                .collect::<BTreeMap<String, SuiMoveNormalizedFunction>>(),
+                .collect::<BTreeMap<String, IotaMoveNormalizedFunction>>(),
         }
     }
 }
 
-impl From<SuiNormalizedFunction> for SuiMoveNormalizedFunction {
-    fn from(function: SuiNormalizedFunction) -> Self {
+impl From<IotaNormalizedFunction> for IotaMoveNormalizedFunction {
+    fn from(function: IotaNormalizedFunction) -> Self {
         Self {
             visibility: match function.visibility {
-                Visibility::Private => SuiMoveVisibility::Private,
-                Visibility::Public => SuiMoveVisibility::Public,
-                Visibility::Friend => SuiMoveVisibility::Friend,
+                Visibility::Private => IotaMoveVisibility::Private,
+                Visibility::Public => IotaMoveVisibility::Public,
+                Visibility::Friend => IotaMoveVisibility::Friend,
             },
             is_entry: function.is_entry,
             type_parameters: function
                 .type_parameters
                 .into_iter()
                 .map(|a| a.into())
-                .collect::<Vec<SuiMoveAbilitySet>>(),
+                .collect::<Vec<IotaMoveAbilitySet>>(),
             parameters: function
                 .parameters
                 .into_iter()
-                .map(SuiMoveNormalizedType::from)
-                .collect::<Vec<SuiMoveNormalizedType>>(),
+                .map(IotaMoveNormalizedType::from)
+                .collect::<Vec<IotaMoveNormalizedType>>(),
             return_: function
                 .return_
                 .into_iter()
-                .map(SuiMoveNormalizedType::from)
-                .collect::<Vec<SuiMoveNormalizedType>>(),
+                .map(IotaMoveNormalizedType::from)
+                .collect::<Vec<IotaMoveNormalizedType>>(),
         }
     }
 }
 
-impl From<NormalizedStruct> for SuiMoveNormalizedStruct {
+impl From<NormalizedStruct> for IotaMoveNormalizedStruct {
     fn from(struct_: NormalizedStruct) -> Self {
         Self {
             abilities: struct_.abilities.into(),
             type_parameters: struct_
                 .type_parameters
                 .into_iter()
-                .map(SuiMoveStructTypeParameter::from)
-                .collect::<Vec<SuiMoveStructTypeParameter>>(),
+                .map(IotaMoveStructTypeParameter::from)
+                .collect::<Vec<IotaMoveStructTypeParameter>>(),
             fields: struct_
                 .fields
                 .into_iter()
-                .map(SuiMoveNormalizedField::from)
-                .collect::<Vec<SuiMoveNormalizedField>>(),
+                .map(IotaMoveNormalizedField::from)
+                .collect::<Vec<IotaMoveNormalizedField>>(),
         }
     }
 }
 
-impl From<NormalizedEnum> for SuiMoveNormalizedEnum {
+impl From<NormalizedEnum> for IotaMoveNormalizedEnum {
     fn from(value: NormalizedEnum) -> Self {
         Self {
             abilities: value.abilities.into(),
             type_parameters: value
                 .type_parameters
                 .into_iter()
-                .map(SuiMoveStructTypeParameter::from)
-                .collect::<Vec<SuiMoveStructTypeParameter>>(),
+                .map(IotaMoveStructTypeParameter::from)
+                .collect::<Vec<IotaMoveStructTypeParameter>>(),
             variants: value
                 .variants
                 .into_iter()
@@ -242,16 +243,16 @@ impl From<NormalizedEnum> for SuiMoveNormalizedEnum {
                         variant
                             .fields
                             .into_iter()
-                            .map(SuiMoveNormalizedField::from)
-                            .collect::<Vec<SuiMoveNormalizedField>>(),
+                            .map(IotaMoveNormalizedField::from)
+                            .collect::<Vec<IotaMoveNormalizedField>>(),
                     )
                 })
-                .collect::<BTreeMap<String, Vec<SuiMoveNormalizedField>>>(),
+                .collect::<BTreeMap<String, Vec<IotaMoveNormalizedField>>>(),
         }
     }
 }
 
-impl From<DatatypeTyParameter> for SuiMoveStructTypeParameter {
+impl From<DatatypeTyParameter> for IotaMoveStructTypeParameter {
     fn from(type_parameter: DatatypeTyParameter) -> Self {
         Self {
             constraints: type_parameter.constraints.into(),
@@ -260,67 +261,67 @@ impl From<DatatypeTyParameter> for SuiMoveStructTypeParameter {
     }
 }
 
-impl From<NormalizedField> for SuiMoveNormalizedField {
+impl From<NormalizedField> for IotaMoveNormalizedField {
     fn from(normalized_field: NormalizedField) -> Self {
         Self {
             name: normalized_field.name.to_string(),
-            type_: SuiMoveNormalizedType::from(normalized_field.type_),
+            type_: IotaMoveNormalizedType::from(normalized_field.type_),
         }
     }
 }
 
-impl From<NormalizedType> for SuiMoveNormalizedType {
+impl From<NormalizedType> for IotaMoveNormalizedType {
     fn from(type_: NormalizedType) -> Self {
         match type_ {
-            NormalizedType::Bool => SuiMoveNormalizedType::Bool,
-            NormalizedType::U8 => SuiMoveNormalizedType::U8,
-            NormalizedType::U16 => SuiMoveNormalizedType::U16,
-            NormalizedType::U32 => SuiMoveNormalizedType::U32,
-            NormalizedType::U64 => SuiMoveNormalizedType::U64,
-            NormalizedType::U128 => SuiMoveNormalizedType::U128,
-            NormalizedType::U256 => SuiMoveNormalizedType::U256,
-            NormalizedType::Address => SuiMoveNormalizedType::Address,
-            NormalizedType::Signer => SuiMoveNormalizedType::Signer,
+            NormalizedType::Bool => IotaMoveNormalizedType::Bool,
+            NormalizedType::U8 => IotaMoveNormalizedType::U8,
+            NormalizedType::U16 => IotaMoveNormalizedType::U16,
+            NormalizedType::U32 => IotaMoveNormalizedType::U32,
+            NormalizedType::U64 => IotaMoveNormalizedType::U64,
+            NormalizedType::U128 => IotaMoveNormalizedType::U128,
+            NormalizedType::U256 => IotaMoveNormalizedType::U256,
+            NormalizedType::Address => IotaMoveNormalizedType::Address,
+            NormalizedType::Signer => IotaMoveNormalizedType::Signer,
             NormalizedType::Struct {
                 address,
                 module,
                 name,
                 type_arguments,
-            } => SuiMoveNormalizedType::Struct {
+            } => IotaMoveNormalizedType::Struct {
                 address: address.to_hex_literal(),
                 module: module.to_string(),
                 name: name.to_string(),
                 type_arguments: type_arguments
                     .into_iter()
-                    .map(SuiMoveNormalizedType::from)
-                    .collect::<Vec<SuiMoveNormalizedType>>(),
+                    .map(IotaMoveNormalizedType::from)
+                    .collect::<Vec<IotaMoveNormalizedType>>(),
             },
             NormalizedType::Vector(v) => {
-                SuiMoveNormalizedType::Vector(Box::new(SuiMoveNormalizedType::from(*v)))
+                IotaMoveNormalizedType::Vector(Box::new(IotaMoveNormalizedType::from(*v)))
             }
-            NormalizedType::TypeParameter(t) => SuiMoveNormalizedType::TypeParameter(t),
+            NormalizedType::TypeParameter(t) => IotaMoveNormalizedType::TypeParameter(t),
             NormalizedType::Reference(r) => {
-                SuiMoveNormalizedType::Reference(Box::new(SuiMoveNormalizedType::from(*r)))
+                IotaMoveNormalizedType::Reference(Box::new(IotaMoveNormalizedType::from(*r)))
             }
             NormalizedType::MutableReference(mr) => {
-                SuiMoveNormalizedType::MutableReference(Box::new(SuiMoveNormalizedType::from(*mr)))
+                IotaMoveNormalizedType::MutableReference(Box::new(IotaMoveNormalizedType::from(*mr)))
             }
         }
     }
 }
 
-impl From<AbilitySet> for SuiMoveAbilitySet {
-    fn from(set: AbilitySet) -> SuiMoveAbilitySet {
+impl From<AbilitySet> for IotaMoveAbilitySet {
+    fn from(set: AbilitySet) -> IotaMoveAbilitySet {
         Self {
             abilities: set
                 .into_iter()
                 .map(|a| match a {
-                    Ability::Copy => SuiMoveAbility::Copy,
-                    Ability::Drop => SuiMoveAbility::Drop,
-                    Ability::Key => SuiMoveAbility::Key,
-                    Ability::Store => SuiMoveAbility::Store,
+                    Ability::Copy => IotaMoveAbility::Copy,
+                    Ability::Drop => IotaMoveAbility::Drop,
+                    Ability::Key => IotaMoveAbility::Key,
+                    Ability::Store => IotaMoveAbility::Store,
                 })
-                .collect::<Vec<SuiMoveAbility>>(),
+                .collect::<Vec<IotaMoveAbility>>(),
         }
     }
 }
@@ -341,90 +342,90 @@ pub enum MoveFunctionArgType {
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq, EnumVariantOrder)]
 #[serde(untagged, rename = "MoveValue")]
-pub enum SuiMoveValue {
+pub enum IotaMoveValue {
     // u64 and u128 are converted to String to avoid overflow
     Number(u32),
     Bool(bool),
-    Address(SuiAddress),
-    Vector(Vec<SuiMoveValue>),
+    Address(IotaAddress),
+    Vector(Vec<IotaMoveValue>),
     String(String),
     UID { id: ObjectID },
-    Struct(SuiMoveStruct),
-    Option(Box<Option<SuiMoveValue>>),
-    Variant(SuiMoveVariant),
+    Struct(IotaMoveStruct),
+    Option(Box<Option<IotaMoveValue>>),
+    Variant(IotaMoveVariant),
 }
 
-impl SuiMoveValue {
+impl IotaMoveValue {
     /// Extract values from MoveValue without type information in json format
     pub fn to_json_value(self) -> Value {
         match self {
-            SuiMoveValue::Struct(move_struct) => move_struct.to_json_value(),
-            SuiMoveValue::Vector(values) => SuiMoveStruct::Runtime(values).to_json_value(),
-            SuiMoveValue::Number(v) => json!(v),
-            SuiMoveValue::Bool(v) => json!(v),
-            SuiMoveValue::Address(v) => json!(v),
-            SuiMoveValue::String(v) => json!(v),
-            SuiMoveValue::UID { id } => json!({ "id": id }),
-            SuiMoveValue::Option(v) => json!(v),
-            SuiMoveValue::Variant(v) => v.to_json_value(),
+            IotaMoveValue::Struct(move_struct) => move_struct.to_json_value(),
+            IotaMoveValue::Vector(values) => IotaMoveStruct::Runtime(values).to_json_value(),
+            IotaMoveValue::Number(v) => json!(v),
+            IotaMoveValue::Bool(v) => json!(v),
+            IotaMoveValue::Address(v) => json!(v),
+            IotaMoveValue::String(v) => json!(v),
+            IotaMoveValue::UID { id } => json!({ "id": id }),
+            IotaMoveValue::Option(v) => json!(v),
+            IotaMoveValue::Variant(v) => v.to_json_value(),
         }
     }
 }
 
-impl Display for SuiMoveValue {
+impl Display for IotaMoveValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         match self {
-            SuiMoveValue::Number(value) => write!(writer, "{}", value)?,
-            SuiMoveValue::Bool(value) => write!(writer, "{}", value)?,
-            SuiMoveValue::Address(value) => write!(writer, "{}", value)?,
-            SuiMoveValue::String(value) => write!(writer, "{}", value)?,
-            SuiMoveValue::UID { id } => write!(writer, "{id}")?,
-            SuiMoveValue::Struct(value) => write!(writer, "{}", value)?,
-            SuiMoveValue::Option(value) => write!(writer, "{:?}", value)?,
-            SuiMoveValue::Vector(vec) => {
+            IotaMoveValue::Number(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::Bool(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::Address(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::String(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::UID { id } => write!(writer, "{id}")?,
+            IotaMoveValue::Struct(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::Option(value) => write!(writer, "{:?}", value)?,
+            IotaMoveValue::Vector(vec) => {
                 write!(
                     writer,
                     "{}",
                     vec.iter().map(|value| format!("{value}")).join(",\n")
                 )?;
             }
-            SuiMoveValue::Variant(value) => write!(writer, "{}", value)?,
+            IotaMoveValue::Variant(value) => write!(writer, "{}", value)?,
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
 }
 
-impl From<MoveValue> for SuiMoveValue {
+impl From<MoveValue> for IotaMoveValue {
     fn from(value: MoveValue) -> Self {
         match value {
-            MoveValue::U8(value) => SuiMoveValue::Number(value.into()),
-            MoveValue::U16(value) => SuiMoveValue::Number(value.into()),
-            MoveValue::U32(value) => SuiMoveValue::Number(value),
-            MoveValue::U64(value) => SuiMoveValue::String(format!("{value}")),
-            MoveValue::U128(value) => SuiMoveValue::String(format!("{value}")),
-            MoveValue::U256(value) => SuiMoveValue::String(format!("{value}")),
-            MoveValue::Bool(value) => SuiMoveValue::Bool(value),
+            MoveValue::U8(value) => IotaMoveValue::Number(value.into()),
+            MoveValue::U16(value) => IotaMoveValue::Number(value.into()),
+            MoveValue::U32(value) => IotaMoveValue::Number(value),
+            MoveValue::U64(value) => IotaMoveValue::String(format!("{value}")),
+            MoveValue::U128(value) => IotaMoveValue::String(format!("{value}")),
+            MoveValue::U256(value) => IotaMoveValue::String(format!("{value}")),
+            MoveValue::Bool(value) => IotaMoveValue::Bool(value),
             MoveValue::Vector(values) => {
-                SuiMoveValue::Vector(values.into_iter().map(|value| value.into()).collect())
+                IotaMoveValue::Vector(values.into_iter().map(|value| value.into()).collect())
             }
             MoveValue::Struct(value) => {
-                // Best effort Sui core type conversion
+                // Best effort Iota core type conversion
                 let MoveStruct { type_, fields } = &value;
                 if let Some(value) = try_convert_type(type_, fields) {
                     return value;
                 }
-                SuiMoveValue::Struct(value.into())
+                IotaMoveValue::Struct(value.into())
             }
             MoveValue::Signer(value) | MoveValue::Address(value) => {
-                SuiMoveValue::Address(SuiAddress::from(ObjectID::from(value)))
+                IotaMoveValue::Address(IotaAddress::from(ObjectID::from(value)))
             }
             MoveValue::Variant(MoveVariant {
                 type_,
                 variant_name,
                 tag: _,
                 fields,
-            }) => SuiMoveValue::Variant(SuiMoveVariant {
+            }) => IotaMoveValue::Variant(IotaMoveVariant {
                 type_: type_.clone(),
                 variant: variant_name.to_string(),
                 fields: fields
@@ -457,16 +458,16 @@ fn to_bytearray(value: &[MoveValue]) -> Option<Vec<u8>> {
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "MoveVariant")]
-pub struct SuiMoveVariant {
+pub struct IotaMoveVariant {
     #[schemars(with = "String")]
     #[serde(rename = "type")]
-    #[serde_as(as = "SuiStructTag")]
+    #[serde_as(as = "IotaStructTag")]
     pub type_: StructTag,
     pub variant: String,
-    pub fields: BTreeMap<String, SuiMoveValue>,
+    pub fields: BTreeMap<String, IotaMoveValue>,
 }
 
-impl SuiMoveVariant {
+impl IotaMoveVariant {
     pub fn to_json_value(self) -> Value {
         // We only care about values here, assuming type information is known at the client side.
         let fields = self
@@ -481,10 +482,10 @@ impl SuiMoveVariant {
     }
 }
 
-impl Display for SuiMoveVariant {
+impl Display for IotaMoveVariant {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
-        let SuiMoveVariant {
+        let IotaMoveVariant {
             type_,
             variant,
             fields,
@@ -509,24 +510,24 @@ impl Display for SuiMoveVariant {
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq, EnumVariantOrder)]
 #[serde(untagged, rename = "MoveStruct")]
-pub enum SuiMoveStruct {
-    Runtime(Vec<SuiMoveValue>),
+pub enum IotaMoveStruct {
+    Runtime(Vec<IotaMoveValue>),
     WithTypes {
         #[schemars(with = "String")]
         #[serde(rename = "type")]
-        #[serde_as(as = "SuiStructTag")]
+        #[serde_as(as = "IotaStructTag")]
         type_: StructTag,
-        fields: BTreeMap<String, SuiMoveValue>,
+        fields: BTreeMap<String, IotaMoveValue>,
     },
-    WithFields(BTreeMap<String, SuiMoveValue>),
+    WithFields(BTreeMap<String, IotaMoveValue>),
 }
 
-impl SuiMoveStruct {
+impl IotaMoveStruct {
     /// Extract values from MoveStruct without type information in json format
     pub fn to_json_value(self) -> Value {
         // Unwrap MoveStructs
         match self {
-            SuiMoveStruct::Runtime(values) => {
+            IotaMoveStruct::Runtime(values) => {
                 let values = values
                     .into_iter()
                     .map(|value| value.to_json_value())
@@ -534,7 +535,7 @@ impl SuiMoveStruct {
                 json!(values)
             }
             // We only care about values here, assuming struct type information is known at the client side.
-            SuiMoveStruct::WithTypes { type_: _, fields } | SuiMoveStruct::WithFields(fields) => {
+            IotaMoveStruct::WithTypes { type_: _, fields } | IotaMoveStruct::WithFields(fields) => {
                 let fields = fields
                     .into_iter()
                     .map(|(key, value)| (key, value.to_json_value()))
@@ -544,26 +545,26 @@ impl SuiMoveStruct {
         }
     }
 
-    pub fn field_value(&self, field_name: &str) -> Option<SuiMoveValue> {
+    pub fn field_value(&self, field_name: &str) -> Option<IotaMoveValue> {
         match self {
-            SuiMoveStruct::WithFields(fields) => fields.get(field_name).cloned(),
-            SuiMoveStruct::WithTypes { type_: _, fields } => fields.get(field_name).cloned(),
+            IotaMoveStruct::WithFields(fields) => fields.get(field_name).cloned(),
+            IotaMoveStruct::WithTypes { type_: _, fields } => fields.get(field_name).cloned(),
             _ => None,
         }
     }
 }
 
-impl Display for SuiMoveStruct {
+impl Display for IotaMoveStruct {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         match self {
-            SuiMoveStruct::Runtime(_) => {}
-            SuiMoveStruct::WithFields(fields) => {
+            IotaMoveStruct::Runtime(_) => {}
+            IotaMoveStruct::WithFields(fields) => {
                 for (name, value) in fields {
                     writeln!(writer, "{}: {value}", name.bold().bright_black())?;
                 }
             }
-            SuiMoveStruct::WithTypes { type_, fields } => {
+            IotaMoveStruct::WithTypes { type_, fields } => {
                 writeln!(writer)?;
                 writeln!(writer, "  {}: {type_}", "type".bold().bright_black())?;
                 for (name, value) in fields {
@@ -588,7 +589,7 @@ fn indent<T: Display>(d: &T, indent: usize) -> String {
         .join("\n")
 }
 
-fn try_convert_type(type_: &StructTag, fields: &[(Identifier, MoveValue)]) -> Option<SuiMoveValue> {
+fn try_convert_type(type_: &StructTag, fields: &[(Identifier, MoveValue)]) -> Option<IotaMoveValue> {
     let struct_name = format!(
         "0x{}::{}::{}",
         type_.address.short_str_lossless(),
@@ -604,31 +605,31 @@ fn try_convert_type(type_: &StructTag, fields: &[(Identifier, MoveValue)]) -> Op
             if let Some(MoveValue::Vector(bytes)) = values.remove("bytes") {
                 return to_bytearray(bytes)
                     .and_then(|bytes| String::from_utf8(bytes).ok())
-                    .map(SuiMoveValue::String);
+                    .map(IotaMoveValue::String);
             }
         }
         "0x2::url::Url" => {
-            return values.remove("url").cloned().map(SuiMoveValue::from);
+            return values.remove("url").cloned().map(IotaMoveValue::from);
         }
         "0x2::object::ID" => {
-            return values.remove("bytes").cloned().map(SuiMoveValue::from);
+            return values.remove("bytes").cloned().map(IotaMoveValue::from);
         }
         "0x2::object::UID" => {
-            let id = values.remove("id").cloned().map(SuiMoveValue::from);
-            if let Some(SuiMoveValue::Address(address)) = id {
-                return Some(SuiMoveValue::UID {
+            let id = values.remove("id").cloned().map(IotaMoveValue::from);
+            if let Some(IotaMoveValue::Address(address)) = id {
+                return Some(IotaMoveValue::UID {
                     id: ObjectID::from(address),
                 });
             }
         }
         "0x2::balance::Balance" => {
-            return values.remove("value").cloned().map(SuiMoveValue::from);
+            return values.remove("value").cloned().map(IotaMoveValue::from);
         }
         "0x1::option::Option" => {
             if let Some(MoveValue::Vector(values)) = values.remove("vec") {
-                return Some(SuiMoveValue::Option(Box::new(
+                return Some(IotaMoveValue::Option(Box::new(
                     // in Move option is modeled as vec of 1 element
-                    values.first().cloned().map(SuiMoveValue::from),
+                    values.first().cloned().map(IotaMoveValue::from),
                 )));
             }
         }
@@ -636,14 +637,14 @@ fn try_convert_type(type_: &StructTag, fields: &[(Identifier, MoveValue)]) -> Op
     }
     warn!(
         fields =? fields,
-        "Failed to convert {struct_name} to SuiMoveValue"
+        "Failed to convert {struct_name} to IotaMoveValue"
     );
     None
 }
 
-impl From<MoveStruct> for SuiMoveStruct {
+impl From<MoveStruct> for IotaMoveStruct {
     fn from(move_struct: MoveStruct) -> Self {
-        SuiMoveStruct::WithTypes {
+        IotaMoveStruct::WithTypes {
             type_: move_struct.type_,
             fields: move_struct
                 .fields

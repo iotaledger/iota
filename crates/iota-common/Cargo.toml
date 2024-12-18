@@ -1,6 +1,6 @@
 [package]
-name = "mysten-common"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+name = "iota-common"
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 version = "0.1.0"
 edition = "2021"
@@ -13,9 +13,9 @@ futures.workspace = true
 parking_lot.workspace = true
 reqwest.workspace = true
 fastcrypto.workspace = true
-mysten-metrics.workspace = true
-sui-tls.workspace = true
-sui-types.workspace = true
+iota-metrics.workspace = true
+iota-tls.workspace = true
+iota-types.workspace = true
 tracing.workspace = true
 prometheus.workspace = true
 anyhow.workspace = true

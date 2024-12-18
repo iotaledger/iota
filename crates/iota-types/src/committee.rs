@@ -1,12 +1,13 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::base_types::*;
 use crate::crypto::{
     random_committee_key_pairs_of_size, AuthorityKeyPair, AuthorityPublicKey, NetworkPublicKey,
 };
-use crate::error::{SuiError, SuiResult};
+use crate::error::{IotaError, IotaResult};
 use crate::multiaddr::Multiaddr;
 use fastcrypto::traits::KeyPair;
 use once_cell::sync::OnceCell;
@@ -18,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-pub use sui_protocol_config::ProtocolVersion;
+pub use iota_protocol_config::ProtocolVersion;
 
 pub type EpochId = u64;
 
@@ -77,7 +78,7 @@ impl Committee {
 
     /// Normalize the given weights to TOTAL_VOTING_POWER and create the committee.
     /// Used for testing only: a production system is using the voting weights
-    /// of the Sui System object.
+    /// of the Iota System object.
     pub fn new_for_testing_with_normalized_voting_power(
         epoch: EpochId,
         mut voting_weights: BTreeMap<AuthorityName, StakeUnit>,
@@ -139,11 +140,11 @@ impl Committee {
         self.epoch
     }
 
-    pub fn public_key(&self, authority: &AuthorityName) -> SuiResult<&AuthorityPublicKey> {
+    pub fn public_key(&self, authority: &AuthorityName) -> IotaResult<&AuthorityPublicKey> {
         debug_assert_eq!(self.expanded_keys.len(), self.voting_rights.len());
         match self.expanded_keys.get(authority) {
             Some(v) => Ok(v),
-            None => Err(SuiError::InvalidCommittee(format!(
+            None => Err(IotaError::InvalidCommittee(format!(
                 "Authority #{} not found, committee size {}",
                 authority,
                 self.expanded_keys.len()

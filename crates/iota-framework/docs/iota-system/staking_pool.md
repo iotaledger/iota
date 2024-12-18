@@ -6,19 +6,19 @@ title: Module `0x3::staking_pool`
 
 -  [Resource `StakingPool`](#0x3_staking_pool_StakingPool)
 -  [Struct `PoolTokenExchangeRate`](#0x3_staking_pool_PoolTokenExchangeRate)
--  [Resource `StakedSui`](#0x3_staking_pool_StakedSui)
--  [Resource `FungibleStakedSui`](#0x3_staking_pool_FungibleStakedSui)
--  [Resource `FungibleStakedSuiData`](#0x3_staking_pool_FungibleStakedSuiData)
--  [Struct `FungibleStakedSuiDataKey`](#0x3_staking_pool_FungibleStakedSuiDataKey)
+-  [Resource `StakedIota`](#0x3_staking_pool_StakedIota)
+-  [Resource `FungibleStakedIota`](#0x3_staking_pool_FungibleStakedIota)
+-  [Resource `FungibleStakedIotaData`](#0x3_staking_pool_FungibleStakedIotaData)
+-  [Struct `FungibleStakedIotaDataKey`](#0x3_staking_pool_FungibleStakedIotaDataKey)
 -  [Constants](#@Constants_0)
 -  [Function `new`](#0x3_staking_pool_new)
 -  [Function `request_add_stake`](#0x3_staking_pool_request_add_stake)
 -  [Function `request_withdraw_stake`](#0x3_staking_pool_request_withdraw_stake)
--  [Function `redeem_fungible_staked_sui`](#0x3_staking_pool_redeem_fungible_staked_sui)
--  [Function `calculate_fungible_staked_sui_withdraw_amount`](#0x3_staking_pool_calculate_fungible_staked_sui_withdraw_amount)
--  [Function `convert_to_fungible_staked_sui`](#0x3_staking_pool_convert_to_fungible_staked_sui)
+-  [Function `redeem_fungible_staked_iota`](#0x3_staking_pool_redeem_fungible_staked_iota)
+-  [Function `calculate_fungible_staked_iota_withdraw_amount`](#0x3_staking_pool_calculate_fungible_staked_iota_withdraw_amount)
+-  [Function `convert_to_fungible_staked_iota`](#0x3_staking_pool_convert_to_fungible_staked_iota)
 -  [Function `withdraw_from_principal`](#0x3_staking_pool_withdraw_from_principal)
--  [Function `unwrap_staked_sui`](#0x3_staking_pool_unwrap_staked_sui)
+-  [Function `unwrap_staked_iota`](#0x3_staking_pool_unwrap_staked_iota)
 -  [Function `deposit_rewards`](#0x3_staking_pool_deposit_rewards)
 -  [Function `process_pending_stakes_and_withdraws`](#0x3_staking_pool_process_pending_stakes_and_withdraws)
 -  [Function `process_pending_stake_withdraw`](#0x3_staking_pool_process_pending_stake_withdraw)
@@ -26,28 +26,28 @@ title: Module `0x3::staking_pool`
 -  [Function `withdraw_rewards`](#0x3_staking_pool_withdraw_rewards)
 -  [Function `activate_staking_pool`](#0x3_staking_pool_activate_staking_pool)
 -  [Function `deactivate_staking_pool`](#0x3_staking_pool_deactivate_staking_pool)
--  [Function `sui_balance`](#0x3_staking_pool_sui_balance)
+-  [Function `iota_balance`](#0x3_staking_pool_iota_balance)
 -  [Function `pool_id`](#0x3_staking_pool_pool_id)
--  [Function `fungible_staked_sui_pool_id`](#0x3_staking_pool_fungible_staked_sui_pool_id)
--  [Function `staked_sui_amount`](#0x3_staking_pool_staked_sui_amount)
+-  [Function `fungible_staked_iota_pool_id`](#0x3_staking_pool_fungible_staked_iota_pool_id)
+-  [Function `staked_iota_amount`](#0x3_staking_pool_staked_iota_amount)
 -  [Function `stake_activation_epoch`](#0x3_staking_pool_stake_activation_epoch)
 -  [Function `is_preactive`](#0x3_staking_pool_is_preactive)
 -  [Function `is_inactive`](#0x3_staking_pool_is_inactive)
--  [Function `fungible_staked_sui_value`](#0x3_staking_pool_fungible_staked_sui_value)
--  [Function `split_fungible_staked_sui`](#0x3_staking_pool_split_fungible_staked_sui)
--  [Function `join_fungible_staked_sui`](#0x3_staking_pool_join_fungible_staked_sui)
+-  [Function `fungible_staked_iota_value`](#0x3_staking_pool_fungible_staked_iota_value)
+-  [Function `split_fungible_staked_iota`](#0x3_staking_pool_split_fungible_staked_iota)
+-  [Function `join_fungible_staked_iota`](#0x3_staking_pool_join_fungible_staked_iota)
 -  [Function `split`](#0x3_staking_pool_split)
--  [Function `split_staked_sui`](#0x3_staking_pool_split_staked_sui)
--  [Function `join_staked_sui`](#0x3_staking_pool_join_staked_sui)
+-  [Function `split_staked_iota`](#0x3_staking_pool_split_staked_iota)
+-  [Function `join_staked_iota`](#0x3_staking_pool_join_staked_iota)
 -  [Function `is_equal_staking_metadata`](#0x3_staking_pool_is_equal_staking_metadata)
 -  [Function `pool_token_exchange_rate_at_epoch`](#0x3_staking_pool_pool_token_exchange_rate_at_epoch)
 -  [Function `pending_stake_amount`](#0x3_staking_pool_pending_stake_amount)
 -  [Function `pending_stake_withdraw_amount`](#0x3_staking_pool_pending_stake_withdraw_amount)
 -  [Function `exchange_rates`](#0x3_staking_pool_exchange_rates)
--  [Function `sui_amount`](#0x3_staking_pool_sui_amount)
+-  [Function `iota_amount`](#0x3_staking_pool_iota_amount)
 -  [Function `pool_token_amount`](#0x3_staking_pool_pool_token_amount)
 -  [Function `is_preactive_at_epoch`](#0x3_staking_pool_is_preactive_at_epoch)
--  [Function `get_sui_amount`](#0x3_staking_pool_get_sui_amount)
+-  [Function `get_iota_amount`](#0x3_staking_pool_get_iota_amount)
 -  [Function `get_token_amount`](#0x3_staking_pool_get_token_amount)
 -  [Function `initial_exchange_rate`](#0x3_staking_pool_initial_exchange_rate)
 -  [Function `check_balance_invariants`](#0x3_staking_pool_check_balance_invariants)
@@ -55,13 +55,13 @@ title: Module `0x3::staking_pool`
 
 <pre><code><b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../move-stdlib/u64.md#0x1_u64">0x1::u64</a>;
-<b>use</b> <a href="../sui-framework/bag.md#0x2_bag">0x2::bag</a>;
-<b>use</b> <a href="../sui-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../sui-framework/object.md#0x2_object">0x2::object</a>;
-<b>use</b> <a href="../sui-framework/sui.md#0x2_sui">0x2::sui</a>;
-<b>use</b> <a href="../sui-framework/table.md#0x2_table">0x2::table</a>;
-<b>use</b> <a href="../sui-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
-<b>use</b> <a href="../sui-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
+<b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
+<b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
+<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
+<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
+<b>use</b> <a href="../iota-framework/table.md#0x2_table">0x2::table</a>;
+<b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
+<b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 </code></pre>
 
 
@@ -84,7 +84,7 @@ A staking pool embedded in each validator struct in the system state object.
 
 <dl>
 <dt>
-<code>id: <a href="../sui-framework/object.md#0x2_object_UID">object::UID</a></code>
+<code>id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a></code>
 </dt>
 <dd>
 
@@ -104,14 +104,14 @@ A staking pool embedded in each validator struct in the system state object.
  <code>Some(&lt;epoch_number&gt;)</code> if in-active, and it was de-activated at epoch <code>&lt;epoch_number&gt;</code>.
 </dd>
 <dt>
-<code>sui_balance: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
+<code>iota_balance: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
- The total number of SUI tokens in this pool, including the SUI in the rewards_pool, as well as in all the principal
- in the <code><a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a></code> object, updated at epoch boundaries.
+ The total number of IOTA tokens in this pool, including the IOTA in the rewards_pool, as well as in all the principal
+ in the <code><a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a></code> object, updated at epoch boundaries.
 </dd>
 <dt>
-<code>rewards_pool: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;</code>
+<code>rewards_pool: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
  The epoch stake rewards will be added here at the end of each epoch.
@@ -123,7 +123,7 @@ A staking pool embedded in each validator struct in the system state object.
  Total number of pool tokens issued by the pool.
 </dd>
 <dt>
-<code>exchange_rates: <a href="../sui-framework/table.md#0x2_table_Table">table::Table</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>&gt;</code>
+<code>exchange_rates: <a href="../iota-framework/table.md#0x2_table_Table">table::Table</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>&gt;</code>
 </dt>
 <dd>
  Exchange rate history of previous epochs. Key is the epoch number.
@@ -137,11 +137,11 @@ A staking pool embedded in each validator struct in the system state object.
  Pending stake amount for this epoch, emptied at epoch boundaries.
 </dd>
 <dt>
-<code>pending_total_sui_withdraw: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
+<code>pending_total_iota_withdraw: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
  Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
- This includes both the principal and rewards SUI withdrawn.
+ This includes both the principal and rewards IOTA withdrawn.
 </dd>
 <dt>
 <code>pending_pool_token_withdraw: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
@@ -150,7 +150,7 @@ A staking pool embedded in each validator struct in the system state object.
  Pending pool token withdrawn during the current epoch, emptied at epoch boundaries.
 </dd>
 <dt>
-<code>extra_fields: <a href="../sui-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
+<code>extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -164,7 +164,7 @@ A staking pool embedded in each validator struct in the system state object.
 
 ## Struct `PoolTokenExchangeRate`
 
-Struct representing the exchange rate of the stake pool token to SUI.
+Struct representing the exchange rate of the stake pool token to IOTA.
 
 
 <pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a> <b>has</b> <b>copy</b>, drop, store
@@ -178,7 +178,7 @@ Struct representing the exchange rate of the stake pool token to SUI.
 
 <dl>
 <dt>
-<code>sui_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
+<code>iota_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
@@ -194,14 +194,14 @@ Struct representing the exchange rate of the stake pool token to SUI.
 
 </details>
 
-<a name="0x3_staking_pool_StakedSui"></a>
+<a name="0x3_staking_pool_StakedIota"></a>
 
-## Resource `StakedSui`
+## Resource `StakedIota`
 
-A self-custodial object holding the staked SUI tokens.
+A self-custodial object holding the staked IOTA tokens.
 
 
-<pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a> <b>has</b> store, key
+<pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a> <b>has</b> store, key
 </code></pre>
 
 
@@ -212,13 +212,13 @@ A self-custodial object holding the staked SUI tokens.
 
 <dl>
 <dt>
-<code>id: <a href="../sui-framework/object.md#0x2_object_UID">object::UID</a></code>
+<code>id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>pool_id: <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a></code>
+<code>pool_id: <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a></code>
 </dt>
 <dd>
  ID of the staking pool we are staking with.
@@ -230,27 +230,27 @@ A self-custodial object holding the staked SUI tokens.
  The epoch at which the stake becomes active.
 </dd>
 <dt>
-<code>principal: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;</code>
+<code>principal: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
- The staked SUI tokens.
+ The staked IOTA tokens.
 </dd>
 </dl>
 
 
 </details>
 
-<a name="0x3_staking_pool_FungibleStakedSui"></a>
+<a name="0x3_staking_pool_FungibleStakedIota"></a>
 
-## Resource `FungibleStakedSui`
+## Resource `FungibleStakedIota`
 
-An alternative to <code><a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a></code> that holds the pool token amount instead of the SUI balance.
-StakedSui objects can be converted to FungibleStakedSuis after the initial warmup period.
-The advantage of this is that you can now merge multiple StakedSui objects from different
-activation epochs into a single FungibleStakedSui object.
+An alternative to <code><a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a></code> that holds the pool token amount instead of the IOTA balance.
+StakedIota objects can be converted to FungibleStakedIotas after the initial warmup period.
+The advantage of this is that you can now merge multiple StakedIota objects from different
+activation epochs into a single FungibleStakedIota object.
 
 
-<pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a> <b>has</b> store, key
+<pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a> <b>has</b> store, key
 </code></pre>
 
 
@@ -261,13 +261,13 @@ activation epochs into a single FungibleStakedSui object.
 
 <dl>
 <dt>
-<code>id: <a href="../sui-framework/object.md#0x2_object_UID">object::UID</a></code>
+<code>id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>pool_id: <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a></code>
+<code>pool_id: <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a></code>
 </dt>
 <dd>
  ID of the staking pool we are staking with.
@@ -283,14 +283,14 @@ activation epochs into a single FungibleStakedSui object.
 
 </details>
 
-<a name="0x3_staking_pool_FungibleStakedSuiData"></a>
+<a name="0x3_staking_pool_FungibleStakedIotaData"></a>
 
-## Resource `FungibleStakedSuiData`
+## Resource `FungibleStakedIotaData`
 
 Holds useful information
 
 
-<pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiData">FungibleStakedSuiData</a> <b>has</b> store, key
+<pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaData">FungibleStakedIotaData</a> <b>has</b> store, key
 </code></pre>
 
 
@@ -301,7 +301,7 @@ Holds useful information
 
 <dl>
 <dt>
-<code>id: <a href="../sui-framework/object.md#0x2_object_UID">object::UID</a></code>
+<code>id: <a href="../iota-framework/object.md#0x2_object_UID">object::UID</a></code>
 </dt>
 <dd>
 
@@ -310,10 +310,10 @@ Holds useful information
 <code>total_supply: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
- fungible_staked_sui supply
+ fungible_staked_iota supply
 </dd>
 <dt>
-<code>principal: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;</code>
+<code>principal: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
  principal balance. Rewards are withdrawn from the reward pool
@@ -323,13 +323,13 @@ Holds useful information
 
 </details>
 
-<a name="0x3_staking_pool_FungibleStakedSuiDataKey"></a>
+<a name="0x3_staking_pool_FungibleStakedIotaDataKey"></a>
 
-## Struct `FungibleStakedSuiDataKey`
+## Struct `FungibleStakedIotaDataKey`
 
 
 
-<pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiDataKey">FungibleStakedSuiDataKey</a> <b>has</b> <b>copy</b>, drop, store
+<pre><code><b>struct</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaDataKey">FungibleStakedIotaDataKey</a> <b>has</b> <b>copy</b>, drop, store
 </code></pre>
 
 
@@ -364,11 +364,11 @@ Holds useful information
 
 
 
-<a name="0x3_staking_pool_ECannotMintFungibleStakedSuiYet"></a>
+<a name="0x3_staking_pool_ECannotMintFungibleStakedIotaYet"></a>
 
 
 
-<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_ECannotMintFungibleStakedSuiYet">ECannotMintFungibleStakedSuiYet</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 19;
+<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_ECannotMintFungibleStakedIotaYet">ECannotMintFungibleStakedIotaYet</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 19;
 </code></pre>
 
 
@@ -382,11 +382,11 @@ Holds useful information
 
 
 
-<a name="0x3_staking_pool_EDelegationOfZeroSui"></a>
+<a name="0x3_staking_pool_EDelegationOfZeroIota"></a>
 
 
 
-<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EDelegationOfZeroSui">EDelegationOfZeroSui</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 17;
+<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EDelegationOfZeroIota">EDelegationOfZeroIota</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 17;
 </code></pre>
 
 
@@ -409,11 +409,11 @@ Holds useful information
 
 
 
-<a name="0x3_staking_pool_EIncompatibleStakedSui"></a>
+<a name="0x3_staking_pool_EIncompatibleStakedIota"></a>
 
 
 
-<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EIncompatibleStakedSui">EIncompatibleStakedSui</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 12;
+<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EIncompatibleStakedIota">EIncompatibleStakedIota</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 12;
 </code></pre>
 
 
@@ -436,11 +436,11 @@ Holds useful information
 
 
 
-<a name="0x3_staking_pool_EInsufficientSuiTokenBalance"></a>
+<a name="0x3_staking_pool_EInsufficientIotaTokenBalance"></a>
 
 
 
-<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EInsufficientSuiTokenBalance">EInsufficientSuiTokenBalance</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 3;
+<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EInsufficientIotaTokenBalance">EInsufficientIotaTokenBalance</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 3;
 </code></pre>
 
 
@@ -481,11 +481,11 @@ Holds useful information
 
 
 
-<a name="0x3_staking_pool_EStakedSuiBelowThreshold"></a>
+<a name="0x3_staking_pool_EStakedIotaBelowThreshold"></a>
 
 
 
-<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EStakedSuiBelowThreshold">EStakedSuiBelowThreshold</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 18;
+<pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 18;
 </code></pre>
 
 
@@ -546,7 +546,7 @@ Holds useful information
 
 <a name="0x3_staking_pool_MIN_STAKING_THRESHOLD"></a>
 
-StakedSui objects cannot be split to below this amount.
+StakedIota objects cannot be split to below this amount.
 
 
 <pre><code><b>const</b> <a href="staking_pool.md#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 1000000000;
@@ -561,7 +561,7 @@ StakedSui objects cannot be split to below this amount.
 Create a new, empty staking pool.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_new">new</a>(ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_new">new</a>(ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>
 </code></pre>
 
 
@@ -571,19 +571,19 @@ Create a new, empty staking pool.
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_new">new</a>(ctx: &<b>mut</b> TxContext) : <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a> {
-    <b>let</b> exchange_rates = <a href="../sui-framework/table.md#0x2_table_new">table::new</a>(ctx);
+    <b>let</b> exchange_rates = <a href="../iota-framework/table.md#0x2_table_new">table::new</a>(ctx);
     <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a> {
-        id: <a href="../sui-framework/object.md#0x2_object_new">object::new</a>(ctx),
+        id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
         activation_epoch: <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
         deactivation_epoch: <a href="../move-stdlib/option.md#0x1_option_none">option::none</a>(),
-        sui_balance: 0,
-        rewards_pool: <a href="../sui-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
+        iota_balance: 0,
+        rewards_pool: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
         pool_token_balance: 0,
         exchange_rates,
         pending_stake: 0,
-        pending_total_sui_withdraw: 0,
+        pending_total_iota_withdraw: 0,
         pending_pool_token_withdraw: 0,
-        extra_fields: <a href="../sui-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
+        extra_fields: <a href="../iota-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
     }
 }
 </code></pre>
@@ -599,7 +599,7 @@ Create a new, empty staking pool.
 Request to stake to a staking pool. The stake starts counting at the beginning of the next epoch,
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_request_add_stake">request_add_stake</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, stake: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;, stake_activation_epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_request_add_stake">request_add_stake</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, stake: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, stake_activation_epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>
 </code></pre>
 
 
@@ -610,21 +610,21 @@ Request to stake to a staking pool. The stake starts counting at the beginning o
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_request_add_stake">request_add_stake</a>(
     pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>,
-    stake: Balance&lt;SUI&gt;,
+    stake: Balance&lt;IOTA&gt;,
     stake_activation_epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext
-) : <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a> {
-    <b>let</b> sui_amount = stake.value();
+) : <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a> {
+    <b>let</b> iota_amount = stake.value();
     <b>assert</b>!(!<a href="staking_pool.md#0x3_staking_pool_is_inactive">is_inactive</a>(pool), <a href="staking_pool.md#0x3_staking_pool_EDelegationToInactivePool">EDelegationToInactivePool</a>);
-    <b>assert</b>!(sui_amount &gt; 0, <a href="staking_pool.md#0x3_staking_pool_EDelegationOfZeroSui">EDelegationOfZeroSui</a>);
-    <b>let</b> staked_sui = <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a> {
-        id: <a href="../sui-framework/object.md#0x2_object_new">object::new</a>(ctx),
-        pool_id: <a href="../sui-framework/object.md#0x2_object_id">object::id</a>(pool),
+    <b>assert</b>!(iota_amount &gt; 0, <a href="staking_pool.md#0x3_staking_pool_EDelegationOfZeroIota">EDelegationOfZeroIota</a>);
+    <b>let</b> staked_iota = <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a> {
+        id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
+        pool_id: <a href="../iota-framework/object.md#0x2_object_id">object::id</a>(pool),
         stake_activation_epoch,
         principal: stake,
     };
-    pool.pending_stake = pool.pending_stake + sui_amount;
-    staked_sui
+    pool.pending_stake = pool.pending_stake + iota_amount;
+    staked_iota
 }
 </code></pre>
 
@@ -637,11 +637,11 @@ Request to stake to a staking pool. The stake starts counting at the beginning o
 ## Function `request_withdraw_stake`
 
 Request to withdraw the given stake plus rewards from a staking pool.
-Both the principal and corresponding rewards in SUI are withdrawn.
+Both the principal and corresponding rewards in IOTA are withdrawn.
 A proportional amount of pool token withdraw is recorded and processed at epoch change time.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_request_withdraw_stake">request_withdraw_stake</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, ctx: &<a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_request_withdraw_stake">request_withdraw_stake</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -652,27 +652,27 @@ A proportional amount of pool token withdraw is recorded and processed at epoch 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_request_withdraw_stake">request_withdraw_stake</a>(
     pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>,
-    staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>,
+    staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>,
     ctx: &TxContext
-) : Balance&lt;SUI&gt; {
+) : Balance&lt;IOTA&gt; {
     // stake is inactive
-    <b>if</b> (staked_sui.stake_activation_epoch &gt; ctx.epoch()) {
-        <b>let</b> principal = <a href="staking_pool.md#0x3_staking_pool_unwrap_staked_sui">unwrap_staked_sui</a>(staked_sui);
+    <b>if</b> (staked_iota.stake_activation_epoch &gt; ctx.epoch()) {
+        <b>let</b> principal = <a href="staking_pool.md#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</a>(staked_iota);
         pool.pending_stake = pool.pending_stake - principal.value();
 
         <b>return</b> principal
     };
 
     <b>let</b> (pool_token_withdraw_amount, <b>mut</b> principal_withdraw) =
-        <a href="staking_pool.md#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</a>(pool, staked_sui);
+        <a href="staking_pool.md#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</a>(pool, staked_iota);
     <b>let</b> principal_withdraw_amount = principal_withdraw.value();
 
     <b>let</b> rewards_withdraw = <a href="staking_pool.md#0x3_staking_pool_withdraw_rewards">withdraw_rewards</a>(
         pool, principal_withdraw_amount, pool_token_withdraw_amount, ctx.epoch()
     );
-    <b>let</b> total_sui_withdraw_amount = principal_withdraw_amount + rewards_withdraw.value();
+    <b>let</b> total_iota_withdraw_amount = principal_withdraw_amount + rewards_withdraw.value();
 
-    pool.pending_total_sui_withdraw = pool.pending_total_sui_withdraw + total_sui_withdraw_amount;
+    pool.pending_total_iota_withdraw = pool.pending_total_iota_withdraw + total_iota_withdraw_amount;
     pool.pending_pool_token_withdraw = pool.pending_pool_token_withdraw + pool_token_withdraw_amount;
 
     // If the pool is inactive, we immediately process the withdrawal.
@@ -688,13 +688,13 @@ A proportional amount of pool token withdraw is recorded and processed at epoch 
 
 </details>
 
-<a name="0x3_staking_pool_redeem_fungible_staked_sui"></a>
+<a name="0x3_staking_pool_redeem_fungible_staked_iota"></a>
 
-## Function `redeem_fungible_staked_sui`
+## Function `redeem_fungible_staked_iota`
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_redeem_fungible_staked_sui">redeem_fungible_staked_sui</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, fungible_staked_sui: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>, ctx: &<a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_redeem_fungible_staked_iota">redeem_fungible_staked_iota</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, fungible_staked_iota: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -703,41 +703,41 @@ A proportional amount of pool token withdraw is recorded and processed at epoch 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_redeem_fungible_staked_sui">redeem_fungible_staked_sui</a>(
+<pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_redeem_fungible_staked_iota">redeem_fungible_staked_iota</a>(
     pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>,
-    fungible_staked_sui: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a>,
+    fungible_staked_iota: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a>,
     ctx: &TxContext
-) : Balance&lt;SUI&gt; {
-    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a> { id, pool_id, value } = fungible_staked_sui;
-    <b>assert</b>!(pool_id == <a href="../sui-framework/object.md#0x2_object_id">object::id</a>(pool), <a href="staking_pool.md#0x3_staking_pool_EWrongPool">EWrongPool</a>);
+) : Balance&lt;IOTA&gt; {
+    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a> { id, pool_id, value } = fungible_staked_iota;
+    <b>assert</b>!(pool_id == <a href="../iota-framework/object.md#0x2_object_id">object::id</a>(pool), <a href="staking_pool.md#0x3_staking_pool_EWrongPool">EWrongPool</a>);
 
-    <a href="../sui-framework/object.md#0x2_object_delete">object::delete</a>(id);
+    <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
 
-    <b>let</b> latest_exchange_rate = <a href="staking_pool.md#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</a>(pool, <a href="../sui-framework/tx_context.md#0x2_tx_context_epoch">tx_context::epoch</a>(ctx));
-    <b>let</b> fungible_staked_sui_data: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiData">FungibleStakedSuiData</a> = <a href="../sui-framework/bag.md#0x2_bag_borrow_mut">bag::borrow_mut</a>(
+    <b>let</b> latest_exchange_rate = <a href="staking_pool.md#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</a>(pool, <a href="../iota-framework/tx_context.md#0x2_tx_context_epoch">tx_context::epoch</a>(ctx));
+    <b>let</b> fungible_staked_iota_data: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaData">FungibleStakedIotaData</a> = <a href="../iota-framework/bag.md#0x2_bag_borrow_mut">bag::borrow_mut</a>(
         &<b>mut</b> pool.extra_fields,
-        <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiDataKey">FungibleStakedSuiDataKey</a> {}
+        <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaDataKey">FungibleStakedIotaDataKey</a> {}
     );
 
-    <b>let</b> (principal_amount, rewards_amount) = <a href="staking_pool.md#0x3_staking_pool_calculate_fungible_staked_sui_withdraw_amount">calculate_fungible_staked_sui_withdraw_amount</a>(
+    <b>let</b> (principal_amount, rewards_amount) = <a href="staking_pool.md#0x3_staking_pool_calculate_fungible_staked_iota_withdraw_amount">calculate_fungible_staked_iota_withdraw_amount</a>(
         latest_exchange_rate,
         value,
-        <a href="../sui-framework/balance.md#0x2_balance_value">balance::value</a>(&fungible_staked_sui_data.principal),
-        fungible_staked_sui_data.total_supply
+        <a href="../iota-framework/balance.md#0x2_balance_value">balance::value</a>(&fungible_staked_iota_data.principal),
+        fungible_staked_iota_data.total_supply
     );
 
-    fungible_staked_sui_data.total_supply = fungible_staked_sui_data.total_supply - value;
+    fungible_staked_iota_data.total_supply = fungible_staked_iota_data.total_supply - value;
 
-    <b>let</b> <b>mut</b> sui_out = <a href="../sui-framework/balance.md#0x2_balance_split">balance::split</a>(&<b>mut</b> fungible_staked_sui_data.principal, principal_amount);
-    <a href="../sui-framework/balance.md#0x2_balance_join">balance::join</a>(
-        &<b>mut</b> sui_out,
-        <a href="../sui-framework/balance.md#0x2_balance_split">balance::split</a>(&<b>mut</b> pool.rewards_pool, rewards_amount)
+    <b>let</b> <b>mut</b> iota_out = <a href="../iota-framework/balance.md#0x2_balance_split">balance::split</a>(&<b>mut</b> fungible_staked_iota_data.principal, principal_amount);
+    <a href="../iota-framework/balance.md#0x2_balance_join">balance::join</a>(
+        &<b>mut</b> iota_out,
+        <a href="../iota-framework/balance.md#0x2_balance_split">balance::split</a>(&<b>mut</b> pool.rewards_pool, rewards_amount)
     );
 
-    pool.pending_total_sui_withdraw = pool.pending_total_sui_withdraw + <a href="../sui-framework/balance.md#0x2_balance_value">balance::value</a>(&sui_out);
+    pool.pending_total_iota_withdraw = pool.pending_total_iota_withdraw + <a href="../iota-framework/balance.md#0x2_balance_value">balance::value</a>(&iota_out);
     pool.pending_pool_token_withdraw = pool.pending_pool_token_withdraw + value;
 
-    sui_out
+    iota_out
 }
 </code></pre>
 
@@ -745,15 +745,15 @@ A proportional amount of pool token withdraw is recorded and processed at epoch 
 
 </details>
 
-<a name="0x3_staking_pool_calculate_fungible_staked_sui_withdraw_amount"></a>
+<a name="0x3_staking_pool_calculate_fungible_staked_iota_withdraw_amount"></a>
 
-## Function `calculate_fungible_staked_sui_withdraw_amount`
+## Function `calculate_fungible_staked_iota_withdraw_amount`
 
 written in separate function so i can test with random values
 returns (principal_withdraw_amount, rewards_withdraw_amount)
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_calculate_fungible_staked_sui_withdraw_amount">calculate_fungible_staked_sui_withdraw_amount</a>(latest_exchange_rate: <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>, fungible_staked_sui_value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, fungible_staked_sui_data_principal_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, fungible_staked_sui_data_total_supply: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): (<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>)
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_calculate_fungible_staked_iota_withdraw_amount">calculate_fungible_staked_iota_withdraw_amount</a>(latest_exchange_rate: <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>, fungible_staked_iota_value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, fungible_staked_iota_data_principal_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, fungible_staked_iota_data_total_supply: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): (<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>)
 </code></pre>
 
 
@@ -762,36 +762,36 @@ returns (principal_withdraw_amount, rewards_withdraw_amount)
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_calculate_fungible_staked_sui_withdraw_amount">calculate_fungible_staked_sui_withdraw_amount</a>(
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_calculate_fungible_staked_iota_withdraw_amount">calculate_fungible_staked_iota_withdraw_amount</a>(
     latest_exchange_rate: <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a>,
-    fungible_staked_sui_value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
-    fungible_staked_sui_data_principal_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, // fungible_staked_sui_data.principal.value()
-    fungible_staked_sui_data_total_supply: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, // fungible_staked_sui_data.total_supply
+    fungible_staked_iota_value: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
+    fungible_staked_iota_data_principal_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, // fungible_staked_iota_data.principal.value()
+    fungible_staked_iota_data_total_supply: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, // fungible_staked_iota_data.total_supply
 ) : (<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../move-stdlib/u64.md#0x1_u64">u64</a>) {
-    // 1. <b>if</b> the entire <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiData">FungibleStakedSuiData</a> supply is redeemed, how much <a href="../sui-framework/sui.md#0x2_sui">sui</a> should we receive?
-    <b>let</b> total_sui_amount = <a href="staking_pool.md#0x3_staking_pool_get_sui_amount">get_sui_amount</a>(&latest_exchange_rate, fungible_staked_sui_data_total_supply);
+    // 1. <b>if</b> the entire <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaData">FungibleStakedIotaData</a> supply is redeemed, how much <a href="../iota-framework/iota.md#0x2_iota">iota</a> should we receive?
+    <b>let</b> total_iota_amount = <a href="staking_pool.md#0x3_staking_pool_get_iota_amount">get_iota_amount</a>(&latest_exchange_rate, fungible_staked_iota_data_total_supply);
 
-    // <b>min</b> <b>with</b> total_sui_amount <b>to</b> prevent underflow
-    <b>let</b> fungible_staked_sui_data_principal_amount = std::u64::min(
-        fungible_staked_sui_data_principal_amount,
-        total_sui_amount
+    // <b>min</b> <b>with</b> total_iota_amount <b>to</b> prevent underflow
+    <b>let</b> fungible_staked_iota_data_principal_amount = std::u64::min(
+        fungible_staked_iota_data_principal_amount,
+        total_iota_amount
     );
 
     // 2. how much do we need <b>to</b> withdraw from the rewards pool?
-    <b>let</b> total_rewards = total_sui_amount - fungible_staked_sui_data_principal_amount;
+    <b>let</b> total_rewards = total_iota_amount - fungible_staked_iota_data_principal_amount;
 
-    // 3. proportionally withdraw from both wrt the fungible_staked_sui_value.
-    <b>let</b> principal_withdraw_amount = ((fungible_staked_sui_value <b>as</b> u128)
-        * (fungible_staked_sui_data_principal_amount <b>as</b> u128)
-        / (fungible_staked_sui_data_total_supply <b>as</b> u128)) <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>;
+    // 3. proportionally withdraw from both wrt the fungible_staked_iota_value.
+    <b>let</b> principal_withdraw_amount = ((fungible_staked_iota_value <b>as</b> u128)
+        * (fungible_staked_iota_data_principal_amount <b>as</b> u128)
+        / (fungible_staked_iota_data_total_supply <b>as</b> u128)) <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>;
 
-    <b>let</b> rewards_withdraw_amount = ((fungible_staked_sui_value <b>as</b> u128)
+    <b>let</b> rewards_withdraw_amount = ((fungible_staked_iota_value <b>as</b> u128)
         * (total_rewards <b>as</b> u128)
-        / (fungible_staked_sui_data_total_supply <b>as</b> u128)) <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>;
+        / (fungible_staked_iota_data_total_supply <b>as</b> u128)) <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>;
 
     // <b>invariant</b> check, just in case
-    <b>let</b> expected_sui_amount = <a href="staking_pool.md#0x3_staking_pool_get_sui_amount">get_sui_amount</a>(&latest_exchange_rate, fungible_staked_sui_value);
-    <b>assert</b>!(principal_withdraw_amount + rewards_withdraw_amount &lt;= expected_sui_amount, <a href="staking_pool.md#0x3_staking_pool_EInvariantFailure">EInvariantFailure</a>);
+    <b>let</b> expected_iota_amount = <a href="staking_pool.md#0x3_staking_pool_get_iota_amount">get_iota_amount</a>(&latest_exchange_rate, fungible_staked_iota_value);
+    <b>assert</b>!(principal_withdraw_amount + rewards_withdraw_amount &lt;= expected_iota_amount, <a href="staking_pool.md#0x3_staking_pool_EInvariantFailure">EInvariantFailure</a>);
 
     (principal_withdraw_amount, rewards_withdraw_amount)
 }
@@ -801,14 +801,14 @@ returns (principal_withdraw_amount, rewards_withdraw_amount)
 
 </details>
 
-<a name="0x3_staking_pool_convert_to_fungible_staked_sui"></a>
+<a name="0x3_staking_pool_convert_to_fungible_staked_iota"></a>
 
-## Function `convert_to_fungible_staked_sui`
+## Function `convert_to_fungible_staked_iota`
 
-Convert the given staked SUI to an FungibleStakedSui object
+Convert the given staked IOTA to an FungibleStakedIota object
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_convert_to_fungible_staked_sui">convert_to_fungible_staked_sui</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_convert_to_fungible_staked_iota">convert_to_fungible_staked_iota</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>
 </code></pre>
 
 
@@ -817,20 +817,20 @@ Convert the given staked SUI to an FungibleStakedSui object
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_convert_to_fungible_staked_sui">convert_to_fungible_staked_sui</a>(
+<pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_convert_to_fungible_staked_iota">convert_to_fungible_staked_iota</a>(
     pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>,
-    staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>,
+    staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>,
     ctx: &<b>mut</b> TxContext
-) : <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a> {
-    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a> { id, pool_id, stake_activation_epoch, principal } = staked_sui;
+) : <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a> {
+    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a> { id, pool_id, stake_activation_epoch, principal } = staked_iota;
 
-    <b>assert</b>!(pool_id == <a href="../sui-framework/object.md#0x2_object_id">object::id</a>(pool), <a href="staking_pool.md#0x3_staking_pool_EWrongPool">EWrongPool</a>);
+    <b>assert</b>!(pool_id == <a href="../iota-framework/object.md#0x2_object_id">object::id</a>(pool), <a href="staking_pool.md#0x3_staking_pool_EWrongPool">EWrongPool</a>);
     <b>assert</b>!(
-        <a href="../sui-framework/tx_context.md#0x2_tx_context_epoch">tx_context::epoch</a>(ctx) &gt;= stake_activation_epoch,
-        <a href="staking_pool.md#0x3_staking_pool_ECannotMintFungibleStakedSuiYet">ECannotMintFungibleStakedSuiYet</a>
+        <a href="../iota-framework/tx_context.md#0x2_tx_context_epoch">tx_context::epoch</a>(ctx) &gt;= stake_activation_epoch,
+        <a href="staking_pool.md#0x3_staking_pool_ECannotMintFungibleStakedIotaYet">ECannotMintFungibleStakedIotaYet</a>
     );
 
-    <a href="../sui-framework/object.md#0x2_object_delete">object::delete</a>(id);
+    <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
 
 
     <b>let</b> exchange_rate_at_staking_epoch = <a href="staking_pool.md#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</a>(
@@ -840,31 +840,31 @@ Convert the given staked SUI to an FungibleStakedSui object
 
     <b>let</b> pool_token_amount = <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(
         &exchange_rate_at_staking_epoch,
-        <a href="../sui-framework/balance.md#0x2_balance_value">balance::value</a>(&principal)
+        <a href="../iota-framework/balance.md#0x2_balance_value">balance::value</a>(&principal)
     );
 
-    <b>if</b> (!<a href="../sui-framework/bag.md#0x2_bag_contains">bag::contains</a>(&pool.extra_fields, <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiDataKey">FungibleStakedSuiDataKey</a> {})) {
-        <a href="../sui-framework/bag.md#0x2_bag_add">bag::add</a>(
+    <b>if</b> (!<a href="../iota-framework/bag.md#0x2_bag_contains">bag::contains</a>(&pool.extra_fields, <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaDataKey">FungibleStakedIotaDataKey</a> {})) {
+        <a href="../iota-framework/bag.md#0x2_bag_add">bag::add</a>(
             &<b>mut</b> pool.extra_fields,
-            <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiDataKey">FungibleStakedSuiDataKey</a> {},
-            <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiData">FungibleStakedSuiData</a> {
-                id: <a href="../sui-framework/object.md#0x2_object_new">object::new</a>(ctx),
+            <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaDataKey">FungibleStakedIotaDataKey</a> {},
+            <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaData">FungibleStakedIotaData</a> {
+                id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
                 total_supply: pool_token_amount,
                 principal
             }
         );
     }
     <b>else</b> {
-        <b>let</b> fungible_staked_sui_data: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiData">FungibleStakedSuiData</a> = <a href="../sui-framework/bag.md#0x2_bag_borrow_mut">bag::borrow_mut</a>(
+        <b>let</b> fungible_staked_iota_data: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaData">FungibleStakedIotaData</a> = <a href="../iota-framework/bag.md#0x2_bag_borrow_mut">bag::borrow_mut</a>(
             &<b>mut</b> pool.extra_fields,
-            <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSuiDataKey">FungibleStakedSuiDataKey</a> {}
+            <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIotaDataKey">FungibleStakedIotaDataKey</a> {}
         );
-        fungible_staked_sui_data.total_supply = fungible_staked_sui_data.total_supply + pool_token_amount;
-        <a href="../sui-framework/balance.md#0x2_balance_join">balance::join</a>(&<b>mut</b> fungible_staked_sui_data.principal, principal);
+        fungible_staked_iota_data.total_supply = fungible_staked_iota_data.total_supply + pool_token_amount;
+        <a href="../iota-framework/balance.md#0x2_balance_join">balance::join</a>(&<b>mut</b> fungible_staked_iota_data.principal, principal);
     };
 
-    <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a> {
-        id: <a href="../sui-framework/object.md#0x2_object_new">object::new</a>(ctx),
+    <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a> {
+        id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
         pool_id,
         value: pool_token_amount,
     }
@@ -879,12 +879,12 @@ Convert the given staked SUI to an FungibleStakedSui object
 
 ## Function `withdraw_from_principal`
 
-Withdraw the principal SUI stored in the StakedSui object, and calculate the corresponding amount of pool
+Withdraw the principal IOTA stored in the StakedIota object, and calculate the corresponding amount of pool
 tokens using exchange rate at staking epoch.
-Returns values are amount of pool tokens withdrawn and withdrawn principal portion of SUI.
+Returns values are amount of pool tokens withdrawn and withdrawn principal portion of IOTA.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>): (<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>): (<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;)
 </code></pre>
 
 
@@ -895,14 +895,14 @@ Returns values are amount of pool tokens withdrawn and withdrawn principal porti
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_withdraw_from_principal">withdraw_from_principal</a>(
     pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>,
-    staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>,
-) : (<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, Balance&lt;SUI&gt;) {
+    staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>,
+) : (<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, Balance&lt;IOTA&gt;) {
 
     // Check that the stake information matches the pool.
-    <b>assert</b>!(staked_sui.pool_id == <a href="../sui-framework/object.md#0x2_object_id">object::id</a>(pool), <a href="staking_pool.md#0x3_staking_pool_EWrongPool">EWrongPool</a>);
+    <b>assert</b>!(staked_iota.pool_id == <a href="../iota-framework/object.md#0x2_object_id">object::id</a>(pool), <a href="staking_pool.md#0x3_staking_pool_EWrongPool">EWrongPool</a>);
 
-    <b>let</b> exchange_rate_at_staking_epoch = <a href="staking_pool.md#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</a>(pool, staked_sui.stake_activation_epoch);
-    <b>let</b> principal_withdraw = <a href="staking_pool.md#0x3_staking_pool_unwrap_staked_sui">unwrap_staked_sui</a>(staked_sui);
+    <b>let</b> exchange_rate_at_staking_epoch = <a href="staking_pool.md#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</a>(pool, staked_iota.stake_activation_epoch);
+    <b>let</b> principal_withdraw = <a href="staking_pool.md#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</a>(staked_iota);
     <b>let</b> pool_token_withdraw_amount = <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(
 		&exchange_rate_at_staking_epoch,
 		principal_withdraw.value()
@@ -919,13 +919,13 @@ Returns values are amount of pool tokens withdrawn and withdrawn principal porti
 
 </details>
 
-<a name="0x3_staking_pool_unwrap_staked_sui"></a>
+<a name="0x3_staking_pool_unwrap_staked_iota"></a>
 
-## Function `unwrap_staked_sui`
+## Function `unwrap_staked_iota`
 
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_unwrap_staked_sui">unwrap_staked_sui</a>(staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>): <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</a>(staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -934,14 +934,14 @@ Returns values are amount of pool tokens withdrawn and withdrawn principal porti
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_unwrap_staked_sui">unwrap_staked_sui</a>(staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>): Balance&lt;SUI&gt; {
-    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a> {
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_unwrap_staked_iota">unwrap_staked_iota</a>(staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>): Balance&lt;IOTA&gt; {
+    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a> {
         id,
         pool_id: _,
         stake_activation_epoch: _,
         principal,
-    } = staked_sui;
-    <a href="../sui-framework/object.md#0x2_object_delete">object::delete</a>(id);
+    } = staked_iota;
+    <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
     principal
 }
 </code></pre>
@@ -954,10 +954,10 @@ Returns values are amount of pool tokens withdrawn and withdrawn principal porti
 
 ## Function `deposit_rewards`
 
-Called at epoch advancement times to add rewards (in SUI) to the staking pool.
+Called at epoch advancement times to add rewards (in IOTA) to the staking pool.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_deposit_rewards">deposit_rewards</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, rewards: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_deposit_rewards">deposit_rewards</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;)
 </code></pre>
 
 
@@ -966,8 +966,8 @@ Called at epoch advancement times to add rewards (in SUI) to the staking pool.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_deposit_rewards">deposit_rewards</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>, rewards: Balance&lt;SUI&gt;) {
-    pool.sui_balance = pool.sui_balance + rewards.value();
+<pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_deposit_rewards">deposit_rewards</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>, rewards: Balance&lt;IOTA&gt;) {
+    pool.iota_balance = pool.iota_balance + rewards.value();
     pool.rewards_pool.join(rewards);
 }
 </code></pre>
@@ -982,7 +982,7 @@ Called at epoch advancement times to add rewards (in SUI) to the staking pool.
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, ctx: &<a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -997,7 +997,7 @@ Called at epoch advancement times to add rewards (in SUI) to the staking pool.
     <a href="staking_pool.md#0x3_staking_pool_process_pending_stake">process_pending_stake</a>(pool);
     pool.exchange_rates.add(
         new_epoch,
-        <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a> { sui_amount: pool.sui_balance, pool_token_amount: pool.pool_token_balance },
+        <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a> { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance },
     );
     <a href="staking_pool.md#0x3_staking_pool_check_balance_invariants">check_balance_invariants</a>(pool, new_epoch);
 }
@@ -1025,9 +1025,9 @@ Also called immediately upon withdrawal if the pool is inactive.
 
 
 <pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_process_pending_stake_withdraw">process_pending_stake_withdraw</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>) {
-    pool.sui_balance = pool.sui_balance - pool.pending_total_sui_withdraw;
+    pool.iota_balance = pool.iota_balance - pool.pending_total_iota_withdraw;
     pool.pool_token_balance = pool.pool_token_balance - pool.pending_pool_token_withdraw;
-    pool.pending_total_sui_withdraw = 0;
+    pool.pending_total_iota_withdraw = 0;
     pool.pending_pool_token_withdraw = 0;
 }
 </code></pre>
@@ -1055,9 +1055,9 @@ Called at epoch boundaries to process the pending stake.
 <pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_process_pending_stake">process_pending_stake</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>) {
     // Use the most up <b>to</b> date exchange rate <b>with</b> the rewards deposited and withdraws effectuated.
     <b>let</b> latest_exchange_rate =
-        <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a> { sui_amount: pool.sui_balance, pool_token_amount: pool.pool_token_balance };
-    pool.sui_balance = pool.sui_balance + pool.pending_stake;
-    pool.pool_token_balance = <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(&latest_exchange_rate, pool.sui_balance);
+        <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a> { iota_amount: pool.iota_balance, pool_token_amount: pool.pool_token_balance };
+    pool.iota_balance = pool.iota_balance + pool.pending_stake;
+    pool.pool_token_balance = <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(&latest_exchange_rate, pool.iota_balance);
     pool.pending_stake = 0;
 }
 </code></pre>
@@ -1071,15 +1071,15 @@ Called at epoch boundaries to process the pending stake.
 ## Function `withdraw_rewards`
 
 This function does the following:
-1. Calculates the total amount of SUI (including principal and rewards) that the provided pool tokens represent
+1. Calculates the total amount of IOTA (including principal and rewards) that the provided pool tokens represent
 at the current exchange rate.
 2. Using the above number and the given <code>principal_withdraw_amount</code>, calculates the rewards portion of the
 stake we should withdraw.
 3. Withdraws the rewards portion from the rewards pool at the current exchange rate. We only withdraw the rewards
-portion because the principal portion was already taken out of the staker's self custodied StakedSui.
+portion because the principal portion was already taken out of the staker's self custodied StakedIota.
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_withdraw_rewards">withdraw_rewards</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, principal_withdraw_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, pool_token_withdraw_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_withdraw_rewards">withdraw_rewards</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>, principal_withdraw_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, pool_token_withdraw_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -1093,15 +1093,15 @@ portion because the principal portion was already taken out of the staker's self
     principal_withdraw_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     pool_token_withdraw_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
-) : Balance&lt;SUI&gt; {
+) : Balance&lt;IOTA&gt; {
     <b>let</b> exchange_rate = <a href="staking_pool.md#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</a>(pool, epoch);
-    <b>let</b> total_sui_withdraw_amount = <a href="staking_pool.md#0x3_staking_pool_get_sui_amount">get_sui_amount</a>(&exchange_rate, pool_token_withdraw_amount);
+    <b>let</b> total_iota_withdraw_amount = <a href="staking_pool.md#0x3_staking_pool_get_iota_amount">get_iota_amount</a>(&exchange_rate, pool_token_withdraw_amount);
     <b>let</b> <b>mut</b> reward_withdraw_amount =
-        <b>if</b> (total_sui_withdraw_amount &gt;= principal_withdraw_amount)
-            total_sui_withdraw_amount - principal_withdraw_amount
+        <b>if</b> (total_iota_withdraw_amount &gt;= principal_withdraw_amount)
+            total_iota_withdraw_amount - principal_withdraw_amount
         <b>else</b> 0;
     // This may happen when we are withdrawing everything from the pool and
-    // the rewards pool <a href="../sui-framework/balance.md#0x2_balance">balance</a> may be less than reward_withdraw_amount.
+    // the rewards pool <a href="../iota-framework/balance.md#0x2_balance">balance</a> may be less than reward_withdraw_amount.
     // TODO: FIGURE OUT EXACTLY WHY THIS CAN HAPPEN.
     reward_withdraw_amount = reward_withdraw_amount.<b>min</b>(pool.rewards_pool.value());
     pool.rewards_pool.<a href="staking_pool.md#0x3_staking_pool_split">split</a>(reward_withdraw_amount)
@@ -1129,7 +1129,7 @@ Called by <code><a href="validator.md#0x3_validator">validator</a></code> module
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_activate_staking_pool">activate_staking_pool</a>(pool: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>, activation_epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>) {
-    // Add the initial exchange rate <b>to</b> the <a href="../sui-framework/table.md#0x2_table">table</a>.
+    // Add the initial exchange rate <b>to</b> the <a href="../iota-framework/table.md#0x2_table">table</a>.
     pool.exchange_rates.add(
         activation_epoch,
         <a href="staking_pool.md#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</a>()
@@ -1175,13 +1175,13 @@ withdraws can be made to the pool.
 
 </details>
 
-<a name="0x3_staking_pool_sui_balance"></a>
+<a name="0x3_staking_pool_iota_balance"></a>
 
-## Function `sui_balance`
+## Function `iota_balance`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_sui_balance">sui_balance</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_iota_balance">iota_balance</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -1190,7 +1190,7 @@ withdraws can be made to the pool.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_sui_balance">sui_balance</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> { pool.sui_balance }
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_iota_balance">iota_balance</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> { pool.iota_balance }
 </code></pre>
 
 
@@ -1203,7 +1203,7 @@ withdraws can be made to the pool.
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_pool_id">pool_id</a>(staked_sui: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>): <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_pool_id">pool_id</a>(staked_iota: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>): <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a>
 </code></pre>
 
 
@@ -1212,20 +1212,20 @@ withdraws can be made to the pool.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_pool_id">pool_id</a>(staked_sui: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>): ID { staked_sui.pool_id }
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_pool_id">pool_id</a>(staked_iota: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>): ID { staked_iota.pool_id }
 </code></pre>
 
 
 
 </details>
 
-<a name="0x3_staking_pool_fungible_staked_sui_pool_id"></a>
+<a name="0x3_staking_pool_fungible_staked_iota_pool_id"></a>
 
-## Function `fungible_staked_sui_pool_id`
+## Function `fungible_staked_iota_pool_id`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_fungible_staked_sui_pool_id">fungible_staked_sui_pool_id</a>(fungible_staked_sui: &<a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>): <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_fungible_staked_iota_pool_id">fungible_staked_iota_pool_id</a>(fungible_staked_iota: &<a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>): <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a>
 </code></pre>
 
 
@@ -1234,20 +1234,20 @@ withdraws can be made to the pool.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_fungible_staked_sui_pool_id">fungible_staked_sui_pool_id</a>(fungible_staked_sui: &<a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a>): ID { fungible_staked_sui.pool_id }
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_fungible_staked_iota_pool_id">fungible_staked_iota_pool_id</a>(fungible_staked_iota: &<a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a>): ID { fungible_staked_iota.pool_id }
 </code></pre>
 
 
 
 </details>
 
-<a name="0x3_staking_pool_staked_sui_amount"></a>
+<a name="0x3_staking_pool_staked_iota_amount"></a>
 
-## Function `staked_sui_amount`
+## Function `staked_iota_amount`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_staked_sui_amount">staked_sui_amount</a>(staked_sui: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_staked_iota_amount">staked_iota_amount</a>(staked_iota: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -1256,7 +1256,7 @@ withdraws can be made to the pool.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_staked_sui_amount">staked_sui_amount</a>(staked_sui: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> { staked_sui.principal.value() }
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_staked_iota_amount">staked_iota_amount</a>(staked_iota: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> { staked_iota.principal.value() }
 </code></pre>
 
 
@@ -1269,7 +1269,7 @@ withdraws can be made to the pool.
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_stake_activation_epoch">stake_activation_epoch</a>(staked_sui: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_stake_activation_epoch">stake_activation_epoch</a>(staked_iota: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -1278,8 +1278,8 @@ withdraws can be made to the pool.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_stake_activation_epoch">stake_activation_epoch</a>(staked_sui: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
-    staked_sui.stake_activation_epoch
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_stake_activation_epoch">stake_activation_epoch</a>(staked_iota: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
+    staked_iota.stake_activation_epoch
 }
 </code></pre>
 
@@ -1337,13 +1337,13 @@ Returns true if the input staking pool is inactive.
 
 </details>
 
-<a name="0x3_staking_pool_fungible_staked_sui_value"></a>
+<a name="0x3_staking_pool_fungible_staked_iota_value"></a>
 
-## Function `fungible_staked_sui_value`
+## Function `fungible_staked_iota_value`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_fungible_staked_sui_value">fungible_staked_sui_value</a>(fungible_staked_sui: &<a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_fungible_staked_iota_value">fungible_staked_iota_value</a>(fungible_staked_iota: &<a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -1352,20 +1352,20 @@ Returns true if the input staking pool is inactive.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_fungible_staked_sui_value">fungible_staked_sui_value</a>(fungible_staked_sui: &<a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> { fungible_staked_sui.value }
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_fungible_staked_iota_value">fungible_staked_iota_value</a>(fungible_staked_iota: &<a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> { fungible_staked_iota.value }
 </code></pre>
 
 
 
 </details>
 
-<a name="0x3_staking_pool_split_fungible_staked_sui"></a>
+<a name="0x3_staking_pool_split_fungible_staked_iota"></a>
 
-## Function `split_fungible_staked_sui`
+## Function `split_fungible_staked_iota`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split_fungible_staked_sui">split_fungible_staked_sui</a>(fungible_staked_sui: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split_fungible_staked_iota">split_fungible_staked_iota</a>(fungible_staked_iota: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>
 </code></pre>
 
 
@@ -1374,18 +1374,18 @@ Returns true if the input staking pool is inactive.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split_fungible_staked_sui">split_fungible_staked_sui</a>(
-    fungible_staked_sui: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a>,
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split_fungible_staked_iota">split_fungible_staked_iota</a>(
+    fungible_staked_iota: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a>,
     split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext
-): <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a> {
-    <b>assert</b>!(split_amount &lt;= fungible_staked_sui.value, <a href="staking_pool.md#0x3_staking_pool_EInsufficientPoolTokenBalance">EInsufficientPoolTokenBalance</a>);
+): <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a> {
+    <b>assert</b>!(split_amount &lt;= fungible_staked_iota.value, <a href="staking_pool.md#0x3_staking_pool_EInsufficientPoolTokenBalance">EInsufficientPoolTokenBalance</a>);
 
-    fungible_staked_sui.value = fungible_staked_sui.value - split_amount;
+    fungible_staked_iota.value = fungible_staked_iota.value - split_amount;
 
-    <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a> {
-        id: <a href="../sui-framework/object.md#0x2_object_new">object::new</a>(ctx),
-        pool_id: fungible_staked_sui.pool_id,
+    <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a> {
+        id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
+        pool_id: fungible_staked_iota.pool_id,
         value: split_amount,
     }
 }
@@ -1395,13 +1395,13 @@ Returns true if the input staking pool is inactive.
 
 </details>
 
-<a name="0x3_staking_pool_join_fungible_staked_sui"></a>
+<a name="0x3_staking_pool_join_fungible_staked_iota"></a>
 
-## Function `join_fungible_staked_sui`
+## Function `join_fungible_staked_iota`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_join_fungible_staked_sui">join_fungible_staked_sui</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>, other: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>)
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_join_fungible_staked_iota">join_fungible_staked_iota</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>, other: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>)
 </code></pre>
 
 
@@ -1410,11 +1410,11 @@ Returns true if the input staking pool is inactive.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_join_fungible_staked_sui">join_fungible_staked_sui</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a>, other: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a>) {
-    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">FungibleStakedSui</a> { id, pool_id, value } = other;
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_join_fungible_staked_iota">join_fungible_staked_iota</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a>, other: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a>) {
+    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">FungibleStakedIota</a> { id, pool_id, value } = other;
     <b>assert</b>!(self.pool_id == pool_id, <a href="staking_pool.md#0x3_staking_pool_EWrongPool">EWrongPool</a>);
 
-    <a href="../sui-framework/object.md#0x2_object_delete">object::delete</a>(id);
+    <a href="../iota-framework/object.md#0x2_object_delete">object::delete</a>(id);
 
     self.value = self.value + value;
 }
@@ -1428,12 +1428,12 @@ Returns true if the input staking pool is inactive.
 
 ## Function `split`
 
-Split StakedSui <code>self</code> to two parts, one with principal <code>split_amount</code>,
+Split StakedIota <code>self</code> to two parts, one with principal <code>split_amount</code>,
 and the remaining principal is left in <code>self</code>.
-All the other parameters of the StakedSui like <code>stake_activation_epoch</code> or <code>pool_id</code> remain the same.
+All the other parameters of the StakedIota like <code>stake_activation_epoch</code> or <code>pool_id</code> remain the same.
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split">split</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split">split</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>
 </code></pre>
 
 
@@ -1442,15 +1442,15 @@ All the other parameters of the StakedSui like <code>stake_activation_epoch</cod
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split">split</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> TxContext): <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a> {
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split">split</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> TxContext): <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a> {
     <b>let</b> original_amount = self.principal.value();
-    <b>assert</b>!(split_amount &lt;= original_amount, <a href="staking_pool.md#0x3_staking_pool_EInsufficientSuiTokenBalance">EInsufficientSuiTokenBalance</a>);
+    <b>assert</b>!(split_amount &lt;= original_amount, <a href="staking_pool.md#0x3_staking_pool_EInsufficientIotaTokenBalance">EInsufficientIotaTokenBalance</a>);
     <b>let</b> remaining_amount = original_amount - split_amount;
     // Both resulting parts should have at least <a href="staking_pool.md#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</a>.
-    <b>assert</b>!(remaining_amount &gt;= <a href="staking_pool.md#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</a>, <a href="staking_pool.md#0x3_staking_pool_EStakedSuiBelowThreshold">EStakedSuiBelowThreshold</a>);
-    <b>assert</b>!(split_amount &gt;= <a href="staking_pool.md#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</a>, <a href="staking_pool.md#0x3_staking_pool_EStakedSuiBelowThreshold">EStakedSuiBelowThreshold</a>);
-    <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a> {
-        id: <a href="../sui-framework/object.md#0x2_object_new">object::new</a>(ctx),
+    <b>assert</b>!(remaining_amount &gt;= <a href="staking_pool.md#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</a>, <a href="staking_pool.md#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</a>);
+    <b>assert</b>!(split_amount &gt;= <a href="staking_pool.md#0x3_staking_pool_MIN_STAKING_THRESHOLD">MIN_STAKING_THRESHOLD</a>, <a href="staking_pool.md#0x3_staking_pool_EStakedIotaBelowThreshold">EStakedIotaBelowThreshold</a>);
+    <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a> {
+        id: <a href="../iota-framework/object.md#0x2_object_new">object::new</a>(ctx),
         pool_id: self.pool_id,
         stake_activation_epoch: self.stake_activation_epoch,
         principal: self.principal.<a href="staking_pool.md#0x3_staking_pool_split">split</a>(split_amount),
@@ -1462,15 +1462,15 @@ All the other parameters of the StakedSui like <code>stake_activation_epoch</cod
 
 </details>
 
-<a name="0x3_staking_pool_split_staked_sui"></a>
+<a name="0x3_staking_pool_split_staked_iota"></a>
 
-## Function `split_staked_sui`
+## Function `split_staked_iota`
 
-Split the given StakedSui to the two parts, one with principal <code>split_amount</code>,
+Split the given StakedIota to the two parts, one with principal <code>split_amount</code>,
 transfer the newly split part to the sender address.
 
 
-<pre><code><b>public</b> entry <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split_staked_sui">split_staked_sui</a>(stake: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b> entry <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split_staked_iota">split_staked_iota</a>(stake: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -1479,8 +1479,8 @@ transfer the newly split part to the sender address.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> entry <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split_staked_sui">split_staked_sui</a>(stake: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> TxContext) {
-    <a href="../sui-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(<a href="staking_pool.md#0x3_staking_pool_split">split</a>(stake, split_amount, ctx), ctx.sender());
+<pre><code><b>public</b> entry <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_split_staked_iota">split_staked_iota</a>(stake: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>, split_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> TxContext) {
+    <a href="../iota-framework/transfer.md#0x2_transfer_transfer">transfer::transfer</a>(<a href="staking_pool.md#0x3_staking_pool_split">split</a>(stake, split_amount, ctx), ctx.sender());
 }
 </code></pre>
 
@@ -1488,15 +1488,15 @@ transfer the newly split part to the sender address.
 
 </details>
 
-<a name="0x3_staking_pool_join_staked_sui"></a>
+<a name="0x3_staking_pool_join_staked_iota"></a>
 
-## Function `join_staked_sui`
+## Function `join_staked_iota`
 
-Consume the staked sui <code>other</code> and add its value to <code>self</code>.
+Consume the staked iota <code>other</code> and add its value to <code>self</code>.
 Aborts if some of the staking parameters are incompatible (pool id, stake activation epoch, etc.)
 
 
-<pre><code><b>public</b> entry <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_join_staked_sui">join_staked_sui</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, other: <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>)
+<pre><code><b>public</b> entry <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_join_staked_iota">join_staked_iota</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>, other: <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>)
 </code></pre>
 
 
@@ -1505,9 +1505,9 @@ Aborts if some of the staking parameters are incompatible (pool id, stake activa
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> entry <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_join_staked_sui">join_staked_sui</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>, other: <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>) {
-    <b>assert</b>!(<a href="staking_pool.md#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</a>(self, &other), <a href="staking_pool.md#0x3_staking_pool_EIncompatibleStakedSui">EIncompatibleStakedSui</a>);
-    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a> {
+<pre><code><b>public</b> entry <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_join_staked_iota">join_staked_iota</a>(self: &<b>mut</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>, other: <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>) {
+    <b>assert</b>!(<a href="staking_pool.md#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</a>(self, &other), <a href="staking_pool.md#0x3_staking_pool_EIncompatibleStakedIota">EIncompatibleStakedIota</a>);
+    <b>let</b> <a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a> {
         id,
         pool_id: _,
         stake_activation_epoch: _,
@@ -1527,10 +1527,10 @@ Aborts if some of the staking parameters are incompatible (pool id, stake activa
 
 ## Function `is_equal_staking_metadata`
 
-Returns true if all the staking parameters of the staked sui except the principal are identical
+Returns true if all the staking parameters of the staked iota except the principal are identical
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</a>(self: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, other: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>): bool
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</a>(self: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>, other: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>): bool
 </code></pre>
 
 
@@ -1539,7 +1539,7 @@ Returns true if all the staking parameters of the staked sui except the principa
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</a>(self: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>, other: &<a href="staking_pool.md#0x3_staking_pool_StakedSui">StakedSui</a>): bool {
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_is_equal_staking_metadata">is_equal_staking_metadata</a>(self: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>, other: &<a href="staking_pool.md#0x3_staking_pool_StakedIota">StakedIota</a>): bool {
     (self.pool_id == other.pool_id) &&
     (self.stake_activation_epoch == other.stake_activation_epoch)
 }
@@ -1573,7 +1573,7 @@ Returns true if all the staking parameters of the staked sui except the principa
     <b>let</b> <b>mut</b> epoch = clamped_epoch.<b>min</b>(epoch);
     <b>let</b> activation_epoch = *pool.activation_epoch.borrow();
 
-    // Find the latest epoch that's earlier than the given epoch <b>with</b> an entry in the <a href="../sui-framework/table.md#0x2_table">table</a>
+    // Find the latest epoch that's earlier than the given epoch <b>with</b> an entry in the <a href="../iota-framework/table.md#0x2_table">table</a>
     <b>while</b> (epoch &gt;= activation_epoch) {
         <b>if</b> (pool.exchange_rates.contains(epoch)) {
             <b>return</b> pool.exchange_rates[epoch]
@@ -1631,7 +1631,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_pending_stake_withdraw_amount">pending_stake_withdraw_amount</a>(<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
-    <a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.pending_total_sui_withdraw
+    <a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.pending_total_iota_withdraw
 }
 </code></pre>
 
@@ -1645,7 +1645,7 @@ Returns the total withdrawal from the staking pool this epoch.
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_exchange_rates">exchange_rates</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>): &<a href="../sui-framework/table.md#0x2_table_Table">table::Table</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_exchange_rates">exchange_rates</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">staking_pool::StakingPool</a>): &<a href="../iota-framework/table.md#0x2_table_Table">table::Table</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>, <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>&gt;
 </code></pre>
 
 
@@ -1663,13 +1663,13 @@ Returns the total withdrawal from the staking pool this epoch.
 
 </details>
 
-<a name="0x3_staking_pool_sui_amount"></a>
+<a name="0x3_staking_pool_iota_amount"></a>
 
-## Function `sui_amount`
+## Function `iota_amount`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_sui_amount">sui_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_iota_amount">iota_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -1678,8 +1678,8 @@ Returns the total withdrawal from the staking pool this epoch.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_sui_amount">sui_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
-    exchange_rate.sui_amount
+<pre><code><b>public</b> <b>fun</b> <a href="staking_pool.md#0x3_staking_pool_iota_amount">iota_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
+    exchange_rate.iota_amount
 }
 </code></pre>
 
@@ -1737,13 +1737,13 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 </details>
 
-<a name="0x3_staking_pool_get_sui_amount"></a>
+<a name="0x3_staking_pool_get_iota_amount"></a>
 
-## Function `get_sui_amount`
+## Function `get_iota_amount`
 
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_get_sui_amount">get_sui_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>, token_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_get_iota_amount">get_iota_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>, token_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -1752,13 +1752,13 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_get_sui_amount">get_sui_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a>, token_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_get_iota_amount">get_iota_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a>, token_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     // When either amount is 0, that means we have no stakes <b>with</b> this pool.
     // The other amount might be non-zero when there's dust left in the pool.
-    <b>if</b> (exchange_rate.sui_amount == 0 || exchange_rate.pool_token_amount == 0) {
+    <b>if</b> (exchange_rate.iota_amount == 0 || exchange_rate.pool_token_amount == 0) {
         <b>return</b> token_amount
     };
-    <b>let</b> res = exchange_rate.sui_amount <b>as</b> u128
+    <b>let</b> res = exchange_rate.iota_amount <b>as</b> u128
             * (token_amount <b>as</b> u128)
             / (exchange_rate.pool_token_amount <b>as</b> u128);
     res <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
@@ -1775,7 +1775,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>, sui_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">staking_pool::PoolTokenExchangeRate</a>, iota_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 </code></pre>
 
 
@@ -1784,15 +1784,15 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 <summary>Implementation</summary>
 
 
-<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a>, sui_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
+<pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(exchange_rate: &<a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a>, iota_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
     // When either amount is 0, that means we have no stakes <b>with</b> this pool.
     // The other amount might be non-zero when there's dust left in the pool.
-    <b>if</b> (exchange_rate.sui_amount == 0 || exchange_rate.pool_token_amount == 0) {
-        <b>return</b> sui_amount
+    <b>if</b> (exchange_rate.iota_amount == 0 || exchange_rate.pool_token_amount == 0) {
+        <b>return</b> iota_amount
     };
     <b>let</b> res = exchange_rate.pool_token_amount <b>as</b> u128
-            * (sui_amount <b>as</b> u128)
-            / (exchange_rate.sui_amount <b>as</b> u128);
+            * (iota_amount <b>as</b> u128)
+            / (exchange_rate.iota_amount <b>as</b> u128);
     res <b>as</b> <a href="../move-stdlib/u64.md#0x1_u64">u64</a>
 }
 </code></pre>
@@ -1817,7 +1817,7 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 
 <pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_initial_exchange_rate">initial_exchange_rate</a>(): <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a> {
-    <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a> { sui_amount: 0, pool_token_amount: 0 }
+    <a href="staking_pool.md#0x3_staking_pool_PoolTokenExchangeRate">PoolTokenExchangeRate</a> { iota_amount: 0, pool_token_amount: 0 }
 }
 </code></pre>
 
@@ -1842,8 +1842,8 @@ Returns true if the provided staking pool is preactive at the provided epoch.
 
 <pre><code><b>fun</b> <a href="staking_pool.md#0x3_staking_pool_check_balance_invariants">check_balance_invariants</a>(pool: &<a href="staking_pool.md#0x3_staking_pool_StakingPool">StakingPool</a>, epoch: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>) {
     <b>let</b> exchange_rate = <a href="staking_pool.md#0x3_staking_pool_pool_token_exchange_rate_at_epoch">pool_token_exchange_rate_at_epoch</a>(pool, epoch);
-    // check that the pool token <a href="../sui-framework/balance.md#0x2_balance">balance</a> and <a href="../sui-framework/sui.md#0x2_sui">sui</a> <a href="../sui-framework/balance.md#0x2_balance">balance</a> ratio matches the exchange rate stored.
-    <b>let</b> expected = <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(&exchange_rate, pool.sui_balance);
+    // check that the pool token <a href="../iota-framework/balance.md#0x2_balance">balance</a> and <a href="../iota-framework/iota.md#0x2_iota">iota</a> <a href="../iota-framework/balance.md#0x2_balance">balance</a> ratio matches the exchange rate stored.
+    <b>let</b> expected = <a href="staking_pool.md#0x3_staking_pool_get_token_amount">get_token_amount</a>(&exchange_rate, pool.iota_balance);
     <b>let</b> actual = pool.pool_token_balance;
     <b>assert</b>!(expected == actual, <a href="staking_pool.md#0x3_staking_pool_ETokenBalancesDoNotMatchExchangeRate">ETokenBalancesDoNotMatchExchangeRate</a>)
 }

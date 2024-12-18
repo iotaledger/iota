@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Create some dynamic fields on an object, and then try to query them.
@@ -12,8 +13,8 @@
 
 //# publish
 module Test::m {
-    use sui::dynamic_field as field;
-    use sui::dynamic_object_field as ofield;
+    use iota::dynamic_field as field;
+    use iota::dynamic_object_field as ofield;
 
     public struct Wrapper has key {
         id: object::UID,
@@ -30,7 +31,7 @@ module Test::m {
 
     public entry fun create_obj(ctx: &mut TxContext){
         let id = object::new(ctx);
-        sui::transfer::public_transfer(Parent { id }, ctx.sender())
+        iota::transfer::public_transfer(Parent { id }, ctx.sender())
     }
 
     public entry fun add_df(obj: &mut Parent) {
@@ -47,7 +48,7 @@ module Test::m {
 
     public entry fun wrap(parent: Parent, ctx: &mut TxContext) {
         let wrapper = Wrapper { id: object::new(ctx), o: parent };
-        sui::transfer::transfer(wrapper, ctx.sender())
+        iota::transfer::transfer(wrapper, ctx.sender())
     }
 }
 

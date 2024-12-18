@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module deepbook::custodian {
-    use sui::balance::{Self, Balance, split};
-    use sui::coin::{Self, Coin};
-    use sui::table::{Self, Table};
+    use iota::balance::{Self, Balance, split};
+    use iota::coin::{Self, Coin};
+    use iota::table::{Self, Table};
 
     // <<<<<<<<<<<<<<<<<<<<<<<< Error codes <<<<<<<<<<<<<<<<<<<<<<<<
     #[test_only]
@@ -157,11 +158,11 @@ module deepbook::custodian {
     }
 
     #[test_only]
-    use sui::test_scenario::{Self, Scenario, take_shared, take_from_sender, ctx};
+    use iota::test_scenario::{Self, Scenario, take_shared, take_from_sender, ctx};
     #[test_only]
-    use sui::coin::{mint_for_testing};
+    use iota::coin::{mint_for_testing};
     #[test_only]
-    use sui::test_utils::assert_eq;
+    use iota::test_utils::assert_eq;
     #[test_only]
     const ENull: u64 = 0;
 

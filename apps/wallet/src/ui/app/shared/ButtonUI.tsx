@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // TODO: replace all the existing button usages (the current Button component or button) with this
@@ -33,9 +34,9 @@ const styles = cva(
 					'visited:text-steel-darkest',
 					'disabled:bg-hero-darkest/5 disabled:text-steel/50',
 				],
-				secondarySui: [
+				secondaryIota: [
 					'bg-transparent text-steel border-none',
-					'hover:bg-sui-light focus:bg-sui-light',
+					'hover:bg-iota-light focus:bg-iota-light',
 					'visited:text-steel-darker',
 					'active:text-steel-dark/70',
 					'disabled:bg-gray-40 disabled:text-steel/50',
@@ -67,7 +68,7 @@ const styles = cva(
 					'disabled:text-steel-dark/50',
 				],
 				hidden: [
-					'bg-gray-45 bg-opacity-25 text-gray-60 hover:text-sui-dark hover:bg-gray-35 hover:bg-opacity-75 border-none h-full w-full backdrop-blur-md',
+					'bg-gray-45 bg-opacity-25 text-gray-60 hover:text-iota-dark hover:bg-gray-35 hover:bg-opacity-75 border-none h-full w-full backdrop-blur-md',
 				],
 			},
 			size: {
@@ -85,14 +86,14 @@ const iconStyles = cva('flex', {
 			none: 'border-none',
 		},
 		variant: {
-			primary: ['text-sui-light group-active:text-steel/70 group-disabled:text-steel/50'],
+			primary: ['text-iota-light group-active:text-steel/70 group-disabled:text-steel/50'],
 			secondary: [
 				'text-steel',
 				'group-hover:text-steel-darker group-focus:text-steel-darker',
 				'group-active:text-steel-dark/70',
 				'group-disabled:text-steel/50',
 			],
-			secondarySui: [
+			secondaryIota: [
 				'text-steel',
 				'group-hover:text-hero group-focus:text-hero',
 				'group-active:text-hero/70',

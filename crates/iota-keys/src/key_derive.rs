@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
@@ -13,10 +14,10 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use slip10_ed25519::derive_ed25519_private_key;
-use sui_types::{
-    base_types::SuiAddress,
-    crypto::{SignatureScheme, SuiKeyPair},
-    error::SuiError,
+use iota_types::{
+    base_types::IotaAddress,
+    crypto::{SignatureScheme, IotaKeyPair},
+    error::IotaError,
 };
 
 pub const DERIVATION_PATH_COIN_TYPE: u32 = 784;
@@ -32,39 +33,39 @@ pub fn derive_key_pair_from_path(
     seed: &[u8],
     derivation_path: Option<DerivationPath>,
     key_scheme: &SignatureScheme,
-) -> Result<(SuiAddress, SuiKeyPair), SuiError> {
+) -> Result<(IotaAddress, IotaKeyPair), IotaError> {
     let path = validate_path(key_scheme, derivation_path)?;
     match key_scheme {
         SignatureScheme::ED25519 => {
             let indexes = path.into_iter().map(|i| i.into()).collect::<Vec<_>>();
             let derived = derive_ed25519_private_key(seed, &indexes);
             let sk = Ed25519PrivateKey::from_bytes(&derived)
-                .map_err(|e| SuiError::SignatureKeyGenError(e.to_string()))?;
+                .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?;
             let kp: Ed25519KeyPair = sk.into();
-            Ok((kp.public().into(), SuiKeyPair::Ed25519(kp)))
+            Ok((kp.public().into(), IotaKeyPair::Ed25519(kp)))
         }
         SignatureScheme::Secp256k1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
-                .map_err(|e| SuiError::SignatureKeyGenError(e.to_string()))?;
+                .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?;
             let kp = Secp256k1KeyPair::from(
                 Secp256k1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
-                    .map_err(|e| SuiError::SignatureKeyGenError(e.to_string()))?,
+                    .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?,
             );
-            Ok((kp.public().into(), SuiKeyPair::Secp256k1(kp)))
+            Ok((kp.public().into(), IotaKeyPair::Secp256k1(kp)))
         }
         SignatureScheme::Secp256r1 => {
             let child_xprv = XPrv::derive_from_path(seed, &path)
-                .map_err(|e| SuiError::SignatureKeyGenError(e.to_string()))?;
+                .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?;
             let kp = Secp256r1KeyPair::from(
                 Secp256r1PrivateKey::from_bytes(child_xprv.private_key().to_bytes().as_slice())
-                    .map_err(|e| SuiError::SignatureKeyGenError(e.to_string()))?,
+                    .map_err(|e| IotaError::SignatureKeyGenError(e.to_string()))?,
             );
-            Ok((kp.public().into(), SuiKeyPair::Secp256r1(kp)))
+            Ok((kp.public().into(), IotaKeyPair::Secp256r1(kp)))
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
         | SignatureScheme::ZkLoginAuthenticator
-        | SignatureScheme::PasskeyAuthenticator => Err(SuiError::UnsupportedFeatureError {
+        | SignatureScheme::PasskeyAuthenticator => Err(IotaError::UnsupportedFeatureError {
             error: format!("key derivation not supported {:?}", key_scheme),
         }),
     }
@@ -73,7 +74,7 @@ pub fn derive_key_pair_from_path(
 pub fn validate_path(
     key_scheme: &SignatureScheme,
     path: Option<DerivationPath>,
-) -> Result<DerivationPath, SuiError> {
+) -> Result<DerivationPath, IotaError> {
     match key_scheme {
         SignatureScheme::ED25519 => {
             match path {
@@ -90,17 +91,17 @@ pub fn validate_path(
                         {
                             Ok(p)
                         } else {
-                            Err(SuiError::SignatureKeyGenError("Invalid path".to_string()))
+                            Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
                         }
                     } else {
-                        Err(SuiError::SignatureKeyGenError("Invalid path".to_string()))
+                        Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
                     }
                 }
                 None => Ok(format!(
                     "m/{DERVIATION_PATH_PURPOSE_ED25519}'/{DERIVATION_PATH_COIN_TYPE}'/0'/0'/0'"
                 )
                 .parse()
-                .map_err(|_| SuiError::SignatureKeyGenError("Cannot parse path".to_string()))?),
+                .map_err(|_| IotaError::SignatureKeyGenError("Cannot parse path".to_string()))?),
             }
         }
         SignatureScheme::Secp256k1 => {
@@ -118,17 +119,17 @@ pub fn validate_path(
                         {
                             Ok(p)
                         } else {
-                            Err(SuiError::SignatureKeyGenError("Invalid path".to_string()))
+                            Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
                         }
                     } else {
-                        Err(SuiError::SignatureKeyGenError("Invalid path".to_string()))
+                        Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
                     }
                 }
                 None => Ok(format!(
                     "m/{DERVIATION_PATH_PURPOSE_SECP256K1}'/{DERIVATION_PATH_COIN_TYPE}'/0'/0/0"
                 )
                 .parse()
-                .map_err(|_| SuiError::SignatureKeyGenError("Cannot parse path".to_string()))?),
+                .map_err(|_| IotaError::SignatureKeyGenError("Cannot parse path".to_string()))?),
             }
         }
         SignatureScheme::Secp256r1 => {
@@ -146,23 +147,23 @@ pub fn validate_path(
                         {
                             Ok(p)
                         } else {
-                            Err(SuiError::SignatureKeyGenError("Invalid path".to_string()))
+                            Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
                         }
                     } else {
-                        Err(SuiError::SignatureKeyGenError("Invalid path".to_string()))
+                        Err(IotaError::SignatureKeyGenError("Invalid path".to_string()))
                     }
                 }
                 None => Ok(format!(
                     "m/{DERVIATION_PATH_PURPOSE_SECP256R1}'/{DERIVATION_PATH_COIN_TYPE}'/0'/0/0"
                 )
                 .parse()
-                .map_err(|_| SuiError::SignatureKeyGenError("Cannot parse path".to_string()))?),
+                .map_err(|_| IotaError::SignatureKeyGenError("Cannot parse path".to_string()))?),
             }
         }
         SignatureScheme::BLS12381
         | SignatureScheme::MultiSig
         | SignatureScheme::ZkLoginAuthenticator
-        | SignatureScheme::PasskeyAuthenticator => Err(SuiError::UnsupportedFeatureError {
+        | SignatureScheme::PasskeyAuthenticator => Err(IotaError::UnsupportedFeatureError {
             error: format!("key derivation not supported {:?}", key_scheme),
         }),
     }
@@ -172,7 +173,7 @@ pub fn generate_new_key(
     key_scheme: SignatureScheme,
     derivation_path: Option<DerivationPath>,
     word_length: Option<String>,
-) -> Result<(SuiAddress, SuiKeyPair, SignatureScheme, String), anyhow::Error> {
+) -> Result<(IotaAddress, IotaKeyPair, SignatureScheme, String), anyhow::Error> {
     let mnemonic = Mnemonic::new(parse_word_length(word_length)?, Language::English);
     let seed = Seed::new(&mnemonic, "");
     match derive_key_pair_from_path(seed.as_bytes(), derivation_path, &key_scheme) {

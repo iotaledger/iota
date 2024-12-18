@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --simulator --accounts C
@@ -15,7 +16,7 @@
 //> SplitCoins(Gas, [Input(0)]);
 //> TransferObjects([Result(0)], Input(1));
 
-//# run 0x3::sui_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
+//# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
 
 //# create-checkpoint
 

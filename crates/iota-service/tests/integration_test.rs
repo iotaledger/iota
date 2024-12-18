@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::body::Body;
@@ -6,8 +7,8 @@ use axum::http::Request;
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn test_mysten_service() {
-    let app = mysten_service::get_mysten_service("itest", "0.0.0");
+async fn test_iota_service() {
+    let app = iota_service::get_iota_service("itest", "0.0.0");
 
     let res = app
         .oneshot(

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -6,13 +7,13 @@ use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::MeterConfig;
 
-struct SuiVerifierMeterBounds {
+struct IotaVerifierMeterBounds {
     name: String,
     ticks: u128,
     max_ticks: Option<u128>,
 }
 
-impl SuiVerifierMeterBounds {
+impl IotaVerifierMeterBounds {
     fn add(&mut self, ticks: u128) -> PartialVMResult<()> {
         let max_ticks = self.max_ticks.unwrap_or(u128::MAX);
 
@@ -29,32 +30,32 @@ impl SuiVerifierMeterBounds {
     }
 }
 
-pub struct SuiVerifierMeter {
-    transaction_bounds: SuiVerifierMeterBounds,
-    package_bounds: SuiVerifierMeterBounds,
-    module_bounds: SuiVerifierMeterBounds,
-    function_bounds: SuiVerifierMeterBounds,
+pub struct IotaVerifierMeter {
+    transaction_bounds: IotaVerifierMeterBounds,
+    package_bounds: IotaVerifierMeterBounds,
+    module_bounds: IotaVerifierMeterBounds,
+    function_bounds: IotaVerifierMeterBounds,
 }
 
-impl SuiVerifierMeter {
+impl IotaVerifierMeter {
     pub fn new(config: MeterConfig) -> Self {
         Self {
-            transaction_bounds: SuiVerifierMeterBounds {
+            transaction_bounds: IotaVerifierMeterBounds {
                 name: "<unknown>".to_string(),
                 ticks: 0,
                 max_ticks: None,
             },
-            package_bounds: SuiVerifierMeterBounds {
+            package_bounds: IotaVerifierMeterBounds {
                 name: "<unknown>".to_string(),
                 ticks: 0,
                 max_ticks: config.max_per_pkg_meter_units,
             },
-            module_bounds: SuiVerifierMeterBounds {
+            module_bounds: IotaVerifierMeterBounds {
                 name: "<unknown>".to_string(),
                 ticks: 0,
                 max_ticks: config.max_per_mod_meter_units,
             },
-            function_bounds: SuiVerifierMeterBounds {
+            function_bounds: IotaVerifierMeterBounds {
                 name: "<unknown>".to_string(),
                 ticks: 0,
                 max_ticks: config.max_per_fun_meter_units,
@@ -62,7 +63,7 @@ impl SuiVerifierMeter {
         }
     }
 
-    fn get_bounds_mut(&mut self, scope: Scope) -> &mut SuiVerifierMeterBounds {
+    fn get_bounds_mut(&mut self, scope: Scope) -> &mut IotaVerifierMeterBounds {
         match scope {
             Scope::Transaction => &mut self.transaction_bounds,
             Scope::Package => &mut self.package_bounds,
@@ -71,7 +72,7 @@ impl SuiVerifierMeter {
         }
     }
 
-    fn get_bounds(&self, scope: Scope) -> &SuiVerifierMeterBounds {
+    fn get_bounds(&self, scope: Scope) -> &IotaVerifierMeterBounds {
         match scope {
             Scope::Transaction => &self.transaction_bounds,
             Scope::Package => &self.package_bounds,
@@ -89,7 +90,7 @@ impl SuiVerifierMeter {
     }
 }
 
-impl Meter for SuiVerifierMeter {
+impl Meter for IotaVerifierMeter {
     fn enter_scope(&mut self, name: &str, scope: Scope) {
         let bounds = self.get_bounds_mut(scope);
         bounds.name = name.into();

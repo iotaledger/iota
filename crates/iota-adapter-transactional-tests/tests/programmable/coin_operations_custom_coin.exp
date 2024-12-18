@@ -11,7 +11,7 @@ gas summary: computation_cost: 1000000, storage_cost: 10617200,  storage_rebate:
 
 task 2, lines 22-24:
 //# programmable --sender A --inputs object(1,2) 100 @A
-//> 0: sui::coin::mint<test::fake::FAKE>(Input(0), Input(1));
+//> 0: iota::coin::mint<test::fake::FAKE>(Input(0), Input(1));
 //> TransferObjects([Result(0)], Input(2))
 created: object(2,0)
 mutated: object(0,0), object(1,2)
@@ -22,21 +22,21 @@ task 3, line 26:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 3
-Contents: sui::coin::Coin<test::fake::FAKE> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<test::fake::FAKE> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
-    balance: sui::balance::Balance<test::fake::FAKE> {
+    balance: iota::balance::Balance<test::fake::FAKE> {
         value: 100u64,
     },
 }
 
 task 4, lines 28-34:
 //# programmable --sender A --inputs object(1,2) 100 object(2,0) 1 @A
-//> 0: sui::coin::mint<test::fake::FAKE>(Input(0), Input(1));
-//> 1: sui::coin::mint<test::fake::FAKE>(Input(0), Input(1));
+//> 0: iota::coin::mint<test::fake::FAKE>(Input(0), Input(1));
+//> 1: iota::coin::mint<test::fake::FAKE>(Input(0), Input(1));
 //> 2: SplitCoins(Result(0), [Input(3)]);
 //> 3: SplitCoins(Input(2), [Input(3)]);
 //> MergeCoins(Result(1), [Result(0), Input(2), Result(2), Result(3)]);

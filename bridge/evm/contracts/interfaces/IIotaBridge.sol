@@ -1,15 +1,16 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title ISuiBridge
-/// @dev Interface for the Sui Bridge contract.
-interface ISuiBridge {
+/// @title IIotaBridge
+/// @dev Interface for the Iota Bridge contract.
+interface IIotaBridge {
     /// @notice Emitted when tokens are deposited to be bridged.
     /// @param sourceChainID The ID of the source chain (this chain).
     /// @param nonce The nonce of the transaction on source chain.
     /// @param destinationChainID The ID of the destination chain.
     /// @param tokenID The code of the token.
-    /// @param suiAdjustedAmount The amount of tokens to transfer, adjusted for Sui decimals.
+    /// @param iotaAdjustedAmount The amount of tokens to transfer, adjusted for Iota decimals.
     /// @param senderAddress The address of the sender.
     /// @param recipientAddress The address of the sender.
     event TokensDeposited(
@@ -17,7 +18,7 @@ interface ISuiBridge {
         uint64 indexed nonce,
         uint8 indexed destinationChainID,
         uint8 tokenID,
-        uint64 suiAdjustedAmount,
+        uint64 iotaAdjustedAmount,
         address senderAddress,
         bytes recipientAddress
     );

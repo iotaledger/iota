@@ -1,7 +1,7 @@
 [package]
-name = "sui-upgrade-compatibility-transactional-tests"
+name = "iota-upgrade-compatibility-transactional-tests"
 version = "0.1.0"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 description = "Transactional tests for package upgrade compatibility checking"
 license = "Apache-2.0"
 publish = false
@@ -15,7 +15,7 @@ move-compiler.workspace = true
 move-package.workspace = true
 move-binary-format.workspace = true
 move-command-line-common.workspace = true
-sui-move-build.workspace = true
+iota-move-build.workspace = true
 
 [[test]]
 name = "tests"

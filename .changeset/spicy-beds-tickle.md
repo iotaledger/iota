@@ -1,5 +1,5 @@
 ---
-'@mysten/signers': minor
+'@iota/signers': minor
 ---
 
-renamed package to @mysten/signers and inlines aws4fetch
+renamed package to @iota/signers and inlines aws4fetch

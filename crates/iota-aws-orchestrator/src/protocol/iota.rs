@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -8,8 +9,8 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use sui_swarm_config::genesis_config::GenesisConfig;
-use sui_types::{base_types::SuiAddress, multiaddr::Multiaddr};
+use iota_swarm_config::genesis_config::GenesisConfig;
+use iota_types::{base_types::IotaAddress, multiaddr::Multiaddr};
 
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkType},
@@ -20,25 +21,25 @@ use crate::{
 use super::{ProtocolCommands, ProtocolMetrics};
 
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SuiBenchmarkType {
+pub struct IotaBenchmarkType {
     /// Percentage of shared vs owned objects; 0 means only owned objects and 100 means
     /// only shared objects.
     shared_objects_ratio: u16,
 }
 
-impl Debug for SuiBenchmarkType {
+impl Debug for IotaBenchmarkType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.shared_objects_ratio)
     }
 }
 
-impl Display for SuiBenchmarkType {
+impl Display for IotaBenchmarkType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}% shared objects", self.shared_objects_ratio)
     }
 }
 
-impl FromStr for SuiBenchmarkType {
+impl FromStr for IotaBenchmarkType {
     type Err = std::num::ParseIntError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -48,28 +49,28 @@ impl FromStr for SuiBenchmarkType {
     }
 }
 
-impl BenchmarkType for SuiBenchmarkType {}
+impl BenchmarkType for IotaBenchmarkType {}
 
-/// All configurations information to run a Sui client or validator.
-pub struct SuiProtocol {
+/// All configurations information to run a Iota client or validator.
+pub struct IotaProtocol {
     working_dir: PathBuf,
 }
 
-impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
+impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     fn protocol_dependencies(&self) -> Vec<&'static str> {
         vec![
-            // Install typical sui dependencies.
+            // Install typical iota dependencies.
             "sudo apt-get -y install curl git-all clang cmake gcc libssl-dev pkg-config libclang-dev",
-            // This dependency is missing from the Sui docs.
+            // This dependency is missing from the Iota docs.
             "sudo apt-get -y install libpq-dev",
         ]
     }
 
     fn db_directories(&self) -> Vec<PathBuf> {
-        let authorities_db = [&self.working_dir, &sui_config::AUTHORITIES_DB_NAME.into()]
+        let authorities_db = [&self.working_dir, &iota_config::AUTHORITIES_DB_NAME.into()]
             .iter()
             .collect();
-        let consensus_db = [&self.working_dir, &sui_config::CONSENSUS_DB_NAME.into()]
+        let consensus_db = [&self.working_dir, &iota_config::CONSENSUS_DB_NAME.into()]
             .iter()
             .collect();
         vec![authorities_db, consensus_db]
@@ -85,7 +86,7 @@ impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
             .collect::<Vec<_>>()
             .join(" ");
         let genesis = [
-            "cargo run --release --bin sui --",
+            "cargo run --release --bin iota --",
             "genesis",
             &format!("-f --working-dir {working_dir} --benchmark-ips {ips}"),
         ]
@@ -108,7 +109,7 @@ impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
         //     .map(|i| {
         //         (
         //             i,
-        //             "tail -f --pid=$(pidof sui) -f /dev/null; tail -100 node.log".to_string(),
+        //             "tail -f --pid=$(pidof iota) -f /dev/null; tail -100 node.log".to_string(),
         //         )
         //     })
         //     .collect()
@@ -118,7 +119,7 @@ impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
     fn node_command<I>(
         &self,
         instances: I,
-        _parameters: &BenchmarkParameters<SuiBenchmarkType>,
+        _parameters: &BenchmarkParameters<IotaBenchmarkType>,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
@@ -131,11 +132,11 @@ impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
             .enumerate()
             .map(|(i, (instance, network_address))| {
                 let validator_config =
-                    sui_config::validator_config_file(network_address.clone(), i);
+                    iota_config::validator_config_file(network_address.clone(), i);
                 let config_path: PathBuf = working_dir.join(validator_config);
 
                 let run = [
-                    "cargo run --release --bin sui-node --",
+                    "cargo run --release --bin iota-node --",
                     &format!(
                         "--config-path {} --listen-address {}",
                         config_path.display(),
@@ -153,17 +154,17 @@ impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
     fn client_command<I>(
         &self,
         instances: I,
-        parameters: &BenchmarkParameters<SuiBenchmarkType>,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
     {
-        let genesis_path: PathBuf = [&self.working_dir, &sui_config::SUI_GENESIS_FILENAME.into()]
+        let genesis_path: PathBuf = [&self.working_dir, &iota_config::IOTA_GENESIS_FILENAME.into()]
             .iter()
             .collect();
         let keystore_path: PathBuf = [
             &self.working_dir,
-            &sui_config::SUI_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME.into(),
+            &iota_config::IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME.into(),
         ]
         .iter()
         .collect();
@@ -183,7 +184,7 @@ impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
                 let genesis = genesis_path.display();
                 let keystore = keystore_path.display();
                 let gas_key = &gas_keys[i % committee_size];
-                let gas_address = SuiAddress::from(&gas_key.public());
+                let gas_address = IotaAddress::from(&gas_key.public());
 
                 let run = [
                     "cargo run --release --bin stress --",
@@ -208,13 +209,13 @@ impl ProtocolCommands<SuiBenchmarkType> for SuiProtocol {
     }
 }
 
-impl SuiProtocol {
+impl IotaProtocol {
     const CLIENT_METRICS_PORT: u16 = GenesisConfig::BENCHMARKS_PORT_OFFSET + 2000;
 
-    /// Make a new instance of the Sui protocol commands generator.
+    /// Make a new instance of the Iota protocol commands generator.
     pub fn new(settings: &Settings) -> Self {
         Self {
-            working_dir: [&settings.working_dir, &sui_config::SUI_CONFIG_DIR.into()]
+            working_dir: [&settings.working_dir, &iota_config::IOTA_CONFIG_DIR.into()]
                 .iter()
                 .collect(),
         }
@@ -239,7 +240,7 @@ impl SuiProtocol {
     }
 }
 
-impl ProtocolMetrics for SuiProtocol {
+impl ProtocolMetrics for IotaProtocol {
     const BENCHMARK_DURATION: &'static str = "benchmark_duration";
     const TOTAL_TRANSACTIONS: &'static str = "latency_s_count";
     const LATENCY_BUCKETS: &'static str = "latency_s";
@@ -265,7 +266,7 @@ impl ProtocolMetrics for SuiProtocol {
                     "{}:{}{}",
                     instance.main_ip,
                     config.metrics_address.port(),
-                    mysten_metrics::METRICS_ROUTE
+                    iota_metrics::METRICS_ROUTE
                 );
                 (instance, path)
             })
@@ -283,7 +284,7 @@ impl ProtocolMetrics for SuiProtocol {
                     "{}:{}{}",
                     instance.main_ip,
                     Self::CLIENT_METRICS_PORT,
-                    mysten_metrics::METRICS_ROUTE
+                    iota_metrics::METRICS_ROUTE
                 );
                 (instance, path)
             })

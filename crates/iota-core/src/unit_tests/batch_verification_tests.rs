@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::signature_verifier::*;
@@ -9,16 +10,16 @@ use itertools::Itertools as _;
 use prometheus::Registry;
 use rand::{thread_rng, Rng};
 use std::sync::Arc;
-use sui_macros::sim_test;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::committee::Committee;
-use sui_types::crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair};
-use sui_types::gas::GasCostSummary;
-use sui_types::messages_checkpoint::{
+use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::committee::Committee;
+use iota_types::crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair};
+use iota_types::gas::GasCostSummary;
+use iota_types::messages_checkpoint::{
     CheckpointContents, CheckpointSummary, SignedCheckpointSummary,
 };
-use sui_types::signature_verification::VerifiedDigestCache;
-use sui_types::transaction::CertifiedTransaction;
+use iota_types::signature_verification::VerifiedDigestCache;
+use iota_types::transaction::CertifiedTransaction;
 
 // TODO consolidate with `gen_certs` in batch_verification_bench.rs
 fn gen_certs(

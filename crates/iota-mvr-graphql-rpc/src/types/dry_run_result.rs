@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::base64::Base64;
@@ -7,10 +8,10 @@ use super::transaction_block::{TransactionBlock, TransactionBlockInner};
 use super::transaction_block_kind::programmable::TransactionArgument;
 use crate::error::Error;
 use async_graphql::*;
-use sui_json_rpc_types::{DevInspectResults, SuiExecutionResult};
-use sui_types::effects::TransactionEffects as NativeTransactionEffects;
-use sui_types::transaction::TransactionData as NativeTransactionData;
-use sui_types::TypeTag;
+use iota_json_rpc_types::{DevInspectResults, IotaExecutionResult};
+use iota_types::effects::TransactionEffects as NativeTransactionEffects;
+use iota_types::transaction::TransactionData as NativeTransactionData;
+use iota_types::TypeTag;
 
 #[derive(Clone, Debug, SimpleObject)]
 pub(crate) struct DryRunResult {
@@ -47,10 +48,10 @@ pub(crate) struct DryRunReturn {
 
     pub bcs: Base64,
 }
-impl TryFrom<SuiExecutionResult> for DryRunEffect {
+impl TryFrom<IotaExecutionResult> for DryRunEffect {
     type Error = crate::error::Error;
 
-    fn try_from(result: SuiExecutionResult) -> Result<Self, Self::Error> {
+    fn try_from(result: IotaExecutionResult) -> Result<Self, Self::Error> {
         let mutated_references = result
             .mutable_reference_outputs
             .iter()

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::connection::ScanConnection;
@@ -19,9 +20,9 @@ use super::move_object::{MoveObject, MoveObjectImpl};
 use super::move_value::MoveValue;
 use super::object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus};
 use super::owner::OwnerImpl;
-use super::stake::StakedSui;
-use super::sui_address::SuiAddress;
-use super::suins_registration::{DomainFormat, SuinsRegistration};
+use super::stake::StakedIota;
+use super::iota_address::IotaAddress;
+use super::iotans_registration::{DomainFormat, IotaNSRegistration};
 use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
 use super::type_filter::ExactTypeFilter;
 use super::uint53::UInt53;
@@ -29,10 +30,10 @@ use async_graphql::*;
 
 use async_graphql::connection::{Connection, CursorType, Edge};
 use diesel_async::scoped_futures::ScopedFutureExt;
-use sui_indexer::models::objects::StoredHistoryObject;
-use sui_indexer::types::OwnerType;
-use sui_types::coin::Coin as NativeCoin;
-use sui_types::TypeTag;
+use iota_indexer::models::objects::StoredHistoryObject;
+use iota_indexer::types::OwnerType;
+use iota_types::coin::Coin as NativeCoin;
+use iota_types::TypeTag;
 
 #[derive(Clone)]
 pub(crate) struct Coin {
@@ -51,7 +52,7 @@ pub(crate) enum CoinDowncastError {
 /// Some 0x2::coin::Coin Move object.
 #[Object]
 impl Coin {
-    pub(crate) async fn address(&self) -> SuiAddress {
+    pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(&self.super_.super_).address().await
     }
 
@@ -71,7 +72,7 @@ impl Coin {
     }
 
     /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -98,7 +99,7 @@ impl Coin {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -113,43 +114,43 @@ impl Coin {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this object.
-    pub(crate) async fn staked_suis(
+    /// The `0x3::staking_pool::StakedIota` objects owned by this object.
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_.super_)
-            .staked_suis(ctx, first, after, last, before)
+            .staked_iotas(ctx, first, after, last, before)
             .await
     }
 
     /// The domain explicitly configured as the default domain pointing to this object.
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_.super_)
-            .default_suins_name(ctx, format)
+            .default_iotans_name(ctx, format)
             .await
     }
 
-    /// The SuinsRegistration NFTs owned by this object. These grant the owner the capability to
+    /// The IotaNSRegistration NFTs owned by this object. These grant the owner the capability to
     /// manage the associated domain.
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         OwnerImpl::from(&self.super_.super_)
-            .suins_registrations(ctx, first, after, last, before)
+            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -188,7 +189,7 @@ impl Coin {
             .await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
+    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
     /// recalculated based on the present storage gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_.super_).storage_rebate().await
@@ -242,7 +243,7 @@ impl Coin {
     }
 
     /// Determines whether a transaction can transfer this object, using the TransferObjects
-    /// transaction command or `sui::transfer::public_transfer`, both of which require the object to
+    /// transaction command or `iota::transfer::public_transfer`, both of which require the object to
     /// have the `key` and `store` abilities.
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         MoveObjectImpl(&self.super_).has_public_transfer(ctx).await
@@ -325,7 +326,7 @@ impl Coin {
         db: &Db,
         page: Page<object::Cursor>,
         coin_type: TypeTag,
-        owner: Option<SuiAddress>,
+        owner: Option<IotaAddress>,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, Coin>, Error> {
         // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if they are
@@ -408,7 +409,7 @@ impl TryFrom<&MoveObject> for Coin {
 /// in the same checkpoint.
 fn coins_query(
     coin_type: TypeTag,
-    owner: Option<SuiAddress>,
+    owner: Option<IotaAddress>,
     range: AvailableRange,
     page: &Page<object::Cursor>,
 ) -> RawQuery {
@@ -421,7 +422,7 @@ fn coins_query(
     )
 }
 
-fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<SuiAddress>) -> RawQuery {
+fn apply_filter(mut query: RawQuery, coin_type: &TypeTag, owner: Option<IotaAddress>) -> RawQuery {
     if let Some(owner) = owner {
         query = filter!(
             query,

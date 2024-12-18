@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import * as fs from 'node:fs/promises';
@@ -19,12 +20,13 @@ import type {
 const packageRoot = path.resolve(import.meta.url.slice(5), '../..');
 const openRpcSpec: OpenRpcSpec = JSON.parse(
 	await fs.readFile(
-		path.resolve(packageRoot, '../../crates/sui-open-rpc/spec/openrpc.json'),
+		path.resolve(packageRoot, '../../crates/iota-open-rpc/spec/openrpc.json'),
 		'utf-8',
 	),
 );
 export const LICENSE_HEADER = `
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -33,7 +35,7 @@ export const LICENSE_HEADER = `
  *  ######################################
  *
  * This file is generated from:
- * /crates/sui-open-rpc/spec/openrpc.json
+ * /crates/iota-open-rpc/spec/openrpc.json
  */
 `.trim();
 
@@ -63,30 +65,30 @@ const options: {
 } = {
 	types: {
 		Coin: { alias: 'CoinStruct' },
-		Data: { alias: 'SuiParsedData' },
-		Event: { alias: 'SuiEvent' },
-		EventFilter: { alias: 'SuiEventFilter' },
+		Data: { alias: 'IotaParsedData' },
+		Event: { alias: 'IotaEvent' },
+		EventFilter: { alias: 'IotaEventFilter' },
 		EventID: { alias: 'EventId' },
-		GasData: { alias: 'SuiGasData' },
-		MoveFunctionArgType: { alias: 'SuiMoveFunctionArgType' },
-		ObjectChange: { alias: 'SuiObjectChange' },
-		ObjectData: { alias: 'SuiObjectData' },
-		ObjectDataOptions: { alias: 'SuiObjectDataOptions' },
-		ObjectRef: { alias: 'SuiObjectRef' },
-		ObjectResponseQuery: { alias: 'SuiObjectResponseQuery' },
+		GasData: { alias: 'IotaGasData' },
+		MoveFunctionArgType: { alias: 'IotaMoveFunctionArgType' },
+		ObjectChange: { alias: 'IotaObjectChange' },
+		ObjectData: { alias: 'IotaObjectData' },
+		ObjectDataOptions: { alias: 'IotaObjectDataOptions' },
+		ObjectRef: { alias: 'IotaObjectRef' },
+		ObjectResponseQuery: { alias: 'IotaObjectResponseQuery' },
 		Owner: { alias: 'ObjectOwner' },
-		PaginatedSuiObjectResponse: { alias: 'PaginatedObjectsResponse' },
+		PaginatedIotaObjectResponse: { alias: 'PaginatedObjectsResponse' },
 		PaginatedTransactionBlockResponse: { alias: 'PaginatedTransactionResponse' },
 		Stake: { alias: 'StakeObject' },
-		SuiCoinMetadata: { alias: 'CoinMetadata' },
-		SuiProgrammableMoveCall: { alias: 'MoveCallSuiTransaction' },
+		IotaCoinMetadata: { alias: 'CoinMetadata' },
+		IotaProgrammableMoveCall: { alias: 'MoveCallIotaTransaction' },
 		Supply: { alias: 'CoinSupply' },
-		TransactionBlock: { alias: 'SuiTransactionBlock' },
+		TransactionBlock: { alias: 'IotaTransactionBlock' },
 		TransactionBlockEffects: { alias: 'TransactionEffects' },
-		TransactionBlockKind: { alias: 'SuiTransactionBlockKind' },
-		TransactionBlockResponse: { alias: 'SuiTransactionBlockResponse' },
-		TransactionBlockResponseOptions: { alias: 'SuiTransactionBlockResponseOptions' },
-		TransactionBlockResponseQuery: { alias: 'SuiTransactionBlockResponseQuery' },
+		TransactionBlockKind: { alias: 'IotaTransactionBlockKind' },
+		TransactionBlockResponse: { alias: 'IotaTransactionBlockResponse' },
+		TransactionBlockResponseOptions: { alias: 'IotaTransactionBlockResponseOptions' },
+		TransactionBlockResponseQuery: { alias: 'IotaTransactionBlockResponseQuery' },
 		ValidatorApys: { alias: 'ValidatorsApy' },
 		GenericSignature: {
 			typeAlias: 'string',
@@ -96,14 +98,14 @@ const options: {
 		},
 	},
 	methods: {
-		sui_getNormalizedMoveModule: {
+		iota_getNormalizedMoveModule: {
 			params: {
 				module_name: {
 					alias: 'module',
 				},
 			},
 		},
-		sui_getNormalizedMoveFunction: {
+		iota_getNormalizedMoveFunction: {
 			params: {
 				module_name: {
 					alias: 'module',
@@ -113,7 +115,7 @@ const options: {
 				},
 			},
 		},
-		sui_getNormalizedMoveStruct: {
+		iota_getNormalizedMoveStruct: {
 			params: {
 				module_name: {
 					alias: 'module',
@@ -123,7 +125,7 @@ const options: {
 				},
 			},
 		},
-		suix_getOwnedObjects: {
+		iotax_getOwnedObjects: {
 			flattenParams: ['query'],
 			params: {
 				address: {
@@ -131,14 +133,14 @@ const options: {
 				},
 			},
 		},
-		sui_getObject: {
+		iota_getObject: {
 			params: {
 				object_id: {
 					alias: 'id',
 				},
 			},
 		},
-		sui_tryGetPastObject: {
+		iota_tryGetPastObject: {
 			params: {
 				object_id: {
 					alias: 'id',
@@ -148,14 +150,14 @@ const options: {
 				},
 			},
 		},
-		sui_multiGetObjects: {
+		iota_multiGetObjects: {
 			params: {
 				object_ids: {
 					alias: 'ids',
 				},
 			},
 		},
-		suix_queryTransactionBlocks: {
+		iotax_queryTransactionBlocks: {
 			flattenParams: ['query'],
 			params: {
 				descending_order: {
@@ -164,7 +166,7 @@ const options: {
 				},
 			},
 		},
-		sui_executeTransactionBlock: {
+		iota_executeTransactionBlock: {
 			params: {
 				tx_bytes: {
 					alias: 'transactionBlock',
@@ -179,7 +181,7 @@ const options: {
 				},
 			},
 		},
-		suix_queryEvents: {
+		iotax_queryEvents: {
 			params: {
 				descending_order: {
 					alias: 'order',
@@ -187,7 +189,7 @@ const options: {
 				},
 			},
 		},
-		sui_devInspectTransactionBlock: {
+		iota_devInspectTransactionBlock: {
 			params: {
 				sender_address: {
 					alias: 'sender',
@@ -201,7 +203,7 @@ const options: {
 				},
 			},
 		},
-		sui_dryRunTransactionBlock: {
+		iota_dryRunTransactionBlock: {
 			params: {
 				tx_bytes: {
 					alias: 'transactionBlock',
@@ -209,14 +211,14 @@ const options: {
 				},
 			},
 		},
-		suix_getDynamicFields: {
+		iotax_getDynamicFields: {
 			params: {
 				parent_object_id: {
 					alias: 'parentId',
 				},
 			},
 		},
-		suix_getDynamicFieldObject: {
+		iotax_getDynamicFieldObject: {
 			params: {
 				parent_object_id: {
 					alias: 'parentId',
@@ -771,11 +773,11 @@ function normalizeName(name: string) {
 }
 
 export function normalizeMethodName(name: string): string {
-	if (name.startsWith('sui_')) {
+	if (name.startsWith('iota_')) {
 		return normalizeMethodName(name.slice(4));
 	}
 
-	if (name.startsWith('suix_')) {
+	if (name.startsWith('iotax_')) {
 		return normalizeMethodName(name.slice(5));
 	}
 

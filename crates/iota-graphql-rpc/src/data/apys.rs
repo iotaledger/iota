@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use itertools::Itertools;
-use sui_types::sui_system_state::PoolTokenExchangeRate;
+use iota_types::iota_system_state::PoolTokenExchangeRate;
 
 /// Calculate an APY for a validator based on the exchange rates of the staking pool.
 ///
-/// This is copied from the previous sui-json-rpc/governance_api crate, together with tests, and
+/// This is copied from the previous iota-json-rpc/governance_api crate, together with tests, and
 /// slightly altered to return one APY for each call instead of multiple ones.
 ///
 /// See original code here:
-/// <https://github.com/MystenLabs/sui/blob/c3feec3ac3b626bf2fd40c668ba32be9c73e7528/crates/sui-json-rpc/src/governance_api.rs#L280>
+/// <https://github.com/iotaledger/iota/blob/c3feec3ac3b626bf2fd40c668ba32be9c73e7528/crates/iota-json-rpc/src/governance_api.rs#L280>
 pub(crate) fn calculate_apy(
     stake_subsidy_start_epoch: u64,
     rates: &[(u64, PoolTokenExchangeRate)],
@@ -59,8 +60,8 @@ pub(crate) fn apy_rate(
 mod tests {
     use std::collections::BTreeMap;
 
-    use sui_json_rpc::governance_api::ValidatorExchangeRates;
-    use sui_types::base_types::{ObjectID, SuiAddress};
+    use iota_json_rpc::governance_api::ValidatorExchangeRates;
+    use iota_types::base_types::{ObjectID, IotaAddress};
 
     use super::*;
 
@@ -74,7 +75,7 @@ mod tests {
 
         let mut validator_exchange_rates = BTreeMap::new();
         rates.into_iter().for_each(|(validator, rates)| {
-            let address = SuiAddress::random_for_testing_only();
+            let address = IotaAddress::random_for_testing_only();
             validator_exchange_rates.insert(
                 address,
                 (

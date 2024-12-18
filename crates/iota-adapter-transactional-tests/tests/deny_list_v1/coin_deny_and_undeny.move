@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test verifies the basic e2e work flow of coin deny list.
@@ -12,7 +13,7 @@
 //# publish --sender A
 #[allow(deprecated_usage)]
 module test::regulated_coin {
-    use sui::coin;
+    use iota::coin;
 
     public struct REGULATED_COIN has drop {}
 
@@ -47,19 +48,19 @@ module test::regulated_coin {
 //# view-object 1,5
 
 // Transfer away the newly minted coin works normally.
-//# run sui::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Deny account B.
-//# run sui::coin::deny_list_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Try transfer the coin from B. This should now be denied.
 //# transfer-object 8,0 --sender B --recipient A
 
 // Try using the coin in a Move call. This should also be denied.
-//# run sui::pay::split_and_transfer --args object(8,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
+//# run iota::pay::split_and_transfer --args object(8,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
 
 // Undeny account B.
-//# run sui::coin::deny_list_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // This time the transfer should work.
 //# transfer-object 8,0 --sender B --recipient A

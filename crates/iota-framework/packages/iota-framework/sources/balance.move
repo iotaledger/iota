@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// A storable handler for Balances in general. Is used in the `Coin`
 /// module to allow balance operations and can be used to implement
 /// custom coins with `Supply` and `Balance`s.
-module sui::balance;
+module iota::balance;
 
 /// Allows calling `.into_coin()` on a `Balance` to turn it into a coin.
-public use fun sui::coin::from_balance as Balance.into_coin;
+public use fun iota::coin::from_balance as Balance.into_coin;
 
 /// For when trying to destroy a non-zero balance.
 const ENonZero: u64 = 0;
@@ -17,8 +18,8 @@ const EOverflow: u64 = 1;
 const ENotEnough: u64 = 2;
 /// Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 3;
-/// System operation performed for a coin other than SUI
-const ENotSUI: u64 = 4;
+/// System operation performed for a coin other than IOTA
+const ENotIOTA: u64 = 4;
 
 /// A Supply of T. Used for minting and burning.
 /// Wrapped into a `TreasuryCap` in the `Coin` module.
@@ -93,8 +94,8 @@ public fun destroy_zero<T>(balance: Balance<T>) {
     let Balance { value: _ } = balance;
 }
 
-const SUI_TYPE_NAME: vector<u8> =
-    b"0000000000000000000000000000000000000000000000000000000000000002::sui::SUI";
+const IOTA_TYPE_NAME: vector<u8> =
+    b"0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA";
 
 #[allow(unused_function)]
 /// CAUTION: this function creates a `Balance` without increasing the supply.
@@ -102,7 +103,7 @@ const SUI_TYPE_NAME: vector<u8> =
 /// and nowhere else.
 fun create_staking_rewards<T>(value: u64, ctx: &TxContext): Balance<T> {
     assert!(ctx.sender() == @0x0, ENotSystemAddress);
-    assert!(std::type_name::get<T>().into_string().into_bytes() == SUI_TYPE_NAME, ENotSUI);
+    assert!(std::type_name::get<T>().into_string().into_bytes() == IOTA_TYPE_NAME, ENotIOTA);
     Balance { value }
 }
 
@@ -112,7 +113,7 @@ fun create_staking_rewards<T>(value: u64, ctx: &TxContext): Balance<T> {
 /// and nowhere else.
 fun destroy_storage_rebates<T>(self: Balance<T>, ctx: &TxContext) {
     assert!(ctx.sender() == @0x0, ENotSystemAddress);
-    assert!(std::type_name::get<T>().into_string().into_bytes() == SUI_TYPE_NAME, ENotSUI);
+    assert!(std::type_name::get<T>().into_string().into_bytes() == IOTA_TYPE_NAME, ENotIOTA);
     let Balance { value: _ } = self;
 }
 

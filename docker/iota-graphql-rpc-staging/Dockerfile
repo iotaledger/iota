@@ -7,24 +7,24 @@ ARG PROFILE=release
 ENV PROFILE=$PROFILE
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
-WORKDIR "$WORKDIR/sui"
+WORKDIR "$WORKDIR/iota"
 RUN apt-get update && apt-get install -y cmake clang libpq-dev
 
 COPY Cargo.toml Cargo.lock ./
 COPY consensus consensus
 COPY crates crates
-COPY sui-execution sui-execution
+COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
 
-RUN cargo build --profile ${PROFILE} --bin sui-graphql-rpc --features staging
+RUN cargo build --profile ${PROFILE} --bin iota-graphql-rpc --features staging
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
-WORKDIR "$WORKDIR/sui"
+WORKDIR "$WORKDIR/iota"
 # Both bench and release profiles copy from release dir
-RUN mkdir -p /opt/sui/bin
-COPY --from=builder /sui/target/release/sui-graphql-rpc /opt/sui/bin
+RUN mkdir -p /opt/iota/bin
+COPY --from=builder /iota/target/release/iota-graphql-rpc /opt/iota/bin
 RUN apt-get update && apt-get install -y libpq5 ca-certificates libpq-dev postgresql
 
 ARG BUILD_DATE

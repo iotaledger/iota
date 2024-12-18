@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_use)]
 module deepbook::clob {
     use std::type_name::{Self, TypeName};
 
-    use sui::balance::{Self, Balance};
-    use sui::clock::{Self, Clock};
-    use sui::coin::{Self, Coin, join};
-    use sui::event;
-    use sui::linked_table::{Self, LinkedTable};
-    use sui::sui::SUI;
-    use sui::table::{Self, Table, contains, add, borrow_mut};
+    use iota::balance::{Self, Balance};
+    use iota::clock::{Self, Clock};
+    use iota::coin::{Self, Coin, join};
+    use iota::event;
+    use iota::linked_table::{Self, LinkedTable};
+    use iota::iota::IOTA;
+    use iota::table::{Self, Table, contains, add, borrow_mut};
 
     use deepbook::critbit::{Self, CritbitTree, is_empty, borrow_mut_leaf_by_index, min_leaf, remove_leaf_by_index, max_leaf, next_leaf, previous_leaf, borrow_leaf_by_index, borrow_leaf_by_key, find_leaf, insert_leaf};
     use deepbook::custodian::{Self, Custodian, AccountCap};
@@ -62,7 +63,7 @@ module deepbook::clob {
     #[test_only]
     const TIMESTAMP_INF: u64 = (1u128 << 64 - 1) as u64;
     #[test_only]
-    const FEE_AMOUNT_FOR_CREATE_POOL: u64 = 100 * 1_000_000_000; // 100 SUI
+    const FEE_AMOUNT_FOR_CREATE_POOL: u64 = 100 * 1_000_000_000; // 100 IOTA
 
     // <<<<<<<<<<<<<<<<<<<<<<<< Constants <<<<<<<<<<<<<<<<<<<<<<<<
 
@@ -131,7 +132,7 @@ module deepbook::clob {
         // For each pool, order id is incremental and unique for each opening order.
         // Orders that are submitted earlier has lower order ids.
         // 64 bits are sufficient for order ids whereas 32 bits are not.
-        // Assuming a maximum TPS of 100K/s of Sui chain, it would take (1<<63) / 100000 / 3600 / 24 / 365 = 2924712 years to reach the full capacity.
+        // Assuming a maximum TPS of 100K/s of Iota chain, it would take (1<<63) / 100000 / 3600 / 24 / 365 = 2924712 years to reach the full capacity.
         // The highest bit of the order id is used to denote the order tyep, 0 for bid, 1 for ask.
         order_id: u64,
         // Only used for limit orders.
@@ -177,7 +178,7 @@ module deepbook::clob {
         base_custodian: Custodian<BaseAsset>,
         quote_custodian: Custodian<QuoteAsset>,
         // Stores the fee paid to create this pool. These funds are not accessible.
-        creation_fee: Balance<SUI>,
+        creation_fee: Balance<IOTA>,
         // Deprecated.
         base_asset_trading_fees: Balance<BaseAsset>,
         // Stores the trading fees paid in `QuoteAsset`. These funds are not accessible.
@@ -203,7 +204,7 @@ module deepbook::clob {
         maker_rebate_rate: u64,
         tick_size: u64,
         lot_size: u64,
-        creation_fee: Balance<SUI>,
+        creation_fee: Balance<IOTA>,
         ctx: &mut TxContext,
     ) {
         let base_type_name = type_name::get<BaseAsset>();
@@ -249,7 +250,7 @@ module deepbook::clob {
     public fun create_pool<BaseAsset, QuoteAsset>(
         _tick_size: u64,
         _lot_size: u64,
-        _creation_fee: Coin<SUI>,
+        _creation_fee: Coin<IOTA>,
         _ctx: &mut TxContext,
     ) {
         abort DEPRECATED
@@ -1339,7 +1340,7 @@ module deepbook::clob {
 
     // Note that open orders and quotes can be directly accessed by loading in the entire Pool.
 
-    #[test_only] use sui::test_scenario::{Self, Scenario};
+    #[test_only] use iota::test_scenario::{Self, Scenario};
 
     #[test_only] public struct USD {}
 
@@ -1360,7 +1361,7 @@ module deepbook::clob {
 
         test_scenario::next_tx(scenario, sender);
         {
-            create_pool_<SUI, USD>(
+            create_pool_<IOTA, USD>(
                 taker_fee_rate,
                 maker_rebate_rate,
                 tick_size,

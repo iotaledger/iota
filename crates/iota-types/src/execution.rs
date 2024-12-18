@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -59,7 +60,7 @@ pub struct ExecutionResultsV1 {
     pub user_events: Vec<Event>,
 }
 
-/// Used by sui-execution v1 and above, to capture the execution results from Move.
+/// Used by iota-execution v1 and above, to capture the execution results from Move.
 /// The results represent the primitive information that can then be used to construct
 /// both transaction effects V1 and V2.
 #[derive(Debug, Default)]

@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// An example module implementing a fixed commission for the `TransferPolicy`.
 /// Follows the "transfer rules" layout and implements each of the steps.
-module sui::fixed_commission {
-    use sui::sui::SUI;
-    use sui::coin::Coin;
-    use sui::transfer_policy::{
+module iota::fixed_commission {
+    use iota::iota::IOTA;
+    use iota::coin::Coin;
+    use iota::transfer_policy::{
         Self as policy,
         TransferPolicy,
         TransferRequest,
@@ -42,7 +43,7 @@ module sui::fixed_commission {
     /// Buyer action: perform required action;
     /// Complete the requirement on `TransferRequest`. In this case - pay the fixed fee.
     public fun pay<T>(
-        policy: &mut TransferPolicy<T>, request: &mut TransferRequest<T>, coin: Coin<SUI>
+        policy: &mut TransferPolicy<T>, request: &mut TransferRequest<T>, coin: Coin<IOTA>
     ) {
         let paid = request.paid();
         let config: &Commission = policy::get_rule(Rule {}, policy);

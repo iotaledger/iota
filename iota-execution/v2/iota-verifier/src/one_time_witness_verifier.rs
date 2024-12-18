@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! A module can define a one-time witness type, that is a type that is instantiated only once, and
@@ -20,12 +21,12 @@ use move_binary_format::file_format::{
     FunctionHandle, SignatureToken, StructDefinition,
 };
 use move_core_types::{ident_str, language_storage::ModuleId};
-use sui_types::bridge::BRIDGE_SUPPORTED_ASSET;
-use sui_types::{
+use iota_types::bridge::BRIDGE_SUPPORTED_ASSET;
+use iota_types::{
     base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
     error::ExecutionError,
     move_package::{is_test_fun, FnInfoMap},
-    BRIDGE_ADDRESS, SUI_FRAMEWORK_ADDRESS,
+    BRIDGE_ADDRESS, IOTA_FRAMEWORK_ADDRESS,
 };
 
 use crate::{verification_failure, INIT_FN_NAME};
@@ -37,14 +38,14 @@ pub fn verify_module(
     // When verifying test functions, a check preventing by-hand instantiation of one-time withess
     // is disabled
 
-    // In Sui's framework code there is an exception to the one-time witness type rule - we have a
-    // SUI type in the sui module but it is instantiated outside of the module initializer (in fact,
-    // the module has no initializer). The reason for it is that the SUI coin is only instantiated
+    // In Iota's framework code there is an exception to the one-time witness type rule - we have a
+    // IOTA type in the iota module but it is instantiated outside of the module initializer (in fact,
+    // the module has no initializer). The reason for it is that the IOTA coin is only instantiated
     // during genesis. It is easiest to simply special-case this module particularly that this is
     // framework code and thus deemed correct.
     let self_id = module.self_id();
 
-    if ModuleId::new(SUI_FRAMEWORK_ADDRESS, ident_str!("sui").to_owned()) == self_id {
+    if ModuleId::new(IOTA_FRAMEWORK_ADDRESS, ident_str!("iota").to_owned()) == self_id {
         return Ok(());
     }
 
@@ -186,7 +187,7 @@ fn verify_init_single_param(
              single field of type bool",
             module.self_id(),
             INIT_FN_NAME,
-            SUI_FRAMEWORK_ADDRESS,
+            IOTA_FRAMEWORK_ADDRESS,
             TX_CONTEXT_MODULE_NAME,
             TX_CONTEXT_STRUCT_NAME,
             module.self_id(),

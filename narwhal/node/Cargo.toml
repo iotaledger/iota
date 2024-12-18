@@ -2,7 +2,7 @@
 name = "narwhal-node"
 version = "0.1.0"
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 publish = false
 
@@ -34,12 +34,12 @@ storage = { path = "../storage", package = "narwhal-storage" }
 types = { path = "../types", package = "narwhal-types" }
 worker = { path = "../worker", package = "narwhal-worker" }
 eyre.workspace = true
-sui-keys.workspace = true
-sui-types.workspace = true
-sui-protocol-config.workspace = true
+iota-keys.workspace = true
+iota-types.workspace = true
+iota-protocol-config.workspace = true
 
-mysten-metrics.workspace = true
-mysten-network.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 telemetry-subscribers.workspace = true
 
 anemo.workspace = true

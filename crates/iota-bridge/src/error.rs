@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{crypto::BridgeAuthorityPublicKeyBytes, types::BridgeAction};
@@ -17,8 +18,8 @@ pub enum BridgeError {
     NoBridgeEventsInTxPosition,
     // Found a bridge event but not in a recognized Eth bridge contract
     BridgeEventInUnrecognizedEthContract,
-    // Found a bridge event but not in a recognized Sui bridge package
-    BridgeEventInUnrecognizedSuiPackage,
+    // Found a bridge event but not in a recognized Iota bridge package
+    BridgeEventInUnrecognizedIotaPackage,
     // Found BridgeEvent but not BridgeAction
     BridgeEventNotActionable,
     // Failure to serialize
@@ -59,8 +60,8 @@ pub enum BridgeError {
     AuthoirtyUrlInvalid,
     // Action is not token transfer
     ActionIsNotTokenTransferAction,
-    // Sui transaction failure due to generic error
-    SuiTxFailureGeneric(String),
+    // Iota transaction failure due to generic error
+    IotaTxFailureGeneric(String),
     // Zero value bridge transfer should not be allowed
     ZeroValueBridgeTransfer(String),
     // Storage Error

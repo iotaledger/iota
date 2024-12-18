@@ -1,34 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use inquire::Select;
 use std::collections::BTreeMap;
-use sui_config::genesis::UnsignedGenesis;
-use sui_types::sui_system_state::SuiValidatorGenesis;
-use sui_types::{
+use iota_config::genesis::UnsignedGenesis;
+use iota_types::iota_system_state::IotaValidatorGenesis;
+use iota_types::{
     base_types::ObjectID,
     coin::CoinMetadata,
-    gas_coin::{GasCoin, MIST_PER_SUI, TOTAL_SUPPLY_MIST},
-    governance::StakedSui,
+    gas_coin::{GasCoin, NANOS_PER_IOTA, TOTAL_SUPPLY_NANOS},
+    governance::StakedIota,
     move_package::MovePackage,
     object::{MoveObject, Owner},
 };
 
 const STR_ALL: &str = "All";
 const STR_EXIT: &str = "Exit";
-const STR_SUI: &str = "Sui";
-const STR_STAKED_SUI: &str = "StakedSui";
+const STR_IOTA: &str = "Iota";
+const STR_STAKED_IOTA: &str = "StakedIota";
 const STR_PACKAGE: &str = "Package";
 const STR_COIN_METADATA: &str = "CoinMetadata";
 const STR_OTHER: &str = "Other";
-const STR_SUI_DISTRIBUTION: &str = "Sui Distribution";
+const STR_IOTA_DISTRIBUTION: &str = "Iota Distribution";
 const STR_OBJECTS: &str = "Objects";
 const STR_VALIDATORS: &str = "Validators";
 
 #[allow(clippy::or_fun_call)]
 pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     let system_object = genesis
-        .sui_system_object()
+        .iota_system_object()
         .into_genesis_version_for_tooling();
 
     // Prepare Validator info
@@ -46,28 +47,28 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     validator_options.extend_from_slice(&[STR_ALL, STR_EXIT]);
     println!("Total Number of Validators: {}", validator_set.len());
 
-    // Prepare Sui distribution info
-    let mut sui_distribution = BTreeMap::new();
-    let entry = sui_distribution
-        .entry("Sui System".to_string())
+    // Prepare Iota distribution info
+    let mut iota_distribution = BTreeMap::new();
+    let entry = iota_distribution
+        .entry("Iota System".to_string())
         .or_insert(BTreeMap::new());
     entry.insert(
         "Storage Fund".to_string(),
         (
-            STR_SUI,
+            STR_IOTA,
             system_object.storage_fund.non_refundable_balance.value(),
         ),
     );
     entry.insert(
         "Stake Subsidy".to_string(),
-        (STR_SUI, system_object.stake_subsidy.balance.value()),
+        (STR_IOTA, system_object.stake_subsidy.balance.value()),
     );
 
     // Prepare Object Info
     let mut owner_map = BTreeMap::new();
     let mut package_map = BTreeMap::new();
-    let mut sui_map = BTreeMap::new();
-    let mut staked_sui_map = BTreeMap::new();
+    let mut iota_map = BTreeMap::new();
+    let mut staked_iota_map = BTreeMap::new();
     let mut coin_metadata_map = BTreeMap::new();
     let mut other_object_map = BTreeMap::new();
 
@@ -78,30 +79,30 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
         owner_map.insert(object.id(), object.owner.clone());
 
         match &object.data {
-            sui_types::object::Data::Move(move_object) => {
+            iota_types::object::Data::Move(move_object) => {
                 if let Ok(gas) = GasCoin::try_from(object) {
-                    let entry = sui_distribution
+                    let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
-                    entry.insert(object_id_str.clone(), (STR_SUI, gas.value()));
-                    sui_map.insert(object.id(), gas);
+                    entry.insert(object_id_str.clone(), (STR_IOTA, gas.value()));
+                    iota_map.insert(object.id(), gas);
                 } else if let Ok(coin_metadata) = CoinMetadata::try_from(object) {
                     coin_metadata_map.insert(object.id(), coin_metadata);
-                } else if let Ok(staked_sui) = StakedSui::try_from(object) {
-                    let entry = sui_distribution
+                } else if let Ok(staked_iota) = StakedIota::try_from(object) {
+                    let entry = iota_distribution
                         .entry(object.owner.to_string())
                         .or_default();
-                    entry.insert(object_id_str, (STR_STAKED_SUI, staked_sui.principal()));
+                    entry.insert(object_id_str, (STR_STAKED_IOTA, staked_iota.principal()));
                     // Assert pool id is associated with a knonw validator.
-                    let validator = validator_pool_id_map.get(&staked_sui.pool_id()).unwrap();
-                    assert_eq!(validator.staking_pool.id, staked_sui.pool_id());
+                    let validator = validator_pool_id_map.get(&staked_iota.pool_id()).unwrap();
+                    assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
 
-                    staked_sui_map.insert(object.id(), staked_sui);
+                    staked_iota_map.insert(object.id(), staked_iota);
                 } else {
                     other_object_map.insert(object.id(), move_object);
                 }
             }
-            sui_types::object::Data::Package(p) => {
+            iota_types::object::Data::Package(p) => {
                 package_map.insert(object.id(), p);
             }
         }
@@ -112,10 +113,10 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     );
 
     // Always check the Total Supply
-    examine_total_supply(&sui_distribution, false);
+    examine_total_supply(&iota_distribution, false);
 
     // Main loop for inspection
-    let main_options: Vec<&str> = vec![STR_SUI_DISTRIBUTION, STR_VALIDATORS, STR_OBJECTS, STR_EXIT];
+    let main_options: Vec<&str> = vec![STR_IOTA_DISTRIBUTION, STR_VALIDATORS, STR_OBJECTS, STR_EXIT];
     loop {
         let ans = Select::new(
             "Select one main category to examine ('Exit' to exit the program):",
@@ -123,8 +124,8 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
         )
         .prompt();
         match ans {
-            Ok(name) if name == STR_SUI_DISTRIBUTION => {
-                examine_total_supply(&sui_distribution, true)
+            Ok(name) if name == STR_IOTA_DISTRIBUTION => {
+                examine_total_supply(&iota_distribution, true)
             }
             Ok(name) if name == STR_VALIDATORS => {
                 examine_validators(&validator_options, &validator_map);
@@ -135,8 +136,8 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                     &owner_map,
                     &validator_pool_id_map,
                     &package_map,
-                    &sui_map,
-                    &staked_sui_map,
+                    &iota_map,
+                    &staked_iota_map,
                     &coin_metadata_map,
                     &other_object_map,
                 );
@@ -154,7 +155,7 @@ pub(crate) fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
 #[allow(clippy::ptr_arg)]
 fn examine_validators(
     validator_options: &Vec<&str>,
-    validator_map: &BTreeMap<&str, &SuiValidatorGenesis>,
+    validator_map: &BTreeMap<&str, &IotaValidatorGenesis>,
 ) {
     loop {
         let ans = Select::new("Select one validator to examine ('All' to display all Validators, 'Exit' to return to Main):", validator_options.clone()).prompt();
@@ -180,16 +181,16 @@ fn examine_validators(
 
 fn examine_object(
     owner_map: &BTreeMap<ObjectID, Owner>,
-    validator_pool_id_map: &BTreeMap<ObjectID, &SuiValidatorGenesis>,
+    validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
     package_map: &BTreeMap<ObjectID, &MovePackage>,
-    sui_map: &BTreeMap<ObjectID, GasCoin>,
-    staked_sui_map: &BTreeMap<ObjectID, StakedSui>,
+    iota_map: &BTreeMap<ObjectID, GasCoin>,
+    staked_iota_map: &BTreeMap<ObjectID, StakedIota>,
     coin_metadata_map: &BTreeMap<ObjectID, CoinMetadata>,
     other_object_map: &BTreeMap<ObjectID, &MoveObject>,
 ) {
     let object_options: Vec<&str> = vec![
-        STR_SUI,
-        STR_STAKED_SUI,
+        STR_IOTA,
+        STR_STAKED_IOTA,
         STR_COIN_METADATA,
         STR_PACKAGE,
         STR_OTHER,
@@ -203,17 +204,17 @@ fn examine_object(
         .prompt();
         match ans {
             Ok(name) if name == STR_EXIT => break,
-            Ok(name) if name == STR_SUI => {
-                for gas_coin in sui_map.values() {
-                    display_sui(gas_coin, owner_map);
+            Ok(name) if name == STR_IOTA => {
+                for gas_coin in iota_map.values() {
+                    display_iota(gas_coin, owner_map);
                 }
-                print_divider("Sui");
+                print_divider("Iota");
             }
-            Ok(name) if name == STR_STAKED_SUI => {
-                for staked_sui_coin in staked_sui_map.values() {
-                    display_staked_sui(staked_sui_coin, validator_pool_id_map, owner_map);
+            Ok(name) if name == STR_STAKED_IOTA => {
+                for staked_iota_coin in staked_iota_map.values() {
+                    display_staked_iota(staked_iota_coin, validator_pool_id_map, owner_map);
                 }
-                print_divider(STR_STAKED_SUI);
+                print_divider(STR_STAKED_IOTA);
             }
             Ok(name) if name == STR_PACKAGE => {
                 for package in package_map.values() {
@@ -248,45 +249,45 @@ fn examine_object(
 }
 
 fn examine_total_supply(
-    sui_distribution: &BTreeMap<String, BTreeMap<String, (&str, u64)>>,
+    iota_distribution: &BTreeMap<String, BTreeMap<String, (&str, u64)>>,
     print: bool,
 ) {
-    let mut total_sui = 0;
-    let mut total_staked_sui = 0;
-    for (owner, coins) in sui_distribution {
+    let mut total_iota = 0;
+    let mut total_staked_iota = 0;
+    for (owner, coins) in iota_distribution {
         let mut amount_sum = 0;
         for (owner, value) in coins.values() {
             amount_sum += value;
-            if *owner == STR_STAKED_SUI {
-                total_staked_sui += value;
+            if *owner == STR_STAKED_IOTA {
+                total_staked_iota += value;
             }
         }
-        total_sui += amount_sum;
+        total_iota += amount_sum;
         if print {
             println!("Owner {:?}", owner);
             println!(
-                "Total Amount of Sui/StakedSui Owned: {amount_sum} MIST or {} SUI:",
-                amount_sum / MIST_PER_SUI
+                "Total Amount of Iota/StakedIota Owned: {amount_sum} NANOS or {} IOTA:",
+                amount_sum / NANOS_PER_IOTA
             );
             println!("{:#?}\n", coins);
         }
     }
-    assert_eq!(total_sui, TOTAL_SUPPLY_MIST);
+    assert_eq!(total_iota, TOTAL_SUPPLY_NANOS);
     // Always print this.
     println!(
-        "Total Supply of Sui: {total_sui} MIST or {} SUI",
-        total_sui / MIST_PER_SUI
+        "Total Supply of Iota: {total_iota} NANOS or {} IOTA",
+        total_iota / NANOS_PER_IOTA
     );
     println!(
-        "Total Amount of StakedSui: {total_staked_sui} MIST or {} SUI\n",
-        total_staked_sui / MIST_PER_SUI
+        "Total Amount of StakedIota: {total_staked_iota} NANOS or {} IOTA\n",
+        total_staked_iota / NANOS_PER_IOTA
     );
     if print {
-        print_divider("Sui Distribution");
+        print_divider("Iota Distribution");
     }
 }
 
-fn display_validator(validator: &SuiValidatorGenesis) {
+fn display_validator(validator: &IotaValidatorGenesis) {
     let metadata = validator.verified_metadata();
     println!("Validator name: {}", metadata.name);
     println!("{:#?}", metadata);
@@ -309,8 +310,8 @@ fn display_validator(validator: &SuiValidatorGenesis) {
         validator.staking_pool.deactivation_epoch
     );
     println!(
-        "Staking Pool Sui Balance: {:?}",
-        validator.staking_pool.sui_balance
+        "Staking Pool Iota Balance: {:?}",
+        validator.staking_pool.iota_balance
     );
     println!(
         "Rewards Pool: {}",
@@ -325,8 +326,8 @@ fn display_validator(validator: &SuiValidatorGenesis) {
         validator.staking_pool.pending_stake
     );
     println!(
-        "Pending Total Sui Withdraw: {}",
-        validator.staking_pool.pending_total_sui_withdraw
+        "Pending Total Iota Withdraw: {}",
+        validator.staking_pool.pending_total_iota_withdraw
     );
     println!(
         "Pendign Pool Token Withdraw: {}",
@@ -343,24 +344,24 @@ fn display_validator(validator: &SuiValidatorGenesis) {
     print_divider(&metadata.name);
 }
 
-fn display_sui(gas_coin: &GasCoin, owner_map: &BTreeMap<ObjectID, Owner>) {
+fn display_iota(gas_coin: &GasCoin, owner_map: &BTreeMap<ObjectID, Owner>) {
     println!("ID: {}", gas_coin.id());
     println!("Balance: {}", gas_coin.value());
     println!("Owner: {}\n", owner_map.get(gas_coin.id()).unwrap());
 }
 
-fn display_staked_sui(
-    staked_sui: &StakedSui,
-    validator_pool_id_map: &BTreeMap<ObjectID, &SuiValidatorGenesis>,
+fn display_staked_iota(
+    staked_iota: &StakedIota,
+    validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
     owner_map: &BTreeMap<ObjectID, Owner>,
 ) {
-    let validator = validator_pool_id_map.get(&staked_sui.pool_id()).unwrap();
-    println!("{:#?}", staked_sui);
+    let validator = validator_pool_id_map.get(&staked_iota.pool_id()).unwrap();
+    println!("{:#?}", staked_iota);
     println!(
         "Staked to Validator: {}",
         validator.verified_metadata().name
     );
-    println!("Owner: {}\n", owner_map.get(&staked_sui.id()).unwrap());
+    println!("Owner: {}\n", owner_map.get(&staked_iota.id()).unwrap());
 }
 
 fn print_divider(title: &str) {

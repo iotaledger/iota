@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { API_ENV, type NetworkEnvType } from '_src/shared/api-env';
 import { fetchWithSentry } from '_src/shared/utils';
-import { type PublicKey } from '@mysten/sui/cryptography';
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { type PublicKey } from '@iota/iota-sdk/cryptography';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import {
 	generateNonce,
 	generateRandomness,
 	getExtendedEphemeralPublicKey,
 	type getZkLoginSignature,
-} from '@mysten/sui/zklogin';
+} from '@iota/iota-sdk/zklogin';
 import { randomBytes } from '@noble/hashes/utils';
 import { base64url } from 'jose';
 import { v4 as uuidV4 } from 'uuid';
@@ -118,7 +119,7 @@ export async function zkLoginAuthenticate({
 	return jwt;
 }
 
-const saltRegistryUrl = 'https://salt.api.mystenlabs.com';
+const saltRegistryUrl = 'https://salt.api.iota.org';
 
 export async function fetchSalt(jwt: string): Promise<string> {
 	const response = await fetchWithSentry('fetchUserSalt', `${saltRegistryUrl}/get_salt`, {
@@ -147,8 +148,8 @@ export type PartialZkLoginSignature = Omit<
 	'addressSeed'
 >;
 
-const zkLoginProofsServerUrlDev = 'https://prover-dev.mystenlabs.com/v1';
-const zkLoginProofsServerUrlProd = 'https://prover.mystenlabs.com/v1';
+const zkLoginProofsServerUrlDev = 'https://prover-dev.iota.org/v1';
+const zkLoginProofsServerUrlProd = 'https://prover.iota.org/v1';
 
 export async function createPartialZkLoginSignature({
 	jwt,

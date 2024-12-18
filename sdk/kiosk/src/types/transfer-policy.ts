@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ObjectOwner } from '@mysten/sui/client';
-import type { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions';
+import type { ObjectOwner } from '@iota/iota-sdk/client';
+import type { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 
 import type { ObjectArgument } from './index.js';
 

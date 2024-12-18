@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use duration_str::parse;
@@ -162,8 +163,8 @@ impl BenchmarkStats {
                 "latency (min)",
                 "latency (p50)",
                 "latency (p99)",
-                "gas used (MIST total)",
-                "gas used/hr (MIST approx.)",
+                "gas used (NANOS total)",
+                "gas used/hr (NANOS approx.)",
             ]);
         let mut row = Row::new();
         row.add_cell(Cell::new(self.duration.as_secs()));

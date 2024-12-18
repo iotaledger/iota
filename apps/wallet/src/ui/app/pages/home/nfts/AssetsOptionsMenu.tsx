@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Menu } from '@headlessui/react';
-import { Ooo24 } from '@mysten/icons';
+import { Ooo24 } from '@iota/icons';
 import { Link } from 'react-router-dom';
 
 const AssetsOptionsMenu = () => {
@@ -27,7 +28,7 @@ const AssetsOptionsMenu = () => {
 								to="/nfts/hidden-assets"
 								className="no-underline text-steel-darker hover:text-steel-darker focus:text-steel-darker disabled:text-steel-darker font-medium text-bodySmall"
 							>
-								<div className="p-3 hover:bg-sui-light bg-opacity-50 rounded-md">
+								<div className="p-3 hover:bg-iota-light bg-opacity-50 rounded-md">
 									View Hidden Assets
 								</div>
 							</Link>

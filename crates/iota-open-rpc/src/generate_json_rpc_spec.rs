@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::examples::RpcExampleProvider;
@@ -8,16 +9,16 @@ use pretty_assertions::assert_str_eq;
 use std::fs::File;
 use std::io::Write;
 //temporarily remove api ref content for indexer methods
-//use sui_json_rpc::api::ExtendedApiOpenRpc;
-use sui_json_rpc::coin_api::CoinReadApi;
-use sui_json_rpc::governance_api::GovernanceReadApi;
-use sui_json_rpc::read_api::ReadApi;
-use sui_json_rpc::sui_rpc_doc;
-use sui_json_rpc::transaction_builder_api::TransactionBuilderApi;
-use sui_json_rpc::transaction_execution_api::TransactionExecutionApi;
-use sui_json_rpc::SuiRpcModule;
-use sui_json_rpc_api::IndexerApiOpenRpc;
-use sui_json_rpc_api::MoveUtilsOpenRpc;
+//use iota_json_rpc::api::ExtendedApiOpenRpc;
+use iota_json_rpc::coin_api::CoinReadApi;
+use iota_json_rpc::governance_api::GovernanceReadApi;
+use iota_json_rpc::read_api::ReadApi;
+use iota_json_rpc::iota_rpc_doc;
+use iota_json_rpc::transaction_builder_api::TransactionBuilderApi;
+use iota_json_rpc::transaction_execution_api::TransactionExecutionApi;
+use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc_api::IndexerApiOpenRpc;
+use iota_json_rpc_api::MoveUtilsOpenRpc;
 
 mod examples;
 
@@ -30,8 +31,8 @@ enum Action {
 
 #[derive(Debug, Parser)]
 #[clap(
-    name = "Sui format generator",
-    about = "Trace serde (de)serialization to generate format descriptions for Sui types"
+    name = "Iota format generator",
+    about = "Trace serde (de)serialization to generate format descriptions for Iota types"
 )]
 struct Options {
     #[clap(value_enum, default_value = "Record", ignore_case = true)]
@@ -47,7 +48,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 async fn main() {
     let options = Options::parse();
 
-    let mut open_rpc = sui_rpc_doc(VERSION);
+    let mut open_rpc = iota_rpc_doc(VERSION);
     open_rpc.add_module(ReadApi::rpc_doc_module());
     open_rpc.add_module(CoinReadApi::rpc_doc_module());
     open_rpc.add_module(IndexerApiOpenRpc::module_doc());

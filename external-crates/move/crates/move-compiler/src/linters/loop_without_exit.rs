@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Detects empty loop expressions, including `while(true) {}` and `loop {}` without exit mechanisms, highlighting potential infinite loops.

@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // docs::#setup
 import React, { useState, useEffect } from "react";
 import {
   createNetworkConfig,
-  SuiClientProvider,
-  useSuiClient,
+  IotaClientProvider,
+  useIotaClient,
   ConnectButton,
   useCurrentAccount,
   useSignAndExecuteTransaction,
   WalletProvider,
-} from "@mysten/dapp-kit";
-import { Transaction } from "@mysten/sui/transactions";
-import { getFullnodeUrl } from "@mysten/sui/client";
+} from "@iota/dapp-kit";
+import { Transaction } from "@iota/iota-sdk/transactions";
+import { getFullnodeUrl } from "@iota/iota-sdk/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import "@mysten/dapp-kit/dist/index.css";
+import "@iota/dapp-kit/dist/index.css";
 // docs::/#setup
 
 const { networkConfig } = createNetworkConfig({
@@ -31,8 +32,8 @@ const { networkConfig } = createNetworkConfig({
 // Create a new QueryClient for managing and caching asynchronous queries
 const queryClient = new QueryClient();
 
-// Define the USDC token type on Sui Testnet
-// This is the unique identifier for the USDC token on Sui
+// Define the USDC token type on Iota Testnet
+// This is the unique identifier for the USDC token on Iota
 const USDC_TYPE = '0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC';
 
 function HomeContent() {
@@ -40,8 +41,8 @@ function HomeContent() {
   // Use the wallet kit to get the current account and transaction signing function
   const currentAccount = useCurrentAccount();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-  // Get the Sui client for interacting with the Sui network
-  const suiClient = useSuiClient();
+  // Get the Iota client for interacting with the Iota network
+  const iotaClient = useIotaClient();
   const [open, setOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [amount, setAmount] = useState("");
@@ -62,8 +63,8 @@ function HomeContent() {
     }
     try {
       // Fetch USDC coins owned by the current account
-      // This uses the SuiClient to get coins of the specified type owned by the current address
-      const { data: coins } = await suiClient.getCoins({
+      // This uses the IotaClient to get coins of the specified type owned by the current address
+      const { data: coins } = await iotaClient.getCoins({
         owner: currentAccount.address,
         coinType: USDC_TYPE,
       });
@@ -72,7 +73,7 @@ function HomeContent() {
         return;
       }
       // Create a new transaction block
-      // Transaction is used to construct and execute transactions on Sui
+      // Transaction is used to construct and execute transactions on Iota
       const tx = new Transaction();
       // Convert amount to smallest unit (6 decimals)
       const amountInSmallestUnit = BigInt(parseFloat(amount) * 1_000_000);
@@ -109,7 +110,7 @@ function HomeContent() {
   return (
     <main className="mainwrapper">
       <div className="outerwrapper">
-        <h1 className="h1">Sui USDC Sender (Testnet)</h1>
+        <h1 className="h1">Iota USDC Sender (Testnet)</h1>
         <ConnectButton />
         {connected && currentAccount && (
           <p className="status">Connected: {currentAccount.address}</p>
@@ -151,11 +152,11 @@ function HomeContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <SuiClientProvider networks={networkConfig} defaultNetwork="testnet">
+      <IotaClientProvider networks={networkConfig} defaultNetwork="testnet">
         <WalletProvider>
           <HomeContent />
         </WalletProvider>
-      </SuiClientProvider>
+      </IotaClientProvider>
     </QueryClientProvider>
   );
 }

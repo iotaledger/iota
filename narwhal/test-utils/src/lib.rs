@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anemo::async_trait;
@@ -16,7 +17,7 @@ use fastcrypto::{
     traits::{AllowedRng, KeyPair as _},
 };
 use indexmap::IndexMap;
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use once_cell::sync::OnceCell;
 use rand::distributions::Bernoulli;
 use rand::distributions::Distribution;
@@ -32,7 +33,7 @@ use std::{
 use store::rocks::DBMap;
 use store::rocks::MetricConf;
 use store::rocks::ReadWriteOptions;
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tracing::info;
 use types::{
@@ -79,7 +80,7 @@ pub fn ensure_test_environment() {
 #[macro_export]
 macro_rules! test_channel {
     ($e:expr) => {
-        mysten_metrics::metered_channel::channel(
+        iota_metrics::metered_channel::channel(
             $e,
             &prometheus::IntGauge::new("TEST_COUNTER", "test counter").unwrap(),
         );
@@ -99,7 +100,7 @@ macro_rules! test_channel {
 #[macro_export]
 macro_rules! test_committed_certificates_channel {
     ($e:expr) => {
-        mysten_metrics::metered_channel::channel(
+        iota_metrics::metered_channel::channel(
             $e,
             &prometheus::IntGauge::new(
                 primary::PrimaryChannelMetrics::NAME_COMMITTED_CERTS,
@@ -113,7 +114,7 @@ macro_rules! test_committed_certificates_channel {
 #[macro_export]
 macro_rules! test_new_certificates_channel {
     ($e:expr) => {
-        mysten_metrics::metered_channel::channel(
+        iota_metrics::metered_channel::channel(
             $e,
             &prometheus::IntGauge::new(
                 primary::PrimaryChannelMetrics::NAME_NEW_CERTS,

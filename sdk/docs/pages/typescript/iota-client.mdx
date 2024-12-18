@@ -1,22 +1,22 @@
-# Network Interactions with SuiClient
+# Network Interactions with IotaClient
 
-The Sui TypeScript SDK provides a `SuiClient` class to connect to a network's JSON-RPC server. Use
-`SuiClient` for all JSON-RPC operations.
+The Iota TypeScript SDK provides a `IotaClient` class to connect to a network's JSON-RPC server. Use
+`IotaClient` for all JSON-RPC operations.
 
-## Connecting to a Sui network
+## Connecting to a Iota network
 
-To establish a connection to a network, import `SuiClient` from `@mysten/sui/client` and pass the
+To establish a connection to a network, import `IotaClient` from `@iota/iota-sdk/client` and pass the
 relevant URL to the `url` parameter. The following example establishes a connection to Testnet and
-requests SUI from that network's faucet.
+requests IOTA from that network's faucet.
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 // use getFullnodeUrl to define Devnet RPC location
 const rpcUrl = getFullnodeUrl('devnet');
 
 // create a client connected to devnet
-const client = new SuiClient({ url: rpcUrl });
+const client = new IotaClient({ url: rpcUrl });
 
 // get coins owned by an address
 // replace <OWNER_ADDRESS> with actual address in the form of 0x123...
@@ -34,41 +34,41 @@ during development. In a production application, however, you should use the
 - `testnet`
 - `mainnet`
 
-For local development, you can run `cargo run --bin sui -- start --with-faucet --force-regenesis` to
+For local development, you can run `cargo run --bin iota -- start --with-faucet --force-regenesis` to
 spin up a local network with a local validator, a Full node, and a faucet server. Refer to
-[the Local Network guide](https://docs.sui.io/guides/developer/getting-started/local-network) for
+[the Local Network guide](https://docs.iota.org/guides/developer/getting-started/local-network) for
 more information.
 
 ## Manually calling unsupported RPC methods
 
-You can use `SuiClient` to call any RPC method the node you're connecting to exposes. Most RPC
-methods are built into `SuiClient`, but you can use `call` to leverage any methods available in the
+You can use `IotaClient` to call any RPC method the node you're connecting to exposes. Most RPC
+methods are built into `IotaClient`, but you can use `call` to leverage any methods available in the
 RPC.
 
 ```typescript
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
-const client = new SuiClient({ url: getFullnodeUrl('devnet') });
+const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
-// asynchronously call suix_getCommitteeInfo
-const committeeInfo = await client.call('suix_getCommitteeInfo', []);
+// asynchronously call iotax_getCommitteeInfo
+const committeeInfo = await client.call('iotax_getCommitteeInfo', []);
 ```
 
 For a full list of available RPC methods, see the
-[RPC documentation](https://docs.sui.io/references/sui-api).
+[RPC documentation](https://docs.iota.org/references/iota-api).
 
 ## Customizing the transport
 
-The `SuiClient` uses a `Transport` class to manage connections to the RPC node. The default
-`SuiHTTPTransport` makes both JSON RPC requests, as well as websocket requests for subscriptions.
+The `IotaClient` uses a `Transport` class to manage connections to the RPC node. The default
+`IotaHTTPTransport` makes both JSON RPC requests, as well as websocket requests for subscriptions.
 You can construct a custom transport instance if you need to pass any custom options, such as
 headers or timeout values.
 
 ```typescript
-import { getFullnodeUrl, SuiClient, SuiHTTPTransport } from '@mysten/sui/client';
+import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
 
-const client = new SuiClient({
-	transport: new SuiHTTPTransport({
+const client = new IotaClient({
+	transport: new IotaHTTPTransport({
 		url: 'https://my-custom-node.com/rpc',
 		websocket: {
 			reconnectTimeout: 1000,
@@ -85,7 +85,7 @@ const client = new SuiClient({
 
 ## Pagination
 
-`SuiClient` exposes a number of RPC methods that return paginated results. These methods return a
+`IotaClient` exposes a number of RPC methods that return paginated results. These methods return a
 result object with 3 fields:
 
 - data: The list of results for the current page
@@ -113,7 +113,7 @@ const page2 =
 
 ## Methods
 
-In addition to the RPC methods mentioned above, `SuiClient` also exposes some methods for working
+In addition to the RPC methods mentioned above, `IotaClient` also exposes some methods for working
 with Transactions.
 
 ### `executeTransactionBlock`

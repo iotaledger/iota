@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// This example demonstrates how to use Closed Loop to create a regulated coin
@@ -30,7 +31,7 @@ module examples::regulated_token {
         denylist_rule::Denylist,
         limiter_rule::{Self as limiter, Limiter}
     };
-    use sui::{
+    use iota::{
         coin::{Self, TreasuryCap},
         token::{Self, TokenPolicy, TokenPolicyCap},
         tx_context::sender,
@@ -118,7 +119,7 @@ module examples::regulated_token_tests {
         limiter_rule as limiter,
         regulated_token::set_rules
     };
-    use sui::{
+    use iota::{
         coin,
         token::{Self, TokenPolicy, TokenPolicyCap},
         token_test_utils::{Self as test, TEST}

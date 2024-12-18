@@ -4,16 +4,16 @@ validator:
   json-rpc-address: 0.0.0.0:9000
   admin-interface-port: 1337
   genesis:
-    genesis-file-location: /opt/sui/config/genesis.blob
-  db-path: /opt/sui/db/authorities_db
+    genesis-file-location: /opt/iota/config/genesis.blob
+  db-path: /opt/iota/db/authorities_db
   consensus-config:
-    db-path: /opt/sui/db/consensus_db
+    db-path: /opt/iota/db/consensus_db
     narwhal-config:
       max_header_delay: 2000ms
   expensive-safety-check-config:
-    enable-epoch-sui-conservation-check: false
-    enable-deep-per-tx-sui-conservation-check: false
-    force-disable-epoch-sui-conservation-check: false
+    enable-epoch-iota-conservation-check: false
+    enable-deep-per-tx-iota-conservation-check: false
+    force-disable-epoch-iota-conservation-check: false
     enable-state-consistency-check: false
     force-disable-state-consistency-check: false
     enable-move-vm-paranoid-checks: false

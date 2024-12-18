@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_metrics::histogram::Histogram as MystenHistogram;
+use iota_metrics::histogram::Histogram as IotaHistogram;
 use prometheus::{
     register_histogram_with_registry, register_int_gauge_with_registry, Histogram, IntGauge,
     Registry,
 };
 use std::sync::Arc;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::Pipe;
 
 #[derive(Clone)]
@@ -48,7 +49,7 @@ impl Metrics {
         }
     }
 
-    pub fn checkpoint_summary_age_metrics(&self) -> Option<(&Histogram, &MystenHistogram)> {
+    pub fn checkpoint_summary_age_metrics(&self) -> Option<(&Histogram, &IotaHistogram)> {
         if let Some(inner) = &self.0 {
             return Some((
                 &inner.checkpoint_summary_age,
@@ -64,8 +65,8 @@ struct Inner {
     highest_verified_checkpoint: IntGauge,
     highest_synced_checkpoint: IntGauge,
     checkpoint_summary_age: Histogram,
-    // TODO: delete once users are migrated to non-Mysten histogram.
-    checkpoint_summary_age_ms: MystenHistogram,
+    // TODO: delete once users are migrated to non-Iota histogram.
+    checkpoint_summary_age_ms: IotaHistogram,
 }
 
 impl Inner {
@@ -95,11 +96,11 @@ impl Inner {
             checkpoint_summary_age: register_histogram_with_registry!(
                 "checkpoint_summary_age",
                 "Age of checkpoints summaries when they arrive and are verified.",
-                mysten_metrics::LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
-            checkpoint_summary_age_ms: MystenHistogram::new_in_registry(
+            checkpoint_summary_age_ms: IotaHistogram::new_in_registry(
                 "checkpoint_summary_age_ms",
                 "Age of checkpoints summaries when they arrive and are verified.",
                 registry,

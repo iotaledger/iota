@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::message {
     use std::ascii::{Self, String};
-    use sui::bcs::{Self, BCS};
+    use iota::bcs::{Self, BCS};
 
     use bridge::chain_ids;
     use bridge::message_types;
@@ -73,7 +74,7 @@ module bridge::message {
         new_price: u64
     }
 
-    public struct AddTokenOnSui has drop {
+    public struct AddTokenOnIota has drop {
         native_token: bool,
         token_ids: vector<u8>,
         token_type_names: vector<String>,
@@ -179,7 +180,7 @@ module bridge::message {
         }
     }
 
-    public fun extract_add_tokens_on_sui(message: &BridgeMessage): AddTokenOnSui {
+    public fun extract_add_tokens_on_iota(message: &BridgeMessage): AddTokenOnIota {
         let mut bcs = bcs::new(message.payload);
         let native_token = bcs.peel_bool();
         let token_ids = bcs.peel_vec_u8();
@@ -193,7 +194,7 @@ module bridge::message {
             n = n + 1;
         };
         assert!(bcs.into_remainder_bytes().is_empty(), ETrailingBytes);
-        AddTokenOnSui {
+        AddTokenOnIota {
             native_token,
             token_ids,
             token_type_names,
@@ -384,7 +385,7 @@ module bridge::message {
         }
     }
 
-    /// Update Sui token message
+    /// Update Iota token message
     /// [message_type:u8]
     /// [version:u8]
     /// [nonce:u64]
@@ -393,7 +394,7 @@ module bridge::message {
     /// [token_ids:vector<u8>]
     /// [token_type_name:vector<String>]
     /// [token_prices:vector<u64>]
-    public fun create_add_tokens_on_sui_message(
+    public fun create_add_tokens_on_iota_message(
         source_chain: u8,
         seq_num: u64,
         native_token: bool,
@@ -407,7 +408,7 @@ module bridge::message {
         payload.append(bcs::to_bytes(&type_names));
         payload.append(bcs::to_bytes(&token_prices));
         BridgeMessage {
-            message_type: message_types::add_tokens_on_sui(),
+            message_type: message_types::add_tokens_on_iota(),
             message_version: CURRENT_MESSAGE_VERSION,
             seq_num,
             source_chain,
@@ -493,19 +494,19 @@ module bridge::message {
         self.new_price
     }
 
-    public fun is_native(self: &AddTokenOnSui): bool {
+    public fun is_native(self: &AddTokenOnIota): bool {
         self.native_token
     }
 
-    public fun token_ids(self: &AddTokenOnSui): vector<u8> {
+    public fun token_ids(self: &AddTokenOnIota): vector<u8> {
         self.token_ids
     }
 
-    public fun token_type_names(self: &AddTokenOnSui): vector<String> {
+    public fun token_type_names(self: &AddTokenOnIota): vector<String> {
         self.token_type_names
     }
 
-    public fun token_prices(self: &AddTokenOnSui): vector<u64> {
+    public fun token_prices(self: &AddTokenOnIota): vector<u64> {
         self.token_prices
     }
 
@@ -538,7 +539,7 @@ module bridge::message {
             5001
         } else if (message_type == message_types::update_bridge_limit()) {
             5001
-        } else if (message_type == message_types::add_tokens_on_sui()) {
+        } else if (message_type == message_types::add_tokens_on_iota()) {
             5001
         } else {
             abort EInvalidMessageType
@@ -650,13 +651,13 @@ module bridge::message {
     }
 
     #[test_only]
-    public(package) fun make_add_token_on_sui(
+    public(package) fun make_add_token_on_iota(
         native_token: bool,
         token_ids: vector<u8>,
         token_type_names: vector<String>,
         token_prices: vector<u64>,
-    ): AddTokenOnSui {
-        AddTokenOnSui {
+    ): AddTokenOnIota {
+        AddTokenOnIota {
             native_token,
             token_ids,
             token_type_names,

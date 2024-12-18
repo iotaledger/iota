@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::CheckpointResponse;
@@ -9,10 +10,10 @@ use crate::types::GetCheckpointOptions;
 use crate::types::GetFullCheckpointOptions;
 use crate::Result;
 use crate::RpcService;
-use sui_sdk_types::types::CheckpointContents;
-use sui_sdk_types::types::CheckpointDigest;
-use sui_sdk_types::types::CheckpointSequenceNumber;
-use sui_sdk_types::types::SignedCheckpointSummary;
+use iota_sdk_types::types::CheckpointContents;
+use iota_sdk_types::types::CheckpointDigest;
+use iota_sdk_types::types::CheckpointSequenceNumber;
+use iota_sdk_types::types::SignedCheckpointSummary;
 use tap::Pipe;
 
 impl RpcService {
@@ -123,7 +124,7 @@ impl RpcService {
             .get_checkpoint_contents_by_digest(&verified_summary.content_digest)
             .ok_or(CheckpointNotFoundError(checkpoint))?;
 
-        let sui_types::full_checkpoint_content::CheckpointData {
+        let iota_types::full_checkpoint_content::CheckpointData {
             checkpoint_summary,
             checkpoint_contents,
             transactions,
@@ -171,13 +172,13 @@ impl RpcService {
 }
 
 fn transaction_to_checkpoint_transaction(
-    sui_types::full_checkpoint_content::CheckpointTransaction {
+    iota_types::full_checkpoint_content::CheckpointTransaction {
         transaction,
         effects,
         events,
         input_objects,
         output_objects,
-    }: sui_types::full_checkpoint_content::CheckpointTransaction,
+    }: iota_types::full_checkpoint_content::CheckpointTransaction,
     options: &GetFullCheckpointOptions,
 ) -> Result<FullCheckpointTransaction> {
     let digest = transaction.digest().to_owned().into();
@@ -243,7 +244,7 @@ fn transaction_to_checkpoint_transaction(
 }
 
 fn object_to_object_response(
-    object: sui_types::object::Object,
+    object: iota_types::object::Object,
     options: &GetFullCheckpointOptions,
 ) -> Result<FullCheckpointObject> {
     let object_id = object.id().into();

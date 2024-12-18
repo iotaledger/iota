@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// This test exists to make sure that the feature gating for all the code under `tracing`
@@ -21,7 +22,7 @@
 /// defined in all the other crates that the decorated code in the current crate depends on.
 ///
 /// Note this crate will always have the feature enabled in testing due to the addition of
-/// `sui = { path = ".", features = ["tracing"] }` to our dev-dependencies.
+/// `iota = { path = ".", features = ["tracing"] }` to our dev-dependencies.
 
 #[cfg(feature = "tracing")]
 #[test]
@@ -36,13 +37,13 @@ fn test_macro_shows_feature_enabled() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_profiler() {
     use std::fs;
-    use sui_replay::ReplayToolCommand;
+    use iota_replay::ReplayToolCommand;
     use tempfile::tempdir;
 
     let output_dir = tempdir().unwrap();
     let profile_output = output_dir.path().join("profile.json");
 
-    let testnet_url = "https://fullnode.testnet.sui.io:443".to_string();
+    let testnet_url = "https://fullnode.testnet.iota.io:443".to_string();
     let tx_digest = "98KxVD14f2JgceKx4X27HaVAA2YGJ3Aazf6Y4tabpHa8".to_string();
 
     let cmd = ReplayToolCommand::ProfileTransaction {
@@ -54,7 +55,7 @@ async fn test_profiler() {
     };
 
     let command_result =
-        sui_replay::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
+        iota_replay::execute_replay_command(Some(testnet_url), false, false, None, None, cmd).await;
 
     assert!(command_result.is_ok());
 

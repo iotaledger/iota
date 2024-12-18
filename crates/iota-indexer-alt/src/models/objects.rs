@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::{
     backend::Backend, deserialize, expression::AsExpression, prelude::*, serialize,
     sql_types::SmallInt, FromSqlRow,
 };
-use sui_field_count::FieldCount;
-use sui_types::base_types::ObjectID;
+use iota_field_count::FieldCount;
+use iota_types::base_types::ObjectID;
 
 use crate::schema::{
     kv_objects, obj_info, obj_versions, sum_coin_balances, sum_obj_types, wal_coin_balances,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -6,13 +7,13 @@ use std::{
     time::Duration,
 };
 
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use rand::{
     rngs::{OsRng, StdRng},
     Rng, SeedableRng,
 };
-use sui_macros::fail_point_async;
-use sui_protocol_config::Chain;
+use iota_macros::fail_point_async;
+use iota_protocol_config::Chain;
 use tokio::{
     sync::{mpsc::UnboundedReceiver, oneshot, Semaphore},
     time::sleep,

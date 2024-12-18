@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -54,10 +55,10 @@ impl ActionVerifier<BridgeAction> for GovernanceVerifier {
 mod tests {
     use super::*;
     use crate::{
-        test_utils::get_test_sui_to_eth_bridge_action,
+        test_utils::get_test_iota_to_eth_bridge_action,
         types::{BridgeAction, EmergencyAction, EmergencyActionType, LimitUpdateAction},
     };
-    use sui_types::bridge::BridgeChainId;
+    use iota_types::bridge::BridgeChainId;
 
     #[tokio::test]
     async fn test_governance_verifier() {
@@ -68,7 +69,7 @@ mod tests {
         });
         let action_2 = BridgeAction::LimitUpdateAction(LimitUpdateAction {
             chain_id: BridgeChainId::EthCustom,
-            sending_chain_id: BridgeChainId::SuiCustom,
+            sending_chain_id: BridgeChainId::IotaCustom,
             nonce: 1,
             new_usd_limit: 10000,
         });
@@ -85,7 +86,7 @@ mod tests {
 
         let action_3 = BridgeAction::LimitUpdateAction(LimitUpdateAction {
             chain_id: BridgeChainId::EthCustom,
-            sending_chain_id: BridgeChainId::SuiCustom,
+            sending_chain_id: BridgeChainId::IotaCustom,
             nonce: 2,
             new_usd_limit: 10000,
         });
@@ -95,7 +96,7 @@ mod tests {
         );
 
         // Token transfer action is not allowed
-        let action_4 = get_test_sui_to_eth_bridge_action(None, None, None, None, None, None, None);
+        let action_4 = get_test_iota_to_eth_bridge_action(None, None, None, None, None, None, None);
         assert!(matches!(
             GovernanceVerifier::new(vec![action_1, action_2, action_4.clone()]).unwrap_err(),
             BridgeError::ActionIsNotGovernanceAction(..)

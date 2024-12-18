@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,30 +9,30 @@ use diesel::ExpressionMethods;
 use diesel::QueryDsl;
 use diesel_async::RunQueryDsl;
 use simulacrum::Simulacrum;
-use sui_indexer::errors::IndexerError;
-use sui_indexer::handlers::TransactionObjectChangesToCommit;
-use sui_indexer::models::{
+use iota_indexer::errors::IndexerError;
+use iota_indexer::handlers::TransactionObjectChangesToCommit;
+use iota_indexer::models::{
     checkpoints::StoredCheckpoint, objects::StoredObject, objects::StoredObjectSnapshot,
     transactions::StoredTransaction,
 };
-use sui_indexer::schema::epochs;
-use sui_indexer::schema::events;
-use sui_indexer::schema::full_objects_history;
-use sui_indexer::schema::objects_history;
-use sui_indexer::schema::{checkpoints, objects, objects_snapshot, transactions};
-use sui_indexer::store::indexer_store::IndexerStore;
-use sui_indexer::test_utils::set_up_on_mvr_mode;
-use sui_indexer::test_utils::{
+use iota_indexer::schema::epochs;
+use iota_indexer::schema::events;
+use iota_indexer::schema::full_objects_history;
+use iota_indexer::schema::objects_history;
+use iota_indexer::schema::{checkpoints, objects, objects_snapshot, transactions};
+use iota_indexer::store::indexer_store::IndexerStore;
+use iota_indexer::test_utils::set_up_on_mvr_mode;
+use iota_indexer::test_utils::{
     set_up, set_up_with_start_and_end_checkpoints, wait_for_checkpoint, wait_for_objects_snapshot,
 };
-use sui_indexer::types::EventIndex;
-use sui_indexer::types::IndexedDeletedObject;
-use sui_indexer::types::IndexedObject;
-use sui_indexer::types::TxIndex;
-use sui_types::base_types::SuiAddress;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::gas_coin::GasCoin;
-use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
+use iota_indexer::types::EventIndex;
+use iota_indexer::types::IndexedDeletedObject;
+use iota_indexer::types::IndexedObject;
+use iota_indexer::types::TxIndex;
+use iota_types::base_types::IotaAddress;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::gas_coin::GasCoin;
+use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -42,7 +43,7 @@ pub async fn test_transaction_table() -> Result<(), IndexerError> {
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     // Execute a simple transaction.
-    let transfer_recipient = SuiAddress::random_for_testing_only();
+    let transfer_recipient = IotaAddress::random_for_testing_only();
     let (transaction, _) = sim.transfer_txn(transfer_recipient);
     let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
     assert!(err.is_none());
@@ -89,7 +90,7 @@ pub async fn test_checkpoint_range_ingestion() -> Result<(), IndexerError> {
 
     // Create multiple checkpoints
     for _ in 0..10 {
-        let transfer_recipient = SuiAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random_for_testing_only();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction).unwrap();
         assert!(err.is_none());
@@ -154,7 +155,7 @@ pub async fn test_object_type() -> Result<(), IndexerError> {
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 
     // Execute a simple transaction.
-    let transfer_recipient = SuiAddress::random_for_testing_only();
+    let transfer_recipient = IotaAddress::random_for_testing_only();
     let (transaction, _) = sim.transfer_txn(transfer_recipient);
     let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
     assert!(err.is_none());
@@ -186,7 +187,7 @@ pub async fn test_object_type() -> Result<(), IndexerError> {
     );
     assert_eq!(
         db_object.object_type_package,
-        Some(SUI_FRAMEWORK_PACKAGE_ID.to_vec())
+        Some(IOTA_FRAMEWORK_PACKAGE_ID.to_vec())
     );
     assert_eq!(db_object.object_type_module, Some("coin".to_string()));
     assert_eq!(db_object.object_type_name, Some("Coin".to_string()));
@@ -204,7 +205,7 @@ pub async fn test_objects_snapshot() -> Result<(), IndexerError> {
     let mut last_transaction = None;
     let total_checkpoint_sequence_number = 7usize;
     for _ in 0..total_checkpoint_sequence_number {
-        let transfer_recipient = SuiAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random_for_testing_only();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -321,7 +322,7 @@ pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
     let data_ingestion_path = tempdir.path().to_path_buf();
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-    let transfer_recipient = SuiAddress::random_for_testing_only();
+    let transfer_recipient = IotaAddress::random_for_testing_only();
     let (transaction, _) = sim.transfer_txn(transfer_recipient);
     let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
     assert!(err.is_none());
@@ -356,7 +357,7 @@ pub async fn test_mvr_mode() -> Result<(), IndexerError> {
 
     // Create 3 checkpoints and epochs of sequence number 0 through 2 inclusive
     for _ in 0..=2 {
-        let transfer_recipient = SuiAddress::random_for_testing_only();
+        let transfer_recipient = IotaAddress::random_for_testing_only();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());

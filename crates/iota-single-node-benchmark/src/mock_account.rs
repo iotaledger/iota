@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::stream::FuturesUnordered;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::{get_account_key_pair, AccountKeyPair};
-use sui_types::object::Object;
+use iota_types::base_types::{ObjectRef, IotaAddress};
+use iota_types::crypto::{get_account_key_pair, AccountKeyPair};
+use iota_types::object::Object;
 
 #[derive(Clone)]
 pub struct Account {
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub keypair: Arc<AccountKeyPair>,
     pub gas_objects: Arc<Vec<ObjectRef>>,
 }
@@ -20,7 +21,7 @@ pub struct Account {
 pub async fn batch_create_account_and_gas(
     num_accounts: u64,
     gas_object_num_per_account: u64,
-) -> (BTreeMap<SuiAddress, Account>, Vec<Object>) {
+) -> (BTreeMap<IotaAddress, Account>, Vec<Object>) {
     let tasks: FuturesUnordered<_> = (0..num_accounts)
         .map(|_| {
             tokio::spawn(async move {

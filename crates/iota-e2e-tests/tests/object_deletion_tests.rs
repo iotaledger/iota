@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(msim)]
 mod sim_only_tests {
     use std::path::PathBuf;
     use std::time::Duration;
-    use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
-    use sui_macros::sim_test;
-    use sui_node::SuiNode;
-    use sui_test_transaction_builder::publish_package;
-    use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-    use sui_types::{base_types::ObjectID, digests::TransactionDigest};
+    use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
+    use iota_macros::sim_test;
+    use iota_node::IotaNode;
+    use iota_test_transaction_builder::publish_package;
+    use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+    use iota_types::{base_types::ObjectID, digests::TransactionDigest};
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
 
@@ -21,7 +22,7 @@ mod sim_only_tests {
     #[sim_test]
     async fn object_pruning_test() {
         let test_cluster = TestClusterBuilder::new().build().await;
-        let fullnode = &test_cluster.fullnode_handle.sui_node;
+        let fullnode = &test_cluster.fullnode_handle.iota_node;
 
         // Create a root object and a child object. Wrap the child object inside the root object.
         let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
@@ -135,7 +136,7 @@ mod sim_only_tests {
         let package_id = publish_package(
             &test_cluster.wallet,
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../sui-surfer/tests/move_building_blocks"),
+                .join("../iota-surfer/tests/move_building_blocks"),
         )
         .await
         .0;
@@ -181,7 +182,7 @@ mod sim_only_tests {
         package_id: ObjectID,
         object_id: ObjectID,
         child_id: ObjectID,
-    ) -> SuiTransactionBlockEffects {
+    ) -> IotaTransactionBlockEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let child = test_cluster.wallet.get_object_ref(child_id).await.unwrap();
         let effects = test_cluster
@@ -213,7 +214,7 @@ mod sim_only_tests {
         test_cluster: &TestCluster,
         package_id: ObjectID,
         object_id: ObjectID,
-    ) -> SuiTransactionBlockEffects {
+    ) -> IotaTransactionBlockEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let effects = test_cluster
             .sign_and_execute_transaction(
@@ -239,7 +240,7 @@ mod sim_only_tests {
         test_cluster: &TestCluster,
         package_id: ObjectID,
         object_id: ObjectID,
-    ) -> SuiTransactionBlockEffects {
+    ) -> IotaTransactionBlockEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let effects = test_cluster
             .sign_and_execute_transaction(
@@ -257,7 +258,7 @@ mod sim_only_tests {
     }
 
     async fn wait_until_txn_in_checkpoint(
-        node: &SuiNode,
+        node: &IotaNode,
         digest: &TransactionDigest,
     ) -> CheckpointSequenceNumber {
         loop {
@@ -273,7 +274,7 @@ mod sim_only_tests {
         }
     }
 
-    async fn wait_until_checkpoint_pruned(node: &SuiNode, checkpoint: CheckpointSequenceNumber) {
+    async fn wait_until_checkpoint_pruned(node: &IotaNode, checkpoint: CheckpointSequenceNumber) {
         loop {
             if node
                 .state()

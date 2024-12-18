@@ -3,7 +3,7 @@ name = "narwhal-executor"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 publish = false
 
 [dependencies]
@@ -22,14 +22,14 @@ tonic.workspace = true
 tracing.workspace = true
 prometheus.workspace = true
 storage = { path = "../storage", package = "narwhal-storage" }
-sui-protocol-config.workspace = true
+iota-protocol-config.workspace = true
 
 types = { path = "../types", package = "narwhal-types" }
 network = { path = "../network", package = "narwhal-network" }
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 mockall.workspace = true
 
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 store = { path = "../../crates/typed-store", package = "typed-store" }
 
 [dev-dependencies]

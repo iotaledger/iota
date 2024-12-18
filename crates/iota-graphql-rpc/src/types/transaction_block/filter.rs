@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::TransactionBlockKindInput;
-use crate::types::{digest::Digest, sui_address::SuiAddress, type_filter::FqNameFilter};
+use crate::types::{digest::Digest, iota_address::IotaAddress, type_filter::FqNameFilter};
 use crate::types::{intersect, uint53::UInt53};
 use async_graphql::InputObject;
 use std::collections::BTreeSet;
-use sui_types::base_types::SuiAddress as NativeSuiAddress;
+use iota_types::base_types::IotaAddress as NativeIotaAddress;
 
 #[derive(InputObject, Debug, Default, Clone)]
 pub(crate) struct TransactionBlockFilter {
@@ -28,31 +29,31 @@ pub(crate) struct TransactionBlockFilter {
 
     /// Limit to transactions that interacted with the given address. The address could be a
     /// sender, sponsor, or recipient of the transaction.
-    pub affected_address: Option<SuiAddress>,
+    pub affected_address: Option<IotaAddress>,
 
     /// Limit to transactions that interacted with the given object. The object could have been
     /// created, read, modified, deleted, wrapped, or unwrapped by the transaction. Objects that
     /// were passed as a `Receiving` input are not considered to have been affected by a
     /// transaction unless they were actually received.
     #[cfg(feature = "staging")]
-    pub affected_object: Option<SuiAddress>,
+    pub affected_object: Option<IotaAddress>,
 
     /// Limit to transactions that were sent by the given address.
-    pub sent_address: Option<SuiAddress>,
+    pub sent_address: Option<IotaAddress>,
 
     /// Limit to transactions that accepted the given object as an input. NOTE: this input filter
     /// has been deprecated in favor of `affectedObject` which offers an easier to under behavior.
     ///
     /// This filter will be removed with 1.36.0 (2024-10-14), or at least one release after
     /// `affectedObject` is introduced, whichever is later.
-    pub input_object: Option<SuiAddress>,
+    pub input_object: Option<IotaAddress>,
 
     /// Limit to transactions that output a versioon of this object. NOTE: this input filter has
     /// been deprecated in favor of `affectedObject` which offers an easier to understand behavor.
     ///
     /// This filter will be removed with 1.36.0 (2024-10-14), or at least one release after
     /// `affectedObject` is introduced, whichever is later.
-    pub changed_object: Option<SuiAddress>,
+    pub changed_object: Option<IotaAddress>,
 
     /// Select transactions by their digest.
     pub transaction_ids: Option<Vec<Digest>>,
@@ -116,7 +117,7 @@ impl TransactionBlockFilter {
     /// If we don't query a lookup table that has a denormalized sender column, we need to
     /// explicitly specify the sender with a query on `tx_sender`. This function returns the sender
     /// we need to add an explicit query for if one is required, or `None` otherwise.
-    pub(crate) fn explicit_sender(&self) -> Option<SuiAddress> {
+    pub(crate) fn explicit_sender(&self) -> Option<IotaAddress> {
         let missing_implicit_sender = self.function.is_none()
             && self.kind.is_none()
             && self.affected_address.is_none()
@@ -167,7 +168,7 @@ impl TransactionBlockFilter {
                 (self.kind, self.sent_address),
                 (Some(kind), Some(signer))
                     if (kind == TransactionBlockKindInput::SystemTx)
-                        != (signer == SuiAddress::from(NativeSuiAddress::ZERO))
+                        != (signer == IotaAddress::from(NativeIotaAddress::ZERO))
             )
     }
 }

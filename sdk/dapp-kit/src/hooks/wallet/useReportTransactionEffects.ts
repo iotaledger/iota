@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toBase64 } from '@mysten/sui/utils';
-import type { SuiReportTransactionEffectsInput } from '@mysten/wallet-standard';
+import { toBase64 } from '@iota/iota-sdk/utils';
+import type { IotaReportTransactionEffectsInput } from '@iota/wallet-standard';
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
 
@@ -17,7 +18,7 @@ import { useCurrentAccount } from './useCurrentAccount.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 
 type UseReportTransactionEffectsArgs = Omit<
-	PartialBy<SuiReportTransactionEffectsInput, 'account' | 'chain'>,
+	PartialBy<IotaReportTransactionEffectsInput, 'account' | 'chain'>,
 	'effects'
 > & {
 	effects: string | number[];
@@ -67,7 +68,7 @@ export function useReportTransactionEffects({
 			}
 
 			const reportTransactionEffectsFeature =
-				currentWallet.features['sui:reportTransactionEffects'];
+				currentWallet.features['iota:reportTransactionEffects'];
 
 			if (reportTransactionEffectsFeature) {
 				return await reportTransactionEffectsFeature.reportTransactionEffects({

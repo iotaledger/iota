@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -7,7 +8,7 @@ use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
 
 use serde::{Deserialize, Serialize};
-use sui_rpc_api::CheckpointData;
+use iota_rpc_api::CheckpointData;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -90,7 +91,7 @@ impl<T> CommonHandler<T> {
 
     async fn start_transform_and_load(
         &self,
-        cp_receiver: mysten_metrics::metered_channel::Receiver<(CommitterWatermark, T)>,
+        cp_receiver: iota_metrics::metered_channel::Receiver<(CommitterWatermark, T)>,
         cancel: CancellationToken,
         start_checkpoint: u64,
         end_checkpoint_opt: Option<u64>,
@@ -99,7 +100,7 @@ impl<T> CommonHandler<T> {
             .unwrap_or(CHECKPOINT_COMMIT_BATCH_SIZE.to_string())
             .parse::<usize>()
             .unwrap();
-        let mut stream = mysten_metrics::metered_channel::ReceiverStream::new(cp_receiver)
+        let mut stream = iota_metrics::metered_channel::ReceiverStream::new(cp_receiver)
             .ready_chunks(checkpoint_commit_batch_size);
 
         // Mapping of ordered checkpoint data to ensure that we process them in order. The key is

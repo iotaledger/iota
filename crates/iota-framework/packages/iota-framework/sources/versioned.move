@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui::versioned;
+module iota::versioned;
 
-use sui::dynamic_field;
+use iota::dynamic_field;
 
 /// Failed to upgrade the inner object due to invalid capability or new version.
 const EInvalidUpgrade: u64 = 0;

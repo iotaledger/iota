@@ -1,5 +1,5 @@
 {
-	"name": "@mysten/icons",
+	"name": "@iota/icons",
 	"main": "src/index.ts",
 	"private": true,
 	"sideEffects": false,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::cmp::Ordering;
@@ -21,45 +22,45 @@ use serde_json::Value;
 use serde_with::serde_as;
 use serde_with::DisplayFromStr;
 
-use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{
-    ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber, SuiAddress,
+use iota_protocol_config::ProtocolConfig;
+use iota_types::base_types::{
+    ObjectDigest, ObjectID, ObjectInfo, ObjectRef, ObjectType, SequenceNumber, IotaAddress,
     TransactionDigest,
 };
-use sui_types::error::{
-    ExecutionError, SuiError, SuiObjectResponseError, SuiResult, UserInputError, UserInputResult,
+use iota_types::error::{
+    ExecutionError, IotaError, IotaObjectResponseError, IotaResult, UserInputError, UserInputResult,
 };
-use sui_types::gas_coin::GasCoin;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::move_package::{MovePackage, TypeOrigin, UpgradeInfo};
-use sui_types::object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner};
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_serde::SequenceNumber as AsSequenceNumber;
-use sui_types::sui_serde::SuiStructTag;
+use iota_types::gas_coin::GasCoin;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::move_package::{MovePackage, TypeOrigin, UpgradeInfo};
+use iota_types::object::{Data, MoveObject, Object, ObjectInner, ObjectRead, Owner};
+use iota_types::iota_serde::BigInt;
+use iota_types::iota_serde::SequenceNumber as AsSequenceNumber;
+use iota_types::iota_serde::IotaStructTag;
 
-use crate::{Page, SuiMoveStruct, SuiMoveValue};
+use crate::{Page, IotaMoveStruct, IotaMoveValue};
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
-pub struct SuiObjectResponse {
+pub struct IotaObjectResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<SuiObjectData>,
+    pub data: Option<IotaObjectData>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<SuiObjectResponseError>,
+    pub error: Option<IotaObjectResponseError>,
 }
 
-impl SuiObjectResponse {
-    pub fn new(data: Option<SuiObjectData>, error: Option<SuiObjectResponseError>) -> Self {
+impl IotaObjectResponse {
+    pub fn new(data: Option<IotaObjectData>, error: Option<IotaObjectResponseError>) -> Self {
         Self { data, error }
     }
 
-    pub fn new_with_data(data: SuiObjectData) -> Self {
+    pub fn new_with_data(data: IotaObjectData) -> Self {
         Self {
             data: Some(data),
             error: None,
         }
     }
 
-    pub fn new_with_error(error: SuiObjectResponseError) -> Self {
+    pub fn new_with_error(error: IotaObjectResponseError) -> Self {
         Self {
             data: None,
             error: Some(error),
@@ -67,7 +68,7 @@ impl SuiObjectResponse {
     }
 }
 
-impl Ord for SuiObjectResponse {
+impl Ord for IotaObjectResponse {
     fn cmp(&self, other: &Self) -> Ordering {
         match (&self.data, &other.data) {
             (Some(data), Some(data_2)) => {
@@ -78,26 +79,26 @@ impl Ord for SuiObjectResponse {
                 }
                 Ordering::Equal
             }
-            // In this ordering those with data will come before SuiObjectResponses that are errors.
+            // In this ordering those with data will come before IotaObjectResponses that are errors.
             (Some(_), None) => Ordering::Less,
             (None, Some(_)) => Ordering::Greater,
-            // SuiObjectResponses that are errors are just considered equal.
+            // IotaObjectResponses that are errors are just considered equal.
             _ => Ordering::Equal,
         }
     }
 }
 
-impl PartialOrd for SuiObjectResponse {
+impl PartialOrd for IotaObjectResponse {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl SuiObjectResponse {
+impl IotaObjectResponse {
     pub fn move_object_bcs(&self) -> Option<&Vec<u8>> {
         match &self.data {
-            Some(SuiObjectData {
-                bcs: Some(SuiRawData::MoveObject(obj)),
+            Some(IotaObjectData {
+                bcs: Some(IotaRawData::MoveObject(obj)),
                 ..
             }) => Some(&obj.bcs_bytes),
             _ => None,
@@ -114,16 +115,16 @@ impl SuiObjectResponse {
     pub fn object_id(&self) -> Result<ObjectID, anyhow::Error> {
         match (&self.data, &self.error) {
             (Some(obj_data), None) => Ok(obj_data.object_id),
-            (None, Some(SuiObjectResponseError::NotExists { object_id })) => Ok(*object_id),
+            (None, Some(IotaObjectResponseError::NotExists { object_id })) => Ok(*object_id),
             (
                 None,
-                Some(SuiObjectResponseError::Deleted {
+                Some(IotaObjectResponseError::Deleted {
                     object_id,
                     version: _,
                     digest: _,
                 }),
             ) => Ok(*object_id),
-            _ => Err(anyhow!("Could not get object_id, something went wrong with SuiObjectResponse construction.")),
+            _ => Err(anyhow!("Could not get object_id, something went wrong with IotaObjectResponse construction.")),
         }
     }
 
@@ -135,11 +136,11 @@ impl SuiObjectResponse {
     }
 }
 
-impl TryFrom<SuiObjectResponse> for ObjectInfo {
+impl TryFrom<IotaObjectResponse> for ObjectInfo {
     type Error = anyhow::Error;
 
-    fn try_from(value: SuiObjectResponse) -> Result<Self, Self::Error> {
-        let SuiObjectData {
+    fn try_from(value: IotaObjectResponse) -> Result<Self, Self::Error> {
+        let IotaObjectData {
             object_id,
             version,
             digest,
@@ -164,13 +165,13 @@ impl TryFrom<SuiObjectResponse> for ObjectInfo {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 pub struct DisplayFieldsResponse {
     pub data: Option<BTreeMap<String, String>>,
-    pub error: Option<SuiObjectResponseError>,
+    pub error: Option<IotaObjectResponseError>,
 }
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 #[serde(rename_all = "camelCase", rename = "ObjectData")]
-pub struct SuiObjectData {
+pub struct IotaObjectData {
     pub object_id: ObjectID,
     /// Object version.
     #[schemars(with = "AsSequenceNumber")]
@@ -178,40 +179,40 @@ pub struct SuiObjectData {
     pub version: SequenceNumber,
     /// Base64 string representing the object digest
     pub digest: ObjectDigest,
-    /// The type of the object. Default to be None unless SuiObjectDataOptions.showType is set to true
+    /// The type of the object. Default to be None unless IotaObjectDataOptions.showType is set to true
     #[schemars(with = "Option<String>")]
     #[serde_as(as = "Option<DisplayFromStr>")]
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub type_: Option<ObjectType>,
     // Default to be None because otherwise it will be repeated for the getOwnedObjects endpoint
-    /// The owner of this object. Default to be None unless SuiObjectDataOptions.showOwner is set to true
+    /// The owner of this object. Default to be None unless IotaObjectDataOptions.showOwner is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner: Option<Owner>,
     /// The digest of the transaction that created or last mutated this object. Default to be None unless
-    /// SuiObjectDataOptions.showPreviousTransaction is set to true
+    /// IotaObjectDataOptions.showPreviousTransaction is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
     pub previous_transaction: Option<TransactionDigest>,
-    /// The amount of SUI we would rebate if this object gets deleted.
+    /// The amount of IOTA we would rebate if this object gets deleted.
     /// This number is re-calculated each time the object is mutated based on
     /// the present storage gas price.
     #[schemars(with = "Option<BigInt<u64>>")]
     #[serde_as(as = "Option<BigInt<u64>>")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_rebate: Option<u64>,
-    /// The Display metadata for frontend UI rendering, default to be None unless SuiObjectDataOptions.showContent is set to true
+    /// The Display metadata for frontend UI rendering, default to be None unless IotaObjectDataOptions.showContent is set to true
     /// This can also be None if the struct type does not have Display defined
-    /// See more details in <https://forums.sui.io/t/nft-object-display-proposal/4872>
+    /// See more details in <https://forums.iota.io/t/nft-object-display-proposal/4872>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayFieldsResponse>,
-    /// Move object content or package content, default to be None unless SuiObjectDataOptions.showContent is set to true
+    /// Move object content or package content, default to be None unless IotaObjectDataOptions.showContent is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub content: Option<SuiParsedData>,
-    /// Move object content or package content in BCS, default to be None unless SuiObjectDataOptions.showBcs is set to true
+    pub content: Option<IotaParsedData>,
+    /// Move object content or package content in BCS, default to be None unless IotaObjectDataOptions.showBcs is set to true
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub bcs: Option<SuiRawData>,
+    pub bcs: Option<IotaRawData>,
 }
 
-impl SuiObjectData {
+impl IotaObjectData {
     pub fn object_ref(&self) -> ObjectRef {
         (self.object_id, self.version, self.digest)
     }
@@ -232,7 +233,7 @@ impl SuiObjectData {
     }
 }
 
-impl Display for SuiObjectData {
+impl Display for IotaObjectData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let type_ = if let Some(type_) = &self.type_ {
             type_.to_string()
@@ -281,20 +282,20 @@ impl Display for SuiObjectData {
     }
 }
 
-impl TryFrom<&SuiObjectData> for GasCoin {
+impl TryFrom<&IotaObjectData> for GasCoin {
     type Error = anyhow::Error;
-    fn try_from(object: &SuiObjectData) -> Result<Self, Self::Error> {
+    fn try_from(object: &IotaObjectData) -> Result<Self, Self::Error> {
         match &object
             .content
             .as_ref()
             .ok_or_else(|| anyhow!("Expect object content to not be empty"))?
         {
-            SuiParsedData::MoveObject(o) => {
+            IotaParsedData::MoveObject(o) => {
                 if GasCoin::type_() == o.type_ {
                     return GasCoin::try_from(&o.fields);
                 }
             }
-            SuiParsedData::Package(_) => {}
+            IotaParsedData::Package(_) => {}
         }
 
         Err(anyhow!(
@@ -304,14 +305,14 @@ impl TryFrom<&SuiObjectData> for GasCoin {
     }
 }
 
-impl TryFrom<&SuiMoveStruct> for GasCoin {
+impl TryFrom<&IotaMoveStruct> for GasCoin {
     type Error = anyhow::Error;
-    fn try_from(move_struct: &SuiMoveStruct) -> Result<Self, Self::Error> {
+    fn try_from(move_struct: &IotaMoveStruct) -> Result<Self, Self::Error> {
         match move_struct {
-            SuiMoveStruct::WithFields(fields) | SuiMoveStruct::WithTypes { type_: _, fields } => {
-                if let Some(SuiMoveValue::String(balance)) = fields.get("balance") {
+            IotaMoveStruct::WithFields(fields) | IotaMoveStruct::WithTypes { type_: _, fields } => {
+                if let Some(IotaMoveValue::String(balance)) = fields.get("balance") {
                     if let Ok(balance) = balance.parse::<u64>() {
-                        if let Some(SuiMoveValue::UID { id }) = fields.get("id") {
+                        if let Some(IotaMoveValue::UID { id }) = fields.get("id") {
                             return Ok(GasCoin::new(*id, balance));
                         }
                     }
@@ -325,7 +326,7 @@ impl TryFrom<&SuiMoveStruct> for GasCoin {
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Eq, PartialEq, Default)]
 #[serde(rename_all = "camelCase", rename = "ObjectDataOptions", default)]
-pub struct SuiObjectDataOptions {
+pub struct IotaObjectDataOptions {
     /// Whether to show the type of the object. Default to be False
     pub show_type: bool,
     /// Whether to show the owner of the object. Default to be False
@@ -343,7 +344,7 @@ pub struct SuiObjectDataOptions {
     pub show_storage_rebate: bool,
 }
 
-impl SuiObjectDataOptions {
+impl IotaObjectDataOptions {
     pub fn new() -> Self {
         Self::default()
     }
@@ -409,22 +410,22 @@ impl SuiObjectDataOptions {
     }
 }
 
-impl TryFrom<(ObjectRead, SuiObjectDataOptions)> for SuiObjectResponse {
+impl TryFrom<(ObjectRead, IotaObjectDataOptions)> for IotaObjectResponse {
     type Error = anyhow::Error;
 
     fn try_from(
-        (object_read, options): (ObjectRead, SuiObjectDataOptions),
+        (object_read, options): (ObjectRead, IotaObjectDataOptions),
     ) -> Result<Self, Self::Error> {
         match object_read {
-            ObjectRead::NotExists(id) => Ok(SuiObjectResponse::new_with_error(
-                SuiObjectResponseError::NotExists { object_id: id },
+            ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+                IotaObjectResponseError::NotExists { object_id: id },
             )),
             ObjectRead::Exists(object_ref, o, layout) => {
                 let data = (object_ref, o, layout, options).try_into()?;
-                Ok(SuiObjectResponse::new_with_data(data))
+                Ok(IotaObjectResponse::new_with_data(data))
             }
             ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                SuiObjectResponse::new_with_error(SuiObjectResponseError::Deleted {
+                IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
                     object_id,
                     version,
                     digest,
@@ -434,20 +435,20 @@ impl TryFrom<(ObjectRead, SuiObjectDataOptions)> for SuiObjectResponse {
     }
 }
 
-impl TryFrom<(ObjectInfo, SuiObjectDataOptions)> for SuiObjectResponse {
+impl TryFrom<(ObjectInfo, IotaObjectDataOptions)> for IotaObjectResponse {
     type Error = anyhow::Error;
 
     fn try_from(
-        (object_info, options): (ObjectInfo, SuiObjectDataOptions),
+        (object_info, options): (ObjectInfo, IotaObjectDataOptions),
     ) -> Result<Self, Self::Error> {
-        let SuiObjectDataOptions {
+        let IotaObjectDataOptions {
             show_type,
             show_owner,
             show_previous_transaction,
             ..
         } = options;
 
-        Ok(Self::new_with_data(SuiObjectData {
+        Ok(Self::new_with_data(IotaObjectData {
             object_id: object_info.object_id,
             version: object_info.version,
             digest: object_info.digest,
@@ -468,8 +469,8 @@ impl
         ObjectRef,
         Object,
         Option<MoveStructLayout>,
-        SuiObjectDataOptions,
-    )> for SuiObjectData
+        IotaObjectDataOptions,
+    )> for IotaObjectData
 {
     type Error = anyhow::Error;
 
@@ -478,10 +479,10 @@ impl
             ObjectRef,
             Object,
             Option<MoveStructLayout>,
-            SuiObjectDataOptions,
+            IotaObjectDataOptions,
         ),
     ) -> Result<Self, Self::Error> {
-        let SuiObjectDataOptions {
+        let IotaObjectDataOptions {
             show_type,
             show_owner,
             show_previous_transaction,
@@ -498,15 +499,15 @@ impl
             None
         };
 
-        let bcs: Option<SuiRawData> = if show_bcs {
+        let bcs: Option<IotaRawData> = if show_bcs {
             let data = match o.data.clone() {
                 Data::Move(m) => {
                     let layout = layout.clone().ok_or_else(|| {
                         anyhow!("Layout is required to convert Move object to json")
                     })?;
-                    SuiRawData::try_from_object(m, layout)?
+                    IotaRawData::try_from_object(m, layout)?
                 }
-                Data::Package(p) => SuiRawData::try_from_package(p)
+                Data::Package(p) => IotaRawData::try_from_package(p)
                     .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
             };
             Some(data)
@@ -516,22 +517,22 @@ impl
 
         let o = o.into_inner();
 
-        let content: Option<SuiParsedData> = if show_content {
+        let content: Option<IotaParsedData> = if show_content {
             let data = match o.data {
                 Data::Move(m) => {
                     let layout = layout.ok_or_else(|| {
                         anyhow!("Layout is required to convert Move object to json")
                     })?;
-                    SuiParsedData::try_from_object(m, layout)?
+                    IotaParsedData::try_from_object(m, layout)?
                 }
-                Data::Package(p) => SuiParsedData::try_from_package(p)?,
+                Data::Package(p) => IotaParsedData::try_from_package(p)?,
             };
             Some(data)
         } else {
             None
         };
 
-        Ok(SuiObjectData {
+        Ok(IotaObjectData {
             object_id,
             version,
             digest,
@@ -559,9 +560,9 @@ impl
         ObjectRef,
         Object,
         Option<MoveStructLayout>,
-        SuiObjectDataOptions,
+        IotaObjectDataOptions,
         Option<DisplayFieldsResponse>,
-    )> for SuiObjectData
+    )> for IotaObjectData
 {
     type Error = anyhow::Error;
 
@@ -570,12 +571,12 @@ impl
             ObjectRef,
             Object,
             Option<MoveStructLayout>,
-            SuiObjectDataOptions,
+            IotaObjectDataOptions,
             Option<DisplayFieldsResponse>,
         ),
     ) -> Result<Self, Self::Error> {
         let show_display = options.show_display;
-        let mut data: SuiObjectData = (object_ref, o, layout, options).try_into()?;
+        let mut data: IotaObjectData = (object_ref, o, layout, options).try_into()?;
         if show_display {
             data.display = display_fields;
         }
@@ -583,23 +584,23 @@ impl
     }
 }
 
-impl SuiObjectResponse {
+impl IotaObjectResponse {
     /// Returns a reference to the object if there is any, otherwise an Err if
     /// the object does not exist or is deleted.
-    pub fn object(&self) -> Result<&SuiObjectData, SuiObjectResponseError> {
+    pub fn object(&self) -> Result<&IotaObjectData, IotaObjectResponseError> {
         if let Some(data) = &self.data {
             Ok(data)
         } else if let Some(error) = &self.error {
             Err(error.clone())
         } else {
             // We really shouldn't reach this code block since either data, or error field should always be filled.
-            Err(SuiObjectResponseError::Unknown)
+            Err(IotaObjectResponseError::Unknown)
         }
     }
 
     /// Returns the object value if there is any, otherwise an Err if
     /// the object does not exist or is deleted.
-    pub fn into_object(self) -> Result<SuiObjectData, SuiObjectResponseError> {
+    pub fn into_object(self) -> Result<IotaObjectData, IotaObjectResponseError> {
         match self.object() {
             Ok(data) => Ok(data.clone()),
             Err(error) => Err(error),
@@ -607,13 +608,13 @@ impl SuiObjectResponse {
     }
 }
 
-impl TryInto<Object> for SuiObjectData {
+impl TryInto<Object> for IotaObjectData {
     type Error = anyhow::Error;
 
     fn try_into(self) -> Result<Object, Self::Error> {
         let protocol_config = ProtocolConfig::get_for_min_version();
         let data = match self.bcs {
-            Some(SuiRawData::MoveObject(o)) => Data::Move(unsafe {
+            Some(IotaRawData::MoveObject(o)) => Data::Move(unsafe {
                 MoveObject::new_from_execution(
                     o.type_().clone().into(),
                     o.has_public_transfer,
@@ -622,7 +623,7 @@ impl TryInto<Object> for SuiObjectData {
                     &protocol_config,
                 )?
             }),
-            Some(SuiRawData::Package(p)) => Data::Package(MovePackage::new(
+            Some(IotaRawData::Package(p)) => Data::Package(MovePackage::new(
                 p.id,
                 self.version,
                 p.module_map,
@@ -631,19 +632,19 @@ impl TryInto<Object> for SuiObjectData {
                 p.linkage_table,
             )?),
             _ => Err(anyhow!(
-                "BCS data is required to convert SuiObjectData to Object"
+                "BCS data is required to convert IotaObjectData to Object"
             ))?,
         };
         Ok(ObjectInner {
             data,
             owner: self
                 .owner
-                .ok_or_else(|| anyhow!("Owner is required to convert SuiObjectData to Object"))?,
+                .ok_or_else(|| anyhow!("Owner is required to convert IotaObjectData to Object"))?,
             previous_transaction: self.previous_transaction.ok_or_else(|| {
-                anyhow!("previous_transaction is required to convert SuiObjectData to Object")
+                anyhow!("previous_transaction is required to convert IotaObjectData to Object")
             })?,
             storage_rebate: self.storage_rebate.ok_or_else(|| {
-                anyhow!("storage_rebate is required to convert SuiObjectData to Object")
+                anyhow!("storage_rebate is required to convert IotaObjectData to Object")
             })?,
         }
         .into())
@@ -652,7 +653,7 @@ impl TryInto<Object> for SuiObjectData {
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Eq, PartialEq, Ord, PartialOrd)]
 #[serde(rename_all = "camelCase", rename = "ObjectRef")]
-pub struct SuiObjectRef {
+pub struct IotaObjectRef {
     /// Hex code as string representing the object id
     pub object_id: ObjectID,
     /// Object version.
@@ -661,13 +662,13 @@ pub struct SuiObjectRef {
     pub digest: ObjectDigest,
 }
 
-impl SuiObjectRef {
+impl IotaObjectRef {
     pub fn to_object_ref(&self) -> ObjectRef {
         (self.object_id, self.version, self.digest)
     }
 }
 
-impl Display for SuiObjectRef {
+impl Display for IotaObjectRef {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -677,7 +678,7 @@ impl Display for SuiObjectRef {
     }
 }
 
-impl From<ObjectRef> for SuiObjectRef {
+impl From<ObjectRef> for IotaObjectRef {
     fn from(oref: ObjectRef) -> Self {
         Self {
             object_id: oref.0,
@@ -687,7 +688,7 @@ impl From<ObjectRef> for SuiObjectRef {
     }
 }
 
-pub trait SuiData: Sized {
+pub trait IotaData: Sized {
     type ObjectType;
     type PackageType;
     fn try_from_object(object: MoveObject, layout: MoveStructLayout)
@@ -701,15 +702,15 @@ pub trait SuiData: Sized {
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(tag = "dataType", rename_all = "camelCase", rename = "RawData")]
-pub enum SuiRawData {
+pub enum IotaRawData {
     // Manually handle generic schema generation
-    MoveObject(SuiRawMoveObject),
-    Package(SuiRawMovePackage),
+    MoveObject(IotaRawMoveObject),
+    Package(IotaRawMovePackage),
 }
 
-impl SuiData for SuiRawData {
-    type ObjectType = SuiRawMoveObject;
-    type PackageType = SuiRawMovePackage;
+impl IotaData for IotaRawData {
+    type ObjectType = IotaRawMoveObject;
+    type PackageType = IotaRawMovePackage;
 
     fn try_from_object(object: MoveObject, _: MoveStructLayout) -> Result<Self, anyhow::Error> {
         Ok(Self::MoveObject(object.into()))
@@ -750,27 +751,27 @@ impl SuiData for SuiRawData {
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(tag = "dataType", rename_all = "camelCase", rename = "Data")]
-pub enum SuiParsedData {
+pub enum IotaParsedData {
     // Manually handle generic schema generation
-    MoveObject(SuiParsedMoveObject),
-    Package(SuiMovePackage),
+    MoveObject(IotaParsedMoveObject),
+    Package(IotaMovePackage),
 }
 
-impl SuiData for SuiParsedData {
-    type ObjectType = SuiParsedMoveObject;
-    type PackageType = SuiMovePackage;
+impl IotaData for IotaParsedData {
+    type ObjectType = IotaParsedMoveObject;
+    type PackageType = IotaMovePackage;
 
     fn try_from_object(
         object: MoveObject,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
-        Ok(Self::MoveObject(SuiParsedMoveObject::try_from_layout(
+        Ok(Self::MoveObject(IotaParsedMoveObject::try_from_layout(
             object, layout,
         )?))
     }
 
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error> {
-        Ok(Self::Package(SuiMovePackage {
+        Ok(Self::Package(IotaMovePackage {
             disassembled: package.disassemble()?,
         }))
     }
@@ -804,15 +805,15 @@ impl SuiData for SuiParsedData {
     }
 }
 
-impl Display for SuiParsedData {
+impl Display for IotaParsedData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         match self {
-            SuiParsedData::MoveObject(o) => {
+            IotaParsedData::MoveObject(o) => {
                 writeln!(writer, "{}: {}", "type".bold().bright_black(), o.type_)?;
                 write!(writer, "{}", &o.fields)?;
             }
-            SuiParsedData::Package(p) => {
+            IotaParsedData::Package(p) => {
                 write!(
                     writer,
                     "{}: {:?}",
@@ -825,7 +826,7 @@ impl Display for SuiParsedData {
     }
 }
 
-impl SuiParsedData {
+impl IotaParsedData {
     pub fn try_from_object_read(object_read: ObjectRead) -> Result<Self, anyhow::Error> {
         match object_read {
             ObjectRead::NotExists(id) => Err(anyhow::anyhow!("Object {} does not exist", id)),
@@ -835,9 +836,9 @@ impl SuiParsedData {
                         let layout = layout.ok_or_else(|| {
                             anyhow!("Layout is required to convert Move object to json")
                         })?;
-                        SuiParsedData::try_from_object(m, layout)?
+                        IotaParsedData::try_from_object(m, layout)?
                     }
-                    Data::Package(p) => SuiParsedData::try_from_package(p)?,
+                    Data::Package(p) => IotaParsedData::try_from_package(p)?,
                 };
                 Ok(data)
             }
@@ -851,7 +852,7 @@ impl SuiParsedData {
     }
 }
 
-pub trait SuiMoveObject: Sized {
+pub trait IotaMoveObject: Sized {
     fn try_from_layout(object: MoveObject, layout: MoveStructLayout)
         -> Result<Self, anyhow::Error>;
 
@@ -866,16 +867,16 @@ pub trait SuiMoveObject: Sized {
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "MoveObject", rename_all = "camelCase")]
-pub struct SuiParsedMoveObject {
+pub struct IotaParsedMoveObject {
     #[serde(rename = "type")]
-    #[serde_as(as = "SuiStructTag")]
+    #[serde_as(as = "IotaStructTag")]
     #[schemars(with = "String")]
     pub type_: StructTag,
     pub has_public_transfer: bool,
-    pub fields: SuiMoveStruct,
+    pub fields: IotaMoveStruct,
 }
 
-impl SuiMoveObject for SuiParsedMoveObject {
+impl IotaMoveObject for IotaParsedMoveObject {
     fn try_from_layout(
         object: MoveObject,
         layout: MoveStructLayout,
@@ -883,14 +884,14 @@ impl SuiMoveObject for SuiParsedMoveObject {
         let move_struct = object.to_move_struct(&layout)?.into();
 
         Ok(
-            if let SuiMoveStruct::WithTypes { type_, fields } = move_struct {
-                SuiParsedMoveObject {
+            if let IotaMoveStruct::WithTypes { type_, fields } = move_struct {
+                IotaParsedMoveObject {
                     type_,
                     has_public_transfer: object.has_public_transfer(),
-                    fields: SuiMoveStruct::WithFields(fields),
+                    fields: IotaMoveStruct::WithFields(fields),
                 }
             } else {
-                SuiParsedMoveObject {
+                IotaParsedMoveObject {
                     type_: object.type_().clone().into(),
                     has_public_transfer: object.has_public_transfer(),
                     fields: move_struct,
@@ -904,36 +905,36 @@ impl SuiMoveObject for SuiParsedMoveObject {
     }
 }
 
-impl SuiParsedMoveObject {
+impl IotaParsedMoveObject {
     pub fn try_from_object_read(object_read: ObjectRead) -> Result<Self, anyhow::Error> {
-        let parsed_data = SuiParsedData::try_from_object_read(object_read)?;
+        let parsed_data = IotaParsedData::try_from_object_read(object_read)?;
         match parsed_data {
-            SuiParsedData::MoveObject(o) => Ok(o),
-            SuiParsedData::Package(_) => Err(anyhow::anyhow!("Object is not a Move object")),
+            IotaParsedData::MoveObject(o) => Ok(o),
+            IotaParsedData::Package(_) => Err(anyhow::anyhow!("Object is not a Move object")),
         }
     }
 }
 
 pub fn type_and_fields_from_move_event_data(
     event_data: MoveValue,
-) -> SuiResult<(StructTag, serde_json::Value)> {
+) -> IotaResult<(StructTag, serde_json::Value)> {
     match event_data.into() {
-        SuiMoveValue::Struct(move_struct) => match &move_struct {
-            SuiMoveStruct::WithTypes { type_, .. } => {
+        IotaMoveValue::Struct(move_struct) => match &move_struct {
+            IotaMoveStruct::WithTypes { type_, .. } => {
                 Ok((type_.clone(), move_struct.clone().to_json_value()))
             }
-            _ => Err(SuiError::ObjectDeserializationError {
-                error: "Found non-type SuiMoveStruct in MoveValue event".to_string(),
+            _ => Err(IotaError::ObjectDeserializationError {
+                error: "Found non-type IotaMoveStruct in MoveValue event".to_string(),
             }),
         },
-        SuiMoveValue::Variant(v) => Ok((v.type_.clone(), v.clone().to_json_value())),
-        SuiMoveValue::Vector(_)
-        | SuiMoveValue::Number(_)
-        | SuiMoveValue::Bool(_)
-        | SuiMoveValue::Address(_)
-        | SuiMoveValue::String(_)
-        | SuiMoveValue::UID { .. }
-        | SuiMoveValue::Option(_) => Err(SuiError::ObjectDeserializationError {
+        IotaMoveValue::Variant(v) => Ok((v.type_.clone(), v.clone().to_json_value())),
+        IotaMoveValue::Vector(_)
+        | IotaMoveValue::Number(_)
+        | IotaMoveValue::Bool(_)
+        | IotaMoveValue::Address(_)
+        | IotaMoveValue::String(_)
+        | IotaMoveValue::UID { .. }
+        | IotaMoveValue::Option(_) => Err(IotaError::ObjectDeserializationError {
             error: "Invalid MoveValue event type -- this should not be possible".to_string(),
         }),
     }
@@ -942,10 +943,10 @@ pub fn type_and_fields_from_move_event_data(
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "RawMoveObject", rename_all = "camelCase")]
-pub struct SuiRawMoveObject {
+pub struct IotaRawMoveObject {
     #[schemars(with = "String")]
     #[serde(rename = "type")]
-    #[serde_as(as = "SuiStructTag")]
+    #[serde_as(as = "IotaStructTag")]
     pub type_: StructTag,
     pub has_public_transfer: bool,
     pub version: SequenceNumber,
@@ -954,7 +955,7 @@ pub struct SuiRawMoveObject {
     pub bcs_bytes: Vec<u8>,
 }
 
-impl From<MoveObject> for SuiRawMoveObject {
+impl From<MoveObject> for IotaRawMoveObject {
     fn from(o: MoveObject) -> Self {
         Self {
             type_: o.type_().clone().into(),
@@ -965,7 +966,7 @@ impl From<MoveObject> for SuiRawMoveObject {
     }
 }
 
-impl SuiMoveObject for SuiRawMoveObject {
+impl IotaMoveObject for IotaRawMoveObject {
     fn try_from_layout(
         object: MoveObject,
         _layout: MoveStructLayout,
@@ -983,7 +984,7 @@ impl SuiMoveObject for SuiRawMoveObject {
     }
 }
 
-impl SuiRawMoveObject {
+impl IotaRawMoveObject {
     pub fn deserialize<'a, T: Deserialize<'a>>(&'a self) -> Result<T, anyhow::Error> {
         Ok(bcs::from_bytes(self.bcs_bytes.as_slice())?)
     }
@@ -992,7 +993,7 @@ impl SuiRawMoveObject {
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "RawMovePackage", rename_all = "camelCase")]
-pub struct SuiRawMovePackage {
+pub struct IotaRawMovePackage {
     pub id: ObjectID,
     pub version: SequenceNumber,
     #[schemars(with = "BTreeMap<String, Base64>")]
@@ -1002,7 +1003,7 @@ pub struct SuiRawMovePackage {
     pub linkage_table: BTreeMap<ObjectID, UpgradeInfo>,
 }
 
-impl From<MovePackage> for SuiRawMovePackage {
+impl From<MovePackage> for IotaRawMovePackage {
     fn from(p: MovePackage) -> Self {
         Self {
             id: p.id(),
@@ -1014,7 +1015,7 @@ impl From<MovePackage> for SuiRawMovePackage {
     }
 }
 
-impl SuiRawMovePackage {
+impl IotaRawMovePackage {
     pub fn to_move_package(
         &self,
         max_move_package_size: u64,
@@ -1032,13 +1033,13 @@ impl SuiRawMovePackage {
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
 #[serde(tag = "status", content = "details", rename = "ObjectRead")]
-pub enum SuiPastObjectResponse {
+pub enum IotaPastObjectResponse {
     /// The object exists and is found with this version
-    VersionFound(SuiObjectData),
+    VersionFound(IotaObjectData),
     /// The object does not exist
     ObjectNotExists(ObjectID),
     /// The object is found to be deleted with this version
-    ObjectDeleted(SuiObjectRef),
+    ObjectDeleted(IotaObjectRef),
     /// The object exists but not found with this version
     VersionNotFound(ObjectID, SequenceNumber),
     /// The asked object version is higher than the latest
@@ -1049,9 +1050,9 @@ pub enum SuiPastObjectResponse {
     },
 }
 
-impl SuiPastObjectResponse {
+impl IotaPastObjectResponse {
     /// Returns a reference to the object if there is any, otherwise an Err
-    pub fn object(&self) -> UserInputResult<&SuiObjectData> {
+    pub fn object(&self) -> UserInputResult<&IotaObjectData> {
         match &self {
             Self::ObjectDeleted(oref) => Err(UserInputError::ObjectDeleted {
                 object_ref: oref.to_object_ref(),
@@ -1078,7 +1079,7 @@ impl SuiPastObjectResponse {
     }
 
     /// Returns the object value if there is any, otherwise an Err
-    pub fn into_object(self) -> UserInputResult<SuiObjectData> {
+    pub fn into_object(self) -> UserInputResult<IotaObjectData> {
         match self {
             Self::ObjectDeleted(oref) => Err(UserInputError::ObjectDeleted {
                 object_ref: oref.to_object_ref(),
@@ -1107,12 +1108,12 @@ impl SuiPastObjectResponse {
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "MovePackage", rename_all = "camelCase")]
-pub struct SuiMovePackage {
+pub struct IotaMovePackage {
     pub disassembled: BTreeMap<String, Value>,
 }
 
-pub type QueryObjectsPage = Page<SuiObjectResponse, CheckpointedObjectID>;
-pub type ObjectsPage = Page<SuiObjectResponse, ObjectID>;
+pub type QueryObjectsPage = Page<IotaObjectResponse, CheckpointedObjectID>;
+pub type ObjectsPage = Page<IotaObjectResponse, ObjectID>;
 
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Copy, Eq, PartialEq)]
@@ -1128,7 +1129,7 @@ pub struct CheckpointedObjectID {
 #[serde_as]
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(rename = "GetPastObjectRequest", rename_all = "camelCase")]
-pub struct SuiGetPastObjectRequest {
+pub struct IotaGetPastObjectRequest {
     /// the ID of the queried object
     pub object_id: ObjectID,
     /// the version of the queried object.
@@ -1139,10 +1140,10 @@ pub struct SuiGetPastObjectRequest {
 
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub enum SuiObjectDataFilter {
-    MatchAll(Vec<SuiObjectDataFilter>),
-    MatchAny(Vec<SuiObjectDataFilter>),
-    MatchNone(Vec<SuiObjectDataFilter>),
+pub enum IotaObjectDataFilter {
+    MatchAll(Vec<IotaObjectDataFilter>),
+    MatchAny(Vec<IotaObjectDataFilter>),
+    MatchNone(Vec<IotaObjectDataFilter>),
     /// Query by type a specified Package.
     Package(ObjectID),
     /// Query by type a specified Move module.
@@ -1157,10 +1158,10 @@ pub enum SuiObjectDataFilter {
     /// Query by type
     StructType(
         #[schemars(with = "String")]
-        #[serde_as(as = "SuiStructTag")]
+        #[serde_as(as = "IotaStructTag")]
         StructTag,
     ),
-    AddressOwner(SuiAddress),
+    AddressOwner(IotaAddress),
     ObjectOwner(ObjectID),
     ObjectId(ObjectID),
     // allow querying for multiple object ids
@@ -1172,7 +1173,7 @@ pub enum SuiObjectDataFilter {
     ),
 }
 
-impl SuiObjectDataFilter {
+impl IotaObjectDataFilter {
     pub fn gas_coin() -> Self {
         Self::StructType(GasCoin::type_())
     }
@@ -1189,16 +1190,16 @@ impl SuiObjectDataFilter {
 
     pub fn matches(&self, object: &ObjectInfo) -> bool {
         match self {
-            SuiObjectDataFilter::MatchAll(filters) => !filters.iter().any(|f| !f.matches(object)),
-            SuiObjectDataFilter::MatchAny(filters) => filters.iter().any(|f| f.matches(object)),
-            SuiObjectDataFilter::MatchNone(filters) => !filters.iter().any(|f| f.matches(object)),
-            SuiObjectDataFilter::StructType(s) => {
+            IotaObjectDataFilter::MatchAll(filters) => !filters.iter().any(|f| !f.matches(object)),
+            IotaObjectDataFilter::MatchAny(filters) => filters.iter().any(|f| f.matches(object)),
+            IotaObjectDataFilter::MatchNone(filters) => !filters.iter().any(|f| f.matches(object)),
+            IotaObjectDataFilter::StructType(s) => {
                 let obj_tag: StructTag = match &object.type_ {
                     ObjectType::Package => return false,
                     ObjectType::Struct(s) => s.clone().into(),
                 };
                 // If people do not provide type_params, we will match all type_params
-                // e.g. `0x2::coin::Coin` can match `0x2::coin::Coin<0x2::sui::SUI>`
+                // e.g. `0x2::coin::Coin` can match `0x2::coin::Coin<0x2::iota::IOTA>`
                 if !s.type_params.is_empty() && s.type_params != obj_tag.type_params {
                     false
                 } else {
@@ -1207,48 +1208,48 @@ impl SuiObjectDataFilter {
                         && obj_tag.name == s.name
                 }
             }
-            SuiObjectDataFilter::MoveModule { package, module } => {
+            IotaObjectDataFilter::MoveModule { package, module } => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == package
                         && s.module() == module.as_ident_str())
             }
-            SuiObjectDataFilter::Package(p) => {
+            IotaObjectDataFilter::Package(p) => {
                 matches!(&object.type_, ObjectType::Struct(s) if &ObjectID::from(s.address()) == p)
             }
-            SuiObjectDataFilter::AddressOwner(a) => {
+            IotaObjectDataFilter::AddressOwner(a) => {
                 matches!(object.owner, Owner::AddressOwner(addr) if &addr == a)
             }
-            SuiObjectDataFilter::ObjectOwner(o) => {
-                matches!(object.owner, Owner::ObjectOwner(addr) if addr == SuiAddress::from(*o))
+            IotaObjectDataFilter::ObjectOwner(o) => {
+                matches!(object.owner, Owner::ObjectOwner(addr) if addr == IotaAddress::from(*o))
             }
-            SuiObjectDataFilter::ObjectId(id) => &object.object_id == id,
-            SuiObjectDataFilter::ObjectIds(ids) => ids.contains(&object.object_id),
-            SuiObjectDataFilter::Version(v) => object.version.value() == *v,
+            IotaObjectDataFilter::ObjectId(id) => &object.object_id == id,
+            IotaObjectDataFilter::ObjectIds(ids) => ids.contains(&object.object_id),
+            IotaObjectDataFilter::Version(v) => object.version.value() == *v,
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(rename_all = "camelCase", rename = "ObjectResponseQuery", default)]
-pub struct SuiObjectResponseQuery {
+pub struct IotaObjectResponseQuery {
     /// If None, no filter will be applied
-    pub filter: Option<SuiObjectDataFilter>,
+    pub filter: Option<IotaObjectDataFilter>,
     /// config which fields to include in the response, by default only digest is included
-    pub options: Option<SuiObjectDataOptions>,
+    pub options: Option<IotaObjectDataOptions>,
 }
 
-impl SuiObjectResponseQuery {
-    pub fn new(filter: Option<SuiObjectDataFilter>, options: Option<SuiObjectDataOptions>) -> Self {
+impl IotaObjectResponseQuery {
+    pub fn new(filter: Option<IotaObjectDataFilter>, options: Option<IotaObjectDataOptions>) -> Self {
         Self { filter, options }
     }
 
-    pub fn new_with_filter(filter: SuiObjectDataFilter) -> Self {
+    pub fn new_with_filter(filter: IotaObjectDataFilter) -> Self {
         Self {
             filter: Some(filter),
             options: None,
         }
     }
 
-    pub fn new_with_options(options: SuiObjectDataOptions) -> Self {
+    pub fn new_with_options(options: IotaObjectDataOptions) -> Self {
         Self {
             filter: None,
             options: Some(options),

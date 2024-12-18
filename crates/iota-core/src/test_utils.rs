@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::hash::MultisetHash;
@@ -11,31 +12,31 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_config::genesis::Genesis;
-use sui_config::local_ip_utils;
-use sui_config::node::AuthorityOverloadConfig;
-use sui_framework::BuiltInFramework;
-use sui_genesis_builder::validator_info::ValidatorInfo;
-use sui_macros::nondeterministic;
-use sui_move_build::{BuildConfig, CompiledPackage, SuiPackageHooks};
-use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{random_object_ref, ObjectID};
-use sui_types::crypto::{
+use iota_config::genesis::Genesis;
+use iota_config::local_ip_utils;
+use iota_config::node::AuthorityOverloadConfig;
+use iota_framework::BuiltInFramework;
+use iota_genesis_builder::validator_info::ValidatorInfo;
+use iota_macros::nondeterministic;
+use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
+use iota_protocol_config::ProtocolConfig;
+use iota_types::base_types::{random_object_ref, ObjectID};
+use iota_types::crypto::{
     generate_proof_of_possession, get_key_pair, AccountKeyPair, AuthorityPublicKeyBytes,
-    NetworkKeyPair, SuiKeyPair,
+    NetworkKeyPair, IotaKeyPair,
 };
-use sui_types::crypto::{AuthorityKeyPair, Signer};
-use sui_types::effects::{SignedTransactionEffects, TestEffectsBuilder};
-use sui_types::error::SuiError;
-use sui_types::signature_verification::VerifiedDigestCache;
-use sui_types::transaction::ObjectArg;
-use sui_types::transaction::{
+use iota_types::crypto::{AuthorityKeyPair, Signer};
+use iota_types::effects::{SignedTransactionEffects, TestEffectsBuilder};
+use iota_types::error::IotaError;
+use iota_types::signature_verification::VerifiedDigestCache;
+use iota_types::transaction::ObjectArg;
+use iota_types::transaction::{
     CallArg, SignedTransaction, Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
 };
-use sui_types::utils::create_fake_transaction;
-use sui_types::utils::to_sender_signed_transaction;
-use sui_types::{
-    base_types::{AuthorityName, ExecutionDigests, ObjectRef, SuiAddress, TransactionDigest},
+use iota_types::utils::create_fake_transaction;
+use iota_types::utils::to_sender_signed_transaction;
+use iota_types::{
+    base_types::{AuthorityName, ExecutionDigests, ObjectRef, IotaAddress, TransactionDigest},
     committee::Committee,
     crypto::{AuthoritySignInfo, AuthoritySignature},
     message_envelope::Message,
@@ -56,7 +57,7 @@ pub async fn send_and_confirm_transaction(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
     transaction: Transaction,
-) -> Result<(CertifiedTransaction, SignedTransactionEffects), SuiError> {
+) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     // Make the initial request
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
@@ -112,7 +113,7 @@ where
     R: rand::CryptoRng + rand::RngCore,
 {
     let dir = nondeterministic!(tempfile::TempDir::new().unwrap());
-    let network_config = sui_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
+    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
         .rng(rng)
         .build();
     let genesis = network_config.genesis;
@@ -174,7 +175,7 @@ pub fn create_fake_cert_and_effect_digest<'a>(
                 AuthoritySignInfo::new(
                     committee.epoch,
                     transaction.data(),
-                    Intent::sui_app(IntentScope::SenderSignedTransaction),
+                    Intent::iota_app(IntentScope::SenderSignedTransaction),
                     *name,
                     signer,
                 )
@@ -195,11 +196,11 @@ pub fn compile_basics_package() -> CompiledPackage {
 }
 
 pub fn compile_managed_coin_package() -> CompiledPackage {
-    compile_example_package("../../crates/sui-core/src/unit_tests/data/managed_coin")
+    compile_example_package("../../crates/iota-core/src/unit_tests/data/managed_coin")
 }
 
 pub fn compile_example_package(relative_path: &str) -> CompiledPackage {
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push(relative_path);
 
@@ -229,20 +230,20 @@ async fn init_genesis(
     let pkg_id = pkg.id();
     genesis_objects.push(pkg);
 
-    let mut builder = sui_genesis_builder::Builder::new().add_objects(genesis_objects);
+    let mut builder = iota_genesis_builder::Builder::new().add_objects(genesis_objects);
     let mut key_pairs = Vec::new();
     for i in 0..committee_size {
         let key_pair: AuthorityKeyPair = get_key_pair().1;
         let authority_name = key_pair.public().into();
         let worker_key_pair: NetworkKeyPair = get_key_pair().1;
         let worker_name = worker_key_pair.public().clone();
-        let account_key_pair: SuiKeyPair = get_key_pair::<AccountKeyPair>().1.into();
+        let account_key_pair: IotaKeyPair = get_key_pair::<AccountKeyPair>().1.into();
         let network_key_pair: NetworkKeyPair = get_key_pair().1;
         let validator_info = ValidatorInfo {
             name: format!("validator-{i}"),
             protocol_key: authority_name,
             worker_key: worker_name,
-            account_address: SuiAddress::from(&account_key_pair.public()),
+            account_address: IotaAddress::from(&account_key_pair.public()),
             network_key: network_key_pair.public().clone(),
             gas_price: 1,
             commission_rate: 0,
@@ -328,15 +329,15 @@ pub async fn init_local_authorities_with_genesis(
         .build_custom_clients(clients)
 }
 
-pub fn make_transfer_sui_transaction(
+pub fn make_transfer_iota_transaction(
     gas_object: ObjectRef,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
     amount: Option<u64>,
-    sender: SuiAddress,
+    sender: IotaAddress,
     keypair: &AccountKeyPair,
     gas_price: u64,
 ) -> Transaction {
-    let data = TransactionData::new_transfer_sui(
+    let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         amount,
@@ -347,17 +348,17 @@ pub fn make_transfer_sui_transaction(
     to_sender_signed_transaction(data, keypair)
 }
 
-pub fn make_pay_sui_transaction(
+pub fn make_pay_iota_transaction(
     gas_object: ObjectRef,
     coins: Vec<ObjectRef>,
-    recipients: Vec<SuiAddress>,
+    recipients: Vec<IotaAddress>,
     amounts: Vec<u64>,
-    sender: SuiAddress,
+    sender: IotaAddress,
     keypair: &AccountKeyPair,
     gas_price: u64,
     gas_budget: u64,
 ) -> Transaction {
-    let data = TransactionData::new_pay_sui(
+    let data = TransactionData::new_pay_iota(
         sender, coins, recipients, amounts, gas_object, gas_budget, gas_price,
     )
     .unwrap();
@@ -367,9 +368,9 @@ pub fn make_pay_sui_transaction(
 pub fn make_transfer_object_transaction(
     object_ref: ObjectRef,
     gas_object: ObjectRef,
-    sender: SuiAddress,
+    sender: IotaAddress,
     keypair: &AccountKeyPair,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
     gas_price: u64,
 ) -> Transaction {
     let data = TransactionData::new_transfer(
@@ -384,9 +385,9 @@ pub fn make_transfer_object_transaction(
 }
 
 pub fn make_transfer_object_move_transaction(
-    src: SuiAddress,
+    src: IotaAddress,
     keypair: &AccountKeyPair,
-    dest: SuiAddress,
+    dest: IotaAddress,
     object_ref: ObjectRef,
     framework_obj_id: ObjectID,
     gas_object_ref: ObjectRef,
@@ -417,8 +418,8 @@ pub fn make_transfer_object_move_transaction(
 
 /// Make a dummy tx that uses random object refs.
 pub fn make_dummy_tx(
-    receiver: SuiAddress,
-    sender: SuiAddress,
+    receiver: IotaAddress,
+    sender: IotaAddress,
     sender_sec: &AccountKeyPair,
 ) -> Transaction {
     Transaction::from_data_and_signer(

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A mock implementation of Sui JSON-RPC client.
+//! A mock implementation of Iota JSON-RPC client.
 
 use crate::error::{BridgeError, BridgeResult};
 use crate::test_utils::DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
@@ -9,38 +10,38 @@ use async_trait::async_trait;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::{EventFilter, EventPage, SuiEvent};
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::ObjectRef;
-use sui_types::bridge::{
+use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent};
+use iota_types::base_types::ObjectID;
+use iota_types::base_types::ObjectRef;
+use iota_types::bridge::{
     BridgeCommitteeSummary, BridgeSummary, MoveTypeParsedTokenTransferMessage,
 };
-use sui_types::digests::TransactionDigest;
-use sui_types::event::EventID;
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::Owner;
-use sui_types::transaction::ObjectArg;
-use sui_types::transaction::Transaction;
-use sui_types::Identifier;
+use iota_types::digests::TransactionDigest;
+use iota_types::event::EventID;
+use iota_types::gas_coin::GasCoin;
+use iota_types::object::Owner;
+use iota_types::transaction::ObjectArg;
+use iota_types::transaction::Transaction;
+use iota_types::Identifier;
 
-use crate::sui_client::SuiClientInner;
+use crate::iota_client::IotaClientInner;
 use crate::types::{BridgeAction, BridgeActionStatus, IsBridgePaused};
 
 /// Mock client used in test environments.
 #[allow(clippy::type_complexity)]
 #[derive(Clone, Debug)]
-pub struct SuiMockClient {
+pub struct IotaMockClient {
     // the top two fields do not change during tests so we don't need them to be Arc<Mutex>>
     chain_identifier: String,
     latest_checkpoint_sequence_number: Arc<AtomicU64>,
     events: Arc<Mutex<HashMap<(ObjectID, Identifier, Option<EventID>), EventPage>>>,
     past_event_query_params: Arc<Mutex<VecDeque<(ObjectID, Identifier, Option<EventID>)>>>,
     events_by_tx_digest:
-        Arc<Mutex<HashMap<TransactionDigest, Result<Vec<SuiEvent>, sui_sdk::error::Error>>>>,
+        Arc<Mutex<HashMap<TransactionDigest, Result<Vec<IotaEvent>, iota_sdk::error::Error>>>>,
     transaction_responses:
-        Arc<Mutex<HashMap<TransactionDigest, BridgeResult<SuiTransactionBlockResponse>>>>,
-    wildcard_transaction_response: Arc<Mutex<Option<BridgeResult<SuiTransactionBlockResponse>>>>,
+        Arc<Mutex<HashMap<TransactionDigest, BridgeResult<IotaTransactionBlockResponse>>>>,
+    wildcard_transaction_response: Arc<Mutex<Option<BridgeResult<IotaTransactionBlockResponse>>>>,
     get_object_info: Arc<Mutex<HashMap<ObjectID, (GasCoin, ObjectRef, Owner)>>>,
     onchain_status: Arc<Mutex<HashMap<(u8, u64), BridgeActionStatus>>>,
     bridge_committee_summary: Arc<Mutex<Option<BridgeCommitteeSummary>>>,
@@ -48,7 +49,7 @@ pub struct SuiMockClient {
     requested_transactions_tx: tokio::sync::broadcast::Sender<TransactionDigest>,
 }
 
-impl SuiMockClient {
+impl IotaMockClient {
     pub fn default() -> Self {
         Self {
             chain_identifier: "".to_string(),
@@ -79,7 +80,7 @@ impl SuiMockClient {
             .insert((package, module, Some(cursor)), events);
     }
 
-    pub fn add_events_by_tx_digest(&self, tx_digest: TransactionDigest, events: Vec<SuiEvent>) {
+    pub fn add_events_by_tx_digest(&self, tx_digest: TransactionDigest, events: Vec<IotaEvent>) {
         self.events_by_tx_digest
             .lock()
             .unwrap()
@@ -89,14 +90,14 @@ impl SuiMockClient {
     pub fn add_events_by_tx_digest_error(&self, tx_digest: TransactionDigest) {
         self.events_by_tx_digest.lock().unwrap().insert(
             tx_digest,
-            Err(sui_sdk::error::Error::DataError("".to_string())),
+            Err(iota_sdk::error::Error::DataError("".to_string())),
         );
     }
 
     pub fn add_transaction_response(
         &self,
         tx_digest: TransactionDigest,
-        response: BridgeResult<SuiTransactionBlockResponse>,
+        response: BridgeResult<IotaTransactionBlockResponse>,
     ) {
         self.transaction_responses
             .lock()
@@ -124,7 +125,7 @@ impl SuiMockClient {
 
     pub fn set_wildcard_transaction_response(
         &self,
-        response: BridgeResult<SuiTransactionBlockResponse>,
+        response: BridgeResult<IotaTransactionBlockResponse>,
     ) {
         *self.wildcard_transaction_response.lock().unwrap() = Some(response);
     }
@@ -149,8 +150,8 @@ impl SuiMockClient {
 }
 
 #[async_trait]
-impl SuiClientInner for SuiMockClient {
-    type Error = sui_sdk::error::Error;
+impl IotaClientInner for IotaMockClient {
+    type Error = iota_sdk::error::Error;
 
     // Unwraps in this function: We assume the responses are pre-populated
     // by the test before calling into this function.
@@ -184,7 +185,7 @@ impl SuiClientInner for SuiMockClient {
     async fn get_events_by_tx_digest(
         &self,
         tx_digest: TransactionDigest,
-    ) -> Result<Vec<SuiEvent>, Self::Error> {
+    ) -> Result<Vec<IotaEvent>, Self::Error> {
         let events = self.events_by_tx_digest.lock().unwrap();
 
         match events
@@ -192,8 +193,8 @@ impl SuiClientInner for SuiMockClient {
             .unwrap_or_else(|| panic!("No preset events found for tx_digest: {:?}", tx_digest))
         {
             Ok(events) => Ok(events.clone()),
-            // sui_sdk::error::Error is not Clone
-            Err(_) => Err(sui_sdk::error::Error::DataError("".to_string())),
+            // iota_sdk::error::Error is not Clone
+            Err(_) => Err(iota_sdk::error::Error::DataError("".to_string())),
         }
     }
 
@@ -270,7 +271,7 @@ impl SuiClientInner for SuiMockClient {
     async fn execute_transaction_block_with_effects(
         &self,
         tx: Transaction,
-    ) -> Result<SuiTransactionBlockResponse, BridgeError> {
+    ) -> Result<IotaTransactionBlockResponse, BridgeError> {
         self.requested_transactions_tx.send(*tx.digest()).unwrap();
         match self.transaction_responses.lock().unwrap().get(tx.digest()) {
             Some(response) => response.clone(),

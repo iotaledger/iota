@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useResolveSuiNSName } from '_app/hooks/useAppResolveSuinsName';
+import { useResolveIotaNSName } from '_app/hooks/useAppResolveIotaNSName';
 import { Text } from '_src/ui/app/shared/text';
 
 import { TxnAddressLink } from './TxnAddressLink';
@@ -12,7 +13,7 @@ type TxnAddressProps = {
 };
 
 export function TxnAddress({ address, label }: TxnAddressProps) {
-	const domainName = useResolveSuiNSName(address);
+	const domainName = useResolveIotaNSName(address);
 
 	return (
 		<div className="flex justify-between w-full items-center py-3.5 first:pt-0">

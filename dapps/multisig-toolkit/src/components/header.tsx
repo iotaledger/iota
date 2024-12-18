@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { KeyRound, MenuIcon, XIcon } from 'lucide-react';
@@ -16,7 +17,7 @@ export function Header() {
 				<div className="flex items-center gap-2">
 					<KeyRound strokeWidth={2} size={18} className="text-primary/80" />
 					<h1 className="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
-						Sui MultiSig Toolkit
+						Iota MultiSig Toolkit
 					</h1>
 				</div>
 			</NavLink>

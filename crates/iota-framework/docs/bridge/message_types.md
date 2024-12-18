@@ -10,7 +10,7 @@ title: Module `0xb::message_types`
 -  [Function `emergency_op`](#0xb_message_types_emergency_op)
 -  [Function `update_bridge_limit`](#0xb_message_types_update_bridge_limit)
 -  [Function `update_asset_price`](#0xb_message_types_update_asset_price)
--  [Function `add_tokens_on_sui`](#0xb_message_types_add_tokens_on_sui)
+-  [Function `add_tokens_on_iota`](#0xb_message_types_add_tokens_on_iota)
 
 
 <pre><code></code></pre>
@@ -22,11 +22,11 @@ title: Module `0xb::message_types`
 ## Constants
 
 
-<a name="0xb_message_types_ADD_TOKENS_ON_SUI"></a>
+<a name="0xb_message_types_ADD_TOKENS_ON_IOTA"></a>
 
 
 
-<pre><code><b>const</b> <a href="message_types.md#0xb_message_types_ADD_TOKENS_ON_SUI">ADD_TOKENS_ON_SUI</a>: u8 = 6;
+<pre><code><b>const</b> <a href="message_types.md#0xb_message_types_ADD_TOKENS_ON_IOTA">ADD_TOKENS_ON_IOTA</a>: u8 = 6;
 </code></pre>
 
 
@@ -186,13 +186,13 @@ title: Module `0xb::message_types`
 
 </details>
 
-<a name="0xb_message_types_add_tokens_on_sui"></a>
+<a name="0xb_message_types_add_tokens_on_iota"></a>
 
-## Function `add_tokens_on_sui`
+## Function `add_tokens_on_iota`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message_types.md#0xb_message_types_add_tokens_on_sui">add_tokens_on_sui</a>(): u8
+<pre><code><b>public</b> <b>fun</b> <a href="message_types.md#0xb_message_types_add_tokens_on_iota">add_tokens_on_iota</a>(): u8
 </code></pre>
 
 
@@ -201,7 +201,7 @@ title: Module `0xb::message_types`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message_types.md#0xb_message_types_add_tokens_on_sui">add_tokens_on_sui</a>(): u8 { <a href="message_types.md#0xb_message_types_ADD_TOKENS_ON_SUI">ADD_TOKENS_ON_SUI</a> }
+<pre><code><b>public</b> <b>fun</b> <a href="message_types.md#0xb_message_types_add_tokens_on_iota">add_tokens_on_iota</a>(): u8 { <a href="message_types.md#0xb_message_types_ADD_TOKENS_ON_IOTA">ADD_TOKENS_ON_IOTA</a> }
 </code></pre>
 
 

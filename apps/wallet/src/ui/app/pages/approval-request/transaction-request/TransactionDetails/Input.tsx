@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import ExplorerLink from '_src/ui/app/components/explorer-link';
 import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
 import { Text } from '_src/ui/app/shared/text';
-import { type TransactionInput } from '@mysten/sui/transactions';
-import { formatAddress } from '@mysten/sui/utils';
+import { type TransactionInput } from '@iota/iota-sdk/transactions';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface InputProps {
 	input: TransactionInput;

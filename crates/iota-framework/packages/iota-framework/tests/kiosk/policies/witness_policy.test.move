@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -10,8 +11,8 @@
 /// in the `Kiosk`. When an item is placed into the Kiosk, a `PlacedWitness`
 /// struct is created which can be used to prove that the `T` was placed
 /// to the `Kiosk`.
-module sui::witness_policy {
-    use sui::transfer_policy::{
+module iota::witness_policy {
+    use iota::transfer_policy::{
         Self as policy,
         TransferPolicy,
         TransferPolicyCap,
@@ -46,10 +47,10 @@ module sui::witness_policy {
 }
 
 #[test_only]
-module sui::witness_policy_tests {
-    use sui::witness_policy;
-    use sui::transfer_policy as policy;
-    use sui::transfer_policy_tests::{
+module iota::witness_policy_tests {
+    use iota::witness_policy;
+    use iota::transfer_policy as policy;
+    use iota::transfer_policy_tests::{
         Self as test,
         Asset
     };
@@ -76,7 +77,7 @@ module sui::witness_policy_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::transfer_policy::EPolicyNotSatisfied)]
+    #[expected_failure(abort_code = iota::transfer_policy::EPolicyNotSatisfied)]
     fun test_no_proof() {
         let ctx = &mut tx_context::dummy();
         let (mut policy, cap) = test::prepare(ctx);
@@ -90,7 +91,7 @@ module sui::witness_policy_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::witness_policy::ERuleNotFound)]
+    #[expected_failure(abort_code = iota::witness_policy::ERuleNotFound)]
     fun test_wrong_proof() {
         let ctx = &mut tx_context::dummy();
         let (mut policy, cap) = test::prepare(ctx);

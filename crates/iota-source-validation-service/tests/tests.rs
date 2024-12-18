@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use expect_test::expect;
@@ -8,25 +9,25 @@ use std::io::Read;
 use std::os::unix::fs::FileExt;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use sui::client_commands::{OptsWithGas, SuiClientCommandResult, SuiClientCommands};
-use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
-use sui_move_build::{BuildConfig, SuiPackageHooks};
-use sui_sdk::rpc_types::{
-    OwnedObjectRef, SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockEffectsV1,
+use iota::client_commands::{OptsWithGas, IotaClientCommandResult, IotaClientCommands};
+use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
+use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_sdk::rpc_types::{
+    OwnedObjectRef, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsV1,
 };
-use sui_sdk::types::base_types::ObjectID;
-use sui_sdk::types::object::Owner;
-use sui_sdk::types::transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH;
-use sui_sdk::wallet_context::WalletContext;
+use iota_sdk::types::base_types::ObjectID;
+use iota_sdk::types::object::Owner;
+use iota_sdk::types::transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH;
+use iota_sdk::wallet_context::WalletContext;
 use tokio::sync::oneshot;
 
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
-use sui_source_validation_service::{
+use iota_source_validation_service::{
     host_port, initialize, serve, start_prometheus_server, verify_packages, watch_for_upgrades,
     AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse, Network,
     NetworkLookup, Package, PackageSource, RepositorySource, SourceInfo, SourceLookup,
-    SourceResponse, SourceServiceMetrics, METRICS_HOST_PORT, SUI_SOURCE_VALIDATION_VERSION_HEADER,
+    SourceResponse, SourceServiceMetrics, METRICS_HOST_PORT, IOTA_SOURCE_VALIDATION_VERSION_HEADER,
 };
 use test_cluster::TestClusterBuilder;
 
@@ -37,7 +38,7 @@ const TEST_FIXTURES_DIR: &str = "tests/fixture";
 #[tokio::test]
 #[ignore]
 async fn test_end_to_end() -> anyhow::Result<()> {
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut test_cluster = TestClusterBuilder::new()
         .with_fullnode_rpc_port(LOCALNET_PORT)
         .build()
@@ -54,8 +55,8 @@ async fn test_end_to_end() -> anyhow::Result<()> {
         .read_api()
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -119,7 +120,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
     run_upgrade(upgrade_pkg_path, cap, context, gas_obj_id, rgp).await?;
 
     // Test expects to observe an upgrade transaction.
-    let Ok(SuiTransactionBlockEffects::V1(effects)) = rx.await else {
+    let Ok(IotaTransactionBlockEffects::V1(effects)) = rx.await else {
         panic!("No upgrade transaction observed")
     };
     assert!(effects.status.is_ok());
@@ -132,7 +133,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
     //////////////////////////
     let config = Config {
         packages: vec![PackageSource::Repository(RepositorySource {
-            repository: "https://github.com/mystenlabs/sui".into(),
+            repository: "https://github.com/iotaledger/iota".into(),
             branches: vec![Branch {
                 branch: "main".into(),
                 paths: vec![Package {
@@ -147,7 +148,7 @@ async fn test_end_to_end() -> anyhow::Result<()> {
     let fixtures = tempfile::tempdir()?;
     fs::create_dir(fixtures.path().join("localnet"))?;
     fs_extra::dir::copy(
-        PathBuf::from(TEST_FIXTURES_DIR).join("sui__main"),
+        PathBuf::from(TEST_FIXTURES_DIR).join("iota__main"),
         fixtures.path().join("localnet"),
         &fs_extra::dir::CopyOptions::default(),
     )?;
@@ -175,9 +176,9 @@ async fn run_publish(
     context: &mut WalletContext,
     gas_obj_id: ObjectID,
     rgp: u64,
-) -> anyhow::Result<SuiTransactionBlockEffectsV1> {
+) -> anyhow::Result<IotaTransactionBlockEffectsV1> {
     let build_config = BuildConfig::new_for_testing().config;
-    let resp = SuiClientCommands::Publish {
+    let resp = IotaClientCommands::Publish {
         package_path: package_path.clone(),
         build_config,
         skip_dependency_verification: false,
@@ -187,10 +188,10 @@ async fn run_publish(
     .execute(context)
     .await?;
 
-    let SuiClientCommandResult::TransactionBlock(response) = resp else {
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
         unreachable!("Invalid response");
     };
-    let SuiTransactionBlockEffects::V1(effects) = response.effects.unwrap();
+    let IotaTransactionBlockEffects::V1(effects) = response.effects.unwrap();
     assert!(effects.status.is_ok());
     Ok(effects)
 }
@@ -203,7 +204,7 @@ async fn run_upgrade(
     rgp: u64,
 ) -> anyhow::Result<()> {
     let build_config = BuildConfig::new_for_testing().config;
-    let resp = SuiClientCommands::Upgrade {
+    let resp = IotaClientCommands::Upgrade {
         package_path: upgrade_pkg_path,
         upgrade_capability: cap.reference.object_id,
         build_config,
@@ -214,10 +215,10 @@ async fn run_upgrade(
     .execute(context)
     .await?;
 
-    let SuiClientCommandResult::TransactionBlock(response) = resp else {
+    let IotaClientCommandResult::TransactionBlock(response) = resp else {
         unreachable!("Invalid upgrade response");
     };
-    let SuiTransactionBlockEffects::V1(effects) = response.effects.unwrap();
+    let IotaTransactionBlockEffects::V1(effects) = response.effects.unwrap();
     assert!(effects.status.is_ok());
     Ok(())
 }
@@ -268,7 +269,7 @@ async fn test_api_route() -> anyhow::Result<()> {
     // set up sample lookup to serve
     let fixtures = tempfile::tempdir()?;
     fs_extra::dir::copy(
-        PathBuf::from(TEST_FIXTURES_DIR).join("sui__main"),
+        PathBuf::from(TEST_FIXTURES_DIR).join("iota__main"),
         fixtures.path(),
         &fs_extra::dir::CopyOptions::default(),
     )?;
@@ -277,7 +278,7 @@ async fn test_api_route() -> anyhow::Result<()> {
     let module = "address";
     let source_path = fixtures
         .into_path()
-        .join("sui/move-stdlib/sources/address.move");
+        .join("iota/move-stdlib/sources/address.move");
 
     let mut source_lookup = SourceLookup::new();
     source_lookup.insert(
@@ -336,7 +337,7 @@ async fn test_api_route() -> anyhow::Result<()> {
             "http://{}/api?address={address}&module={module}&network=localnet",
             host_port()
         ))
-        .header(SUI_SOURCE_VALIDATION_VERSION_HEADER, "bogus")
+        .header(IOTA_SOURCE_VALIDATION_VERSION_HEADER, "bogus")
         .send()
         .await
         .expect("Request failed.")
@@ -344,7 +345,7 @@ async fn test_api_route() -> anyhow::Result<()> {
         .await?;
 
     let expected =
-        expect!["Unsupported version 'bogus' specified in header x-sui-source-validation-version"];
+        expect!["Unsupported version 'bogus' specified in header x-iota-source-validation-version"];
     expected.assert_eq(&json.error);
 
     Ok(())
@@ -382,15 +383,15 @@ fn test_parse_package_config() -> anyhow::Result<()> {
 [[packages]]
 source = "Repository"
 [packages.values]
-repository = "https://github.com/mystenlabs/sui"
+repository = "https://github.com/iotaledger/iota"
 network = "mainnet"
 [[packages.values.branches]]
 branch = "framework/mainnet"
 paths = [
-  { path = "crates/sui-framework/packages/deepbook", watch = "0xdee9" },
-  { path = "crates/sui-framework/packages/move-stdlib", watch = "0x1" },
-  { path = "crates/sui-framework/packages/sui-framework", watch = "0x2" },
-  { path = "crates/sui-framework/packages/sui-system", watch = "0x3" }
+  { path = "crates/iota-framework/packages/deepbook", watch = "0xdee9" },
+  { path = "crates/iota-framework/packages/move-stdlib", watch = "0x1" },
+  { path = "crates/iota-framework/packages/iota-framework", watch = "0x2" },
+  { path = "crates/iota-framework/packages/iota-system", watch = "0x3" }
 ]
 
     [[packages]]
@@ -408,7 +409,7 @@ paths = [
             packages: [
                 Repository(
                     RepositorySource {
-                        repository: "https://github.com/mystenlabs/sui",
+                        repository: "https://github.com/iotaledger/iota",
                         network: Some(
                             Mainnet,
                         ),
@@ -417,25 +418,25 @@ paths = [
                                 branch: "framework/mainnet",
                                 paths: [
                                     Package {
-                                        path: "crates/sui-framework/packages/deepbook",
+                                        path: "crates/iota-framework/packages/deepbook",
                                         watch: Some(
                                             0x000000000000000000000000000000000000000000000000000000000000dee9,
                                         ),
                                     },
                                     Package {
-                                        path: "crates/sui-framework/packages/move-stdlib",
+                                        path: "crates/iota-framework/packages/move-stdlib",
                                         watch: Some(
                                             0x0000000000000000000000000000000000000000000000000000000000000001,
                                         ),
                                     },
                                     Package {
-                                        path: "crates/sui-framework/packages/sui-framework",
+                                        path: "crates/iota-framework/packages/iota-framework",
                                         watch: Some(
                                             0x0000000000000000000000000000000000000000000000000000000000000002,
                                         ),
                                     },
                                     Package {
-                                        path: "crates/sui-framework/packages/sui-system",
+                                        path: "crates/iota-framework/packages/iota-system",
                                         watch: Some(
                                             0x0000000000000000000000000000000000000000000000000000000000000003,
                                         ),

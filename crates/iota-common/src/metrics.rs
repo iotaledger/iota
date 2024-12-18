@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use prometheus::Encoder;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{debug, error, info};
@@ -9,16 +10,16 @@ use tracing::{debug, error, info};
 const METRICS_PUSH_TIMEOUT: Duration = Duration::from_secs(45);
 
 pub struct MetricsPushClient {
-    certificate: std::sync::Arc<sui_tls::SelfSignedCertificate>,
+    certificate: std::sync::Arc<iota_tls::SelfSignedCertificate>,
     client: reqwest::Client,
 }
 
 impl MetricsPushClient {
-    pub fn new(metrics_key: sui_types::crypto::NetworkKeyPair) -> Self {
+    pub fn new(metrics_key: iota_types::crypto::NetworkKeyPair) -> Self {
         use fastcrypto::traits::KeyPair;
-        let certificate = std::sync::Arc::new(sui_tls::SelfSignedCertificate::new(
+        let certificate = std::sync::Arc::new(iota_tls::SelfSignedCertificate::new(
             metrics_key.private(),
-            sui_tls::SUI_VALIDATOR_SERVER_NAME,
+            iota_tls::IOTA_VALIDATOR_SERVER_NAME,
         ));
         let identity = certificate.reqwest_identity();
         let client = reqwest::Client::builder()
@@ -32,7 +33,7 @@ impl MetricsPushClient {
         }
     }
 
-    pub fn certificate(&self) -> &sui_tls::SelfSignedCertificate {
+    pub fn certificate(&self) -> &iota_tls::SelfSignedCertificate {
         &self.certificate
     }
 

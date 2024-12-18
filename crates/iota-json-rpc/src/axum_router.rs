@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::net::IpAddr;
 use std::time::SystemTime;
 use std::{net::SocketAddr, sync::Arc};
-use sui_types::traffic_control::RemoteFirewallConfig;
+use iota_types::traffic_control::RemoteFirewallConfig;
 
 use axum::extract::{ConnectInfo, Json, State};
 use axum::response::Response;
@@ -21,16 +22,16 @@ use jsonrpsee::types::error::{ErrorCode, BATCHES_NOT_SUPPORTED_CODE, BATCHES_NOT
 use jsonrpsee::types::{ErrorObject, Id, InvalidRequest, Params, Request};
 use jsonrpsee::{core::server::rpc_module::Methods, server::logger::Logger};
 use serde_json::value::RawValue;
-use sui_core::traffic_controller::{
+use iota_core::traffic_controller::{
     metrics::TrafficControllerMetrics, parse_ip, policies::TrafficTally, TrafficController,
 };
-use sui_json_rpc_api::TRANSACTION_EXECUTION_CLIENT_ERROR_CODE;
-use sui_types::traffic_control::ClientIdSource;
-use sui_types::traffic_control::{PolicyConfig, Weight};
+use iota_json_rpc_api::TRANSACTION_EXECUTION_CLIENT_ERROR_CODE;
+use iota_types::traffic_control::ClientIdSource;
+use iota_types::traffic_control::{PolicyConfig, Weight};
 use tracing::error;
 
 use crate::routing_layer::RpcRouter;
-use sui_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
+use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
 
 pub const MAX_RESPONSE_SIZE: u32 = 2 << 30;
 const TOO_MANY_REQUESTS_MSG: &str = "Too many requests";
@@ -259,7 +260,7 @@ fn handle_traffic_resp(
         }),
         // For now, count everything as spam with equal weight
         // on the rpc node side, including gas-charging endpoints
-        // such as `sui_executeTransactionBlock`, as this can enable
+        // such as `iota_executeTransactionBlock`, as this can enable
         // node operators who wish to rate limit their transcation
         // traffic and incentivize high volume clients to choose a
         // suitable rpc provider (or run their own). Later we may want

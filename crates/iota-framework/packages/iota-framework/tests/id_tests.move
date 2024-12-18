@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::id_tests {
+module iota::id_tests {
     const EIdBytesMismatch: u64 = 0;
 
     public struct Object has key {

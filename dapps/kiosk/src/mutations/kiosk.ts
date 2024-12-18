@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCurrentAccount } from '@mysten/dapp-kit';
-import { Kiosk, KioskTransaction } from '@mysten/kiosk';
-import { Transaction } from '@mysten/sui/transactions';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { Kiosk, KioskTransaction } from '@iota/kiosk';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 

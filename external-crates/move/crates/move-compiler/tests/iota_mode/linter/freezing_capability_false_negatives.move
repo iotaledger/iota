@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module a::test_false_negatives {
-    use sui::object::UID;
-    use sui::transfer;
+    use iota::object::UID;
+    use iota::transfer;
 
     struct AdminRights has key {
        id: UID
@@ -38,13 +39,13 @@ module a::test_false_negatives {
     }
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }
 }
 
-module sui::transfer {
+module iota::transfer {
     const ZERO: u64 = 0;
     public fun public_freeze_object<T: key>(_: T) {
         abort ZERO

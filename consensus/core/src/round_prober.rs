@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! RoundProber periodically checks each peer for the latest rounds they received and accepted
@@ -20,8 +21,8 @@ use std::{sync::Arc, time::Duration};
 
 use consensus_config::{AuthorityIndex, Committee};
 use futures::stream::{FuturesUnordered, StreamExt as _};
-use mysten_common::sync::notify_once::NotifyOnce;
-use mysten_metrics::monitored_scope;
+use iota_common::sync::notify_once::NotifyOnce;
+use iota_metrics::monitored_scope;
 use parking_lot::RwLock;
 use tokio::{task::JoinHandle, time::MissedTickBehavior};
 

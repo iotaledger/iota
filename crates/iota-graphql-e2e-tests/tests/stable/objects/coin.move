@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses P0=0x0 --accounts A --simulator
 
 //# publish --sender A
 module P0::fake {
-    use sui::coin;
+    use iota::coin;
 
     public struct FAKE has drop {}
 
@@ -41,7 +42,7 @@ fragment C on Coin {
 }
 
 {
-  suiCoins: coins {
+  iotaCoins: coins {
     edges {
       cursor
       node { ...C }

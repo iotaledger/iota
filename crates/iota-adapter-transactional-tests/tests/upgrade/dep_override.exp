@@ -62,8 +62,8 @@ task 10, line 89:
 Owner: Shared( 2 )
 Version: 2
 Contents: Test_DepDepV1::DepDepM1::Obj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(9,0),
         },
     },
@@ -81,8 +81,8 @@ task 12, line 93:
 Owner: Shared( 3 )
 Version: 3
 Contents: Test_DepDepV1::DepDepM1::Obj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(11,0),
         },
     },
@@ -100,8 +100,8 @@ task 14, lines 97-100:
 Owner: Shared( 4 )
 Version: 4
 Contents: Test_DepDepV1::DepDepM1::Obj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(13,0),
         },
     },
@@ -121,8 +121,8 @@ task 16, line 105:
 Owner: Shared( 10 )
 Version: 10
 Contents: Test_DepDepV1::DepDepM1::Obj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(15,0),
         },
     },
@@ -134,8 +134,8 @@ task 17, lines 107-112:
 Owner: Shared( 10 )
 Version: 10
 Contents: Test_DepDepV1::DepDepM1::Obj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(15,1),
         },
     },

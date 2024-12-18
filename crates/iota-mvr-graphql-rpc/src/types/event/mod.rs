@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
@@ -17,12 +18,12 @@ use cursor::EvLookup;
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
-use sui_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
-use sui_indexer::schema::{checkpoints, events};
-use sui_types::base_types::ObjectID;
-use sui_types::Identifier;
-use sui_types::{
-    base_types::SuiAddress as NativeSuiAddress, event::Event as NativeEvent, parse_sui_struct_tag,
+use iota_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
+use iota_indexer::schema::{checkpoints, events};
+use iota_types::base_types::ObjectID;
+use iota_types::Identifier;
+use iota_types::{
+    base_types::IotaAddress as NativeIotaAddress, event::Event as NativeEvent, parse_iota_struct_tag,
 };
 
 mod cursor;
@@ -31,7 +32,7 @@ mod lookups;
 pub(crate) use cursor::Cursor;
 pub(crate) use filter::EventFilter;
 
-/// A Sui node emits one of the following events:
+/// A Iota node emits one of the following events:
 /// Move event
 /// Publish event
 /// Transfer object event
@@ -84,7 +85,7 @@ impl Event {
 
     /// Address of the sender of the event
     async fn sender(&self) -> Result<Option<Address>> {
-        if self.native.sender == NativeSuiAddress::ZERO {
+        if self.native.sender == NativeIotaAddress::ZERO {
             return Ok(None);
         }
 
@@ -280,12 +281,12 @@ impl Event {
         let Some(Some(sender_bytes)) = ({ stored.senders.first() }) else {
             return Err(Error::Internal("No senders found for event".to_string()));
         };
-        let sender = NativeSuiAddress::from_bytes(sender_bytes)
+        let sender = NativeIotaAddress::from_bytes(sender_bytes)
             .map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =
             ObjectID::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
         let type_ =
-            parse_sui_struct_tag(&stored.event_type).map_err(|e| Error::Internal(e.to_string()))?;
+            parse_iota_struct_tag(&stored.event_type).map_err(|e| Error::Internal(e.to_string()))?;
         let transaction_module =
             Identifier::from_str(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();

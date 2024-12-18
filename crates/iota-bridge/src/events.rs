@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This file contains the definition of the SuiBridgeEvent enum, of
+//! This file contains the definition of the IotaBridgeEvent enum, of
 //! which each variant is an emitted Event struct defind in the Move
 //! Bridge module. We rely on structures in this file to decode
 //! the bcs content of the emitted events.
@@ -12,7 +13,7 @@ use crate::crypto::BridgeAuthorityPublicKey;
 use crate::error::BridgeError;
 use crate::error::BridgeResult;
 use crate::types::BridgeAction;
-use crate::types::SuiToEthBridgeAction;
+use crate::types::IotaToEthBridgeAction;
 use ethers::types::Address as EthAddress;
 use fastcrypto::encoding::Encoding;
 use fastcrypto::encoding::Hex;
@@ -20,18 +21,18 @@ use move_core_types::language_storage::StructTag;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use sui_json_rpc_types::SuiEvent;
-use sui_types::base_types::SuiAddress;
-use sui_types::bridge::BridgeChainId;
-use sui_types::bridge::MoveTypeBridgeMessageKey;
-use sui_types::bridge::MoveTypeCommitteeMember;
-use sui_types::bridge::MoveTypeCommitteeMemberRegistration;
-use sui_types::collection_types::VecMap;
-use sui_types::crypto::ToFromBytes;
-use sui_types::digests::TransactionDigest;
-use sui_types::parse_sui_type_tag;
-use sui_types::TypeTag;
-use sui_types::BRIDGE_PACKAGE_ID;
+use iota_json_rpc_types::IotaEvent;
+use iota_types::base_types::IotaAddress;
+use iota_types::bridge::BridgeChainId;
+use iota_types::bridge::MoveTypeBridgeMessageKey;
+use iota_types::bridge::MoveTypeCommitteeMember;
+use iota_types::bridge::MoveTypeCommitteeMemberRegistration;
+use iota_types::collection_types::VecMap;
+use iota_types::crypto::ToFromBytes;
+use iota_types::digests::TransactionDigest;
+use iota_types::parse_iota_type_tag;
+use iota_types::TypeTag;
+use iota_types::BRIDGE_PACKAGE_ID;
 
 // `TokendDepositedEvent` emitted in bridge.move
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -42,7 +43,7 @@ pub struct MoveTokenDepositedEvent {
     pub target_chain: u8,
     pub target_address: Vec<u8>,
     pub token_type: u8,
-    pub amount_sui_adjusted: u64,
+    pub amount_iota_adjusted: u64,
 }
 
 macro_rules! new_move_event {
@@ -146,7 +147,7 @@ impl TryFrom<MoveTokenRegistrationEvent> for TokenRegistrationEvent {
     type Error = BridgeError;
 
     fn try_from(event: MoveTokenRegistrationEvent) -> BridgeResult<Self> {
-        let type_name = parse_sui_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
+        let type_name = parse_iota_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
             BridgeError::InternalError(format!(
                 "Failed to parse TypeTag: {e}, type name: {}",
                 event.type_name
@@ -185,7 +186,7 @@ impl TryFrom<MoveNewTokenEvent> for NewTokenEvent {
     type Error = BridgeError;
 
     fn try_from(event: MoveNewTokenEvent) -> BridgeResult<Self> {
-        let type_name = parse_sui_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
+        let type_name = parse_iota_type_tag(&format!("0x{}", event.type_name)).map_err(|e| {
             BridgeError::InternalError(format!(
                 "Failed to parse TypeTag: {e}, type name: {}",
                 event.type_name
@@ -211,15 +212,15 @@ pub struct UpdateTokenPriceEvent {
 
 // Sanitized version of MoveTokenDepositedEvent
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Hash)]
-pub struct EmittedSuiToEthTokenBridgeV1 {
+pub struct EmittedIotaToEthTokenBridgeV1 {
     pub nonce: u64,
-    pub sui_chain_id: BridgeChainId,
+    pub iota_chain_id: BridgeChainId,
     pub eth_chain_id: BridgeChainId,
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
     pub eth_address: EthAddress,
     pub token_id: u8,
-    // The amount of tokens deposited with decimal points on Sui side
-    pub amount_sui_adjusted: u64,
+    // The amount of tokens deposited with decimal points on Iota side
+    pub amount_iota_adjusted: u64,
 }
 
 // Sanitized version of MoveCommitteeUpdateEvent
@@ -290,61 +291,61 @@ impl TryFrom<MoveCommitteeMemberUrlUpdateEvent> for CommitteeMemberUrlUpdateEven
     }
 }
 
-impl TryFrom<MoveTokenDepositedEvent> for EmittedSuiToEthTokenBridgeV1 {
+impl TryFrom<MoveTokenDepositedEvent> for EmittedIotaToEthTokenBridgeV1 {
     type Error = BridgeError;
 
     fn try_from(event: MoveTokenDepositedEvent) -> BridgeResult<Self> {
-        if event.amount_sui_adjusted == 0 {
+        if event.amount_iota_adjusted == 0 {
             return Err(BridgeError::ZeroValueBridgeTransfer(format!(
-                "Failed to convert MoveTokenDepositedEvent to EmittedSuiToEthTokenBridgeV1. Manual intervention is required. 0 value transfer should not be allowed in Move: {:?}",
+                "Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Manual intervention is required. 0 value transfer should not be allowed in Move: {:?}",
                 event,
             )));
         }
 
         let token_id = event.token_type;
-        let sui_chain_id = BridgeChainId::try_from(event.source_chain).map_err(|_e| {
+        let iota_chain_id = BridgeChainId::try_from(event.source_chain).map_err(|_e| {
             BridgeError::Generic(format!(
-                "Failed to convert MoveTokenDepositedEvent to EmittedSuiToEthTokenBridgeV1. Failed to convert source chain {} to BridgeChainId",
+                "Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Failed to convert source chain {} to BridgeChainId",
                 event.token_type,
             ))
         })?;
         let eth_chain_id = BridgeChainId::try_from(event.target_chain).map_err(|_e| {
             BridgeError::Generic(format!(
-                "Failed to convert MoveTokenDepositedEvent to EmittedSuiToEthTokenBridgeV1. Failed to convert target chain {} to BridgeChainId",
+                "Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Failed to convert target chain {} to BridgeChainId",
                 event.token_type,
             ))
         })?;
-        if !sui_chain_id.is_sui_chain() {
+        if !iota_chain_id.is_iota_chain() {
             return Err(BridgeError::Generic(format!(
-                "Failed to convert MoveTokenDepositedEvent to EmittedSuiToEthTokenBridgeV1. Invalid source chain {}",
+                "Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Invalid source chain {}",
                 event.source_chain
             )));
         }
-        if eth_chain_id.is_sui_chain() {
+        if eth_chain_id.is_iota_chain() {
             return Err(BridgeError::Generic(format!(
-                "Failed to convert MoveTokenDepositedEvent to EmittedSuiToEthTokenBridgeV1. Invalid target chain {}",
+                "Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Invalid target chain {}",
                 event.target_chain
             )));
         }
 
-        let sui_address = SuiAddress::from_bytes(event.sender_address)
-            .map_err(|e| BridgeError::Generic(format!("Failed to convert MoveTokenDepositedEvent to EmittedSuiToEthTokenBridgeV1. Failed to convert sender_address to SuiAddress: {:?}", e)))?;
+        let iota_address = IotaAddress::from_bytes(event.sender_address)
+            .map_err(|e| BridgeError::Generic(format!("Failed to convert MoveTokenDepositedEvent to EmittedIotaToEthTokenBridgeV1. Failed to convert sender_address to IotaAddress: {:?}", e)))?;
         let eth_address = EthAddress::from_str(&Hex::encode(&event.target_address))?;
 
         Ok(Self {
             nonce: event.seq_num,
-            sui_chain_id,
+            iota_chain_id,
             eth_chain_id,
-            sui_address,
+            iota_address,
             eth_address,
             token_id,
-            amount_sui_adjusted: event.amount_sui_adjusted,
+            amount_iota_adjusted: event.amount_iota_adjusted,
         })
     }
 }
 
 crate::declare_events!(
-    SuiToEthTokenBridgeV1(EmittedSuiToEthTokenBridgeV1) => ("bridge::TokenDepositedEvent", MoveTokenDepositedEvent),
+    IotaToEthTokenBridgeV1(EmittedIotaToEthTokenBridgeV1) => ("bridge::TokenDepositedEvent", MoveTokenDepositedEvent),
     TokenTransferApproved(TokenTransferApproved) => ("bridge::TokenTransferApproved", MoveTokenTransferApproved),
     TokenTransferClaimed(TokenTransferClaimed) => ("bridge::TokenTransferClaimed", MoveTokenTransferClaimed),
     TokenTransferAlreadyApproved(TokenTransferAlreadyApproved) => ("bridge::TokenTransferAlreadyApproved", MoveTokenTransferAlreadyApproved),
@@ -371,7 +372,7 @@ macro_rules! declare_events {
     ($($variant:ident($type:path) => ($event_tag:expr, $event_struct:path)),* $(,)?) => {
 
         #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-        pub enum SuiBridgeEvent {
+        pub enum IotaBridgeEvent {
             $($variant($type),)*
         }
 
@@ -383,16 +384,16 @@ macro_rules! declare_events {
             });)*
         }
 
-        // Try to convert a SuiEvent into SuiBridgeEvent
-        impl SuiBridgeEvent {
-            pub fn try_from_sui_event(event: &SuiEvent) -> BridgeResult<Option<SuiBridgeEvent>> {
+        // Try to convert a IotaEvent into IotaBridgeEvent
+        impl IotaBridgeEvent {
+            pub fn try_from_iota_event(event: &IotaEvent) -> BridgeResult<Option<IotaBridgeEvent>> {
                 init_all_struct_tags(); // Ensure all tags are initialized
 
                 // Unwrap safe: we inited above
                 $(
                     if &event.type_ == $variant.get().unwrap() {
                         let event_struct: $event_struct = bcs::from_bytes(event.bcs.bytes()).map_err(|e| BridgeError::InternalError(format!("Failed to deserialize event to {}: {:?}", stringify!($event_struct), e)))?;
-                        return Ok(Some(SuiBridgeEvent::$variant(event_struct.try_into()?)));
+                        return Ok(Some(IotaBridgeEvent::$variant(event_struct.try_into()?)));
                     }
                 )*
                 Ok(None)
@@ -401,34 +402,34 @@ macro_rules! declare_events {
     };
 }
 
-impl SuiBridgeEvent {
+impl IotaBridgeEvent {
     pub fn try_into_bridge_action(
         self,
-        sui_tx_digest: TransactionDigest,
-        sui_tx_event_index: u16,
+        iota_tx_digest: TransactionDigest,
+        iota_tx_event_index: u16,
     ) -> Option<BridgeAction> {
         match self {
-            SuiBridgeEvent::SuiToEthTokenBridgeV1(event) => {
-                Some(BridgeAction::SuiToEthBridgeAction(SuiToEthBridgeAction {
-                    sui_tx_digest,
-                    sui_tx_event_index,
-                    sui_bridge_event: event.clone(),
+            IotaBridgeEvent::IotaToEthTokenBridgeV1(event) => {
+                Some(BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
+                    iota_tx_digest,
+                    iota_tx_event_index,
+                    iota_bridge_event: event.clone(),
                 }))
             }
-            SuiBridgeEvent::TokenTransferApproved(_event) => None,
-            SuiBridgeEvent::TokenTransferClaimed(_event) => None,
-            SuiBridgeEvent::TokenTransferAlreadyApproved(_event) => None,
-            SuiBridgeEvent::TokenTransferAlreadyClaimed(_event) => None,
-            SuiBridgeEvent::TokenTransferLimitExceed(_event) => None,
-            SuiBridgeEvent::EmergencyOpEvent(_event) => None,
-            SuiBridgeEvent::CommitteeMemberRegistration(_event) => None,
-            SuiBridgeEvent::CommitteeUpdateEvent(_event) => None,
-            SuiBridgeEvent::CommitteeMemberUrlUpdateEvent(_event) => None,
-            SuiBridgeEvent::BlocklistValidatorEvent(_event) => None,
-            SuiBridgeEvent::TokenRegistrationEvent(_event) => None,
-            SuiBridgeEvent::NewTokenEvent(_event) => None,
-            SuiBridgeEvent::UpdateTokenPriceEvent(_event) => None,
-            SuiBridgeEvent::UpdateRouteLimitEvent(_event) => None,
+            IotaBridgeEvent::TokenTransferApproved(_event) => None,
+            IotaBridgeEvent::TokenTransferClaimed(_event) => None,
+            IotaBridgeEvent::TokenTransferAlreadyApproved(_event) => None,
+            IotaBridgeEvent::TokenTransferAlreadyClaimed(_event) => None,
+            IotaBridgeEvent::TokenTransferLimitExceed(_event) => None,
+            IotaBridgeEvent::EmergencyOpEvent(_event) => None,
+            IotaBridgeEvent::CommitteeMemberRegistration(_event) => None,
+            IotaBridgeEvent::CommitteeUpdateEvent(_event) => None,
+            IotaBridgeEvent::CommitteeMemberUrlUpdateEvent(_event) => None,
+            IotaBridgeEvent::BlocklistValidatorEvent(_event) => None,
+            IotaBridgeEvent::TokenRegistrationEvent(_event) => None,
+            IotaBridgeEvent::NewTokenEvent(_event) => None,
+            IotaBridgeEvent::UpdateTokenPriceEvent(_event) => None,
+            IotaBridgeEvent::UpdateRouteLimitEvent(_event) => None,
         }
     }
 }
@@ -441,50 +442,50 @@ pub mod tests {
     use crate::crypto::BridgeAuthorityKeyPair;
     use crate::e2e_tests::test_utils::BridgeTestClusterBuilder;
     use crate::types::BridgeAction;
-    use crate::types::SuiToEthBridgeAction;
+    use crate::types::IotaToEthBridgeAction;
     use ethers::types::Address as EthAddress;
-    use sui_json_rpc_types::BcsEvent;
-    use sui_json_rpc_types::SuiEvent;
-    use sui_types::base_types::ObjectID;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::bridge::BridgeChainId;
-    use sui_types::bridge::TOKEN_ID_SUI;
-    use sui_types::crypto::get_key_pair;
-    use sui_types::digests::TransactionDigest;
-    use sui_types::event::EventID;
-    use sui_types::Identifier;
+    use iota_json_rpc_types::BcsEvent;
+    use iota_json_rpc_types::IotaEvent;
+    use iota_types::base_types::ObjectID;
+    use iota_types::base_types::IotaAddress;
+    use iota_types::bridge::BridgeChainId;
+    use iota_types::bridge::TOKEN_ID_IOTA;
+    use iota_types::crypto::get_key_pair;
+    use iota_types::digests::TransactionDigest;
+    use iota_types::event::EventID;
+    use iota_types::Identifier;
 
-    /// Returns a test SuiEvent and corresponding BridgeAction
-    pub fn get_test_sui_event_and_action(identifier: Identifier) -> (SuiEvent, BridgeAction) {
+    /// Returns a test IotaEvent and corresponding BridgeAction
+    pub fn get_test_iota_event_and_action(identifier: Identifier) -> (IotaEvent, BridgeAction) {
         init_all_struct_tags(); // Ensure all tags are initialized
-        let sanitized_event = EmittedSuiToEthTokenBridgeV1 {
+        let sanitized_event = EmittedIotaToEthTokenBridgeV1 {
             nonce: 1,
-            sui_chain_id: BridgeChainId::SuiTestnet,
-            sui_address: SuiAddress::random_for_testing_only(),
+            iota_chain_id: BridgeChainId::IotaTestnet,
+            iota_address: IotaAddress::random_for_testing_only(),
             eth_chain_id: BridgeChainId::EthSepolia,
             eth_address: EthAddress::random(),
-            token_id: TOKEN_ID_SUI,
-            amount_sui_adjusted: 100,
+            token_id: TOKEN_ID_IOTA,
+            amount_iota_adjusted: 100,
         };
         let emitted_event = MoveTokenDepositedEvent {
             seq_num: sanitized_event.nonce,
-            source_chain: sanitized_event.sui_chain_id as u8,
-            sender_address: sanitized_event.sui_address.to_vec(),
+            source_chain: sanitized_event.iota_chain_id as u8,
+            sender_address: sanitized_event.iota_address.to_vec(),
             target_chain: sanitized_event.eth_chain_id as u8,
             target_address: sanitized_event.eth_address.as_bytes().to_vec(),
             token_type: sanitized_event.token_id,
-            amount_sui_adjusted: sanitized_event.amount_sui_adjusted,
+            amount_iota_adjusted: sanitized_event.amount_iota_adjusted,
         };
 
         let tx_digest = TransactionDigest::random();
         let event_idx = 10u16;
-        let bridge_action = BridgeAction::SuiToEthBridgeAction(SuiToEthBridgeAction {
-            sui_tx_digest: tx_digest,
-            sui_tx_event_index: event_idx,
-            sui_bridge_event: sanitized_event.clone(),
+        let bridge_action = BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
+            iota_tx_digest: tx_digest,
+            iota_tx_event_index: event_idx,
+            iota_bridge_event: sanitized_event.clone(),
         });
-        let event = SuiEvent {
-            type_: SuiToEthTokenBridgeV1.get().unwrap().clone(),
+        let event = IotaEvent {
+            type_: IotaToEthTokenBridgeV1.get().unwrap().clone(),
             bcs: BcsEvent::new(bcs::to_bytes(&emitted_event).unwrap()),
             id: EventID {
                 tx_digest,
@@ -495,7 +496,7 @@ pub mod tests {
             // but if tests start to fail, it's worth checking these fields.
             package_id: ObjectID::ZERO,
             transaction_module: identifier.clone(),
-            sender: SuiAddress::random_for_testing_only(),
+            sender: IotaAddress::random_for_testing_only(),
             parsed_json: serde_json::json!({"test": "test"}),
             timestamp_ms: None,
         };
@@ -526,11 +527,11 @@ pub mod tests {
             .await;
         let mut mask = 0u8;
         for event in events.iter() {
-            match SuiBridgeEvent::try_from_sui_event(event).unwrap().unwrap() {
-                SuiBridgeEvent::CommitteeMemberRegistration(_event) => mask |= 0x1,
-                SuiBridgeEvent::CommitteeUpdateEvent(_event) => mask |= 0x2,
-                SuiBridgeEvent::TokenRegistrationEvent(_event) => mask |= 0x4,
-                SuiBridgeEvent::NewTokenEvent(_event) => mask |= 0x8,
+            match IotaBridgeEvent::try_from_iota_event(event).unwrap().unwrap() {
+                IotaBridgeEvent::CommitteeMemberRegistration(_event) => mask |= 0x1,
+                IotaBridgeEvent::CommitteeUpdateEvent(_event) => mask |= 0x2,
+                IotaBridgeEvent::TokenRegistrationEvent(_event) => mask |= 0x4,
+                IotaBridgeEvent::NewTokenEvent(_event) => mask |= 0x8,
                 _ => panic!("Got unexpected event: {:?}", event),
             }
         }
@@ -569,17 +570,17 @@ pub mod tests {
     // TODO: add conversion tests for other events
 
     #[test]
-    fn test_0_sui_amount_conversion_for_sui_event() {
+    fn test_0_iota_amount_conversion_for_iota_event() {
         let emitted_event = MoveTokenDepositedEvent {
             seq_num: 1,
-            source_chain: BridgeChainId::SuiTestnet as u8,
-            sender_address: SuiAddress::random_for_testing_only().to_vec(),
+            source_chain: BridgeChainId::IotaTestnet as u8,
+            sender_address: IotaAddress::random_for_testing_only().to_vec(),
             target_chain: BridgeChainId::EthSepolia as u8,
             target_address: EthAddress::random().as_bytes().to_vec(),
-            token_type: TOKEN_ID_SUI,
-            amount_sui_adjusted: 0,
+            token_type: TOKEN_ID_IOTA,
+            amount_iota_adjusted: 0,
         };
-        match EmittedSuiToEthTokenBridgeV1::try_from(emitted_event).unwrap_err() {
+        match EmittedIotaToEthTokenBridgeV1::try_from(emitted_event).unwrap_err() {
             BridgeError::ZeroValueBridgeTransfer(_) => (),
             other => panic!("Expected Generic error, got: {:?}", other),
         }

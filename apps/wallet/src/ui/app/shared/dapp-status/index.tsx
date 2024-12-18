@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import Loading from '_components/loading';
@@ -13,7 +14,7 @@ import {
 	useFloating,
 	useInteractions,
 } from '@floating-ui/react';
-import { ChevronDown12, Dot12 } from '@mysten/icons';
+import { ChevronDown12, Dot12 } from '@iota/icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 

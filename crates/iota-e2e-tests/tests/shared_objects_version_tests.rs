@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
-use sui_macros::*;
-use sui_test_transaction_builder::publish_package;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::object::{Owner, OBJECT_START_VERSION};
-use sui_types::transaction::{CallArg, ObjectArg};
-use sui_types::SUI_FRAMEWORK_ADDRESS;
+use iota_macros::*;
+use iota_test_transaction_builder::publish_package;
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber};
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
+use iota_types::object::{Owner, OBJECT_START_VERSION};
+use iota_types::transaction::{CallArg, ObjectArg};
+use iota_types::IOTA_FRAMEWORK_ADDRESS;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[sim_test]
@@ -33,7 +34,7 @@ async fn objects_transitioning_to_shared_remember_their_previous_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &SUI_FRAMEWORK_ADDRESS);
+    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -49,7 +50,7 @@ async fn shared_object_owner_doesnt_change_on_write() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &SUI_FRAMEWORK_ADDRESS);
+    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -65,7 +66,7 @@ async fn initial_shared_version_mismatch_start_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &SUI_FRAMEWORK_ADDRESS);
+    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }
@@ -80,7 +81,7 @@ async fn initial_shared_version_mismatch_current_version() {
     else {
         panic!()
     };
-    assert_eq!(location.module.address(), &SUI_FRAMEWORK_ADDRESS);
+    assert_eq!(location.module.address(), &IOTA_FRAMEWORK_ADDRESS);
     assert_eq!(location.module.name().as_str(), "transfer");
     assert_eq!(code, 0 /* ESharedNonNewObject */);
 }

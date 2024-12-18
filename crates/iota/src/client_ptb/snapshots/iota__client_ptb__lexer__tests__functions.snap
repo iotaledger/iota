@@ -1,5 +1,5 @@
 ---
-source: crates/sui/src/client_ptb/lexer.rs
+source: crates/iota/src/client_ptb/lexer.rs
 expression: lex(funs)
 ---
 [

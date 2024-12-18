@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use clap::*;
 use prometheus::Registry;
-use sui_analytics_indexer::{
+use iota_analytics_indexer::{
     analytics_metrics::AnalyticsMetrics, errors::AnalyticsIndexerError, make_analytics_processor,
     AnalyticsIndexerConfig,
 };
-use sui_data_ingestion_core::{setup_single_workflow, ReaderOptions};
+use iota_data_ingestion_core::{setup_single_workflow, ReaderOptions};
 use tokio::signal;
 use tracing::info;
 
@@ -20,7 +21,7 @@ async fn main() -> Result<()> {
 
     let config = AnalyticsIndexerConfig::parse();
     info!("Parsed config: {:#?}", config);
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = iota_metrics::start_prometheus_server(
         format!(
             "{}:{}",
             config.client_metric_host, config.client_metric_port
@@ -29,7 +30,7 @@ async fn main() -> Result<()> {
         .unwrap(),
     );
     let registry: Registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     let metrics = AnalyticsMetrics::new(&registry);
     let remote_store_url = config.remote_store_url.clone();
     let processor = make_analytics_processor(config, metrics)

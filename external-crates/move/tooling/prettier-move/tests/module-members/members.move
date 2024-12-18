@@ -7,7 +7,7 @@
 // - allows glueing similar members
 
 module prettier::members;
-use sui::coin::Coin; // glued with other import
+use iota::coin::Coin; // glued with other import
 use std::string::String; // empty line follows
 const I: u8 = 0; // together with const B
 const B: u16 = 100; // empty line after

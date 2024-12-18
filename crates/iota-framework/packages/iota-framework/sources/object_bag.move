@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Similar to `sui::bag`, an `ObjectBag` is a heterogeneous map-like collection. But unlike
-/// `sui::bag`, the values bound to these dynamic fields _must_ be objects themselves. This allows
+/// Similar to `iota::bag`, an `ObjectBag` is a heterogeneous map-like collection. But unlike
+/// `iota::bag`, the values bound to these dynamic fields _must_ be objects themselves. This allows
 /// for the objects to still exist in storage, which may be important for external tools.
 /// The difference is otherwise not observable from within Move.
-module sui::object_bag;
+module iota::object_bag;
 
-use sui::dynamic_object_field as ofield;
+use iota::dynamic_object_field as ofield;
 
 // Attempted to destroy a non-empty bag
 const EBagNotEmpty: u64 = 0;
@@ -28,7 +29,7 @@ public fun new(ctx: &mut TxContext): ObjectBag {
 }
 
 /// Adds a key-value pair to the bag `bag: &mut ObjectBag`
-/// Aborts with `sui::dynamic_field::EFieldAlreadyExists` if the bag already has an entry with
+/// Aborts with `iota::dynamic_field::EFieldAlreadyExists` if the bag already has an entry with
 /// that key `k: K`.
 public fun add<K: copy + drop + store, V: key + store>(bag: &mut ObjectBag, k: K, v: V) {
     ofield::add(&mut bag.id, k, v);
@@ -37,9 +38,9 @@ public fun add<K: copy + drop + store, V: key + store>(bag: &mut ObjectBag, k: K
 
 #[syntax(index)]
 /// Immutably borrows the value associated with the key in the bag `bag: &ObjectBag`.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
 /// that key `k: K`.
-/// Aborts with `sui::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
 /// the value does not have the specified type.
 public fun borrow<K: copy + drop + store, V: key + store>(bag: &ObjectBag, k: K): &V {
     ofield::borrow(&bag.id, k)
@@ -47,18 +48,18 @@ public fun borrow<K: copy + drop + store, V: key + store>(bag: &ObjectBag, k: K)
 
 #[syntax(index)]
 /// Mutably borrows the value associated with the key in the bag `bag: &mut ObjectBag`.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
 /// that key `k: K`.
-/// Aborts with `sui::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
 /// the value does not have the specified type.
 public fun borrow_mut<K: copy + drop + store, V: key + store>(bag: &mut ObjectBag, k: K): &mut V {
     ofield::borrow_mut(&mut bag.id, k)
 }
 
 /// Mutably borrows the key-value pair in the bag `bag: &mut ObjectBag` and returns the value.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
 /// that key `k: K`.
-/// Aborts with `sui::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
 /// the value does not have the specified type.
 public fun remove<K: copy + drop + store, V: key + store>(bag: &mut ObjectBag, k: K): V {
     let v = ofield::remove(&mut bag.id, k);

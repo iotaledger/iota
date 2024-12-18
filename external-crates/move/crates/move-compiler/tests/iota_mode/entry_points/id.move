@@ -1,7 +1,7 @@
 // valid, ID is allowed
 
 module a::m {
-    use sui::object;
+    use iota::object;
 
     public entry fun yes<T>(
         _: object::ID,
@@ -13,7 +13,7 @@ module a::m {
 
 }
 
-module sui::object {
+module iota::object {
     struct ID has store {
         id: address,
     }

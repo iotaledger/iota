@@ -1,43 +1,44 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The SuiBridgeStatus observable monitors whether the Sui Bridge is paused.
+//! The IotaBridgeStatus observable monitors whether the Iota Bridge is paused.
 
 use crate::Observable;
 use async_trait::async_trait;
 use prometheus::IntGauge;
 use std::sync::Arc;
-use sui_bridge::sui_client::SuiBridgeClient;
+use iota_bridge::iota_client::IotaBridgeClient;
 
 use tokio::time::Duration;
 use tracing::{error, info};
 
-pub struct SuiBridgeStatus {
-    sui_client: Arc<SuiBridgeClient>,
+pub struct IotaBridgeStatus {
+    iota_client: Arc<IotaBridgeClient>,
     metric: IntGauge,
 }
 
-impl SuiBridgeStatus {
-    pub fn new(sui_client: Arc<SuiBridgeClient>, metric: IntGauge) -> Self {
-        Self { sui_client, metric }
+impl IotaBridgeStatus {
+    pub fn new(iota_client: Arc<IotaBridgeClient>, metric: IntGauge) -> Self {
+        Self { iota_client, metric }
     }
 }
 
 #[async_trait]
-impl Observable for SuiBridgeStatus {
+impl Observable for IotaBridgeStatus {
     fn name(&self) -> &str {
-        "SuiBridgeStatus"
+        "IotaBridgeStatus"
     }
 
     async fn observe_and_report(&self) {
-        let status = self.sui_client.is_bridge_paused().await;
+        let status = self.iota_client.is_bridge_paused().await;
         match status {
             Ok(status) => {
                 self.metric.set(status as i64);
-                info!("Sui Bridge Status: {:?}", status);
+                info!("Iota Bridge Status: {:?}", status);
             }
             Err(e) => {
-                error!("Error getting sui bridge status: {:?}", e);
+                error!("Error getting iota bridge status: {:?}", e);
             }
         }
     }

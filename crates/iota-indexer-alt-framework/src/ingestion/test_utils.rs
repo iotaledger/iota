@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use rand::prelude::StdRng;
 use rand::SeedableRng;
-use sui_storage::blob::{Blob, BlobEncoding};
-use sui_types::crypto::KeypairTraits;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::gas::GasCostSummary;
-use sui_types::messages_checkpoint::{
+use iota_storage::blob::{Blob, BlobEncoding};
+use iota_types::crypto::KeypairTraits;
+use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::gas::GasCostSummary;
+use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, SignedCheckpointSummary,
 };
-use sui_types::supported_protocol_versions::ProtocolConfig;
-use sui_types::utils::make_committee_key;
+use iota_types::supported_protocol_versions::ProtocolConfig;
+use iota_types::utils::make_committee_key;
 
 const RNG_SEED: [u8; 32] = [
     21, 23, 199, 200, 234, 250, 252, 178, 94, 15, 202, 178, 62, 186, 88, 137, 233, 192, 130, 157,

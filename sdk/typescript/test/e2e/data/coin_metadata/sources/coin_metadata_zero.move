@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module coin_metadata::test_zero;
 
-use sui::coin;
-use sui::url;
+use iota::coin;
+use iota::url;
 
 public struct TEST_ZERO has drop {}
 
@@ -15,7 +16,7 @@ fun init(witness: TEST_ZERO, ctx: &mut TxContext) {
         b"TEST",
         b"Test Coin",
         b"Test coin metadata",
-        option::some(url::new_unsafe_from_bytes(b"http://sui.io")),
+        option::some(url::new_unsafe_from_bytes(b"http://iota.io")),
         ctx,
     );
 

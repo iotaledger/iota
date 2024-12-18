@@ -17,8 +17,8 @@ task 3, line 33:
 Owner: Account Address ( _ )
 Version: 3
 Contents: tto::M1::A {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -29,8 +29,8 @@ task 4, lines 35-37:
 Owner: Account Address ( fake(2,0) )
 Version: 3
 Contents: tto::M1::B {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,1),
         },
     },
@@ -47,8 +47,8 @@ task 6, line 41:
 Owner: Account Address ( _ )
 Version: 4
 Contents: tto::M1::A {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -59,8 +59,8 @@ task 7, line 43:
 Owner: Account Address ( fake(2,0) )
 Version: 3
 Contents: tto::M1::B {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,1),
         },
     },

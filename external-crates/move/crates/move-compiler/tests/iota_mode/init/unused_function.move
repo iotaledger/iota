@@ -1,8 +1,8 @@
-// init is unused but does not error because we are in Sui mode
+// init is unused but does not error because we are in Iota mode
 module a::m {
-    fun init(_: &mut sui::tx_context::TxContext) {}
+    fun init(_: &mut iota::tx_context::TxContext) {}
 }
 
-module sui::tx_context {
+module iota::tx_context {
     struct TxContext has drop {}
 }

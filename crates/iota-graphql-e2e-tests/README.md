@@ -7,7 +7,7 @@ These tests require a running instance of the `postgres` service, with a
 database set-up. The instructions below assume that `postgres` has been
 installed using `brew`:
 
-1. See the instructions in the Sui Indexer [README](../sui-indexer/README.md)
+1. See the instructions in the Iota Indexer [README](../iota-indexer/README.md)
    for pre-requisites and starting the Postgres service.
 
 2. When postgres is initially installed, it creates a role for your current
@@ -25,7 +25,7 @@ $ psql "postgres://$ME:$ME@localhost:5432/postgres" \
 
 ```sh
 $ psql "postgres://postgres:postgrespw@localhost:5432/postgres" \
-    -c "CREATE DATABASE sui_indexer_v2;" -c "ALTER SYSTEM SET max_connections = 500;"
+    -c "CREATE DATABASE iota_indexer_v2;" -c "ALTER SYSTEM SET max_connections = 500;"
 ```
 
 4. Finally, restart the `postgres` server so the max connections change takes

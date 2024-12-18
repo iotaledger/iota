@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::writer::StateSnapshotWriterV1;
@@ -13,16 +14,16 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::checkpoints::CheckpointStore;
-use sui_core::db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER};
-use sui_storage::object_store::util::{
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+use iota_core::checkpoints::CheckpointStore;
+use iota_core::db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER};
+use iota_storage::object_store::util::{
     find_all_dirs_with_epoch_prefix, find_missing_epochs_dirs, path_to_filesystem, put,
     run_manifest_update_loop,
 };
-use sui_storage::FileCompression;
-use sui_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
+use iota_storage::FileCompression;
+use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
 use tracing::{debug, error, info};
 
 pub struct StateSnapshotUploaderMetrics {

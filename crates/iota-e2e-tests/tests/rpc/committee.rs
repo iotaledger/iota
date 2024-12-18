@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_macros::sim_test;
-use sui_rpc_api::client::sdk::Client;
+use iota_macros::sim_test;
+use iota_rpc_api::client::sdk::Client;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]

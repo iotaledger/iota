@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -97,61 +98,61 @@ pub fn known_filters() -> (Option<Symbol>, Vec<WarningFilter>) {
         WarningFilter::All(Some(LINT_WARNING_PREFIX)),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::ShareOwned as u8,
             Some(SHARE_OWNED_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::SelfTransfer as u8,
             Some(SELF_TRANSFER_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::CustomStateChange as u8,
             Some(CUSTOM_STATE_CHANGE_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::CoinField as u8,
             Some(COIN_FIELD_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::FreezeWrapped as u8,
             Some(FREEZE_WRAPPED_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::CollectionEquality as u8,
             Some(COLLECTION_EQUALITY_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::PublicRandom as u8,
             Some(PUBLIC_RANDOM_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::MissingKey as u8,
             Some(MISSING_KEY_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::FreezingCapability as u8,
             Some(FREEZING_CAPABILITY_FILTER_NAME),
         ),
         WarningFilter::code(
             Some(LINT_WARNING_PREFIX),
-            LinterDiagnosticCategory::Sui as u8,
+            LinterDiagnosticCategory::Iota as u8,
             LinterDiagnosticCode::PreferMutableTxContext as u8,
             Some(PREFER_MUTABLE_TX_CONTEXT_FILTER_NAME),
         ),

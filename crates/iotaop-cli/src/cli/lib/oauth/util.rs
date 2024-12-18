@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use open;
@@ -46,7 +47,7 @@ pub fn request_authorization_code(
     code_challenge: &str,
 ) -> Result<()> {
     let url = format!(
-        "https://mystenlabs.okta.com/oauth2/v1/authorize?\
+        "https://iotafoundation.okta.com/oauth2/v1/authorize?\
         &client_id={}\
         &response_type=code\
         &scope=openid\

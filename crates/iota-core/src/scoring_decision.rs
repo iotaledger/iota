@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{collections::HashMap, sync::Arc};
 
 use arc_swap::ArcSwap;
 use consensus_config::Committee as ConsensusCommittee;
-use sui_types::{
+use iota_types::{
     base_types::AuthorityName, committee::Committee, messages_consensus::AuthorityIndex,
 };
 use tracing::debug;
@@ -20,7 +21,7 @@ use crate::authority::AuthorityMetrics;
 /// schedule since the chances of getting them sequenced are lower.
 pub(crate) fn update_low_scoring_authorities(
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
-    sui_committee: &Committee,
+    iota_committee: &Committee,
     consensus_committee: &ConsensusCommittee,
     reputation_score_sorted_desc: Option<Vec<(AuthorityIndex, u64)>>,
     metrics: &Arc<AuthorityMetrics>,
@@ -42,7 +43,7 @@ pub(crate) fn update_low_scoring_authorities(
     let mut final_low_scoring_map = HashMap::new();
     let mut total_stake = 0;
     for (index, score) in scores_per_authority_order_asc {
-        let authority_name = sui_committee.authority_by_index(index).unwrap();
+        let authority_name = iota_committee.authority_by_index(index).unwrap();
         let authority_index = consensus_committee
             .to_authority_index(index as usize)
             .unwrap();
@@ -87,7 +88,7 @@ mod tests {
     use arc_swap::ArcSwap;
     use consensus_config::{local_committee_and_keys, Committee as ConsensusCommittee};
     use prometheus::Registry;
-    use sui_types::{committee::Committee, crypto::AuthorityPublicKeyBytes};
+    use iota_types::{committee::Committee, crypto::AuthorityPublicKeyBytes};
 
     use crate::{authority::AuthorityMetrics, scoring_decision::update_low_scoring_authorities};
 
@@ -96,7 +97,7 @@ mod tests {
     pub fn test_update_low_scoring_authorities() {
         // GIVEN
         // Total stake is 8 for this committee and every authority has equal stake = 1
-        let (sui_committee, consensus_committee) = generate_committees(8);
+        let (iota_committee, consensus_committee) = generate_committees(8);
 
         let low_scoring = Arc::new(ArcSwap::from_pointee(HashMap::new()));
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
@@ -118,7 +119,7 @@ mod tests {
 
         update_low_scoring_authorities(
             low_scoring.clone(),
-            &sui_committee,
+            &iota_committee,
             &consensus_committee,
             Some(authorities_by_score_desc.clone()),
             &metrics,
@@ -131,7 +132,7 @@ mod tests {
             *low_scoring
                 .load()
                 // authority 2 is 2nd to the last in authorities_by_score_desc
-                .get(sui_committee.authority_by_index(2).unwrap())
+                .get(iota_committee.authority_by_index(2).unwrap())
                 .unwrap(),
             50
         );
@@ -139,7 +140,7 @@ mod tests {
             *low_scoring
                 .load()
                 // authority 4 is the last in authorities_by_score_desc
-                .get(sui_committee.authority_by_index(4).unwrap())
+                .get(iota_committee.authority_by_index(4).unwrap())
                 .unwrap(),
             0
         );
@@ -148,7 +149,7 @@ mod tests {
         let consensus_bad_nodes_stake_threshold = 20; // 20 * 8 / 100 = 1 low scoring validator
         update_low_scoring_authorities(
             low_scoring.clone(),
-            &sui_committee,
+            &iota_committee,
             &consensus_committee,
             Some(authorities_by_score_desc.clone()),
             &metrics,
@@ -160,13 +161,13 @@ mod tests {
         assert_eq!(
             *low_scoring
                 .load()
-                .get(sui_committee.authority_by_index(4).unwrap())
+                .get(iota_committee.authority_by_index(4).unwrap())
                 .unwrap(),
             0
         );
     }
 
-    /// Generate a pair of Sui and consensus committees for the given size.
+    /// Generate a pair of Iota and consensus committees for the given size.
     fn generate_committees(committee_size: usize) -> (Committee, ConsensusCommittee) {
         let (consensus_committee, _) = local_committee_and_keys(0, vec![1; committee_size]);
 
@@ -174,15 +175,15 @@ mod tests {
             .authorities()
             .map(|(_i, authority)| authority.authority_key.inner())
             .collect::<Vec<_>>();
-        let sui_authorities = public_keys
+        let iota_authorities = public_keys
             .iter()
             .map(|key| (AuthorityPublicKeyBytes::from(*key), 1))
             .collect::<Vec<_>>();
-        let sui_committee = Committee::new_for_testing_with_normalized_voting_power(
+        let iota_committee = Committee::new_for_testing_with_normalized_voting_power(
             0,
-            sui_authorities.iter().cloned().collect(),
+            iota_authorities.iter().cloned().collect(),
         );
 
-        (sui_committee, consensus_committee)
+        (iota_committee, consensus_committee)
     }
 }

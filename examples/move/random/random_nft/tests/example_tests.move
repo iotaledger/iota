@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -6,7 +7,7 @@ module random_nft::tests;
 
 use random_nft::example;
 use std::string;
-use sui::{random::{Self, Random}, test_scenario as ts};
+use iota::{random::{Self, Random}, test_scenario as ts};
 
 #[test]
 fun test_e2e() {

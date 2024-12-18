@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useSuiClient } from '@mysten/dapp-kit';
-import { SuiEvent, type EventId } from '@mysten/sui/client';
+import { useIotaClient } from '@iota/dapp-kit';
+import { IotaEvent, type EventId } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 type GetValidatorsEvent = {
@@ -15,7 +16,7 @@ const VALIDATORS_EVENTS_QUERY = '0x3::validator_set::ValidatorEpochInfoEventV2';
 
 //TODO: get validatorEvents by validator address
 export function useGetValidatorsEvents({ limit, order }: GetValidatorsEvent) {
-	const client = useSuiClient();
+	const client = useIotaClient();
 	// Since we are getting events based on the number of validators, we need to make sure that the limit
 	// is not null and cache by the limit number of validators can change from network to network
 	return useQuery({
@@ -32,7 +33,7 @@ export function useGetValidatorsEvents({ limit, order }: GetValidatorsEvent) {
 			if (limit > QUERY_MAX_RESULT_LIMIT) {
 				let hasNextPage = true;
 				let currCursor: EventId | null | undefined;
-				const results: SuiEvent[] = [];
+				const results: IotaEvent[] = [];
 
 				while (hasNextPage && results.length < limit) {
 					const validatorEventsResponse = await client.queryEvents({
@@ -44,7 +45,7 @@ export function useGetValidatorsEvents({ limit, order }: GetValidatorsEvent) {
 
 					hasNextPage = validatorEventsResponse.hasNextPage;
 					currCursor = validatorEventsResponse.nextCursor;
-					results.push(...(validatorEventsResponse.data as SuiEvent[]));
+					results.push(...(validatorEventsResponse.data as IotaEvent[]));
 				}
 				return results.slice(0, limit);
 			}

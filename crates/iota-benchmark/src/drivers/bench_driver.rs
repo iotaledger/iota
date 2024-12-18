@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Context;
@@ -34,9 +35,9 @@ use std::future::Future;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use sui_types::committee::Committee;
-use sui_types::quorum_driver_types::QuorumDriverError;
-use sui_types::transaction::{Transaction, TransactionDataAPI};
+use iota_types::committee::Committee;
+use iota_types::quorum_driver_types::QuorumDriverError;
+use iota_types::transaction::{Transaction, TransactionDataAPI};
 use sysinfo::{CpuExt, System, SystemExt};
 use tokio::sync::Barrier;
 use tokio::task::{JoinHandle, JoinSet};
@@ -103,7 +104,7 @@ impl BenchMetrics {
             .unwrap(),
             num_submitted: register_int_counter_vec_with_registry!(
                 "num_submitted",
-                "Total number of transaction submitted to sui",
+                "Total number of transaction submitted to iota",
                 &["workload"],
                 registry,
             )

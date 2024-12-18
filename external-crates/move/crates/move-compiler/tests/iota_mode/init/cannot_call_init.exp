@@ -1,5 +1,5 @@
-error[Sui E02006]: invalid 'init' call
-  ┌─ tests/sui_mode/init/cannot_call_init.move:9:9
+error[Iota E02006]: invalid 'init' call
+  ┌─ tests/iota_mode/init/cannot_call_init.move:9:9
   │
 9 │         init(ctx)
   │         ^^^^^^^^^ Invalid call to 'a::m::init'. Module initializers cannot be called directly

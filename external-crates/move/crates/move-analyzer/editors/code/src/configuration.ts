@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import * as os from 'os';
@@ -10,7 +11,7 @@ export const MOVE_CONF_NAME = 'move';
 export const LINT_OPT = 'lint';
 export const TYPE_HINTS_OPT = 'inlay-hints.type';
 export const PARAM_HINTS_OPT = 'inlay-hints.param';
-export const SUI_PATH_OPT = 'sui.path';
+export const IOTA_PATH_OPT = 'iota.path';
 export const SERVER_PATH_OPT = 'server.path';
 
 /**
@@ -33,7 +34,7 @@ export class Configuration {
 
     constructor() {
         this.configuration = vscode.workspace.getConfiguration(MOVE_CONF_NAME);
-        this.defaultServerDir = vscode.Uri.joinPath(vscode.Uri.file(os.homedir()), '.sui', 'bin');
+        this.defaultServerDir = vscode.Uri.joinPath(vscode.Uri.file(os.homedir()), '.iota', 'bin');
         if (process.platform === 'win32') {
             this.serverName = 'move-analyzer.exe';
         } else {
@@ -56,18 +57,18 @@ export class Configuration {
         return path.resolve(serverPath);
     }
 
-    /** The path to the Sui binary. */
-    get suiPath(): string {
-        const suiBin = process.platform === 'win32' ? 'sui.exe' : 'sui';
-        const suiPath = this.configuration.get<string | null>(SUI_PATH_OPT) ?? suiBin;
+    /** The path to the Iota binary. */
+    get iotaPath(): string {
+        const iotaBin = process.platform === 'win32' ? 'iota.exe' : 'iota';
+        const iotaPath = this.configuration.get<string | null>(IOTA_PATH_OPT) ?? iotaBin;
 
-        if (suiPath === suiBin) {
-            return suiPath;
+        if (iotaPath === iotaBin) {
+            return iotaPath;
         }
-        if (suiPath.startsWith('~/')) {
-            return os.homedir() + suiPath.slice('~'.length);
+        if (iotaPath.startsWith('~/')) {
+            return os.homedir() + iotaPath.slice('~'.length);
         }
-        return path.resolve(suiPath);
+        return path.resolve(iotaPath);
     }
 
     get lint(): string {

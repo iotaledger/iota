@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails};
 use dashmap::mapref::entry::Entry as DashMapEntry;
 use dashmap::DashMap;
-use mysten_common::*;
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::digests::TransactionDigest;
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::object::Object;
-use sui_types::storage::ObjectStore;
-use sui_types::transaction::VerifiedSignedTransaction;
+use iota_common::*;
+use iota_types::base_types::{ObjectID, ObjectRef};
+use iota_types::digests::TransactionDigest;
+use iota_types::error::{IotaError, IotaResult, UserInputError};
+use iota_types::object::Object;
+use iota_types::storage::ObjectStore;
+use iota_types::transaction::VerifiedSignedTransaction;
 use tracing::{debug, info, instrument, trace};
 
 use super::writeback_cache::WritebackCache;
@@ -41,7 +42,7 @@ impl ObjectLocks {
         &self,
         obj_ref: &ObjectRef,
         epoch_store: &AuthorityPerEpochStore,
-    ) -> SuiResult<Option<LockDetails>> {
+    ) -> IotaResult<Option<LockDetails>> {
         // We don't consult the in-memory state here. We are only interested in state that
         // has been committed to the db. This is because in memory state is reverted
         // if the transaction is not successfully locked.
@@ -57,7 +58,7 @@ impl ObjectLocks {
         obj_ref: &ObjectRef,
         new_lock: LockDetails,
         epoch_store: &AuthorityPerEpochStore,
-    ) -> SuiResult {
+    ) -> IotaResult {
         // entry holds a lock on the dashmap shard, so this function operates atomicly
         let entry = self.locked_transactions.entry(*obj_ref);
 
@@ -97,7 +98,7 @@ impl ObjectLocks {
 
         if prev_lock != new_lock {
             debug!("lock conflict detected: {:?} != {:?}", prev_lock, new_lock);
-            Err(SuiError::ObjectLockConflict {
+            Err(IotaError::ObjectLockConflict {
                 obj_ref: *obj_ref,
                 pending_transaction: prev_lock,
             })
@@ -111,7 +112,7 @@ impl ObjectLocks {
         self.locked_transactions.clear();
     }
 
-    fn verify_live_object(obj_ref: &ObjectRef, live_object: &Object) -> SuiResult {
+    fn verify_live_object(obj_ref: &ObjectRef, live_object: &Object) -> IotaResult {
         debug_assert_eq!(obj_ref.0, live_object.id());
         if obj_ref.1 != live_object.version() {
             debug!(
@@ -119,7 +120,7 @@ impl ObjectLocks {
                 obj_ref,
                 live_object.version()
             );
-            return Err(SuiError::UserInputError {
+            return Err(IotaError::UserInputError {
                 error: UserInputError::ObjectVersionUnavailableForConsumption {
                     provided_obj_ref: *obj_ref,
                     current_version: live_object.version(),
@@ -129,7 +130,7 @@ impl ObjectLocks {
 
         let live_digest = live_object.digest();
         if obj_ref.2 != live_digest {
-            return Err(SuiError::UserInputError {
+            return Err(IotaError::UserInputError {
                 error: UserInputError::InvalidObjectDigest {
                     object_id: obj_ref.0,
                     expected_digest: live_digest,
@@ -169,14 +170,14 @@ impl ObjectLocks {
     fn multi_get_objects_must_exist(
         cache: &WritebackCache,
         object_ids: &[ObjectID],
-    ) -> SuiResult<Vec<Object>> {
+    ) -> IotaResult<Vec<Object>> {
         let objects = cache.multi_get_objects(object_ids);
         let mut result = Vec::with_capacity(objects.len());
         for (i, object) in objects.into_iter().enumerate() {
             if let Some(object) = object {
                 result.push(object);
             } else {
-                return Err(SuiError::UserInputError {
+                return Err(IotaError::UserInputError {
                     error: UserInputError::ObjectNotFound {
                         object_id: object_ids[i],
                         version: None,
@@ -195,7 +196,7 @@ impl ObjectLocks {
         owned_input_objects: &[ObjectRef],
         tx_digest: TransactionDigest,
         signed_transaction: Option<VerifiedSignedTransaction>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let object_ids = owned_input_objects.iter().map(|o| o.0).collect::<Vec<_>>();
         let live_objects = Self::multi_get_objects_must_exist(cache, &object_ids)?;
 

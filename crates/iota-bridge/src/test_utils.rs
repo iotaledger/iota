@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abi::EthToSuiTokenBridgeV1;
+use crate::abi::EthToIotaTokenBridgeV1;
 use crate::eth_mock_provider::EthMockProvider;
-use crate::events::SuiBridgeEvent;
+use crate::events::IotaBridgeEvent;
 use crate::server::mock_handler::run_mock_server;
-use crate::sui_transaction_builder::build_sui_transaction;
+use crate::iota_transaction_builder::build_iota_transaction;
 use crate::types::{
     BridgeCommittee, BridgeCommitteeValiditySignInfo, CertifiedBridgeAction,
     VerifiedCertifiedBridgeAction,
 };
 use crate::{
     crypto::{BridgeAuthorityKeyPair, BridgeAuthorityPublicKey, BridgeAuthoritySignInfo},
-    events::EmittedSuiToEthTokenBridgeV1,
+    events::EmittedIotaToEthTokenBridgeV1,
     server::mock_handler::BridgeRequestMockHandler,
     types::{
-        BridgeAction, BridgeAuthority, EthToSuiBridgeAction, SignedBridgeAction,
-        SuiToEthBridgeAction,
+        BridgeAction, BridgeAuthority, EthToIotaBridgeAction, SignedBridgeAction,
+        IotaToEthBridgeAction,
     },
 };
 use ethers::abi::{long_signature, ParamType};
@@ -33,23 +34,23 @@ use std::collections::{BTreeMap, HashMap};
 use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
-use sui_config::local_ip_utils;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_sdk::wallet_context::WalletContext;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::ObjectRef;
-use sui_types::base_types::SequenceNumber;
-use sui_types::bridge::MoveTypeCommitteeMember;
-use sui_types::bridge::{BridgeChainId, BridgeCommitteeSummary, TOKEN_ID_USDC};
-use sui_types::crypto::ToFromBytes;
-use sui_types::object::Owner;
-use sui_types::transaction::{CallArg, ObjectArg};
-use sui_types::{base_types::SuiAddress, crypto::get_key_pair, digests::TransactionDigest};
-use sui_types::{BRIDGE_PACKAGE_ID, SUI_BRIDGE_OBJECT_ID};
+use iota_config::local_ip_utils;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_sdk::wallet_context::WalletContext;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::ObjectRef;
+use iota_types::base_types::SequenceNumber;
+use iota_types::bridge::MoveTypeCommitteeMember;
+use iota_types::bridge::{BridgeChainId, BridgeCommitteeSummary, TOKEN_ID_USDC};
+use iota_types::crypto::ToFromBytes;
+use iota_types::object::Owner;
+use iota_types::transaction::{CallArg, ObjectArg};
+use iota_types::{base_types::IotaAddress, crypto::get_key_pair, digests::TransactionDigest};
+use iota_types::{BRIDGE_PACKAGE_ID, IOTA_BRIDGE_OBJECT_ID};
 use tokio::task::JoinHandle;
 
 pub const DUMMY_MUTALBE_BRIDGE_OBJECT_ARG: ObjectArg = ObjectArg::SharedObject {
-    id: SUI_BRIDGE_OBJECT_ID,
+    id: IOTA_BRIDGE_OBJECT_ID,
     initial_shared_version: SequenceNumber::from_u64(1),
     mutable: true,
 };
@@ -65,7 +66,7 @@ pub fn get_test_authority_and_key(
     let (_, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
     let pubkey = kp.public().clone();
     let authority = BridgeAuthority {
-        sui_address: SuiAddress::random_for_testing_only(),
+        iota_address: IotaAddress::random_for_testing_only(),
         pubkey: pubkey.clone(),
         voting_power,
         base_url: format!("http://127.0.0.1:{}", port),
@@ -76,46 +77,46 @@ pub fn get_test_authority_and_key(
 }
 
 // TODO: make a builder for this
-pub fn get_test_sui_to_eth_bridge_action(
-    sui_tx_digest: Option<TransactionDigest>,
-    sui_tx_event_index: Option<u16>,
+pub fn get_test_iota_to_eth_bridge_action(
+    iota_tx_digest: Option<TransactionDigest>,
+    iota_tx_event_index: Option<u16>,
     nonce: Option<u64>,
-    amount_sui_adjusted: Option<u64>,
-    sender_address: Option<SuiAddress>,
+    amount_iota_adjusted: Option<u64>,
+    sender_address: Option<IotaAddress>,
     recipient_address: Option<EthAddress>,
     token_id: Option<u8>,
 ) -> BridgeAction {
-    BridgeAction::SuiToEthBridgeAction(SuiToEthBridgeAction {
-        sui_tx_digest: sui_tx_digest.unwrap_or_else(TransactionDigest::random),
-        sui_tx_event_index: sui_tx_event_index.unwrap_or(0),
-        sui_bridge_event: EmittedSuiToEthTokenBridgeV1 {
+    BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
+        iota_tx_digest: iota_tx_digest.unwrap_or_else(TransactionDigest::random),
+        iota_tx_event_index: iota_tx_event_index.unwrap_or(0),
+        iota_bridge_event: EmittedIotaToEthTokenBridgeV1 {
             nonce: nonce.unwrap_or_default(),
-            sui_chain_id: BridgeChainId::SuiCustom,
-            sui_address: sender_address.unwrap_or_else(SuiAddress::random_for_testing_only),
+            iota_chain_id: BridgeChainId::IotaCustom,
+            iota_address: sender_address.unwrap_or_else(IotaAddress::random_for_testing_only),
             eth_chain_id: BridgeChainId::EthCustom,
             eth_address: recipient_address.unwrap_or_else(EthAddress::random),
             token_id: token_id.unwrap_or(TOKEN_ID_USDC),
-            amount_sui_adjusted: amount_sui_adjusted.unwrap_or(100_000),
+            amount_iota_adjusted: amount_iota_adjusted.unwrap_or(100_000),
         },
     })
 }
 
-pub fn get_test_eth_to_sui_bridge_action(
+pub fn get_test_eth_to_iota_bridge_action(
     nonce: Option<u64>,
     amount: Option<u64>,
-    sui_address: Option<SuiAddress>,
+    iota_address: Option<IotaAddress>,
     token_id: Option<u8>,
 ) -> BridgeAction {
-    BridgeAction::EthToSuiBridgeAction(EthToSuiBridgeAction {
+    BridgeAction::EthToIotaBridgeAction(EthToIotaBridgeAction {
         eth_tx_hash: TxHash::random(),
         eth_event_index: 0,
-        eth_bridge_event: EthToSuiTokenBridgeV1 {
+        eth_bridge_event: EthToIotaTokenBridgeV1 {
             eth_chain_id: BridgeChainId::EthCustom,
             nonce: nonce.unwrap_or_default(),
-            sui_chain_id: BridgeChainId::SuiCustom,
+            iota_chain_id: BridgeChainId::IotaCustom,
             token_id: token_id.unwrap_or(TOKEN_ID_USDC),
-            sui_adjusted_amount: amount.unwrap_or(100_000),
-            sui_address: sui_address.unwrap_or_else(SuiAddress::random_for_testing_only),
+            iota_adjusted_amount: amount.unwrap_or(100_000),
+            iota_address: iota_address.unwrap_or_else(IotaAddress::random_for_testing_only),
             eth_address: EthAddress::random(),
         },
     })
@@ -226,15 +227,15 @@ pub fn get_test_log_and_action(
     event_index: u16,
 ) -> (Log, BridgeAction) {
     let token_id = 3u8;
-    let sui_adjusted_amount = 10000000u64;
+    let iota_adjusted_amount = 10000000u64;
     let source_address = EthAddress::random();
-    let sui_address: SuiAddress = SuiAddress::random_for_testing_only();
-    let target_address = Hex::decode(&sui_address.to_string()).unwrap();
+    let iota_address: IotaAddress = IotaAddress::random_for_testing_only();
+    let target_address = Hex::decode(&iota_address.to_string()).unwrap();
     // Note: must use `encode` rather than `encode_packged`
     let encoded = ethers::abi::encode(&[
         // u8/u64 is encoded as u256 in abi standard
         ethers::abi::Token::Uint(ethers::types::U256::from(token_id)),
-        ethers::abi::Token::Uint(ethers::types::U256::from(sui_adjusted_amount)),
+        ethers::abi::Token::Uint(ethers::types::U256::from(iota_adjusted_amount)),
         ethers::abi::Token::Address(source_address),
         ethers::abi::Token::Bytes(target_address.clone()),
     ]);
@@ -253,7 +254,7 @@ pub fn get_test_log_and_action(
                     ParamType::Bytes,
                 ],
             ),
-            hex!("0000000000000000000000000000000000000000000000000000000000000001").into(), // chain id: sui testnet
+            hex!("0000000000000000000000000000000000000000000000000000000000000001").into(), // chain id: iota testnet
             hex!("0000000000000000000000000000000000000000000000000000000000000010").into(), // nonce: 16
             hex!("000000000000000000000000000000000000000000000000000000000000000b").into(), // chain id: sepolia
         ],
@@ -267,16 +268,16 @@ pub fn get_test_log_and_action(
     let topic_1: [u8; 32] = log.topics[1].into();
     let topic_3: [u8; 32] = log.topics[3].into();
 
-    let bridge_action = BridgeAction::EthToSuiBridgeAction(EthToSuiBridgeAction {
+    let bridge_action = BridgeAction::EthToIotaBridgeAction(EthToIotaBridgeAction {
         eth_tx_hash: tx_hash,
         eth_event_index: event_index,
-        eth_bridge_event: EthToSuiTokenBridgeV1 {
+        eth_bridge_event: EthToIotaTokenBridgeV1 {
             eth_chain_id: BridgeChainId::try_from(topic_1[topic_1.len() - 1]).unwrap(),
             nonce: u64::from_be_bytes(log.topics[2].as_ref()[24..32].try_into().unwrap()),
-            sui_chain_id: BridgeChainId::try_from(topic_3[topic_3.len() - 1]).unwrap(),
+            iota_chain_id: BridgeChainId::try_from(topic_3[topic_3.len() - 1]).unwrap(),
             token_id,
-            sui_adjusted_amount,
-            sui_address,
+            iota_adjusted_amount,
+            iota_address,
             eth_address: source_address,
         },
     });
@@ -289,7 +290,7 @@ pub async fn bridge_token(
     token_ref: ObjectRef,
     token_type: TypeTag,
     bridge_object_arg: ObjectArg,
-) -> EmittedSuiToEthTokenBridgeV1 {
+) -> EmittedIotaToEthTokenBridgeV1 {
     let rgp = context.get_reference_gas_price().await.unwrap();
     let sender = context.active_address().unwrap();
     let gas_object = context.get_one_gas_object().await.unwrap().unwrap().1;
@@ -313,12 +314,12 @@ pub async fn bridge_token(
     let bridge_events = events
         .data
         .iter()
-        .filter_map(|event| SuiBridgeEvent::try_from_sui_event(event).unwrap())
+        .filter_map(|event| IotaBridgeEvent::try_from_iota_event(event).unwrap())
         .collect::<Vec<_>>();
     bridge_events
         .iter()
         .find_map(|e| match e {
-            SuiBridgeEvent::SuiToEthTokenBridgeV1(event) => Some(event.clone()),
+            IotaBridgeEvent::IotaToEthTokenBridgeV1(event) => Some(event.clone()),
             _ => None,
         })
         .unwrap()
@@ -344,9 +345,9 @@ pub fn get_certified_action_with_validator_secrets(
 
 /// Approve a bridge action with the given validator secrets. Return the
 /// newly created token object reference if `expected_token_receiver` is Some
-/// (only relevant when the action is eth -> Sui transfer),
+/// (only relevant when the action is eth -> Iota transfer),
 /// Otherwise return None.
-/// Note: for sui -> eth transfers, the actual deposit needs to be recorded.
+/// Note: for iota -> eth transfers, the actual deposit needs to be recorded.
 /// Use `bridge_token` to do it.
 // TODO(bridge): It appears this function is very slow (particularly, `execute_transaction_must_succeed`).
 // Investigate why.
@@ -356,21 +357,21 @@ pub async fn approve_action_with_validator_secrets(
     // TODO: add `token_recipient()` for `BridgeAction` so we don't need `expected_token_receiver`
     action: BridgeAction,
     validator_secrets: &Vec<BridgeAuthorityKeyPair>,
-    // Only relevant for eth -> sui transfers when token will be dropped to the recipient
-    expected_token_receiver: Option<SuiAddress>,
+    // Only relevant for eth -> iota transfers when token will be dropped to the recipient
+    expected_token_receiver: Option<IotaAddress>,
     id_token_map: &HashMap<u8, TypeTag>,
 ) -> Option<ObjectRef> {
     let action_certificate = get_certified_action_with_validator_secrets(action, validator_secrets);
     let rgp = wallet_context.get_reference_gas_price().await.unwrap();
-    let sui_address = wallet_context.active_address().unwrap();
+    let iota_address = wallet_context.active_address().unwrap();
     let gas_obj_ref = wallet_context
         .get_one_gas_object()
         .await
         .unwrap()
         .unwrap()
         .1;
-    let tx_data = build_sui_transaction(
-        sui_address,
+    let tx_data = build_iota_transaction(
+        iota_address,
         &gas_obj_ref,
         action_certificate,
         bridge_obj_org,
@@ -410,7 +411,7 @@ pub fn bridge_committee_to_bridge_committee_summary(
                 (
                     bytes.clone(),
                     MoveTypeCommitteeMember {
-                        sui_address: SuiAddress::random_for_testing_only(),
+                        iota_address: IotaAddress::random_for_testing_only(),
                         bridge_pubkey_bytes: bytes,
                         voting_power: v.voting_power,
                         http_rest_url: v.base_url.as_bytes().to_vec(),

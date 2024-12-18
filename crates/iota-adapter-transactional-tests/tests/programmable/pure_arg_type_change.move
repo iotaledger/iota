@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests that pure arguments have their types fixed/changed after being used by a mutable reference
@@ -36,7 +37,7 @@ module test::m1 {
 
 //> 0: test::m1::addr(Input(0));
 //> 1: test::m1::id(Input(0));
-//> 2: test::m1::fix<sui::object::ID>(Input(0));
+//> 2: test::m1::fix<iota::object::ID>(Input(0));
 // now will fail as Input(0) if always an ID
 //> 3: test::m1::addr(Input(0));
 

@@ -1,12 +1,13 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use async_trait::async_trait;
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::spawn_monitored_task;
-use mysten_network::server::SUI_TLS_SERVER_NAME;
+use iota_metrics::spawn_monitored_task;
+use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use prometheus::{
     register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, Histogram, IntCounter, IntCounterVec, Registry,
@@ -17,27 +18,27 @@ use std::{
     sync::Arc,
     time::SystemTime,
 };
-use sui_network::{
+use iota_network::{
     api::{Validator, ValidatorServer},
     tonic,
 };
-use sui_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
-use sui_types::messages_grpc::{
+use iota_types::messages_consensus::{ConsensusTransaction, ConsensusTransactionKind};
+use iota_types::messages_grpc::{
     HandleCertificateRequestV3, HandleCertificateResponseV3, HandleTransactionResponseV2,
 };
-use sui_types::messages_grpc::{
+use iota_types::messages_grpc::{
     HandleCertificateResponseV2, HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse,
     SubmitCertificateResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
 };
-use sui_types::messages_grpc::{
+use iota_types::messages_grpc::{
     HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
 };
-use sui_types::multiaddr::Multiaddr;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight};
-use sui_types::{effects::TransactionEffectsAPI, messages_grpc::HandleTransactionRequestV2};
-use sui_types::{error::*, transaction::*};
-use sui_types::{
+use iota_types::multiaddr::Multiaddr;
+use iota_types::iota_system_state::IotaSystemState;
+use iota_types::traffic_control::{ClientIdSource, PolicyConfig, RemoteFirewallConfig, Weight};
+use iota_types::{effects::TransactionEffectsAPI, messages_grpc::HandleTransactionRequestV2};
+use iota_types::{error::*, transaction::*};
+use iota_types::{
     fp_ensure,
     messages_checkpoint::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
@@ -64,7 +65,7 @@ use crate::{
     traffic_controller::metrics::TrafficControllerMetrics,
 };
 use nonempty::{nonempty, NonEmpty};
-use sui_config::local_ip_utils::new_local_tcp_address_for_testing;
+use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
 use tonic::transport::server::TcpConnectInfo;
 
 #[cfg(test)]
@@ -148,12 +149,12 @@ impl AuthorityServer {
         self,
         address: Multiaddr,
     ) -> Result<AuthorityServerHandle, io::Error> {
-        let tls_config = sui_tls::create_rustls_server_config(
+        let tls_config = iota_tls::create_rustls_server_config(
             self.state.config.network_key_pair().copy().private(),
-            SUI_TLS_SERVER_NAME.to_string(),
-            sui_tls::AllowAll,
+            IOTA_TLS_SERVER_NAME.to_string(),
+            iota_tls::AllowAll,
         );
-        let mut server = mysten_network::config::Config::new()
+        let mut server = iota_network_stack::config::Config::new()
             .server_builder()
             .add_service(ValidatorServer::new(ValidatorService::new_for_tests(
                 self.state,
@@ -212,84 +213,84 @@ impl ValidatorServiceMetrics {
             tx_verification_latency: register_histogram_with_registry!(
                 "validator_service_tx_verification_latency",
                 "Latency of verifying a transaction",
-                mysten_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             cert_verification_latency: register_histogram_with_registry!(
                 "validator_service_cert_verification_latency",
                 "Latency of verifying a certificate",
-                mysten_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             consensus_latency: register_histogram_with_registry!(
                 "validator_service_consensus_latency",
                 "Time spent between submitting a txn to consensus and getting back local acknowledgement. Execution and finalization time are not included.",
-                mysten_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             handle_transaction_latency: register_histogram_with_registry!(
                 "validator_service_handle_transaction_latency",
                 "Latency of handling a transaction",
-                mysten_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             handle_transaction_v2_latency: register_histogram_with_registry!(
                 "validator_service_handle_transaction_v2_latency",
                 "Latency of v2 transaction handler",
-                mysten_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             handle_certificate_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_certificate_consensus_latency",
                 "Latency of handling a consensus transaction certificate",
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             submit_certificate_consensus_latency: register_histogram_with_registry!(
                 "validator_service_submit_certificate_consensus_latency",
                 "Latency of submit_certificate RPC handler",
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             handle_certificate_non_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_certificate_non_consensus_latency",
                 "Latency of handling a non-consensus transaction certificate",
-                mysten_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             handle_soft_bundle_certificates_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_soft_bundle_certificates_consensus_latency",
                 "Latency of handling a consensus soft bundle",
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             handle_soft_bundle_certificates_count: register_histogram_with_registry!(
                 "handle_soft_bundle_certificates_count",
                 "The number of certificates included in a soft bundle",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             handle_soft_bundle_certificates_size_bytes: register_histogram_with_registry!(
                 "handle_soft_bundle_certificates_size_bytes",
                 "The size of soft bundle in bytes",
-                mysten_metrics::BYTES_BUCKETS.to_vec(),
+                iota_metrics::BYTES_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             handle_transaction_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_transaction_consensus_latency",
                 "Latency of handling a user transaction sent through consensus",
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -426,7 +427,7 @@ impl ValidatorService {
     }
 
     // When making changes to this function, see if the changes should be applied to
-    // `handle_transaction_v2()` and `SuiTxValidator::vote_transaction()` as well.
+    // `handle_transaction_v2()` and `IotaTxValidator::vote_transaction()` as well.
     async fn handle_transaction(
         &self,
         request: tonic::Request<Transaction>,
@@ -463,7 +464,7 @@ impl ValidatorService {
                 .inc();
             // TODO: consider change the behavior for other types of overload errors.
             match error {
-                SuiError::ValidatorOverloadedRetryAfter { .. } => {
+                IotaError::ValidatorOverloadedRetryAfter { .. } => {
                     validator_pushback_error = Some(error)
                 }
                 _ => return Err(error.into()),
@@ -488,7 +489,7 @@ impl ValidatorService {
             .instrument(span)
             .await
             .tap_err(|e| {
-                if let SuiError::ValidatorHaltedAtEpochEnd = e {
+                if let IotaError::ValidatorHaltedAtEpochEnd = e {
                     metrics.num_rejected_tx_in_epoch_boundary.inc();
                 }
             })?;
@@ -515,7 +516,7 @@ impl ValidatorService {
         } = self.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
         if !epoch_store.protocol_config().mysticeti_fastpath() {
-            return Err(SuiError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeatureError {
                 error: "Mysticeti fastpath".to_string(),
             }
             .into());
@@ -562,7 +563,7 @@ impl ValidatorService {
             .instrument(span)
             .await
             .tap_err(|e| {
-                if let SuiError::ValidatorHaltedAtEpochEnd = e {
+                if let IotaError::ValidatorHaltedAtEpochEnd = e {
                     metrics.num_rejected_tx_in_epoch_boundary.inc();
                 }
             })?;
@@ -635,7 +636,7 @@ impl ValidatorService {
         // Fullnode does not serve handle_certificate call.
         fp_ensure!(
             !self.state.is_fullnode(epoch_store),
-            SuiError::FullNodeCantHandleCertificate.into()
+            IotaError::FullNodeCantHandleCertificate.into()
         );
 
         let shared_object_tx = certificates
@@ -781,7 +782,7 @@ impl ValidatorService {
             let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
             if !reconfiguration_lock.should_accept_user_certs() {
                 self.metrics.num_rejected_cert_in_epoch_boundary.inc();
-                return Err(SuiError::ValidatorHaltedAtEpochEnd.into());
+                return Err(IotaError::ValidatorHaltedAtEpochEnd.into());
             }
 
             // 3) All transactions are sent to consensus (at least by some authorities)
@@ -867,7 +868,7 @@ impl ValidatorService {
                     // TODO(fastpath): Make sure consensus handler does this for a UserTransaction.
                 }
 
-                Ok::<_, SuiError>(HandleTransactionResponseV2 {
+                Ok::<_, IotaError>(HandleTransactionResponseV2 {
                     effects,
                     events,
                     input_objects,
@@ -1014,7 +1015,7 @@ impl ValidatorService {
         // without having to upgrade the entire network.
         fp_ensure!(
             protocol_config.soft_bundle() && node_config.enable_soft_bundle,
-            SuiError::UnsupportedFeatureError {
+            IotaError::UnsupportedFeatureError {
                 error: "Soft Bundle".to_string()
             }
             .into()
@@ -1028,7 +1029,7 @@ impl ValidatorService {
         // - Total size of all certs must not exceed the max allowed.
         fp_ensure!(
             certificates.len() as u64 <= protocol_config.max_soft_bundle_size(),
-            SuiError::UserInputError {
+            IotaError::UserInputError {
                 error: UserInputError::TooManyTransactionsInSoftBundle {
                     limit: protocol_config.max_soft_bundle_size()
                 }
@@ -1043,7 +1044,7 @@ impl ValidatorService {
             protocol_config.consensus_max_transactions_in_block_bytes() / 2;
         fp_ensure!(
             total_size_bytes <= soft_bundle_max_size_bytes,
-            SuiError::UserInputError {
+            IotaError::UserInputError {
                 error: UserInputError::SoftBundleTooLarge {
                     size: total_size_bytes,
                     limit: soft_bundle_max_size_bytes,
@@ -1057,14 +1058,14 @@ impl ValidatorService {
             let tx_digest = *certificate.digest();
             fp_ensure!(
                 certificate.contains_shared_object(),
-                SuiError::UserInputError {
+                IotaError::UserInputError {
                     error: UserInputError::NoSharedObjectError { digest: tx_digest }
                 }
                 .into()
             );
             fp_ensure!(
                 !self.state.is_tx_already_executed(&tx_digest),
-                SuiError::UserInputError {
+                IotaError::UserInputError {
                     error: UserInputError::AlreadyExecutedError { digest: tx_digest }
                 }
                 .into()
@@ -1072,7 +1073,7 @@ impl ValidatorService {
             if let Some(gas) = gas_price {
                 fp_ensure!(
                     gas == certificate.gas_price(),
-                    SuiError::UserInputError {
+                    IotaError::UserInputError {
                         error: UserInputError::GasPriceMismatchError {
                             digest: tx_digest,
                             expected: gas,
@@ -1092,7 +1093,7 @@ impl ValidatorService {
         // already being processed by another actor, and we could not know it.
         fp_ensure!(
             !epoch_store.is_any_tx_certs_consensus_message_processed(certificates.iter())?,
-            SuiError::UserInputError {
+            IotaError::UserInputError {
                 error: UserInputError::CertificateAlreadyProcessed
             }
             .into()
@@ -1114,7 +1115,7 @@ impl ValidatorService {
         let request = request.into_inner();
 
         let certificates = NonEmpty::from_vec(request.certificates)
-            .ok_or_else(|| SuiError::NoCertificateProvidedError)?;
+            .ok_or_else(|| IotaError::NoCertificateProvidedError)?;
         let mut total_size_bytes = 0;
         for certificate in &certificates {
             // We need to check this first because we haven't verified the cert signature.
@@ -1210,11 +1211,11 @@ impl ValidatorService {
     async fn get_system_state_object_impl(
         &self,
         _request: tonic::Request<SystemStateRequest>,
-    ) -> WrappedServiceResponse<SuiSystemState> {
+    ) -> WrappedServiceResponse<IotaSystemState> {
         let response = self
             .state
             .get_object_cache_reader()
-            .get_sui_system_state_object_unsafe()?;
+            .get_iota_system_state_object_unsafe()?;
         Ok((tonic::Response::new(response), Weight::one()))
     }
 
@@ -1319,7 +1320,7 @@ impl ValidatorService {
         if let Some(traffic_controller) = &self.traffic_controller {
             if !traffic_controller.check(&client, &None).await {
                 // Entity in blocklist
-                Err(tonic::Status::from_error(SuiError::TooManyRequests.into()))
+                Err(tonic::Status::from_error(IotaError::TooManyRequests.into()))
             } else {
                 Ok(())
             }
@@ -1336,7 +1337,7 @@ impl ValidatorService {
         let (error, spam_weight, unwrapped_response) = match wrapped_response {
             Ok((result, spam_weight)) => (None, spam_weight.clone(), Ok(result)),
             Err(status) => (
-                Some(SuiError::from(status.clone())),
+                Some(IotaError::from(status.clone())),
                 Weight::zero(),
                 Err(status.clone()),
             ),
@@ -1372,17 +1373,17 @@ fn make_tonic_request_for_testing<T>(message: T) -> tonic::Request<T> {
 }
 
 // TODO: refine error matching here
-fn normalize(err: SuiError) -> Weight {
+fn normalize(err: IotaError) -> Weight {
     match err {
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::IncorrectUserSignature { .. },
         } => Weight::one(),
-        SuiError::InvalidSignature { .. }
-        | SuiError::SignerSignatureAbsent { .. }
-        | SuiError::SignerSignatureNumberMismatch { .. }
-        | SuiError::IncorrectSigner { .. }
-        | SuiError::UnknownSigner { .. }
-        | SuiError::WrongEpoch { .. } => Weight::one(),
+        IotaError::InvalidSignature { .. }
+        | IotaError::SignerSignatureAbsent { .. }
+        | IotaError::SignerSignatureNumberMismatch { .. }
+        | IotaError::IncorrectSigner { .. }
+        | IotaError::UnknownSigner { .. }
+        | IotaError::WrongEpoch { .. } => Weight::one(),
         _ => Weight::zero(),
     }
 }
@@ -1513,7 +1514,7 @@ impl Validator for ValidatorService {
     async fn get_system_state_object(
         &self,
         request: tonic::Request<SystemStateRequest>,
-    ) -> Result<tonic::Response<SuiSystemState>, tonic::Status> {
+    ) -> Result<tonic::Response<IotaSystemState>, tonic::Status> {
         handle_with_decoration!(self, get_system_state_object_impl, request)
     }
 }

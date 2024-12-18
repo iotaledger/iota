@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::default_registry;
@@ -11,16 +12,16 @@ use std::{
     sync::{atomic::AtomicU32, Arc},
     time::{Duration, Instant},
 };
-use sui_framework::BuiltInFramework;
-use sui_macros::{register_fail_point_async, sim_test};
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::{
-    base_types::{random_object_ref, SuiAddress},
+use iota_framework::BuiltInFramework;
+use iota_macros::{register_fail_point_async, sim_test};
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::{
+    base_types::{random_object_ref, IotaAddress},
     crypto::{deterministic_random_account_key, get_key_pair_from_rng, AccountKeyPair},
     object::{MoveObject, Owner, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };
-use sui_types::{
+use iota_types::{
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     event::Event,
 };
@@ -138,8 +139,8 @@ impl Scenario {
 
     fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
-        let (sender, keypair): (SuiAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
-        let (receiver, _): (SuiAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (sender, keypair): (IotaAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (receiver, _): (IotaAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement is
         // that it has a unique digest every time.
@@ -178,7 +179,7 @@ impl Scenario {
     }
 
     fn new_package() -> Object {
-        use sui_move_build::BuildConfig;
+        use iota_move_build::BuildConfig;
 
         // add object_basics package object to genesis, since lots of test use it
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -355,7 +356,7 @@ impl Scenario {
     }
 
     // commit a transaction to the database
-    pub async fn commit(&mut self, tx: TransactionDigest) -> SuiResult {
+    pub async fn commit(&mut self, tx: TransactionDigest) -> IotaResult {
         let res = self.cache().commit_transaction_outputs(1, &[tx]).await;
         self.count_action();
         Ok(res)
@@ -1232,7 +1233,7 @@ async fn latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectID::random();
-    let owner = SuiAddress::random_for_testing_only();
+    let owner = IotaAddress::random_for_testing_only();
 
     // a writer thread that keeps writing new versions
     let writer = {

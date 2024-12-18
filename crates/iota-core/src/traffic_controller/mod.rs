@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod metrics;
@@ -19,11 +20,11 @@ use crate::traffic_controller::nodefw_client::{BlockAddress, BlockAddresses, Nod
 use crate::traffic_controller::policies::{
     Policy, PolicyResponse, TrafficControlPolicy, TrafficTally,
 };
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use rand::Rng;
 use std::fmt::Debug;
 use std::time::{Duration, Instant, SystemTime};
-use sui_types::traffic_control::{PolicyConfig, RemoteFirewallConfig, Weight};
+use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig, Weight};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TrySendError;
 use tracing::{debug, error, info, trace, warn};

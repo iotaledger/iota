@@ -1,8 +1,8 @@
 [package]
-name = "sui-edge-proxy"
+name = "iota-edge-proxy"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 
@@ -23,6 +23,6 @@ serde_json.workspace = true
 serde_yaml.workspace = true
 bin-version.workspace = true
 reqwest.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 prometheus.workspace = true
 telemetry-subscribers.workspace = true

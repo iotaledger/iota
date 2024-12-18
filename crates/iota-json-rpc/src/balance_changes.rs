@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -8,16 +9,16 @@ use async_trait::async_trait;
 use move_core_types::language_storage::TypeTag;
 use tokio::sync::RwLock;
 
-use sui_json_rpc_types::BalanceChange;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber};
-use sui_types::coin::Coin;
-use sui_types::digests::ObjectDigest;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::execution_status::ExecutionStatus;
-use sui_types::gas_coin::GAS;
-use sui_types::object::{Object, Owner};
-use sui_types::storage::WriteKind;
-use sui_types::transaction::InputObjectKind;
+use iota_json_rpc_types::BalanceChange;
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber};
+use iota_types::coin::Coin;
+use iota_types::digests::ObjectDigest;
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::execution_status::ExecutionStatus;
+use iota_types::gas_coin::GAS;
+use iota_types::object::{Object, Owner};
+use iota_types::storage::WriteKind;
+use iota_types::transaction::InputObjectKind;
 use tracing::instrument;
 
 #[instrument(skip_all, fields(transaction_digest = %effects.transaction_digest()))]

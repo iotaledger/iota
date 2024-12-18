@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::{
     digest::Digest,
-    sui_address::SuiAddress,
+    iota_address::IotaAddress,
     type_filter::{ModuleFilter, TypeFilter},
 };
 use async_graphql::*;
@@ -11,7 +12,7 @@ use async_graphql::*;
 #[derive(InputObject, Clone, Default)]
 pub(crate) struct EventFilter {
     /// Filter down to events from transactions sent by this address.
-    pub sender: Option<SuiAddress>,
+    pub sender: Option<IotaAddress>,
 
     /// Filter down to the events from this transaction (given by its transaction digest).
     pub transaction_digest: Option<Digest>,
@@ -36,7 +37,7 @@ pub(crate) struct EventFilter {
     ///
     /// Generic types can be queried by either the generic type name, e.g.
     /// `0x2::coin::Coin`, or by the full type name, such as
-    /// `0x2::coin::Coin<0x2::sui::SUI>`.
+    /// `0x2::coin::Coin<0x2::iota::IOTA>`.
     pub event_type: Option<TypeFilter>,
     // Enhancement (post-MVP)
     // pub start_time

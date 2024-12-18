@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashMap, sync::Arc};
 
 use rand::{rngs::StdRng, Rng, SeedableRng};
-use sui_core::authority::authority_store_tables::LiveObject;
-use sui_types::{
-    base_types::{ObjectRef, SuiAddress},
+use iota_core::authority::authority_store_tables::LiveObject;
+use iota_types::{
+    base_types::{ObjectRef, IotaAddress},
     object::Owner,
 };
 use test_cluster::TestCluster;
@@ -35,7 +36,7 @@ impl SurferTask {
         let immutable_objects: ImmObjects = Arc::new(RwLock::new(HashMap::new()));
         let shared_objects: SharedObjects = Arc::new(RwLock::new(HashMap::new()));
 
-        let mut accounts: HashMap<SuiAddress, (Option<ObjectRef>, OwnedObjects)> = cluster
+        let mut accounts: HashMap<IotaAddress, (Option<ObjectRef>, OwnedObjects)> = cluster
             .get_addresses()
             .iter()
             .skip(skip_accounts)
@@ -70,7 +71,7 @@ impl SurferTask {
                             Owner::Shared {
                                 initial_shared_version,
                             }
-                            // TODO: Implement full support for ConsensusV2 objects in sui-surfer.
+                            // TODO: Implement full support for ConsensusV2 objects in iota-surfer.
                             | Owner::ConsensusV2 {
                                 start_version: initial_shared_version,
                                 ..

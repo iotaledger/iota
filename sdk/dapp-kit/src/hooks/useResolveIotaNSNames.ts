@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ResolvedNameServiceNames } from '@mysten/sui/client';
+import type { ResolvedNameServiceNames } from '@iota/iota-sdk/client';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 
-import { useSuiClientQuery } from './useSuiClientQuery.js';
+import { useIotaClientQuery } from './useIotaClientQuery.js';
 
-export function useResolveSuiNSName(
+export function useResolveIotaNSName(
 	address?: string | null,
 	options?: Omit<
 		UseQueryOptions<ResolvedNameServiceNames, Error, string | null, unknown[]>,
 		'queryFn' | 'queryKey' | 'select'
 	>,
 ): UseQueryResult<string | null, Error> {
-	return useSuiClientQuery(
+	return useIotaClientQuery(
 		'resolveNameServiceNames',
 		{
 			address: address!,

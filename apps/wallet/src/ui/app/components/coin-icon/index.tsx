@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ImageIcon } from '_app/shared/image-icon';
-import { useCoinMetadata } from '@mysten/core';
-import { Sui, Unstaked } from '@mysten/icons';
-import { normalizeStructTag, SUI_TYPE_ARG } from '@mysten/sui/utils';
+import { useCoinMetadata } from '@iota/core';
+import { Iota, Unstaked } from '@iota/icons';
+import { normalizeStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
 
 import { useCoinMetadataOverrides } from '../../hooks/useCoinMetadataOverride';
@@ -18,27 +19,27 @@ const imageStyle = cva(['rounded-full flex'], {
 			xl: 'md:w-31.5 md:h-31.5 w-16 h-16 ',
 		},
 		fill: {
-			sui: 'bg-sui',
-			suiPrimary2023: 'bg-sui-primaryBlue2023',
+			iota: 'bg-iota',
+			iotaPrimary2023: 'bg-iota-primaryBlue2023',
 		},
 	},
 	defaultVariants: {
 		size: 'md',
-		fill: 'suiPrimary2023',
+		fill: 'iotaPrimary2023',
 	},
 });
 
-function SuiCoin() {
+function IotaCoin() {
 	return (
-		<Sui className="flex items-center w-full h-full justify-center text-white p-1.5 text-body rounded-full" />
+		<Iota className="flex items-center w-full h-full justify-center text-white p-1.5 text-body rounded-full" />
 	);
 }
 
-type NonSuiCoinProps = {
+type NonIotaCoinProps = {
 	coinType: string;
 };
 
-function NonSuiCoin({ coinType }: NonSuiCoinProps) {
+function NonIotaCoin({ coinType }: NonIotaCoinProps) {
 	const { data: coinMeta } = useCoinMetadata(coinType);
 	const coinMetadataOverrides = useCoinMetadataOverrides();
 
@@ -63,13 +64,13 @@ export interface CoinIconProps extends VariantProps<typeof imageStyle> {
 }
 
 export function CoinIcon({ coinType, ...styleProps }: CoinIconProps) {
-	const isSui = coinType
-		? normalizeStructTag(coinType) === normalizeStructTag(SUI_TYPE_ARG)
+	const isIota = coinType
+		? normalizeStructTag(coinType) === normalizeStructTag(IOTA_TYPE_ARG)
 		: false;
 
 	return (
 		<div className={imageStyle(styleProps)}>
-			{isSui ? <SuiCoin /> : <NonSuiCoin coinType={coinType} />}
+			{isIota ? <IotaCoin /> : <NonIotaCoin coinType={coinType} />}
 		</div>
 	);
 }

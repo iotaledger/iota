@@ -17,9 +17,9 @@
 	},
 	"dependencies": {
 		"@headlessui/react": "^1.7.15",
-		"@mysten/dapp-kit": "workspace:*",
-		"@mysten/kiosk": "workspace:*",
-		"@mysten/sui": "workspace:*",
+		"@iota/dapp-kit": "workspace:*",
+		"@iota/kiosk": "workspace:*",
+		"@iota/iota-sdk": "workspace:*",
 		"@tanstack/react-query": "^5.50.1",
 		"clsx": "^2.1.1",
 		"react": "^18.3.1",

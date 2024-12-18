@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -27,8 +28,8 @@ use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use fastcrypto::encoding::{Base58, Encoding};
 use serde::{Deserialize, Serialize};
-use sui_indexer::{models::checkpoints::StoredCheckpoint, schema::checkpoints};
-use sui_types::messages_checkpoint::CheckpointDigest;
+use iota_indexer::{models::checkpoints::StoredCheckpoint, schema::checkpoints};
+use iota_types::messages_checkpoint::CheckpointDigest;
 
 /// Filter either by the digest, or the sequence number, or neither, to get the latest checkpoint.
 #[derive(Default, InputObject)]

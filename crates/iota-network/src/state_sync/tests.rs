@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -13,13 +14,13 @@ use anyhow::anyhow;
 use prometheus::Registry;
 use std::num::NonZeroUsize;
 use std::{collections::HashMap, time::Duration};
-use sui_archival::reader::ArchiveReaderBalancer;
-use sui_archival::writer::ArchiveWriter;
-use sui_config::node::ArchiveReaderConfig;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_storage::{FileCompression, StorageFormat};
-use sui_swarm_config::test_utils::{empty_contents, CommitteeFixture};
-use sui_types::{
+use iota_archival::reader::ArchiveReaderBalancer;
+use iota_archival::writer::ArchiveWriter;
+use iota_config::node::ArchiveReaderConfig;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_storage::{FileCompression, StorageFormat};
+use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
+use iota_types::{
     messages_checkpoint::CheckpointDigest,
     storage::{ReadStore, SharedInMemoryStore, WriteStore},
 };

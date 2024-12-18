@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiObjectChangeTypes } from './types';
+import { IotaObjectChangeTypes } from './types';
 
 export const ObjectChangeLabels = {
 	created: 'Created',
@@ -12,6 +13,6 @@ export const ObjectChangeLabels = {
 	wrapped: 'Wrap',
 };
 
-export function getObjectChangeLabel(type: SuiObjectChangeTypes) {
+export function getObjectChangeLabel(type: IotaObjectChangeTypes) {
 	return ObjectChangeLabels[type];
 }

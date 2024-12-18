@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::metrics::WorkerMetrics;
@@ -8,12 +9,12 @@ use fastcrypto::hash::Hash;
 use futures::future::BoxFuture;
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
-use mysten_metrics::metered_channel::{Receiver, Sender};
-use mysten_metrics::{monitored_scope, spawn_logged_monitored_task};
+use iota_metrics::metered_channel::{Receiver, Sender};
+use iota_metrics::{monitored_scope, spawn_logged_monitored_task};
 use network::{client::NetworkClient, WorkerToPrimaryClient};
 use std::sync::Arc;
 use store::{rocks::DBMap, Map};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{
     task::JoinHandle,
     time::{sleep, Duration, Instant},

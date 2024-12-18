@@ -1,5 +1,5 @@
-error[Sui E02003]: invalid 'init' function
-  ┌─ tests/sui_mode/one_time_witness/wrong_name_format.move:8:9
+error[Iota E02003]: invalid 'init' function
+  ┌─ tests/iota_mode/one_time_witness/wrong_name_format.move:8:9
   │
 8 │     fun init(_mod: Mod, _ctx: &mut tx_context::TxContext) {
   │         ^^^^       --- Invalid parameter '_mod' of type 'a::mod::Mod'. Expected a one-time witness type, 'a::mod::MOD

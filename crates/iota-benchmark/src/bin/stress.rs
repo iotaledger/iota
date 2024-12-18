@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, Context, Result};
@@ -7,30 +8,30 @@ use clap::*;
 use prometheus::Registry;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use sui_protocol_config::Chain;
+use iota_protocol_config::Chain;
 use tokio::time::sleep;
 
 use std::sync::Arc;
 use std::time::Duration;
-use sui_benchmark::drivers::bench_driver::BenchDriver;
-use sui_benchmark::drivers::driver::Driver;
-use sui_benchmark::drivers::BenchmarkCmp;
-use sui_benchmark::drivers::BenchmarkStats;
-use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_benchmark::drivers::bench_driver::BenchDriver;
+use iota_benchmark::drivers::driver::Driver;
+use iota_benchmark::drivers::BenchmarkCmp;
+use iota_benchmark::drivers::BenchmarkStats;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 
-use sui_benchmark::benchmark_setup::Env;
-use sui_benchmark::options::Opts;
+use iota_benchmark::benchmark_setup::Env;
+use iota_benchmark::options::Opts;
 
-use sui_benchmark::workloads::workload_configuration::WorkloadConfiguration;
+use iota_benchmark::workloads::workload_configuration::WorkloadConfiguration;
 
-use sui_benchmark::system_state_observer::SystemStateObserver;
+use iota_benchmark::system_state_observer::SystemStateObserver;
 use tokio::runtime::Builder;
 use tokio::sync::Barrier;
 
 /// To spin up a local cluster and direct some load
 /// at it with 50/50 shared and owned traffic, use
 /// it something like:
-/// ```cargo run  --release  --package sui-benchmark
+/// ```cargo run  --release  --package iota-benchmark
 /// --bin stress -- --num-client-threads 12 \
 /// --num-server-threads 10 \
 /// --num-transfer-accounts 2 \
@@ -41,12 +42,12 @@ use tokio::sync::Barrier;
 /// --transfer-object 50```
 /// To point the traffic to an already running cluster,
 /// use it something like:
-/// ```cargo run  --release  --package sui-benchmark --bin stress -- --num-client-threads 12 \
+/// ```cargo run  --release  --package iota-benchmark --bin stress -- --num-client-threads 12 \
 /// --num-server-threads 10 \
 /// --num-transfer-accounts 2 \
 /// --primary-gas-id 0x59931dcac57ba20d75321acaf55e8eb5a2c47e9f \
 /// --genesis-blob-path /tmp/genesis.blob \
-/// --keystore-path /tmp/sui.keystore bench \
+/// --keystore-path /tmp/iota.keystore bench \
 /// --target-qps 100 \
 /// --in-flight-ratio 2 \
 /// --shared-counter 50 \
@@ -79,13 +80,13 @@ async fn main() -> Result<()> {
     }
     let _guard = config.with_env().init();
 
-    let registry_service = mysten_metrics::start_prometheus_server(
+    let registry_service = iota_metrics::start_prometheus_server(
         format!("{}:{}", opts.client_metric_host, opts.client_metric_port)
             .parse()
             .unwrap(),
     );
     let registry: Registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
 
     let barrier = Arc::new(Barrier::new(2));
     let cloned_barrier = barrier.clone();

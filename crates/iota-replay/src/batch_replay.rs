@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::replay::{ExecutionSandboxState, LocalExec};
@@ -10,8 +11,8 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
-use sui_config::node::ExpensiveSafetyCheckConfig;
-use sui_types::base_types::TransactionDigest;
+use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_types::base_types::TransactionDigest;
 use tokio::time::Instant;
 use tracing::{error, info};
 

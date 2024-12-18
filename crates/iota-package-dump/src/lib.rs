@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -10,8 +11,8 @@ use std::{
 use anyhow::{bail, ensure, Context, Result};
 use client::Client;
 use fastcrypto::encoding::{Base64, Encoding};
-use query::{limits, packages, SuiAddress, UInt53};
-use sui_types::object::Object;
+use query::{limits, packages, IotaAddress, UInt53};
+use iota_types::object::Object;
 use tracing::info;
 
 mod client;
@@ -39,7 +40,7 @@ pub async fn dump(
         fetch_packages(&client, limit, after_checkpoint, before_checkpoint).await?;
 
     for package in &packages {
-        let SuiAddress(address) = &package.address;
+        let IotaAddress(address) = &package.address;
         dump_package(&output_dir, package)
             .with_context(|| format!("Failed to dump package {address}"))?;
     }

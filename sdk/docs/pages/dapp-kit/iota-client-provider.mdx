@@ -1,19 +1,19 @@
-# SuiClientProvider
+# IotaClientProvider
 
-The `SuiClientProvider` manages the active `SuiClient` that hooks and components use in the dApp
+The `IotaClientProvider` manages the active `IotaClient` that hooks and components use in the dApp
 Kit.
 
 ## Usage
 
-Place the `SuiClientProvider` at the root of your app and wrap all components that use the dApp Kit
+Place the `IotaClientProvider` at the root of your app and wrap all components that use the dApp Kit
 hooks.
 
-`SuiClientProvider` accepts a list of network configurations to create `SuiClient` instances for the
+`IotaClientProvider` accepts a list of network configurations to create `IotaClient` instances for the
 currently active network.
 
 ```tsx
-import { createNetworkConfig, SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui/client';
+import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 
 // Config options for the networks you want to connect to
 const { networkConfig } = createNetworkConfig({
@@ -23,9 +23,9 @@ const { networkConfig } = createNetworkConfig({
 
 function App() {
 	return (
-		<SuiClientProvider networks={networkConfig} defaultNetwork="localnet">
+		<IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
 			<YourApp />
-		</SuiClientProvider>
+		</IotaClientProvider>
 	);
 }
 ```
@@ -33,23 +33,23 @@ function App() {
 ## Props
 
 - `networks`: A map of networks you can use. The keys are the network names, and the values can be
-  either a configuration object (`SuiClientOptions`) or a `SuiClient` instance.
-- `defaultNetwork`: The name of the network to use by default when using the `SuiClientProvider` as
+  either a configuration object (`IotaClientOptions`) or a `IotaClient` instance.
+- `defaultNetwork`: The name of the network to use by default when using the `IotaClientProvider` as
   an uncontrolled component.
-- `network`: The name of the network to use when using the `SuiClientProvider` as a controlled
+- `network`: The name of the network to use when using the `IotaClientProvider` as a controlled
   component.
 - `onNetworkChange`: A callback when the active network changes.
-- `createClient`: A callback when a new `SuiClient` is created (for example, when the active network
+- `createClient`: A callback when a new `IotaClient` is created (for example, when the active network
   changes). It receives the network name and configuration object as arguments, returning a
-  `SuiClient` instance.
+  `IotaClient` instance.
 
 ## Controlled component
 
-The following example demonstrates a `SuiClientProvider` used as a controlled component.
+The following example demonstrates a `IotaClientProvider` used as a controlled component.
 
 ```tsx
-import { createNetworkConfig, SuiClientProvider } from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui/client';
+import { createNetworkConfig, IotaClientProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { useState } from 'react';
 
 // Config options for the networks you want to connect to
@@ -62,7 +62,7 @@ function App() {
 	const [activeNetwork, setActiveNetwork] = useState('localnet' as keyof typeof networks);
 
 	return (
-		<SuiClientProvider
+		<IotaClientProvider
 			networks={networkConfig}
 			network={activeNetwork}
 			onNetworkChange={(network) => {
@@ -70,33 +70,33 @@ function App() {
 			}}
 		>
 			<YourApp />
-		</SuiClientProvider>
+		</IotaClientProvider>
 	);
 }
 ```
 
-## SuiClient customization
+## IotaClient customization
 
-The following example demonstrates how to create a custom `SuiClient`.
+The following example demonstrates how to create a custom `IotaClient`.
 
 ```tsx
-import { SuiClientProvider } from '@mysten/dapp-kit';
-import { getFullnodeUrl, SuiClient, SuiHTTPTransport } from '@mysten/sui/client';
+import { IotaClientProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '@iota/iota-sdk/client';
 
 // Config options for the networks you want to connect to
 const networks = {
 	localnet: { url: getFullnodeUrl('localnet') },
 	mainnet: { url: getFullnodeUrl('mainnet') },
-} satisfies Record<string, SuiClientOptions>;
+} satisfies Record<string, IotaClientOptions>;
 
 function App() {
 	return (
-		<SuiClientProvider
+		<IotaClientProvider
 			networks={networks}
 			defaultNetwork="localnet"
 			createClient={(network, config) => {
-				return new SuiClient({
-					transport: new SuiHTTPTransport({
+				return new IotaClient({
+					transport: new IotaHTTPTransport({
 						url: 'https://api.safecoin.org',
 						rpc: {
 							headers: {
@@ -108,21 +108,21 @@ function App() {
 			}}
 		>
 			<YourApp />
-		</SuiClientProvider>
+		</IotaClientProvider>
 	);
 }
 ```
 
-## Using the SuiClient from the provider
+## Using the IotaClient from the provider
 
-To use the `SuiClient` from the provider, import the `useSuiClient` function from the
-`@mysten/dapp-kit` module.
+To use the `IotaClient` from the provider, import the `useIotaClient` function from the
+`@iota/dapp-kit` module.
 
 ```tsx
-import { useSuiClient } from '@mysten/dapp-kit';
+import { useIotaClient } from '@iota/dapp-kit';
 
 function MyComponent() {
-	const client = useSuiClient();
+	const client = useIotaClient();
 
 	// use the client
 }
@@ -130,12 +130,12 @@ function MyComponent() {
 
 ## Creating a network selector
 
-The dApp Kit doesn't provide its own network switcher, but you can use the `useSuiClientContext`
+The dApp Kit doesn't provide its own network switcher, but you can use the `useIotaClientContext`
 hook to get the list of networks and set the active one:
 
 ```tsx
 function NetworkSelector() {
-	const ctx = useSuiClientContext();
+	const ctx = useIotaClientContext();
 
 	return (
 		<div>
@@ -163,8 +163,8 @@ to get the variables defined in your configuration.
 - `useNetworkVariable` returns a specific variable from the network configuration
 
 ```tsx
-import { createNetworkConfig, SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui/client';
+import { createNetworkConfig, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Config options for the networks you want to connect to
@@ -188,11 +188,11 @@ const queryClient = new QueryClient();
 function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
-			<SuiClientProvider networks={networkConfig} defaultNetwork="localnet">
+			<IotaClientProvider networks={networkConfig} defaultNetwork="localnet">
 				<WalletProvider>
 					<YourApp />
 				</WalletProvider>
-			</SuiClientProvider>
+			</IotaClientProvider>
 		</QueryClientProvider>
 	);
 }

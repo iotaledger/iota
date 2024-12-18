@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Priority queue implemented using a max heap.
-module sui::priority_queue;
+module iota::priority_queue;
 
 /// For when heap is empty and there's no data to pop.
 const EPopFromEmptyHeap: u64 = 0;

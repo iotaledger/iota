@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_storage::blob::Blob;
-use sui_types::full_checkpoint_content::CheckpointData;
-use suins_indexer::indexer::SuinsIndexer;
+use iota_storage::blob::Blob;
+use iota_types::full_checkpoint_content::CheckpointData;
+use iotans_indexer::indexer::IotaNSIndexer;
 
 /// Test ids.
 const TEST_REGISTRY_TABLE_ID: &str =
@@ -15,9 +16,9 @@ const TEST_SUBDOMAIN_REGISTRATION_TYPE: &str = "0x22fa05f21b1ad71442491220bb9338
 ///
 /// Checkpoint 22279187: Adds 3 different names (1 SLD, 1 leaf, 1 node). Deletes none.
 /// Checkpoint 22279365: Removes 1 leaf name. Adds 1 leaf name.
-/// Checkpoint 22279496: Replaces the name added on `22279365` (new.test.sui) by removing it and then adding it as a node name.
-/// Checkpoint 22279944: Adds `remove.test.sui`.
-/// Checkpoint 22280030: Adds `remove.test.sui` as a replacement (the previous one expired!).
+/// Checkpoint 22279496: Replaces the name added on `22279365` (new.test.iota) by removing it and then adding it as a node name.
+/// Checkpoint 22279944: Adds `remove.test.iota`.
+/// Checkpoint 22280030: Adds `remove.test.iota` as a replacement (the previous one expired!).
 ///                      [This was only simulated using a dummy contract and cannot happen in realistic scenarios.]
 ///
 #[test]
@@ -33,9 +34,9 @@ fn process_22279187_checkpoint() {
 
     let names: Vec<_> = updates.iter().map(|n| n.name.clone()).collect();
 
-    assert!(names.contains(&"leaf.test.sui".to_string()));
-    assert!(names.contains(&"node.test.sui".to_string()));
-    assert!(names.contains(&"test.sui".to_string()));
+    assert!(names.contains(&"leaf.test.iota".to_string()));
+    assert!(names.contains(&"node.test.iota".to_string()));
+    assert!(names.contains(&"test.iota".to_string()));
 }
 
 #[test]
@@ -49,8 +50,8 @@ fn process_22279365_checkpoint() {
     assert_eq!(updates.len(), 1);
 
     let addition = updates.first().unwrap();
-    assert_eq!(addition.name, "new.test.sui".to_string());
-    assert_eq!(addition.parent, "test.sui".to_string());
+    assert_eq!(addition.name, "new.test.iota".to_string());
+    assert_eq!(addition.parent, "test.iota".to_string());
     assert_eq!(
         addition.nft_id,
         "0xa4891f3754b203ef230a5e2a08822c835c808eab71e2bc6ca33a73cec9728376".to_string()
@@ -69,8 +70,8 @@ fn process_22279496_checkpoint() {
     assert_eq!(updates.len(), 1);
 
     let addition = updates.first().unwrap();
-    assert_eq!(addition.name, "new.test.sui".to_string());
-    assert_eq!(addition.parent, "test.sui".to_string());
+    assert_eq!(addition.name, "new.test.iota".to_string());
+    assert_eq!(addition.parent, "test.iota".to_string());
     assert_eq!(
         addition.nft_id,
         "0x87f04a4ffa1713e0a7e3a9e5ebf56f0ab24ce0bba87b17eb11a7532cb381bd58".to_string()
@@ -92,7 +93,7 @@ fn process_22279944_checkpoint() {
     assert_eq!(updates.len(), 1);
 
     let addition = updates.first().unwrap();
-    assert_eq!(addition.name, "remove.test.sui".to_string());
+    assert_eq!(addition.name, "remove.test.iota".to_string());
     assert_eq!(
         addition.nft_id,
         "0x7c230e1a4cd7b708232a713a138f4c950e7f579b61d01b988f06d7dc53e99211".to_string()
@@ -117,7 +118,7 @@ fn process_22280030_checkpoint() {
     assert_eq!(updates.len(), 1);
 
     let addition = updates.first().unwrap();
-    assert_eq!(addition.name, "remove.test.sui".to_string());
+    assert_eq!(addition.name, "remove.test.iota".to_string());
     assert_eq!(
         addition.nft_id,
         "0xdd513860269b0768c6ed77ddaf48cd579ba0c2995e793eab182d6ab861818250".to_string()
@@ -138,10 +139,10 @@ fn read_checkpoint_from_file(file: &[u8]) -> CheckpointData {
     Blob::from_bytes::<CheckpointData>(file).unwrap()
 }
 
-/// Return a suins_indexer instance for testing.
+/// Return a iotans_indexer instance for testing.
 /// Uses the testnet demo we used to extract the checkpoints being processed.
-fn get_test_indexer() -> SuinsIndexer {
-    SuinsIndexer::new(
+fn get_test_indexer() -> IotaNSIndexer {
+    IotaNSIndexer::new(
         TEST_REGISTRY_TABLE_ID.to_string(),
         TEST_SUBDOMAIN_REGISTRATION_TYPE.to_string(),
         TEST_NAME_RECORD_TYPE.to_string(),

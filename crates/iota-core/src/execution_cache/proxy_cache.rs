@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store::{ExecutionLockWriteGuard, SuiLockResult};
+use crate::authority::authority_store::{ExecutionLockWriteGuard, IotaLockResult};
 use crate::authority::epoch_start_configuration::EpochStartConfiguration;
 use crate::authority::epoch_start_configuration::{EpochFlag, EpochStartConfigTrait};
 use crate::authority::AuthorityStore;
@@ -14,19 +15,19 @@ use futures::FutureExt;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_protocol_config::ProtocolVersion;
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::VerifiedExecutionData;
-use sui_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber};
-use sui_types::bridge::Bridge;
-use sui_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::SuiResult;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::object::Object;
-use sui_types::storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject};
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
+use iota_protocol_config::ProtocolVersion;
+use iota_types::accumulator::Accumulator;
+use iota_types::base_types::VerifiedExecutionData;
+use iota_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber};
+use iota_types::bridge::Bridge;
+use iota_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::error::IotaResult;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::object::Object;
+use iota_types::storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject};
+use iota_types::iota_system_state::IotaSystemState;
+use iota_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
 
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfigType, ExecutionCacheMetrics,
@@ -97,7 +98,7 @@ impl ProxyCache {
 }
 
 impl ObjectCacheRead for ProxyCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         delegate_method!(self.get_package_object(package_id))
     }
 
@@ -144,23 +145,23 @@ impl ObjectCacheRead for ProxyCache {
         delegate_method!(self.find_object_lt_or_eq_version(object_id, version))
     }
 
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> SuiLockResult {
+    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
         delegate_method!(self.get_lock(obj_ref, epoch_store))
     }
 
-    fn _get_live_objref(&self, object_id: ObjectID) -> SuiResult<ObjectRef> {
+    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
         delegate_method!(self._get_live_objref(object_id))
     }
 
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> SuiResult {
+    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
         delegate_method!(self.check_owned_objects_are_live(owned_object_refs))
     }
 
-    fn get_sui_system_state_object_unsafe(&self) -> SuiResult<SuiSystemState> {
-        delegate_method!(self.get_sui_system_state_object_unsafe())
+    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+        delegate_method!(self.get_iota_system_state_object_unsafe())
     }
 
-    fn get_bridge_object_unsafe(&self) -> SuiResult<Bridge> {
+    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge> {
         delegate_method!(self.get_bridge_object_unsafe())
     }
 
@@ -238,7 +239,7 @@ impl ExecutionCacheWrite for ProxyCache {
         owned_input_objects: &'a [ObjectRef],
         tx_digest: TransactionDigest,
         signed_transaction: Option<VerifiedSignedTransaction>,
-    ) -> BoxFuture<'a, SuiResult> {
+    ) -> BoxFuture<'a, IotaResult> {
         delegate_method!(self.acquire_transaction_locks(
             epoch_store,
             owned_input_objects,
@@ -252,21 +253,21 @@ impl AccumulatorStore for ProxyCache {
     fn get_object_ref_prior_to_key_deprecated(
         &self,
         object_id: &ObjectID,
-        version: sui_types::base_types::VersionNumber,
-    ) -> SuiResult<Option<ObjectRef>> {
+        version: iota_types::base_types::VersionNumber,
+    ) -> IotaResult<Option<ObjectRef>> {
         delegate_method!(self.get_object_ref_prior_to_key_deprecated(object_id, version))
     }
 
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> SuiResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
         delegate_method!(self.get_root_state_accumulator_for_epoch(epoch))
     }
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> SuiResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
         delegate_method!(self.get_root_state_accumulator_for_highest_epoch())
     }
 
@@ -275,7 +276,7 @@ impl AccumulatorStore for ProxyCache {
         epoch: EpochId,
         checkpoint_seq_num: &CheckpointSequenceNumber,
         acc: &Accumulator,
-    ) -> SuiResult {
+    ) -> IotaResult {
         delegate_method!(self.insert_state_accumulator_for_epoch(epoch, checkpoint_seq_num, acc))
     }
 
@@ -358,14 +359,14 @@ impl ExecutionCacheReconfigAPI for ProxyCache {
         delegate_method!(self.clear_state_end_of_epoch(execution_guard))
     }
 
-    fn expensive_check_sui_conservation(
+    fn expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
-    ) -> SuiResult {
-        delegate_method!(self.expensive_check_sui_conservation(old_epoch_store))
+    ) -> IotaResult {
+        delegate_method!(self.expensive_check_iota_conservation(old_epoch_store))
     }
 
-    fn checkpoint_db(&self, path: &std::path::Path) -> SuiResult {
+    fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
         delegate_method!(self.checkpoint_db(path))
     }
 

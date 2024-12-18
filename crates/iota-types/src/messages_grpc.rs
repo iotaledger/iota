@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::{ObjectID, SequenceNumber, TransactionDigest};
@@ -77,7 +78,7 @@ pub struct ObjectInfoResponse {
     pub layout: Option<MoveStructLayout>,
     /// Transaction the object is locked on in this authority.
     /// None if the object is not currently locked by this authority.
-    /// This should be only used for debugging purpose, such as from sui-tool. No prod clients should
+    /// This should be only used for debugging purpose, such as from iota-tool. No prod clients should
     /// rely on it.
     pub lock_for_debugging: Option<SignedTransaction>,
 }

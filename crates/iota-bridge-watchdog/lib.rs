@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! The BridgeWatchDog module is responsible for monitoring the health
@@ -7,7 +8,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
 use std::sync::Arc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
@@ -16,7 +17,7 @@ use tracing::{error_span, info, Instrument};
 pub mod eth_bridge_status;
 pub mod eth_vault_balance;
 pub mod metrics;
-pub mod sui_bridge_status;
+pub mod iota_bridge_status;
 
 pub struct BridgeWatchDog {
     observables: Vec<Arc<dyn Observable + Send + Sync>>,

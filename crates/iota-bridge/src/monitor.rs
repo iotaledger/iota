@@ -1,60 +1,61 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! `BridgeMonitor` receives all `SuiBridgeEvent` and `EthBridgeEvent`
+//! `BridgeMonitor` receives all `IotaBridgeEvent` and `EthBridgeEvent`
 //! and handles them accordingly.
 
 use crate::abi::{
     EthBridgeCommitteeEvents, EthBridgeConfigEvents, EthBridgeEvent, EthBridgeLimiterEvents,
-    EthCommitteeUpgradeableContractEvents, EthSuiBridgeEvents,
+    EthCommitteeUpgradeableContractEvents, EthIotaBridgeEvents,
 };
 use crate::client::bridge_authority_aggregator::BridgeAuthorityAggregator;
 use crate::crypto::BridgeAuthorityPublicKeyBytes;
 use crate::events::{BlocklistValidatorEvent, CommitteeMemberUrlUpdateEvent};
-use crate::events::{EmergencyOpEvent, SuiBridgeEvent};
+use crate::events::{EmergencyOpEvent, IotaBridgeEvent};
 use crate::metrics::BridgeMetrics;
 use crate::retry_with_max_elapsed_time;
-use crate::sui_client::{SuiClient, SuiClientInner};
+use crate::iota_client::{IotaClient, IotaClientInner};
 use crate::types::{BridgeCommittee, IsBridgePaused};
 use arc_swap::ArcSwap;
 use std::collections::HashMap;
 use std::sync::Arc;
-use sui_types::TypeTag;
+use iota_types::TypeTag;
 use tokio::time::Duration;
 use tracing::{error, info, warn};
 
 const REFRESH_BRIDGE_RETRY_TIMES: u64 = 3;
 
 pub struct BridgeMonitor<C> {
-    sui_client: Arc<SuiClient<C>>,
-    sui_monitor_rx: mysten_metrics::metered_channel::Receiver<SuiBridgeEvent>,
-    eth_monitor_rx: mysten_metrics::metered_channel::Receiver<EthBridgeEvent>,
+    iota_client: Arc<IotaClient<C>>,
+    iota_monitor_rx: iota_metrics::metered_channel::Receiver<IotaBridgeEvent>,
+    eth_monitor_rx: iota_metrics::metered_channel::Receiver<EthBridgeEvent>,
     bridge_auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
     bridge_paused_watch_tx: tokio::sync::watch::Sender<IsBridgePaused>,
-    sui_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
+    iota_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
     bridge_metrics: Arc<BridgeMetrics>,
 }
 
 impl<C> BridgeMonitor<C>
 where
-    C: SuiClientInner + 'static,
+    C: IotaClientInner + 'static,
 {
     pub fn new(
-        sui_client: Arc<SuiClient<C>>,
-        sui_monitor_rx: mysten_metrics::metered_channel::Receiver<SuiBridgeEvent>,
-        eth_monitor_rx: mysten_metrics::metered_channel::Receiver<EthBridgeEvent>,
+        iota_client: Arc<IotaClient<C>>,
+        iota_monitor_rx: iota_metrics::metered_channel::Receiver<IotaBridgeEvent>,
+        eth_monitor_rx: iota_metrics::metered_channel::Receiver<EthBridgeEvent>,
         bridge_auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         bridge_paused_watch_tx: tokio::sync::watch::Sender<IsBridgePaused>,
-        sui_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
+        iota_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
         bridge_metrics: Arc<BridgeMetrics>,
     ) -> Self {
         Self {
-            sui_client,
-            sui_monitor_rx,
+            iota_client,
+            iota_monitor_rx,
             eth_monitor_rx,
             bridge_auth_agg,
             bridge_paused_watch_tx,
-            sui_token_type_tags,
+            iota_token_type_tags,
             bridge_metrics,
         }
     }
@@ -62,32 +63,32 @@ where
     pub async fn run(self) {
         tracing::info!("Starting BridgeMonitor");
         let Self {
-            sui_client,
-            mut sui_monitor_rx,
+            iota_client,
+            mut iota_monitor_rx,
             mut eth_monitor_rx,
             bridge_auth_agg,
             bridge_paused_watch_tx,
-            sui_token_type_tags,
+            iota_token_type_tags,
             bridge_metrics,
         } = self;
-        let mut latest_token_config = (*sui_token_type_tags.load().clone()).clone();
+        let mut latest_token_config = (*iota_token_type_tags.load().clone()).clone();
 
         loop {
             tokio::select! {
-                sui_event = sui_monitor_rx.recv() => {
-                    if let Some(sui_event) = sui_event {
-                        Self::handle_sui_events(
-                            sui_event,
-                            &sui_client,
+                iota_event = iota_monitor_rx.recv() => {
+                    if let Some(iota_event) = iota_event {
+                        Self::handle_iota_events(
+                            iota_event,
+                            &iota_client,
                             &bridge_auth_agg,
                             &bridge_paused_watch_tx,
-                            &sui_token_type_tags,
+                            &iota_token_type_tags,
                             &bridge_metrics,
                             &mut latest_token_config,
                         )
                         .await;
                     } else {
-                        panic!("BridgeMonitor sui events channel was closed unexpectedly");
+                        panic!("BridgeMonitor iota events channel was closed unexpectedly");
                     }
                 }
                 eth_event = eth_monitor_rx.recv() => {
@@ -101,43 +102,43 @@ where
         }
     }
 
-    async fn handle_sui_events(
-        event: SuiBridgeEvent,
-        sui_client: &Arc<SuiClient<C>>,
+    async fn handle_iota_events(
+        event: IotaBridgeEvent,
+        iota_client: &Arc<IotaClient<C>>,
         bridge_auth_agg: &Arc<ArcSwap<BridgeAuthorityAggregator>>,
         bridge_paused_watch_tx: &tokio::sync::watch::Sender<IsBridgePaused>,
-        sui_token_type_tags: &Arc<ArcSwap<HashMap<u8, TypeTag>>>,
+        iota_token_type_tags: &Arc<ArcSwap<HashMap<u8, TypeTag>>>,
         bridge_metrics: &Arc<BridgeMetrics>,
         latest_token_config: &mut HashMap<u8, TypeTag>,
     ) {
-        info!("Received SuiBridgeEvent: {:?}", event);
-        macro_rules! bump_sui_counter {
+        info!("Received IotaBridgeEvent: {:?}", event);
+        macro_rules! bump_iota_counter {
             ($action:expr) => {
                 bridge_metrics
                     .observed_governance_actions
-                    .with_label_values(&[$action, "sui"])
+                    .with_label_values(&[$action, "iota"])
                     .inc();
             };
         }
 
         match event {
-            SuiBridgeEvent::SuiToEthTokenBridgeV1(_) => (),
-            SuiBridgeEvent::TokenTransferApproved(_) => (),
-            SuiBridgeEvent::TokenTransferClaimed(_) => (),
-            SuiBridgeEvent::TokenTransferAlreadyApproved(_) => (),
-            SuiBridgeEvent::TokenTransferAlreadyClaimed(_) => (),
-            SuiBridgeEvent::TokenTransferLimitExceed(_) => {
+            IotaBridgeEvent::IotaToEthTokenBridgeV1(_) => (),
+            IotaBridgeEvent::TokenTransferApproved(_) => (),
+            IotaBridgeEvent::TokenTransferClaimed(_) => (),
+            IotaBridgeEvent::TokenTransferAlreadyApproved(_) => (),
+            IotaBridgeEvent::TokenTransferAlreadyClaimed(_) => (),
+            IotaBridgeEvent::TokenTransferLimitExceed(_) => {
                 // TODO do we want to do anything here?
             }
 
-            SuiBridgeEvent::EmergencyOpEvent(event) => {
-                bump_sui_counter!(if event.frozen {
+            IotaBridgeEvent::EmergencyOpEvent(event) => {
+                bump_iota_counter!(if event.frozen {
                     "bridge_paused"
                 } else {
                     "bridge_unpaused"
                 });
                 let is_paused = get_latest_bridge_pause_status_with_emergency_event(
-                    sui_client.clone(),
+                    iota_client.clone(),
                     event,
                     Duration::from_secs(10),
                 )
@@ -147,17 +148,17 @@ where
                     .expect("Bridge pause status watch channel should not be closed");
             }
 
-            SuiBridgeEvent::CommitteeMemberRegistration(_) => {
-                bump_sui_counter!("committee_member_registered");
+            IotaBridgeEvent::CommitteeMemberRegistration(_) => {
+                bump_iota_counter!("committee_member_registered");
             }
-            SuiBridgeEvent::CommitteeUpdateEvent(_) => {
-                bump_sui_counter!("committee_updated");
+            IotaBridgeEvent::CommitteeUpdateEvent(_) => {
+                bump_iota_counter!("committee_updated");
             }
 
-            SuiBridgeEvent::CommitteeMemberUrlUpdateEvent(event) => {
-                bump_sui_counter!("committee_member_url_updated");
+            IotaBridgeEvent::CommitteeMemberUrlUpdateEvent(event) => {
+                bump_iota_counter!("committee_member_url_updated");
                 let new_committee = get_latest_bridge_committee_with_url_update_event(
-                    sui_client.clone(),
+                    iota_client.clone(),
                     event,
                     Duration::from_secs(10),
                 )
@@ -171,14 +172,14 @@ where
                 info!("Committee updated with CommitteeMemberUrlUpdateEvent");
             }
 
-            SuiBridgeEvent::BlocklistValidatorEvent(event) => {
-                bump_sui_counter!(if event.blocklisted {
+            IotaBridgeEvent::BlocklistValidatorEvent(event) => {
+                bump_iota_counter!(if event.blocklisted {
                     "validator_blocklisted"
                 } else {
                     "validator_unblocklisted"
                 });
                 let new_committee = get_latest_bridge_committee_with_blocklist_event(
-                    sui_client.clone(),
+                    iota_client.clone(),
                     event,
                     Duration::from_secs(10),
                 )
@@ -192,30 +193,30 @@ where
                 info!("Committee updated with BlocklistValidatorEvent");
             }
 
-            SuiBridgeEvent::TokenRegistrationEvent(_) => {
-                bump_sui_counter!("new_token_registered");
+            IotaBridgeEvent::TokenRegistrationEvent(_) => {
+                bump_iota_counter!("new_token_registered");
             }
 
-            SuiBridgeEvent::NewTokenEvent(event) => {
-                bump_sui_counter!("new_token_added");
+            IotaBridgeEvent::NewTokenEvent(event) => {
+                bump_iota_counter!("new_token_added");
                 if let std::collections::hash_map::Entry::Vacant(entry) =
                     // We only add new tokens but not remove so it's ok to just insert
                     latest_token_config.entry(event.token_id)
                 {
                     entry.insert(event.type_name.clone());
-                    sui_token_type_tags.store(Arc::new(latest_token_config.clone()));
+                    iota_token_type_tags.store(Arc::new(latest_token_config.clone()));
                 } else {
                     // invariant
                     assert_eq!(event.type_name, latest_token_config[&event.token_id]);
                 }
             }
 
-            SuiBridgeEvent::UpdateTokenPriceEvent(_event) => {
-                bump_sui_counter!("token_price_updated");
+            IotaBridgeEvent::UpdateTokenPriceEvent(_event) => {
+                bump_iota_counter!("token_price_updated");
             }
 
-            SuiBridgeEvent::UpdateRouteLimitEvent(_event) => {
-                bump_sui_counter!("limit_updated");
+            IotaBridgeEvent::UpdateRouteLimitEvent(_event) => {
+                bump_iota_counter!("limit_updated");
             }
         }
     }
@@ -312,21 +313,21 @@ where
                     bump_eth_counter!("upgradeable_contract_upgraded");
                 }
             },
-            EthBridgeEvent::EthSuiBridgeEvents(event) => match event {
-                EthSuiBridgeEvents::TokensClaimedFilter(_) => (),
-                EthSuiBridgeEvents::TokensDepositedFilter(_) => (),
-                EthSuiBridgeEvents::PausedFilter(_) => bump_eth_counter!("bridge_paused"),
-                EthSuiBridgeEvents::UnpausedFilter(_) => bump_eth_counter!("bridge_unpaused"),
-                EthSuiBridgeEvents::UpgradedFilter(_) => {
+            EthBridgeEvent::EthIotaBridgeEvents(event) => match event {
+                EthIotaBridgeEvents::TokensClaimedFilter(_) => (),
+                EthIotaBridgeEvents::TokensDepositedFilter(_) => (),
+                EthIotaBridgeEvents::PausedFilter(_) => bump_eth_counter!("bridge_paused"),
+                EthIotaBridgeEvents::UnpausedFilter(_) => bump_eth_counter!("bridge_unpaused"),
+                EthIotaBridgeEvents::UpgradedFilter(_) => {
                     bump_eth_counter!("bridge_contract_upgraded")
                 }
-                EthSuiBridgeEvents::InitializedFilter(_) => {
+                EthIotaBridgeEvents::InitializedFilter(_) => {
                     bump_eth_counter!("bridge_contract_initialized")
                 }
-                EthSuiBridgeEvents::ContractUpgradedFilter(_) => {
+                EthIotaBridgeEvents::ContractUpgradedFilter(_) => {
                     bump_eth_counter!("bridge_contract_upgraded")
                 }
-                EthSuiBridgeEvents::EmergencyOperationFilter(e) => {
+                EthIotaBridgeEvents::EmergencyOperationFilter(e) => {
                     if e.paused {
                         bump_eth_counter!("bridge_paused")
                     } else {
@@ -338,15 +339,15 @@ where
     }
 }
 
-async fn get_latest_bridge_committee_with_url_update_event<C: SuiClientInner>(
-    sui_client: Arc<SuiClient<C>>,
+async fn get_latest_bridge_committee_with_url_update_event<C: IotaClientInner>(
+    iota_client: Arc<IotaClient<C>>,
     event: CommitteeMemberUrlUpdateEvent,
     staleness_retry_interval: Duration,
 ) -> BridgeCommittee {
     let mut remaining_retry_times = REFRESH_BRIDGE_RETRY_TIMES;
     loop {
         let Ok(Ok(committee)) = retry_with_max_elapsed_time!(
-            sui_client.get_bridge_committee(),
+            iota_client.get_bridge_committee(),
             Duration::from_secs(600)
         ) else {
             error!("Failed to get bridge committee after retry");
@@ -381,15 +382,15 @@ async fn get_latest_bridge_committee_with_url_update_event<C: SuiClientInner>(
     }
 }
 
-async fn get_latest_bridge_committee_with_blocklist_event<C: SuiClientInner>(
-    sui_client: Arc<SuiClient<C>>,
+async fn get_latest_bridge_committee_with_blocklist_event<C: IotaClientInner>(
+    iota_client: Arc<IotaClient<C>>,
     event: BlocklistValidatorEvent,
     staleness_retry_interval: Duration,
 ) -> BridgeCommittee {
     let mut remaining_retry_times = REFRESH_BRIDGE_RETRY_TIMES;
     loop {
         let Ok(Ok(committee)) = retry_with_max_elapsed_time!(
-            sui_client.get_bridge_committee(),
+            iota_client.get_bridge_committee(),
             Duration::from_secs(600)
         ) else {
             error!("Failed to get bridge committee after retry");
@@ -434,15 +435,15 @@ async fn get_latest_bridge_committee_with_blocklist_event<C: SuiClientInner>(
     }
 }
 
-async fn get_latest_bridge_pause_status_with_emergency_event<C: SuiClientInner>(
-    sui_client: Arc<SuiClient<C>>,
+async fn get_latest_bridge_pause_status_with_emergency_event<C: IotaClientInner>(
+    iota_client: Arc<IotaClient<C>>,
     event: EmergencyOpEvent,
     staleness_retry_interval: Duration,
 ) -> IsBridgePaused {
     let mut remaining_retry_times = REFRESH_BRIDGE_RETRY_TIMES;
     loop {
         let Ok(Ok(summary)) =
-            retry_with_max_elapsed_time!(sui_client.get_bridge_summary(), Duration::from_secs(600))
+            retry_with_max_elapsed_time!(iota_client.get_bridge_summary(), Duration::from_secs(600))
         else {
             error!("Failed to get bridge summary after retry");
             continue;
@@ -478,19 +479,19 @@ mod tests {
     use crate::types::{BridgeAuthority, BRIDGE_PAUSED, BRIDGE_UNPAUSED};
     use fastcrypto::traits::KeyPair;
     use prometheus::Registry;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::bridge::BridgeCommitteeSummary;
-    use sui_types::bridge::MoveTypeCommitteeMember;
-    use sui_types::crypto::get_key_pair;
+    use iota_types::base_types::IotaAddress;
+    use iota_types::bridge::BridgeCommitteeSummary;
+    use iota_types::bridge::MoveTypeCommitteeMember;
+    use iota_types::crypto::get_key_pair;
 
-    use crate::{sui_mock_client::SuiMockClient, types::BridgeCommittee};
-    use sui_types::crypto::ToFromBytes;
+    use crate::{iota_mock_client::IotaMockClient, types::BridgeCommittee};
+    use iota_types::crypto::ToFromBytes;
 
     #[tokio::test]
     async fn test_get_latest_bridge_committee_with_url_update_event() {
         telemetry_subscribers::init_for_testing();
-        let sui_client_mock = SuiMockClient::default();
-        let sui_client = Arc::new(SuiClient::new_for_testing(sui_client_mock.clone()));
+        let iota_client_mock = IotaMockClient::default();
+        let iota_client = Arc::new(IotaClient::new_for_testing(iota_client_mock.clone()));
         let (_, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
         let pk = kp.public().clone();
         let pk_as_bytes = BridgeAuthorityPublicKeyBytes::from(&pk);
@@ -503,7 +504,7 @@ mod tests {
             members: vec![(
                 pk_bytes.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
@@ -515,10 +516,10 @@ mod tests {
         };
 
         // Test the regular case, the onchain url matches
-        sui_client_mock.set_bridge_committee(summary.clone());
+        iota_client_mock.set_bridge_committee(summary.clone());
         let timer = std::time::Instant::now();
         let committee = get_latest_bridge_committee_with_url_update_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_secs(2),
         )
@@ -535,7 +536,7 @@ mod tests {
             members: vec![(
                 pk_bytes.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://old.url".to_string().as_bytes().to_vec(),
@@ -545,16 +546,16 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(old_summary.clone());
+        iota_client_mock.set_bridge_committee(old_summary.clone());
         let timer = std::time::Instant::now();
         // update the url to "http://new.url" in 1 second
-        let sui_client_mock_clone = sui_client_mock.clone();
+        let iota_client_mock_clone = iota_client_mock.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            sui_client_mock_clone.set_bridge_committee(summary.clone());
+            iota_client_mock_clone.set_bridge_committee(summary.clone());
         });
         let committee = get_latest_bridge_committee_with_url_update_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_secs(2),
         )
@@ -572,7 +573,7 @@ mod tests {
             members: vec![(
                 pk_bytes.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
@@ -582,10 +583,10 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(newer_summary.clone());
+        iota_client_mock.set_bridge_committee(newer_summary.clone());
         let timer = std::time::Instant::now();
         let committee = get_latest_bridge_committee_with_url_update_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_millis(500),
         )
@@ -607,7 +608,7 @@ mod tests {
             members: vec![(
                 pk_bytes2.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes2.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
@@ -617,10 +618,10 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(newer_summary.clone());
+        iota_client_mock.set_bridge_committee(newer_summary.clone());
         let timer = std::time::Instant::now();
         let committee = get_latest_bridge_committee_with_url_update_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_secs(1),
         )
@@ -637,8 +638,8 @@ mod tests {
     #[tokio::test]
     async fn test_get_latest_bridge_committee_with_blocklist_event() {
         telemetry_subscribers::init_for_testing();
-        let sui_client_mock = SuiMockClient::default();
-        let sui_client = Arc::new(SuiClient::new_for_testing(sui_client_mock.clone()));
+        let iota_client_mock = IotaMockClient::default();
+        let iota_client = Arc::new(IotaClient::new_for_testing(iota_client_mock.clone()));
         let (_, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
         let pk = kp.public().clone();
         let pk_as_bytes = BridgeAuthorityPublicKeyBytes::from(&pk);
@@ -653,7 +654,7 @@ mod tests {
             members: vec![(
                 pk_bytes.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
@@ -663,10 +664,10 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(summary.clone());
+        iota_client_mock.set_bridge_committee(summary.clone());
         let timer = std::time::Instant::now();
         let committee = get_latest_bridge_committee_with_blocklist_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_secs(2),
         )
@@ -683,7 +684,7 @@ mod tests {
             members: vec![(
                 pk_bytes.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
@@ -693,10 +694,10 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(summary.clone());
+        iota_client_mock.set_bridge_committee(summary.clone());
         let timer = std::time::Instant::now();
         let committee = get_latest_bridge_committee_with_blocklist_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_secs(2),
         )
@@ -710,7 +711,7 @@ mod tests {
             members: vec![(
                 pk_bytes.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
@@ -720,16 +721,16 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(old_summary.clone());
+        iota_client_mock.set_bridge_committee(old_summary.clone());
         let timer = std::time::Instant::now();
         // update unblocklisted in 1 second
-        let sui_client_mock_clone = sui_client_mock.clone();
+        let iota_client_mock_clone = iota_client_mock.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            sui_client_mock_clone.set_bridge_committee(summary.clone());
+            iota_client_mock_clone.set_bridge_committee(summary.clone());
         });
         let committee = get_latest_bridge_committee_with_blocklist_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_secs(2),
         )
@@ -744,7 +745,7 @@ mod tests {
             members: vec![(
                 pk_bytes.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://new.url".to_string().as_bytes().to_vec(),
@@ -754,10 +755,10 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(newer_summary.clone());
+        iota_client_mock.set_bridge_committee(newer_summary.clone());
         let timer = std::time::Instant::now();
         let committee = get_latest_bridge_committee_with_blocklist_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_millis(500),
         )
@@ -776,7 +777,7 @@ mod tests {
             members: vec![(
                 pk_bytes2.clone(),
                 MoveTypeCommitteeMember {
-                    sui_address: SuiAddress::random_for_testing_only(),
+                    iota_address: IotaAddress::random_for_testing_only(),
                     bridge_pubkey_bytes: pk_bytes2.clone(),
                     voting_power: 10000,
                     http_rest_url: "http://newer.url".to_string().as_bytes().to_vec(),
@@ -786,10 +787,10 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(summary.clone());
+        iota_client_mock.set_bridge_committee(summary.clone());
         let timer = std::time::Instant::now();
         let committee = get_latest_bridge_committee_with_blocklist_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_secs(1),
         )
@@ -812,7 +813,7 @@ mod tests {
                 (
                     pk_bytes.clone(),
                     MoveTypeCommitteeMember {
-                        sui_address: SuiAddress::random_for_testing_only(),
+                        iota_address: IotaAddress::random_for_testing_only(),
                         bridge_pubkey_bytes: pk_bytes.clone(),
                         voting_power: 5000,
                         http_rest_url: "http://pk.url".to_string().as_bytes().to_vec(),
@@ -822,7 +823,7 @@ mod tests {
                 (
                     pk_bytes2.clone(),
                     MoveTypeCommitteeMember {
-                        sui_address: SuiAddress::random_for_testing_only(),
+                        iota_address: IotaAddress::random_for_testing_only(),
                         bridge_pubkey_bytes: pk_bytes2.clone(),
                         voting_power: 5000,
                         http_rest_url: "http://pk2.url".to_string().as_bytes().to_vec(),
@@ -833,10 +834,10 @@ mod tests {
             member_registration: vec![],
             last_committee_update_epoch: 0,
         };
-        sui_client_mock.set_bridge_committee(summary.clone());
+        iota_client_mock.set_bridge_committee(summary.clone());
         let timer = std::time::Instant::now();
         let committee = get_latest_bridge_committee_with_blocklist_event(
-            sui_client.clone(),
+            iota_client.clone(),
             event.clone(),
             Duration::from_millis(500),
         )
@@ -850,16 +851,16 @@ mod tests {
     #[tokio::test]
     async fn test_get_bridge_pause_status_with_emergency_event() {
         telemetry_subscribers::init_for_testing();
-        let sui_client_mock = SuiMockClient::default();
-        let sui_client = Arc::new(SuiClient::new_for_testing(sui_client_mock.clone()));
+        let iota_client_mock = IotaMockClient::default();
+        let iota_client = Arc::new(IotaClient::new_for_testing(iota_client_mock.clone()));
 
         // Test event and onchain status match
         let event = EmergencyOpEvent { frozen: true };
-        sui_client_mock.set_is_bridge_paused(BRIDGE_PAUSED);
+        iota_client_mock.set_is_bridge_paused(BRIDGE_PAUSED);
         let timer = std::time::Instant::now();
         assert!(
             get_latest_bridge_pause_status_with_emergency_event(
-                sui_client.clone(),
+                iota_client.clone(),
                 event.clone(),
                 Duration::from_secs(2),
             )
@@ -868,11 +869,11 @@ mod tests {
         assert!(timer.elapsed().as_millis() < 500);
 
         let event = EmergencyOpEvent { frozen: false };
-        sui_client_mock.set_is_bridge_paused(BRIDGE_UNPAUSED);
+        iota_client_mock.set_is_bridge_paused(BRIDGE_UNPAUSED);
         let timer = std::time::Instant::now();
         assert!(
             !get_latest_bridge_pause_status_with_emergency_event(
-                sui_client.clone(),
+                iota_client.clone(),
                 event.clone(),
                 Duration::from_secs(2),
             )
@@ -882,17 +883,17 @@ mod tests {
 
         // Test the case where the onchain status (paused) is older. Then update onchain status in 1 second.
         // Since the retry interval is 2 seconds, it should return the next retry.
-        sui_client_mock.set_is_bridge_paused(BRIDGE_PAUSED);
+        iota_client_mock.set_is_bridge_paused(BRIDGE_PAUSED);
         let timer = std::time::Instant::now();
         // update the bridge to unpaused in 1 second
-        let sui_client_mock_clone = sui_client_mock.clone();
+        let iota_client_mock_clone = iota_client_mock.clone();
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(1)).await;
-            sui_client_mock_clone.set_is_bridge_paused(BRIDGE_UNPAUSED);
+            iota_client_mock_clone.set_is_bridge_paused(BRIDGE_UNPAUSED);
         });
         assert!(
             !get_latest_bridge_pause_status_with_emergency_event(
-                sui_client.clone(),
+                iota_client.clone(),
                 event.clone(),
                 Duration::from_secs(2),
             )
@@ -903,11 +904,11 @@ mod tests {
 
         // Test the case where the onchain status (paused) is newer. It should retry up to
         // REFRESH_BRIDGE_RETRY_TIMES time then return the onchain record.
-        sui_client_mock.set_is_bridge_paused(BRIDGE_PAUSED);
+        iota_client_mock.set_is_bridge_paused(BRIDGE_PAUSED);
         let timer = std::time::Instant::now();
         assert!(
             get_latest_bridge_pause_status_with_emergency_event(
-                sui_client.clone(),
+                iota_client.clone(),
                 event.clone(),
                 Duration::from_secs(2),
             )
@@ -920,12 +921,12 @@ mod tests {
     #[tokio::test]
     async fn test_update_bridge_authority_aggregation_with_url_change_event() {
         let (
-            sui_monitor_tx,
-            sui_monitor_rx,
+            iota_monitor_tx,
+            iota_monitor_rx,
             _eth_monitor_tx,
             eth_monitor_rx,
-            sui_client_mock,
-            sui_client,
+            iota_client_mock,
+            iota_client,
             bridge_pause_tx,
             _bridge_pause_rx,
             mut authorities,
@@ -935,15 +936,15 @@ mod tests {
         let agg = Arc::new(ArcSwap::new(Arc::new(
             BridgeAuthorityAggregator::new_for_testing(Arc::new(old_committee)),
         )));
-        let sui_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
+        let iota_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
         let _handle = tokio::task::spawn(
             BridgeMonitor::new(
-                sui_client.clone(),
-                sui_monitor_rx,
+                iota_client.clone(),
+                iota_monitor_rx,
                 eth_monitor_rx,
                 agg.clone(),
                 bridge_pause_tx,
-                sui_token_type_tags,
+                iota_token_type_tags,
                 bridge_metrics,
             )
             .run(),
@@ -953,9 +954,9 @@ mod tests {
         let new_committee = BridgeCommittee::new(authorities.clone()).unwrap();
         let new_committee_summary =
             bridge_committee_to_bridge_committee_summary(new_committee.clone());
-        sui_client_mock.set_bridge_committee(new_committee_summary.clone());
-        sui_monitor_tx
-            .send(SuiBridgeEvent::CommitteeMemberUrlUpdateEvent(
+        iota_client_mock.set_bridge_committee(new_committee_summary.clone());
+        iota_monitor_tx
+            .send(IotaBridgeEvent::CommitteeMemberUrlUpdateEvent(
                 CommitteeMemberUrlUpdateEvent {
                     member: authorities[0].pubkey.clone(),
                     new_url: new_url.clone(),
@@ -979,12 +980,12 @@ mod tests {
     #[tokio::test]
     async fn test_update_bridge_authority_aggregation_with_blocklist_event() {
         let (
-            sui_monitor_tx,
-            sui_monitor_rx,
+            iota_monitor_tx,
+            iota_monitor_rx,
             _eth_monitor_tx,
             eth_monitor_rx,
-            sui_client_mock,
-            sui_client,
+            iota_client_mock,
+            iota_client,
             bridge_pause_tx,
             _bridge_pause_rx,
             mut authorities,
@@ -994,15 +995,15 @@ mod tests {
         let agg = Arc::new(ArcSwap::new(Arc::new(
             BridgeAuthorityAggregator::new_for_testing(Arc::new(old_committee)),
         )));
-        let sui_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
+        let iota_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
         let _handle = tokio::task::spawn(
             BridgeMonitor::new(
-                sui_client.clone(),
-                sui_monitor_rx,
+                iota_client.clone(),
+                iota_monitor_rx,
                 eth_monitor_rx,
                 agg.clone(),
                 bridge_pause_tx,
-                sui_token_type_tags,
+                iota_token_type_tags,
                 bridge_metrics,
             )
             .run(),
@@ -1012,9 +1013,9 @@ mod tests {
         let new_committee = BridgeCommittee::new(authorities.clone()).unwrap();
         let new_committee_summary =
             bridge_committee_to_bridge_committee_summary(new_committee.clone());
-        sui_client_mock.set_bridge_committee(new_committee_summary.clone());
-        sui_monitor_tx
-            .send(SuiBridgeEvent::BlocklistValidatorEvent(
+        iota_client_mock.set_bridge_committee(new_committee_summary.clone());
+        iota_monitor_tx
+            .send(IotaBridgeEvent::BlocklistValidatorEvent(
                 BlocklistValidatorEvent {
                     public_keys: vec![to_blocklist.pubkey.clone()],
                     blocklisted: true,
@@ -1036,12 +1037,12 @@ mod tests {
     #[tokio::test]
     async fn test_update_bridge_pause_status_with_emergency_event() {
         let (
-            sui_monitor_tx,
-            sui_monitor_rx,
+            iota_monitor_tx,
+            iota_monitor_rx,
             _eth_monitor_tx,
             eth_monitor_rx,
-            sui_client_mock,
-            sui_client,
+            iota_client_mock,
+            iota_client,
             bridge_pause_tx,
             bridge_pause_rx,
             authorities,
@@ -1054,23 +1055,23 @@ mod tests {
         let agg = Arc::new(ArcSwap::new(Arc::new(
             BridgeAuthorityAggregator::new_for_testing(Arc::new(committee)),
         )));
-        let sui_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
+        let iota_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
         let _handle = tokio::task::spawn(
             BridgeMonitor::new(
-                sui_client.clone(),
-                sui_monitor_rx,
+                iota_client.clone(),
+                iota_monitor_rx,
                 eth_monitor_rx,
                 agg.clone(),
                 bridge_pause_tx,
-                sui_token_type_tags,
+                iota_token_type_tags,
                 bridge_metrics,
             )
             .run(),
         );
 
-        sui_client_mock.set_is_bridge_paused(event.frozen);
-        sui_monitor_tx
-            .send(SuiBridgeEvent::EmergencyOpEvent(event.clone()))
+        iota_client_mock.set_is_bridge_paused(event.frozen);
+        iota_monitor_tx
+            .send(IotaBridgeEvent::EmergencyOpEvent(event.clone()))
             .await
             .unwrap();
         // Wait for the monitor to process the event
@@ -1080,14 +1081,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_update_sui_token_type_tags() {
+    async fn test_update_iota_token_type_tags() {
         let (
-            sui_monitor_tx,
-            sui_monitor_rx,
+            iota_monitor_tx,
+            iota_monitor_rx,
             _eth_monitor_tx,
             eth_monitor_rx,
-            _sui_client_mock,
-            sui_client,
+            _iota_client_mock,
+            iota_client,
             bridge_pause_tx,
             _bridge_pause_rx,
             authorities,
@@ -1104,29 +1105,29 @@ mod tests {
         let agg = Arc::new(ArcSwap::new(Arc::new(
             BridgeAuthorityAggregator::new_for_testing(Arc::new(committee)),
         )));
-        let sui_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
-        let sui_token_type_tags_clone = sui_token_type_tags.clone();
+        let iota_token_type_tags = Arc::new(ArcSwap::from(Arc::new(HashMap::new())));
+        let iota_token_type_tags_clone = iota_token_type_tags.clone();
         let _handle = tokio::task::spawn(
             BridgeMonitor::new(
-                sui_client.clone(),
-                sui_monitor_rx,
+                iota_client.clone(),
+                iota_monitor_rx,
                 eth_monitor_rx,
                 agg.clone(),
                 bridge_pause_tx,
-                sui_token_type_tags_clone,
+                iota_token_type_tags_clone,
                 bridge_metrics,
             )
             .run(),
         );
 
-        sui_monitor_tx
-            .send(SuiBridgeEvent::NewTokenEvent(event.clone()))
+        iota_monitor_tx
+            .send(IotaBridgeEvent::NewTokenEvent(event.clone()))
             .await
             .unwrap();
         // Wait for the monitor to process the event
         tokio::time::sleep(Duration::from_secs(1)).await;
-        // Now expect new token type tags to appear in sui_token_type_tags
-        sui_token_type_tags
+        // Now expect new token type tags to appear in iota_token_type_tags
+        iota_token_type_tags
             .load()
             .clone()
             .get(&event.token_id)
@@ -1135,12 +1136,12 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn setup() -> (
-        mysten_metrics::metered_channel::Sender<SuiBridgeEvent>,
-        mysten_metrics::metered_channel::Receiver<SuiBridgeEvent>,
-        mysten_metrics::metered_channel::Sender<EthBridgeEvent>,
-        mysten_metrics::metered_channel::Receiver<EthBridgeEvent>,
-        SuiMockClient,
-        Arc<SuiClient<SuiMockClient>>,
+        iota_metrics::metered_channel::Sender<IotaBridgeEvent>,
+        iota_metrics::metered_channel::Receiver<IotaBridgeEvent>,
+        iota_metrics::metered_channel::Sender<EthBridgeEvent>,
+        iota_metrics::metered_channel::Receiver<EthBridgeEvent>,
+        IotaMockClient,
+        Arc<IotaClient<IotaMockClient>>,
         tokio::sync::watch::Sender<IsBridgePaused>,
         tokio::sync::watch::Receiver<IsBridgePaused>,
         Vec<BridgeAuthority>,
@@ -1148,22 +1149,22 @@ mod tests {
     ) {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         init_all_struct_tags();
         let bridge_metrics = Arc::new(BridgeMetrics::new_for_testing());
 
-        let sui_client_mock = SuiMockClient::default();
-        let sui_client = Arc::new(SuiClient::new_for_testing(sui_client_mock.clone()));
-        let (sui_monitor_tx, sui_monitor_rx) = mysten_metrics::metered_channel::channel(
+        let iota_client_mock = IotaMockClient::default();
+        let iota_client = Arc::new(IotaClient::new_for_testing(iota_client_mock.clone()));
+        let (iota_monitor_tx, iota_monitor_rx) = iota_metrics::metered_channel::channel(
             10000,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
-                .with_label_values(&["sui_monitor_queue"]),
+                .with_label_values(&["iota_monitor_queue"]),
         );
-        let (eth_monitor_tx, eth_monitor_rx) = mysten_metrics::metered_channel::channel(
+        let (eth_monitor_tx, eth_monitor_rx) = iota_metrics::metered_channel::channel(
             10000,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["eth_monitor_queue"]),
@@ -1177,12 +1178,12 @@ mod tests {
             get_test_authority_and_key(2500, 0 /* port, dummy value */).0,
         ];
         (
-            sui_monitor_tx,
-            sui_monitor_rx,
+            iota_monitor_tx,
+            iota_monitor_rx,
             eth_monitor_tx,
             eth_monitor_rx,
-            sui_client_mock,
-            sui_client,
+            iota_client_mock,
+            iota_client,
             bridge_pause_tx,
             bridge_pause_rx,
             authorities,

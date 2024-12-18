@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { getKioskIdFromOwnerCap, hasDisplayData, useGetKioskContents } from '@mysten/core';
-import { type SuiObjectResponse } from '@mysten/sui/client';
+import { getKioskIdFromOwnerCap, hasDisplayData, useGetKioskContents } from '@iota/core';
+import { type IotaObjectResponse } from '@iota/iota-sdk/client';
 import cl from 'clsx';
 
 import { useActiveAddress } from '../../hooks';
@@ -9,7 +10,7 @@ import { Text } from '../../shared/text';
 import { NftImage, type NftImageProps } from './NftImage';
 
 type KioskProps = {
-	object: SuiObjectResponse;
+	object: IotaObjectResponse;
 	orientation?: 'vertical' | 'horizontal' | null;
 } & Partial<NftImageProps>;
 
@@ -25,7 +26,7 @@ const cardStyles = [
 	`scale-[0.90] group-hover:rotate-6 group-hover:translate-x-5 group-hover:-translate-y-2 z-10 -translate-y-2 group-hover:shadow-xl`,
 ];
 
-function getLabel(item?: SuiObjectResponse) {
+function getLabel(item?: IotaObjectResponse) {
 	if (!item) return;
 	const display = item.data?.display?.data;
 	return display?.name ?? display?.description ?? item.data?.objectId;

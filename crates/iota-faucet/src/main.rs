@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
 use std::env;
 use std::sync::Arc;
-use sui_config::sui_config_dir;
-use sui_faucet::{create_wallet_context, start_faucet, AppState};
-use sui_faucet::{FaucetConfig, SimpleFaucet};
+use iota_config::iota_config_dir;
+use iota_faucet::{create_wallet_context, start_faucet, AppState};
+use iota_faucet::{FaucetConfig, SimpleFaucet};
 use tracing::info;
 
 const CONCURRENCY_LIMIT: usize = 30;
@@ -29,7 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
         ..
     } = config;
 
-    let context = create_wallet_context(wallet_client_timeout_secs, sui_config_dir()?)?;
+    let context = create_wallet_context(wallet_client_timeout_secs, iota_config_dir()?)?;
 
     let max_concurrency = match env::var("MAX_CONCURRENCY") {
         Ok(val) => val.parse::<usize>().unwrap(),
@@ -39,10 +40,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let prom_binding = PROM_PORT_ADDR.parse().unwrap();
     info!("Starting Prometheus HTTP endpoint at {}", prom_binding);
-    let registry_service = mysten_metrics::start_prometheus_server(prom_binding);
+    let registry_service = iota_metrics::start_prometheus_server(prom_binding);
     let prometheus_registry = registry_service.default_registry();
     prometheus_registry
-        .register(mysten_metrics::uptime_metric("faucet", VERSION, "unknown"))
+        .register(iota_metrics::uptime_metric("faucet", VERSION, "unknown"))
         .unwrap();
 
     let app_state = Arc::new(AppState {

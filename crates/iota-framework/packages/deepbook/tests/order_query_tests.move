@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 module deepbook::order_query_tests {
     use std::option::{none, some};
-    use sui::clock;
+    use iota::clock;
     use deepbook::order_query;
     use deepbook::order_query::iter_bids;
     use deepbook::custodian_v2;
     use deepbook::custodian_v2::{AccountCap, account_owner};
-    use sui::clock::Clock;
-    use sui::coin::mint_for_testing;
+    use iota::clock::Clock;
+    use iota::coin::mint_for_testing;
     use deepbook::clob_v2;
-    use sui::sui::SUI;
+    use iota::iota::IOTA;
     use deepbook::clob_v2::{setup_test, USD, mint_account_cap_transfer, Pool};
-    use sui::test_scenario;
-    use sui::test_scenario::{next_tx, end, ctx, Scenario};
+    use iota::test_scenario;
+    use iota::test_scenario::{next_tx, end, ctx, Scenario};
 
     const CLIENT_ID_ALICE: u64 = 0;
     const FLOAT_SCALING: u64 = 1000000000;
@@ -30,7 +31,7 @@ module deepbook::order_query_tests {
     fun test_order_query_pagination() {
         let mut scenario = prepare_scenario();
         add_orders(200, TIMESTAMP_INF, none(), &mut scenario);
-        let pool = test_scenario::take_shared<Pool<SUI, USD>>(&scenario);
+        let pool = test_scenario::take_shared<Pool<IOTA, USD>>(&scenario);
         let page1 = iter_bids(&pool, none(), none(), none(), none(), true);
         assert!(vector::length(order_query::orders(&page1)) == 100);
         assert!(order_query::has_next_page(&page1));
@@ -67,7 +68,7 @@ module deepbook::order_query_tests {
     fun test_order_query_pagination_decending() {
         let mut scenario = prepare_scenario();
         add_orders(200, TIMESTAMP_INF, none(), &mut scenario);
-        let pool = test_scenario::take_shared<Pool<SUI, USD>>(&scenario);
+        let pool = test_scenario::take_shared<Pool<IOTA, USD>>(&scenario);
         let page1 = iter_bids(&pool, none(), none(), none(), none(), false);
 
         assert!(vector::length(order_query::orders(&page1)) == 100);
@@ -105,7 +106,7 @@ module deepbook::order_query_tests {
     fun test_order_query_start_order_id() {
         let mut scenario = prepare_scenario();
         add_orders(200, TIMESTAMP_INF, none(), &mut scenario);
-        let pool = test_scenario::take_shared<Pool<SUI, USD>>(&scenario);
+        let pool = test_scenario::take_shared<Pool<IOTA, USD>>(&scenario);
         // test start order id
         let page = iter_bids(&pool, none(), some(51), none(), none(), true);
         assert!(vector::length(order_query::orders(&page)) == 100);
@@ -151,7 +152,7 @@ module deepbook::order_query_tests {
 
         add_orders(50, expired_timestamp, none(), &mut scenario);
 
-        let pool = test_scenario::take_shared<Pool<SUI, USD>>(&scenario);
+        let pool = test_scenario::take_shared<Pool<IOTA, USD>>(&scenario);
 
         // test get all order excluding expired orders
         let page = iter_bids(&pool, none(), none(), some(expired_timestamp + 1), none(), true);
@@ -173,7 +174,7 @@ module deepbook::order_query_tests {
         let mut scenario = prepare_scenario();
         add_orders(70, TIMESTAMP_INF, none(), &mut scenario);
 
-        let pool = test_scenario::take_shared<Pool<SUI, USD>>(&scenario);
+        let pool = test_scenario::take_shared<Pool<IOTA, USD>>(&scenario);
 
         // test get all order with id < 50
         let page = iter_bids(&pool, none(), none(), none(), some(50), true);
@@ -211,7 +212,7 @@ module deepbook::order_query_tests {
         add_orders(50, TIMESTAMP_INF, none(), &mut scenario);
         add_orders(50, TIMESTAMP_INF, none(), &mut scenario);
 
-        let pool = test_scenario::take_shared<Pool<SUI, USD>>(&scenario);
+        let pool = test_scenario::take_shared<Pool<IOTA, USD>>(&scenario);
         let page1 = iter_bids(&pool, none(), none(), none(), none(), true);
         assert!(vector::length(order_query::orders(&page1)) == 100);
         assert!(order_query::has_next_page(&page1));
@@ -264,7 +265,7 @@ module deepbook::order_query_tests {
         // insert a new order at tick level 10
         add_orders(1, TIMESTAMP_INF, some(10), &mut scenario);
 
-        let pool = test_scenario::take_shared<Pool<SUI, USD>>(&scenario);
+        let pool = test_scenario::take_shared<Pool<IOTA, USD>>(&scenario);
         let page = iter_bids(&pool, some(11 * FLOAT_SCALING), none(), none(), none(), true);
 
         // this page should start from order id 11 and end at order id 110, contains 100 orders
@@ -302,11 +303,11 @@ module deepbook::order_query_tests {
         mint_account_cap_transfer(BOB, test_scenario::ctx(&mut scenario));
         next_tx(&mut scenario, ALICE);
 
-        let mut pool = test_scenario::take_shared<Pool<SUI, USD>>(&scenario);
+        let mut pool = test_scenario::take_shared<Pool<IOTA, USD>>(&scenario);
         let account_cap = test_scenario::take_from_sender<AccountCap>(&scenario);
         let account_cap_user = account_owner(&account_cap);
         let (base_custodian, quote_custodian) = clob_v2::borrow_mut_custodian(&mut pool);
-        custodian_v2::deposit(base_custodian, mint_for_testing<SUI>(1000000, ctx(&mut scenario)), account_cap_user);
+        custodian_v2::deposit(base_custodian, mint_for_testing<IOTA>(1000000, ctx(&mut scenario)), account_cap_user);
         custodian_v2::deposit(
             quote_custodian,
             mint_for_testing<USD>(10000000, ctx(&mut scenario)),
@@ -328,9 +329,9 @@ module deepbook::order_query_tests {
             };
 
             let account_cap = test_scenario::take_from_sender<AccountCap>(scenario);
-            let mut pool = test_scenario::take_shared<Pool<SUI, USD>>(scenario);
+            let mut pool = test_scenario::take_shared<Pool<IOTA, USD>>(scenario);
             let clock = test_scenario::take_shared<Clock>(scenario);
-            clob_v2::place_limit_order<SUI, USD>(
+            clob_v2::place_limit_order<IOTA, USD>(
                 &mut pool,
                 CLIENT_ID_ALICE,
                 price,

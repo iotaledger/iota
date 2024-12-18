@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // DEPRECATED child count no longer tracked
@@ -10,25 +11,25 @@
 
 module test::m {
     public struct S has key, store {
-        id: sui::object::UID,
+        id: iota::object::UID,
     }
 
     public struct R has key {
-        id: sui::object::UID,
+        id: iota::object::UID,
         s: S,
     }
 
     public entry fun create(ctx: &mut TxContext) {
-        let parent = sui::object::new(ctx);
-        let child = S { id: sui::object::new(ctx) };
-        sui::transfer::transfer(R { id: parent, s: child }, tx_context::sender(ctx))
+        let parent = iota::object::new(ctx);
+        let child = S { id: iota::object::new(ctx) };
+        iota::transfer::transfer(R { id: parent, s: child }, tx_context::sender(ctx))
     }
 
     public entry fun delete(r: R) {
         let R { id, s } = r;
-        sui::object::delete(id);
+        iota::object::delete(id);
         let S { id } = s;
-        sui::object::delete(id);
+        iota::object::delete(id);
     }
 }
 

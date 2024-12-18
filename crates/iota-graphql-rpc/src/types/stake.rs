@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::connection::ScanConnection;
@@ -15,19 +16,19 @@ use super::move_object::MoveObjectImpl;
 use super::move_value::MoveValue;
 use super::object::{Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus};
 use super::owner::OwnerImpl;
-use super::suins_registration::{DomainFormat, SuinsRegistration};
+use super::iotans_registration::{DomainFormat, IotaNSRegistration};
 use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
 use super::type_filter::ExactTypeFilter;
 use super::uint53::UInt53;
 use super::{
-    big_int::BigInt, epoch::Epoch, move_object::MoveObject, object, sui_address::SuiAddress,
+    big_int::BigInt, epoch::Epoch, move_object::MoveObject, object, iota_address::IotaAddress,
 };
 use async_graphql::connection::Connection;
 use async_graphql::*;
 use move_core_types::language_storage::StructTag;
-use sui_json_rpc_types::{Stake as RpcStakedSui, StakeStatus as RpcStakeStatus};
-use sui_types::base_types::MoveObjectType;
-use sui_types::governance::StakedSui as NativeStakedSui;
+use iota_json_rpc_types::{Stake as RpcStakedIota, StakeStatus as RpcStakeStatus};
+use iota_types::base_types::MoveObjectType;
+use iota_types::governance::StakedIota as NativeStakedIota;
 
 #[derive(Copy, Clone, Enum, PartialEq, Eq)]
 /// The stake's possible status: active, pending, or unstaked.
@@ -40,25 +41,25 @@ pub(crate) enum StakeStatus {
     Unstaked,
 }
 
-pub(crate) enum StakedSuiDowncastError {
-    NotAStakedSui,
+pub(crate) enum StakedIotaDowncastError {
+    NotAStakedIota,
     Bcs(bcs::Error),
 }
 
 #[derive(Clone)]
-pub(crate) struct StakedSui {
-    /// Representation of this StakedSui as a generic Move Object.
+pub(crate) struct StakedIota {
+    /// Representation of this StakedIota as a generic Move Object.
     pub super_: MoveObject,
 
     /// Deserialized representation of the Move Object's contents as a
-    /// `0x3::staking_pool::StakedSui`.
-    pub native: NativeStakedSui,
+    /// `0x3::staking_pool::StakedIota`.
+    pub native: NativeStakedIota,
 }
 
-/// Represents a `0x3::staking_pool::StakedSui` Move object on-chain.
+/// Represents a `0x3::staking_pool::StakedIota` Move object on-chain.
 #[Object]
-impl StakedSui {
-    pub(crate) async fn address(&self) -> SuiAddress {
+impl StakedIota {
+    pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(&self.super_.super_).address().await
     }
 
@@ -78,7 +79,7 @@ impl StakedSui {
     }
 
     /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -105,7 +106,7 @@ impl StakedSui {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -120,43 +121,43 @@ impl StakedSui {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this object.
-    pub(crate) async fn staked_suis(
+    /// The `0x3::staking_pool::StakedIota` objects owned by this object.
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_.super_)
-            .staked_suis(ctx, first, after, last, before)
+            .staked_iotas(ctx, first, after, last, before)
             .await
     }
 
     /// The domain explicitly configured as the default domain pointing to this object.
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_.super_)
-            .default_suins_name(ctx, format)
+            .default_iotans_name(ctx, format)
             .await
     }
 
-    /// The SuinsRegistration NFTs owned by this object. These grant the owner the capability to
+    /// The IotaNSRegistration NFTs owned by this object. These grant the owner the capability to
     /// manage the associated domain.
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         OwnerImpl::from(&self.super_.super_)
-            .suins_registrations(ctx, first, after, last, before)
+            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -195,7 +196,7 @@ impl StakedSui {
             .await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
+    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
     /// recalculated based on the present storage gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_.super_).storage_rebate().await
@@ -249,7 +250,7 @@ impl StakedSui {
     }
 
     /// Determines whether a transaction can transfer this object, using the TransferObjects
-    /// transaction command or `sui::transfer::public_transfer`, both of which require the object to
+    /// transaction command or `iota::transfer::public_transfer`, both of which require the object to
     /// have the `key` and `store` abilities.
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         MoveObjectImpl(&self.super_).has_public_transfer(ctx).await
@@ -351,11 +352,11 @@ impl StakedSui {
     }
 
     /// The object id of the validator staking pool this stake belongs to.
-    async fn pool_id(&self) -> Option<SuiAddress> {
+    async fn pool_id(&self) -> Option<IotaAddress> {
         Some(self.native.pool_id().into())
     }
 
-    /// The SUI that was initially staked.
+    /// The IOTA that was initially staked.
     async fn principal(&self) -> Option<BigInt> {
         Some(BigInt::from(self.native.principal()))
     }
@@ -379,8 +380,8 @@ impl StakedSui {
     }
 }
 
-impl StakedSui {
-    /// Query the database for a `page` of Staked SUI. The page uses the same cursor type as is used
+impl StakedIota {
+    /// Query the database for a `page` of Staked IOTA. The page uses the same cursor type as is used
     /// for `Object`, and is further filtered to a particular `owner`.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this page was
@@ -389,10 +390,10 @@ impl StakedSui {
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<object::Cursor>,
-        owner: SuiAddress,
+        owner: IotaAddress,
         checkpoint_viewed_at: u64,
-    ) -> Result<Connection<String, StakedSui>, Error> {
-        let type_: StructTag = MoveObjectType::staked_sui().into();
+    ) -> Result<Connection<String, StakedIota>, Error> {
+        let type_: StructTag = MoveObjectType::staked_iota().into();
 
         let filter = ObjectFilter {
             type_: Some(type_.into()),
@@ -404,42 +405,42 @@ impl StakedSui {
             let address = object.address;
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
-                    "Expected {address} to be a StakedSui, but it's not a Move Object.",
+                    "Expected {address} to be a StakedIota, but it's not a Move Object.",
                 ))
             })?;
 
-            StakedSui::try_from(&move_object).map_err(|_| {
+            StakedIota::try_from(&move_object).map_err(|_| {
                 Error::Internal(format!(
-                    "Expected {address} to be a StakedSui, but it is not."
+                    "Expected {address} to be a StakedIota, but it is not."
                 ))
             })
         })
         .await
     }
 
-    /// The JSON-RPC representation of a StakedSui so that we can "cheat" to implement fields that
+    /// The JSON-RPC representation of a StakedIota so that we can "cheat" to implement fields that
     /// are not yet implemented directly for GraphQL.
     ///
     /// TODO: Make this obsolete
-    async fn rpc_stake(&self, ctx: &Context<'_>) -> Result<RpcStakedSui, Error> {
+    async fn rpc_stake(&self, ctx: &Context<'_>) -> Result<RpcStakedIota, Error> {
         ctx.data_unchecked::<PgManager>()
-            .fetch_rpc_staked_sui(self.native.clone())
+            .fetch_rpc_staked_iota(self.native.clone())
             .await
     }
 }
 
-impl TryFrom<&MoveObject> for StakedSui {
-    type Error = StakedSuiDowncastError;
+impl TryFrom<&MoveObject> for StakedIota {
+    type Error = StakedIotaDowncastError;
 
     fn try_from(move_object: &MoveObject) -> Result<Self, Self::Error> {
-        if !move_object.native.is_staked_sui() {
-            return Err(StakedSuiDowncastError::NotAStakedSui);
+        if !move_object.native.is_staked_iota() {
+            return Err(StakedIotaDowncastError::NotAStakedIota);
         }
 
         Ok(Self {
             super_: move_object.clone(),
             native: bcs::from_bytes(move_object.native.contents())
-                .map_err(StakedSuiDowncastError::Bcs)?,
+                .map_err(StakedIotaDowncastError::Bcs)?,
         })
     }
 }

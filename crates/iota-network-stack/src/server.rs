@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::metrics::{
     DefaultMetricsCallbackProvider, MetricsCallbackProvider, MetricsHandler,
@@ -360,8 +361,8 @@ impl tonic::transport::server::Connected for TcpOrTlsStream {
     }
 }
 
-/// TLS server name to use for the public Sui validator interface.
-pub const SUI_TLS_SERVER_NAME: &str = "sui";
+/// TLS server name to use for the public Iota validator interface.
+pub const IOTA_TLS_SERVER_NAME: &str = "iota";
 
 pub struct Server {
     server: BoxFuture<(), tonic::transport::Error>,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::address::Address;
@@ -7,25 +8,25 @@ use super::cursor::Page;
 use super::dynamic_field::DynamicField;
 use super::dynamic_field::DynamicFieldName;
 use super::move_package::MovePackage;
-use super::stake::StakedSui;
-use super::suins_registration::{DomainFormat, NameService, SuinsRegistration};
+use super::stake::StakedIota;
+use super::iotans_registration::{DomainFormat, NameService, IotaNSRegistration};
 use crate::data::Db;
 use crate::types::balance::{self, Balance};
 use crate::types::coin::Coin;
 use crate::types::move_object::MoveObject;
 use crate::types::object::{self, Object, ObjectFilter};
-use crate::types::sui_address::SuiAddress;
+use crate::types::iota_address::IotaAddress;
 use crate::types::type_filter::ExactTypeFilter;
 
 use async_graphql::connection::Connection;
 use async_graphql::*;
-use sui_json_rpc::name_service::NameServiceConfig;
-use sui_types::dynamic_field::DynamicFieldType;
-use sui_types::gas_coin::GAS;
+use iota_json_rpc::name_service::NameServiceConfig;
+use iota_types::dynamic_field::DynamicFieldType;
+use iota_types::gas_coin::GAS;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Owner {
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     /// The checkpoint sequence number at which this was viewed at.
     pub checkpoint_viewed_at: u64,
     /// Root parent object version for dynamic fields.
@@ -47,7 +48,7 @@ pub(crate) struct Owner {
 
 /// Type to implement GraphQL fields that are shared by all Owners.
 pub(crate) struct OwnerImpl {
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     /// The checkpoint sequence number at which this was viewed at.
     pub checkpoint_viewed_at: u64,
 }
@@ -60,7 +61,7 @@ pub(crate) struct OwnerImpl {
 #[derive(Interface)]
 #[graphql(
     name = "IOwner",
-    field(name = "address", ty = "SuiAddress"),
+    field(name = "address", ty = "IotaAddress"),
     field(
         name = "objects",
         arg(name = "first", ty = "Option<u64>"),
@@ -76,7 +77,7 @@ pub(crate) struct OwnerImpl {
         arg(name = "type", ty = "Option<ExactTypeFilter>"),
         ty = "Option<Balance>",
         desc = "Total balance of all coins with marker type owned by this object or address. If \
-                type is not supplied, it defaults to `0x2::sui::SUI`."
+                type is not supplied, it defaults to `0x2::iota::IOTA`."
     ),
     field(
         name = "balances",
@@ -96,32 +97,32 @@ pub(crate) struct OwnerImpl {
         arg(name = "type", ty = "Option<ExactTypeFilter>"),
         ty = "Connection<String, Coin>",
         desc = "The coin objects for this object or address.\n\n\
-                `type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`."
+                `type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`."
     ),
     field(
-        name = "staked_suis",
+        name = "staked_iotas",
         arg(name = "first", ty = "Option<u64>"),
         arg(name = "after", ty = "Option<object::Cursor>"),
         arg(name = "last", ty = "Option<u64>"),
         arg(name = "before", ty = "Option<object::Cursor>"),
-        ty = "Connection<String, StakedSui>",
-        desc = "The `0x3::staking_pool::StakedSui` objects owned by this object or address."
+        ty = "Connection<String, StakedIota>",
+        desc = "The `0x3::staking_pool::StakedIota` objects owned by this object or address."
     ),
     field(
-        name = "default_suins_name",
+        name = "default_iotans_name",
         arg(name = "format", ty = "Option<DomainFormat>"),
         ty = "Option<String>",
         desc = "The domain explicitly configured as the default domain pointing to this object or \
                 address."
     ),
     field(
-        name = "suins_registrations",
+        name = "iotans_registrations",
         arg(name = "first", ty = "Option<u64>"),
         arg(name = "after", ty = "Option<object::Cursor>"),
         arg(name = "last", ty = "Option<u64>"),
         arg(name = "before", ty = "Option<object::Cursor>"),
-        ty = "Connection<String, SuinsRegistration>",
-        desc = "The SuinsRegistration NFTs owned by this object or address. These grant the owner \
+        ty = "Connection<String, IotaNSRegistration>",
+        desc = "The IotaNSRegistration NFTs owned by this object or address. These grant the owner \
                 the capability to manage the associated domain."
     )
 )]
@@ -133,8 +134,8 @@ pub(crate) enum IOwner {
     MoveObject(MoveObject),
     Coin(Coin),
     CoinMetadata(CoinMetadata),
-    StakedSui(StakedSui),
-    SuinsRegistration(SuinsRegistration),
+    StakedIota(StakedIota),
+    IotaNSRegistration(IotaNSRegistration),
 }
 
 /// An Authenticator represents the access control rules for a ConsensusV2 object.
@@ -144,12 +145,12 @@ pub(crate) enum Authenticator {
     SingleOwner(Address),
 }
 
-/// An Owner is an entity that can own an object. Each Owner is identified by a SuiAddress which
+/// An Owner is an entity that can own an object. Each Owner is identified by a IotaAddress which
 /// represents either an Address (corresponding to a public key of an account) or an Object, but
 /// never both (it is not known up-front whether a given Owner is an Address or an Object).
 #[Object]
 impl Owner {
-    pub(crate) async fn address(&self) -> SuiAddress {
+    pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(self).address().await
     }
 
@@ -169,7 +170,7 @@ impl Owner {
     }
 
     /// Total balance of all coins with marker type owned by this object or address. If type is not
-    /// supplied, it defaults to `0x2::sui::SUI`.
+    /// supplied, it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -194,7 +195,7 @@ impl Owner {
 
     /// The coin objects for this object or address.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -209,41 +210,41 @@ impl Owner {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this object or address.
-    pub(crate) async fn staked_suis(
+    /// The `0x3::staking_pool::StakedIota` objects owned by this object or address.
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(self)
-            .staked_suis(ctx, first, after, last, before)
+            .staked_iotas(ctx, first, after, last, before)
             .await
     }
 
     /// The domain explicitly configured as the default domain pointing to this object or address.
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
     ) -> Result<Option<String>> {
-        OwnerImpl::from(self).default_suins_name(ctx, format).await
+        OwnerImpl::from(self).default_iotans_name(ctx, format).await
     }
 
-    /// The SuinsRegistration NFTs owned by this object or address. These grant the owner the
+    /// The IotaNSRegistration NFTs owned by this object or address. These grant the owner the
     /// capability to manage the associated domain.
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         OwnerImpl::from(self)
-            .suins_registrations(ctx, first, after, last, before)
+            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -318,7 +319,7 @@ impl Owner {
 }
 
 impl OwnerImpl {
-    pub(crate) async fn address(&self) -> SuiAddress {
+    pub(crate) async fn address(&self) -> IotaAddress {
         self.address
     }
 
@@ -407,16 +408,16 @@ impl OwnerImpl {
         .extend()
     }
 
-    pub(crate) async fn staked_suis(
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        StakedSui::paginate(
+        StakedIota::paginate(
             ctx.data_unchecked(),
             page,
             self.address,
@@ -426,7 +427,7 @@ impl OwnerImpl {
         .extend()
     }
 
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
@@ -439,16 +440,16 @@ impl OwnerImpl {
         )
     }
 
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        SuinsRegistration::paginate(
+        IotaNSRegistration::paginate(
             ctx.data_unchecked::<Db>(),
             ctx.data_unchecked::<NameServiceConfig>(),
             page,

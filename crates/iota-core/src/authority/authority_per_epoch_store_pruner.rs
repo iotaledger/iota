@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::authority::authority_per_epoch_store::EPOCH_DB_PREFIX;
 use itertools::Itertools;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
-use sui_config::node::AuthorityStorePruningConfig;
+use iota_config::node::AuthorityStorePruningConfig;
 use tokio::sync::oneshot;
 use tracing::log::{error, info};
 use typed_store::rocks::safe_drop_db;

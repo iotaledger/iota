@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// A module to test coin index.
 module fungible_tokens::managed {
     use std::option;
-    use sui::coin::{Self, Coin, TreasuryCap};
-    use sui::transfer;
-    use sui::object::{Self, UID};
-    use sui::table_vec::{Self, TableVec};
-    use sui::tx_context::{Self, TxContext};
+    use iota::coin::{Self, Coin, TreasuryCap};
+    use iota::transfer;
+    use iota::object::{Self, UID};
+    use iota::table_vec::{Self, TableVec};
+    use iota::tx_context::{Self, TxContext};
 
     public struct PublicRedEnvelope has key, store {
         id: UID,

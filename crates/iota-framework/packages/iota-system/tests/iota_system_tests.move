@@ -1,31 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// This file contains tests testing functionalities in `sui_system` that are not
+// This file contains tests testing functionalities in `iota_system` that are not
 // already tested by the other more themed tests such as `stake_tests` or
 // `rewards_distribution_tests`.
 
 #[test_only]
-module sui_system::sui_system_tests {
-    use sui::test_scenario::{Self, Scenario};
-    use sui::sui::SUI;
-    use sui::coin::Self;
-    use sui_system::governance_test_utils::{add_validator_full_flow, advance_epoch, remove_validator, set_up_sui_system_state, create_sui_system_state_for_testing, stake_with, unstake};
-    use sui_system::sui_system::SuiSystemState;
-    use sui_system::sui_system_state_inner;
-    use sui_system::validator::{Self, Validator};
-    use sui_system::validator_set;
-    use sui_system::validator_cap::UnverifiedValidatorOperationCap;
-    use sui::balance;
-    use sui::test_utils::{assert_eq, destroy};
-    use sui::url;
+module iota_system::iota_system_tests {
+    use iota::test_scenario::{Self, Scenario};
+    use iota::iota::IOTA;
+    use iota::coin::Self;
+    use iota_system::governance_test_utils::{add_validator_full_flow, advance_epoch, remove_validator, set_up_iota_system_state, create_iota_system_state_for_testing, stake_with, unstake};
+    use iota_system::iota_system::IotaSystemState;
+    use iota_system::iota_system_state_inner;
+    use iota_system::validator::{Self, Validator};
+    use iota_system::validator_set;
+    use iota_system::validator_cap::UnverifiedValidatorOperationCap;
+    use iota::balance;
+    use iota::test_utils::{assert_eq, destroy};
+    use iota::url;
 
     #[test]
     fun test_report_validator() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
 
         report_helper(@0x1, @0x2, false, scenario);
         assert!(get_reporters_of(@0x2, scenario) == vector[@0x1]);
@@ -69,7 +70,7 @@ module sui_system::sui_system_tests {
     fun test_validator_ops_by_stakee_ok() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
-        set_up_sui_system_state(vector[@0x1, @0x2]);
+        set_up_iota_system_state(vector[@0x1, @0x2]);
 
         // @0x1 transfers the cap object to stakee.
         let stakee_address = @0xbeef;
@@ -109,7 +110,7 @@ module sui_system::sui_system_tests {
         set_gas_price_helper(new_validator_addr, 777, scenario);
 
         scenario.next_tx(new_stakee_address);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let validator = system_state.active_validator_by_address(@0x1);
         assert!(validator.next_epoch_gas_price() == 666);
         let pending_validator = system_state.pending_validator_by_address(new_validator_addr);
@@ -120,11 +121,11 @@ module sui_system::sui_system_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = ::sui_system::validator_set::EInvalidCap)]
+    #[expected_failure(abort_code = ::iota_system::validator_set::EInvalidCap)]
     fun test_report_validator_by_stakee_revoked() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
-        set_up_sui_system_state(vector[@0x1, @0x2]);
+        set_up_iota_system_state(vector[@0x1, @0x2]);
 
         // @0x1 transfers the cap object to stakee.
         let stakee_address = @0xbeef;
@@ -146,11 +147,11 @@ module sui_system::sui_system_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = ::sui_system::validator_set::EInvalidCap)]
+    #[expected_failure(abort_code = ::iota_system::validator_set::EInvalidCap)]
     fun test_set_reference_gas_price_by_stakee_revoked() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
-        set_up_sui_system_state(vector[@0x1, @0x2]);
+        set_up_iota_system_state(vector[@0x1, @0x2]);
 
         // @0x1 transfers the cap object to stakee.
         let stakee_address = @0xbeef;
@@ -162,7 +163,7 @@ module sui_system::sui_system_tests {
         set_gas_price_helper(stakee_address, 888, scenario);
 
         scenario.next_tx(stakee_address);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let validator = system_state.active_validator_by_address(@0x1);
         assert!(validator.next_epoch_gas_price() == 888);
         test_scenario::return_shared(system_state);
@@ -182,7 +183,7 @@ module sui_system::sui_system_tests {
     fun test_set_gas_price_failure() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
-        set_up_sui_system_state(vector[@0x1, @0x2]);
+        set_up_iota_system_state(vector[@0x1, @0x2]);
 
         // Fails here since the gas price is too high.
         set_gas_price_helper(@0x1, 100_001, scenario);
@@ -195,10 +196,10 @@ module sui_system::sui_system_tests {
     fun test_set_commission_rate_failure() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
-        set_up_sui_system_state(vector[@0x1, @0x2]);
+        set_up_iota_system_state(vector[@0x1, @0x2]);
 
         scenario.next_tx(@0x2);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
 
         // Fails here since the commission rate is too high.
         system_state.request_set_commission_rate(2001, scenario.ctx());
@@ -208,34 +209,34 @@ module sui_system::sui_system_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui_system_state_inner::ENotValidator)]
+    #[expected_failure(abort_code = iota_system_state_inner::ENotValidator)]
     fun test_report_non_validator_failure() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
         report_helper(@0x1, @0x42, false, scenario);
         scenario_val.end();
     }
 
     #[test]
-    #[expected_failure(abort_code = sui_system_state_inner::ECannotReportOneself)]
+    #[expected_failure(abort_code = iota_system_state_inner::ECannotReportOneself)]
     fun test_report_self_failure() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
         report_helper(@0x1, @0x1, false, scenario);
         scenario_val.end();
     }
 
     #[test]
-    #[expected_failure(abort_code = sui_system_state_inner::EReportRecordNotFound)]
+    #[expected_failure(abort_code = iota_system_state_inner::EReportRecordNotFound)]
     fun test_undo_report_failure() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
         report_helper(@0x2, @0x1, true, scenario);
         scenario_val.end();
     }
@@ -245,10 +246,10 @@ module sui_system::sui_system_tests {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3, @0x4]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3, @0x4]);
         scenario.next_tx(@0x1);
 
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let pool_id_1 = system_state.validator_staking_pool_id(@0x1);
         let validator_address = system_state.validator_address_by_pool_id(&pool_id_1);
 
@@ -263,9 +264,9 @@ module sui_system::sui_system_tests {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3, @0x4]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3, @0x4]);
         scenario.next_tx(@0x1);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let pool_id_1 = system_state.validator_staking_pool_id(@0x1);
         let pool_id_2 = system_state.validator_staking_pool_id(@0x2);
         let pool_id_3 = system_state.validator_staking_pool_id(@0x3);
@@ -290,7 +291,7 @@ module sui_system::sui_system_tests {
         advance_epoch(scenario);
 
         scenario.next_tx(@0x1);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let pool_id_5 = system_state.validator_staking_pool_id(new_validator_addr);
         pool_mappings = system_state.validator_staking_pool_mappings();
         // Check that the previous mappings didn't change as well.
@@ -307,7 +308,7 @@ module sui_system::sui_system_tests {
         advance_epoch(scenario);
 
         scenario.next_tx(@0x1);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         pool_mappings = system_state.validator_staking_pool_mappings();
         // Check that the previous mappings didn't change as well.
         assert_eq(pool_mappings.length(), 4);
@@ -324,7 +325,7 @@ module sui_system::sui_system_tests {
     fun report_helper(sender: address, reported: address, is_undo: bool, scenario: &mut Scenario) {
         scenario.next_tx(sender);
 
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let cap = scenario.take_from_sender<UnverifiedValidatorOperationCap>();
         if (is_undo) {
             system_state.undo_report_validator(&cap, reported);
@@ -342,7 +343,7 @@ module sui_system::sui_system_tests {
     ) {
         scenario.next_tx(sender);
         let cap = scenario.take_from_sender<UnverifiedValidatorOperationCap>();
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         system_state.request_set_gas_price(&cap, new_gas_price);
         scenario.return_to_sender(cap);
         test_scenario::return_shared(system_state);
@@ -351,7 +352,7 @@ module sui_system::sui_system_tests {
 
     fun rotate_operation_cap(sender: address, scenario: &mut Scenario) {
         scenario.next_tx(sender);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let ctx = scenario.ctx();
         system_state.rotate_operation_cap(ctx);
         test_scenario::return_shared(system_state);
@@ -359,7 +360,7 @@ module sui_system::sui_system_tests {
 
     fun get_reporters_of(addr: address, scenario: &mut Scenario): vector<address> {
         scenario.next_tx(addr);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let res = system_state.get_reporters_of(addr).into_keys();
         test_scenario::return_shared(system_state);
         res
@@ -367,7 +368,7 @@ module sui_system::sui_system_tests {
 
     fun update_candidate(
         scenario: &mut Scenario,
-        system_state: &mut SuiSystemState,
+        system_state: &mut IotaSystemState,
         name: vector<u8>,
         protocol_pub_key: vector<u8>,
         pop: vector<u8>,
@@ -428,11 +429,11 @@ module sui_system::sui_system_tests {
 
     }
 
-    // Note: `pop` MUST be a valid signature using sui_address and protocol_pubkey_bytes.
+    // Note: `pop` MUST be a valid signature using iota_address and protocol_pubkey_bytes.
     // To produce a valid PoP, run [fn test_proof_of_possession].
     fun update_metadata(
         scenario: &mut Scenario,
-        system_state: &mut SuiSystemState,
+        system_state: &mut IotaSystemState,
         name: vector<u8>,
         protocol_pub_key: vector<u8>,
         pop: vector<u8>,
@@ -599,7 +600,7 @@ module sui_system::sui_system_tests {
         let mut scenario_val = test_scenario::begin(validator_addr);
         let scenario = &mut scenario_val;
 
-        // Set up SuiSystemState with an active validator
+        // Set up IotaSystemState with an active validator
         let mut validators = vector[];
         let ctx = scenario.ctx();
         let validator = validator::new_for_testing(
@@ -616,18 +617,18 @@ module sui_system::sui_system_tests {
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            option::some(balance::create_for_testing<SUI>(100_000_000_000)),
+            option::some(balance::create_for_testing<IOTA>(100_000_000_000)),
             1,
             0,
             true,
             ctx
         );
         validators.push_back(validator);
-        create_sui_system_state_for_testing(validators, 1000, 0, ctx);
+        create_iota_system_state_for_testing(validators, 1000, 0, ctx);
 
         scenario.next_tx(validator_addr);
 
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
 
         // Test active validator metadata changes
         scenario.next_tx(validator_addr);
@@ -670,7 +671,7 @@ module sui_system::sui_system_tests {
         // Test pending validator metadata changes
         let mut scenario_val = test_scenario::begin(new_validator_addr);
         let scenario = &mut scenario_val;
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         scenario.next_tx(new_validator_addr);
         {
             let ctx = scenario.ctx();
@@ -736,7 +737,7 @@ module sui_system::sui_system_tests {
 
         // Now both validators are active, verify their metadata.
         scenario.next_tx(new_validator_addr);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let validator = system_state.active_validator_by_address(validator_addr);
         verify_metadata_after_advancing_epoch(
             validator,
@@ -781,9 +782,9 @@ module sui_system::sui_system_tests {
         let mut scenario_val = test_scenario::begin(validator_addr);
         let scenario = &mut scenario_val;
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
         scenario.next_tx(validator_addr);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         scenario.next_tx(validator_addr);
         {
             system_state.request_add_validator_candidate_for_testing(
@@ -849,9 +850,9 @@ module sui_system::sui_system_tests {
         let pubkey = x"99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10";
         let pop = x"83809369ce6572be211512d85621a075ee6a8da57fbb2d867d05e6a395e71f10e4e957796944d68a051381eb91720fba";
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
         scenario.next_tx(new_validator_addr);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         system_state.request_add_validator_candidate(
             pubkey,
             vector[32, 219, 38, 23, 242, 109, 116, 235, 225, 192, 219, 45, 40, 124, 162, 25, 33, 68, 52, 41, 123, 9, 98, 11, 184, 150, 214, 62, 60, 210, 121, 62],
@@ -882,9 +883,9 @@ module sui_system::sui_system_tests {
         let pubkey = x"99f25ef61f8032b914636460982c5cc6f134ef1ddae76657f2cbfec1ebfc8d097374080df6fcf0dcb8bc4b0d8e0af5d80ebbff2b4c599f54f42d6312dfc314276078c1cc347ebbbec5198be258513f386b930d02c2749a803e2330955ebd1a10";
         let pop = x"83809369ce6572be211512d85621a075ee6a8da57fbb2d867d05e6a395e71f10e4e957796944d68a051381eb91720fba";
 
-        set_up_sui_system_state(vector[@0x1, @0x2, @0x3]);
+        set_up_iota_system_state(vector[@0x1, @0x2, @0x3]);
         scenario.next_tx(new_validator_addr);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         system_state.request_add_validator_candidate(
             pubkey,
             vector[32, 219, 38, 23, 242, 109, 116, 235, 225, 192, 219, 45, 40, 124, 162, 25, 33, 68, 52, 41, 123, 9, 98, 11, 184, 150, 214, 62, 60, 210, 121, 62],
@@ -941,7 +942,7 @@ module sui_system::sui_system_tests {
         let mut scenario_val = test_scenario::begin(validator_addr);
         let scenario = &mut scenario_val;
 
-        // Set up SuiSystemState with an active validator
+        // Set up IotaSystemState with an active validator
         let ctx = scenario.ctx();
         let validator = validator::new_for_testing(
             validator_addr,
@@ -957,17 +958,17 @@ module sui_system::sui_system_tests {
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
             b"/ip4/127.0.0.1/udp/80",
-            option::some(balance::create_for_testing<SUI>(100_000_000_000)),
+            option::some(balance::create_for_testing<IOTA>(100_000_000_000)),
             1,
             0,
             true,
             ctx
         );
-        create_sui_system_state_for_testing(vector[validator], 1000, 0, ctx);
+        create_iota_system_state_for_testing(vector[validator], 1000, 0, ctx);
 
         scenario.next_tx(new_addr);
 
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
 
         // Add a candidate with the same name. Fails due to duplicating with an already active validator.
         system_state.request_add_validator_candidate(
@@ -997,7 +998,7 @@ module sui_system::sui_system_tests {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
         // Epoch duration is set to be 42 here.
-        set_up_sui_system_state(vector[@0x1, @0x2]);
+        set_up_iota_system_state(vector[@0x1, @0x2]);
 
         // If the epoch length is less than 42 then the stake subsidy distribution counter should not be incremented. Otherwise it should.
         advance_epoch_and_check_distribution_counter(scenario, 42, true);
@@ -1009,7 +1010,7 @@ module sui_system::sui_system_tests {
     fun advance_epoch_and_check_distribution_counter(scenario: &mut Scenario, epoch_length: u64, should_increment_counter: bool) {
         scenario.next_tx(@0x0);
         let new_epoch = scenario.ctx().epoch() + 1;
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
         let prev_epoch_time = system_state.epoch_start_timestamp_ms();
         let prev_counter = system_state.get_stake_subsidy_distribution_counter();
 
@@ -1027,16 +1028,16 @@ module sui_system::sui_system_tests {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
         // Epoch duration is set to be 42 here.
-        set_up_sui_system_state(vector[@0x1, @0x2]);
+        set_up_iota_system_state(vector[@0x1, @0x2]);
 
         {
             scenario.next_tx(@0x0);
-            let mut system_state = scenario.take_shared<SuiSystemState>();
+            let mut system_state = scenario.take_shared<IotaSystemState>();
             let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
 
             assert!(staking_pool.pending_stake_amount() == 0, 0);
             assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
-            assert!(staking_pool.sui_balance() == 100 * 1_000_000_000, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
 
             test_scenario::return_shared(system_state);
         };
@@ -1045,12 +1046,12 @@ module sui_system::sui_system_tests {
 
         {
             scenario.next_tx(@0x0);
-            let mut system_state = scenario.take_shared<SuiSystemState>();
+            let mut system_state = scenario.take_shared<IotaSystemState>();
             let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
 
             assert!(staking_pool.pending_stake_amount() == 1_000_000_000, 0);
             assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
-            assert!(staking_pool.sui_balance() == 100 * 1_000_000_000, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
 
             test_scenario::return_shared(system_state);
         };
@@ -1059,12 +1060,12 @@ module sui_system::sui_system_tests {
 
         {
             scenario.next_tx(@0x0);
-            let mut system_state = scenario.take_shared<SuiSystemState>();
+            let mut system_state = scenario.take_shared<IotaSystemState>();
             let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
 
             assert!(staking_pool.pending_stake_amount() == 0, 0);
             assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
-            assert!(staking_pool.sui_balance() == 100 * 1_000_000_000, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
 
             test_scenario::return_shared(system_state);
         };
@@ -1073,58 +1074,58 @@ module sui_system::sui_system_tests {
     }
 
     #[test]
-    fun test_convert_to_fungible_staked_sui_and_redeem() {
+    fun test_convert_to_fungible_staked_iota_and_redeem() {
         let mut scenario_val = test_scenario::begin(@0x0);
         let scenario = &mut scenario_val;
         // Epoch duration is set to be 42 here.
-        set_up_sui_system_state(vector[@0x1, @0x2]);
+        set_up_iota_system_state(vector[@0x1, @0x2]);
 
         {
             scenario.next_tx(@0x0);
-            let mut system_state = scenario.take_shared<SuiSystemState>();
+            let mut system_state = scenario.take_shared<IotaSystemState>();
             let staking_pool = system_state.active_validator_by_address(@0x1).get_staking_pool_ref();
 
             assert!(staking_pool.pending_stake_amount() == 0, 0);
             assert!(staking_pool.pending_stake_withdraw_amount() == 0, 0);
-            assert!(staking_pool.sui_balance() == 100 * 1_000_000_000, 0);
+            assert!(staking_pool.iota_balance() == 100 * 1_000_000_000, 0);
 
             test_scenario::return_shared(system_state);
         };
 
         scenario.next_tx(@0x0);
-        let mut system_state = scenario.take_shared<SuiSystemState>();
+        let mut system_state = scenario.take_shared<IotaSystemState>();
 
-        let staked_sui = system_state.request_add_stake_non_entry(
+        let staked_iota = system_state.request_add_stake_non_entry(
             coin::mint_for_testing(100_000_000_000, scenario.ctx()),
             @0x1,
             scenario.ctx()
         );
 
-        assert!(staked_sui.amount() == 100_000_000_000, 0);
+        assert!(staked_iota.amount() == 100_000_000_000, 0);
 
         test_scenario::return_shared(system_state);
         advance_epoch(scenario);
 
-        let mut system_state = scenario.take_shared<SuiSystemState>();
-        let fungible_staked_sui = system_state.convert_to_fungible_staked_sui(
-            staked_sui,
+        let mut system_state = scenario.take_shared<IotaSystemState>();
+        let fungible_staked_iota = system_state.convert_to_fungible_staked_iota(
+            staked_iota,
             scenario.ctx()
         );
 
-        assert!(fungible_staked_sui.value() == 100_000_000_000, 0);
+        assert!(fungible_staked_iota.value() == 100_000_000_000, 0);
 
-        let sui = system_state.redeem_fungible_staked_sui(
-            fungible_staked_sui,
+        let iota = system_state.redeem_fungible_staked_iota(
+            fungible_staked_iota,
             scenario.ctx()
         );
 
-        assert!(sui.value() == 100_000_000_000, 0);
+        assert!(iota.value() == 100_000_000_000, 0);
 
         test_scenario::return_shared(system_state);
 
         advance_epoch(scenario);
 
-        sui::test_utils::destroy(sui);
+        iota::test_utils::destroy(iota);
         scenario_val.end();
     }
 

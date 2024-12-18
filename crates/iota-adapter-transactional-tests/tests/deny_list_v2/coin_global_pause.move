@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test verifies the basic e2e work flow of coin global pause.
@@ -9,8 +10,8 @@
 
 //# publish --sender A
 module test::regulated_coin {
-    use sui::coin::{Self, Coin};
-    use sui::deny_list::DenyList;
+    use iota::coin::{Self, Coin};
+    use iota::deny_list::DenyList;
 
     public struct REGULATED_COIN has drop {}
 
@@ -70,7 +71,7 @@ module test::regulated_coin {
 }
 
 // Transfer the newly minted coin works normally.
-//# run sui::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Wrap part of the coin in a wrapper object. We will need this later.
 //# run test::regulated_coin::partial_wrap --args object(1,1) --sender A
@@ -79,19 +80,19 @@ module test::regulated_coin {
 //# run test::regulated_coin::partial_wrap --args object(1,1) --sender A
 
 // Enable global pause.
-//# run sui::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that global pause is enabled.
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A
 
 // Transfer the regulated coin from A no longer works.
-//# run sui::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Transfer the coin from B also no longer works.
 //# transfer-object 2,0 --sender B --recipient A
 
 // Try using the coin in a Move call. This should also be denied.
-//# run sui::pay::split_and_transfer --args object(2,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
+//# run iota::pay::split_and_transfer --args object(2,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
 
 // Unwrap the wrapper. This still works and A will receive the coin, since global pause check
 // for receiving will only take effect at the new epoch.
@@ -104,19 +105,19 @@ module test::regulated_coin {
 //# run test::regulated_coin::unwrap --args object(4,0) --sender A
 
 // Transfer still doesn't work as the previous epoch.
-//# run sui::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that global pause is still enabled.
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) true --sender A
 
 // Disable global pause.
-//# run sui::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that global pause is disabled.
 //# run test::regulated_coin::assert_global_pause_status --args immshared(0x403) false --sender A
 
 // Transfer the regulated coin from A works again.
-//# run sui::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Create a new wrapper. This works now since spending coin is allowed again.
 //# run test::regulated_coin::full_wrap --args object(1,1) --sender A

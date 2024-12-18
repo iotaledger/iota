@@ -2,7 +2,7 @@
 name = "narwhal-config"
 version = "0.1.0"
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 publish = false
 
@@ -14,9 +14,9 @@ thiserror.workspace = true
 tracing.workspace = true
 
 fastcrypto.workspace = true
-mysten-util-mem.workspace = true
+iota-util-mem.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
-mysten-network.workspace = true
+iota-network-stack.workspace = true
 rand.workspace = true
 
 [dev-dependencies]

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::fuzz::TransactionKindMutator;
 use rand::Rng;
-use sui_types::transaction::TransactionKind;
+use iota_types::transaction::TransactionKind;
 use tracing::info;
 
 pub struct DropCommandSuffix {

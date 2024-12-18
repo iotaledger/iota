@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromBase64, toBase58, toBase64 } from '@mysten/bcs';
+import { fromBase64, toBase58, toBase64 } from '@iota/bcs';
 import { beforeAll, describe, expect, it, test } from 'vitest';
 
 import { bcs } from '../../../src/bcs';
@@ -43,7 +44,7 @@ describe('Multisig scenarios', () => {
 		];
 
 		const tx = new Transaction();
-		tx.setSender(k3.getPublicKey().toSuiAddress());
+		tx.setSender(k3.getPublicKey().toIotaAddress());
 		tx.setGasPrice(5);
 		tx.setGasBudget(100);
 		tx.setGasPayment([
@@ -416,7 +417,7 @@ describe('Multisig address creation:', () => {
 			],
 			threshold: 1,
 		});
-		const multisigAddress = multisigPublicKey.toSuiAddress();
+		const multisigAddress = multisigPublicKey.toIotaAddress();
 
 		expect(multisigAddress).toEqual(
 			'0x77a9fbf3c695d78dd83449a81a9e70aa79a77dbfd6fb72037bf09201c12052cd',
@@ -432,7 +433,7 @@ describe('Multisig address creation:', () => {
 			],
 			threshold: 1,
 		});
-		expect(publicKey.toSuiAddress()).toEqual(
+		expect(publicKey.toIotaAddress()).toEqual(
 			'0xb9c0780a3943cde13a2409bf1a6f06ae60b0dff2b2f373260cf627aa4f43a588',
 		);
 		const data = new Uint8Array(
@@ -624,7 +625,7 @@ describe('MultisigKeypair', () => {
 		];
 
 		const tx = new Transaction();
-		tx.setSender(k3.getPublicKey().toSuiAddress());
+		tx.setSender(k3.getPublicKey().toIotaAddress());
 		tx.setGasPrice(5);
 		tx.setGasBudget(100);
 		tx.setGasPayment([
@@ -659,10 +660,10 @@ describe('MultisigKeypair', () => {
 		}
 
 		const signerPubKey = await verifyTransactionSignature(bytes, multisig.signature);
-		expect(signerPubKey.toSuiAddress()).toEqual(publicKey.toSuiAddress());
+		expect(signerPubKey.toIotaAddress()).toEqual(publicKey.toIotaAddress());
 		expect(await publicKey.verifyTransaction(bytes, multisig.signature)).toEqual(true);
 		const signerPubKey2 = await verifyTransactionSignature(bytes, multisig2.signature);
-		expect(signerPubKey2.toSuiAddress()).toEqual(publicKey.toSuiAddress());
+		expect(signerPubKey2.toIotaAddress()).toEqual(publicKey.toIotaAddress());
 		expect(await publicKey.verifyTransaction(bytes, multisig2.signature)).toEqual(true);
 	});
 
@@ -710,10 +711,10 @@ describe('MultisigKeypair', () => {
 		}
 
 		const signerPubKey = await verifyPersonalMessageSignature(bytes, multisig.signature);
-		expect(signerPubKey.toSuiAddress()).toEqual(publicKey.toSuiAddress());
+		expect(signerPubKey.toIotaAddress()).toEqual(publicKey.toIotaAddress());
 		expect(await publicKey.verifyPersonalMessage(bytes, multisig.signature)).toEqual(true);
 		const signerPubKey2 = await verifyPersonalMessageSignature(bytes, multisig2.signature);
-		expect(signerPubKey2.toSuiAddress()).toEqual(publicKey.toSuiAddress());
+		expect(signerPubKey2.toIotaAddress()).toEqual(publicKey.toIotaAddress());
 		expect(await publicKey.verifyPersonalMessage(bytes, multisig2.signature)).toEqual(true);
 	});
 
@@ -807,7 +808,7 @@ describe('MultisigKeypair', () => {
 		});
 
 		expect(() => publicKey.getSigner(k2)).toThrow(
-			new Error(`Signer ${pk2.toSuiAddress()} is not part of the MultiSig public key`),
+			new Error(`Signer ${pk2.toIotaAddress()} is not part of the MultiSig public key`),
 		);
 	});
 });

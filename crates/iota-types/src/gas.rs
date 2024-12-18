@@ -1,19 +1,20 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 pub mod checked {
 
     use crate::gas_model::gas_predicates::gas_price_too_high;
     use crate::{
         effects::{TransactionEffects, TransactionEffectsAPI},
-        error::{ExecutionError, SuiResult, UserInputError, UserInputResult},
-        gas_model::{gas_v2::SuiGasStatus as SuiGasStatusV2, tables::GasStatus},
+        error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
+        gas_model::{gas_v2::IotaGasStatus as IotaGasStatusV2, tables::GasStatus},
         object::Object,
-        sui_serde::{BigInt, Readable},
+        iota_serde::{BigInt, Readable},
         transaction::ObjectReadResult,
         ObjectID,
     };
@@ -22,10 +23,10 @@ pub mod checked {
     use schemars::JsonSchema;
     use serde::{Deserialize, Serialize};
     use serde_with::serde_as;
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
 
     #[enum_dispatch]
-    pub trait SuiGasStatusAPI {
+    pub trait IotaGasStatusAPI {
         fn is_unmetered(&self) -> bool;
         fn move_gas_status(&self) -> &GasStatus;
         fn move_gas_status_mut(&mut self) -> &mut GasStatus;
@@ -50,21 +51,21 @@ pub mod checked {
     }
 
     /// Version aware enum for gas status.
-    #[enum_dispatch(SuiGasStatusAPI)]
+    #[enum_dispatch(IotaGasStatusAPI)]
     #[derive(Debug)]
-    pub enum SuiGasStatus {
+    pub enum IotaGasStatus {
         // V1 does not exists any longer as it was a pre mainnet version.
         // So we start the enum from V2
-        V2(SuiGasStatusV2),
+        V2(IotaGasStatusV2),
     }
 
-    impl SuiGasStatus {
+    impl IotaGasStatus {
         pub fn new(
             gas_budget: u64,
             gas_price: u64,
             reference_gas_price: u64,
             config: &ProtocolConfig,
-        ) -> SuiResult<Self> {
+        ) -> IotaResult<Self> {
             // Common checks. We may pull them into version specific status as needed, but they
             // are unlikely to change.
 
@@ -84,7 +85,7 @@ pub mod checked {
                 .into());
             }
 
-            Ok(Self::V2(SuiGasStatusV2::new_with_budget(
+            Ok(Self::V2(IotaGasStatusV2::new_with_budget(
                 gas_budget,
                 gas_price,
                 reference_gas_price,
@@ -93,10 +94,10 @@ pub mod checked {
         }
 
         pub fn new_unmetered() -> Self {
-            Self::V2(SuiGasStatusV2::new_unmetered())
+            Self::V2(IotaGasStatusV2::new_unmetered())
         }
 
-        // This is the only public API on SuiGasStatus, all other gas related operations should
+        // This is the only public API on IotaGasStatus, all other gas related operations should
         // go through `GasCharger`
         pub fn check_gas_balance(
             &self,

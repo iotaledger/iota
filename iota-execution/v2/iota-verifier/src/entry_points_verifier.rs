@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{
@@ -7,15 +8,15 @@ use move_binary_format::{
 };
 use move_bytecode_utils::format_signature_token;
 use move_vm_config::verifier::VerifierConfig;
-use sui_types::randomness_state::is_mutable_random;
-use sui_types::{
+use iota_types::randomness_state::is_mutable_random;
+use iota_types::{
     base_types::{TxContext, TxContextKind, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
     move_package::{is_test_fun, FnInfoMap},
     transfer::Receiving,
-    SUI_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS,
 };
 
 use crate::{verification_failure, INIT_FN_NAME};
@@ -161,7 +162,7 @@ fn verify_init_function(module: &CompiledModule, fdef: &FunctionDefinition) -> R
             but found {5}",
             module.self_id(),
             INIT_FN_NAME,
-            SUI_FRAMEWORK_ADDRESS,
+            IOTA_FRAMEWORK_ADDRESS,
             TX_CONTEXT_MODULE_NAME,
             TX_CONTEXT_STRUCT_NAME,
             format_signature_token(module, &parameters[0]),
@@ -225,7 +226,7 @@ fn verify_param_type(
     param: &SignatureToken,
     verifier_config: &VerifierConfig,
 ) -> Result<(), String> {
-    // Only `sui::sui_system` is allowed to expose entry functions that accept a mutable clock
+    // Only `iota::iota_system` is allowed to expose entry functions that accept a mutable clock
     // parameter.
     if Clock::is_mutable(view, param) {
         return Err(format!(
@@ -235,7 +236,7 @@ fn verify_param_type(
         ));
     }
 
-    // Only `sui::sui_system` is allowed to expose entry functions that accept a mutable Random
+    // Only `iota::iota_system` is allowed to expose entry functions that accept a mutable Random
     // parameter.
     if verifier_config.reject_mutable_random_on_entry_functions && is_mutable_random(view, param) {
         return Err(format!(

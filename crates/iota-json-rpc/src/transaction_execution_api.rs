@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -11,33 +12,33 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::RpcModule;
 
 use crate::authority_state::StateRead;
-use crate::error::{Error, SuiRpcInputError};
+use crate::error::{Error, IotaRpcInputError};
 use crate::{
     get_balance_changes_from_effect, get_object_changes, with_tracing, ObjectProviderCache,
-    SuiRpcModule,
+    IotaRpcModule,
 };
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
-use sui_core::authority::AuthorityState;
-use sui_core::authority_client::NetworkAuthorityClient;
-use sui_core::transaction_orchestrator::TransactiondOrchestrator;
-use sui_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
-use sui_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, SuiTransactionBlock,
-    SuiTransactionBlockEvents, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+use iota_core::authority::AuthorityState;
+use iota_core::authority_client::NetworkAuthorityClient;
+use iota_core::transaction_orchestrator::TransactiondOrchestrator;
+use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
+use iota_json_rpc_types::{
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlock,
+    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use sui_open_rpc::Module;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::default_hash;
-use sui_types::digests::TransactionDigest;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::quorum_driver_types::{
+use iota_open_rpc::Module;
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::default_hash;
+use iota_types::digests::TransactionDigest;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::quorum_driver_types::{
     ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
 };
-use sui_types::signature::GenericSignature;
-use sui_types::storage::PostExecutionPackageResolver;
-use sui_types::sui_serde::BigInt;
-use sui_types::transaction::{
+use iota_types::signature::GenericSignature;
+use iota_types::storage::PostExecutionPackageResolver;
+use iota_types::iota_serde::BigInt;
+use iota_types::transaction::{
     InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
 };
 use tracing::instrument;
@@ -64,7 +65,7 @@ impl TransactionExecutionApi {
     pub fn convert_bytes<T: serde::de::DeserializeOwned>(
         &self,
         tx_bytes: Base64,
-    ) -> Result<T, SuiRpcInputError> {
+    ) -> Result<T, IotaRpcInputError> {
         let data: T = bcs::from_bytes(&tx_bytes.to_vec()?)?;
         Ok(data)
     }
@@ -74,18 +75,18 @@ impl TransactionExecutionApi {
         &self,
         tx_bytes: Base64,
         signatures: Vec<Base64>,
-        opts: Option<SuiTransactionBlockResponseOptions>,
+        opts: Option<IotaTransactionBlockResponseOptions>,
     ) -> Result<
         (
             ExecuteTransactionRequestV3,
-            SuiTransactionBlockResponseOptions,
-            SuiAddress,
+            IotaTransactionBlockResponseOptions,
+            IotaAddress,
             Vec<InputObjectKind>,
             Transaction,
-            Option<SuiTransactionBlock>,
+            Option<IotaTransactionBlock>,
             Vec<u8>,
         ),
-        SuiRpcInputError,
+        IotaRpcInputError,
     > {
         let opts = opts.unwrap_or_default();
 
@@ -105,7 +106,7 @@ impl TransactionExecutionApi {
         };
         let transaction = if opts.show_input {
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
-            Some(SuiTransactionBlock::try_from(
+            Some(IotaTransactionBlock::try_from(
                 txn.data().clone(),
                 epoch_store.module_cache(),
             )?)
@@ -139,9 +140,9 @@ impl TransactionExecutionApi {
         &self,
         tx_bytes: Base64,
         signatures: Vec<Base64>,
-        opts: Option<SuiTransactionBlockResponseOptions>,
+        opts: Option<IotaTransactionBlockResponseOptions>,
         request_type: Option<ExecuteTransactionRequestType>,
-    ) -> Result<SuiTransactionBlockResponse, Error> {
+    ) -> Result<IotaTransactionBlockResponse, Error> {
         let request_type =
             request_type.unwrap_or(ExecuteTransactionRequestType::WaitForEffectsCert);
         let (request, opts, sender, input_objs, txn, transaction, raw_transaction) =
@@ -174,13 +175,13 @@ impl TransactionExecutionApi {
         &self,
         response: ExecuteTransactionResponseV3,
         is_executed_locally: bool,
-        opts: SuiTransactionBlockResponseOptions,
+        opts: IotaTransactionBlockResponseOptions,
         digest: TransactionDigest,
         input_objs: Vec<InputObjectKind>,
-        transaction: Option<SuiTransactionBlock>,
+        transaction: Option<IotaTransactionBlock>,
         raw_transaction: Vec<u8>,
-        sender: SuiAddress,
-    ) -> Result<SuiTransactionBlockResponse, Error> {
+        sender: IotaAddress,
+    ) -> Result<IotaTransactionBlockResponse, Error> {
         let _post_orch_timer = self.metrics.post_orchestrator_latency_ms.start_timer();
 
         let events = if opts.show_events {
@@ -192,7 +193,7 @@ impl TransactionExecutionApi {
             let mut layout_resolver = epoch_store
                 .executor()
                 .type_layout_resolver(Box::new(backing_package_store));
-            Some(SuiTransactionBlockEvents::try_from(
+            Some(IotaTransactionBlockEvents::try_from(
                 response.events.unwrap_or_default(),
                 digest,
                 None,
@@ -246,7 +247,7 @@ impl TransactionExecutionApi {
             vec![]
         };
 
-        Ok(SuiTransactionBlockResponse {
+        Ok(IotaTransactionBlockResponse {
             digest,
             transaction,
             raw_transaction,
@@ -267,14 +268,14 @@ impl TransactionExecutionApi {
     pub fn prepare_dry_run_transaction_block(
         &self,
         tx_bytes: Base64,
-    ) -> Result<(TransactionData, TransactionDigest, Vec<InputObjectKind>), SuiRpcInputError> {
+    ) -> Result<(TransactionData, TransactionDigest, Vec<InputObjectKind>), IotaRpcInputError> {
         let tx_data: TransactionData = self.convert_bytes(tx_bytes)?;
         let input_objs = tx_data.input_objects()?;
         let intent_msg = IntentMessage::new(
             Intent {
                 version: IntentVersion::V0,
                 scope: IntentScope::TransactionData,
-                app_id: AppId::Sui,
+                app_id: AppId::Iota,
             },
             tx_data,
         );
@@ -328,9 +329,9 @@ impl WriteApiServer for TransactionExecutionApi {
         &self,
         tx_bytes: Base64,
         signatures: Vec<Base64>,
-        opts: Option<SuiTransactionBlockResponseOptions>,
+        opts: Option<IotaTransactionBlockResponseOptions>,
         request_type: Option<ExecuteTransactionRequestType>,
-    ) -> RpcResult<SuiTransactionBlockResponse> {
+    ) -> RpcResult<IotaTransactionBlockResponse> {
         with_tracing!(Duration::from_secs(10), async move {
             self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
                 .await
@@ -340,7 +341,7 @@ impl WriteApiServer for TransactionExecutionApi {
     #[instrument(skip(self))]
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: SuiAddress,
+        sender_address: IotaAddress,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         _epoch: Option<BigInt<u64>>,
@@ -380,7 +381,7 @@ impl WriteApiServer for TransactionExecutionApi {
     }
 }
 
-impl SuiRpcModule for TransactionExecutionApi {
+impl IotaRpcModule for TransactionExecutionApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

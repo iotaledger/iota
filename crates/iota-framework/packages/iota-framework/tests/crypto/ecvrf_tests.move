@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::ecvrf_tests {
-    use sui::ecvrf;
+module iota::ecvrf_tests {
+    use iota::ecvrf;
 
     #[test]
     fun test_ecvrf_verify() {

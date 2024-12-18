@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 mod checked {
 
     use std::{
@@ -32,15 +33,15 @@ mod checked {
     };
     use move_vm_runtime::{move_vm::MoveVM, session::Session};
     use move_vm_types::loaded_data::runtime_types::Type;
-    use sui_move_natives::object_runtime::{
+    use iota_move_natives::object_runtime::{
         self, get_all_uids, max_event_error, ObjectRuntime, RuntimeResults,
     };
-    use sui_protocol_config::ProtocolConfig;
-    use sui_types::execution_status::CommandArgumentError;
-    use sui_types::storage::PackageObject;
-    use sui_types::{
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::execution_status::CommandArgumentError;
+    use iota_types::storage::PackageObject;
+    use iota_types::{
         balance::Balance,
-        base_types::{MoveObjectType, ObjectID, SequenceNumber, SuiAddress, TxContext},
+        base_types::{MoveObjectType, ObjectID, SequenceNumber, IotaAddress, TxContext},
         coin::Coin,
         error::{command_argument_error, ExecutionError, ExecutionErrorKind},
         event::Event,
@@ -73,7 +74,7 @@ mod checked {
         /// The session used for interacting with Move types and calls
         pub session: Session<'state, 'vm, LinkageView<'state>>,
         /// Additional transfers not from the Move runtime
-        additional_transfers: Vec<(/* new owner */ SuiAddress, ObjectValue)>,
+        additional_transfers: Vec<(/* new owner */ IotaAddress, ObjectValue)>,
         /// Newly published packages
         new_packages: Vec<Object>,
         /// User events are claimed after each Move call
@@ -122,7 +123,7 @@ mod checked {
 
             // we need a new session just for loading types, which is sad
             // TODO remove this
-            let linkage = LinkageView::new(Box::new(state_view.as_sui_resolver()), init_linkage);
+            let linkage = LinkageView::new(Box::new(state_view.as_iota_resolver()), init_linkage);
             let mut tmp_session = new_session(
                 vm,
                 linkage,
@@ -182,7 +183,7 @@ mod checked {
                 }
             };
             // the session was just used for ability and layout metadata fetching, no changes should
-            // exist. Plus, Sui Move does not use these changes or events
+            // exist. Plus, Iota Move does not use these changes or events
             let (res, linkage) = tmp_session.finish();
             let change_set = res.map_err(|e| crate::error::convert_vm_error(e, vm, &linkage))?;
             assert_invariant!(change_set.accounts().is_empty(), "Change set must be empty");
@@ -501,7 +502,7 @@ mod checked {
         pub fn transfer_object(
             &mut self,
             obj: ObjectValue,
-            addr: SuiAddress,
+            addr: IotaAddress,
         ) -> Result<(), ExecutionError> {
             self.additional_transfers.push((addr, obj));
             Ok(())
@@ -834,7 +835,7 @@ mod checked {
             let change_set = res.map_err(|e| convert_vm_error(e, vm, &linkage))?;
 
             // the session was just used for ability and layout metadata fetching, no changes should
-            // exist. Plus, Sui Move does not use these changes or events
+            // exist. Plus, Iota Move does not use these changes or events
             assert_invariant!(change_set.accounts().is_empty(), "Change set must be empty");
 
             Ok(ExecutionResults::V1(ExecutionResultsV1 {
@@ -862,7 +863,7 @@ mod checked {
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
             use move_core_types::vm_status::StatusCode;
-            use sui_types::execution_status::TypeArgumentError;
+            use iota_types::execution_status::TypeArgumentError;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {
                     ExecutionErrorKind::TypeArityMismatch.into()

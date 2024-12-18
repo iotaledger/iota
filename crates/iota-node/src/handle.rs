@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! SuiNodeHandle wraps SuiNode in a way suitable for access by test code.
+//! IotaNodeHandle wraps IotaNode in a way suitable for access by test code.
 //!
-//! When starting a SuiNode directly, in a test (as opposed to using Swarm), the node may be
+//! When starting a IotaNode directly, in a test (as opposed to using Swarm), the node may be
 //! running inside of a simulator node. It is therefore a mistake to do something like:
 //!
 //! ```ignore
@@ -14,14 +15,14 @@
 //! ```
 //!
 //! Because this would cause the checkpointing processes to be running inside the current
-//! simulator node rather than the node in which the SuiNode is running.
+//! simulator node rather than the node in which the IotaNode is running.
 //!
-//! SuiNodeHandle provides an easy way to do the right thing here:
+//! IotaNodeHandle provides an easy way to do the right thing here:
 //!
 //! ```ignore
 //!     let node_handle = start_node(config, registry).await;
-//!     node_handle.with_async(|sui_node| async move {
-//!         spawn_checkpoint_processes(config, &[sui_node]).await;
+//!     node_handle.with_async(|iota_node| async move {
+//!         spawn_checkpoint_processes(config, &[iota_node]).await;
 //!     });
 //! ```
 //!
@@ -35,43 +36,43 @@
 //! It is possible to exfiltrate state:
 //!
 //! ```ignore
-//!    let state = node_handle.with(|sui_node| sui_node.state);
+//!    let state = node_handle.with(|iota_node| iota_node.state);
 //!    // DO NOT DO THIS!
 //!    do_stuff_with_state(state)
 //! ```
 //!
 //! We can't prevent this completely, but we can at least make the right way the easy way.
 
-use super::SuiNode;
+use super::IotaNode;
 use std::future::Future;
 use std::sync::Arc;
-use sui_core::authority::AuthorityState;
+use iota_core::authority::AuthorityState;
 
-/// Wrap SuiNode to allow correct access to SuiNode in simulator tests.
-pub struct SuiNodeHandle {
-    node: Option<Arc<SuiNode>>,
+/// Wrap IotaNode to allow correct access to IotaNode in simulator tests.
+pub struct IotaNodeHandle {
+    node: Option<Arc<IotaNode>>,
     shutdown_on_drop: bool,
 }
 
-impl SuiNodeHandle {
-    pub fn new(node: Arc<SuiNode>) -> Self {
+impl IotaNodeHandle {
+    pub fn new(node: Arc<IotaNode>) -> Self {
         Self {
             node: Some(node),
             shutdown_on_drop: false,
         }
     }
 
-    pub fn inner(&self) -> &Arc<SuiNode> {
+    pub fn inner(&self) -> &Arc<IotaNode> {
         self.node.as_ref().unwrap()
     }
 
-    pub fn with<T>(&self, cb: impl FnOnce(&SuiNode) -> T) -> T {
+    pub fn with<T>(&self, cb: impl FnOnce(&IotaNode) -> T) -> T {
         let _guard = self.guard();
         cb(self.inner())
     }
 
     pub fn state(&self) -> Arc<AuthorityState> {
-        self.with(|sui_node| sui_node.state())
+        self.with(|iota_node| iota_node.state())
     }
 
     pub fn shutdown_on_drop(&mut self) {
@@ -79,7 +80,7 @@ impl SuiNodeHandle {
     }
 }
 
-impl Clone for SuiNodeHandle {
+impl Clone for IotaNodeHandle {
     fn clone(&self) -> Self {
         Self {
             node: self.node.clone(),
@@ -89,7 +90,7 @@ impl Clone for SuiNodeHandle {
 }
 
 #[cfg(not(msim))]
-impl SuiNodeHandle {
+impl IotaNodeHandle {
     // Must return something to silence lints above at `let _guard = ...`
     fn guard(&self) -> u32 {
         0
@@ -97,7 +98,7 @@ impl SuiNodeHandle {
 
     pub async fn with_async<'a, F, R, T>(&'a self, cb: F) -> T
     where
-        F: FnOnce(&'a SuiNode) -> R,
+        F: FnOnce(&'a IotaNode) -> R,
         R: Future<Output = T>,
     {
         cb(self.inner()).await
@@ -105,14 +106,14 @@ impl SuiNodeHandle {
 }
 
 #[cfg(msim)]
-impl SuiNodeHandle {
-    fn guard(&self) -> sui_simulator::runtime::NodeEnterGuard {
+impl IotaNodeHandle {
+    fn guard(&self) -> iota_simulator::runtime::NodeEnterGuard {
         self.inner().sim_state.sim_node.enter_node()
     }
 
     pub async fn with_async<'a, F, R, T>(&'a self, cb: F) -> T
     where
-        F: FnOnce(&'a SuiNode) -> R,
+        F: FnOnce(&'a IotaNode) -> R,
         R: Future<Output = T>,
     {
         let fut = cb(self.node.as_ref().unwrap());
@@ -125,17 +126,17 @@ impl SuiNodeHandle {
 }
 
 #[cfg(msim)]
-impl Drop for SuiNodeHandle {
+impl Drop for IotaNodeHandle {
     fn drop(&mut self) {
         if self.shutdown_on_drop {
             let node_id = self.inner().sim_state.sim_node.id();
-            sui_simulator::runtime::Handle::try_current().map(|h| h.delete_node(node_id));
+            iota_simulator::runtime::Handle::try_current().map(|h| h.delete_node(node_id));
         }
     }
 }
 
-impl From<Arc<SuiNode>> for SuiNodeHandle {
-    fn from(node: Arc<SuiNode>) -> Self {
-        SuiNodeHandle::new(node)
+impl From<Arc<IotaNode>> for IotaNodeHandle {
+    fn from(node: Arc<IotaNode>) -> Self {
+        IotaNodeHandle::new(node)
     }
 }

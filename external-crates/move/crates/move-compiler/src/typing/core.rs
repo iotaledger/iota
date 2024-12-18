@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -1727,9 +1728,9 @@ fn check_function_visibility(
 pub enum PublicForTesting {
     /// The function is entry, so it can be called in unit tests
     Entry(Loc),
-    // TODO we should allow calling init in unit tests, but this would need Sui bytecode verifier
+    // TODO we should allow calling init in unit tests, but this would need Iota bytecode verifier
     // support. Or we would need to name dodge init in unit tests
-    // SuiInit(Loc),
+    // IotaInit(Loc),
 }
 
 pub fn public_testing_visibility(
@@ -1738,14 +1739,14 @@ pub fn public_testing_visibility(
     _callee_name: &FunctionName,
     callee_entry: Option<Loc>,
 ) -> Option<PublicForTesting> {
-    // is_testing && (is_entry || is_sui_init)
+    // is_testing && (is_entry || is_iota_init)
     if !env.flags().is_testing() {
         return None;
     }
 
-    // TODO support sui init functions
+    // TODO support iota init functions
     // let flavor = env.package_config(package).flavor;
-    // flavor == Flavor::Sui && callee_name.value() == INIT_FUNCTION_NAME
+    // flavor == Flavor::Iota && callee_name.value() == INIT_FUNCTION_NAME
     callee_entry.map(PublicForTesting::Entry)
 }
 

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// This module tests `join`, `split`, `zero` and `destroy_zero` functions
-module sui::token_public_actions_tests {
-    use sui::token_test_utils::{Self as test, TEST};
-    use sui::token;
+module iota::token_public_actions_tests {
+    use iota::token_test_utils::{Self as test, TEST};
+    use iota::token;
 
     #[test]
     /// Scenario: mint a Token, split it, merge back, then issue a zero and

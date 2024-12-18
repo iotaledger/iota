@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// This module implements tests for the TreasuryCap-related functionality such
 /// as spending, "flush"-ing, issuing new coins and performing marketplace-like
 /// operations.
-module sui::token_treasury_cap_tests {
-    use sui::token_test_utils as test;
-    use sui::token;
+module iota::token_treasury_cap_tests {
+    use iota::token_test_utils as test;
+    use iota::token;
 
     #[test]
     /// Scenario: mint and spend a Token, confirm spending request with the

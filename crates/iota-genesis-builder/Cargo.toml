@@ -1,7 +1,7 @@
 [package]
-name = "sui-genesis-builder"
+name = "iota-genesis-builder"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -25,14 +25,14 @@ tracing.workspace = true
 prometheus.workspace = true
 
 shared-crypto.workspace = true
-sui-config.workspace = true
-sui-execution.workspace = true
-sui-framework.workspace = true
-sui-framework-snapshot.workspace = true
-sui-protocol-config.workspace = true
-sui-types.workspace = true
+iota-config.workspace = true
+iota-execution.workspace = true
+iota-framework.workspace = true
+iota-framework-snapshot.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 [target.'cfg(msim)'.dependencies]
-sui-simulator.workspace = true
+iota-simulator.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

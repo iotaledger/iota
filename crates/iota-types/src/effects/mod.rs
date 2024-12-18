@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use self::effects_v2::TransactionEffectsV2;
@@ -11,7 +12,7 @@ use crate::crypto::{
 use crate::digests::{
     ObjectDigest, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
 };
-use crate::error::SuiResult;
+use crate::error::IotaResult;
 use crate::event::Event;
 use crate::execution::SharedInput;
 use crate::execution_status::ExecutionStatus;
@@ -430,15 +431,15 @@ pub type VerifiedCertifiedTransactionEffects =
     VerifiedTransactionEffectsEnvelope<AuthorityStrongQuorumSignInfo>;
 
 impl CertifiedTransactionEffects {
-    pub fn verify_authority_signatures(&self, committee: &Committee) -> SuiResult {
+    pub fn verify_authority_signatures(&self, committee: &Committee) -> IotaResult {
         self.auth_sig().verify_secure(
             self.data(),
-            Intent::sui_app(IntentScope::TransactionEffects),
+            Intent::iota_app(IntentScope::TransactionEffects),
             committee,
         )
     }
 
-    pub fn verify(self, committee: &Committee) -> SuiResult<VerifiedCertifiedTransactionEffects> {
+    pub fn verify(self, committee: &Committee) -> IotaResult<VerifiedCertifiedTransactionEffects> {
         self.verify_authority_signatures(committee)?;
         Ok(VerifiedCertifiedTransactionEffects::new_from_verified(self))
     }

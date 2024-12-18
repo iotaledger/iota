@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::binary_config::BinaryConfig;
@@ -8,20 +9,20 @@ use move_core_types::gas_algebra::InternalGas;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fmt::Formatter;
-use sui_types::base_types::ObjectRef;
-use sui_types::storage::ObjectStore;
-use sui_types::{
+use iota_types::base_types::ObjectRef;
+use iota_types::storage::ObjectStore;
+use iota_types::{
     base_types::ObjectID,
     digests::TransactionDigest,
     move_package::MovePackage,
     object::{Object, OBJECT_START_VERSION},
-    MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID, SUI_SYSTEM_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID,
 };
-use sui_types::{BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID};
+use iota_types::{BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID};
 use tracing::error;
 
 /// Represents a system package in the framework, that's built from the source code inside
-/// sui-framework.
+/// iota-framework.
 #[derive(Clone, Serialize, PartialEq, Eq, Deserialize)]
 pub struct SystemPackage {
     pub id: ObjectID,
@@ -109,27 +110,27 @@ impl BuiltInFramework {
         define_system_packages!([
             (MOVE_STDLIB_PACKAGE_ID, "move-stdlib", []),
             (
-                SUI_FRAMEWORK_PACKAGE_ID,
-                "sui-framework",
+                IOTA_FRAMEWORK_PACKAGE_ID,
+                "iota-framework",
                 [MOVE_STDLIB_PACKAGE_ID]
             ),
             (
-                SUI_SYSTEM_PACKAGE_ID,
-                "sui-system",
-                [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
+                IOTA_SYSTEM_PACKAGE_ID,
+                "iota-system",
+                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
             ),
             (
                 DEEPBOOK_PACKAGE_ID,
                 "deepbook",
-                [MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID]
+                [MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID]
             ),
             (
                 BRIDGE_PACKAGE_ID,
                 "bridge",
                 [
                     MOVE_STDLIB_PACKAGE_ID,
-                    SUI_FRAMEWORK_PACKAGE_ID,
-                    SUI_SYSTEM_PACKAGE_ID
+                    IOTA_FRAMEWORK_PACKAGE_ID,
+                    IOTA_SYSTEM_PACKAGE_ID
                 ]
             )
         ])

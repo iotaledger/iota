@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::big_int::BigInt;
@@ -7,7 +8,7 @@ use async_graphql::*;
 /// Parameters that control the distribution of the stake subsidy.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]
 pub(crate) struct StakeSubsidy {
-    /// SUI set aside for stake subsidies -- reduces over time as stake subsidies are paid out over
+    /// IOTA set aside for stake subsidies -- reduces over time as stake subsidies are paid out over
     /// time.
     pub balance: Option<BigInt>,
 

@@ -1,13 +1,14 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 mod checked {
     use crate::error::{UserInputError, UserInputResult};
-    use crate::gas::{self, GasCostSummary, SuiGasStatusAPI};
+    use crate::gas::{self, GasCostSummary, IotaGasStatusAPI};
     use crate::gas_model::gas_predicates::{cost_table_for_version, txn_base_cost_as_multiplier};
     use crate::gas_model::units_types::CostTable;
     use crate::transaction::ObjectReadResult;
@@ -17,7 +18,7 @@ mod checked {
         ObjectID,
     };
     use move_core_types::vm_status::StatusCode;
-    use sui_protocol_config::*;
+    use iota_protocol_config::*;
 
     /// A bucket defines a range of units that will be priced the same.
     /// After execution a call to `GasStatus::bucketize` will round the computation
@@ -79,8 +80,8 @@ mod checked {
         / BASIS_POINTS) as u64
     }
 
-    /// A list of constant costs of various operations in Sui.
-    pub struct SuiCostTable {
+    /// A list of constant costs of various operations in Iota.
+    pub struct IotaCostTable {
         /// A flat fee charged for every transaction. This is also the minimum amount of
         /// gas charged for a transaction.
         pub(crate) min_transaction_cost: u64,
@@ -103,14 +104,14 @@ mod checked {
         computation_bucket: Vec<ComputationBucket>,
     }
 
-    impl std::fmt::Debug for SuiCostTable {
+    impl std::fmt::Debug for IotaCostTable {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             // TODO: dump the fields.
-            write!(f, "SuiCostTable(...)")
+            write!(f, "IotaCostTable(...)")
         }
     }
 
-    impl SuiCostTable {
+    impl IotaCostTable {
         pub(crate) fn new(c: &ProtocolConfig, gas_price: u64) -> Self {
             // gas_price here is the Reference Gas Price, however we may decide
             // to change it to be the price passed in the transaction
@@ -152,9 +153,9 @@ mod checked {
         /// described in `storage_gas_price`
         /// It has been multiplied by the storage gas price. This is the new storage rebate.
         pub storage_cost: u64,
-        /// storage_rebate is the storage rebate (in Sui) for in this object.
+        /// storage_rebate is the storage rebate (in Iota) for in this object.
         /// This is computed at the end of execution while determining storage charges.
-        /// The value is in Sui.
+        /// The value is in Iota.
         pub storage_rebate: u64,
         /// The object size post-transaction in bytes
         pub new_size: u64,
@@ -162,11 +163,11 @@ mod checked {
 
     #[allow(dead_code)]
     #[derive(Debug)]
-    pub struct SuiGasStatus {
+    pub struct IotaGasStatus {
         // GasStatus as used by the VM, that is all the VM sees
         pub gas_status: GasStatus,
         // Cost table contains a set of constant/config for the gas model/charging
-        cost_table: SuiCostTable,
+        cost_table: IotaCostTable,
         // Gas budget for this gas status instance.
         // Typically the gas budget as defined in the `TransactionData::GasData`
         gas_budget: u64,
@@ -204,7 +205,7 @@ mod checked {
         gas_rounding_step: Option<u64>,
     }
 
-    impl SuiGasStatus {
+    impl IotaGasStatus {
         fn new(
             move_gas_status: GasStatus,
             gas_budget: u64,
@@ -214,10 +215,10 @@ mod checked {
             storage_gas_price: u64,
             rebate_rate: u64,
             gas_rounding_step: Option<u64>,
-            cost_table: SuiCostTable,
-        ) -> SuiGasStatus {
+            cost_table: IotaCostTable,
+        ) -> IotaGasStatus {
             let gas_rounding_step = gas_rounding_step.map(|val| val.max(1));
-            SuiGasStatus {
+            IotaGasStatus {
                 gas_status: move_gas_status,
                 gas_budget,
                 charge,
@@ -238,7 +239,7 @@ mod checked {
             gas_price: u64,
             reference_gas_price: u64,
             config: &ProtocolConfig,
-        ) -> SuiGasStatus {
+        ) -> IotaGasStatus {
             let storage_gas_price = config.storage_gas_price();
             let max_computation_budget = config.max_gas_computation_bucket() * gas_price;
             let computation_budget = if gas_budget > max_computation_budget {
@@ -246,11 +247,11 @@ mod checked {
             } else {
                 gas_budget
             };
-            let sui_cost_table = SuiCostTable::new(config, gas_price);
+            let iota_cost_table = IotaCostTable::new(config, gas_price);
             let gas_rounding_step = config.gas_rounding_step_as_option();
             Self::new(
                 GasStatus::new(
-                    sui_cost_table.execution_cost_table.clone(),
+                    iota_cost_table.execution_cost_table.clone(),
                     computation_budget,
                     gas_price,
                     config.gas_model_version(),
@@ -262,11 +263,11 @@ mod checked {
                 storage_gas_price,
                 config.storage_rebate_rate(),
                 gas_rounding_step,
-                sui_cost_table,
+                iota_cost_table,
             )
         }
 
-        pub fn new_unmetered() -> SuiGasStatus {
+        pub fn new_unmetered() -> IotaGasStatus {
             Self::new(
                 GasStatus::new_unmetered(),
                 0,
@@ -276,7 +277,7 @@ mod checked {
                 0,
                 0,
                 None,
-                SuiCostTable::unmetered(),
+                IotaCostTable::unmetered(),
             )
         }
 
@@ -351,7 +352,7 @@ mod checked {
         }
     }
 
-    impl SuiGasStatusAPI for SuiGasStatus {
+    impl IotaGasStatusAPI for IotaGasStatus {
         fn is_unmetered(&self) -> bool {
             !self.charge
         }

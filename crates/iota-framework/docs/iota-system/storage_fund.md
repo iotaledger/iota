@@ -11,8 +11,8 @@ title: Module `0x3::storage_fund`
 -  [Function `total_balance`](#0x3_storage_fund_total_balance)
 
 
-<pre><code><b>use</b> <a href="../sui-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../sui-framework/sui.md#0x2_sui">0x2::sui</a>;
+<pre><code><b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
+<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
 </code></pre>
 
 
@@ -42,13 +42,13 @@ be taken out of the fund.
 
 <dl>
 <dt>
-<code>total_object_storage_rebates: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;</code>
+<code>total_object_storage_rebates: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>non_refundable_balance: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;</code>
+<code>non_refundable_balance: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
 
@@ -62,10 +62,10 @@ be taken out of the fund.
 
 ## Function `new`
 
-Called by <code><a href="sui_system.md#0x3_sui_system">sui_system</a></code> at genesis time.
+Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> at genesis time.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_new">new</a>(initial_fund: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;): <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_new">new</a>(initial_fund: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;): <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>
 </code></pre>
 
 
@@ -74,10 +74,10 @@ Called by <code><a href="sui_system.md#0x3_sui_system">sui_system</a></code> at 
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_new">new</a>(initial_fund: Balance&lt;SUI&gt;) : <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_new">new</a>(initial_fund: Balance&lt;IOTA&gt;) : <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> {
     <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a> {
-        // At the beginning there's no <a href="../sui-framework/object.md#0x2_object">object</a> in the storage yet
-        total_object_storage_rebates: <a href="../sui-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
+        // At the beginning there's no <a href="../iota-framework/object.md#0x2_object">object</a> in the storage yet
+        total_object_storage_rebates: <a href="../iota-framework/balance.md#0x2_balance_zero">balance::zero</a>(),
         non_refundable_balance: initial_fund,
     }
 }
@@ -91,10 +91,10 @@ Called by <code><a href="sui_system.md#0x3_sui_system">sui_system</a></code> at 
 
 ## Function `advance_epoch`
 
-Called by <code><a href="sui_system.md#0x3_sui_system">sui_system</a></code> at epoch change times to process the inflows and outflows of storage fund.
+Called by <code><a href="iota_system.md#0x3_iota_system">iota_system</a></code> at epoch change times to process the inflows and outflows of storage fund.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>, storage_charges: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;, storage_fund_reinvestment: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;, leftover_staking_rewards: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;, storage_rebate_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, non_refundable_storage_fee_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">storage_fund::StorageFund</a>, storage_charges: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_fund_reinvestment: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, leftover_staking_rewards: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, storage_rebate_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, non_refundable_storage_fee_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -105,13 +105,13 @@ Called by <code><a href="sui_system.md#0x3_sui_system">sui_system</a></code> at 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="storage_fund.md#0x3_storage_fund_advance_epoch">advance_epoch</a>(
     self: &<b>mut</b> <a href="storage_fund.md#0x3_storage_fund_StorageFund">StorageFund</a>,
-    storage_charges: Balance&lt;SUI&gt;,
-    storage_fund_reinvestment: Balance&lt;SUI&gt;,
-    leftover_staking_rewards: Balance&lt;SUI&gt;,
+    storage_charges: Balance&lt;IOTA&gt;,
+    storage_fund_reinvestment: Balance&lt;IOTA&gt;,
+    leftover_staking_rewards: Balance&lt;IOTA&gt;,
     storage_rebate_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     non_refundable_storage_fee_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
-) : Balance&lt;SUI&gt; {
-    // Both the reinvestment and leftover rewards are not <b>to</b> be refunded so they go <b>to</b> the non-refundable <a href="../sui-framework/balance.md#0x2_balance">balance</a>.
+) : Balance&lt;IOTA&gt; {
+    // Both the reinvestment and leftover rewards are not <b>to</b> be refunded so they go <b>to</b> the non-refundable <a href="../iota-framework/balance.md#0x2_balance">balance</a>.
     self.non_refundable_balance.join(storage_fund_reinvestment);
     self.non_refundable_balance.join(leftover_staking_rewards);
 
@@ -120,7 +120,7 @@ Called by <code><a href="sui_system.md#0x3_sui_system">sui_system</a></code> at 
     // into `total_object_storage_rebates`.
     self.total_object_storage_rebates.join(storage_charges);
 
-    // Split out the non-refundable portion of the storage rebate and put it into the non-refundable <a href="../sui-framework/balance.md#0x2_balance">balance</a>.
+    // Split out the non-refundable portion of the storage rebate and put it into the non-refundable <a href="../iota-framework/balance.md#0x2_balance">balance</a>.
     <b>let</b> non_refundable_storage_fee = self.total_object_storage_rebates.split(non_refundable_storage_fee_amount);
     self.non_refundable_balance.join(non_refundable_storage_fee);
 
@@ -129,7 +129,7 @@ Called by <code><a href="sui_system.md#0x3_sui_system">sui_system</a></code> at 
     <b>let</b> storage_rebate = self.total_object_storage_rebates.split(storage_rebate_amount);
 
     // The storage rebate <b>has</b> already been returned <b>to</b> individual transaction senders' gas coins
-    // so we <b>return</b> the <a href="../sui-framework/balance.md#0x2_balance">balance</a> <b>to</b> be burnt at the very end of epoch change.
+    // so we <b>return</b> the <a href="../iota-framework/balance.md#0x2_balance">balance</a> <b>to</b> be burnt at the very end of epoch change.
     storage_rebate
 }
 </code></pre>

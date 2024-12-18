@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
-import { useSuiClientMutation } from '../../src/hooks/useSuiClientMutation.js';
+import { useIotaClientMutation } from '../../src/hooks/useIotaClientMutation.js';
 import { createWalletProviderContextWrapper } from '../test-utils.js';
 
-describe('useSuiClientMutation', () => {
+describe('useIotaClientMutation', () => {
 	it('should fetch data', async () => {
-		const suiClient = new SuiClient({ url: getFullnodeUrl('mainnet') });
-		const wrapper = createWalletProviderContextWrapper({}, suiClient);
+		const iotaClient = new IotaClient({ url: getFullnodeUrl('mainnet') });
+		const wrapper = createWalletProviderContextWrapper({}, iotaClient);
 
-		const queryTransactionBlocks = vi.spyOn(suiClient, 'queryTransactionBlocks');
+		const queryTransactionBlocks = vi.spyOn(iotaClient, 'queryTransactionBlocks');
 
 		queryTransactionBlocks.mockResolvedValueOnce({
 			data: [{ digest: '0x123' }],
@@ -19,7 +20,7 @@ describe('useSuiClientMutation', () => {
 			nextCursor: 'page2',
 		});
 
-		const { result } = renderHook(() => useSuiClientMutation('queryTransactionBlocks'), {
+		const { result } = renderHook(() => useIotaClientMutation('queryTransactionBlocks'), {
 			wrapper,
 		});
 

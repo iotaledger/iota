@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Implementation a cross-chain messaging system for Axelar.
 ///
 /// This code is based on the following:
 ///
-/// - When call approvals is sent to Sui, it targets an object and not a module;
+/// - When call approvals is sent to Iota, it targets an object and not a module;
 /// - To support cross-chain messaging, a Channel object has to be created;
 /// - Channel can be either owned or shared but not frozen;
-/// - Module developer on the Sui side will have to implement a system to support messaging;
+/// - Module developer on the Iota side will have to implement a system to support messaging;
 /// - Checks for uniqueness of approvals should be done through `Channel`s to avoid big data storage;
 ///
 /// I. Sending call approvals
@@ -32,9 +33,9 @@ module axelar::gateway {
     use std::string::{Self, String};
     use std::vector;
 
-    use sui::bcs;
+    use iota::bcs;
 
-    use axelar::utils::to_sui_signed;
+    use axelar::utils::to_iota_signed;
     use axelar::channel::{Self, Channel, ApprovedCall};
     use axelar::validators::{Self, AxelarValidators, validate_proof};
 
@@ -44,14 +45,14 @@ module axelar::gateway {
     /// For when number of commands does not match number of command ids.
     const EInvalidCommands: u64 = 4;
 
-    /// For when approval chainId is not SUI.
+    /// For when approval chainId is not IOTA.
     const EInvalidChain: u64 = 3;
 
     // These are currently supported
     const SELECTOR_APPROVE_CONTRACT_CALL: vector<u8> = b"approveContractCall";
     const SELECTOR_TRANSFER_OPERATORSHIP: vector<u8> = b"transferOperatorship";
 
-    /// Emitted when a new message is sent from the SUI network.
+    /// Emitted when a new message is sent from the IOTA network.
     public struct ContractCall has copy, drop {
         source: vector<u8>,
         destination: vector<u8>,
@@ -80,7 +81,7 @@ module axelar::gateway {
             bcs::peel_vec_u8(&mut bytes)
         );
 
-        let mut allow_operatorship_transfer = validate_proof(validators, to_sui_signed(*&data), proof);
+        let mut allow_operatorship_transfer = validate_proof(validators, to_iota_signed(*&data), proof);
 
         // Treat `data` as BCS bytes.
         let mut data_bcs = bcs::new(data);
@@ -162,7 +163,7 @@ module axelar::gateway {
         destination_address: vector<u8>,
         payload: vector<u8>
     ) {
-        sui::event::emit(ContractCall {
+        iota::event::emit(ContractCall {
             source: channel::source_id(channel),
             destination,
             destination_address,
@@ -173,7 +174,7 @@ module axelar::gateway {
     #[test_only]
     use axelar::utils::operators_hash;
     #[test_only]
-    use sui::vec_map;
+    use iota::vec_map;
 
     #[test_only]
     /// Test call approval for the `test_execute` test.
@@ -187,7 +188,7 @@ module axelar::gateway {
     /// Tests execution with a set of validators.
     /// Samples for this test are generated with the `presets/` application.
     fun test_execute() {
-        use sui::test_scenario::{Self as ts, ctx};
+        use iota::test_scenario::{Self as ts, ctx};
 
         // public keys of `operators`
         let epoch = 1;
@@ -217,7 +218,7 @@ module axelar::gateway {
 
     #[test]
     fun test_transfer_operatorship() {
-        use sui::test_scenario::{Self as ts, ctx};
+        use iota::test_scenario::{Self as ts, ctx};
         // public keys of `operators`
         let epoch = 1;
         let operators = vector[

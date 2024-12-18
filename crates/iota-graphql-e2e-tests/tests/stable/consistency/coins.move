@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // chkpt 1 | chkpt 2 | chkpt 3 |
@@ -11,7 +12,7 @@
 
 //# publish --sender A
 module P0::fake {
-    use sui::coin;
+    use iota::coin;
 
     public struct FAKE has drop {}
 

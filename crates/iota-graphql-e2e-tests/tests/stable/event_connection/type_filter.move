@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses Test=0x0 --accounts A B --simulator
 
 //# publish
 module Test::M1 {
-    use sui::event;
+    use iota::event;
 
     public struct EventA has copy, drop {
         new_value: u64
@@ -17,7 +18,7 @@ module Test::M1 {
 }
 
 module Test::M2 {
-    use sui::event;
+    use iota::event;
     use Test::M1;
 
     public struct EventB has copy, drop {

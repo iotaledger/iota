@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// This module defines base testing utilities for the
-module sui::token_test_utils {
-    use sui::coin::{Self, TreasuryCap};
-    use sui::token::{Self, Token, TokenPolicy, TokenPolicyCap};
+module iota::token_test_utils {
+    use iota::coin::{Self, TreasuryCap};
+    use iota::token::{Self, Token, TokenPolicy, TokenPolicyCap};
 
     /// The type of the test Token.
     public struct TEST has drop {}
@@ -23,7 +24,7 @@ module sui::token_test_utils {
 
     /// Return `TreasuryCap` (shares it for now).
     public fun return_treasury_cap(treasury_cap: TreasuryCap<TEST>) {
-        sui::transfer::public_share_object(treasury_cap)
+        iota::transfer::public_share_object(treasury_cap)
     }
 
     /// Get a policy for testing.

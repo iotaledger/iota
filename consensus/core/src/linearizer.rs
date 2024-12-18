@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashSet, sync::Arc};
@@ -215,7 +216,7 @@ impl Linearizer {
             committed_sub_dags.push(sub_dag);
         }
 
-        // Committed blocks must be persisted to storage before sending them to Sui and executing
+        // Committed blocks must be persisted to storage before sending them to Iota and executing
         // their transactions.
         // Commit metadata can be persisted more lazily because they are recoverable. Uncommitted
         // blocks can wait to persist too.

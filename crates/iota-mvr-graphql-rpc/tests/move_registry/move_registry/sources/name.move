@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Our names have a fixed style, which is created in the format `@org/app`.
@@ -15,12 +16,12 @@ use move_registry::domain::{Self, Domain};
 use std::string::String;
 
 /// A name format is `@org/app`
-/// We keep "org" part flexible, in a future world where SuiNS subdomains could
+/// We keep "org" part flexible, in a future world where IotaNS subdomains could
 /// also be nested.
 /// So `example@org/app` would also be valid, and `inner.example@org/app` would
 /// also be valid.
 public struct Name has copy, store, drop {
-    /// The ORG part of the name is a SuiNS Domain.
+    /// The ORG part of the name is a IotaNS Domain.
     org: Domain,
     /// The APP part of the name. We keep it as a vector, even though it'll
     /// always be a single element.

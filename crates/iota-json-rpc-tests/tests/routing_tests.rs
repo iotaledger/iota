@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
@@ -11,11 +12,11 @@ use jsonrpsee::rpc_params;
 use jsonrpsee::RpcModule;
 use prometheus::Registry;
 use std::env;
-use sui_config::local_ip_utils;
-use sui_json_rpc::{JsonRpcServerBuilder, ServerType, SuiRpcModule};
-use sui_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
-use sui_open_rpc::Module;
-use sui_open_rpc_macros::open_rpc;
+use iota_config::local_ip_utils;
+use iota_json_rpc::{JsonRpcServerBuilder, ServerType, IotaRpcModule};
+use iota_json_rpc_api::CLIENT_TARGET_API_VERSION_HEADER;
+use iota_open_rpc::Module;
+use iota_open_rpc_macros::open_rpc;
 
 #[tokio::test]
 async fn test_rpc_backward_compatibility() {
@@ -231,7 +232,7 @@ impl TestApiServer for TestApiModule {
     }
 }
 
-impl SuiRpcModule for TestApiModule {
+impl IotaRpcModule for TestApiModule {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::sui_system_state_inner {
-    use sui::balance::{Self, Balance};
-    use sui::sui::SUI;
-    use sui::tx_context::TxContext;
-    use sui::bag::{Self, Bag};
-    use sui::table::{Self, Table};
-    use sui::object::ID;
+module iota_system::iota_system_state_inner {
+    use iota::balance::{Self, Balance};
+    use iota::iota::IOTA;
+    use iota::tx_context::TxContext;
+    use iota::bag::{Self, Bag};
+    use iota::table::{Self, Table};
+    use iota::object::ID;
 
-    use sui_system::validator::Validator;
-    use sui_system::validator_wrapper::ValidatorWrapper;
+    use iota_system::validator::Validator;
+    use iota_system::validator_wrapper::ValidatorWrapper;
 
     const SYSTEM_STATE_VERSION_V1: u64 = 18446744073709551605;  // u64::MAX - 10
 
@@ -25,12 +26,12 @@ module sui_system::sui_system_state_inner {
         extra_fields: Bag,
     }
 
-    public struct SuiSystemStateInner has store {
+    public struct IotaSystemStateInner has store {
         epoch: u64,
         protocol_version: u64,
         system_state_version: u64,
         validators: ValidatorSet,
-        storage_fund: Balance<SUI>,
+        storage_fund: Balance<IOTA>,
         parameters: SystemParameters,
         reference_gas_price: u64,
         safe_mode: bool,
@@ -40,13 +41,13 @@ module sui_system::sui_system_state_inner {
 
     public(package) fun create(
         validators: vector<Validator>,
-        storage_fund: Balance<SUI>,
+        storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
         ctx: &mut TxContext,
-    ): SuiSystemStateInner {
-        let system_state = SuiSystemStateInner {
+    ): IotaSystemStateInner {
+        let system_state = IotaSystemStateInner {
             epoch: 0,
             protocol_version,
             system_state_version: genesis_system_state_version(),
@@ -69,11 +70,11 @@ module sui_system::sui_system_state_inner {
     }
 
     public(package) fun advance_epoch(
-        self: &mut SuiSystemStateInner,
-        storage_reward: Balance<SUI>,
-        computation_reward: Balance<SUI>,
+        self: &mut IotaSystemStateInner,
+        storage_reward: Balance<IOTA>,
+        computation_reward: Balance<IOTA>,
         storage_rebate_amount: u64,
-    ) : Balance<SUI> {
+    ) : Balance<IOTA> {
         balance::join(&mut self.storage_fund, computation_reward);
         balance::join(&mut self.storage_fund, storage_reward);
         let storage_rebate = balance::split(&mut self.storage_fund, storage_rebate_amount);

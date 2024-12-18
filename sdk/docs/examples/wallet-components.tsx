@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import {
 	ConnectButton,
 	ConnectModal,
-	SuiClientProvider,
+	IotaClientProvider,
 	useCurrentAccount,
 	WalletProvider,
-} from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui/client';
+} from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import '@mysten/dapp-kit/dist/index.css';
+import '@iota/dapp-kit/dist/index.css';
 
 export const ConnectButtonExample = withProviders(() => {
 	return <ConnectButton />;
@@ -64,7 +65,7 @@ function withProviders(Component: React.FunctionComponent<object>) {
 
 		return (
 			<QueryClientProvider client={queryClient}>
-				<SuiClientProvider networks={networks}>
+				<IotaClientProvider networks={networks}>
 					<WalletProvider
 						stashedWallet={{
 							name: 'dApp Kit Docs',
@@ -72,7 +73,7 @@ function withProviders(Component: React.FunctionComponent<object>) {
 					>
 						<Component />
 					</WalletProvider>
-				</SuiClientProvider>
+				</IotaClientProvider>
 			</QueryClientProvider>
 		);
 	};

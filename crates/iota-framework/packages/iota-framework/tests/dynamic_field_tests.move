@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::dynamic_field_tests {
-    use sui::dynamic_field::{add, exists_with_type, borrow, borrow_mut, remove};
-    use sui::test_scenario;
+module iota::dynamic_field_tests {
+    use iota::dynamic_field::{add, exists_with_type, borrow, borrow_mut, remove};
+    use iota::test_scenario;
 
     #[test]
     fun simple_all_functions() {
@@ -44,7 +45,7 @@ module sui::dynamic_field_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldAlreadyExists)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
     fun add_duplicate() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -55,7 +56,7 @@ module sui::dynamic_field_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldAlreadyExists)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
     fun add_duplicate_mismatched_type() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -66,7 +67,7 @@ module sui::dynamic_field_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun borrow_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -76,7 +77,7 @@ module sui::dynamic_field_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldTypeMismatch)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldTypeMismatch)]
     fun borrow_wrong_type() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -87,7 +88,7 @@ module sui::dynamic_field_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun borrow_mut_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -97,7 +98,7 @@ module sui::dynamic_field_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldTypeMismatch)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldTypeMismatch)]
     fun borrow_mut_wrong_type() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -108,7 +109,7 @@ module sui::dynamic_field_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun remove_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -118,7 +119,7 @@ module sui::dynamic_field_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldTypeMismatch)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldTypeMismatch)]
     fun remove_wrong_type() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Kiosk is a primitive for building safe, decentralized and trustless trading
@@ -70,7 +71,7 @@
 /// object so they don't have to pay anything
 /// - I create and wrap a `TransferPolicy` so that players of my game can
 /// transfer items between `Kiosk`s in game without any charge (and maybe not
-/// even paying the price with a 0 SUI PurchaseCap)
+/// even paying the price with a 0 IOTA PurchaseCap)
 ///
 /// ```
 /// Kiosk -> (Item, TransferRequest)
@@ -80,15 +81,15 @@
 /// ```
 ///
 /// See `transfer_policy` module for more details on how they function.
-module sui::kiosk;
+module iota::kiosk;
 
-use sui::balance::{Self, Balance};
-use sui::coin::{Self, Coin};
-use sui::dynamic_field as df;
-use sui::dynamic_object_field as dof;
-use sui::event;
-use sui::sui::SUI;
-use sui::transfer_policy::{Self, TransferPolicy, TransferRequest};
+use iota::balance::{Self, Balance};
+use iota::coin::{Self, Coin};
+use iota::dynamic_field as df;
+use iota::dynamic_object_field as dof;
+use iota::event;
+use iota::iota::IOTA;
+use iota::transfer_policy::{Self, TransferPolicy, TransferRequest};
 
 /// Allows calling `cap.kiosk()` to retrieve `for` field from `KioskOwnerCap`.
 public use fun kiosk_owner_cap_for as KioskOwnerCap.kiosk;
@@ -132,7 +133,7 @@ const ENotListed: u64 = 12;
 public struct Kiosk has key, store {
     id: UID,
     /// Balance of the Kiosk - all profits from sales go here.
-    profits: Balance<SUI>,
+    profits: Balance<IOTA>,
     /// Always point to `sender` of the transaction.
     /// Can be changed by calling `set_owner` with Cap.
     owner: address,
@@ -233,8 +234,8 @@ public struct ItemDelisted<phantom T: key + store> has copy, drop {
 /// `KioskOwnerCap` and becomes the Owner, the `Kiosk` is shared.
 entry fun default(ctx: &mut TxContext) {
     let (kiosk, cap) = new(ctx);
-    sui::transfer::transfer(cap, ctx.sender());
-    sui::transfer::share_object(kiosk);
+    iota::transfer::transfer(cap, ctx.sender());
+    iota::transfer::share_object(kiosk);
 }
 
 /// Creates a new `Kiosk` with a matching `KioskOwnerCap`.
@@ -258,7 +259,7 @@ public fun new(ctx: &mut TxContext): (Kiosk, KioskOwnerCap) {
 /// Unpacks and destroys a Kiosk returning the profits (even if "0").
 /// Can only be performed by the bearer of the `KioskOwnerCap` in the
 /// case where there's no items inside and a `Kiosk` is not shared.
-public fun close_and_withdraw(self: Kiosk, cap: KioskOwnerCap, ctx: &mut TxContext): Coin<SUI> {
+public fun close_and_withdraw(self: Kiosk, cap: KioskOwnerCap, ctx: &mut TxContext): Coin<IOTA> {
     let Kiosk { id, profits, owner: _, item_count, allow_extensions: _ } = self;
     let KioskOwnerCap { id: cap_id, `for` } = cap;
 
@@ -372,7 +373,7 @@ public fun delist<T: key + store>(self: &mut Kiosk, cap: &KioskOwnerCap, id: ID)
 public fun purchase<T: key + store>(
     self: &mut Kiosk,
     id: ID,
-    payment: Coin<SUI>,
+    payment: Coin<IOTA>,
 ): (T, TransferRequest<T>) {
     let price = df::remove<Listing, u64>(&mut self.id, Listing { id, is_exclusive: false });
     let inner = dof::remove<Item, T>(&mut self.id, Item { id });
@@ -417,7 +418,7 @@ public fun list_with_purchase_cap<T: key + store>(
 public fun purchase_with_cap<T: key + store>(
     self: &mut Kiosk,
     purchase_cap: PurchaseCap<T>,
-    payment: Coin<SUI>,
+    payment: Coin<IOTA>,
 ): (T, TransferRequest<T>) {
     let PurchaseCap { id, item_id, kiosk_id, min_price } = purchase_cap;
     id.delete();
@@ -453,7 +454,7 @@ public fun withdraw(
     cap: &KioskOwnerCap,
     amount: Option<u64>,
     ctx: &mut TxContext,
-): Coin<SUI> {
+): Coin<IOTA> {
     assert!(self.has_access(cap), ENotOwner);
 
     let amount = if (amount.is_some()) {
@@ -567,7 +568,7 @@ public fun profits_amount(self: &Kiosk): u64 {
 }
 
 /// Get mutable access to `profits` - owner only action.
-public fun profits_mut(self: &mut Kiosk, cap: &KioskOwnerCap): &mut Balance<SUI> {
+public fun profits_mut(self: &mut Kiosk, cap: &KioskOwnerCap): &mut Balance<IOTA> {
     assert!(self.has_access(cap), ENotOwner);
     &mut self.profits
 }

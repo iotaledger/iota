@@ -1,10 +1,10 @@
 [package]
-name = "sui-snapshot"
+name = "iota-snapshot"
 version = "0.1.0"
 edition = "2021"
 publish = false
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,11 +22,11 @@ num_enum.workspace = true
 futures.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
-sui-types.workspace = true
-sui-config.workspace = true
-sui-core.workspace = true
-sui-storage.workspace = true
-sui-protocol-config.workspace = true
+iota-types.workspace = true
+iota-config.workspace = true
+iota-core.workspace = true
+iota-storage.workspace = true
+iota-protocol-config.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 tokio = { workspace = true, features = ["full"] }
 serde_json.workspace = true

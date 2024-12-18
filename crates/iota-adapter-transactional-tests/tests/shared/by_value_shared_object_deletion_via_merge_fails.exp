@@ -31,13 +31,13 @@ task 5, line 70:
 //# view-object 2,0
 Owner: Account Address ( A )
 Version: 3
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 0u64,
     },
 }
@@ -46,13 +46,13 @@ task 6, line 72:
 //# view-object 3,0
 Owner: Shared( 4 )
 Version: 4
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 0u64,
     },
 }
@@ -62,8 +62,8 @@ task 7, lines 74-76:
 Owner: Shared( 5 )
 Version: 5
 Contents: t2::o2::Obj2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(4,0),
         },
     },
@@ -131,13 +131,13 @@ task 16, line 109:
 //# view-object 13,0
 Owner: Shared( 6 )
 Version: 6
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(13,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 0u64,
     },
 }
@@ -146,13 +146,13 @@ task 17, line 111:
 //# view-object 14,0
 Owner: Shared( 7 )
 Version: 7
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(14,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 0u64,
     },
 }
@@ -162,8 +162,8 @@ task 18, lines 113-115:
 Owner: Shared( 8 )
 Version: 8
 Contents: t2::o2::Obj2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(15,0),
         },
     },

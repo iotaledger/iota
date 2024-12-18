@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::object::ObjectRef;
-use super::sui_address::SuiAddress;
+use super::iota_address::IotaAddress;
 use super::uint53::UInt53;
 use async_graphql::*;
 
@@ -13,9 +14,9 @@ use async_graphql::*;
 /// to the sender.
 #[derive(Clone, Debug, PartialEq, Eq, InputObject)]
 pub(crate) struct TransactionMetadata {
-    pub sender: Option<SuiAddress>,
+    pub sender: Option<IotaAddress>,
     pub gas_price: Option<UInt53>,
     pub gas_objects: Option<Vec<ObjectRef>>,
     pub gas_budget: Option<UInt53>,
-    pub gas_sponsor: Option<SuiAddress>,
+    pub gas_sponsor: Option<IotaAddress>,
 }

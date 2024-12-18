@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module move_building_blocks::limits {
-    use sui::object::UID;
-    use sui::object;
-    use sui::tx_context::TxContext;
+    use iota::object::UID;
+    use iota::object;
+    use iota::tx_context::TxContext;
     use std::vector;
-    use sui::transfer;
-    use sui::tx_context;
-    use sui::dynamic_field;
+    use iota::transfer;
+    use iota::tx_context;
+    use iota::dynamic_field;
 
     public struct ObjectWithVector has key, store {
         id: UID,

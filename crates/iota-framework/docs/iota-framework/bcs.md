@@ -19,7 +19,7 @@ Usage example:
 /// This function reads u8 and u64 value from the input
 /// and returns the rest of the bytes.
 fun deserialize(bytes: vector<u8>): (u8, u64, vector<u8>) {
-use sui::bcs::{Self, BCS};
+use iota::bcs::{Self, BCS};
 
 let prepared: BCS = bcs::new(bytes);
 let (u8_value, u64_value) = (

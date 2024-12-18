@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
 
-use sui_json_rpc_types::ObjectChange;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::effects::ObjectRemoveKind;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::object::Owner;
-use sui_types::storage::WriteKind;
+use iota_json_rpc_types::ObjectChange;
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress};
+use iota_types::effects::ObjectRemoveKind;
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::object::Owner;
+use iota_types::storage::WriteKind;
 use tracing::instrument;
 
 use crate::ObjectProvider;
@@ -17,7 +18,7 @@ use crate::ObjectProvider;
 pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
     effects: &TransactionEffects,
-    sender: SuiAddress,
+    sender: IotaAddress,
     modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
     all_changed_objects: Vec<(ObjectRef, Owner, WriteKind)>,
     all_removed_objects: Vec<(ObjectRef, ObjectRemoveKind)>,

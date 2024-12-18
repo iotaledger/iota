@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 
@@ -71,7 +72,7 @@ def main(args: argparse.ArgumentParser) -> None:
     # run genesis with newly created genesis configuration file
     _ = subprocess.run(
         [
-            "sui",
+            "iota",
             "genesis",
             "--from-config",
             f"{args.target_directory}/genesis.yaml",

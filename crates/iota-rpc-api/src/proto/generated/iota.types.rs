@@ -1074,9 +1074,9 @@ pub mod failure_status {
         /// / The modules in the package must have their self-addresses set to zero.
         #[prost(message, tag = "11")]
         PublishErrorNonZeroAddress(()),
-        /// / Sui Move Bytecode Verification Error.
+        /// / Iota Move Bytecode Verification Error.
         #[prost(message, tag = "12")]
-        SuiMoveVerificationError(()),
+        IotaMoveVerificationError(()),
         ///
         /// MoveVm Errors
         ///
@@ -1152,9 +1152,9 @@ pub mod failure_status {
         /// / Certificate is on the deny list
         #[prost(message, tag = "31")]
         CertificateDenied(()),
-        /// / Sui Move Bytecode verification timed out.
+        /// / Iota Move Bytecode verification timed out.
         #[prost(message, tag = "32")]
-        SuiMoveVerificationTimedout(()),
+        IotaMoveVerificationTimedout(()),
         /// / The requested shared object operation is not allowed
         #[prost(message, tag = "33")]
         SharedObjectOperationNotAllowed(()),

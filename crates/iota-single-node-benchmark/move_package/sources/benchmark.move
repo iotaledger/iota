@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module move_benchmark::benchmark {
     use std::ascii;
     use std::ascii::String;
-    use sui::coin::Coin;
-    use sui::dynamic_field;
-    use sui::sui::SUI;
+    use iota::coin::Coin;
+    use iota::dynamic_field;
+    use iota::iota::IOTA;
 
     #[allow(lint(self_transfer))]
-    public fun transfer_coin(coin: Coin<SUI>, ctx: &TxContext) {
+    public fun transfer_coin(coin: Coin<IOTA>, ctx: &TxContext) {
         transfer::public_transfer(coin, tx_context::sender(ctx));
     }
 

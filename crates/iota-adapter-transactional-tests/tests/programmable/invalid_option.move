@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests various invalid vector instantions for types
@@ -39,7 +40,7 @@ module test::m1 {
 //> test::m1::option_prim<address>(Input(0));
 
 //# programmable --inputs vector[@0,@0]
-//> test::m1::option_prim<sui::object::ID>(Input(0));
+//> test::m1::option_prim<iota::object::ID>(Input(0));
 
 
 // vectors
@@ -69,4 +70,4 @@ module test::m1 {
 //> test::m1::option_prim<vector<address>>(Input(0));
 
 //# programmable --inputs vector[vector[],vector[]]
-//> test::m1::option_prim<vector<sui::object::ID>>(Input(0));
+//> test::m1::option_prim<vector<iota::object::ID>>(Input(0));

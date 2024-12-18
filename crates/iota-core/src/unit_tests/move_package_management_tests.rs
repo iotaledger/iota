@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use expect_test::expect;
 use std::{fs::File, io::Read, path::PathBuf};
 
-use sui_move::manage_package::ManagePackage;
-use sui_move_build::BuildConfig;
-use sui_types::base_types::ObjectID;
+use iota_move::manage_package::ManagePackage;
+use iota_move_build::BuildConfig;
+use iota_types::base_types::ObjectID;
 
 #[tokio::test]
 async fn test_manage_package_update() {
@@ -57,7 +58,7 @@ async fn test_manage_package_update() {
         [move.toolchain-version]
         compiler-version = "0.0.1"
         edition = "2024"
-        flavor = "sui"
+        flavor = "iota"
 
         [env]
 

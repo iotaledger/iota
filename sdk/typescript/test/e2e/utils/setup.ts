@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { execSync } from 'child_process';
@@ -10,23 +11,23 @@ import { retry } from 'ts-retry-promise';
 import { expect } from 'vitest';
 import { WebSocket } from 'ws';
 
-import type { SuiObjectChangePublished } from '../../../src/client/index.js';
-import { getFullnodeUrl, SuiClient, SuiHTTPTransport } from '../../../src/client/index.js';
+import type { IotaObjectChangePublished } from '../../../src/client/index.js';
+import { getFullnodeUrl, IotaClient, IotaHTTPTransport } from '../../../src/client/index.js';
 import type { Keypair } from '../../../src/cryptography/index.js';
 import {
 	FaucetRateLimitError,
 	getFaucetHost,
-	requestSuiFromFaucetV1,
+	requestIotaFromFaucetV1,
 } from '../../../src/faucet/index.js';
 import { Ed25519Keypair } from '../../../src/keypairs/ed25519/index.js';
 import { Transaction, UpgradePolicy } from '../../../src/transactions/index.js';
-import { SUI_TYPE_ARG } from '../../../src/utils/index.js';
+import { IOTA_TYPE_ARG } from '../../../src/utils/index.js';
 
 const DEFAULT_FAUCET_URL = import.meta.env.VITE_FAUCET_URL ?? getFaucetHost('localnet');
 const DEFAULT_FULLNODE_URL = import.meta.env.VITE_FULLNODE_URL ?? getFullnodeUrl('localnet');
 
-const SUI_BIN =
-	import.meta.env.VITE_SUI_BIN ?? path.resolve(__dirname, '../../../../../target/debug/sui');
+const IOTA_BIN =
+	import.meta.env.VITE_IOTA_BIN ?? path.resolve(__dirname, '../../../../../target/debug/iota');
 
 export const DEFAULT_RECIPIENT =
 	'0x0c567ffdf8162cb6d51af74be0199443b92e823d4ba6ced24de5c6c463797d46';
@@ -62,14 +63,14 @@ class TestPackageRegistry {
 
 export class TestToolbox {
 	keypair: Ed25519Keypair;
-	client: SuiClient;
+	client: IotaClient;
 	registry: TestPackageRegistry;
 	configPath: string;
 
 	constructor(keypair: Ed25519Keypair, url: string = DEFAULT_FULLNODE_URL, configPath: string) {
 		this.keypair = keypair;
-		this.client = new SuiClient({
-			transport: new SuiHTTPTransport({
+		this.client = new IotaClient({
+			transport: new IotaHTTPTransport({
 				url,
 				WebSocketConstructor: WebSocket as never,
 			}),
@@ -79,18 +80,18 @@ export class TestToolbox {
 	}
 
 	address() {
-		return this.keypair.getPublicKey().toSuiAddress();
+		return this.keypair.getPublicKey().toIotaAddress();
 	}
 
 	async getGasObjectsOwnedByAddress() {
 		return await this.client.getCoins({
 			owner: this.address(),
-			coinType: SUI_TYPE_ARG,
+			coinType: IOTA_TYPE_ARG,
 		});
 	}
 
 	public async getActiveValidators() {
-		return (await this.client.getLatestSuiSystemState()).activeValidators;
+		return (await this.client.getLatestIotaSystemState()).activeValidators;
 	}
 
 	public async getPackage(path: string) {
@@ -108,9 +109,9 @@ export class TestToolbox {
 	}
 }
 
-export function getClient(url = DEFAULT_FULLNODE_URL): SuiClient {
-	return new SuiClient({
-		transport: new SuiHTTPTransport({
+export function getClient(url = DEFAULT_FULLNODE_URL): IotaClient {
+	return new IotaClient({
+		transport: new IotaHTTPTransport({
 			url,
 			WebSocketConstructor: WebSocket as never,
 		}),
@@ -119,7 +120,7 @@ export function getClient(url = DEFAULT_FULLNODE_URL): SuiClient {
 
 export async function setup(options: { graphQLURL?: string; rpcURL?: string } = {}) {
 	const keypair = Ed25519Keypair.generate();
-	const address = keypair.getPublicKey().toSuiAddress();
+	const address = keypair.getPublicKey().toIotaAddress();
 	const tmpDirPath = path.join(tmpdir(), 'config-');
 	const tmpDir = await mkdtemp(tmpDirPath);
 	const configPath = path.join(tmpDir, 'client.yaml');
@@ -133,7 +134,7 @@ export async function setupWithFundedAddress(
 	{ rpcURL }: { graphQLURL?: string; rpcURL?: string } = {},
 ) {
 	const client = getClient(rpcURL);
-	await retry(() => requestSuiFromFaucetV1({ host: DEFAULT_FAUCET_URL, recipient: address }), {
+	await retry(() => requestIotaFromFaucetV1({ host: DEFAULT_FAUCET_URL, recipient: address }), {
 		backoff: 'EXPONENTIAL',
 		// overall timeout in 60 seconds
 		timeout: 1000 * 60,
@@ -157,7 +158,7 @@ export async function setupWithFundedAddress(
 		},
 	);
 
-	execSync(`${SUI_BIN} client --yes --client.config ${configPath}`, { encoding: 'utf-8' });
+	execSync(`${IOTA_BIN} client --yes --client.config ${configPath}`, { encoding: 'utf-8' });
 	return new TestToolbox(keypair, rpcURL, configPath);
 }
 
@@ -174,7 +175,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
 	const { modules, dependencies } = JSON.parse(
 		execSync(
-			`${SUI_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+			`${IOTA_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
 			{ encoding: 'utf-8' },
 		),
 	);
@@ -202,7 +203,7 @@ export async function publishPackage(packagePath: string, toolbox?: TestToolbox)
 
 	const packageId = ((publishTxn.objectChanges?.filter(
 		(a) => a.type === 'published',
-	) as SuiObjectChangePublished[]) ?? [])[0]?.packageId.replace(/^(0x)(0+)/, '0x') as string;
+	) as IotaObjectChangePublished[]) ?? [])[0]?.packageId.replace(/^(0x)(0+)/, '0x') as string;
 
 	expect(packageId).toBeTypeOf('string');
 
@@ -229,7 +230,7 @@ export async function upgradePackage(
 
 	const { modules, dependencies, digest } = JSON.parse(
 		execSync(
-			`${SUI_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
+			`${IOTA_BIN} move --client.config ${toolbox.configPath} build --dump-bytecode-as-base64 --path ${packagePath} --install-dir ${tmpobj.name}`,
 			{ encoding: 'utf-8' },
 		),
 	);
@@ -271,12 +272,12 @@ export function getRandomAddresses(n: number): string[] {
 		.fill(null)
 		.map(() => {
 			const keypair = Ed25519Keypair.generate();
-			return keypair.getPublicKey().toSuiAddress();
+			return keypair.getPublicKey().toIotaAddress();
 		});
 }
 
-export async function paySui(
-	client: SuiClient,
+export async function payIota(
+	client: IotaClient,
 	signer: Keypair,
 	numRecipients: number = 1,
 	recipients?: string[],
@@ -294,8 +295,8 @@ export async function paySui(
 		coinId ??
 		(
 			await client.getCoins({
-				owner: signer.getPublicKey().toSuiAddress(),
-				coinType: '0x2::sui::SUI',
+				owner: signer.getPublicKey().toIotaAddress(),
+				coinType: '0x2::iota::IOTA',
 			})
 		).data[0].coinObjectId;
 
@@ -320,8 +321,8 @@ export async function paySui(
 	return txn;
 }
 
-export async function executePaySuiNTimes(
-	client: SuiClient,
+export async function executePayIotaNTimes(
+	client: IotaClient,
 	signer: Keypair,
 	nTimes: number,
 	numRecipientsPerTxn: number = 1,
@@ -331,7 +332,7 @@ export async function executePaySuiNTimes(
 	const txns = [];
 	for (let i = 0; i < nTimes; i++) {
 		// must await here to make sure the txns are executed in order
-		txns.push(await paySui(client, signer, numRecipientsPerTxn, recipients, amounts));
+		txns.push(await payIota(client, signer, numRecipientsPerTxn, recipients, amounts));
 	}
 	return txns;
 }

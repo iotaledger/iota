@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{Context, Result};
@@ -11,7 +12,7 @@ use std::path::PathBuf;
 use tracing::debug;
 use tracing::info;
 
-const BASE_URL: &str = "https://mysten.atlassian.net/";
+const BASE_URL: &str = "https://iota.atlassian.net/";
 const CREATE_ENDPOINT: &str = "rest/api/2/issue/bulk";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,5 +1,5 @@
 
-# Sui Simulation Testing
+# Iota Simulation Testing
 
 This document outlines what the simulator used by `cargo simtest` enables, how it works, how to write sim tests,
 and outlines some future work.
@@ -8,7 +8,7 @@ and outlines some future work.
 
 Currently, the simulator:
 
-- Provides deterministic, randomized execution of an entire Sui network in a single process.
+- Provides deterministic, randomized execution of an entire Iota network in a single process.
 - Simulates network latency and packet loss as desired.
 
 This allows us to:
@@ -19,10 +19,10 @@ This allows us to:
 
 ## How it works:
 
-The code for the simulator itself lives in the https://github.com/MystenLabs/mysten-sim repository.
+The code for the simulator itself lives in the https://github.com/iotaledger/iota-sim repository.
 It has the following main components:
 
-1. A [runtime](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/runtime/mod.rs) which provides:
+1. A [runtime](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/runtime/mod.rs) which provides:
     - A "node" context for all running tasks. The node is a simulated machine, which can be killed, restarted, or paused.
     - A randomized but deterministic executor.
     - Simulated clock facilities, including timers, sleep(), etc.
@@ -38,13 +38,13 @@ It has the following main components:
 
 1. A library of interceptor functions which intercept various posix API calls in order to enforce determinism throughout the test. These include:
     - `getrandom()`, `getentropy()` - intercepted and delegated to the simulator PRNG.
-    - Various [socket api calls](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/net/mod.rs#L195), which intercept networking operations and route them through the network simulator. It was necessary to do this at a very low level because [Quinn](https://github.com/quinn-rs/quinn) does its UDP I/O via direct `libc::` calls rather than using `tokio::net::UdpSocket`.
+    - Various [socket api calls](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/mod.rs#L195), which intercept networking operations and route them through the network simulator. It was necessary to do this at a very low level because [Quinn](https://github.com/quinn-rs/quinn) does its UDP I/O via direct `libc::` calls rather than using `tokio::net::UdpSocket`.
     - `mach_absolute_time()`, `clock_gettime()`: Intercepted to provide deterministic high-resolution timing behavior.
     - TODO: `gettimeofday()`: We would like to intercept this to provide deterministic wall-clock operations (e.g. on dates, etc). However, intercepting this currently breaks RocksDB.
 
-    This interception behavior is in effect only in threads that have explicitly enabled it, which generally includes the main test thread only. In other threads, the interceptors delegate the call to the system library implementation via `dlsym()`. See implementation [here](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/intercept.rs#L34-L48).
+    This interception behavior is in effect only in threads that have explicitly enabled it, which generally includes the main test thread only. In other threads, the interceptors delegate the call to the system library implementation via `dlsym()`. See implementation [here](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/intercept.rs#L34-L48).
 
-1. Procedural macros that replace `#[tokio::test]` and run test code inside a testing environment. These are `#[sui_test]` and `#[sim_test]` and are documented below. The test harness created by these macros initializes the simulator runtime with a starting seed, generates the simulator configuration, and runs the test inside a newly created thread. The test must be run in its own thread in order to provide each test case with fresh thread local storage.
+1. Procedural macros that replace `#[tokio::test]` and run test code inside a testing environment. These are `#[iota_test]` and `#[sim_test]` and are documented below. The test harness created by these macros initializes the simulator runtime with a starting seed, generates the simulator configuration, and runs the test inside a newly created thread. The test must be run in its own thread in order to provide each test case with fresh thread local storage.
 
 
 ## How to run sim tests
@@ -77,16 +77,16 @@ The simtest command calls `cargo nextest`, so you can add any valid `nextest` op
 
     No two iterations will have the same seed (with very high probability).
 
-- `MSIM_TEST_CHECK_DETERMINISM` - if set, the specified tests will be run twice, and the framework will verify that the test executes identically in both runs. (This check can also be done by defining a test case with: `#[sim_test(check_determinism)]`.). *Note: Many existing tests in sui do not pass this check, which runs the test case twice in the same process, although those same tests do execute identically if run twice in separate processes. This is a bug, is most likely due to tests sharing static storage or on-disk state, and will hopefully be fixed shortly.*
+- `MSIM_TEST_CHECK_DETERMINISM` - if set, the specified tests will be run twice, and the framework will verify that the test executes identically in both runs. (This check can also be done by defining a test case with: `#[sim_test(check_determinism)]`.). *Note: Many existing tests in iota do not pass this check, which runs the test case twice in the same process, although those same tests do execute identically if run twice in separate processes. This is a bug, is most likely due to tests sharing static storage or on-disk state, and will hopefully be fixed shortly.*
 
 
 ## How to write simulation tests:
 
 Simulation tests are declared in one of the following two ways:
 
-      using sui_macros::*;
+      using iota_macros::*;
 
-      #[sui_test]
+      #[iota_test]
       async fn test1() {
           // A test that will run using `#[tokio::test]` when run via `cargo nextest`, or
           // else a simulator test when run via `cargo simtest`.
@@ -100,19 +100,19 @@ Simulation tests are declared in one of the following two ways:
 
 The `#[sim_test]` proc macro also takes a number of arguments, described below.
 
-The easiest way to write tests that run in the simulation testing framework is to use [SwarmBuilder](https://github.com/MystenLabs/sui/blob/main/crates/sui-swarm/src/memory/swarm.rs#L47) to start your validators.
+The easiest way to write tests that run in the simulation testing framework is to use [SwarmBuilder](https://github.com/iotaledger/iota/blob/develop/crates/iota-swarm/src/memory/swarm.rs#L47) to start your validators.
 This is most often called indirectly via `start_test_network` in the test-utils crate.
 Swarm will create one simulator node (i.e. a simulated machine) per validator, and each validator will have its own unique IP address.
 
 If you use Swarm, you usually will not have to write any code that is aware of the fact that it is running in the simulator.
 However, the fact that the validators are running on unique simulator nodes means you will be able to add network latency, packet loss, and partitions to your test later on.
 
-### `SuiNodeHandle`
+### `IotaNodeHandle`
 
 Swarm assumes a level of encapsulation that reflects what client code would actually experience in production.
 In other words, the only way to communicate with the validators when using Swarm is via the network.
 However, we have many tests that create validators and manipulate them more directly.
-https://github.com/MystenLabs/sui/blob/main/crates/sui/tests/checkpoints_tests.rs is a good example of this.
+https://github.com/iotaledger/iota/blob/develop/crates/iota/tests/checkpoints_tests.rs is a good example of this.
 
 In these tests, the test code is able to break the simulator abstraction and directly manipulate the state of remote validators.
 Yet, the validators are still running on simulated nodes.
@@ -120,8 +120,8 @@ This can cause problems if the test code spawns a task on behalf of a remote val
 The spawned task will appear to the simulator to be executing inside the client node rather than the validator node.
 If that spawned task initiates a network connection, it will appear to originate from the client node rather than the validator node.
 
-To address this, most such test code launches validators via the `spawn_test_authorities` function in the `test-utils` carate, which returns `Vec<SuiNodeHandle>` rather than `Vec<SuiNode>`.
-`SuiNodeHandle` hides the `SuiNode` from the test code.
+To address this, most such test code launches validators via the `spawn_test_authorities` function in the `test-utils` carate, which returns `Vec<IotaNodeHandle>` rather than `Vec<IotaNode>`.
+`IotaNodeHandle` hides the `IotaNode` from the test code.
 It can only be accessed as follows:
 
         handle.with(|node| {
@@ -138,7 +138,7 @@ Or in the case of async code:
 
 (`with_mut` and `with_mut_async` are also available).
 
-`SuiNodeHandle` runs the provided callbacks/futures inside the context of the appropriate simulator node, so that network requests, spawned tasks, etc continue running in the correct context.
+`IotaNodeHandle` runs the provided callbacks/futures inside the context of the appropriate simulator node, so that network requests, spawned tasks, etc continue running in the correct context.
 
 Note that it is trivial to exfiltrate state from the remote node, e.g.:
 
@@ -157,13 +157,13 @@ Also, the world will not end if you break this rule. You just might see confusin
 
 `#[sim_test]` currently accepts two arguments:
 
-- `config = "config_expr"` - This argument accepts a string which will be evaluated as an expression that returns the configuration for the test. Generally, you should make this a function call, and then define the function to return the config. The function must return a type that can implements `Into<TestConfig>` - the most common choice is `SimConfig`, but `Vec<SimConfig>` and `Vec<(usize /* repeat count */, SimConfig)>` are also supported by default. See https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/config.rs for the `TestConfig` implementation.
+- `config = "config_expr"` - This argument accepts a string which will be evaluated as an expression that returns the configuration for the test. Generally, you should make this a function call, and then define the function to return the config. The function must return a type that can implements `Into<TestConfig>` - the most common choice is `SimConfig`, but `Vec<SimConfig>` and `Vec<(usize /* repeat count */, SimConfig)>` are also supported by default. See https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/config.rs for the `TestConfig` implementation.
 
 - `check_determinism` - If set, the framework will run the test twice, and verify that it executes identically each time. (It does this by keeping a log which contains an entry for every call to the PRNG. Each entry contains a hash of the value yielded by the PRNG at that point + the current time.). Tests with `check_determinism` are usually for testing the framework itself, so you probably won't need to use this.
 
 ### Configuring the network:
 
-Network latency and packet loss can be configured using [SimConfig](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/config.rs#L8), which is re-exported from this crate as `sui_simulator::config::SimConfig`.
+Network latency and packet loss can be configured using [SimConfig](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/config.rs#L8), which is re-exported from this crate as `iota_simulator::config::SimConfig`.
 
 To configure a test, you write:
 
@@ -192,11 +192,11 @@ For instance, you might do:
          ...
       }
 
-Documentation of network configuration is not finished yet, but reading the code for the [NetworkConfig](https://github.com/MystenLabs/mysten-sim/blob/main/msim/src/sim/net/config.rs#L221) should be very instructive.
+Documentation of network configuration is not finished yet, but reading the code for the [NetworkConfig](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/config.rs#L221) should be very instructive.
 
-There is a small but growing library of functions for building network configs in [sui_simulator::configs](https://github.com/MystenLabs/sui/blob/main/crates/sui-simulator/src/lib.rs).
+There is a small but growing library of functions for building network configs in [iota_simulator::configs](https://github.com/iotaledger/iota/blob/develop/crates/iota-simulator/src/lib.rs).
 
-There are also some examples of network configuration at https://github.com/MystenLabs/sui/blob/main/crates/sui-benchmark/tests/simtest.rs#L52.
+There are also some examples of network configuration at https://github.com/iotaledger/iota/blob/develop/crates/iota-benchmark/tests/simtest.rs#L52.
 
 ### The `nondeterministic!` macro
 

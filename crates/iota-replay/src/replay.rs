@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::chain_from_chain_id;
@@ -29,27 +30,27 @@ use std::{
     sync::Arc,
     sync::Mutex,
 };
-use sui_config::node::ExpensiveSafetyCheckConfig;
-use sui_core::authority::NodeStateDump;
-use sui_execution::Executor;
-use sui_framework::BuiltInFramework;
-use sui_json_rpc_types::{
-    SuiExecutionStatus, SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI,
+use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_core::authority::NodeStateDump;
+use iota_execution::Executor;
+use iota_framework::BuiltInFramework;
+use iota_json_rpc_types::{
+    IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
 };
-use sui_protocol_config::{Chain, ProtocolConfig};
-use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::in_memory_storage::InMemoryStorage;
-use sui_types::message_envelope::Message;
-use sui_types::storage::{get_module, PackageObject};
-use sui_types::transaction::TransactionKind::ProgrammableTransaction;
-use sui_types::SUI_DENY_LIST_OBJECT_ID;
-use sui_types::{
+use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_types::in_memory_storage::InMemoryStorage;
+use iota_types::message_envelope::Message;
+use iota_types::storage::{get_module, PackageObject};
+use iota_types::transaction::TransactionKind::ProgrammableTransaction;
+use iota_types::IOTA_DENY_LIST_OBJECT_ID;
+use iota_types::{
     base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber},
     committee::EpochId,
     digests::{ObjectDigest, TransactionDigest},
-    error::{ExecutionError, SuiError, SuiResult},
+    error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
-    gas::SuiGasStatus,
+    gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     metrics::LimitsMetrics,
     object::{Data, Object, Owner},
@@ -75,7 +76,7 @@ pub struct ExecutionSandboxState {
     #[serde(skip)]
     pub local_exec_temporary_store: Option<InnerTemporaryStore>,
     /// Effects from executing this locally in `execute_transaction_to_effects`
-    pub local_exec_effects: SuiTransactionBlockEffects,
+    pub local_exec_effects: IotaTransactionBlockEffects,
     /// Status from executing this locally in `execute_transaction_to_effects`
     #[serde(skip)]
     pub local_exec_status: Option<Result<(), ExecutionError>>,
@@ -215,7 +216,7 @@ impl Storage {
 
 #[derive(Clone)]
 pub struct LocalExec {
-    pub client: Option<SuiClient>,
+    pub client: Option<IotaClient>,
     // For a given protocol version, what TX created it, and what is the valid range of epochs
     // at this protocol version.
     pub protocol_version_epoch_table: BTreeMap<u64, ProtocolVersionSummary>,
@@ -259,7 +260,7 @@ impl LocalExec {
         while num_retries_for_timeout >= 0 {
             match self.fetcher.multi_get_versioned(objs).await {
                 Ok(objs) => return Ok(objs),
-                Err(ReplayEngineError::SuiRpcRequestTimeout) => {
+                Err(ReplayEngineError::IotaRpcRequestTimeout) => {
                     warn!(
                         "RPC request timed out. Retries left {}. Sleeping for {}s",
                         num_retries_for_timeout,
@@ -271,7 +272,7 @@ impl LocalExec {
                 Err(e) => return Err(e),
             }
         }
-        Err(ReplayEngineError::SuiRpcRequestTimeout)
+        Err(ReplayEngineError::IotaRpcRequestTimeout)
     }
     /// Wrapper around fetcher in case we want to add more functionality
     /// Such as fetching from local DB from snapshot
@@ -283,7 +284,7 @@ impl LocalExec {
         while num_retries_for_timeout >= 0 {
             match self.fetcher.multi_get_latest(objs).await {
                 Ok(objs) => return Ok(objs),
-                Err(ReplayEngineError::SuiRpcRequestTimeout) => {
+                Err(ReplayEngineError::IotaRpcRequestTimeout) => {
                     warn!(
                         "RPC request timed out. Retries left {}. Sleeping for {}s",
                         num_retries_for_timeout,
@@ -295,7 +296,7 @@ impl LocalExec {
                 Err(e) => return Err(e),
             }
         }
-        Err(ReplayEngineError::SuiRpcRequestTimeout)
+        Err(ReplayEngineError::IotaRpcRequestTimeout)
     }
 
     pub async fn fetch_loaded_child_refs(
@@ -308,7 +309,7 @@ impl LocalExec {
 
     pub async fn new_from_fn_url(http_url: &str) -> Result<Self, ReplayEngineError> {
         Self::new_for_remote(
-            SuiClientBuilder::default()
+            IotaClientBuilder::default()
                 .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
                 .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
                 .build(http_url)
@@ -366,7 +367,7 @@ impl LocalExec {
     }
 
     pub async fn new_for_remote(
-        client: SuiClient,
+        client: IotaClient,
         remote_fetcher: Option<RemoteFetcher>,
     ) -> Result<Self, ReplayEngineError> {
         // Use a throwaway metrics registry for local execution.
@@ -408,7 +409,7 @@ impl LocalExec {
             Some(url) => NodeStateDumpFetcher::new(
                 state,
                 Some(RemoteFetcher::new(
-                    SuiClientBuilder::default()
+                    IotaClientBuilder::default()
                         .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
                         .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
                         .build(url)
@@ -587,7 +588,7 @@ impl LocalExec {
                 error!("Object {id} {version} {digest} was deleted on RPC server.");
                 Ok(None)
             }
-            Err(err) => Err(ReplayEngineError::SuiRpcError {
+            Err(err) => Err(ReplayEngineError::IotaRpcError {
                 err: err.to_string(),
             }),
         }
@@ -646,7 +647,7 @@ impl LocalExec {
                 info!("Object {id} {version} not found on RPC server -- this may have been pruned or never existed.");
                 Ok(None)
             }
-            Err(err) => Err(ReplayEngineError::SuiRpcError {
+            Err(err) => Err(ReplayEngineError::IotaRpcError {
                 err: err.to_string(),
             }),
         }
@@ -659,7 +660,7 @@ impl LocalExec {
         self.fetcher
             .get_checkpoint_txs(checkpoint_id)
             .await
-            .map_err(|e| ReplayEngineError::SuiRpcError { err: e.to_string() })
+            .map_err(|e| ReplayEngineError::IotaRpcError { err: e.to_string() })
     }
 
     pub async fn execute_all_in_checkpoints(
@@ -754,9 +755,9 @@ impl LocalExec {
         let transaction_kind = override_transaction_kind.unwrap_or(tx_info.kind.clone());
         let certificate_deny_set = HashSet::new();
         let gas_status = if tx_info.kind.is_system_tx() {
-            SuiGasStatus::new_unmetered()
+            IotaGasStatus::new_unmetered()
         } else {
-            SuiGasStatus::new(
+            IotaGasStatus::new(
                 tx_info.gas_budget,
                 tx_info.gas_price,
                 tx_info.reference_gas_price,
@@ -796,7 +797,7 @@ impl LocalExec {
         let all_required_objects = self.storage.all_objects();
 
         let effects =
-            SuiTransactionBlockEffects::try_from(effects).map_err(ReplayEngineError::from)?;
+            IotaTransactionBlockEffects::try_from(effects).map_err(ReplayEngineError::from)?;
 
         Ok(ExecutionSandboxState {
             transaction_info: tx_info.clone(),
@@ -809,7 +810,7 @@ impl LocalExec {
 
     fn pretty_print_for_tracing(
         &self,
-        gas_status: &SuiGasStatus,
+        gas_status: &IotaGasStatus,
         executor: &Arc<dyn Executor + Send + Sync>,
         tx_info: &OnChainTransactionInfo,
         transaction_kind: &TransactionKind,
@@ -840,7 +841,7 @@ impl LocalExec {
                             tx_info.epoch_start_timestamp,
                             CheckedInputObjects::new_for_replay(input_objects),
                             tx_info.gas.clone(),
-                            SuiGasStatus::new(
+                            IotaGasStatus::new(
                                 tx_info.gas_budget,
                                 tx_info.gas_price,
                                 tx_info.reference_gas_price,
@@ -915,7 +916,7 @@ impl LocalExec {
             VerifiedTransaction::new_unchecked(transaction),
             executed_epoch,
         );
-        let (gas_status, input_objects) = sui_transaction_checks::check_certificate_input(
+        let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
             &executable,
             input_objects,
             &protocol_config,
@@ -923,7 +924,7 @@ impl LocalExec {
         )
         .unwrap();
         let (kind, signer, gas) = executable.transaction_data().execution_parts();
-        let executor = sui_execution::executor(&protocol_config, true, None).unwrap();
+        let executor = iota_execution::executor(&protocol_config, true, None).unwrap();
         let (_, _, effects, exec_res) = executor.execute_transaction_to_effects(
             &store,
             &protocol_config,
@@ -941,7 +942,7 @@ impl LocalExec {
         );
 
         let effects =
-            SuiTransactionBlockEffects::try_from(effects).map_err(ReplayEngineError::from)?;
+            IotaTransactionBlockEffects::try_from(effects).map_err(ReplayEngineError::from)?;
 
         Ok(ExecutionSandboxState {
             transaction_info: pre_run_sandbox.transaction_info.clone(),
@@ -953,7 +954,7 @@ impl LocalExec {
     }
 
     /// Must be called after `init_for_execution`
-    /// This executes from `sui_core::authority::AuthorityState::try_execute_immediately`
+    /// This executes from `iota_core::authority::AuthorityState::try_execute_immediately`
     pub async fn certificate_execute(
         &mut self,
         tx_digest: &TransactionDigest,
@@ -967,7 +968,7 @@ impl LocalExec {
     }
 
     /// Must be called after `init_for_execution`
-    /// This executes from `sui_adapter::execution_engine::execute_transaction_to_effects`
+    /// This executes from `iota_adapter::execution_engine::execute_transaction_to_effects`
     pub async fn execution_engine_execute(
         &mut self,
         tx_digest: &TransactionDigest,
@@ -1434,7 +1435,7 @@ impl LocalExec {
 
     fn add_config_objects_if_needed(
         &self,
-        status: &SuiExecutionStatus,
+        status: &IotaExecutionStatus,
     ) -> Vec<(ObjectID, SequenceNumber)> {
         match parse_effect_error_for_denied_coins(status) {
             Some(coin_type) => {
@@ -1444,14 +1445,14 @@ impl LocalExec {
                 // NB: the version of the deny list object doesn't matter
                 if !config_id_and_version
                     .iter()
-                    .any(|(id, _)| id == &SUI_DENY_LIST_OBJECT_ID)
+                    .any(|(id, _)| id == &IOTA_DENY_LIST_OBJECT_ID)
                 {
-                    let deny_list_oid_version = self.download_latest_object(&SUI_DENY_LIST_OBJECT_ID)
+                    let deny_list_oid_version = self.download_latest_object(&IOTA_DENY_LIST_OBJECT_ID)
                         .ok()
                         .flatten()
                         .expect("Unable to download the deny list object for a transaction that requires it")
                         .version();
-                    config_id_and_version.push((SUI_DENY_LIST_OBJECT_ID, deny_list_oid_version));
+                    config_id_and_version.push((IOTA_DENY_LIST_OBJECT_ID, deny_list_oid_version));
                 }
                 config_id_and_version
             }
@@ -1467,9 +1468,9 @@ impl LocalExec {
         // Fetch full transaction content
         let tx_info = self.fetcher.get_transaction(tx_digest).await?;
         let sender = match tx_info.clone().transaction.unwrap().data {
-            sui_json_rpc_types::SuiTransactionBlockData::V1(tx) => tx.sender,
+            iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.sender,
         };
-        let SuiTransactionBlockEffects::V1(effects) = tx_info.clone().effects.unwrap();
+        let IotaTransactionBlockEffects::V1(effects) = tx_info.clone().effects.unwrap();
 
         let config_objects = self.add_config_objects_if_needed(effects.status());
 
@@ -1498,7 +1499,7 @@ impl LocalExec {
             })
             .collect();
         let gas_data = match tx_info.clone().transaction.unwrap().data {
-            sui_json_rpc_types::SuiTransactionBlockData::V1(tx) => tx.gas_data,
+            iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.gas_data,
         };
         let gas_object_refs: Vec<_> = gas_data
             .payment
@@ -1531,7 +1532,7 @@ impl LocalExec {
             gas_price: gas_data.price,
             executed_epoch: epoch_id,
             dependencies: effects.dependencies().to_vec(),
-            effects: SuiTransactionBlockEffects::V1(effects),
+            effects: IotaTransactionBlockEffects::V1(effects),
             receiving_objs,
             config_objects,
             // Find the protocol version for this epoch
@@ -1560,7 +1561,7 @@ impl LocalExec {
             .sender();
         let orig_tx = dp.node_state_dump.sender_signed_data.clone();
         let effects = dp.node_state_dump.computed_effects.clone();
-        let effects = SuiTransactionBlockEffects::try_from(effects).unwrap();
+        let effects = IotaTransactionBlockEffects::try_from(effects).unwrap();
         // Config objects don't show up in the node state dump so they need to be provided.
         let config_objects = self.add_config_objects_if_needed(effects.status());
 
@@ -1829,12 +1830,12 @@ impl LocalExec {
 impl BackingPackageStore for LocalExec {
     /// In this case we might need to download a dependency package which was not present in the
     /// modified at versions list because packages are immutable
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
-        fn inner(self_: &LocalExec, package_id: &ObjectID) -> SuiResult<Option<Object>> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+        fn inner(self_: &LocalExec, package_id: &ObjectID) -> IotaResult<Option<Object>> {
             // If package not present fetch it from the network
             self_
                 .get_or_download_object(package_id, true /* we expect a Move package*/)
-                .map_err(|e| SuiError::Storage(e.to_string()))
+                .map_err(|e| IotaError::Storage(e.to_string()))
         }
 
         let res = inner(self, package_id);
@@ -1857,13 +1858,13 @@ impl ChildObjectResolver for LocalExec {
         parent: &ObjectID,
         child: &ObjectID,
         child_version_upper_bound: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         fn inner(
             self_: &LocalExec,
             parent: &ObjectID,
             child: &ObjectID,
             child_version_upper_bound: SequenceNumber,
-        ) -> SuiResult<Option<Object>> {
+        ) -> IotaResult<Option<Object>> {
             let child_object =
                 match self_.download_object_by_upper_bound(child, child_version_upper_bound)? {
                     None => return Ok(None),
@@ -1871,14 +1872,14 @@ impl ChildObjectResolver for LocalExec {
                 };
             let child_version = child_object.version();
             if child_object.version() > child_version_upper_bound {
-                return Err(SuiError::Unknown(format!(
+                return Err(IotaError::Unknown(format!(
                     "Invariant Violation. Replay loaded child_object {child} at version \
                     {child_version} but expected the version to be <= {child_version_upper_bound}"
                 )));
             }
             let parent = *parent;
             if child_object.owner != Owner::ObjectOwner(parent.into()) {
-                return Err(SuiError::InvalidChildObjectAccess {
+                return Err(IotaError::InvalidChildObjectAccess {
                     object: *child,
                     given_parent: parent,
                     actual_owner: child_object.owner.clone(),
@@ -1907,19 +1908,19 @@ impl ChildObjectResolver for LocalExec {
         receiving_object_id: &ObjectID,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         fn inner(
             self_: &LocalExec,
             owner: &ObjectID,
             receiving_object_id: &ObjectID,
             receive_object_at_version: SequenceNumber,
-        ) -> SuiResult<Option<Object>> {
+        ) -> IotaResult<Option<Object>> {
             let recv_object = match self_.get_object(receiving_object_id) {
                 None => return Ok(None),
                 Some(o) => o,
             };
             if recv_object.version() != receive_object_at_version {
-                return Err(SuiError::Unknown(format!(
+                return Err(IotaError::Unknown(format!(
                     "Invariant Violation. Replay loaded child_object {receiving_object_id} at version \
                     {receive_object_at_version} but expected the version to be == {receive_object_at_version}"
                 )));
@@ -1975,7 +1976,7 @@ impl ParentSync for LocalExec {
 }
 
 impl ResourceResolver for LocalExec {
-    type Error = SuiError;
+    type Error = IotaError;
 
     /// In this case we might need to download a Move object on the fly which was not present in the
     /// modified at versions list because packages are immutable
@@ -1983,12 +1984,12 @@ impl ResourceResolver for LocalExec {
         &self,
         address: &AccountAddress,
         typ: &StructTag,
-    ) -> SuiResult<Option<Vec<u8>>> {
+    ) -> IotaResult<Option<Vec<u8>>> {
         fn inner(
             self_: &LocalExec,
             address: &AccountAddress,
             typ: &StructTag,
-        ) -> SuiResult<Option<Vec<u8>>> {
+        ) -> IotaResult<Option<Vec<u8>>> {
             // If package not present fetch it from the network or some remote location
             let Some(object) = self_.get_or_download_object(
                 &ObjectID::from(*address),
@@ -2028,12 +2029,12 @@ impl ResourceResolver for LocalExec {
 }
 
 impl ModuleResolver for LocalExec {
-    type Error = SuiError;
+    type Error = IotaError;
 
     /// This fetches a module which must already be present in the store
     /// We do not download
-    fn get_module(&self, module_id: &ModuleId) -> SuiResult<Option<Vec<u8>>> {
-        fn inner(self_: &LocalExec, module_id: &ModuleId) -> SuiResult<Option<Vec<u8>>> {
+    fn get_module(&self, module_id: &ModuleId) -> IotaResult<Option<Vec<u8>>> {
+        fn inner(self_: &LocalExec, module_id: &ModuleId) -> IotaResult<Option<Vec<u8>>> {
             get_module(self_, module_id)
         }
 
@@ -2050,9 +2051,9 @@ impl ModuleResolver for LocalExec {
 }
 
 impl ModuleResolver for &mut LocalExec {
-    type Error = SuiError;
+    type Error = IotaError;
 
-    fn get_module(&self, module_id: &ModuleId) -> SuiResult<Option<Vec<u8>>> {
+    fn get_module(&self, module_id: &ModuleId) -> IotaResult<Option<Vec<u8>>> {
         // Recording event here will be double-counting since its already recorded in the get_module fn
         (**self).get_module(module_id)
     }
@@ -2122,10 +2123,10 @@ impl ObjectStore for &mut LocalExec {
 }
 
 impl GetModule for LocalExec {
-    type Error = SuiError;
+    type Error = IotaError;
     type Item = CompiledModule;
 
-    fn get_module_by_id(&self, id: &ModuleId) -> SuiResult<Option<Self::Item>> {
+    fn get_module_by_id(&self, id: &ModuleId) -> IotaResult<Option<Self::Item>> {
         let res = get_module_by_id(self, id);
 
         self.exec_store_events
@@ -2162,12 +2163,12 @@ pub fn get_executor(
         .unwrap_or(protocol_config.clone());
 
     let silent = true;
-    sui_execution::executor(&protocol_config, silent, enable_profiler)
+    iota_execution::executor(&protocol_config, silent, enable_profiler)
         .expect("Creating an executor should not fail here")
 }
 
-fn parse_effect_error_for_denied_coins(status: &SuiExecutionStatus) -> Option<String> {
-    let SuiExecutionStatus::Failure { error } = status else {
+fn parse_effect_error_for_denied_coins(status: &IotaExecutionStatus) -> Option<String> {
+    let IotaExecutionStatus::Failure { error } = status else {
         return None;
     };
     parse_denied_error_string(error)

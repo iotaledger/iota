@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::cmp::max;
@@ -13,28 +14,28 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::RpcModule;
 use tracing::{info, instrument};
 
-use mysten_metrics::spawn_monitored_task;
-use sui_core::authority::AuthorityState;
-use sui_json_rpc_api::{GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics};
-use sui_json_rpc_types::{DelegatedStake, Stake, StakeStatus};
-use sui_json_rpc_types::{SuiCommittee, ValidatorApy, ValidatorApys};
-use sui_open_rpc::Module;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::committee::EpochId;
-use sui_types::dynamic_field::get_dynamic_field_from_store;
-use sui_types::error::{SuiError, UserInputError};
-use sui_types::governance::StakedSui;
-use sui_types::id::ID;
-use sui_types::object::ObjectRead;
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
-use sui_types::sui_system_state::PoolTokenExchangeRate;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use sui_types::sui_system_state::{get_validator_from_table, SuiSystemState};
+use iota_metrics::spawn_monitored_task;
+use iota_core::authority::AuthorityState;
+use iota_json_rpc_api::{GovernanceReadApiOpenRpc, GovernanceReadApiServer, JsonRpcMetrics};
+use iota_json_rpc_types::{DelegatedStake, Stake, StakeStatus};
+use iota_json_rpc_types::{IotaCommittee, ValidatorApy, ValidatorApys};
+use iota_open_rpc::Module;
+use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::committee::EpochId;
+use iota_types::dynamic_field::get_dynamic_field_from_store;
+use iota_types::error::{IotaError, UserInputError};
+use iota_types::governance::StakedIota;
+use iota_types::id::ID;
+use iota_types::object::ObjectRead;
+use iota_types::iota_serde::BigInt;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
+use iota_types::iota_system_state::PoolTokenExchangeRate;
+use iota_types::iota_system_state::IotaSystemStateTrait;
+use iota_types::iota_system_state::{get_validator_from_table, IotaSystemState};
 
 use crate::authority_state::StateRead;
-use crate::error::{Error, RpcInterimResult, SuiRpcInputError};
-use crate::{with_tracing, ObjectProvider, SuiRpcModule};
+use crate::error::{Error, RpcInterimResult, IotaRpcInputError};
+use crate::{with_tracing, ObjectProvider, IotaRpcModule};
 
 #[derive(Clone)]
 pub struct GovernanceReadApi {
@@ -47,27 +48,27 @@ impl GovernanceReadApi {
         Self { state, metrics }
     }
 
-    async fn get_staked_sui(&self, owner: SuiAddress) -> Result<Vec<StakedSui>, Error> {
+    async fn get_staked_iota(&self, owner: IotaAddress) -> Result<Vec<StakedIota>, Error> {
         let state = self.state.clone();
         let result =
-            spawn_monitored_task!(async move { state.get_staked_sui(owner).await }).await??;
+            spawn_monitored_task!(async move { state.get_staked_iota(owner).await }).await??;
 
         self.metrics
-            .get_stake_sui_result_size
+            .get_stake_iota_result_size
             .observe(result.len() as f64);
         self.metrics
-            .get_stake_sui_result_size_total
+            .get_stake_iota_result_size_total
             .inc_by(result.len() as u64);
         Ok(result)
     }
 
     async fn get_stakes_by_ids(
         &self,
-        staked_sui_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectID>,
     ) -> Result<Vec<DelegatedStake>, Error> {
         let state = self.state.clone();
         let stakes_read = spawn_monitored_task!(async move {
-            staked_sui_ids
+            staked_iota_ids
                 .iter()
                 .map(|id| state.get_object_read(id))
                 .collect::<Result<Vec<_>, _>>()
@@ -78,18 +79,18 @@ impl GovernanceReadApi {
             return Ok(vec![]);
         }
 
-        let mut stakes: Vec<(StakedSui, bool)> = vec![];
+        let mut stakes: Vec<(StakedIota, bool)> = vec![];
         for stake in stakes_read.into_iter() {
             match stake {
-                ObjectRead::Exists(_, o, _) => stakes.push((StakedSui::try_from(&o)?, true)),
+                ObjectRead::Exists(_, o, _) => stakes.push((StakedIota::try_from(&o)?, true)),
                 ObjectRead::Deleted(oref) => {
                     match self
                         .state
                         .find_object_lt_or_eq_version(&oref.0, &oref.1.one_before().unwrap())
                         .await?
                     {
-                        Some(o) => stakes.push((StakedSui::try_from(&o)?, false)),
-                        None => Err(SuiRpcInputError::UserInputError(
+                        Some(o) => stakes.push((StakedIota::try_from(&o)?, false)),
+                        None => Err(IotaRpcInputError::UserInputError(
                             UserInputError::ObjectNotFound {
                                 object_id: oref.0,
                                 version: None,
@@ -97,7 +98,7 @@ impl GovernanceReadApi {
                         ))?,
                     }
                 }
-                ObjectRead::NotExists(id) => Err(SuiRpcInputError::UserInputError(
+                ObjectRead::NotExists(id) => Err(IotaRpcInputError::UserInputError(
                     UserInputError::ObjectNotFound {
                         object_id: id,
                         version: None,
@@ -109,15 +110,15 @@ impl GovernanceReadApi {
         self.get_delegated_stakes(stakes).await
     }
 
-    async fn get_stakes(&self, owner: SuiAddress) -> Result<Vec<DelegatedStake>, Error> {
-        let timer = self.metrics.get_stake_sui_latency.start_timer();
-        let stakes = self.get_staked_sui(owner).await?;
+    async fn get_stakes(&self, owner: IotaAddress) -> Result<Vec<DelegatedStake>, Error> {
+        let timer = self.metrics.get_stake_iota_latency.start_timer();
+        let stakes = self.get_staked_iota(owner).await?;
         if stakes.is_empty() {
             return Ok(vec![]);
         }
         drop(timer);
 
-        let _timer = self.metrics.get_delegated_sui_latency.start_timer();
+        let _timer = self.metrics.get_delegated_iota_latency.start_timer();
 
         let self_clone = self.clone();
         spawn_monitored_task!(
@@ -128,7 +129,7 @@ impl GovernanceReadApi {
 
     async fn get_delegated_stakes(
         &self,
-        stakes: Vec<(StakedSui, bool)>,
+        stakes: Vec<(StakedIota, bool)>,
     ) -> Result<Vec<DelegatedStake>, Error> {
         let pools = stakes.into_iter().fold(
             BTreeMap::<_, Vec<_>>::new(),
@@ -142,8 +143,8 @@ impl GovernanceReadApi {
         );
 
         let system_state = self.get_system_state()?;
-        let system_state_summary: SuiSystemStateSummary =
-            system_state.clone().into_sui_system_state_summary();
+        let system_state_summary: IotaSystemStateSummary =
+            system_state.clone().into_iota_system_state_summary();
 
         let rates = exchange_rates(&self.state, system_state_summary.epoch)
             .await?
@@ -155,7 +156,7 @@ impl GovernanceReadApi {
         for (pool_id, stakes) in pools {
             // Rate table and rate can be null when the pool is not active
             let rate_table = rates.get(&pool_id).ok_or_else(|| {
-                SuiRpcInputError::GenericNotFound(
+                IotaRpcInputError::GenericNotFound(
                     "Cannot find rates for staking pool {pool_id}".to_string(),
                 )
             })?;
@@ -190,7 +191,7 @@ impl GovernanceReadApi {
                     StakeStatus::Pending
                 };
                 delegations.push(Stake {
-                    staked_sui_id: stake.id(),
+                    staked_iota_id: stake.id(),
                     // TODO: this might change when we implement warm up period.
                     stake_request_epoch: stake.activation_epoch() - 1,
                     stake_active_epoch: stake.activation_epoch(),
@@ -207,7 +208,7 @@ impl GovernanceReadApi {
         Ok(delegated_stakes)
     }
 
-    fn get_system_state(&self) -> Result<SuiSystemState, Error> {
+    fn get_system_state(&self) -> Result<IotaSystemState, Error> {
         Ok(self.state.get_system_state()?)
     }
 }
@@ -217,18 +218,18 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     #[instrument(skip(self))]
     async fn get_stakes_by_ids(
         &self,
-        staked_sui_ids: Vec<ObjectID>,
+        staked_iota_ids: Vec<ObjectID>,
     ) -> RpcResult<Vec<DelegatedStake>> {
-        with_tracing!(async move { self.get_stakes_by_ids(staked_sui_ids).await })
+        with_tracing!(async move { self.get_stakes_by_ids(staked_iota_ids).await })
     }
 
     #[instrument(skip(self))]
-    async fn get_stakes(&self, owner: SuiAddress) -> RpcResult<Vec<DelegatedStake>> {
+    async fn get_stakes(&self, owner: IotaAddress) -> RpcResult<Vec<DelegatedStake>> {
         with_tracing!(async move { self.get_stakes(owner).await })
     }
 
     #[instrument(skip(self))]
-    async fn get_committee_info(&self, epoch: Option<BigInt<u64>>) -> RpcResult<SuiCommittee> {
+    async fn get_committee_info(&self, epoch: Option<BigInt<u64>>) -> RpcResult<IotaCommittee> {
         with_tracing!(async move {
             self.state
                 .get_or_latest_committee(epoch)
@@ -238,13 +239,13 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     }
 
     #[instrument(skip(self))]
-    async fn get_latest_sui_system_state(&self) -> RpcResult<SuiSystemStateSummary> {
+    async fn get_latest_iota_system_state(&self) -> RpcResult<IotaSystemStateSummary> {
         with_tracing!(async move {
             Ok(self
                 .state
                 .get_system_state()
                 .map_err(Error::from)?
-                .into_sui_system_state_summary())
+                .into_iota_system_state_summary())
         })
     }
 
@@ -259,8 +260,8 @@ impl GovernanceReadApiServer for GovernanceReadApi {
     #[instrument(skip(self))]
     async fn get_validators_apy(&self) -> RpcResult<ValidatorApys> {
         info!("get_validator_apy");
-        let system_state_summary: SuiSystemStateSummary =
-            self.get_latest_sui_system_state().await?;
+        let system_state_summary: IotaSystemStateSummary =
+            self.get_latest_iota_system_state().await?;
 
         let exchange_rate_table = exchange_rates(&self.state, system_state_summary.epoch)
             .await
@@ -333,7 +334,7 @@ fn test_apys_calculation_filter_outliers() {
     let exchange_rates = rates
         .into_iter()
         .map(|(validator, rates)| {
-            let address = SuiAddress::random_for_testing_only();
+            let address = IotaAddress::random_for_testing_only();
             address_map.insert(address, validator);
             ValidatorExchangeRates {
                 address,
@@ -370,14 +371,14 @@ async fn exchange_rates(
     _current_epoch: EpochId,
 ) -> RpcInterimResult<Vec<ValidatorExchangeRates>> {
     let system_state = state.get_system_state()?;
-    let system_state_summary: SuiSystemStateSummary = system_state.into_sui_system_state_summary();
+    let system_state_summary: IotaSystemStateSummary = system_state.into_iota_system_state_summary();
 
     // Get validator rate tables
     let mut tables = vec![];
 
     for validator in system_state_summary.active_validators {
         tables.push((
-            validator.sui_address,
+            validator.iota_address,
             validator.staking_pool_id,
             validator.exchange_rates_id,
             validator.exchange_rates_size,
@@ -392,7 +393,7 @@ async fn exchange_rates(
         system_state_summary.inactive_pools_size as usize,
     )? {
         let pool_id: ID =
-            bcs::from_bytes(&df.1.bcs_name).map_err(|e| SuiError::ObjectDeserializationError {
+            bcs::from_bytes(&df.1.bcs_name).map_err(|e| IotaError::ObjectDeserializationError {
                 error: e.to_string(),
             })?;
         let validator = get_validator_from_table(
@@ -401,7 +402,7 @@ async fn exchange_rates(
             &pool_id,
         )?; // TODO(wlmyng): roll this into StateReadError
         tables.push((
-            validator.sui_address,
+            validator.iota_address,
             validator.staking_pool_id,
             validator.exchange_rates_id,
             validator.exchange_rates_size,
@@ -417,7 +418,7 @@ async fn exchange_rates(
             .into_iter()
             .map(|df| {
                 let epoch: EpochId = bcs::from_bytes(&df.1.bcs_name).map_err(|e| {
-                    SuiError::ObjectDeserializationError {
+                    IotaError::ObjectDeserializationError {
                         error: e.to_string(),
                     }
                 })?;
@@ -428,7 +429,7 @@ async fn exchange_rates(
                     &epoch,
                 )?;
 
-                Ok::<_, SuiError>((epoch, exchange_rate))
+                Ok::<_, IotaError>((epoch, exchange_rate))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -447,7 +448,7 @@ async fn exchange_rates(
 
 #[derive(Clone, Debug)]
 pub struct ValidatorExchangeRates {
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     pub pool_id: ObjectID,
     pub active: bool,
     pub rates: Vec<(EpochId, PoolTokenExchangeRate)>,
@@ -485,7 +486,7 @@ fn backfill_rates(
     filled_rates
 }
 
-impl SuiRpcModule for GovernanceReadApi {
+impl IotaRpcModule for GovernanceReadApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
@@ -498,7 +499,7 @@ impl SuiRpcModule for GovernanceReadApi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sui_types::sui_system_state::PoolTokenExchangeRate;
+    use iota_types::iota_system_state::PoolTokenExchangeRate;
 
     #[test]
     fn test_backfill_rates_empty() {

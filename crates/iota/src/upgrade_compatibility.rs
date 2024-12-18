@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[path = "unit_tests/upgrade_compatibility_tests.rs"]
@@ -38,12 +39,12 @@ use move_core_types::{
 };
 use move_ir_types::location::Loc;
 use move_package::compilation::compiled_package::CompiledUnitWithSource;
-use sui_json_rpc_types::{SuiObjectDataOptions, SuiRawData};
-use sui_move_build::CompiledPackage;
-use sui_protocol_config::ProtocolConfig;
-use sui_sdk::SuiClient;
-use sui_types::move_package::UpgradePolicy;
-use sui_types::{base_types::ObjectID, execution_config_utils::to_binary_config};
+use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
+use iota_move_build::CompiledPackage;
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk::IotaClient;
+use iota_types::move_package::UpgradePolicy;
+use iota_types::{base_types::ObjectID, execution_config_utils::to_binary_config};
 
 /// Errors that can occur during upgrade compatibility checks.
 /// one-to-one related to the underlying trait functions see: [`CompatibilityMode`]
@@ -466,7 +467,7 @@ upgrade_codes!(
 
 /// Check the upgrade compatibility of a new package with an existing on-chain package.
 pub(crate) async fn check_compatibility(
-    client: &SuiClient,
+    client: &IotaClient,
     package_id: ObjectID,
     new_package: CompiledPackage,
     upgrade_policy: u8,
@@ -474,7 +475,7 @@ pub(crate) async fn check_compatibility(
 ) -> Result<(), Error> {
     let existing_obj_read = client
         .read_api()
-        .get_object_with_options(package_id, SuiObjectDataOptions::new().with_bcs())
+        .get_object_with_options(package_id, IotaObjectDataOptions::new().with_bcs())
         .await
         .context("Unable to get existing package")?;
 
@@ -485,8 +486,8 @@ pub(crate) async fn check_compatibility(
         .ok_or_else(|| anyhow!("Unable to read object"))?;
 
     let existing_package = match existing_obj {
-        SuiRawData::Package(pkg) => Ok(pkg),
-        SuiRawData::MoveObject(_) => Err(anyhow!("Object found when package expected")),
+        IotaRawData::Package(pkg) => Ok(pkg),
+        IotaRawData::MoveObject(_) => Err(anyhow!("Object found when package expected")),
     }?;
 
     let existing_modules = existing_package

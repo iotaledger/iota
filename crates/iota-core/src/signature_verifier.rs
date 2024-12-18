@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use either::Either;
@@ -8,22 +9,22 @@ use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
 use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
 use itertools::{izip, Itertools as _};
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use parking_lot::{Mutex, MutexGuard, RwLock};
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use shared_crypto::intent::Intent;
 use std::sync::Arc;
-use sui_types::digests::SenderSignedDataDigest;
-use sui_types::digests::ZKLoginInputsDigest;
-use sui_types::signature_verification::{
+use iota_types::digests::SenderSignedDataDigest;
+use iota_types::digests::ZKLoginInputsDigest;
+use iota_types::signature_verification::{
     verify_sender_signed_data_message_signatures, VerifiedDigestCache,
 };
-use sui_types::transaction::SenderSignedData;
-use sui_types::{
+use iota_types::transaction::SenderSignedData;
+use iota_types::{
     committee::Committee,
     crypto::{AuthoritySignInfoTrait, VerificationObligation},
     digests::CertificateDigest,
-    error::{SuiError, SuiResult},
+    error::{IotaError, IotaResult},
     message_envelope::Message,
     messages_checkpoint::SignedCheckpointSummary,
     signature::VerifyParams,
@@ -45,7 +46,7 @@ const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
 // not heavily loaded).
 const MAX_BATCH_SIZE: usize = 8;
 
-type Sender = oneshot::Sender<SuiResult<VerifiedCertificate>>;
+type Sender = oneshot::Sender<IotaResult<VerifiedCertificate>>;
 
 struct CertBuffer {
     certs: Vec<CertifiedTransaction>,
@@ -192,7 +193,7 @@ impl SignatureVerifier {
         &self,
         certs: Vec<&CertifiedTransaction>,
         checkpoints: Vec<&SignedCheckpointSummary>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let certs: Vec<_> = certs
             .into_iter()
             .filter(|cert| !self.certificate_cache.is_cached(&cert.certificate_digest()))
@@ -210,7 +211,7 @@ impl SignatureVerifier {
     }
 
     /// Verifies one cert asynchronously, in a batch.
-    pub async fn verify_cert(&self, cert: CertifiedTransaction) -> SuiResult<VerifiedCertificate> {
+    pub async fn verify_cert(&self, cert: CertifiedTransaction) -> IotaResult<VerifiedCertificate> {
         let cert_digest = cert.certificate_digest();
         if self.certificate_cache.is_cached(&cert_digest) {
             return Ok(VerifiedCertificate::new_unchecked(cert));
@@ -224,7 +225,7 @@ impl SignatureVerifier {
     pub async fn multi_verify_certs(
         &self,
         certs: Vec<CertifiedTransaction>,
-    ) -> Vec<SuiResult<VerifiedCertificate>> {
+    ) -> Vec<IotaResult<VerifiedCertificate>> {
         // TODO: We could do better by pushing the all of `certs` into the verification queue at once,
         // but that's significantly more complex.
         let mut futures = Vec::with_capacity(certs.len());
@@ -238,11 +239,11 @@ impl SignatureVerifier {
     pub async fn verify_cert_skip_cache(
         &self,
         cert: CertifiedTransaction,
-    ) -> SuiResult<VerifiedCertificate> {
+    ) -> IotaResult<VerifiedCertificate> {
         // this is the only innocent error we are likely to encounter - filter it before we poison
         // a whole batch.
         if cert.auth_sig().epoch != self.committee.epoch() {
-            return Err(SuiError::WrongEpoch {
+            return Err(IotaError::WrongEpoch {
                 expected_epoch: self.committee.epoch(),
                 actual_epoch: cert.auth_sig().epoch,
             });
@@ -254,7 +255,7 @@ impl SignatureVerifier {
     async fn verify_cert_inner(
         &self,
         cert: CertifiedTransaction,
-    ) -> SuiResult<VerifiedCertificate> {
+    ) -> IotaResult<VerifiedCertificate> {
         // Cancellation safety: we use parking_lot locks, which cannot be held across awaits.
         // Therefore once the queue has been taken by a thread, it is guaranteed to process the
         // queue and send all results before the future can be cancelled by the caller.
@@ -378,7 +379,7 @@ impl SignatureVerifier {
         self.jwks.read().clone()
     }
 
-    pub fn verify_tx(&self, signed_tx: &SenderSignedData) -> SuiResult {
+    pub fn verify_tx(&self, signed_tx: &SenderSignedData) -> IotaResult {
         self.signed_data_cache.is_verified(
             signed_tx.full_message_digest(),
             || {
@@ -522,7 +523,7 @@ pub fn batch_verify_all_certificates_and_checkpoints(
     committee: &Committee,
     certs: &[&CertifiedTransaction],
     checkpoints: &[&SignedCheckpointSummary],
-) -> SuiResult {
+) -> IotaResult {
     // certs.data() is assumed to be verified already by the caller.
 
     for ckpt in checkpoints {
@@ -537,7 +538,7 @@ pub fn batch_verify_certificates(
     committee: &Committee,
     certs: &[&CertifiedTransaction],
     zk_login_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
-) -> Vec<SuiResult> {
+) -> Vec<IotaResult> {
     // certs.data() is assumed to be verified already by the caller.
     let verify_params = VerifyParams::default();
     match batch_verify(committee, certs, &[]) {
@@ -561,17 +562,17 @@ fn batch_verify(
     committee: &Committee,
     certs: &[&CertifiedTransaction],
     checkpoints: &[&SignedCheckpointSummary],
-) -> SuiResult {
+) -> IotaResult {
     let mut obligation = VerificationObligation::default();
 
     for cert in certs {
-        let idx = obligation.add_message(cert.data(), cert.epoch(), Intent::sui_app(cert.scope()));
+        let idx = obligation.add_message(cert.data(), cert.epoch(), Intent::iota_app(cert.scope()));
         cert.auth_sig()
             .add_to_verification_obligation(committee, &mut obligation, idx)?;
     }
 
     for ckpt in checkpoints {
-        let idx = obligation.add_message(ckpt.data(), ckpt.epoch(), Intent::sui_app(ckpt.scope()));
+        let idx = obligation.add_message(ckpt.data(), ckpt.epoch(), Intent::iota_app(ckpt.scope()));
         ckpt.auth_sig()
             .add_to_verification_obligation(committee, &mut obligation, idx)?;
     }

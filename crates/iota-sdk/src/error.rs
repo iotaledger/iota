@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use crate::json_rpc_error::Error as JsonRpcError;
-use sui_types::base_types::{SuiAddress, TransactionDigest};
-use sui_types::error::UserInputError;
+use iota_types::base_types::{IotaAddress, TransactionDigest};
+use iota_types::error::UserInputError;
 use thiserror::Error;
 
-pub type SuiRpcResult<T = ()> = Result<T, Error>;
+pub type IotaRpcResult<T = ()> = Result<T, Error>;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -30,5 +31,5 @@ pub enum Error {
         server_version: String,
     },
     #[error("Insufficient fund for address [{address}], requested amount: {amount}")]
-    InsufficientFund { address: SuiAddress, amount: u128 },
+    InsufficientFund { address: IotaAddress, amount: u128 },
 }

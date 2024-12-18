@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
@@ -9,22 +10,22 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
-use sui_core::authority::AuthorityState;
-use sui_macros::*;
-use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
+use iota_core::authority::AuthorityState;
+use iota_macros::*;
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, IotaAddress},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    sui_system_state::{
-        sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary},
-        SuiSystemStateTrait,
+    iota_system_state::{
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+        IotaSystemStateTrait,
     },
     transaction::{Argument, Command, ObjectArg, ProgrammableTransaction},
-    SUI_SYSTEM_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID,
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -69,14 +70,14 @@ trait StatePredicate {
 struct StressTestRunner {
     pub post_epoch_predicates: Vec<Box<dyn StatePredicate + Send + Sync>>,
     pub test_cluster: TestCluster,
-    pub accounts: Vec<SuiAddress>,
-    pub active_validators: BTreeSet<SuiAddress>,
-    pub preactive_validators: BTreeMap<SuiAddress, u64>,
-    pub removed_validators: BTreeSet<SuiAddress>,
-    pub delegation_requests_this_epoch: BTreeMap<ObjectID, SuiAddress>,
+    pub accounts: Vec<IotaAddress>,
+    pub active_validators: BTreeSet<IotaAddress>,
+    pub preactive_validators: BTreeMap<IotaAddress, u64>,
+    pub removed_validators: BTreeSet<IotaAddress>,
+    pub delegation_requests_this_epoch: BTreeMap<ObjectID, IotaAddress>,
     pub delegation_withdraws_this_epoch: u64,
-    pub delegations: BTreeMap<ObjectID, SuiAddress>,
-    pub reports: BTreeMap<SuiAddress, BTreeSet<SuiAddress>>,
+    pub delegations: BTreeMap<ObjectID, IotaAddress>,
+    pub reports: BTreeMap<IotaAddress, BTreeSet<IotaAddress>>,
     pub rng: StdRng,
 }
 
@@ -108,18 +109,18 @@ impl StressTestRunner {
         }
     }
 
-    pub fn pick_random_sender(&mut self) -> SuiAddress {
+    pub fn pick_random_sender(&mut self) -> IotaAddress {
         self.accounts[self.rng.gen_range(0..self.accounts.len())]
     }
 
-    pub fn system_state(&self) -> SuiSystemStateSummary {
+    pub fn system_state(&self) -> IotaSystemStateSummary {
         self.state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap()
-            .into_sui_system_state_summary()
+            .into_iota_system_state_summary()
     }
 
-    pub fn pick_random_active_validator(&mut self) -> SuiValidatorSummary {
+    pub fn pick_random_active_validator(&mut self) -> IotaValidatorSummary {
         let system_state = self.system_state();
         system_state
             .active_validators
@@ -128,7 +129,7 @@ impl StressTestRunner {
             .clone()
     }
 
-    pub async fn run(&self, sender: SuiAddress, pt: ProgrammableTransaction) -> TransactionEffects {
+    pub async fn run(&self, sender: IotaAddress, pt: ProgrammableTransaction) -> TransactionEffects {
         let rgp = self.test_cluster.get_reference_gas_price().await;
         let gas_object = self
             .test_cluster
@@ -168,9 +169,9 @@ impl StressTestRunner {
                 .get_object_by_key(&obj_ref.0, obj_ref.1);
             let Some(object) = object_opt else { continue };
             let struct_tag = object.struct_tag().unwrap();
-            let total_sui =
-                object.get_total_sui(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
-            println!(">> {struct_tag} TOTAL_SUI: {total_sui}");
+            let total_iota =
+                object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
+            println!(">> {struct_tag} TOTAL_IOTA: {total_iota}");
         }
 
         println!("MUTATED:");
@@ -180,9 +181,9 @@ impl StressTestRunner {
                 .get_object_by_key(&obj_ref.0, obj_ref.1)
                 .unwrap();
             let struct_tag = object.struct_tag().unwrap();
-            let total_sui =
-                object.get_total_sui(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
-            println!(">> {struct_tag} TOTAL_SUI: {total_sui}");
+            let total_iota =
+                object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
+            println!(">> {struct_tag} TOTAL_IOTA: {total_iota}");
         }
 
         println!("SHARED:");
@@ -193,9 +194,9 @@ impl StressTestRunner {
                 .get_object_by_key(&obj_id, version)
                 .unwrap();
             let struct_tag = object.struct_tag().unwrap();
-            let total_sui =
-                object.get_total_sui(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
-            println!(">> {struct_tag} TOTAL_SUI: {total_sui}");
+            let total_iota =
+                object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
+            println!(">> {struct_tag} TOTAL_IOTA: {total_iota}");
         }
     }
 
@@ -205,7 +206,7 @@ impl StressTestRunner {
     }*/
 
     pub fn state(&self) -> Arc<AuthorityState> {
-        self.test_cluster.fullnode_handle.sui_node.state()
+        self.test_cluster.fullnode_handle.iota_node.state()
     }
 
     pub async fn change_epoch(&self) {
@@ -261,14 +262,14 @@ impl StressTestRunner {
 
 mod add_stake {
     use super::*;
-    use sui_types::effects::TransactionEffects;
+    use iota_types::effects::TransactionEffects;
 
     pub struct RequestAddStakeGen;
 
     pub struct RequestAddStake {
-        sender: SuiAddress,
+        sender: IotaAddress,
         stake_amount: u64,
-        staked_with: SuiAddress,
+        staked_with: IotaAddress,
     }
 
     impl GenStateChange for RequestAddStakeGen {
@@ -278,7 +279,7 @@ mod add_stake {
             let stake_amount = runner
                 .rng
                 .gen_range(MIN_DELEGATION_AMOUNT..=MAX_DELEGATION_AMOUNT);
-            let staked_with = runner.pick_random_active_validator().sui_address;
+            let staked_with = runner.pick_random_active_validator().iota_address;
             let sender = runner.pick_random_sender();
             RequestAddStake {
                 sender,
@@ -293,12 +294,12 @@ mod add_stake {
         async fn run(&mut self, runner: &mut StressTestRunner) -> Result<TransactionEffects> {
             let pt = {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                builder.obj(ObjectArg::SUI_SYSTEM_MUT).unwrap();
+                builder.obj(ObjectArg::IOTA_SYSTEM_MUT).unwrap();
                 builder.pure(self.staked_with).unwrap();
                 let coin = StressTestRunner::split_off(&mut builder, self.stake_amount);
                 move_call! {
                     builder,
-                    (SUI_SYSTEM_PACKAGE_ID)::sui_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
+                    (IOTA_SYSTEM_PACKAGE_ID)::iota_system::request_add_stake(Argument::Input(0), coin, Argument::Input(1))
                 };
                 builder.finish()
             };
@@ -312,10 +313,10 @@ mod add_stake {
             runner: &StressTestRunner,
             effects: &TransactionEffects,
         ) {
-            // Assert that a `StakedSui` object matching the amount delegated is created.
-            // Assert that this staked sui
+            // Assert that a `StakedIota` object matching the amount delegated is created.
+            // Assert that this staked iota
             let object = runner
-                .get_created_object_of_type_name(effects, "StakedSui")
+                .get_created_object_of_type_name(effects, "StakedIota")
                 .await
                 .unwrap();
             let state = runner.state();
@@ -325,7 +326,7 @@ mod add_stake {
                 .executor()
                 .type_layout_resolver(Box::new(cache.as_ref()));
             let staked_amount =
-                object.get_total_sui(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
+                object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
             assert_eq!(staked_amount, self.stake_amount);
             assert_eq!(object.owner.get_owner_address().unwrap(), self.sender);
             runner.display_effects(effects);

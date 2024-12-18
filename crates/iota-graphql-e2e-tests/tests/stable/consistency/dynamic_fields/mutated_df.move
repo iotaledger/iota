@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // version | status
@@ -13,7 +14,7 @@
 
 //# publish
 module Test::M1 {
-    use sui::dynamic_field as field;
+    use iota::dynamic_field as field;
     use std::string::{String, utf8};
 
     public struct Parent has key, store {

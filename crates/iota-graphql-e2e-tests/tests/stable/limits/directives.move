@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses Test=0x0 --accounts A --simulator
@@ -43,7 +44,7 @@ fragment Modules on Object @deprecated {
 
 //# run-graphql
 
-query($id: SuiAddress! @deprecated) {
+query($id: IotaAddress! @deprecated) {
   object(id: $id) {
     address
   }

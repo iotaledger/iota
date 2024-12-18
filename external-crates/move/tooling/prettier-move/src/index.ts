@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -72,12 +73,12 @@ export const options: Record<string, SupportOption> = {
 			{
 				value: 'package',
 				description:
-					'Group imports by package, eg `use sui::{balance::Balance, coin::Coin}',
+					'Group imports by package, eg `use iota::{balance::Balance, coin::Coin}',
 			},
 			{
 				value: 'module',
 				description:
-					'Group imports by module eg\n`use sui::balance::Balance;\nuse sui::coin::Coin`',
+					'Group imports by module eg\n`use iota::balance::Balance;\nuse iota::coin::Coin`',
 			},
 		],
 	},

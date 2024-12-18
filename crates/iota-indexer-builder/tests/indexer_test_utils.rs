@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -11,13 +12,13 @@ use prometheus::{IntCounterVec, IntGaugeVec};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 
-use sui_indexer_builder::indexer_builder::{
+use iota_indexer_builder::indexer_builder::{
     DataMapper, DataSender, Datasource, IndexerProgressStore, Persistent,
 };
-use sui_indexer_builder::metrics::IndexerMetricProvider;
-use sui_indexer_builder::{Task, Tasks, LIVE_TASK_TARGET_CHECKPOINT};
+use iota_indexer_builder::metrics::IndexerMetricProvider;
+use iota_indexer_builder::{Task, Tasks, LIVE_TASK_TARGET_CHECKPOINT};
 
 pub struct TestDatasource<T> {
     pub data: Vec<T>,

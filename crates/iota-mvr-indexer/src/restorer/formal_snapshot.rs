@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -14,13 +15,13 @@ use tokio::sync::{Mutex, Semaphore};
 use tokio::task;
 use tracing::info;
 
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_core::authority::authority_store_tables::LiveObject;
-use sui_snapshot::reader::{download_bytes, LiveObjectIter, StateSnapshotReaderV1};
-use sui_snapshot::FileMetadata;
-use sui_storage::object_store::util::get;
-use sui_storage::object_store::ObjectStoreGetExt;
-use sui_types::accumulator::Accumulator;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_core::authority::authority_store_tables::LiveObject;
+use iota_snapshot::reader::{download_bytes, LiveObjectIter, StateSnapshotReaderV1};
+use iota_snapshot::FileMetadata;
+use iota_storage::object_store::util::get;
+use iota_storage::object_store::ObjectStoreGetExt;
+use iota_types::accumulator::Accumulator;
 
 use crate::config::RestoreConfig;
 use crate::errors::IndexerError;

@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@mysten/sui/bcs';
-import type { OrderArguments, PaginatedEvents, PaginationArguments } from '@mysten/sui/client';
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-import type { Argument, TransactionObjectInput, TransactionResult } from '@mysten/sui/transactions';
-import { Transaction } from '@mysten/sui/transactions';
+import { bcs } from '@iota/iota-sdk/bcs';
+import type { OrderArguments, PaginatedEvents, PaginationArguments } from '@iota/iota-sdk/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import type { Argument, TransactionObjectInput, TransactionResult } from '@iota/iota-sdk/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import {
 	normalizeStructTag,
-	normalizeSuiAddress,
-	normalizeSuiObjectId,
+	normalizeIotaAddress,
+	normalizeIotaObjectId,
 	parseStructTag,
-	SUI_CLOCK_OBJECT_ID,
-} from '@mysten/sui/utils';
+	IOTA_CLOCK_OBJECT_ID,
+} from '@iota/iota-sdk/utils';
 
 import { BcsOrder } from './types/bcs.js';
 import type {
@@ -28,23 +29,23 @@ import {
 	CREATION_FEE,
 	MODULE_CLOB,
 	MODULE_CUSTODIAN,
-	NORMALIZED_SUI_COIN_TYPE,
+	NORMALIZED_IOTA_COIN_TYPE,
 	ORDER_DEFAULT_EXPIRATION_IN_MS,
 	PACKAGE_ID,
 } from './utils/index.js';
 
-const DUMMY_ADDRESS = normalizeSuiAddress('0x0');
+const DUMMY_ADDRESS = normalizeIotaAddress('0x0');
 
 export class DeepBookClient {
 	#poolTypeArgsCache: Map<string, string[]> = new Map();
 	/**
 	 *
-	 * @param suiClient connection to fullnode
+	 * @param iotaClient connection to fullnode
 	 * @param accountCap (optional) only required for wrting operations
 	 * @param currentAddress (optional) address of the current user (default: DUMMY_ADDRESS)
 	 */
 	constructor(
-		public suiClient: SuiClient = new SuiClient({ url: getFullnodeUrl('testnet') }),
+		public iotaClient: IotaClient = new IotaClient({ url: getFullnodeUrl('testnet') }),
 		public accountCap: string | undefined = undefined,
 		public currentAddress: string = DUMMY_ADDRESS,
 		private clientOrderId: number = 0,
@@ -164,7 +165,7 @@ export class DeepBookClient {
 	/**
 	 * @description construct transaction for depositing asset into a pool.
 	 * @param poolId the pool id for the deposit
-	 * @param coinId the coin used for the deposit. You can omit this argument if you are depositing SUI, in which case
+	 * @param coinId the coin used for the deposit. You can omit this argument if you are depositing IOTA, in which case
 	 * gas coin will be used
 	 * @param amount the amount of coin to deposit. If omitted, the entire balance of the coin will be deposited
 	 */
@@ -176,18 +177,18 @@ export class DeepBookClient {
 		const tx = new Transaction();
 
 		const [baseAsset, quoteAsset] = await this.getPoolTypeArgs(poolId);
-		const hasSui =
-			baseAsset === NORMALIZED_SUI_COIN_TYPE || quoteAsset === NORMALIZED_SUI_COIN_TYPE;
+		const hasIota =
+			baseAsset === NORMALIZED_IOTA_COIN_TYPE || quoteAsset === NORMALIZED_IOTA_COIN_TYPE;
 
-		if (coinId === undefined && !hasSui) {
-			throw new Error('coinId must be specified if neither baseAsset nor quoteAsset is SUI');
+		if (coinId === undefined && !hasIota) {
+			throw new Error('coinId must be specified if neither baseAsset nor quoteAsset is IOTA');
 		}
 
 		const inputCoin = coinId ? tx.object(coinId) : tx.gas;
 
 		const [coin] = quantity ? tx.splitCoins(inputCoin, [quantity]) : [inputCoin];
 
-		const coinType = coinId ? await this.getCoinType(coinId) : NORMALIZED_SUI_COIN_TYPE;
+		const coinType = coinId ? await this.getCoinType(coinId) : NORMALIZED_IOTA_COIN_TYPE;
 		if (coinType !== baseAsset && coinType !== quoteAsset) {
 			throw new Error(
 				`coin ${coinId} of ${coinType} type is not a valid asset for pool ${poolId}, which supports ${baseAsset} and ${quoteAsset}`,
@@ -262,7 +263,7 @@ export class DeepBookClient {
 			tx.pure.bool(orderType === 'bid'),
 			tx.pure.u64(expirationTimestamp),
 			tx.pure.u8(restriction),
-			tx.object(SUI_CLOCK_OBJECT_ID),
+			tx.object(IOTA_CLOCK_OBJECT_ID),
 			tx.object(this.#checkAccountCap()),
 		];
 		tx.moveCall({
@@ -320,7 +321,7 @@ export class DeepBookClient {
 				tx.pure.bool(orderType === 'bid'),
 				baseCoin ? tx.object(baseCoin) : emptyCoin,
 				quoteCoin ? tx.object(quoteCoin) : emptyCoin,
-				tx.object(SUI_CLOCK_OBJECT_ID),
+				tx.object(IOTA_CLOCK_OBJECT_ID),
 			],
 		});
 		const recipient = this.#checkAddress(recipientAddress);
@@ -357,7 +358,7 @@ export class DeepBookClient {
 				tx.pure.u64(clientOrderId ?? this.#nextClientOrderId()),
 				tx.object(this.#checkAccountCap()),
 				tx.pure.u64(String(amountIn)),
-				tx.object(SUI_CLOCK_OBJECT_ID),
+				tx.object(IOTA_CLOCK_OBJECT_ID),
 				tx.object(tokenObjectIn),
 			],
 		});
@@ -398,7 +399,7 @@ export class DeepBookClient {
 					target: `0x2::coin::zero`,
 					arguments: [],
 				}),
-				tx.object(SUI_CLOCK_OBJECT_ID),
+				tx.object(IOTA_CLOCK_OBJECT_ID),
 			],
 		});
 		tx.transferObjects([base_coin_ret], currentAddress);
@@ -470,7 +471,7 @@ export class DeepBookClient {
 			target: `${PACKAGE_ID}::${MODULE_CLOB}::clean_up_expired_orders`,
 			arguments: [
 				tx.object(poolId),
-				tx.object(SUI_CLOCK_OBJECT_ID),
+				tx.object(IOTA_CLOCK_OBJECT_ID),
 				bcs.vector(bcs.U64).serialize(orderIds),
 				bcs.vector(bcs.Address).serialize(orderOwners),
 			],
@@ -486,7 +487,7 @@ export class DeepBookClient {
 	async getAllPools(
 		input: PaginationArguments<PaginatedEvents['nextCursor']> & OrderArguments,
 	): Promise<PaginatedPoolSummary> {
-		const resp = await this.suiClient.queryEvents({
+		const resp = await this.iotaClient.queryEvents({
 			query: { MoveEventType: `${PACKAGE_ID}::${MODULE_CLOB}::PoolCreated` },
 			...input,
 		});
@@ -511,7 +512,7 @@ export class DeepBookClient {
 	 * @returns Metadata for the Pool
 	 */
 	async getPoolInfo(poolId: string): Promise<PoolSummary> {
-		const resp = await this.suiClient.getObject({
+		const resp = await this.iotaClient.getObject({
 			id: poolId,
 			options: { showContent: true },
 		});
@@ -558,7 +559,7 @@ export class DeepBookClient {
 			arguments: [tx.object(poolId), tx.pure.u64(orderId), tx.object(cap)],
 		});
 		const results = (
-			await this.suiClient.devInspectTransactionBlock({
+			await this.iotaClient.devInspectTransactionBlock({
 				transactionBlock: tx,
 				sender: this.currentAddress,
 			})
@@ -586,10 +587,10 @@ export class DeepBookClient {
 		tx.moveCall({
 			typeArguments: await this.getPoolTypeArgs(poolId),
 			target: `${PACKAGE_ID}::${MODULE_CLOB}::account_balance`,
-			arguments: [tx.object(normalizeSuiObjectId(poolId)), tx.object(cap)],
+			arguments: [tx.object(normalizeIotaObjectId(poolId)), tx.object(cap)],
 		});
 		const [availableBaseAmount, lockedBaseAmount, availableQuoteAmount, lockedQuoteAmount] = (
-			await this.suiClient.devInspectTransactionBlock({
+			await this.iotaClient.devInspectTransactionBlock({
 				transactionBlock: tx,
 				sender: this.currentAddress,
 			})
@@ -621,7 +622,7 @@ export class DeepBookClient {
 		});
 
 		const results = (
-			await this.suiClient.devInspectTransactionBlock({
+			await this.iotaClient.devInspectTransactionBlock({
 				transactionBlock: tx,
 				sender: this.currentAddress,
 			})
@@ -646,7 +647,7 @@ export class DeepBookClient {
 			arguments: [tx.object(poolId)],
 		});
 		const resp = (
-			await this.suiClient.devInspectTransactionBlock({
+			await this.iotaClient.devInspectTransactionBlock({
 				transactionBlock: tx,
 				sender: this.currentAddress,
 			})
@@ -680,7 +681,7 @@ export class DeepBookClient {
 					tx.object(poolId),
 					tx.pure.u64(lowerPrice),
 					tx.pure.u64(higherPrice),
-					tx.object(SUI_CLOCK_OBJECT_ID),
+					tx.object(IOTA_CLOCK_OBJECT_ID),
 				],
 			});
 			tx.moveCall({
@@ -690,7 +691,7 @@ export class DeepBookClient {
 					tx.object(poolId),
 					tx.pure.u64(lowerPrice),
 					tx.pure.u64(higherPrice),
-					tx.object(SUI_CLOCK_OBJECT_ID),
+					tx.object(IOTA_CLOCK_OBJECT_ID),
 				],
 			});
 		} else {
@@ -701,12 +702,12 @@ export class DeepBookClient {
 					tx.object(poolId),
 					tx.pure.u64(lowerPrice),
 					tx.pure.u64(higherPrice),
-					tx.object(SUI_CLOCK_OBJECT_ID),
+					tx.object(IOTA_CLOCK_OBJECT_ID),
 				],
 			});
 		}
 
-		const results = await this.suiClient.devInspectTransactionBlock({
+		const results = await this.iotaClient.devInspectTransactionBlock({
 			transactionBlock: tx,
 			sender: this.currentAddress,
 		});
@@ -744,18 +745,18 @@ export class DeepBookClient {
 		if (cap === undefined) {
 			throw new Error('accountCap is undefined, please call setAccountCap() first');
 		}
-		return normalizeSuiObjectId(cap);
+		return normalizeIotaObjectId(cap);
 	}
 
 	#checkAddress(recipientAddress: string): string {
 		if (recipientAddress === DUMMY_ADDRESS) {
 			throw new Error('Current address cannot be DUMMY_ADDRESS');
 		}
-		return normalizeSuiAddress(recipientAddress);
+		return normalizeIotaAddress(recipientAddress);
 	}
 
 	public async getCoinType(coinId: string) {
-		const resp = await this.suiClient.getObject({
+		const resp = await this.iotaClient.getObject({
 			id: coinId,
 			options: { showType: true },
 		});
@@ -764,7 +765,7 @@ export class DeepBookClient {
 
 		// Modification handle case like 0x2::coin::Coin<0xf398b9ecb31aed96c345538fb59ca5a1a2c247c5e60087411ead6c637129f1c4::fish::FISH>
 		if (
-			parsed?.address === NORMALIZED_SUI_COIN_TYPE.split('::')[0] &&
+			parsed?.address === NORMALIZED_IOTA_COIN_TYPE.split('::')[0] &&
 			parsed.module === 'coin' &&
 			parsed.name === 'Coin' &&
 			parsed.typeParams.length > 0

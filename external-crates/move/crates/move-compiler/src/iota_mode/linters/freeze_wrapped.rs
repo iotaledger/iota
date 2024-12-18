@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This analysis flags freezing instances of structs containing (transitively or not) other structs
@@ -16,12 +17,12 @@ use crate::{
     naming::ast as N,
     parser::ast::{self as P, Ability_},
     shared::{program_info::TypingProgramInfo, CompilationEnv, Identifier},
-    sui_mode::{
+    iota_mode::{
         linters::{
             LinterDiagnosticCategory, LinterDiagnosticCode, FREEZE_FUN, LINT_WARNING_PREFIX,
             PUBLIC_FREEZE_FUN, TRANSFER_MOD_NAME,
         },
-        SUI_ADDR_VALUE,
+        IOTA_ADDR_VALUE,
     },
     typing::{
         ast as T,
@@ -36,14 +37,14 @@ use std::{collections::BTreeMap, sync::Arc};
 const FREEZE_WRAPPING_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagnosticCategory::Sui as u8,
+    LinterDiagnosticCategory::Iota as u8,
     LinterDiagnosticCode::FreezeWrapped as u8,
     "attempting to freeze wrapped objects",
 );
 
 const FREEZE_FUNCTIONS: &[(AccountAddress, &str, &str)] = &[
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, PUBLIC_FREEZE_FUN),
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, FREEZE_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, PUBLIC_FREEZE_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, FREEZE_FUN),
 ];
 
 /// Information about a field that wraps other objects.

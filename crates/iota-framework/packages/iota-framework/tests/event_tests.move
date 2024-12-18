@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::event_tests {
-    use sui::event;
-    use sui::test_utils::assert_eq;
+module iota::event_tests {
+    use iota::event;
+    use iota::test_utils::assert_eq;
 
     public struct S1(u64) has copy, drop;
 

@@ -1,5 +1,5 @@
 ---
-source: crates/sui/src/unit_tests/upgrade_compatibility_tests.rs
+source: crates/iota/src/unit_tests/upgrade_compatibility_tests.rs
 expression: normalize_path(err.to_string())
 ---
 error[Compatibility E01003]: ability mismatch

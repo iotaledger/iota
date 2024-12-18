@@ -1,42 +1,43 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Transaction } from '@mysten/sui/transactions';
+import type { Transaction } from '@iota/iota-sdk/transactions';
 import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
 
 /** The latest API version of the signTransactionBlock API. */
-export type SuiSignTransactionBlockVersion = '1.0.0';
+export type IotaSignTransactionBlockVersion = '1.0.0';
 
 /**
- * @deprecated Use `sui:signTransaction` instead.
+ * @deprecated Use `iota:signTransaction` instead.
  *
  * A Wallet Standard feature for signing a transaction, and returning the
  * serialized transaction and transaction signature.
  */
-export type SuiSignTransactionBlockFeature = {
+export type IotaSignTransactionBlockFeature = {
 	/** Namespace for the feature. */
-	'sui:signTransactionBlock': {
+	'iota:signTransactionBlock': {
 		/** Version of the feature API. */
-		version: SuiSignTransactionBlockVersion;
-		/** @deprecated Use `sui:signTransaction` instead. */
-		signTransactionBlock: SuiSignTransactionBlockMethod;
+		version: IotaSignTransactionBlockVersion;
+		/** @deprecated Use `iota:signTransaction` instead. */
+		signTransactionBlock: IotaSignTransactionBlockMethod;
 	};
 };
 
-/** @deprecated Use `sui:signTransaction` instead. */
-export type SuiSignTransactionBlockMethod = (
-	input: SuiSignTransactionBlockInput,
-) => Promise<SuiSignTransactionBlockOutput>;
+/** @deprecated Use `iota:signTransaction` instead. */
+export type IotaSignTransactionBlockMethod = (
+	input: IotaSignTransactionBlockInput,
+) => Promise<IotaSignTransactionBlockOutput>;
 
 /** Input for signing transactions. */
-export interface SuiSignTransactionBlockInput {
+export interface IotaSignTransactionBlockInput {
 	transactionBlock: Transaction;
 	account: WalletAccount;
 	chain: IdentifierString;
 }
 
 /** Output of signing transactions. */
-export interface SuiSignTransactionBlockOutput extends SignedTransactionBlock {}
+export interface IotaSignTransactionBlockOutput extends SignedTransactionBlock {}
 
 export interface SignedTransactionBlock {
 	/** Transaction as base64 encoded bcs. */

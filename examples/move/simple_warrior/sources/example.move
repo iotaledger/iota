@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Demonstrates wrapping objects using the `Option` type.
@@ -40,7 +41,7 @@ public fun unequip(warrior: &mut Warrior): Sword {
 
 // === Tests ===
 #[test_only]
-use sui::test_scenario as ts;
+use iota::test_scenario as ts;
 
 #[test]
 fun test_equip_empty() {

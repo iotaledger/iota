@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::config::PeerConfig;
@@ -74,7 +75,7 @@ pub async fn proxy_handler(
         .get("Client-Request-Method")
         .and_then(|h| h.to_str().ok())
     {
-        Some("sui_executeTransactionBlock") => {
+        Some("iota_executeTransactionBlock") => {
             info!("Using execution peer");
             proxy_request(state, parts, body_bytes, PeerRole::Execution).await
         }
@@ -86,7 +87,7 @@ pub async fn proxy_handler(
                     return proxy_request(state, parts, body_bytes, PeerRole::Read).await;
                 }
             };
-            if let Some("sui_executeTransactionBlock") =
+            if let Some("iota_executeTransactionBlock") =
                 json_body.get("method").and_then(|m| m.as_str())
             {
                 proxy_request(state, parts, body_bytes, PeerRole::Execution).await

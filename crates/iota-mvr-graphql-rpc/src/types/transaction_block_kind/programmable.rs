@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
         move_function::MoveFunction,
         move_type::MoveType,
         object_read::ObjectRead,
-        sui_address::SuiAddress,
+        iota_address::IotaAddress,
         uint53::UInt53,
     },
 };
@@ -17,8 +18,8 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use sui_json_rpc_types::SuiArgument;
-use sui_types::transaction::{
+use iota_json_rpc_types::IotaArgument;
+use iota_types::transaction::{
     Argument as NativeArgument, CallArg as NativeCallArg, Command as NativeProgrammableTransaction,
     ObjectArg as NativeObjectArg, ProgrammableMoveCall as NativeMoveCallTransaction,
     ProgrammableTransaction as NativeProgrammableTransactionBlock,
@@ -52,7 +53,7 @@ struct OwnedOrImmutable {
 /// A Move object that's shared.
 #[derive(SimpleObject, Clone, Eq, PartialEq)]
 struct SharedInput {
-    address: SuiAddress,
+    address: IotaAddress,
     /// The version that this this object was shared at.
     initial_shared_version: UInt53,
     /// Controls whether the transaction block can reference the shared object as a mutable
@@ -134,7 +135,7 @@ struct PublishTransaction {
     modules: Vec<Base64>,
 
     /// IDs of the transitive dependencies of the package to be published.
-    dependencies: Vec<SuiAddress>,
+    dependencies: Vec<IotaAddress>,
 }
 
 /// Upgrades a Move Package.
@@ -144,10 +145,10 @@ struct UpgradeTransaction {
     modules: Vec<Base64>,
 
     /// IDs of the transitive dependencies of the package to be published.
-    dependencies: Vec<SuiAddress>,
+    dependencies: Vec<IotaAddress>,
 
     /// ID of the package being upgraded.
-    current_package: SuiAddress,
+    current_package: IotaAddress,
 
     /// The `UpgradeTicket` authorizing the upgrade.
     upgrade_ticket: TransactionArgument,
@@ -267,7 +268,7 @@ impl ProgrammableTransactionBlock {
 #[Object]
 impl MoveCallTransaction {
     /// The storage ID of the package the function being called is defined in.
-    async fn package(&self) -> SuiAddress {
+    async fn package(&self) -> IotaAddress {
         self.native.package.into()
     }
 
@@ -379,7 +380,7 @@ impl ProgrammableTransaction {
 
             N::Publish(modules, dependencies) => P::Publish(PublishTransaction {
                 modules: modules.into_iter().map(Base64::from).collect(),
-                dependencies: dependencies.into_iter().map(SuiAddress::from).collect(),
+                dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
             }),
 
             N::MakeMoveVec(type_, elements) => P::MakeMoveVec(MakeMoveVecTransaction {
@@ -393,7 +394,7 @@ impl ProgrammableTransaction {
             N::Upgrade(modules, dependencies, current_package, upgrade_ticket) => {
                 P::Upgrade(UpgradeTransaction {
                     modules: modules.into_iter().map(Base64::from).collect(),
-                    dependencies: dependencies.into_iter().map(SuiAddress::from).collect(),
+                    dependencies: dependencies.into_iter().map(IotaAddress::from).collect(),
                     current_package: current_package.into(),
                     upgrade_ticket: upgrade_ticket.into(),
                 })
@@ -415,9 +416,9 @@ impl From<NativeArgument> for TransactionArgument {
     }
 }
 
-impl From<SuiArgument> for TransactionArgument {
-    fn from(argument: SuiArgument) -> Self {
-        use SuiArgument as S;
+impl From<IotaArgument> for TransactionArgument {
+    fn from(argument: IotaArgument) -> Self {
+        use IotaArgument as S;
         use TransactionArgument as A;
         match argument {
             S::GasCoin => A::GasCoin(GasCoin { dummy: None }),

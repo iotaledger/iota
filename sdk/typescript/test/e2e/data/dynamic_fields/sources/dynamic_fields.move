@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module dynamic_fields::dynamic_fields_test;
 
-use sui::dynamic_field as dfield;
-use sui::dynamic_object_field as dof;
+use iota::dynamic_field as dfield;
+use iota::dynamic_object_field as dof;
 
 public struct Test has key {
     id: UID,

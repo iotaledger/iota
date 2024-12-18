@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(test)]
@@ -9,7 +10,7 @@ pub fn build_network(f: impl FnOnce(anemo::Router) -> anemo::Router) -> anemo::N
 #[cfg(test)]
 pub fn build_network_and_key(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
-) -> (anemo::Network, sui_types::crypto::NetworkKeyPair) {
+) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
     build_network_impl(f, None)
 }
 
@@ -17,7 +18,7 @@ pub fn build_network_and_key(
 pub fn build_network_with_anemo_config(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
     anemo_config: anemo::Config,
-) -> (anemo::Network, sui_types::crypto::NetworkKeyPair) {
+) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
     build_network_impl(f, Some(anemo_config))
 }
 
@@ -25,10 +26,10 @@ pub fn build_network_with_anemo_config(
 fn build_network_impl(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
     anemo_config: Option<anemo::Config>,
-) -> (anemo::Network, sui_types::crypto::NetworkKeyPair) {
+) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
     use fastcrypto::traits::KeyPair;
 
-    let keypair = sui_types::crypto::NetworkKeyPair::generate(&mut rand::thread_rng());
+    let keypair = iota_types::crypto::NetworkKeyPair::generate(&mut rand::thread_rng());
     let router = f(anemo::Router::new());
     let network = anemo::Network::bind("localhost:0")
         .private_key(keypair.copy().private().0.to_bytes())

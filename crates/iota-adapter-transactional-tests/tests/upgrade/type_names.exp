@@ -74,8 +74,8 @@ task 12, line 80:
 Owner: Account Address ( A )
 Version: 5
 Contents: A0::m::Canary {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(4,0),
         },
     },
@@ -152,8 +152,8 @@ task 13, line 82:
 Owner: Account Address ( A )
 Version: 6
 Contents: A0::m::Canary {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(5,0),
         },
     },
@@ -230,8 +230,8 @@ task 14, line 84:
 Owner: Account Address ( A )
 Version: 7
 Contents: A0::m::Canary {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(6,0),
         },
     },
@@ -308,8 +308,8 @@ task 15, line 86:
 Owner: Account Address ( A )
 Version: 8
 Contents: A0::m::Canary {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(7,0),
         },
     },
@@ -386,8 +386,8 @@ task 16, line 88:
 Owner: Account Address ( A )
 Version: 9
 Contents: A0::m::Canary {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(8,0),
         },
     },
@@ -464,8 +464,8 @@ task 17, line 90:
 Owner: Account Address ( A )
 Version: 10
 Contents: A0::m::Canary {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(9,0),
         },
     },
@@ -542,8 +542,8 @@ task 18, line 92:
 Owner: Account Address ( A )
 Version: 11
 Contents: A0::m::Canary {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(10,0),
         },
     },
@@ -620,8 +620,8 @@ task 19, line 94:
 Owner: Account Address ( A )
 Version: 12
 Contents: A0::m::Canary {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(11,0),
         },
     },

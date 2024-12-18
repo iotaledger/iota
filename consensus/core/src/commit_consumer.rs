@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::{Arc, RwLock};
 use tokio::sync::watch;
 
-use mysten_metrics::monitored_mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use iota_metrics::monitored_mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use crate::{CommitIndex, CommittedSubDag, TransactionIndex, VerifiedBlock};
 
@@ -57,7 +58,7 @@ impl CommitConsumer {
 }
 
 pub struct CommitConsumerMonitor {
-    // highest commit that has been handled by Sui
+    // highest commit that has been handled by Iota
     highest_handled_commit: watch::Sender<u32>,
 
     // the highest commit found in local storage at startup

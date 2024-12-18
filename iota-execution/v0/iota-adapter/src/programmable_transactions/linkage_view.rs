@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -7,17 +8,17 @@ use std::{
     str::FromStr,
 };
 
-use crate::execution_value::SuiResolver;
+use crate::execution_value::IotaResolver;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag},
     resolver::{LinkageResolver, ModuleResolver, ResourceResolver},
 };
-use sui_types::storage::{get_module, PackageObject};
-use sui_types::{
+use iota_types::storage::{get_module, PackageObject};
+use iota_types::{
     base_types::ObjectID,
-    error::{ExecutionError, SuiError, SuiResult},
+    error::{ExecutionError, IotaError, IotaResult},
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     storage::BackingPackageStore,
 };
@@ -26,7 +27,7 @@ use sui_types::{
 /// `resolver` and the second via linkage information that is loaded from a move package.
 pub struct LinkageView<'state> {
     /// Interface to resolve packages, modules and resources directly from the store.
-    resolver: Box<dyn SuiResolver + 'state>,
+    resolver: Box<dyn IotaResolver + 'state>,
     /// Information used to change module and type identities during linkage.
     linkage_info: LinkageInfo,
     /// Cache containing the type origin information from every package that has been set as the
@@ -63,7 +64,7 @@ pub struct PackageLinkage {
 pub struct SavedLinkage(PackageLinkage);
 
 impl<'state> LinkageView<'state> {
-    pub fn new(resolver: Box<dyn SuiResolver + 'state>, linkage_info: LinkageInfo) -> Self {
+    pub fn new(resolver: Box<dyn IotaResolver + 'state>, linkage_info: LinkageInfo) -> Self {
         Self {
             resolver,
             linkage_info,
@@ -237,7 +238,7 @@ impl From<&MovePackage> for PackageLinkage {
 }
 
 impl<'state> LinkageResolver for LinkageView<'state> {
-    type Error = SuiError;
+    type Error = IotaError;
 
     fn link_context(&self) -> AccountAddress {
         if let LinkageInfo::Set(linkage) = &self.linkage_info {
@@ -328,7 +329,7 @@ impl<'state> LinkageResolver for LinkageView<'state> {
 /** Remaining implementations delegated to state_view *************************/
 
 impl<'state> ResourceResolver for LinkageView<'state> {
-    type Error = SuiError;
+    type Error = IotaError;
 
     fn get_resource(
         &self,
@@ -340,7 +341,7 @@ impl<'state> ResourceResolver for LinkageView<'state> {
 }
 
 impl<'state> ModuleResolver for LinkageView<'state> {
-    type Error = SuiError;
+    type Error = IotaError;
 
     fn get_module(&self, id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         get_module(self, id)
@@ -348,7 +349,7 @@ impl<'state> ModuleResolver for LinkageView<'state> {
 }
 
 impl<'state> BackingPackageStore for LinkageView<'state> {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.resolver.get_package_object(package_id)
     }
 }

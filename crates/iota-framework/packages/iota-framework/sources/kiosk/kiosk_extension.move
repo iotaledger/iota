@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// This module implements the Kiosk Extensions functionality. It allows
@@ -38,12 +39,12 @@
 /// - `kiosk_extension` is a friend module to `kiosk` and has access to its
 /// internal functions (such as `place_internal` and `lock_internal` to
 /// implement custom authorization scheme for `place` and `lock` respectively).
-module sui::kiosk_extension;
+module iota::kiosk_extension;
 
-use sui::bag::{Self, Bag};
-use sui::dynamic_field as df;
-use sui::kiosk::{Kiosk, KioskOwnerCap};
-use sui::transfer_policy::TransferPolicy;
+use iota::bag::{Self, Bag};
+use iota::dynamic_field as df;
+use iota::kiosk::{Kiosk, KioskOwnerCap};
+use iota::transfer_policy::TransferPolicy;
 
 /// Trying to add an extension while not being the owner of the Kiosk.
 const ENotOwner: u64 = 0;

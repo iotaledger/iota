@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses tto=0x0
 
 //# publish
 module tto::M1 {
-    use sui::transfer::Receiving;
+    use iota::transfer::Receiving;
 
     public struct A has key, store {
         id: UID,
@@ -75,21 +76,21 @@ module tto::M1 {
 
 // make vec, then unpack it and make sure the type is fixed
 //# programmable --inputs object(2,0) receiving(2,1)
-//> 0: MakeMoveVec<sui::transfer::Receiving<tto::M1::A>>([Input(1)]);
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::A>>([Input(1)]);
 //> 1: tto::M1::unpacker_b(Result(0));
 
 //# programmable --inputs object(2,0) receiving(2,1)
-//> 0: MakeMoveVec<sui::transfer::Receiving<tto::M1::A>>([Input(1)]);
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::A>>([Input(1)]);
 //> 1: tto::M1::unpacker_a(Result(0));
 //> 2: tto::M1::receiver(Input(0), Result(1));
 
 // This is fine since we are going A -> A in the unpack. But we should fail the call.
 //# programmable --inputs object(2,0) receiving(2,1)
-//> 0: MakeMoveVec<sui::transfer::Receiving<tto::M1::A>>([Input(1)]);
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::A>>([Input(1)]);
 //> 1: tto::M1::unpacker_generic<tto::M1::A>(Result(0));
 //> 2: tto::M1::receiver(Input(0), Result(1));
 
 // This should fail since we're going A -> B in the unpack.
 //# programmable --inputs object(2,0) receiving(2,1)
-//> 0: MakeMoveVec<sui::transfer::Receiving<tto::M1::A>>([Input(1)]);
+//> 0: MakeMoveVec<iota::transfer::Receiving<tto::M1::A>>([Input(1)]);
 //> 1: tto::M1::unpacker_generic<tto::M1::B>(Result(0));

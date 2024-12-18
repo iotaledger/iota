@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// URL: standard Uniform Resource Locator string
-module sui::url;
+module iota::url;
 
 use std::ascii::String;
 

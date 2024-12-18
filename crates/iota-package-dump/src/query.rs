@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use cynic::Operation;
 use cynic::QueryBuilder;
 
-#[cynic::schema("sui")]
+#[cynic::schema("iota")]
 mod schema {}
 
 #[derive(cynic::Scalar, Debug)]
-pub(crate) struct SuiAddress(pub String);
+pub(crate) struct IotaAddress(pub String);
 
 #[derive(cynic::Scalar, Debug)]
 pub(crate) struct Base64(pub String);
@@ -99,7 +100,7 @@ pub(crate) mod packages {
 
     #[derive(cynic::QueryFragment, Debug)]
     pub(crate) struct MovePackage {
-        pub(crate) address: SuiAddress,
+        pub(crate) address: IotaAddress,
         pub(crate) bcs: Option<Base64>,
     }
 }

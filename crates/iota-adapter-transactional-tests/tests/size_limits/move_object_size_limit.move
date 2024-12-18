@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Test creating objects just below the size limit, and above it
@@ -8,7 +9,7 @@
 //# publish
 
 module Test::M1 {
-    use sui::bcs;
+    use iota::bcs;
 
     public struct S has key, store {
         id: UID,

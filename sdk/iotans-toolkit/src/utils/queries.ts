@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient, SuiObjectResponse } from '@mysten/sui/client';
+import type { IotaClient, IotaObjectResponse } from '@iota/iota-sdk/client';
 
 // get NFT's owner from RPC.
-export const getOwner = async (client: SuiClient, nftId: string): Promise<string | null> => {
+export const getOwner = async (client: IotaClient, nftId: string): Promise<string | null> => {
 	const ownerResponse = await client.getObject({
 		id: nftId,
 		options: { showOwner: true },
@@ -18,7 +19,7 @@ export const getOwner = async (client: SuiClient, nftId: string): Promise<string
 };
 
 // get avatar NFT Object from RPC.
-export const getAvatar = async (client: SuiClient, avatar: string): Promise<SuiObjectResponse> => {
+export const getAvatar = async (client: IotaClient, avatar: string): Promise<IotaObjectResponse> => {
 	return await client.getObject({
 		id: avatar,
 		options: {

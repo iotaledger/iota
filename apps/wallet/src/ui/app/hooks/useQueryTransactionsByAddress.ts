@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { FEATURES } from '_src/shared/experimentation/features';
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { type SuiTransactionBlockResponse } from '@mysten/sui/client';
+import { useIotaClient } from '@iota/dapp-kit';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 export function useQueryTransactionsByAddress(address: string | null) {
-	const rpc = useSuiClient();
+	const rpc = useIotaClient();
 	const refetchInterval = useFeatureValue(FEATURES.WALLET_ACTIVITY_REFETCH_INTERVAL, 20_000);
 
 	return useQuery({
@@ -39,7 +40,7 @@ export function useQueryTransactionsByAddress(address: string | null) {
 			]);
 
 			const inserted = new Map();
-			const uniqueList: SuiTransactionBlockResponse[] = [];
+			const uniqueList: IotaTransactionBlockResponse[] = [];
 
 			[...txnIds.data, ...fromTxnIds.data]
 				.sort((a, b) => Number(b.timestampMs ?? 0) - Number(a.timestampMs ?? 0))

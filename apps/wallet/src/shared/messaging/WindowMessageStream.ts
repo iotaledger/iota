@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Message } from '_messages';
 import { filter, fromEvent, map, share } from 'rxjs';
 import type { Observable } from 'rxjs';
 
-export type ClientType = 'sui_in-page' | 'sui_content-script';
+export type ClientType = 'iota_in-page' | 'iota_content-script';
 
 type WindowMessage = {
 	target: ClientType;

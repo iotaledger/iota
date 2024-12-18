@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests various valid operations involving SplitCoins
@@ -8,13 +9,13 @@
 
 //# publish
 module test::m1 {
-    use sui::coin;
+    use iota::coin;
 
     public fun ret_one_amount(): u64 {
         100
     }
 
-    public fun transfer_(v: vector<coin::Coin<sui::sui::SUI>>, r: address) {
+    public fun transfer_(v: vector<coin::Coin<iota::iota::IOTA>>, r: address) {
         v.do!(|c| {
             transfer::public_transfer(c, r);
         });
@@ -26,7 +27,7 @@ module test::m1 {
 //> TransferObjects([Result(0)], Input(1))
 
 // let's get ourselves a coin worth 1000
-//# run sui::pay::split_and_transfer --type-args sui::sui::SUI --args object(2,0) 1000 @A --sender A
+//# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(2,0) 1000 @A --sender A
 
 //# view-object 3,0
 
@@ -68,7 +69,7 @@ module test::m1 {
 //# programmable --sender A --inputs object(3,0) 100 @B
 //> 0: test::m1::ret_one_amount();
 //> 1: SplitCoins(Input(0), [Result(0), Input(1)]);
-//> 2: MakeMoveVec<sui::coin::Coin<sui::sui::SUI>>([NestedResult(1,0), NestedResult(1,1)]);
+//> 2: MakeMoveVec<iota::coin::Coin<iota::iota::IOTA>>([NestedResult(1,0), NestedResult(1,1)]);
 //> test::m1::transfer_(Result(2), Input(2));
 
 //# view-object 3,0

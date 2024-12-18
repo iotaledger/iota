@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -7,7 +8,7 @@
  *  ######################################
  *
  * This file is generated from:
- * /crates/sui-open-rpc/spec/openrpc.json
+ * /crates/iota-open-rpc/spec/openrpc.json
  */
 
 import type { Transaction } from '../../transactions/index.js';
@@ -55,7 +56,7 @@ export interface ExecuteTransactionBlockParams {
 	 */
 	signature: string | string[];
 	/** options for specifying the content to be returned */
-	options?: RpcTypes.SuiTransactionBlockResponseOptions | null | undefined;
+	options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
 	/** @deprecated requestType will be ignored by JSON RPC in the future */
 	requestType?: RpcTypes.ExecuteTransactionRequestType | null | undefined;
 }
@@ -117,7 +118,7 @@ export interface GetObjectParams {
 	/** the ID of the queried object */
 	id: string;
 	/** options for specifying the content to be returned */
-	options?: RpcTypes.SuiObjectDataOptions | null | undefined;
+	options?: RpcTypes.IotaObjectDataOptions | null | undefined;
 }
 /**
  * Return the protocol config table for the given version number. If the version number is not
@@ -137,14 +138,14 @@ export interface GetTransactionBlockParams {
 	/** the digest of the queried transaction */
 	digest: string;
 	/** options for specifying the content to be returned */
-	options?: RpcTypes.SuiTransactionBlockResponseOptions | null | undefined;
+	options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
 }
 /** Return the object data for a list of objects */
 export interface MultiGetObjectsParams {
 	/** the IDs of the queried objects */
 	ids: string[];
 	/** options for specifying the content to be returned */
-	options?: RpcTypes.SuiObjectDataOptions | null | undefined;
+	options?: RpcTypes.IotaObjectDataOptions | null | undefined;
 }
 /**
  * Returns an ordered list of transaction responses The method will throw an error if the input
@@ -154,7 +155,7 @@ export interface MultiGetTransactionBlocksParams {
 	/** A list of transaction digests. */
 	digests: string[];
 	/** config options to control which fields to fetch */
-	options?: RpcTypes.SuiTransactionBlockResponseOptions | null | undefined;
+	options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
 }
 /**
  * Note there is no software-level guarantee/SLA that objects with past versions can be retrieved by
@@ -167,7 +168,7 @@ export interface TryGetPastObjectParams {
 	/** the version of the queried object. If None, default to the latest known version */
 	version: number;
 	/** options for specifying the content to be returned */
-	options?: RpcTypes.SuiObjectDataOptions | null | undefined;
+	options?: RpcTypes.IotaObjectDataOptions | null | undefined;
 }
 /**
  * Note there is no software-level guarantee/SLA that objects with past versions can be retrieved by
@@ -178,16 +179,16 @@ export interface TryMultiGetPastObjectsParams {
 	/** a vector of object and versions to be queried */
 	pastObjects: RpcTypes.GetPastObjectRequest[];
 	/** options for specifying the content to be returned */
-	options?: RpcTypes.SuiObjectDataOptions | null | undefined;
+	options?: RpcTypes.IotaObjectDataOptions | null | undefined;
 }
 /** Return the total coin balance for all coin type, owned by the address owner. */
 export interface GetAllBalancesParams {
-	/** the owner's Sui address */
+	/** the owner's Iota address */
 	owner: string;
 }
 /** Return all Coin objects owned by an address. */
 export interface GetAllCoinsParams {
-	/** the owner's Sui address */
+	/** the owner's Iota address */
 	owner: string;
 	/** optional paging cursor */
 	cursor?: string | null | undefined;
@@ -196,11 +197,11 @@ export interface GetAllCoinsParams {
 }
 /** Return the total coin balance for one coin type, owned by the address owner. */
 export interface GetBalanceParams {
-	/** the owner's Sui address */
+	/** the owner's Iota address */
 	owner: string;
 	/**
 	 * optional type names for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC),
-	 * default to 0x2::sui::SUI if not specified.
+	 * default to 0x2::iota::IOTA if not specified.
 	 */
 	coinType?: string | null | undefined;
 }
@@ -211,11 +212,11 @@ export interface GetCoinMetadataParams {
 }
 /** Return all Coin<`coin_type`> objects owned by an address. */
 export interface GetCoinsParams {
-	/** the owner's Sui address */
+	/** the owner's Iota address */
 	owner: string;
 	/**
 	 * optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC),
-	 * default to 0x2::sui::SUI if not specified.
+	 * default to 0x2::iota::IOTA if not specified.
 	 */
 	coinType?: string | null | undefined;
 	/** optional paging cursor */
@@ -247,15 +248,15 @@ export interface GetDynamicFieldsParams {
 	/** Maximum item returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
 	limit?: number | null | undefined;
 }
-/** Return the latest SUI system state object on-chain. */
-export interface GetLatestSuiSystemStateParams {}
+/** Return the latest IOTA system state object on-chain. */
+export interface GetLatestIotaSystemStateParams {}
 /**
  * Return the list of objects owned by an address. Note that if the address owns more than
  * `QUERY_MAX_RESULT_LIMIT` objects, the pagination is not accurate, because previous page may have
- * been updated when the next page is fetched. Please use suix_queryObjects if this is a concern.
+ * been updated when the next page is fetched. Please use iotax_queryObjects if this is a concern.
  */
 export type GetOwnedObjectsParams = {
-	/** the owner's Sui address */
+	/** the owner's Iota address */
 	owner: string;
 	/**
 	 * An optional paging cursor. If provided, the query will start from the next item after the specified
@@ -264,7 +265,7 @@ export type GetOwnedObjectsParams = {
 	cursor?: string | null | undefined;
 	/** Max number of items returned per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
 	limit?: number | null | undefined;
-} & RpcTypes.SuiObjectResponseQuery;
+} & RpcTypes.IotaObjectResponseQuery;
 /** Return the reference gas price for the network */
 export interface GetReferenceGasPriceParams {}
 /** Return all [DelegatedStake]. */
@@ -273,7 +274,7 @@ export interface GetStakesParams {
 }
 /** Return one or more [DelegatedStake]. If a Stake was withdrawn its status will be Unstaked. */
 export interface GetStakesByIdsParams {
-	stakedSuiIds: string[];
+	stakedIotaIds: string[];
 }
 /** Return total supply for a coin */
 export interface GetTotalSupplyParams {
@@ -285,10 +286,10 @@ export interface GetValidatorsApyParams {}
 /** Return list of events for a specified query criteria. */
 export interface QueryEventsParams {
 	/**
-	 * The event query criteria. See [Event filter](https://docs.sui.io/build/event_api#event-filters)
+	 * The event query criteria. See [Event filter](https://docs.iota.org/build/event_api#event-filters)
 	 * documentation for examples.
 	 */
-	query: RpcTypes.SuiEventFilter;
+	query: RpcTypes.IotaEventFilter;
 	/** optional paging cursor */
 	cursor?: RpcTypes.EventId | null | undefined;
 	/** maximum number of items per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified. */
@@ -307,7 +308,7 @@ export type QueryTransactionBlocksParams = {
 	limit?: number | null | undefined;
 	/** query result ordering, default to false (ascending order), oldest record first. */
 	order?: 'ascending' | 'descending' | null | undefined;
-} & RpcTypes.SuiTransactionBlockResponseQuery;
+} & RpcTypes.IotaTransactionBlockResponseQuery;
 /** Return the resolved address given resolver and name */
 export interface ResolveNameServiceAddressParams {
 	/** The name to resolve */
@@ -323,21 +324,21 @@ export interface ResolveNameServiceNamesParams {
 	cursor?: string | null | undefined;
 	limit?: number | null | undefined;
 }
-/** Subscribe to a stream of Sui event */
+/** Subscribe to a stream of Iota event */
 export interface SubscribeEventParams {
 	/**
 	 * The filter criteria of the event stream. See
-	 * [Event filter](https://docs.sui.io/build/event_api#event-filters) documentation for examples.
+	 * [Event filter](https://docs.iota.org/build/event_api#event-filters) documentation for examples.
 	 */
-	filter: RpcTypes.SuiEventFilter;
+	filter: RpcTypes.IotaEventFilter;
 }
-/** Subscribe to a stream of Sui transaction effects */
+/** Subscribe to a stream of Iota transaction effects */
 export interface SubscribeTransactionParams {
 	filter: RpcTypes.TransactionFilter;
 }
 /** Create an unsigned batched transaction. */
 export interface UnsafeBatchTransactionParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
 	/** list of transaction request parameters */
 	singleTransactionParams: RpcTypes.RPCTransactionRequestParams[];
@@ -349,11 +350,11 @@ export interface UnsafeBatchTransactionParams {
 	/** the gas budget, the transaction will fail if the gas cost exceed the budget */
 	gasBudget: string;
 	/** Whether this is a regular transaction or a Dev Inspect Transaction */
-	txnBuilderMode?: RpcTypes.SuiTransactionBlockBuilderMode | null | undefined;
+	txnBuilderMode?: RpcTypes.IotaTransactionBlockBuilderMode | null | undefined;
 }
 /** Create an unsigned transaction to merge multiple coins into one coin. */
 export interface UnsafeMergeCoinsParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
 	/** the coin object to merge into, this coin will remain after the transaction */
 	primaryCoin: string;
@@ -375,7 +376,7 @@ export interface UnsafeMergeCoinsParams {
  * function in the module of a given package.
  */
 export interface UnsafeMoveCallParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
 	/** the Move package ID, e.g. `0x2` */
 	packageObjectId: string;
@@ -386,7 +387,7 @@ export interface UnsafeMoveCallParams {
 	/** the type arguments of the Move function */
 	typeArguments: string[];
 	/**
-	 * the arguments to be passed into the Move function, in [SuiJson](https://docs.sui.io/build/sui-json)
+	 * the arguments to be passed into the Move function, in [IotaJson](https://docs.iota.org/build/iota-json)
 	 * format
 	 */
 	arguments: unknown[];
@@ -399,9 +400,9 @@ export interface UnsafeMoveCallParams {
 	gasBudget: string;
 	/**
 	 * Whether this is a Normal transaction or a Dev Inspect Transaction. Default to be
-	 * `SuiTransactionBlockBuilderMode::Commit` when it's None.
+	 * `IotaTransactionBlockBuilderMode::Commit` when it's None.
 	 */
-	executionMode?: RpcTypes.SuiTransactionBlockBuilderMode | null | undefined;
+	executionMode?: RpcTypes.IotaTransactionBlockBuilderMode | null | undefined;
 }
 /**
  * Send `Coin<T>` to a list of addresses, where `T` can be any coin type, following a list of amounts,
@@ -410,9 +411,9 @@ export interface UnsafeMoveCallParams {
  * auto-select one.
  */
 export interface UnsafePayParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
-	/** the Sui coins to be used in this transaction */
+	/** the Iota coins to be used in this transaction */
 	inputCoins: string[];
 	/** the recipients' addresses, the length of this vector must be the same as amounts. */
 	recipients: string[];
@@ -427,16 +428,16 @@ export interface UnsafePayParams {
 	gasBudget: string;
 }
 /**
- * Send all SUI coins to one recipient. This is for SUI coin only and does not require a separate gas
- * coin object. Specifically, what pay_all_sui does are: 1. accumulate all SUI from input coins and
- * deposit all SUI to the first input coin 2. transfer the updated first coin to the recipient and also
+ * Send all IOTA coins to one recipient. This is for IOTA coin only and does not require a separate gas
+ * coin object. Specifically, what pay_all_iota does are: 1. accumulate all IOTA from input coins and
+ * deposit all IOTA to the first input coin 2. transfer the updated first coin to the recipient and also
  * use this first coin as gas coin object. 3. the balance of the first input coin after tx is
  * sum(input_coins) - actual_gas_cost. 4. all other input coins other than the first are deleted.
  */
-export interface UnsafePayAllSuiParams {
-	/** the transaction signer's Sui address */
+export interface UnsafePayAllIotaParams {
+	/** the transaction signer's Iota address */
 	signer: string;
-	/** the Sui coins to be used in this transaction, including the coin for gas payment. */
+	/** the Iota coins to be used in this transaction, including the coin for gas payment. */
 	inputCoins: string[];
 	/** the recipient address, */
 	recipient: string;
@@ -444,18 +445,18 @@ export interface UnsafePayAllSuiParams {
 	gasBudget: string;
 }
 /**
- * Send SUI coins to a list of addresses, following a list of amounts. This is for SUI coin only and
- * does not require a separate gas coin object. Specifically, what pay_sui does are: 1. debit each
+ * Send IOTA coins to a list of addresses, following a list of amounts. This is for IOTA coin only and
+ * does not require a separate gas coin object. Specifically, what pay_iota does are: 1. debit each
  * input_coin to create new coin following the order of amounts and assign it to the corresponding
- * recipient. 2. accumulate all residual SUI from input coins left and deposit all SUI to the first
+ * recipient. 2. accumulate all residual IOTA from input coins left and deposit all IOTA to the first
  * input coin, then use the first input coin as the gas coin object. 3. the balance of the first input
  * coin after tx is sum(input_coins) - sum(amounts) - actual_gas_cost 4. all other input coints other
  * than the first one are deleted.
  */
-export interface UnsafePaySuiParams {
-	/** the transaction signer's Sui address */
+export interface UnsafePayIotaParams {
+	/** the transaction signer's Iota address */
 	signer: string;
-	/** the Sui coins to be used in this transaction, including the coin for gas payment. */
+	/** the Iota coins to be used in this transaction, including the coin for gas payment. */
 	inputCoins: string[];
 	/** the recipients' addresses, the length of this vector must be the same as amounts. */
 	recipients: string[];
@@ -466,7 +467,7 @@ export interface UnsafePaySuiParams {
 }
 /** Create an unsigned transaction to publish a Move package. */
 export interface UnsafePublishParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	sender: string;
 	/** the compiled bytes of a Move package */
 	compiledModules: string[];
@@ -482,13 +483,13 @@ export interface UnsafePublishParams {
 }
 /** Add stake to a validator's staking pool using multiple coins and amount. */
 export interface UnsafeRequestAddStakeParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
-	/** Coin<SUI> object to stake */
+	/** Coin<IOTA> object to stake */
 	coins: string[];
 	/** stake amount */
 	amount?: string | null | undefined;
-	/** the validator's Sui address */
+	/** the validator's Iota address */
 	validator: string;
 	/**
 	 * gas object to be used in this transaction, node will pick one from the signer's possession if not
@@ -500,10 +501,10 @@ export interface UnsafeRequestAddStakeParams {
 }
 /** Withdraw stake from a validator's staking pool. */
 export interface UnsafeRequestWithdrawStakeParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
-	/** StakedSui object ID */
-	stakedSui: string;
+	/** StakedIota object ID */
+	stakedIota: string;
 	/**
 	 * gas object to be used in this transaction, node will pick one from the signer's possession if not
 	 * provided
@@ -514,7 +515,7 @@ export interface UnsafeRequestWithdrawStakeParams {
 }
 /** Create an unsigned transaction to split a coin object into multiple coins. */
 export interface UnsafeSplitCoinParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
 	/** the coin object to be spilt */
 	coinObjectId: string;
@@ -530,7 +531,7 @@ export interface UnsafeSplitCoinParams {
 }
 /** Create an unsigned transaction to split a coin object into multiple equal-size coins. */
 export interface UnsafeSplitCoinEqualParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
 	/** the coin object to be spilt */
 	coinObjectId: string;
@@ -549,7 +550,7 @@ export interface UnsafeSplitCoinEqualParams {
  * must allow public transfers
  */
 export interface UnsafeTransferObjectParams {
-	/** the transaction signer's Sui address */
+	/** the transaction signer's Iota address */
 	signer: string;
 	/** the ID of the object to be transferred */
 	objectId: string;
@@ -560,21 +561,21 @@ export interface UnsafeTransferObjectParams {
 	gas?: string | null | undefined;
 	/** the gas budget, the transaction will fail if the gas cost exceed the budget */
 	gasBudget: string;
-	/** the recipient's Sui address */
+	/** the recipient's Iota address */
 	recipient: string;
 }
 /**
- * Create an unsigned transaction to send SUI coin object to a Sui address. The SUI object is also used
+ * Create an unsigned transaction to send IOTA coin object to a Iota address. The IOTA object is also used
  * as the gas object.
  */
-export interface UnsafeTransferSuiParams {
-	/** the transaction signer's Sui address */
+export interface UnsafeTransferIotaParams {
+	/** the transaction signer's Iota address */
 	signer: string;
-	/** the Sui coin object to be used in this transaction */
-	suiObjectId: string;
+	/** the Iota coin object to be used in this transaction */
+	iotaObjectId: string;
 	/** the gas budget, the transaction will fail if the gas cost exceed the budget */
 	gasBudget: string;
-	/** the recipient's Sui address */
+	/** the recipient's Iota address */
 	recipient: string;
 	/** the amount to be split out and transferred */
 	amount?: string | null | undefined;

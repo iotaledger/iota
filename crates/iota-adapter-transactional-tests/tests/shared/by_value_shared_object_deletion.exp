@@ -23,8 +23,8 @@ task 4, lines 40-42:
 Owner: Shared( 4 )
 Version: 4
 Contents: t2::o2::Obj2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
@@ -47,8 +47,8 @@ task 7, lines 47-49:
 Owner: Shared( 6 )
 Version: 6
 Contents: t2::o2::Obj2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(6,0),
         },
     },

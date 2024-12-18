@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::State;
@@ -11,8 +12,8 @@ use crate::types::{
     BlockRequest, BlockResponse, BlockTransactionRequest, BlockTransactionResponse, Transaction,
     TransactionIdentifier,
 };
-use crate::{Error, OnlineServerContext, SuiEnv};
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
+use crate::{Error, OnlineServerContext, IotaEnv};
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 
 /// This module implements the [Rosetta Block API](https://www.rosetta-api.org/docs/BlockApi.html)
 
@@ -20,7 +21,7 @@ use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/BlockApi.html#block)
 pub async fn block(
     State(state): State<OnlineServerContext>,
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<BlockRequest>, Error>,
 ) -> Result<BlockResponse, Error> {
     debug!("Called /block endpoint: {:?}", request.block_identifier);
@@ -39,7 +40,7 @@ pub async fn block(
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/BlockApi.html#blocktransaction)
 pub async fn transaction(
     State(context): State<OnlineServerContext>,
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<BlockTransactionRequest>, Error>,
 ) -> Result<BlockTransactionResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
@@ -49,7 +50,7 @@ pub async fn transaction(
         .read_api()
         .get_transaction_with_options(
             digest,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_events()
                 .with_effects()

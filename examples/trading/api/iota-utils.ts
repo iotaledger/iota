@@ -1,31 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { execSync } from 'child_process';
 import { readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import path from 'path';
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { Transaction } from '@mysten/sui/transactions';
-import { fromBase64 } from '@mysten/sui/utils';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 
 export type Network = 'mainnet' | 'testnet' | 'devnet' | 'localnet';
 
 export const ACTIVE_NETWORK = (process.env.NETWORK as Network) || 'testnet';
 
-export const SUI_BIN = `sui`;
+export const IOTA_BIN = `iota`;
 
 export const getActiveAddress = () => {
-	return execSync(`${SUI_BIN} client active-address`, { encoding: 'utf8' }).trim();
+	return execSync(`${IOTA_BIN} client active-address`, { encoding: 'utf8' }).trim();
 };
 
-/** Returns a signer based on the active address of system's sui. */
+/** Returns a signer based on the active address of system's iota. */
 export const getSigner = () => {
 	const sender = getActiveAddress();
 
 	const keystore = JSON.parse(
-		readFileSync(path.join(homedir(), '.sui', 'sui_config', 'sui.keystore'), 'utf8'),
+		readFileSync(path.join(homedir(), '.iota', 'iota_config', 'iota.keystore'), 'utf8'),
 	);
 
 	for (const priv of keystore) {
@@ -35,7 +36,7 @@ export const getSigner = () => {
 		}
 
 		const pair = Ed25519Keypair.fromSecretKey(raw.slice(1));
-		if (pair.getPublicKey().toSuiAddress() === sender) {
+		if (pair.getPublicKey().toIotaAddress() === sender) {
 			return pair;
 		}
 	}
@@ -45,7 +46,7 @@ export const getSigner = () => {
 
 /** Get the client for the specified network. */
 export const getClient = (network: Network) => {
-	return new SuiClient({ url: getFullnodeUrl(network) });
+	return new IotaClient({ url: getFullnodeUrl(network) });
 };
 
 /** A helper to sign & execute a transaction. */
@@ -76,7 +77,7 @@ export const publishPackage = async ({
 	const txb = new Transaction();
 
 	const { modules, dependencies } = JSON.parse(
-		execSync(`${SUI_BIN} move build --dump-bytecode-as-base64 --path ${packagePath}`, {
+		execSync(`${IOTA_BIN} move build --dump-bytecode-as-base64 --path ${packagePath}`, {
 			encoding: 'utf-8',
 		}),
 	);

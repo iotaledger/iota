@@ -1,4 +1,4 @@
-# @mysten/ledgerjs-hw-app-sui
+# @iota/ledgerjs-hw-app-iota
 
 ## 0.4.1
 
@@ -10,9 +10,9 @@
 
 ### Minor Changes
 
-- a92b03de42: The Typescript SDK has been renamed to `@mysten/sui` and includes many new features
+- a92b03de42: The Typescript SDK has been renamed to `@iota/iota-sdk` and includes many new features
   and breaking changes. See the
-  [full migration guide](https://sdk.mystenlabs.com/typescript/migrations/sui-1.0) for details on
+  [full migration guide](https://docs.iota.org/references/ts-sdk/typescript/migrations/iota-1.0) for details on
   how to upgrade.
 
 ## 0.3.1

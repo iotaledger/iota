@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::verification_failure;
 use move_binary_format::file_format::{Bytecode, CompiledModule};
-use sui_types::error::ExecutionError;
+use iota_types::error::ExecutionError;
 
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
     verify_global_storage_access(module)
 }
 
-/// Global storage in sui is handled by sui instead of within Move.
+/// Global storage in iota is handled by iota instead of within Move.
 /// Hence we want to forbid any global storage access in Move.
 fn verify_global_storage_access(module: &CompiledModule) -> Result<(), ExecutionError> {
     for func_def in &module.function_defs {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -7,16 +8,16 @@ use diesel::prelude::*;
 
 use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
 use move_core_types::language_storage::TypeTag;
-use sui_json_rpc_types::{
-    BalanceChange, ObjectChange, SuiEvent, SuiTransactionBlock, SuiTransactionBlockEffects,
-    SuiTransactionBlockEvents, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    BalanceChange, ObjectChange, IotaEvent, IotaTransactionBlock, IotaTransactionBlockEffects,
+    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use sui_package_resolver::{PackageStore, Resolver};
-use sui_types::digests::TransactionDigest;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEvents;
-use sui_types::event::Event;
-use sui_types::transaction::SenderSignedData;
+use iota_package_resolver::{PackageStore, Resolver};
+use iota_types::digests::TransactionDigest;
+use iota_types::effects::TransactionEffects;
+use iota_types::effects::TransactionEvents;
+use iota_types::event::Event;
+use iota_types::transaction::SenderSignedData;
 
 use crate::errors::IndexerError;
 use crate::schema::transactions;
@@ -128,11 +129,11 @@ impl StoredTransaction {
         self.events.get(idx).cloned().flatten()
     }
 
-    pub async fn try_into_sui_transaction_block_response(
+    pub async fn try_into_iota_transaction_block_response(
         self,
-        options: SuiTransactionBlockResponseOptions,
+        options: IotaTransactionBlockResponseOptions,
         package_resolver: Arc<Resolver<impl PackageStore>>,
-    ) -> IndexerResult<SuiTransactionBlockResponse> {
+    ) -> IndexerResult<IotaTransactionBlockResponse> {
         let options = options.clone();
         let tx_digest =
             TransactionDigest::try_from(self.transaction_digest.as_slice()).map_err(|e| {
@@ -144,7 +145,7 @@ impl StoredTransaction {
 
         let transaction = if options.show_input {
             let sender_signed_data = self.try_into_sender_signed_data()?;
-            let tx_block = SuiTransactionBlock::try_from_with_package_resolver(
+            let tx_block = IotaTransactionBlock::try_from_with_package_resolver(
                 sender_signed_data,
                 package_resolver.clone(),
             )
@@ -155,7 +156,7 @@ impl StoredTransaction {
         };
 
         let effects = if options.show_effects {
-            let effects = self.try_into_sui_transaction_effects()?;
+            let effects = self.try_into_iota_transaction_effects()?;
             Some(effects)
         } else {
             None
@@ -192,7 +193,7 @@ impl StoredTransaction {
             let timestamp = self.timestamp_ms as u64;
             let tx_events = TransactionEvents { data: events };
 
-            tx_events_to_sui_tx_events(tx_events, package_resolver, tx_digest, timestamp).await?
+            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, timestamp).await?
         } else {
             None
         };
@@ -237,7 +238,7 @@ impl StoredTransaction {
             None
         };
 
-        Ok(SuiTransactionBlockResponse {
+        Ok(IotaTransactionBlockResponse {
             digest: tx_digest,
             transaction,
             raw_transaction,
@@ -263,14 +264,14 @@ impl StoredTransaction {
         Ok(sender_signed_data)
     }
 
-    pub fn try_into_sui_transaction_effects(&self) -> IndexerResult<SuiTransactionBlockEffects> {
+    pub fn try_into_iota_transaction_effects(&self) -> IndexerResult<IotaTransactionBlockEffects> {
         let effects: TransactionEffects = bcs::from_bytes(&self.raw_effects).map_err(|e| {
             IndexerError::PersistentStorageDataCorruptionError(format!(
                 "Can't convert raw_effects of {} into TransactionEffects. Error: {e}",
                 self.tx_sequence_number
             ))
         })?;
-        let effects = SuiTransactionBlockEffects::try_from(effects)?;
+        let effects = IotaTransactionBlockEffects::try_from(effects)?;
         Ok(effects)
     }
 }
@@ -296,24 +297,24 @@ pub fn stored_events_to_events(
         .collect::<Result<Vec<Event>, IndexerError>>()
 }
 
-pub async fn tx_events_to_sui_tx_events(
+pub async fn tx_events_to_iota_tx_events(
     tx_events: TransactionEvents,
     package_resolver: Arc<Resolver<impl PackageStore>>,
     tx_digest: TransactionDigest,
     timestamp: u64,
-) -> Result<Option<SuiTransactionBlockEvents>, IndexerError> {
-    let mut sui_event_futures = vec![];
+) -> Result<Option<IotaTransactionBlockEvents>, IndexerError> {
+    let mut iota_event_futures = vec![];
     let tx_events_data_len = tx_events.data.len();
     for tx_event in tx_events.data.clone() {
         let package_resolver_clone = package_resolver.clone();
-        sui_event_futures.push(tokio::task::spawn(async move {
+        iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
             resolver
                 .type_layout(TypeTag::Struct(Box::new(tx_event.type_.clone())))
                 .await
         }));
     }
-    let event_move_type_layouts = futures::future::join_all(sui_event_futures)
+    let event_move_type_layouts = futures::future::join_all(iota_event_futures)
         .await
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?
@@ -321,7 +322,7 @@ pub async fn tx_events_to_sui_tx_events(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| {
             IndexerError::ResolveMoveStructError(format!(
-                "Failed to convert to sui event with Error: {e}",
+                "Failed to convert to iota event with Error: {e}",
             ))
         })?;
     let event_move_datatype_layouts = event_move_type_layouts
@@ -333,13 +334,13 @@ pub async fn tx_events_to_sui_tx_events(
         })
         .collect::<Vec<_>>();
     assert!(tx_events_data_len == event_move_datatype_layouts.len());
-    let sui_events = tx_events
+    let iota_events = tx_events
         .data
         .into_iter()
         .enumerate()
         .zip(event_move_datatype_layouts)
         .map(|((seq, tx_event), move_datatype_layout)| {
-            SuiEvent::try_from(
+            IotaEvent::try_from(
                 tx_event,
                 tx_digest,
                 seq as u64,
@@ -348,6 +349,6 @@ pub async fn tx_events_to_sui_tx_events(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let sui_tx_events = SuiTransactionBlockEvents { data: sui_events };
-    Ok(Some(sui_tx_events))
+    let iota_tx_events = IotaTransactionBlockEvents { data: iota_events };
+    Ok(Some(iota_tx_events))
 }

@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{ident_str, language_storage::StructTag};
-use sui_move_build::BuildConfig;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
+use iota_move_build::BuildConfig;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, IotaAddress},
     crypto::{get_key_pair, AccountKeyPair},
     move_package::UpgradePolicy,
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
     transaction::{Argument, ObjectArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
-    MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
+    MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
 };
 
 use std::{
@@ -21,10 +22,10 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::error::{SuiError, UserInputError};
-use sui_types::execution_config_utils::to_binary_config;
-use sui_types::execution_status::{
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::error::{IotaError, UserInputError};
+use iota_types::execution_config_utils::to_binary_config;
+use iota_types::execution_status::{
     CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
 };
 
@@ -149,19 +150,19 @@ pub fn build_upgrade_txn(
     let digest_arg = builder.pure(digest).unwrap();
     let upgrade_ticket = move_call! {
         builder,
-        (SUI_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
+        (IOTA_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
     };
     let upgrade_receipt = builder.upgrade(current_pkg_id, upgrade_ticket, vec![], modules);
     move_call! {
         builder,
-        (SUI_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(Argument::Input(0), upgrade_receipt)
+        (IOTA_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(Argument::Input(0), upgrade_receipt)
     };
 
     builder.finish()
 }
 
 struct UpgradeStateRunner {
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub sender_key: AccountKeyPair,
     pub gas_object_id: ObjectID,
     pub authority_state: Arc<AuthorityState>,
@@ -248,11 +249,11 @@ impl UpgradeStateRunner {
             let digest = builder.pure(digest).unwrap();
             let ticket = move_call! {
                 builder,
-                (SUI_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(cap, policy, digest)
+                (IOTA_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(cap, policy, digest)
             };
 
             let receipt = builder.upgrade(package_id, ticket, dep_ids, modules);
-            move_call! { builder, (SUI_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(cap, receipt) };
+            move_call! { builder, (IOTA_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(cap, receipt) };
 
             builder.finish()
         };
@@ -364,7 +365,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
             UpgradePolicy::COMPATIBLE,
             digest,
             modules,
-            vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
         )
         .await;
 
@@ -378,7 +379,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
             UpgradePolicy::COMPATIBLE,
             digest,
             modules,
-            vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
         )
         .await;
 
@@ -476,7 +477,7 @@ async fn test_upgrade_package_compatibility_too_permissive() {
             let cap = builder
                 .obj(ObjectArg::ImmOrOwnedObject(runner.upgrade_cap))
                 .unwrap();
-            move_call! { builder, (SUI_FRAMEWORK_PACKAGE_ID)::package::only_dep_upgrades(cap) };
+            move_call! { builder, (IOTA_FRAMEWORK_PACKAGE_ID)::package::only_dep_upgrades(cap) };
             builder.finish()
         })
         .await;
@@ -535,7 +536,7 @@ async fn test_upgrade_package_add_new_module_in_dep_only_mode_pre_v68() {
             UpgradePolicy::DEP_ONLY,
             digest,
             modules,
-            vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
         )
         .await;
 
@@ -569,7 +570,7 @@ public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
                 UpgradePolicy::DEP_ONLY,
                 digest,
                 modules,
-                vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+                vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
             )
             .await;
 
@@ -609,7 +610,7 @@ public fun friend_call(): u64 { base_addr::base::friend_fun(1) }
                 UpgradePolicy::DEP_ONLY,
                 digest,
                 modules,
-                vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+                vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
             )
             .await;
 
@@ -781,7 +782,7 @@ async fn test_upgrade_ticket_doesnt_match() {
         let digest_arg = builder.pure(digest).unwrap();
         let upgrade_ticket = move_call! {
             builder,
-            (SUI_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
+            (IOTA_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
         };
         builder.upgrade(MOVE_STDLIB_PACKAGE_ID, upgrade_ticket, vec![], modules);
         builder.finish()
@@ -837,7 +838,7 @@ async fn test_multiple_upgrades(
         .0
          .0;
 
-    // Second upgrade: May also adds a dep on the sui framework and stdlib.
+    // Second upgrade: May also adds a dep on the iota framework and stdlib.
     let (digest, modules) = build_upgrade_test_modules("stage2_basic_compatibility_valid");
     let effects = runner
         .upgrade(
@@ -847,7 +848,7 @@ async fn test_multiple_upgrades(
             if use_empty_deps {
                 vec![]
             } else {
-                vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID]
+                vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID]
             },
         )
         .await;
@@ -882,12 +883,12 @@ async fn test_interleaved_upgrades() {
         let digest_arg = builder.pure(digest).unwrap();
         let upgrade_ticket = move_call! {
             builder,
-            (SUI_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
+            (IOTA_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
         };
         let upgrade_receipt = builder.upgrade(current_package_id, upgrade_ticket, vec![], modules);
         move_call! {
             builder,
-            (SUI_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(Argument::Input(0), upgrade_receipt)
+            (IOTA_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(Argument::Input(0), upgrade_receipt)
         };
 
         builder.finish()
@@ -922,12 +923,12 @@ async fn test_interleaved_upgrades() {
         let digest_arg = builder.pure(digest).unwrap();
         let upgrade_ticket = move_call! {
             builder,
-            (SUI_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
+            (IOTA_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
         };
         let upgrade_receipt = builder.upgrade(current_package_id, upgrade_ticket, dep_ids, modules);
         move_call! {
             builder,
-            (SUI_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(Argument::Input(0), upgrade_receipt)
+            (IOTA_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(Argument::Input(0), upgrade_receipt)
         };
 
         builder.finish()
@@ -1179,7 +1180,7 @@ async fn test_upgraded_types_in_one_txn() {
             UpgradePolicy::COMPATIBLE,
             digest,
             modules,
-            vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
         )
         .await;
 
@@ -1193,7 +1194,7 @@ async fn test_upgraded_types_in_one_txn() {
             UpgradePolicy::COMPATIBLE,
             digest,
             modules,
-            vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
         )
         .await;
 
@@ -1348,12 +1349,12 @@ async fn test_conflicting_versions_across_calls() {
         let digest_arg = builder.pure(digest).unwrap();
         let upgrade_ticket = move_call! {
             builder,
-            (SUI_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
+            (IOTA_FRAMEWORK_PACKAGE_ID)::package::authorize_upgrade(Argument::Input(0), upgrade_arg, digest_arg)
         };
         let upgrade_receipt = builder.upgrade(current_package_id, upgrade_ticket, dep_ids, modules);
         move_call! {
             builder,
-            (SUI_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(Argument::Input(0), upgrade_receipt)
+            (IOTA_FRAMEWORK_PACKAGE_ID)::package::commit_upgrade(Argument::Input(0), upgrade_receipt)
         };
 
         builder.finish()
@@ -1419,7 +1420,7 @@ async fn test_upgrade_cross_module_refs() {
             UpgradePolicy::COMPATIBLE,
             digest,
             modules,
-            vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
         )
         .await;
 
@@ -1446,7 +1447,7 @@ async fn test_upgrade_cross_module_refs() {
             UpgradePolicy::COMPATIBLE,
             digest,
             modules,
-            vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
         )
         .await;
 
@@ -1578,7 +1579,7 @@ async fn test_upgrade_more_than_max_packages_error() {
         .unwrap_err();
     assert_eq!(
         err,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::MaxPublishCountExceeded {
                 max_publish_commands: max_pub_cmd,
                 publish_count: max_pub_cmd + 2,
@@ -1594,7 +1595,7 @@ async fn assert_valid_dep_only_upgrade(runner: &mut UpgradeStateRunner, package_
             UpgradePolicy::DEP_ONLY,
             digest,
             modules,
-            vec![SUI_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
+            vec![IOTA_FRAMEWORK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID],
         )
         .await;
 

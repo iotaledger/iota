@@ -1,5 +1,5 @@
 ---
-source: crates/sui-package-resolver/src/lib.rs
+source: crates/iota-package-resolver/src/lib.rs
 expression: "format!(\"a0::m::E0: {e0:#?}\\n\\\n             a0::m::E1: {e1:#?}\\n\\\n             a0::m::E2: {e2:#?}\",)"
 ---
 a0::m::E0: DataDef {

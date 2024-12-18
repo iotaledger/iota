@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
@@ -8,7 +9,7 @@ import {
 	SocialKakao24,
 	SocialMicrosoft24,
 	SocialTwitch24,
-} from '@mysten/icons';
+} from '@iota/icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { forwardRef, type FunctionComponent, type Ref, type SVGProps } from 'react';
 

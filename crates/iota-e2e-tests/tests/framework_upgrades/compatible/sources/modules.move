@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::msim_extra_1 {
-    use sui::object::UID;
-    use sui::tx_context::TxContext;
+module iota_system::msim_extra_1 {
+    use iota::object::UID;
+    use iota::tx_context::TxContext;
 
     public struct Type has drop {
         x: u64
@@ -43,7 +44,7 @@ module sui_system::msim_extra_1 {
     public fun generic<T: drop>(_t: T) {}
 }
 
-module sui_system::msim_extra_2 {
+module iota_system::msim_extra_2 {
     public fun bar(): u64 {
         43
     }

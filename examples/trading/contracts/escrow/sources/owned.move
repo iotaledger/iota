@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// An escrow for atomic swap of objects using single-owner transactions that
@@ -155,11 +156,11 @@ public fun return_to_sender<T: key + store>(obj: Escrow<T>) {
 
 // === Tests ===
 #[test_only]
-use sui::coin::{Self, Coin};
+use iota::coin::{Self, Coin};
 #[test_only]
-use sui::sui::SUI;
+use iota::iota::IOTA;
 #[test_only]
-use sui::test_scenario::{Self as ts, Scenario};
+use iota::test_scenario::{Self as ts, Scenario};
 
 #[test_only]
 use escrow::lock;
@@ -174,8 +175,8 @@ const CUSTODIAN: address = @0xC;
 const DIANE: address = @0xD;
 
 #[test_only]
-fun test_coin(ts: &mut Scenario): Coin<SUI> {
-    coin::mint_for_testing<SUI>(42, ts::ctx(ts))
+fun test_coin(ts: &mut Scenario): Coin<IOTA> {
+    coin::mint_for_testing<IOTA>(42, ts::ctx(ts))
 }
 
 #[test]
@@ -210,7 +211,7 @@ fun test_successful_swap() {
     {
         ts.next_tx(ALICE);
         let k1: Key = ts.take_from_sender();
-        let l1: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l1: Locked<Coin<IOTA>> = ts.take_from_sender();
         create(k1, l1, ik2, BOB, CUSTODIAN, ts.ctx());
     };
 
@@ -218,14 +219,14 @@ fun test_successful_swap() {
     {
         ts.next_tx(BOB);
         let k2: Key = ts.take_from_sender();
-        let l2: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l2: Locked<Coin<IOTA>> = ts.take_from_sender();
         create(k2, l2, ik1, ALICE, CUSTODIAN, ts.ctx());
     };
 
     // The custodian makes the swap
     {
         ts.next_tx(CUSTODIAN);
-        swap<Coin<SUI>, Coin<SUI>>(
+        swap<Coin<IOTA>, Coin<IOTA>>(
             ts.take_from_sender(),
             ts.take_from_sender(),
         );
@@ -236,13 +237,13 @@ fun test_successful_swap() {
 
     // Alice gets the object from Bob
     {
-        let c: Coin<SUI> = ts.take_from_address_by_id(ALICE, i2);
+        let c: Coin<IOTA> = ts.take_from_address_by_id(ALICE, i2);
         ts::return_to_address(ALICE, c);
     };
 
     // Bob gets the object from Alice
     {
-        let c: Coin<SUI> = ts.take_from_address_by_id(BOB, i1);
+        let c: Coin<IOTA> = ts.take_from_address_by_id(BOB, i1);
         ts::return_to_address(BOB, c);
     };
 
@@ -278,7 +279,7 @@ fun test_mismatch_sender() {
     {
         ts.next_tx(ALICE);
         let k1: Key = ts.take_from_sender();
-        let l1: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l1: Locked<Coin<IOTA>> = ts.take_from_sender();
         create(k1, l1, ik2, BOB, CUSTODIAN, ts.ctx());
     };
 
@@ -286,14 +287,14 @@ fun test_mismatch_sender() {
     {
         ts.next_tx(BOB);
         let k2: Key = ts.take_from_sender();
-        let l2: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l2: Locked<Coin<IOTA>> = ts.take_from_sender();
         create(k2, l2, ik1, DIANE, CUSTODIAN, ts.ctx());
     };
 
     // When the custodian tries to match up the swap, it will fail.
     {
         ts.next_tx(CUSTODIAN);
-        swap<Coin<SUI>, Coin<SUI>>(
+        swap<Coin<IOTA>, Coin<IOTA>>(
             ts.take_from_sender(),
             ts.take_from_sender(),
         );
@@ -331,21 +332,21 @@ fun test_mismatch_object() {
     {
         ts.next_tx(ALICE);
         let k1: Key = ts.take_from_sender();
-        let l1: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l1: Locked<Coin<IOTA>> = ts.take_from_sender();
         create(k1, l1, ik1, BOB, CUSTODIAN, ts.ctx());
     };
 
     {
         ts.next_tx(BOB);
         let k2: Key = ts.take_from_sender();
-        let l2: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l2: Locked<Coin<IOTA>> = ts.take_from_sender();
         create(k2, l2, ik1, ALICE, CUSTODIAN, ts.ctx());
     };
 
     // When the custodian tries to match up the swap, it will fail.
     {
         ts.next_tx(CUSTODIAN);
-        swap<Coin<SUI>, Coin<SUI>>(
+        swap<Coin<IOTA>, Coin<IOTA>>(
             ts.take_from_sender(),
             ts.take_from_sender(),
         );
@@ -385,7 +386,7 @@ fun test_object_tamper() {
     {
         ts.next_tx(ALICE);
         let k1: Key = ts.take_from_sender();
-        let l1: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l1: Locked<Coin<IOTA>> = ts.take_from_sender();
         create(k1, l1, ik2, BOB, CUSTODIAN, ts.ctx());
     };
 
@@ -394,7 +395,7 @@ fun test_object_tamper() {
     {
         ts.next_tx(BOB);
         let k: Key = ts.take_from_sender();
-        let l: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l: Locked<Coin<IOTA>> = ts.take_from_sender();
         let mut c = lock::unlock(l, k);
 
         let _dust = coin::split(&mut c, 1, ts.ctx());
@@ -406,7 +407,7 @@ fun test_object_tamper() {
     // behaviour.
     {
         ts.next_tx(CUSTODIAN);
-        swap<Coin<SUI>, Coin<SUI>>(
+        swap<Coin<IOTA>, Coin<IOTA>>(
             ts.take_from_sender(),
             ts.take_from_sender(),
         );
@@ -433,14 +434,14 @@ fun test_return_to_sender() {
     // Custodian sends it back
     {
         ts.next_tx(CUSTODIAN);
-        return_to_sender<Coin<SUI>>(ts.take_from_sender());
+        return_to_sender<Coin<IOTA>>(ts.take_from_sender());
     };
 
     ts.next_tx(@0x0);
 
     // Alice can then access it.
     {
-        let c: Coin<SUI> = ts.take_from_address_by_id(ALICE, cid);
+        let c: Coin<IOTA> = ts.take_from_address_by_id(ALICE, cid);
         ts::return_to_address(ALICE, c)
     };
 

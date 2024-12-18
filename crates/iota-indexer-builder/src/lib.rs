@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod indexer_builder;
 pub mod metrics;
 pub mod progress;
-pub mod sui_datasource;
+pub mod iota_datasource;
 pub const LIVE_TASK_TARGET_CHECKPOINT: i64 = i64::MAX;
 
 #[derive(Clone, Debug)]

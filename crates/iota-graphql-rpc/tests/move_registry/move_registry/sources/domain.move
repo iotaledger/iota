@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module move_registry::domain;
 
 use std::string::{String, utf8};
 
-/// Representation of a valid SuiNS `Domain`.
+/// Representation of a valid IotaNS `Domain`.
 public struct Domain has copy, drop, store {
     /// Vector of labels that make up a domain.
     ///
     /// Labels are stored in reverse order such that the TLD is always in
     /// position `0`.
-    /// e.g. domain "pay.name.sui" will be stored in the vector as ["sui",
+    /// e.g. domain "pay.name.iota" will be stored in the vector as ["iota",
     /// "name", "pay"].
     labels: vector<String>,
 }

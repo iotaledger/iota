@@ -1,9 +1,9 @@
 [package]
-name = "sui-framework-tests"
+name = "iota-framework-tests"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
-description = "Runs Move tests for sui-framework"
+authors = ["IOTA Foundation <info@iota.org>"]
+description = "Runs Move tests for iota-framework"
 license = "Apache-2.0"
 publish = false
 
@@ -18,20 +18,20 @@ harness = false
 datatest-stable.workspace = true
 prometheus.workspace = true
 
-sui-framework.workspace = true
-sui-move = { workspace = true, features = ["unit_test"] }
-sui-move-build.workspace = true
-sui-protocol-config.workspace = true
-sui-types.workspace = true
+iota-framework.workspace = true
+iota-move = { workspace = true, features = ["unit_test"] }
+iota-move-build.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 
 move-bytecode-verifier = { path = "../../external-crates/move/crates/move-bytecode-verifier" }
-sui-adapter = { path = "../../sui-execution/latest/sui-adapter", package = "sui-adapter-latest" }
-sui-verifier = { path = "../../sui-execution/latest/sui-verifier", package = "sui-verifier-latest" }
+iota-adapter = { path = "../../iota-execution/latest/iota-adapter", package = "iota-adapter-latest" }
+iota-verifier = { path = "../../iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
 
 move-bytecode-verifier-meter.workspace = true
 move-cli.workspace = true
 move-package.workspace = true
 move-unit-test.workspace = true
-sui-config.workspace = true
+iota-config.workspace = true
 
 [dependencies]

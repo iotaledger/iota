@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub use sui_field_count_derive::*;
+pub use iota_field_count_derive::*;
 
 pub trait FieldCount {
     const FIELD_COUNT: usize;

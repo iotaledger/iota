@@ -27,17 +27,17 @@ title: Module `0xb::treasury`
 <b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../move-stdlib/type_name.md#0x1_type_name">0x1::type_name</a>;
 <b>use</b> <a href="../move-stdlib/u64.md#0x1_u64">0x1::u64</a>;
-<b>use</b> <a href="../sui-framework/address.md#0x2_address">0x2::address</a>;
-<b>use</b> <a href="../sui-framework/bag.md#0x2_bag">0x2::bag</a>;
-<b>use</b> <a href="../sui-framework/coin.md#0x2_coin">0x2::coin</a>;
-<b>use</b> <a href="../sui-framework/event.md#0x2_event">0x2::event</a>;
-<b>use</b> <a href="../sui-framework/hex.md#0x2_hex">0x2::hex</a>;
-<b>use</b> <a href="../sui-framework/object.md#0x2_object">0x2::object</a>;
-<b>use</b> <a href="../sui-framework/object_bag.md#0x2_object_bag">0x2::object_bag</a>;
-<b>use</b> <a href="../sui-framework/package.md#0x2_package">0x2::package</a>;
-<b>use</b> <a href="../sui-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
-<b>use</b> <a href="../sui-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
-<b>use</b> <a href="../sui-framework/vec_map.md#0x2_vec_map">0x2::vec_map</a>;
+<b>use</b> <a href="../iota-framework/address.md#0x2_address">0x2::address</a>;
+<b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
+<b>use</b> <a href="../iota-framework/coin.md#0x2_coin">0x2::coin</a>;
+<b>use</b> <a href="../iota-framework/event.md#0x2_event">0x2::event</a>;
+<b>use</b> <a href="../iota-framework/hex.md#0x2_hex">0x2::hex</a>;
+<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
+<b>use</b> <a href="../iota-framework/object_bag.md#0x2_object_bag">0x2::object_bag</a>;
+<b>use</b> <a href="../iota-framework/package.md#0x2_package">0x2::package</a>;
+<b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
+<b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
+<b>use</b> <a href="../iota-framework/vec_map.md#0x2_vec_map">0x2::vec_map</a>;
 </code></pre>
 
 
@@ -59,25 +59,25 @@ title: Module `0xb::treasury`
 
 <dl>
 <dt>
-<code>treasuries: <a href="../sui-framework/object_bag.md#0x2_object_bag_ObjectBag">object_bag::ObjectBag</a></code>
+<code>treasuries: <a href="../iota-framework/object_bag.md#0x2_object_bag_ObjectBag">object_bag::ObjectBag</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>supported_tokens: <a href="../sui-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<a href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</a>, <a href="treasury.md#0xb_treasury_BridgeTokenMetadata">treasury::BridgeTokenMetadata</a>&gt;</code>
+<code>supported_tokens: <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;<a href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</a>, <a href="treasury.md#0xb_treasury_BridgeTokenMetadata">treasury::BridgeTokenMetadata</a>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>id_token_type_map: <a href="../sui-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;u8, <a href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</a>&gt;</code>
+<code>id_token_type_map: <a href="../iota-framework/vec_map.md#0x2_vec_map_VecMap">vec_map::VecMap</a>&lt;u8, <a href="../move-stdlib/type_name.md#0x1_type_name_TypeName">type_name::TypeName</a>&gt;</code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>waiting_room: <a href="../sui-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
+<code>waiting_room: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 </dt>
 <dd>
 
@@ -155,7 +155,7 @@ title: Module `0xb::treasury`
 
 </dd>
 <dt>
-<code>uc: <a href="../sui-framework/package.md#0x2_package_UpgradeCap">package::UpgradeCap</a></code>
+<code>uc: <a href="../iota-framework/package.md#0x2_package_UpgradeCap">package::UpgradeCap</a></code>
 </dt>
 <dd>
 
@@ -416,7 +416,7 @@ title: Module `0xb::treasury`
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="treasury.md#0xb_treasury_register_foreign_token">register_foreign_token</a>&lt;T&gt;(self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">treasury::BridgeTreasury</a>, tc: <a href="../sui-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;T&gt;, uc: <a href="../sui-framework/package.md#0x2_package_UpgradeCap">package::UpgradeCap</a>, metadata: &<a href="../sui-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</a>&lt;T&gt;)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="treasury.md#0xb_treasury_register_foreign_token">register_foreign_token</a>&lt;T&gt;(self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">treasury::BridgeTreasury</a>, tc: <a href="../iota-framework/coin.md#0x2_coin_TreasuryCap">coin::TreasuryCap</a>&lt;T&gt;, uc: <a href="../iota-framework/package.md#0x2_package_UpgradeCap">package::UpgradeCap</a>, metadata: &<a href="../iota-framework/coin.md#0x2_coin_CoinMetadata">coin::CoinMetadata</a>&lt;T&gt;)
 </code></pre>
 
 
@@ -425,34 +425,34 @@ title: Module `0xb::treasury`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(<a href="../sui-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_register_foreign_token">register_foreign_token</a>&lt;T&gt;(
+<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_register_foreign_token">register_foreign_token</a>&lt;T&gt;(
     self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a>,
     tc: TreasuryCap&lt;T&gt;,
     uc: UpgradeCap,
     metadata: &CoinMetadata&lt;T&gt;,
 ) {
     // Make sure TreasuryCap <b>has</b> not been minted before.
-    <b>assert</b>!(<a href="../sui-framework/coin.md#0x2_coin_total_supply">coin::total_supply</a>(&tc) == 0, <a href="treasury.md#0xb_treasury_ETokenSupplyNonZero">ETokenSupplyNonZero</a>);
+    <b>assert</b>!(<a href="../iota-framework/coin.md#0x2_coin_total_supply">coin::total_supply</a>(&tc) == 0, <a href="treasury.md#0xb_treasury_ETokenSupplyNonZero">ETokenSupplyNonZero</a>);
     <b>let</b> <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a> = <a href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</a>&lt;T&gt;();
-    <b>let</b> address_bytes = <a href="../sui-framework/hex.md#0x2_hex_decode">hex::decode</a>(<a href="../move-stdlib/ascii.md#0x1_ascii_into_bytes">ascii::into_bytes</a>(<a href="../move-stdlib/type_name.md#0x1_type_name_get_address">type_name::get_address</a>(&<a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>)));
+    <b>let</b> address_bytes = <a href="../iota-framework/hex.md#0x2_hex_decode">hex::decode</a>(<a href="../move-stdlib/ascii.md#0x1_ascii_into_bytes">ascii::into_bytes</a>(<a href="../move-stdlib/type_name.md#0x1_type_name_get_address">type_name::get_address</a>(&<a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>)));
     <b>let</b> coin_address = address::from_bytes(address_bytes);
-    // Make sure upgrade cap is for the Coin <a href="../sui-framework/package.md#0x2_package">package</a>
+    // Make sure upgrade cap is for the Coin <a href="../iota-framework/package.md#0x2_package">package</a>
     // FIXME: add test
     <b>assert</b>!(
-        <a href="../sui-framework/object.md#0x2_object_id_to_address">object::id_to_address</a>(&<a href="../sui-framework/package.md#0x2_package_upgrade_package">package::upgrade_package</a>(&uc))
+        <a href="../iota-framework/object.md#0x2_object_id_to_address">object::id_to_address</a>(&<a href="../iota-framework/package.md#0x2_package_upgrade_package">package::upgrade_package</a>(&uc))
             == coin_address, <a href="treasury.md#0xb_treasury_EInvalidUpgradeCap">EInvalidUpgradeCap</a>
     );
     <b>let</b> registration = <a href="treasury.md#0xb_treasury_ForeignTokenRegistration">ForeignTokenRegistration</a> {
         <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>,
         uc,
-        decimal: <a href="../sui-framework/coin.md#0x2_coin_get_decimals">coin::get_decimals</a>(metadata),
+        decimal: <a href="../iota-framework/coin.md#0x2_coin_get_decimals">coin::get_decimals</a>(metadata),
     };
     self.waiting_room.add(<a href="../move-stdlib/type_name.md#0x1_type_name_into_string">type_name::into_string</a>(<a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>), registration);
     self.treasuries.add(<a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>, tc);
 
     emit(<a href="treasury.md#0xb_treasury_TokenRegistrationEvent">TokenRegistrationEvent</a>{
         <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>,
-        decimal: <a href="../sui-framework/coin.md#0x2_coin_get_decimals">coin::get_decimals</a>(metadata),
+        decimal: <a href="../iota-framework/coin.md#0x2_coin_get_decimals">coin::get_decimals</a>(metadata),
         native_token: <b>false</b>
     });
 }
@@ -477,7 +477,7 @@ title: Module `0xb::treasury`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(<a href="../sui-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_add_new_token">add_new_token</a>(
+<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_add_new_token">add_new_token</a>(
     self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a>,
     token_name: String,
     token_id: u8,
@@ -503,8 +503,8 @@ title: Module `0xb::treasury`
         );
         self.id_token_type_map.insert(token_id, <a href="../move-stdlib/type_name.md#0x1_type_name">type_name</a>);
 
-        // Freeze upgrade cap <b>to</b> prevent changes <b>to</b> the <a href="../sui-framework/coin.md#0x2_coin">coin</a>
-        <a href="../sui-framework/transfer.md#0x2_transfer_public_freeze_object">transfer::public_freeze_object</a>(uc);
+        // Freeze upgrade cap <b>to</b> prevent changes <b>to</b> the <a href="../iota-framework/coin.md#0x2_coin">coin</a>
+        <a href="../iota-framework/transfer.md#0x2_transfer_public_freeze_object">transfer::public_freeze_object</a>(uc);
 
         emit(<a href="treasury.md#0xb_treasury_NewTokenEvent">NewTokenEvent</a>{
             token_id,
@@ -529,7 +529,7 @@ title: Module `0xb::treasury`
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="treasury.md#0xb_treasury_create">create</a>(ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="treasury.md#0xb_treasury_BridgeTreasury">treasury::BridgeTreasury</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="treasury.md#0xb_treasury_create">create</a>(ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="treasury.md#0xb_treasury_BridgeTreasury">treasury::BridgeTreasury</a>
 </code></pre>
 
 
@@ -538,12 +538,12 @@ title: Module `0xb::treasury`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(<a href="../sui-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_create">create</a>(ctx: &<b>mut</b> TxContext): <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a> {
+<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_create">create</a>(ctx: &<b>mut</b> TxContext): <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a> {
     <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a> {
-        treasuries: <a href="../sui-framework/object_bag.md#0x2_object_bag_new">object_bag::new</a>(ctx),
-        supported_tokens: <a href="../sui-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
-        id_token_type_map: <a href="../sui-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
-        waiting_room: <a href="../sui-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
+        treasuries: <a href="../iota-framework/object_bag.md#0x2_object_bag_new">object_bag::new</a>(ctx),
+        supported_tokens: <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
+        id_token_type_map: <a href="../iota-framework/vec_map.md#0x2_vec_map_empty">vec_map::empty</a>(),
+        waiting_room: <a href="../iota-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
     }
 }
 </code></pre>
@@ -558,7 +558,7 @@ title: Module `0xb::treasury`
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="treasury.md#0xb_treasury_burn">burn</a>&lt;T&gt;(self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">treasury::BridgeTreasury</a>, token: <a href="../sui-framework/coin.md#0x2_coin_Coin">coin::Coin</a>&lt;T&gt;)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="treasury.md#0xb_treasury_burn">burn</a>&lt;T&gt;(self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">treasury::BridgeTreasury</a>, token: <a href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</a>&lt;T&gt;)
 </code></pre>
 
 
@@ -567,9 +567,9 @@ title: Module `0xb::treasury`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(<a href="../sui-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_burn">burn</a>&lt;T&gt;(self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a>, token: Coin&lt;T&gt;) {
+<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_burn">burn</a>&lt;T&gt;(self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a>, token: Coin&lt;T&gt;) {
     <b>let</b> <a href="treasury.md#0xb_treasury">treasury</a> = &<b>mut</b> self.treasuries[<a href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</a>&lt;T&gt;()];
-    <a href="../sui-framework/coin.md#0x2_coin_burn">coin::burn</a>(<a href="treasury.md#0xb_treasury">treasury</a>, token);
+    <a href="../iota-framework/coin.md#0x2_coin_burn">coin::burn</a>(<a href="treasury.md#0xb_treasury">treasury</a>, token);
 }
 </code></pre>
 
@@ -583,7 +583,7 @@ title: Module `0xb::treasury`
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="treasury.md#0xb_treasury_mint">mint</a>&lt;T&gt;(self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">treasury::BridgeTreasury</a>, amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../sui-framework/coin.md#0x2_coin_Coin">coin::Coin</a>&lt;T&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="treasury.md#0xb_treasury_mint">mint</a>&lt;T&gt;(self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">treasury::BridgeTreasury</a>, amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/coin.md#0x2_coin_Coin">coin::Coin</a>&lt;T&gt;
 </code></pre>
 
 
@@ -592,13 +592,13 @@ title: Module `0xb::treasury`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(<a href="../sui-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_mint">mint</a>&lt;T&gt;(
+<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_mint">mint</a>&lt;T&gt;(
     self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a>,
     amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext,
 ): Coin&lt;T&gt; {
     <b>let</b> <a href="treasury.md#0xb_treasury">treasury</a> = &<b>mut</b> self.treasuries[<a href="../move-stdlib/type_name.md#0x1_type_name_get">type_name::get</a>&lt;T&gt;()];
-    <a href="../sui-framework/coin.md#0x2_coin_mint">coin::mint</a>(<a href="treasury.md#0xb_treasury">treasury</a>, amount, ctx)
+    <a href="../iota-framework/coin.md#0x2_coin_mint">coin::mint</a>(<a href="treasury.md#0xb_treasury">treasury</a>, amount, ctx)
 }
 </code></pre>
 
@@ -621,7 +621,7 @@ title: Module `0xb::treasury`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(<a href="../sui-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_update_asset_notional_price">update_asset_notional_price</a>(
+<pre><code><b>public</b>(<a href="../iota-framework/package.md#0x2_package">package</a>) <b>fun</b> <a href="treasury.md#0xb_treasury_update_asset_notional_price">update_asset_notional_price</a>(
     self: &<b>mut</b> <a href="treasury.md#0xb_treasury_BridgeTreasury">BridgeTreasury</a>,
     token_id: u8,
     new_usd_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,

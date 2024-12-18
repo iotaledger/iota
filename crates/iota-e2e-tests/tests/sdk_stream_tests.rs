@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::StreamExt;
 use std::future;
-use sui_sdk::{SuiClientBuilder, SUI_COIN_TYPE};
-use sui_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
+use iota_sdk::{IotaClientBuilder, IOTA_COIN_TYPE};
+use iota_swarm_config::genesis_config::{DEFAULT_GAS_AMOUNT, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT};
 use test_cluster::TestClusterBuilder;
 
 // TODO: rewrite the tests after the removal of DevNet NFT
@@ -13,17 +14,17 @@ use test_cluster::TestClusterBuilder;
 //     let mut test_cluster = TestClusterBuilder::new().build().await?;
 //     let rpc_url = test_cluster.rpc_url();
 
-//     let client = SuiClientBuilder::default().build(rpc_url).await?;
+//     let client = IotaClientBuilder::default().build(rpc_url).await?;
 //     let txs = client
 //         .read_api()
-//         .get_transactions_stream(SuiTransactionBlockResponseQuery::default(), None, true)
+//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(), None, true)
 //         .collect::<Vec<_>>()
 //         .await;
 
 //     assert_eq!(1, txs.len());
 
 //     // execute some transactions
-//     SuiClientCommands::CreateExampleNFT {
+//     IotaClientCommands::CreateExampleNFT {
 //         name: None,
 //         description: None,
 //         url: None,
@@ -35,7 +36,7 @@ use test_cluster::TestClusterBuilder;
 
 //     let txs = client
 //         .read_api()
-//         .get_transactions_stream(SuiTransactionBlockResponseQuery::default(), None, true)
+//         .get_transactions_stream(IotaTransactionBlockResponseQuery::default(), None, true)
 //         .collect::<Vec<_>>()
 //         .await;
 
@@ -51,7 +52,7 @@ use test_cluster::TestClusterBuilder;
 //         .await?;
 //     let rpc_url = test_cluster.rpc_url();
 
-//     let client = SuiClientBuilder::default().build(rpc_url).await?;
+//     let client = IotaClientBuilder::default().build(rpc_url).await?;
 //     let events = client
 //         .event_api()
 //         .get_events_stream(EventFilter::All(vec![]), None, true)
@@ -61,7 +62,7 @@ use test_cluster::TestClusterBuilder;
 //     let starting_event_count = events.len();
 
 //     // execute some transactions
-//     SuiClientCommands::CreateExampleNFT {
+//     IotaClientCommands::CreateExampleNFT {
 //         name: None,
 //         description: None,
 //         url: None,
@@ -87,10 +88,10 @@ async fn test_coins_stream() -> Result<(), anyhow::Error> {
     let address = test_cluster.get_address_0();
     let rpc_url = test_cluster.rpc_url();
 
-    let client = SuiClientBuilder::default().build(rpc_url).await?;
+    let client = IotaClientBuilder::default().build(rpc_url).await?;
     let coins = client
         .coin_read_api()
-        .get_coins_stream(address, Some(SUI_COIN_TYPE.to_string()))
+        .get_coins_stream(address, Some(IOTA_COIN_TYPE.to_string()))
         .collect::<Vec<_>>()
         .await;
 
@@ -98,7 +99,7 @@ async fn test_coins_stream() -> Result<(), anyhow::Error> {
 
     let page = client
         .coin_read_api()
-        .get_coins(address, Some(SUI_COIN_TYPE.to_string()), None, None)
+        .get_coins(address, Some(IOTA_COIN_TYPE.to_string()), None, None)
         .await?;
 
     for (coin1, coin2) in coins.into_iter().zip(page.data) {
@@ -107,7 +108,7 @@ async fn test_coins_stream() -> Result<(), anyhow::Error> {
 
     let amount = client
         .coin_read_api()
-        .get_coins_stream(address, Some(SUI_COIN_TYPE.to_string()))
+        .get_coins_stream(address, Some(IOTA_COIN_TYPE.to_string()))
         .fold(0u128, |acc, coin| async move { acc + coin.balance as u128 })
         .await;
 
@@ -120,7 +121,7 @@ async fn test_coins_stream() -> Result<(), anyhow::Error> {
 
     let coins = client
         .coin_read_api()
-        .get_coins_stream(address, Some(SUI_COIN_TYPE.to_string()))
+        .get_coins_stream(address, Some(IOTA_COIN_TYPE.to_string()))
         .take_while(|coin| {
             let ready = future::ready(total < DEFAULT_GAS_AMOUNT as u128 * 3);
             total += coin.balance as u128;

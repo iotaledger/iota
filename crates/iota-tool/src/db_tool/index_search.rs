@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{path::PathBuf, str::FromStr};
-use sui_types::digests::TransactionDigest;
+use iota_types::digests::TransactionDigest;
 use typed_store::rocks::{DBMap, MetricConf};
 use typed_store::traits::Map;
 
 use crate::get_db_entries;
 use move_core_types::language_storage::ModuleId;
 use std::fmt::Debug;
-use sui_core::jsonrpc_index::IndexStoreTables;
-use sui_types::{
-    base_types::{ObjectID, SuiAddress, TxSequenceNumber},
+use iota_core::jsonrpc_index::IndexStoreTables;
+use iota_types::{
+    base_types::{ObjectID, IotaAddress, TxSequenceNumber},
     Identifier, TypeTag,
 };
 
@@ -241,14 +242,14 @@ where
     Ok(entries)
 }
 
-fn from_addr_seq(s: &str) -> Result<(SuiAddress, TxSequenceNumber), anyhow::Error> {
+fn from_addr_seq(s: &str) -> Result<(IotaAddress, TxSequenceNumber), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         return Err(anyhow!("Invalid address, sequence number pair"));
     }
-    let address = SuiAddress::from_str(tokens[0].trim())?;
+    let address = IotaAddress::from_str(tokens[0].trim())?;
     let sequence_number = TxSequenceNumber::from_str(tokens[1].trim())?;
 
     Ok((address, sequence_number))
@@ -286,27 +287,27 @@ fn from_id_module_function_txseq(
     Ok((pid, module.to_string(), func.to_string(), seq))
 }
 
-fn from_addr_oid(s: &str) -> Result<(SuiAddress, ObjectID), anyhow::Error> {
+fn from_addr_oid(s: &str) -> Result<(IotaAddress, ObjectID), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
         return Err(anyhow!("Invalid address, object id pair"));
     }
-    let addr = SuiAddress::from_str(tokens[0].trim())?;
+    let addr = IotaAddress::from_str(tokens[0].trim())?;
     let oid = ObjectID::from_str(tokens[1].trim())?;
 
     Ok((addr, oid))
 }
 
-fn from_addr_str_oid(s: &str) -> Result<(SuiAddress, String, ObjectID), anyhow::Error> {
+fn from_addr_str_oid(s: &str) -> Result<(IotaAddress, String, ObjectID), anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 3 {
         return Err(anyhow!("Invalid addr, type tag object id triplet"));
     }
-    let address = SuiAddress::from_str(tokens[0].trim())?;
+    let address = IotaAddress::from_str(tokens[0].trim())?;
     let tag: TypeTag = TypeTag::from_str(tokens[1].trim())?;
     let oid: ObjectID = ObjectID::from_str(tokens[2].trim())?;
 
@@ -361,7 +362,7 @@ fn from_event_id(s: &str) -> Result<(TxSequenceNumber, usize), anyhow::Error> {
 
 fn from_address_and_event_id(
     s: &str,
-) -> Result<(SuiAddress, (TxSequenceNumber, usize)), anyhow::Error> {
+) -> Result<(IotaAddress, (TxSequenceNumber, usize)), anyhow::Error> {
     // Example: "0x1 1234 5"
     let tokens = s.split(' ').collect::<Vec<&str>>();
     if tokens.len() != 3 {
@@ -369,6 +370,6 @@ fn from_address_and_event_id(
     }
     let tx_seq = TxSequenceNumber::from_str(tokens[1])?;
     let event_seq = usize::from_str(tokens[2])?;
-    let address = SuiAddress::from_str(tokens[0].trim())?;
+    let address = IotaAddress::from_str(tokens[0].trim())?;
     Ok((address, (tx_seq, event_seq)))
 }

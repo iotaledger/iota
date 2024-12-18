@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{AnalyticsWriter, FileFormat, FileType};
@@ -11,12 +12,12 @@ use std::fs::{create_dir_all, remove_file};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use sui_types::base_types::EpochId;
+use iota_types::base_types::EpochId;
 
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
-use sui_storage::object_store::util::path_to_filesystem;
+use iota_storage::object_store::util::path_to_filesystem;
 
 // Save table entries to parquet files.
 pub(crate) struct ParquetWriter {

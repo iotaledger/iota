@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
@@ -26,16 +27,16 @@ use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use sui_config::genesis::Genesis;
-use sui_config::node::ArchiveReaderConfig;
-use sui_config::object_storage_config::ObjectStoreConfig;
-use sui_storage::blob::{Blob, BlobEncoding};
-use sui_storage::object_store::util::{get, put};
-use sui_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
-use sui_storage::{compute_sha3_checksum, compute_sha3_checksum_for_bytes, SHA3_BYTES};
-use sui_types::base_types::ExecutionData;
-use sui_types::messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents};
-use sui_types::storage::{SingleCheckpointSharedInMemoryStore, WriteStore};
+use iota_config::genesis::Genesis;
+use iota_config::node::ArchiveReaderConfig;
+use iota_config::object_storage_config::ObjectStoreConfig;
+use iota_storage::blob::{Blob, BlobEncoding};
+use iota_storage::object_store::util::{get, put};
+use iota_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
+use iota_storage::{compute_sha3_checksum, compute_sha3_checksum_for_bytes, SHA3_BYTES};
+use iota_types::base_types::ExecutionData;
+use iota_types::messages_checkpoint::{FullCheckpointContents, VerifiedCheckpointContents};
+use iota_types::storage::{SingleCheckpointSharedInMemoryStore, WriteStore};
 use tracing::{error, info};
 
 #[allow(rustdoc::invalid_html_tags)]

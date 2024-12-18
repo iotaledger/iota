@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::backfill::backfill_instances::ingestion_backfills::IngestionBackfillTrait;
@@ -6,7 +7,7 @@ use crate::database::ConnectionPool;
 use crate::models::raw_checkpoints::StoredRawCheckpoint;
 use crate::schema::raw_checkpoints::dsl::raw_checkpoints;
 use diesel_async::RunQueryDsl;
-use sui_types::full_checkpoint_content::CheckpointData;
+use iota_types::full_checkpoint_content::CheckpointData;
 
 pub struct RawCheckpointsBackFill;
 

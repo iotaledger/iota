@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::database::Connection;
@@ -265,7 +266,7 @@ mod tests {
     use diesel::migration::{Migration, MigrationSource};
     use diesel::pg::Pg;
     use diesel_migrations::MigrationHarness;
-    use sui_pg_temp_db::TempDb;
+    use iota_pg_temp_db::TempDb;
 
     // Check that the migration records in the database created from the local schema
     // pass the consistency check.
@@ -397,7 +398,7 @@ mod tests {
     async fn temp_db_smoketest() {
         use crate::database::Connection;
         use diesel_async::RunQueryDsl;
-        use sui_pg_temp_db::TempDb;
+        use iota_pg_temp_db::TempDb;
 
         telemetry_subscribers::init_for_testing();
 

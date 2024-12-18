@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use clap::Parser;
 use std::path::PathBuf;
@@ -10,7 +11,7 @@ pub mod scheduler;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(
-    name = "Sui Security Watchdog",
+    name = "Iota Security Watchdog",
     about = "Watchdog service to monitor chain data.",
     rename_all = "kebab-case"
 )]

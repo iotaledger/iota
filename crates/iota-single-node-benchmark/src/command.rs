@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -7,7 +8,7 @@ use strum_macros::EnumIter;
 
 #[derive(Parser)]
 #[clap(
-    name = "sui-single-node-benchmark",
+    name = "iota-single-node-benchmark",
     about = "Benchmark a single validator node",
     rename_all = "kebab-case",
     author,

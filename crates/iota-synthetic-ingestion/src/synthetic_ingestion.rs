@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use simulacrum::Simulacrum;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use sui_storage::blob::Blob;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::crypto::get_account_key_pair;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::gas_coin::MIST_PER_SUI;
-use sui_types::utils::to_sender_signed_transaction;
+use iota_storage::blob::Blob;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::crypto::get_account_key_pair;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::gas_coin::NANOS_PER_IOTA;
+use iota_types::utils::to_sender_signed_transaction;
 use tokio::fs;
 use tracing::info;
 
@@ -53,7 +54,7 @@ pub async fn generate_ingestion(config: Config) {
     let gas_price = sim.reference_gas_price();
     let (sender, keypair) = get_account_key_pair();
     let mut gas_object = {
-        let effects = sim.request_gas(sender, MIST_PER_SUI * 1000000).unwrap();
+        let effects = sim.request_gas(sender, NANOS_PER_IOTA * 1000000).unwrap();
         // `request_gas` will create a transaction, which we don't want to include in the benchmark.
         // Put it in a checkpoint and then remove the checkpoint file.
         sim.create_checkpoint();
@@ -66,7 +67,7 @@ pub async fn generate_ingestion(config: Config) {
     for i in 0..num_checkpoints {
         for _ in 0..checkpoint_size {
             let tx_data = TestTransactionBuilder::new(sender, gas_object, gas_price)
-                .transfer_sui(Some(1), sender)
+                .transfer_iota(Some(1), sender)
                 .build();
             let tx = to_sender_signed_transaction(tx_data, &keypair);
             let (effects, _) = sim.execute_transaction(tx).unwrap();
@@ -106,8 +107,8 @@ pub async fn read_ingestion_data(path: &PathBuf) -> anyhow::Result<BTreeMap<u64,
 mod tests {
     use crate::synthetic_ingestion::generate_ingestion;
     use std::path::PathBuf;
-    use sui_storage::blob::Blob;
-    use sui_types::full_checkpoint_content::CheckpointData;
+    use iota_storage::blob::Blob;
+    use iota_types::full_checkpoint_content::CheckpointData;
 
     #[tokio::test]
     async fn test_ingestion_from_zero() {

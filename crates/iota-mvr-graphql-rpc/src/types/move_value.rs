@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
@@ -9,15 +10,15 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
-use sui_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::object::bounded_visitor::BoundedVisitor;
 
 use crate::data::package_resolver::PackageResolver;
 use crate::{error::Error, types::json::Json, types::move_type::unexpected_signer_error};
 
-use super::{base64::Base64, big_int::BigInt, move_type::MoveType, sui_address::SuiAddress};
+use super::{base64::Base64, big_int::BigInt, move_type::MoveType, iota_address::IotaAddress};
 
 const STD: AccountAddress = AccountAddress::ONE;
-const SUI: AccountAddress = AccountAddress::TWO;
+const IOTA: AccountAddress = AccountAddress::TWO;
 
 const MOD_ASCII: &IdentStr = ident_str!("ascii");
 const MOD_OBJECT: &IdentStr = ident_str!("object");
@@ -45,9 +46,9 @@ scalar!(
     "The contents of a Move Value, corresponding to the following recursive type:
 
 type MoveData =
-    { Address: SuiAddress }
-  | { UID:     SuiAddress }
-  | { ID:      SuiAddress }
+    { Address: IotaAddress }
+  | { UID:     IotaAddress }
+  | { ID:      IotaAddress }
   | { Bool:    bool }
   | { Number:  BigInt }
   | { String:  string }
@@ -62,11 +63,11 @@ type MoveData =
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) enum MoveData {
-    Address(SuiAddress),
+    Address(IotaAddress),
     #[serde(rename = "UID")]
-    Uid(SuiAddress),
+    Uid(IotaAddress),
     #[serde(rename = "ID")]
-    Id(SuiAddress),
+    Id(IotaAddress),
     Bool(bool),
     Number(BigInt),
     String(String),
@@ -201,10 +202,10 @@ impl TryFrom<A::MoveValue> for MoveData {
                 {
                     // 0x1::ascii::String, 0x1::string::String
                     Self::String(extract_string(&type_, fields)?)
-                } else if is_type(&type_, &SUI, MOD_OBJECT, TYP_UID) {
+                } else if is_type(&type_, &IOTA, MOD_OBJECT, TYP_UID) {
                     // 0x2::object::UID
                     Self::Uid(extract_uid(&type_, fields)?.into())
-                } else if is_type(&type_, &SUI, MOD_OBJECT, TYP_ID) {
+                } else if is_type(&type_, &IOTA, MOD_OBJECT, TYP_ID) {
                     // 0x2::object::ID
                     Self::Id(extract_id(&type_, fields)?.into())
                 } else {
@@ -231,7 +232,7 @@ impl TryFrom<A::MoveValue> for MoveData {
                 })
             }
 
-            // Sui does not support `signer` as a type.
+            // Iota does not support `signer` as a type.
             V::Signer(_) => return Err(unexpected_signer_error()),
         })
     }
@@ -280,12 +281,12 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
             {
                 // 0x1::ascii::String, 0x1::string::String
                 Value::String(extract_string(&type_, fields)?)
-            } else if is_type(&type_, &SUI, MOD_OBJECT, TYP_UID) {
+            } else if is_type(&type_, &IOTA, MOD_OBJECT, TYP_UID) {
                 // 0x2::object::UID
                 Value::String(
                     extract_uid(&type_, fields)?.to_canonical_string(/* with_prefix */ true),
                 )
-            } else if is_type(&type_, &SUI, MOD_OBJECT, TYP_ID) {
+            } else if is_type(&type_, &IOTA, MOD_OBJECT, TYP_ID) {
                 // 0x2::object::ID
                 Value::String(
                     extract_id(&type_, fields)?.to_canonical_string(/* with_prefix */ true),
@@ -319,7 +320,7 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
                     .collect(),
             )
         }
-        // Sui does not support `signer` as a type.
+        // Iota does not support `signer` as a type.
         V::Signer(_) => return Err(unexpected_signer_error()),
     })
 }
@@ -436,7 +437,7 @@ fn extract_uid(
     };
 
     let A::MoveStruct { type_, fields } = s;
-    if !is_type(&type_, &SUI, MOD_OBJECT, TYP_ID) {
+    if !is_type(&type_, &IOTA, MOD_OBJECT, TYP_ID) {
         return Err(Error::Internal(
             "Expected UID.id to have type ID.".to_string(),
         ));
@@ -502,8 +503,8 @@ mod tests {
         };
     }
 
-    fn address(a: &str) -> SuiAddress {
-        SuiAddress::from_str(a).unwrap()
+    fn address(a: &str) -> IotaAddress {
+        IotaAddress::from_str(a).unwrap()
     }
 
     fn data<T: Serialize>(layout: A::MoveTypeLayout, data: T) -> Result<MoveData, Error> {
@@ -705,7 +706,7 @@ mod tests {
     #[test]
     fn address_data() {
         let v = data(L::Address, address("0x42"));
-        let expect = expect!["Ok(Address(SuiAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66])))"];
+        let expect = expect!["Ok(Address(IotaAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66])))"];
         expect.assert_eq(&format!("{v:?}"));
     }
 
@@ -726,7 +727,7 @@ mod tests {
         });
 
         let v = data(l, address("0x42"));
-        let expect = expect!["Ok(Uid(SuiAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66])))"];
+        let expect = expect!["Ok(Uid(IotaAddress([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66])))"];
         expect.assert_eq(&format!("{v:?}"));
     }
 
@@ -807,7 +808,7 @@ mod tests {
                                             MoveField {
                                                 name: "frob",
                                                 value: Address(
-                                                    SuiAddress(
+                                                    IotaAddress(
                                                         [
                                                             0,
                                                             0,
@@ -866,7 +867,7 @@ mod tests {
                                             MoveField {
                                                 name: "frob",
                                                 value: Address(
-                                                    SuiAddress(
+                                                    IotaAddress(
                                                         [
                                                             0,
                                                             0,

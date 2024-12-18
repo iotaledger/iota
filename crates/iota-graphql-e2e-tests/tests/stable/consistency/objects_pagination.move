@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses Test=0x0 --accounts A B --simulator --objects-snapshot-min-checkpoint-lag 4
@@ -160,7 +161,7 @@ module Test::M1 {
           }
           json
         }
-        owner_at_latest_state_has_sui_only: owner {
+        owner_at_latest_state_has_iota_only: owner {
           ... on AddressOwner {
             owner {
               objects {

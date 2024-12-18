@@ -1,35 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use sui_indexer::backfill::backfill_runner::BackfillRunner;
-use sui_indexer::config::{Command, RetentionConfig, UploadOptions};
-use sui_indexer::database::ConnectionPool;
-use sui_indexer::db::setup_postgres::clear_database;
-use sui_indexer::db::{
+use iota_indexer::backfill::backfill_runner::BackfillRunner;
+use iota_indexer::config::{Command, RetentionConfig, UploadOptions};
+use iota_indexer::database::ConnectionPool;
+use iota_indexer::db::setup_postgres::clear_database;
+use iota_indexer::db::{
     check_db_migration_consistency, check_prunable_tables_valid, reset_database, run_migrations,
 };
-use sui_indexer::indexer::Indexer;
-use sui_indexer::metrics::{
+use iota_indexer::indexer::Indexer;
+use iota_indexer::metrics::{
     spawn_connection_pool_metric_collector, start_prometheus_server, IndexerMetrics,
 };
-use sui_indexer::restorer::formal_snapshot::IndexerFormalSnapshotRestorer;
-use sui_indexer::store::PgIndexerStore;
+use iota_indexer::restorer::formal_snapshot::IndexerFormalSnapshotRestorer;
+use iota_indexer::store::PgIndexerStore;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let opts = sui_indexer::config::IndexerConfig::parse();
+    let opts = iota_indexer::config::IndexerConfig::parse();
 
     // NOTE: this is to print out tracing like info, warn & error.
     let _guard = telemetry_subscribers::TelemetryConfig::new()
         .with_env()
         .init();
-    warn!("WARNING: Sui indexer is still experimental and we expect occasional breaking changes that require backfills.");
+    warn!("WARNING: Iota indexer is still experimental and we expect occasional breaking changes that require backfills.");
 
     let (_registry_service, registry) = start_prometheus_server(opts.metrics_address)?;
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     let indexer_metrics = IndexerMetrics::new(&registry);
 
     let pool = ConnectionPool::new(

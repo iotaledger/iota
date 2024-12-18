@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{borrow::Cow, time::Duration};
@@ -6,7 +7,7 @@ use std::{borrow::Cow, time::Duration};
 use chrono::{naive::NaiveDateTime, DateTime, Utc};
 use diesel::{dsl::sql, prelude::*, sql_types};
 use diesel_async::RunQueryDsl;
-use sui_field_count::FieldCount;
+use iota_field_count::FieldCount;
 
 use crate::{db::Connection, schema::watermarks};
 

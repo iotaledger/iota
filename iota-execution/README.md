@@ -1,6 +1,6 @@
-# Sui Execution
+# Iota Execution
 
-The `sui-execution` crate is responsible for abstracting access to the
+The `iota-execution` crate is responsible for abstracting access to the
 execution layer.  It allows us to isolate big changes to the execution
 layer that need to be gated behind protocol config changes, to
 minimise the risk of inadvertently changing behaviour that is relevant
@@ -10,13 +10,13 @@ The Execution Layer include:
 
 - The metered verifier, used during signing.
 - The VM, for executing transactions to effects.
-- The adapter, that integrates Move into Sui.
+- The adapter, that integrates Move into Iota.
 - Access to the state as seen by the VM, such as type layout
   resolution.
 
 The specific versions of crates in the execution layer are found in:
 
-- `./sui-execution`, (latest version and cuts/copies of sui-specific
+- `./iota-execution`, (latest version and cuts/copies of iota-specific
   crates).
 - `./external-crates/move/move-execution` (cuts/copies of move-specific
   crates).
@@ -27,7 +27,7 @@ The specific versions of crates in the execution layer are found in:
 ## Accessing the Execution Layer
 
 All access to these features from authority (validator and fullnode)
-code must be via `sui-execution`, and not by directly depending a
+code must be via `iota-execution`, and not by directly depending a
 constituent crate.
 
 Code that is exclusively used in other tools (such as the CLI, or
@@ -36,7 +36,7 @@ execution layer (typically the `latest` version).
 
 If you are unsure whether your code is part of the authority codebase,
 or you are writing a library that is used on validators and fullnodes,
-and elsewhere, **default to accessing execution via `sui-execution`.**
+and elsewhere, **default to accessing execution via `iota-execution`.**
 
 Not following this rule can introduce the **potential for forks** when
 one part of the authority performs execution according to the
@@ -44,7 +44,7 @@ execution layer dictated by the protocol config, and other parts
 perform execution according to a version of the execution layer that
 is hardcoded in their binary (and may change from release-to-release).
 
-`sui-execution tests::test_encapsulation` is a test that detects
+`iota-execution tests::test_encapsulation` is a test that detects
 potential breaches of this property.
 
 
@@ -64,7 +64,7 @@ There are three kinds of cut:
 Ongoing changes to execution are typically added to the `latest`
 versions of their crates, found at.
 
-- `./sui-execution/latest`
+- `./iota-execution/latest`
 - `./external-crates/move/`
 
 This is the version that will be used by the latest versions of our
@@ -84,7 +84,7 @@ on creating such a cut.
 
 Versioned snapshots, such as `v0`, found at:
 
-- `./sui-execution/v0`
+- `./iota-execution/v0`
 - `./external-crates/move/move-execution/v0`
 
 preserve the existing behaviour of execution.  These should generally
@@ -101,7 +101,7 @@ not deterministic, it should **not** be fixed in older versions.
 
 **Updating interfaces.**  Not all crates that are used by the
 execution layer are versioned: Base crates such as
-`./crates/sui-types` are shared across all versions.  Changes to
+`./crates/iota-types` are shared across all versions.  Changes to
 interfaces of base crates will warrant a change to versioned snapshots
 to fix their use of those interfaces.  The aim of those changes should
 always be to preserve existing behaviour.
@@ -166,14 +166,14 @@ The script can be called with `--dry-run` to print a summary of what
 it will do, without actually doing it.
 
 
-## `sui-execution/src/lib.rs`
+## `iota-execution/src/lib.rs`
 
-The entry-point to the execution crate -- `sui-execution/src/lib.rs`
+The entry-point to the execution crate -- `iota-execution/src/lib.rs`
 -- is **automatically generated**.  CI tests will confirm that it has
 not been modified manually.  Any modifications should be made in one
 of two places:
 
-- `sui-execution/src/lib.template.rs` -- a template file with
+- `iota-execution/src/lib.template.rs` -- a template file with
   expansion points to be filled in, by
 - function `generate_lib` in `scripts/execution_layer.py`, which fills
   them in based on the execution modules in the crate.

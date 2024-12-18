@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
 
-use sui_light_client::construct::construct_proof;
-use sui_light_client::proof::{verify_proof, Proof, ProofTarget};
+use iota_light_client::construct::construct_proof;
+use iota_light_client::proof::{verify_proof, Proof, ProofTarget};
 
-use sui_types::event::{Event, EventID};
+use iota_types::event::{Event, EventID};
 
-use sui_types::{committee::Committee, effects::TransactionEffectsAPI, object::Object};
+use iota_types::{committee::Committee, effects::TransactionEffectsAPI, object::Object};
 
-use sui_rpc_api::CheckpointData;
+use iota_rpc_api::CheckpointData;
 
 use std::io::Read;
 use std::{fs, path::PathBuf};

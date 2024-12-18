@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::Observable;
@@ -7,8 +8,8 @@ use ethers::providers::Provider;
 use ethers::types::{Address as EthAddress, U256};
 use prometheus::IntGauge;
 use std::sync::Arc;
-use sui_bridge::abi::EthERC20;
-use sui_bridge::metered_eth_provider::MeteredEthHttpProvier;
+use iota_bridge::abi::EthERC20;
+use iota_bridge::metered_eth_provider::MeteredEthHttpProvier;
 use tokio::time::Duration;
 use tracing::{error, info};
 

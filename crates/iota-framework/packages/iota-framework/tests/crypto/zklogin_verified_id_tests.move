@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::zklogin_verified_id_tests {
-    use sui::zklogin_verified_id::{check_zklogin_id, verify_zklogin_id};
-    use sui::test_scenario;
+module iota::zklogin_verified_id_tests {
+    use iota::zklogin_verified_id::{check_zklogin_id, verify_zklogin_id};
+    use iota::test_scenario;
 
     #[test]
-    #[expected_failure(abort_code = sui::zklogin_verified_id::EFunctionDisabled)]
+    #[expected_failure(abort_code = iota::zklogin_verified_id::EFunctionDisabled)]
     fun test_check_zklogin_id() {
         let address = @0x1c6b623a2f2c91333df730c98d220f11484953b391a3818680f922c264cc0c6b;
         let kc_name = b"sub".to_string();
@@ -19,7 +20,7 @@ module sui::zklogin_verified_id_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::zklogin_verified_id::EFunctionDisabled)]
+    #[expected_failure(abort_code = iota::zklogin_verified_id::EFunctionDisabled)]
     fun test_verified_id() {
         let address = @0x1c6b623a2f2c91333df730c98d220f11484953b391a3818680f922c264cc0c6b;
 

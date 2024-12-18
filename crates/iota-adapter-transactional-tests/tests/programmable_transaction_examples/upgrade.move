@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // simple test of upgrade
@@ -34,11 +35,11 @@ module q_2::m {
 }
 
 //# programmable --sender A --inputs 10 @A object(2,1) 0u8 digest(q_2)
-//> 0: sui::package::authorize_upgrade(Input(2), Input(3), Input(4));
+//> 0: iota::package::authorize_upgrade(Input(2), Input(3), Input(4));
 //> 1: SplitCoins(Gas, [Input(0)]);
-//> 2: Upgrade(q_2, [sui,std,r], q, Result(0));
+//> 2: Upgrade(q_2, [iota,std,r], q, Result(0));
 //> TransferObjects([Result(1)], Input(1));
-//> sui::package::commit_upgrade(Input(2), Result(2))
+//> iota::package::commit_upgrade(Input(2), Result(2))
 
 //# programmable --sender A
 //> 0: q::m::x();

@@ -28,8 +28,8 @@ task 4, line 45:
 Owner: Object ID: ( fake(3,1) )
 Version: 3
 Contents: a::m::Obj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
@@ -66,8 +66,8 @@ task 9, line 58:
 Owner: Account Address ( A )
 Version: 7
 Contents: a::m::Obj {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(7,0),
         },
     },

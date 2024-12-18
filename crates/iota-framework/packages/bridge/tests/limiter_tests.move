@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -15,15 +16,15 @@ module bridge::limiter_tests {
         treasury::{Self, BTC, ETH, USDC, USDT},
     };
 
-    use sui::clock;
-    use sui::test_scenario;
-    use sui::test_utils::{assert_eq, destroy};
+    use iota::clock;
+    use iota::test_scenario;
+    use iota::test_utils::{assert_eq, destroy};
 
     #[test]
     fun test_24_hours_windows() {
         let mut limiter = make_transfer_limiter();
 
-        let route = chain_ids::get_route(chain_ids::sui_custom(), chain_ids::eth_sepolia());
+        let route = chain_ids::get_route(chain_ids::iota_custom(), chain_ids::eth_sepolia());
 
         let mut scenario = test_scenario::begin(@0x1);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -108,8 +109,8 @@ module bridge::limiter_tests {
     fun test_24_hours_windows_multiple_route() {
         let mut limiter = make_transfer_limiter();
 
-        let route = chain_ids::get_route(chain_ids::sui_custom(), chain_ids::eth_sepolia());
-        let route2 = chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_custom());
+        let route = chain_ids::get_route(chain_ids::iota_custom(), chain_ids::eth_sepolia());
+        let route2 = chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_custom());
 
         let mut scenario = test_scenario::begin(@0x1);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -166,7 +167,7 @@ module bridge::limiter_tests {
         let ctx = test_scenario::ctx(&mut scenario);
         let mut treasury = treasury::mock_for_test(ctx);
 
-        let route = chain_ids::get_route(chain_ids::sui_custom(), chain_ids::eth_sepolia());
+        let route = chain_ids::get_route(chain_ids::iota_custom(), chain_ids::eth_sepolia());
         // Global transfer limit is 1M USD
         limiter.transfer_limits_mut().insert(route, 1_000_000 * usd_value_multiplier());
         // Notional price for ETH is 10 USD
@@ -250,13 +251,13 @@ module bridge::limiter_tests {
     fun test_limiter_does_not_limit_receiving_transfers() {
         let mut limiter = new();
 
-        let route = chain_ids::get_route(chain_ids::sui_mainnet(), chain_ids::eth_mainnet());
+        let route = chain_ids::get_route(chain_ids::iota_mainnet(), chain_ids::eth_mainnet());
         let mut scenario = test_scenario::begin(@0x1);
         let ctx = scenario.ctx();
         let treasury = treasury::mock_for_test(ctx);
         let mut clock = clock::create_for_testing(ctx);
         clock.set_for_testing(1706288001377);
-        // We don't limit sui -> eth transfers. This aborts with `ELimitNotFoundForRoute`
+        // We don't limit iota -> eth transfers. This aborts with `ELimitNotFoundForRoute`
         limiter.check_and_record_sending_transfer<ETH>(
             &treasury,
             &clock,
@@ -277,7 +278,7 @@ module bridge::limiter_tests {
         let ctx = test_scenario::ctx(&mut scenario);
         let mut treasury = treasury::mock_for_test(ctx);
 
-        let route = chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet());
+        let route = chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet());
         // Global transfer limit is 100 USD
         limiter.transfer_limits_mut().insert(route, 100 * usd_value_multiplier());
         // BTC: $10, ETH: $2.5, USDC: $1, USDT: $0.5
@@ -508,30 +509,30 @@ module bridge::limiter_tests {
         let mut limiter = new();
         assert_eq(
             limiter.transfer_limits()[
-                &chain_ids::get_route(chain_ids::eth_mainnet(), chain_ids::sui_mainnet())
+                &chain_ids::get_route(chain_ids::eth_mainnet(), chain_ids::iota_mainnet())
             ],
             5_000_000 * usd_value_multiplier(),
         );
 
         assert_eq(
             limiter.transfer_limits()[
-                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet())
+                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet())
             ],
             max_transfer_limit(),
         );
 
         // shrink testnet limit
-        update_route_limit(&mut limiter, &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet()), 1_000 * usd_value_multiplier());
+        update_route_limit(&mut limiter, &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet()), 1_000 * usd_value_multiplier());
         assert_eq(
             limiter.transfer_limits()[
-                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet())
+                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet())
             ],
             1_000 * usd_value_multiplier(),
         );
         // mainnet route does not change
         assert_eq(
             limiter.transfer_limits()[
-                &chain_ids::get_route(chain_ids::eth_mainnet(), chain_ids::sui_mainnet())
+                &chain_ids::get_route(chain_ids::eth_mainnet(), chain_ids::iota_mainnet())
             ],
             5_000_000 * usd_value_multiplier(),
         );
@@ -544,24 +545,24 @@ module bridge::limiter_tests {
         // pick an existing route limit
         assert_eq(
             limiter.transfer_limits()[
-                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet())
+                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet())
             ],
             max_transfer_limit(),
         );
         let new_limit = 1_000 * usd_value_multiplier();
-        update_route_limit(&mut limiter, &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet()), new_limit);
+        update_route_limit(&mut limiter, &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet()), new_limit);
         assert_eq(
             limiter.transfer_limits()[
-                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet())
+                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet())
             ],
             new_limit,
         );
 
         // pick a new route limit
-        update_route_limit(&mut limiter, &chain_ids::get_route(chain_ids::sui_testnet(), chain_ids::eth_sepolia()), new_limit);
+        update_route_limit(&mut limiter, &chain_ids::get_route(chain_ids::iota_testnet(), chain_ids::eth_sepolia()), new_limit);
         assert_eq(
             limiter.transfer_limits()[
-                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet())
+                &chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet())
             ],
             new_limit,
         );

@@ -1,5 +1,5 @@
 FROM rust:1.81-bullseye  AS chef
-WORKDIR sui
+WORKDIR iota
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
 RUN apt-get update && apt-get install -y cmake clang
@@ -10,18 +10,18 @@ FROM chef AS builder
 COPY Cargo.toml Cargo.lock ./
 COPY consensus consensus
 COPY crates crates
-COPY sui-execution sui-execution
+COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
 RUN cargo build --release \
-    --bin sui-source-validation-service
+    --bin iota-source-validation-service
 
 # Production Image
 FROM debian:bullseye-slim AS runtime
-WORKDIR sui
+WORKDIR iota
 RUN apt update && apt install -y git
-COPY --from=builder /sui/target/release/sui-source-validation-service /usr/local/bin
-COPY crates/sui-source-validation-service/config.toml /var/sui/
+COPY --from=builder /iota/target/release/iota-source-validation-service /usr/local/bin
+COPY crates/iota-source-validation-service/config.toml /var/iota/
 
 ARG BUILD_DATE
 ARG GIT_REVISION

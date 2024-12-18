@@ -7,34 +7,34 @@ This migration guide will primarily focus on helping migrate existing features t
 this release, and won't cover all the new features that have been added, but here are some
 highlights:
 
-- [A new GraphQL Client for the newly released Sui GraphQL API](../graphql)
+- [A new GraphQL Client for the newly released Iota GraphQL API](../graphql)
 - [New Transaction Executor classes for efficient Transaction execution](../executors)
 - [New Transaction Intents to simplify common transaction patterns](../transaction-building/intents)
 - [A new Plugin system for Extending Transaction Building](../plugins)
 
-The majority of changes in this release are in the `@mysten/sui` package, but the changes to API
+The majority of changes in this release are in the `@iota/iota-sdk` package, but the changes to API
 require some breaking changes across all the Typescript SDKs. You can find migration guides for all
 affected packages below:
 
-## Changes to `@mysten/sui`
+## Changes to `@iota/iota-sdk`
 
-As part of the 1.0 release the `@mysten/sui.js` package has been renamed to `@mysten/sui`
+As part of the 1.0 release the `@iota/iota-sdk` package has been renamed to `@iota/iota-sdk`
 
 To upgrade to the new version, uninstall the old package and install the new one:
 
 ```sh npm2yarn
-npm uninstall @mysten/sui.js
-npm install @mysten/sui
+npm uninstall @iota/iota-sdk
+npm install @iota/iota-sdk
 ```
 
 Then update all imports to use the new package name:
 
 ```diff
-- import { SuiClient } from '@mysten/sui.js'
-+ import { SuiClient } from '@mysten/sui'
+- import { IotaClient } from '@iota/iota-sdk'
++ import { IotaClient } from '@iota/iota-sdk'
 ```
 
-### `@mysten/sui/transactions`
+### `@iota/iota-sdk/transactions`
 
 The largest changes in the 1.0 release are all centered around how Transactions are built and
 executed. This includes are complete rewrite of the internal representation of transactions, as well
@@ -45,7 +45,7 @@ previously used `transactionBlock` have been updated to use `transaction` instea
 
 The distinction between TransactionBlocks and transactions has been a source of confusion for many
 people. With this release we are hoping to disambiguate these terms, and similar changes will be
-coming to other parts of the SUI ecosystem in the future.
+coming to other parts of the IOTA ecosystem in the future.
 
 A `Transaction` now refers to a Programable Transaction Block, which consists of 1 or more
 `commands` (previously called transactions). A `Command` refers to a single step in Programable
@@ -60,19 +60,19 @@ The `TransactionBlock` class has been renamed to `Transaction`, along with many 
 - `TransactionBlockInput` -> `TransactionInput`
 - `signer.signTransactionBlock` -> `signer.signTransaction`
 - `pubkey.verifyTransactionBlock` -> `pubkey.verifyTransaction`
-- `suiClient.waitForTransactionBlock({ transactionBlock })` ->
-  `suiClient.waitForTransaction({ transaction })`
-- `suiClient.signAndExecuteTransactionBlock({ transactionBlock })` ->
-  `suiClient.signAndExecuteTransaction({ transaction })`
+- `iotaClient.waitForTransactionBlock({ transactionBlock })` ->
+  `iotaClient.waitForTransaction({ transaction })`
+- `iotaClient.signAndExecuteTransactionBlock({ transactionBlock })` ->
+  `iotaClient.signAndExecuteTransaction({ transaction })`
 
-There are a few methods on SuiClient that retain the `TransactionBlock` name because they correspond
+There are a few methods on IotaClient that retain the `TransactionBlock` name because they correspond
 to specific JSON RPC calls. The following methods are unchanged:
 
-- `suiClient.getTransactionBlock`
-- `suiClient.queryTransactionBlocks`
-- `suiClient.executeTransactionBlock`
-- `suiClient.dryRunTransactionBlock`
-- `suiClient.devInspectTransactionBlock`
+- `iotaClient.getTransactionBlock`
+- `iotaClient.queryTransactionBlocks`
+- `iotaClient.executeTransactionBlock`
+- `iotaClient.dryRunTransactionBlock`
+- `iotaClient.devInspectTransactionBlock`
 
 ### Building Transactions
 
@@ -133,8 +133,8 @@ the bcs library, or use one of the provided helper methods.
 The `Transactions` export has been renamed to `Commands` and some of the options have been renamed:
 
 ```diff
-- import { Transactions } from '@mysten/sui/transactions'
-+ import { Commands } from '@mysten/sui/transactions'
+- import { Transactions } from '@iota/iota-sdk/transactions'
++ import { Commands } from '@iota/iota-sdk/transactions'
 
  tx.makeMoveVec({
    type: '0x123::foo:Bar'
@@ -158,22 +158,22 @@ The shapes of the following types have change. We expect that for most use-cases
 require any migration because these types represent values created by other parts of the SDK that
 have been updated to return the new format
 
-- [`TransactionObjectArgument`](/typedoc/types/_mysten_sui.transactions.TransactionObjectArgument.html)
+- [`TransactionObjectArgument`](/typedoc/types/_iota_iota.transactions.TransactionObjectArgument.html)
   shape changed
-- [`TransactionResult`](/typedoc/types/_mysten_sui.transactions.TransactionResult.html) shape
+- [`TransactionResult`](/typedoc/types/_iota_iota.transactions.TransactionResult.html) shape
   changed
-- [`TransactionObjectInput`](/typedoc/types/_mysten_sui.transactions.TransactionObjectInput.html)
+- [`TransactionObjectInput`](/typedoc/types/_iota_iota.transactions.TransactionObjectInput.html)
   shape changed
-- [`TransactionArgument`](/typedoc/types/_mysten_sui.transactions.TransactionArgument.html) shape
+- [`TransactionArgument`](/typedoc/types/_iota_iota.transactions.TransactionArgument.html) shape
   changed
-- [`TransactionBlockInput`](/typedoc/types/_mysten_sui.transactions.TransactionBlockInput.html)
+- [`TransactionBlockInput`](/typedoc/types/_iota_iota.transactions.TransactionBlockInput.html)
   shape changed
 
 ### `getPureSerializationType`
 
 The `getPureSerializationType` utility function has been removed.
 
-## `@mysten/sui/bcs`
+## `@iota/iota-sdk/bcs`
 
 ### Bcs Types
 
@@ -188,7 +188,7 @@ The correct way to get Typescript types for the exported BCS types is to use the
 helper:
 
 ```ts
-import { bcs } from '@mysten/sui/bcs';
+import { bcs } from '@iota/iota-sdk/bcs';
 
 function callArg(arg: typeof bcs.CallArg.$inferType) {
 	// ...
@@ -202,11 +202,11 @@ helpers have been removed.
 
 ## /multisig
 
-The `publicKeyFromSuiBytes` has been moved to `@mysten/sui/verify`
+The `publicKeyFromIotaBytes` has been moved to `@iota/iota-sdk/verify`
 
 ```diff
-- import { publicKeyFromSuiBytes } from '@mysten/sui/multisig'
-+ import { publicKeyFromSuiBytes } from '@mysten/sui/verify'
+- import { publicKeyFromIotaBytes } from '@iota/iota-sdk/multisig'
++ import { publicKeyFromIotaBytes } from '@iota/iota-sdk/verify'
 ```
 
 ## /verify
@@ -217,11 +217,11 @@ The methods for verifying signatures have been renamed
 - import {
 -   verifyTransactionBlock
 -   verifyPersonalMessage
-- } from '@mysten/sui/verify'
+- } from '@iota/iota-sdk/verify'
 + import {
 +   verifyTransactionSignature
 +   verifyPersonalMessageSignature
-+ } from '@mysten/sui/verify'
++ } from '@iota/iota-sdk/verify'
 ```
 
 ## /cryptography
@@ -237,7 +237,7 @@ For some keypair implementations, the `signPersonalMessage` method incorrectly r
 encoded version of the signed message. All `signPersonalMessage` implementations now correctly
 return the unwrapped bytes of the message that was signed
 
-# @mysten/bcs
+# @iota/bcs
 
 ## The Registry
 
@@ -261,7 +261,7 @@ easier to parse BCS data from various string encodings.
 
 ## Generics
 
-We previously deprecated the `generic` helper exported from `@mysten/bcs`. This helper has now been
+We previously deprecated the `generic` helper exported from `@iota/bcs`. This helper has now been
 entirely removed.
 
 ## Enums
@@ -291,7 +291,7 @@ if (parsed.Variant0 !== undefined) {
 }
 ```
 
-# @mysten/kiosk
+# @iota/kiosk
 
 The options passed to `KioskTransaction` and `TransferPolicyTransaction` have been updated to
 replace `transactionBlock` with `transaction`.
@@ -312,7 +312,7 @@ than the `transactionBlock`.
 + resolveRuleFunction({ transaction }) => { ... }
 ```
 
-# @mysten/enoki
+# @iota/enoki
 
 The Enoki SDK has been updated to replace TransactionBlock terminology with Transaction throughout
 the API:
@@ -355,7 +355,7 @@ The `useSignAndExecuteTransactionBlock` has been named to `useSignAndExecuteTran
 redesigned to work the updated wallet-standard methods.
 
 `useSignAndExecuteTransaction` no-longer accepts the options passed to
-`suiClient.executeTransactionBlock` for returning additional data.
+`iotaClient.executeTransactionBlock` for returning additional data.
 
 By default useSignAndExecuteTransactionBlock will now return an object with the transaction `digest`
 and the bcs encoded transaction effects:
@@ -379,7 +379,7 @@ To fetch additional data, you can provide a customized `execute` function:
 
 + const { mutate: signAndExecuteTransactionBlock } = useSignAndExecuteTransactionBlock({
 + 	execute: async ({ bytes, signature }) =>
-+ 		await suiClient.executeTransactionBlock({
++ 		await iotaClient.executeTransactionBlock({
 + 			transactionBlock: bytes,
 + 			signature,
 + 			options: {
@@ -397,7 +397,7 @@ To fetch additional data, you can provide a customized `execute` function:
 ```
 
 When using a custom `execute` function, the you must return the rawEffects by setting
-`showRawEffects` to true if using `suiClient.executeTransactionBlock`, or by returning an object
+`showRawEffects` to true if using `iotaClient.executeTransactionBlock`, or by returning an object
 matching `{ effects: { bcs: string` } }` with the base64 encoded bcs effects when using a GraphQL
 query to execute the transaction.
 
@@ -405,15 +405,15 @@ This change decouples the `useSignAndExecuteTransaction` hook from a specific RP
 implementation, and will enable migration to GraphQL without additional breaking changes in this
 hook.
 
-# @mysten/zksend
+# @iota/zksend
 
 The `getSentTransactionBlocksWithLinks` method has been renamed to `getSentTransactionsWithLinks`,
 and all methods that previously accepted a `transactionBlock` option now accept a `transaction`
 instead instead.
 
 ```diff
-- import { getSentTransactionBlocksWithLinks, ZkSendLinkBuilder } from '@mysten/zksend'
-+ import { getSentTransactionsWithLinks, ZkSendLinkBuilder } from '@mysten/zksend'
+- import { getSentTransactionBlocksWithLinks, ZkSendLinkBuilder } from '@iota/zksend'
++ import { getSentTransactionsWithLinks, ZkSendLinkBuilder } from '@iota/zksend'
 
   const tx = new Transaction();
   const link = new ZkSendLinkBuilder({
@@ -426,7 +426,7 @@ instead instead.
   });
 ```
 
-# @mysten/wallet-standard
+# @iota/wallet-standard
 
 ### New wallet-standard features
 
@@ -435,10 +435,10 @@ Transactions in wallets without waiting for previous transactions to be indexed 
 API.
 
 For more details on how wallets can take advantage of these features, see the
-[wallet-standard documentation](https://docs.sui.io/standards/wallet-standard).
+[wallet-standard documentation](https://docs.iota.org/standards/wallet-standard).
 
-The old `sui:signTransactionBlock` and `sui:signAndExecuteTransactionBlock` methods have been
-deprecated in favor of the new `sui:signTransaction` and `sui:signAndExecuteTransaction` methods,
+The old `iota:signTransactionBlock` and `iota:signAndExecuteTransactionBlock` methods have been
+deprecated in favor of the new `iota:signTransaction` and `iota:signAndExecuteTransaction` methods,
 but wallets should continue to implement these deprecated methods until the new methods have been
 broadly adopted by dapps.
 
@@ -448,7 +448,7 @@ broadly adopted by dapps.
 either the new or old wallet-standard methods: `signTransaction` and `signAndExecuteTransaction`.
 
 ```ts
-import { signAndExecuteTransaction, signTransaction } from '@mysten/wallet-standard';
+import { signAndExecuteTransaction, signTransaction } from '@iota/wallet-standard';
 
 const { signature, bytes } = await signTransaction(wallet, { transaction });
 const { digest, effects } = await signAndExecuteTransaction(wallet, { transaction });

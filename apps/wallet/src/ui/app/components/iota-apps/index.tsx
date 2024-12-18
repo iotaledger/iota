@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Heading } from '_app/shared/heading';
@@ -12,8 +13,8 @@ import { useParams } from 'react-router-dom';
 
 import { permissionsSelectors } from '../../redux/slices/permissions';
 import { AppsPageBanner } from './Banner';
-import { SuiApp, type DAppEntry } from './SuiApp';
-import { SuiAppEmpty } from './SuiAppEmpty';
+import { IotaApp, type DAppEntry } from './IotaApp';
+import { IotaAppEmpty } from './IotaAppEmpty';
 
 function AppsPlayGround() {
 	const ecosystemApps = useFeature<DAppEntry[]>(FEATURES.WALLET_DAPPS).value;
@@ -44,7 +45,7 @@ function AppsPlayGround() {
 		<>
 			<div className="flex justify-center mb-4">
 				<Heading variant="heading6" color="gray-90" weight="semibold">
-					Sui Apps
+					Iota Apps
 				</Heading>
 			</div>
 
@@ -54,7 +55,7 @@ function AppsPlayGround() {
 				<div className="p-4 bg-gray-40 rounded-xl">
 					<Text variant="pBodySmall" color="gray-75" weight="normal">
 						Apps below are actively curated but do not indicate any endorsement or relationship with
-						Sui Wallet. Please DYOR.
+						Iota Wallet. Please DYOR.
 					</Text>
 				</div>
 			) : null}
@@ -62,7 +63,7 @@ function AppsPlayGround() {
 			{filteredEcosystemApps?.length ? (
 				<div className="flex flex-col divide-y divide-gray-45 divide-solid divide-x-0 mt-2">
 					{filteredEcosystemApps.map((app) => (
-						<SuiApp
+						<IotaApp
 							key={app.link}
 							{...app}
 							permissionID={linkToPermissionID.get(prepareLinkToCompare(app.link))}
@@ -72,7 +73,7 @@ function AppsPlayGround() {
 					))}
 				</div>
 			) : (
-				<SuiAppEmpty displayType="full" />
+				<IotaAppEmpty displayType="full" />
 			)}
 		</>
 	);

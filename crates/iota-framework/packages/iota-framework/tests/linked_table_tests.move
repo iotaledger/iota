@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::linked_table_tests {
-    use sui::linked_table::{
+module iota::linked_table_tests {
+    use iota::linked_table::{
         Self,
         LinkedTable,
     };
-    use sui::test_scenario;
+    use iota::test_scenario;
 
     #[test]
     fun simple_all_functions() {
@@ -104,7 +105,7 @@ module sui::linked_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldAlreadyExists)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
     fun push_front_duplicate() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -115,7 +116,7 @@ module sui::linked_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldAlreadyExists)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
     fun push_back_duplicate() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -126,7 +127,7 @@ module sui::linked_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldAlreadyExists)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
     fun push_mixed_duplicate() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -137,7 +138,7 @@ module sui::linked_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun borrow_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -147,7 +148,7 @@ module sui::linked_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun borrow_mut_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -157,7 +158,7 @@ module sui::linked_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun remove_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);

@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::deny_list_tests {
-    use sui::deny_list;
-    use sui::test_scenario;
+module iota::deny_list_tests {
+    use iota::deny_list;
+    use iota::test_scenario;
     use std::type_name;
 
     public struct X()
 
-    #[test, expected_failure(abort_code = sui::deny_list::EInvalidAddress)]
+    #[test, expected_failure(abort_code = iota::deny_list::EInvalidAddress)]
     fun add_zero() {
         let mut ctx = tx_context::dummy();
         let mut dl = deny_list::new_for_testing(&mut ctx);
@@ -18,7 +19,7 @@ module sui::deny_list_tests {
         abort 0 // should not be reached
     }
 
-    #[test, expected_failure(abort_code = sui::deny_list::EInvalidAddress)]
+    #[test, expected_failure(abort_code = iota::deny_list::EInvalidAddress)]
     fun remove_zero() {
         let mut ctx = tx_context::dummy();
         let mut dl = deny_list::new_for_testing(&mut ctx);

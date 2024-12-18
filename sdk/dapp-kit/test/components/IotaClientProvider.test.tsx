@@ -1,60 +1,61 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiClient } from '@mysten/sui/client';
+import { IotaClient } from '@iota/iota-sdk/client';
 import { screen } from '@testing-library/dom';
 import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
-import { SuiClientProvider } from '../../src/components/SuiClientProvider.js';
-import { useSuiClient, useSuiClientContext } from '../../src/index.js';
+import { IotaClientProvider } from '../../src/components/IotaClientProvider.js';
+import { useIotaClient, useIotaClientContext } from '../../src/index.js';
 
-describe('SuiClientProvider', () => {
+describe('IotaClientProvider', () => {
 	it('renders without crashing', () => {
 		render(
-			<SuiClientProvider>
+			<IotaClientProvider>
 				<div>Test</div>
-			</SuiClientProvider>,
+			</IotaClientProvider>,
 		);
 		expect(screen.getByText('Test')).toBeInTheDocument();
 	});
 
-	it('provides a SuiClient instance to its children', () => {
+	it('provides a IotaClient instance to its children', () => {
 		const ChildComponent = () => {
-			const client = useSuiClient();
-			expect(client).toBeInstanceOf(SuiClient);
+			const client = useIotaClient();
+			expect(client).toBeInstanceOf(IotaClient);
 			return <div>Test</div>;
 		};
 
 		render(
-			<SuiClientProvider>
+			<IotaClientProvider>
 				<ChildComponent />
-			</SuiClientProvider>,
+			</IotaClientProvider>,
 		);
 	});
 
-	it('can accept pre-configured SuiClients', () => {
-		const suiClient = new SuiClient({ url: 'http://localhost:8080' });
+	it('can accept pre-configured IotaClients', () => {
+		const iotaClient = new IotaClient({ url: 'http://localhost:8080' });
 		const ChildComponent = () => {
-			const client = useSuiClient();
-			expect(client).toBeInstanceOf(SuiClient);
-			expect(client).toBe(suiClient);
+			const client = useIotaClient();
+			expect(client).toBeInstanceOf(IotaClient);
+			expect(client).toBe(iotaClient);
 			return <div>Test</div>;
 		};
 
 		render(
-			<SuiClientProvider networks={{ localnet: suiClient }}>
+			<IotaClientProvider networks={{ localnet: iotaClient }}>
 				<ChildComponent />
-			</SuiClientProvider>,
+			</IotaClientProvider>,
 		);
 
 		expect(screen.getByText('Test')).toBeInTheDocument();
 	});
 
-	test('can create sui clients with custom options', async () => {
+	test('can create iota clients with custom options', async () => {
 		function NetworkSelector() {
-			const ctx = useSuiClientContext();
+			const ctx = useIotaClientContext();
 
 			return (
 				<div>
@@ -70,7 +71,7 @@ describe('SuiClientProvider', () => {
 			const [selectedNetwork, setSelectedNetwork] = useState<string>();
 
 			return (
-				<SuiClientProvider
+				<IotaClientProvider
 					networks={{
 						a: {
 							url: 'http://localhost:8080',
@@ -83,12 +84,12 @@ describe('SuiClientProvider', () => {
 					}}
 					createClient={(name, { custom, ...config }) => {
 						custom(name);
-						return new SuiClient(config);
+						return new IotaClient(config);
 					}}
 				>
 					<div>{`selected network: ${selectedNetwork}`}</div>
 					<NetworkSelector />
-				</SuiClientProvider>
+				</IotaClientProvider>
 			);
 		}
 
@@ -105,7 +106,7 @@ describe('SuiClientProvider', () => {
 
 	test('controlled mode', async () => {
 		function NetworkSelector(props: { selectNetwork: (network: string) => void }) {
-			const ctx = useSuiClientContext();
+			const ctx = useIotaClientContext();
 
 			return (
 				<div>
@@ -123,7 +124,7 @@ describe('SuiClientProvider', () => {
 			const [selectedNetwork, setSelectedNetwork] = useState<'a' | 'b'>('a');
 
 			return (
-				<SuiClientProvider
+				<IotaClientProvider
 					networks={{
 						a: {
 							url: 'http://localhost:8080',
@@ -141,7 +142,7 @@ describe('SuiClientProvider', () => {
 							setSelectedNetwork(network as 'a' | 'b');
 						}}
 					/>
-				</SuiClientProvider>
+				</IotaClientProvider>
 			);
 		}
 
@@ -158,7 +159,7 @@ describe('SuiClientProvider', () => {
 
 	test('onNetworkChange', async () => {
 		function NetworkSelector() {
-			const ctx = useSuiClientContext();
+			const ctx = useIotaClientContext();
 
 			return (
 				<div>
@@ -176,7 +177,7 @@ describe('SuiClientProvider', () => {
 			const [selectedNetwork, setSelectedNetwork] = useState<string>('a');
 
 			return (
-				<SuiClientProvider
+				<IotaClientProvider
 					networks={{
 						a: {
 							url: 'http://localhost:8080',
@@ -193,7 +194,7 @@ describe('SuiClientProvider', () => {
 					}}
 				>
 					<NetworkSelector />
-				</SuiClientProvider>
+				</IotaClientProvider>
 			);
 		}
 

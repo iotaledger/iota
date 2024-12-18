@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::response::Bcs;
@@ -12,7 +13,7 @@ use axum::extract::{Query, State};
 use axum::Json;
 use schemars::JsonSchema;
 use std::net::SocketAddr;
-use sui_sdk_types::types::{
+use iota_sdk_types::types::{
     BalanceChange, Object, SignedTransaction, Transaction, TransactionEffects, TransactionEvents,
 };
 

@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
 
-use sui_json_rpc_api::{CoinReadApiClient, IndexerApiClient, ReadApiClient};
-use sui_json_rpc_types::{
-    CoinPage, EventFilter, SuiObjectDataOptions, SuiObjectResponse, SuiObjectResponseQuery,
+use iota_json_rpc_api::{CoinReadApiClient, IndexerApiClient, ReadApiClient};
+use iota_json_rpc_types::{
+    CoinPage, EventFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
 };
-use sui_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT;
-use sui_test_transaction_builder::publish_package;
-use sui_types::{event::EventID, transaction::CallArg};
+use iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT;
+use iota_test_transaction_builder::publish_package;
+use iota_types::{event::EventID, transaction::CallArg};
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]
@@ -22,11 +23,11 @@ async fn test_get_owned_objects() -> Result<(), anyhow::Error> {
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
 
-    let data_option = SuiObjectDataOptions::new().with_owner();
+    let data_option = IotaObjectDataOptions::new().with_owner();
     let objects = http_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
+            Some(IotaObjectResponseQuery::new_with_options(
                 data_option.clone(),
             )),
             None,
@@ -39,7 +40,7 @@ async fn test_get_owned_objects() -> Result<(), anyhow::Error> {
         .rpc_client
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
+            Some(IotaObjectResponseQuery::new_with_options(
                 data_option.clone(),
             )),
             None,
@@ -58,7 +59,7 @@ async fn test_get_owned_objects() -> Result<(), anyhow::Error> {
             .get_object(oref.object_id, Some(data_option.clone()))
             .await?;
         assert!(
-            matches!(result, SuiObjectResponse { data: Some(object), .. } if oref.object_id == object.object_id && object.owner.clone().unwrap().get_owner_address()? == address)
+            matches!(result, IotaObjectResponse { data: Some(object), .. } if oref.object_id == object.object_id && object.owner.clone().unwrap().get_owner_address()? == address)
         );
     }
 
@@ -98,13 +99,13 @@ async fn test_get_coins() -> Result<(), anyhow::Error> {
 
     // We should get 0 coins for a non-existent coin type.
     let result: CoinPage = http_client
-        .get_coins(address, Some("0x2::sui::TestCoin".into()), None, None)
+        .get_coins(address, Some("0x2::iota::TestCoin".into()), None, None)
         .await?;
     assert_eq!(0, result.data.len());
 
-    // We should get all the 5 coins for SUI with the right balance.
+    // We should get all the 5 coins for IOTA with the right balance.
     let result: CoinPage = http_client
-        .get_coins(address, Some("0x2::sui::SUI".into()), None, None)
+        .get_coins(address, Some("0x2::iota::IOTA".into()), None, None)
         .await?;
     assert_eq!(5, result.data.len());
     assert_eq!(result.data[0].balance, DEFAULT_GAS_AMOUNT);
@@ -112,7 +113,7 @@ async fn test_get_coins() -> Result<(), anyhow::Error> {
 
     // When we have more than 3 coins, we should get a next page.
     let result: CoinPage = http_client
-        .get_coins(address, Some("0x2::sui::SUI".into()), None, Some(3))
+        .get_coins(address, Some("0x2::iota::IOTA".into()), None, Some(3))
         .await?;
     assert_eq!(3, result.data.len());
     assert!(result.has_next_page);
@@ -121,7 +122,7 @@ async fn test_get_coins() -> Result<(), anyhow::Error> {
     let result: CoinPage = http_client
         .get_coins(
             address,
-            Some("0x2::sui::SUI".into()),
+            Some("0x2::iota::IOTA".into()),
             result.next_cursor,
             Some(3),
         )
@@ -133,7 +134,7 @@ async fn test_get_coins() -> Result<(), anyhow::Error> {
     let result: CoinPage = http_client
         .get_coins(
             address,
-            Some("0x2::sui::SUI".into()),
+            Some("0x2::iota::IOTA".into()),
             result.next_cursor,
             None,
         )

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::{
@@ -7,7 +8,7 @@ use crate::authority::{
 };
 
 use move_binary_format::CompiledModule;
-use sui_types::{
+use iota_types::{
     base_types::ObjectID,
     error::UserInputError,
     object::{Data, ObjectRead, Owner},
@@ -16,10 +17,10 @@ use sui_types::{
 };
 
 use move_package::source_package::manifest_parser;
-use sui_move_build::{check_unpublished_dependencies, gather_published_ids, BuildConfig};
-use sui_types::{
+use iota_move_build::{check_unpublished_dependencies, gather_published_ids, BuildConfig};
+use iota_types::{
     crypto::{get_key_pair, AccountKeyPair},
-    error::SuiError,
+    error::IotaError,
 };
 
 use crate::authority::move_integration_tests::{
@@ -30,10 +31,10 @@ use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::{collections::HashSet, path::PathBuf};
-use sui_framework::BuiltInFramework;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_framework::BuiltInFramework;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
@@ -123,7 +124,7 @@ async fn test_publish_empty_package() {
         .unwrap_err();
     assert_eq!(
         err,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::EmptyCommandInput
         }
     );
@@ -223,7 +224,7 @@ async fn test_generate_lock_file() {
         deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
         dependencies = [
           { id = "Examples", name = "Examples" },
-          { id = "Sui", name = "Sui" },
+          { id = "Iota", name = "Iota" },
         ]
 
         [[move.package]]
@@ -231,16 +232,16 @@ async fn test_generate_lock_file() {
         source = { local = "../object_basics" }
 
         dependencies = [
-          { id = "Sui", name = "Sui" },
+          { id = "Iota", name = "Iota" },
         ]
 
         [[move.package]]
         id = "MoveStdlib"
-        source = { local = "../../../../../sui-framework/packages/move-stdlib" }
+        source = { local = "../../../../../iota-framework/packages/move-stdlib" }
 
         [[move.package]]
-        id = "Sui"
-        source = { local = "../../../../../sui-framework/packages/sui-framework" }
+        id = "Iota"
+        source = { local = "../../../../../iota-framework/packages/iota-framework" }
 
         dependencies = [
           { id = "MoveStdlib", name = "MoveStdlib" },
@@ -249,7 +250,7 @@ async fn test_generate_lock_file() {
         [move.toolchain-version]
         compiler-version = "0.0.1"
         edition = "2024.beta"
-        flavor = "sui"
+        flavor = "iota"
     "##]];
     expected.assert_eq(lock_file_contents.as_str());
 }
@@ -301,7 +302,7 @@ async fn test_custom_property_check_unpublished_dependencies() {
         .resolution_graph_for_package(&path, None, &mut std::io::sink())
         .expect("Could not build resolution graph.");
 
-    let SuiError::ModulePublishFailure { error } = check_unpublished_dependencies(
+    let IotaError::ModulePublishFailure { error } = check_unpublished_dependencies(
         &gather_published_ids(&resolution_graph, None).1.unpublished,
     )
     .err()
@@ -490,7 +491,7 @@ async fn test_publish_more_than_max_packages_error() {
         .unwrap_err();
     assert_eq!(
         err,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::MaxPublishCountExceeded {
                 max_publish_commands: max_pub_cmd,
                 publish_count: max_pub_cmd + 1,

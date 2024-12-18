@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
 use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
 use bcs;
-use sui_types::{
+use iota_types::{
     execution_status::ExecutionStatus,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
@@ -12,7 +13,7 @@ use sui_types::{
 
 use authority_tests::send_and_confirm_transaction;
 use move_core_types::{account_address::AccountAddress, ident_str};
-use sui_types::{
+use iota_types::{
     crypto::{get_key_pair, AccountKeyPair},
     object::Owner,
 };

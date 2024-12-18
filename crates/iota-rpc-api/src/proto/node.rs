@@ -4,7 +4,7 @@ use super::TryFromProtoError;
 use tap::Pipe;
 
 #[rustfmt::skip]
-#[path = "generated/sui.node.v2.rs"]
+#[path = "generated/iota.node.v2.rs"]
 mod generated;
 pub use generated::*;
 
@@ -12,8 +12,8 @@ pub use generated::*;
 // BalanceChange
 //
 
-impl From<sui_sdk_types::types::BalanceChange> for BalanceChange {
-    fn from(value: sui_sdk_types::types::BalanceChange) -> Self {
+impl From<iota_sdk_types::types::BalanceChange> for BalanceChange {
+    fn from(value: iota_sdk_types::types::BalanceChange) -> Self {
         Self {
             address: Some(value.address.into()),
             coin_type: Some(value.coin_type.into()),
@@ -22,7 +22,7 @@ impl From<sui_sdk_types::types::BalanceChange> for BalanceChange {
     }
 }
 
-impl TryFrom<&BalanceChange> for sui_sdk_types::types::BalanceChange {
+impl TryFrom<&BalanceChange> for iota_sdk_types::types::BalanceChange {
     type Error = TryFromProtoError;
 
     fn try_from(value: &BalanceChange) -> Result<Self, Self::Error> {

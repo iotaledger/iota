@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// A table is a map-like collection. But unlike a traditional collection, it's keys and values are
-/// not stored within the `Table` value, but instead are stored using Sui's object system. The
+/// not stored within the `Table` value, but instead are stored using Iota's object system. The
 /// `Table` struct acts only as a handle into the object system to retrieve those keys and values.
 /// Note that this means that `Table` values with exactly the same key-value mapping will not be
 /// equal, with `==`, at runtime. For example
@@ -16,9 +17,9 @@
 /// // table1 does not equal table2, despite having the same entries
 /// assert!(&table1 != &table2);
 /// ```
-module sui::table;
+module iota::table;
 
-use sui::dynamic_field as field;
+use iota::dynamic_field as field;
 
 // Attempted to destroy a non-empty table
 const ETableNotEmpty: u64 = 0;
@@ -39,7 +40,7 @@ public fun new<K: copy + drop + store, V: store>(ctx: &mut TxContext): Table<K, 
 }
 
 /// Adds a key-value pair to the table `table: &mut Table<K, V>`
-/// Aborts with `sui::dynamic_field::EFieldAlreadyExists` if the table already has an entry with
+/// Aborts with `iota::dynamic_field::EFieldAlreadyExists` if the table already has an entry with
 /// that key `k: K`.
 public fun add<K: copy + drop + store, V: store>(table: &mut Table<K, V>, k: K, v: V) {
     field::add(&mut table.id, k, v);
@@ -48,7 +49,7 @@ public fun add<K: copy + drop + store, V: store>(table: &mut Table<K, V>, k: K, 
 
 #[syntax(index)]
 /// Immutable borrows the value associated with the key in the table `table: &Table<K, V>`.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the table does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the table does not have an entry with
 /// that key `k: K`.
 public fun borrow<K: copy + drop + store, V: store>(table: &Table<K, V>, k: K): &V {
     field::borrow(&table.id, k)
@@ -56,14 +57,14 @@ public fun borrow<K: copy + drop + store, V: store>(table: &Table<K, V>, k: K): 
 
 #[syntax(index)]
 /// Mutably borrows the value associated with the key in the table `table: &mut Table<K, V>`.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the table does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the table does not have an entry with
 /// that key `k: K`.
 public fun borrow_mut<K: copy + drop + store, V: store>(table: &mut Table<K, V>, k: K): &mut V {
     field::borrow_mut(&mut table.id, k)
 }
 
 /// Removes the key-value pair in the table `table: &mut Table<K, V>` and returns the value.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the table does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the table does not have an entry with
 /// that key `k: K`.
 public fun remove<K: copy + drop + store, V: store>(table: &mut Table<K, V>, k: K): V {
     let v = field::remove(&mut table.id, k);

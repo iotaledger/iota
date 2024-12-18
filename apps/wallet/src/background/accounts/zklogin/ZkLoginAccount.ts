@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import networkEnv from '_src/background/NetworkEnv';
 import { type NetworkEnvType } from '_src/shared/api-env';
 import { deobfuscate, obfuscate } from '_src/shared/cryptography/keystore';
 import { fromExportedKeypair } from '_src/shared/utils/from-exported-keypair';
-import { toSerializedSignature, type PublicKey } from '@mysten/sui/cryptography';
-import { computeZkLoginAddress, genAddressSeed, getZkLoginSignature } from '@mysten/sui/zklogin';
+import { toSerializedSignature, type PublicKey } from '@iota/iota-sdk/cryptography';
+import { computeZkLoginAddress, genAddressSeed, getZkLoginSignature } from '@iota/iota-sdk/zklogin';
 import { blake2b } from '@noble/hashes/blake2b';
 import { decodeJwt } from 'jose';
 

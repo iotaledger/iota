@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
 use std::str::FromStr;
 use std::sync::Arc;
-use sui_storage::http_key_value_store::*;
-use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use sui_types::base_types::ObjectID;
-use sui_types::digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest};
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_storage::http_key_value_store::*;
+use iota_storage::key_value_store::TransactionKeyValueStore;
+use iota_storage::key_value_store_metrics::KeyValueStoreMetrics;
+use iota_types::base_types::ObjectID;
+use iota_types::digests::{CheckpointDigest, TransactionDigest, TransactionEventsDigest};
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 enum Command {
     Fetch {
-        // default value of 'https://transactions.sui.io/'
-        #[arg(short, long, default_value = "https://transactions.sui.io/mainnet")]
+        // default value of 'https://transactions.iota.io/'
+        #[arg(short, long, default_value = "https://transactions.iota.io/mainnet")]
         base_url: String,
 
         #[arg(short, long)]
@@ -155,7 +156,7 @@ impl Command {
             }
             Command::DecodeKey { url } => {
                 // url may look like
-                // https://transactions.sui.io/mainnet/jlkqmZbVuunngIyy2vjBOJSETrM56EH_kIc5wuLvDydN_x0GAAAAAA/ob
+                // https://transactions.iota.io/mainnet/jlkqmZbVuunngIyy2vjBOJSETrM56EH_kIc5wuLvDydN_x0GAAAAAA/ob
                 // extract the digest and type
                 let parts: Vec<_> = url.split('/').collect();
 

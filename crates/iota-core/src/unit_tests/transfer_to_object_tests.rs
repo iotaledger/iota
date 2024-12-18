@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashSet, sync::Arc};
 
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
     crypto::{get_key_pair, AccountKeyPair},
     digests::ObjectDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
-    error::{SuiError, UserInputError},
+    error::{IotaError, UserInputError},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -60,7 +61,7 @@ macro_rules! transfer_test_runner {
 }
 
 struct TestRunner {
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub sender_key: AccountKeyPair,
     pub gas_object_ids: Vec<ObjectID>,
     pub authority_state: Arc<AuthorityState>,
@@ -115,7 +116,7 @@ impl TestRunner {
         Self::new_with_objects(base_package_name, 1, aggressive_pruning_enabled).await
     }
 
-    pub async fn signing_error(&mut self, pt: ProgrammableTransaction) -> SuiError {
+    pub async fn signing_error(&mut self, pt: ProgrammableTransaction) -> IotaError {
         execute_programmable_transaction(
             &self.authority_state,
             &self.gas_object_ids[0],
@@ -315,7 +316,7 @@ async fn test_tto_transfer() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.0 == child.0 .0 {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::AddressOwner(SuiAddress::ZERO));
+                assert_eq!(owner, &Owner::AddressOwner(IotaAddress::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.1 > child.0 .1);
             }
@@ -349,7 +350,7 @@ async fn test_tto_intersection_input_and_receiving_objects() {
         let child_receiving_arg = CallArg::Object(ObjectArg::Receiving(child.0));
 
         // Duplicate object reference between receiving and input object arguments.
-        let SuiError::UserInputError { error } = runner
+        let IotaError::UserInputError { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
@@ -368,7 +369,7 @@ async fn test_tto_intersection_input_and_receiving_objects() {
         assert!(matches!(error, UserInputError::DuplicateObjectRefInput));
 
         // Duplicate object reference in receiving object arguments.
-        let SuiError::UserInputError { error } = runner
+        let IotaError::UserInputError { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
@@ -478,7 +479,7 @@ async fn test_tto_invalid_receiving_arguments() {
         ];
 
         for (i, (mutate, expect)) in mutations.into_iter().enumerate() {
-            let SuiError::UserInputError { error } = runner.signing_error({
+            let IotaError::UserInputError { error } = runner.signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder.obj(ObjectArg::ImmOrOwnedObject(parent.0)).unwrap();
                 let child = builder.obj(ObjectArg::Receiving(mutate(child.0))).unwrap();
@@ -766,7 +767,7 @@ async fn test_tto_unwrap_transfer() {
         // The now-unwrapped object should be sent to 0x0
         assert_eq!(
             effects.unwrapped()[0].1,
-            Owner::AddressOwner(SuiAddress::ZERO)
+            Owner::AddressOwner(IotaAddress::ZERO)
         );
 
         // Receiving object ID is deleted
@@ -1085,7 +1086,7 @@ async fn test_tto_valid_dependencies() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(SuiAddress::from(parent.0 .0), child.0)
+                        .transfer_object(IotaAddress::from(parent.0 .0), child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1129,7 +1130,7 @@ async fn test_tto_valid_dependencies() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.0 == child.0 .0 {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::AddressOwner(SuiAddress::ZERO));
+                assert_eq!(owner, &Owner::AddressOwner(IotaAddress::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.1 > child.0 .1);
                 // The child should be the max version
@@ -1185,7 +1186,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(SuiAddress::from(parent.0 .0), child.0)
+                        .transfer_object(IotaAddress::from(parent.0 .0), child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1281,7 +1282,7 @@ async fn test_tto_dependencies_dont_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(SuiAddress::from(parent.0 .0), old_child.0)
+                        .transfer_object(IotaAddress::from(parent.0 .0), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1379,7 +1380,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(SuiAddress::from(parent.0 .0), old_child.0)
+                        .transfer_object(IotaAddress::from(parent.0 .0), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1475,7 +1476,7 @@ async fn test_tto_dependencies_receive_and_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(SuiAddress::from(parent.0 .0), old_child.0)
+                        .transfer_object(IotaAddress::from(parent.0 .0), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1570,7 +1571,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(SuiAddress::from(parent.0 .0), old_child.0)
+                        .transfer_object(IotaAddress::from(parent.0 .0), old_child.0)
                         .unwrap();
                     builder.finish()
                 },

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -9,7 +10,7 @@ use clap::Parser;
 
 use telemetry_subscribers::TelemetryConfig;
 
-use sui_source_validation_service::{
+use iota_source_validation_service::{
     host_port, initialize, parse_config, serve, start_prometheus_server, watch_for_upgrades,
     AppState, DirectorySource, Network, PackageSource, RepositorySource, SourceServiceMetrics,
     METRICS_HOST_PORT,

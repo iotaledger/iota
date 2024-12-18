@@ -2,8 +2,8 @@
 title: Review Rating
 ---
 
-The following documentation goes through an example implementation of a review rating platform for the food service industry on Sui.
-Unlike traditional review rating platforms that often do not disclose the algorithm used to rate reviews, this example uses an algorithm that is published on-chain for everyone to see and verify. The low gas cost of computation on Sui make it financially feasible to submit, score, and order all reviews on-chain.
+The following documentation goes through an example implementation of a review rating platform for the food service industry on Iota.
+Unlike traditional review rating platforms that often do not disclose the algorithm used to rate reviews, this example uses an algorithm that is published on-chain for everyone to see and verify. The low gas cost of computation on Iota make it financially feasible to submit, score, and order all reviews on-chain.
 
 ## Personas
 
@@ -28,7 +28,7 @@ sequenceDiagram
 
 Service owners are entities like restaurants that list their services on the platform. They want to attract more customers by receiving high-rated reviews for their services.
 
-Service owners allocate a specific amount of SUI as a reward pool. Assets from the pool are used to provide rewards for high-rated reviews. A proof of experience (PoE) NFT confirms a reviewer used the service, which the reviewer can burn later to provide a verified review. Service owners provide their customers with unique identifiers (perhaps using QR codes) to identify individual reviewers.
+Service owners allocate a specific amount of IOTA as a reward pool. Assets from the pool are used to provide rewards for high-rated reviews. A proof of experience (PoE) NFT confirms a reviewer used the service, which the reviewer can burn later to provide a verified review. Service owners provide their customers with unique identifiers (perhaps using QR codes) to identify individual reviewers.
 
 ### Reviewers
 
@@ -100,7 +100,7 @@ A service may be registered to multiple dashboards at the same time. For example
 
 :::info
 
-See [Shared versus Owned Objects](../sui-101/shared-owned.mdx) for more information on the differences between object types.
+See [Shared versus Owned Objects](../iota-101/shared-owned.mdx) for more information on the differences between object types.
 
 :::
 
@@ -157,7 +157,7 @@ const MAX_REVIEWERS_TO_REWARD: u64 = 10;
 /// Represents a service
 public struct Service has key, store {
     id: UID,
-    reward_pool: Balance<SUI>,
+    reward_pool: Balance<IOTA>,
     reward: u64,
     top_reviews: vector<ID>,
     reviews: ObjectTable<ID, Review>,
@@ -169,11 +169,11 @@ public struct Service has key, store {
 #### Reward distribution
 
 The same amount is rewarded to top reviewers, and the reward is distributed to 10 participants at most.
-The pool of `SUI` tokens to be distributed to reviewers is stored in the `reward_pool` field, and the amount of `SUI` tokens awarded to each participant is configured in `reward` field.
+The pool of `IOTA` tokens to be distributed to reviewers is stored in the `reward_pool` field, and the amount of `IOTA` tokens awarded to each participant is configured in `reward` field.
 
 #### Storage for reviews
 
-Because anyone can submit a review for a service, `Service` is defined as a shared object. All the reviews are stored in the `reviews` field, which has [ObjectTable](../../../concepts/sui-move-concepts/collections.mdx#object_table)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
+Because anyone can submit a review for a service, `Service` is defined as a shared object. All the reviews are stored in the `reviews` field, which has [ObjectTable](../../../concepts/iota-move-concepts/collections.mdx#object_table)`<ID, Review>` type. The `reviews` are stored as children of the shared object, but they are still accessible by their `ID`.
 In other words, anyone can go to a transaction explorer and find a review object by its object ID, but they won't be able to use a review as an input to a transaction by its object ID.
 
 :::info
@@ -277,26 +277,26 @@ To learn more about the capabilities pattern, see [The Move Book](https://move-b
 
 ## Deployment
 
-Navigate to the [setup folder](https://github.com/MystenLabs/reviews-ratings-poc/tree/main/setup) of the repository and execute the `publish.sh` script. Refer to the [README instructions](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/README.md) for deploying the smart contracts.
+Navigate to the [setup folder](https://github.com/iotaledger/reviews-ratings-poc/tree/main/setup) of the repository and execute the `publish.sh` script. Refer to the [README instructions](https://github.com/iotaledger/reviews-ratings-poc/blob/main/README.md) for deploying the smart contracts.
 
 ## Frontend
 
-The frontend module is written in React, and is structured to provide a responsive user experience for interacting with a review rating platform. The [`page` component](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/page.tsx) supports user log in as a `SERVICE OWNER`, a `MODERATOR`, or a `REVIEWER`. A `REVIEW READER` role is not implemented for this example, but a `REVIEWER` can also read reviews and cast votes.
+The frontend module is written in React, and is structured to provide a responsive user experience for interacting with a review rating platform. The [`page` component](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/page.tsx) supports user log in as a `SERVICE OWNER`, a `MODERATOR`, or a `REVIEWER`. A `REVIEW READER` role is not implemented for this example, but a `REVIEWER` can also read reviews and cast votes.
 
 ### Directories structure
 
 The frontend is a NextJS project, that follows the NextJS App Router [project structure](https://nextjs.org/docs/app/building-your-application/routing).
-The main code of the frontend is located in the [app/src/](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/) directory.
+The main code of the frontend is located in the [app/src/](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/) directory.
 
 The main sub-directories are:
 
-- [app/](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/): The main code of the pages and the global styles.
-- [components/](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/components): The reusable components of the app, organized in sub-directories.
-- [hooks/](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/hooks): The custom hooks used in the app.
-- [moderator/](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/moderator): The pages for `MODERATOR`.
-- [serviceOwner/](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/serviceOwner): The pages for `SERVICE OWNER`.
-- [types/](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/types): The types/interfaces used in the app.
-- [user/](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/user): The pages for `REVIEWER`.
+- [app/](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/): The main code of the pages and the global styles.
+- [components/](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/components): The reusable components of the app, organized in sub-directories.
+- [hooks/](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/hooks): The custom hooks used in the app.
+- [moderator/](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/moderator): The pages for `MODERATOR`.
+- [serviceOwner/](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/serviceOwner): The pages for `SERVICE OWNER`.
+- [types/](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/types): The types/interfaces used in the app.
+- [user/](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/user): The pages for `REVIEWER`.
 
 ### Connect button
 
@@ -305,7 +305,7 @@ The Wallet Kit comes with a pre-built React.js component called `ConnectButton` 
 Place the `ConnectButton` in the navigation bar for users to connect their wallets:
 
 ```ts title='src/app/components/navbar/Navbar.tsx'
-import { ConnectButton } from '@mysten/wallet-kit';
+import { ConnectButton } from '@iota/wallet-kit';
 import { usePathname } from 'next/navigation';
 
 import { useAuthentication } from '@/app/hooks/useAuthentication';
@@ -384,14 +384,14 @@ export interface Service {
 In the frontend, you might need to execute a transaction block in multiple places, hence it's better to extract the transaction execution logic and reuse it everywhere. Let's examine the execute transaction hook.
 
 ```ts title='src/app/hooks/useSignAndExecuteTransaction.ts'
-import { Transaction } from '@mysten/sui/transactions';
-import { useWalletKit } from '@mysten/wallet-kit';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { useWalletKit } from '@iota/wallet-kit';
 import { toast } from 'react-hot-toast';
 
-import { useSui } from './useSui';
+import { useIota } from './useIota';
 
 export const useSignAndExecuteTransaction = () => {
-	const { executeSignedTransaction } = useSui();
+	const { executeSignedTransaction } = useIota();
 	const { signTransaction } = useWalletKit();
 	const handleSignAndExecuteTransaction = async (
 		tx: Transaction,
@@ -442,20 +442,20 @@ export const useSignAndExecuteTransaction = () => {
 
 A `Transaction` is the input, sign it with the current connected wallet account, execute the transaction block, return the execution result, and finally display a basic toast message to indicate whether the transaction is successful or not.
 
-Use the `useWalletKit()` hook from the Wallet Kit to retrieve the Sui client instance configured in `WalletKitProvider`. The `signTransaction()` function is another hook that helps to sign the transaction block using the currently connected wallet. It displays the UI for users to review and sign their transactions with their selected wallet. To execute a transaction block, the `executeSignedTransaction()` on the Sui client instance of the Sui TypeScript SDK. Use `react-hot-toast` as another dependency to toast transaction status to users.
+Use the `useWalletKit()` hook from the Wallet Kit to retrieve the Iota client instance configured in `WalletKitProvider`. The `signTransaction()` function is another hook that helps to sign the transaction block using the currently connected wallet. It displays the UI for users to review and sign their transactions with their selected wallet. To execute a transaction block, the `executeSignedTransaction()` on the Iota client instance of the Iota TypeScript SDK. Use `react-hot-toast` as another dependency to toast transaction status to users.
 
 ### Components and custom hooks for state management
 
-- Custom hooks: To keep the code as structured as possible, multiple custom hooks are utilized to manage the list of reviews associated with a service. The [useGetReviews](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/hooks/useGetReviews.ts)
+- Custom hooks: To keep the code as structured as possible, multiple custom hooks are utilized to manage the list of reviews associated with a service. The [useGetReviews](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/hooks/useGetReviews.ts)
   custom hook encapsulates the service, exposing all the required information (with fields such as `nameOfService`, `listOfReviews`, `listOfStars`) to display the reviews in a table.
-  Multiple additional custom hooks, such as [useDashboardCreation](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/hooks/useDashboardCreation.ts), and [useServiceReview](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/hooks/useServiceReview.ts) are encapsulating their own piece of state and logic to make the code readable and maintainable.
+  Multiple additional custom hooks, such as [useDashboardCreation](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/hooks/useDashboardCreation.ts), and [useServiceReview](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/hooks/useServiceReview.ts) are encapsulating their own piece of state and logic to make the code readable and maintainable.
 
-- Component for adding a new review: The [AddReview](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/components/review/AddReview.tsx) component is implemented to facilitate the creation of a new review. It is rendered by the [servicePage](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/service/[id]/page.tsx) to collect a review entry from a `USER` and uses the `signAndExecuteTransaction` function of the [useWalletKit] hook to execute the transaction.
+- Component for adding a new review: The [AddReview](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/components/review/AddReview.tsx) component is implemented to facilitate the creation of a new review. It is rendered by the [servicePage](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/service/[id]/page.tsx) to collect a review entry from a `USER` and uses the `signAndExecuteTransaction` function of the [useWalletKit] hook to execute the transaction.
 
-- Proof of experience generation: PoE is an NFT that is minted by `SERVICE OWNER` for customers after they dine at the restaurant; customers can then burn the PoE to write a high-rated review later. Minting an NFT is facilitated by the [ownedServicePage](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/serviceOwner/ownedServices/page.tsx) component. This component is using the [useServicePoEGeneration](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/hooks/useServicePoeGeneration.ts) custom hook.
+- Proof of experience generation: PoE is an NFT that is minted by `SERVICE OWNER` for customers after they dine at the restaurant; customers can then burn the PoE to write a high-rated review later. Minting an NFT is facilitated by the [ownedServicePage](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/serviceOwner/ownedServices/page.tsx) component. This component is using the [useServicePoEGeneration](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/hooks/useServicePoeGeneration.ts) custom hook.
 
-- Delete a review: The moderator can delete a review that contains inappropriate content. [moderatorRemovePage](https://github.com/MystenLabs/reviews-ratings-poc/blob/main/app/src/app/moderator/remove/[id]/[nft]/page.tsx) component is used to delete a review.
+- Delete a review: The moderator can delete a review that contains inappropriate content. [moderatorRemovePage](https://github.com/iotaledger/reviews-ratings-poc/blob/main/app/src/app/moderator/remove/[id]/[nft]/page.tsx) component is used to delete a review.
 
 ## Related links
 
-[Reviews Rating repository](https://github.com/MystenLabs/sui/tree/main/examples/move/reviews_rating).
+[Reviews Rating repository](https://github.com/iotaledger/iota/tree/main/examples/move/reviews_rating).

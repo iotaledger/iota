@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -12,8 +13,8 @@ use super::{
 };
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::{auth::RequireAuthorizationLayer, inflight_limit};
-use sui_config::p2p::RandomnessConfig;
-use sui_types::{base_types::AuthorityName, committee::EpochId, crypto::RandomnessRound};
+use iota_config::p2p::RandomnessConfig;
+use iota_types::{base_types::AuthorityName, committee::EpochId, crypto::RandomnessRound};
 use tokio::sync::mpsc;
 
 /// Randomness Service Builder.

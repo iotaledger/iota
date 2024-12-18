@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { getAmount } from '_helpers';
-import { type SuiTransactionBlockResponse } from '@mysten/sui/client';
+import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
 type Props = {
-	txn: SuiTransactionBlockResponse;
+	txn: IotaTransactionBlockResponse;
 	address: string;
 };
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::future::join_all;
@@ -6,24 +7,24 @@ use rand::rngs::OsRng;
 use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
-use sui_core::consensus_adapter::position_submit_certificate;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_macros::sim_test;
-use sui_node::SuiNodeHandle;
-use sui_protocol_config::ProtocolConfig;
-use sui_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
-use sui_test_transaction_builder::{make_transfer_sui_transaction, TestTransactionBuilder};
-use sui_types::base_types::SuiAddress;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::SuiError;
-use sui_types::gas::GasCostSummary;
-use sui_types::governance::MIN_VALIDATOR_JOINING_STAKE_MIST;
-use sui_types::message_envelope::Message;
-use sui_types::sui_system_state::{
-    get_validator_from_table, sui_system_state_summary::get_validator_by_pool_id,
-    SuiSystemStateTrait,
+use iota_core::consensus_adapter::position_submit_certificate;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_macros::sim_test;
+use iota_node::IotaNodeHandle;
+use iota_protocol_config::ProtocolConfig;
+use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
+use iota_test_transaction_builder::{make_transfer_iota_transaction, TestTransactionBuilder};
+use iota_types::base_types::IotaAddress;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::error::IotaError;
+use iota_types::gas::GasCostSummary;
+use iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
+use iota_types::message_envelope::Message;
+use iota_types::iota_system_state::{
+    get_validator_from_table, iota_system_state_summary::get_validator_by_pool_id,
+    IotaSystemStateTrait,
 };
-use sui_types::transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction};
+use iota_types::transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
 
@@ -89,7 +90,7 @@ async fn test_transaction_expiration() {
         .unwrap();
     let rgp = test_cluster.get_reference_gas_price().await;
     let mut data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_sui(Some(1), sender)
+        .transfer_iota(Some(1), sender)
         .build();
     // Expired transaction returns an error
     let mut expired_data = data.clone();
@@ -102,7 +103,7 @@ async fn test_transaction_expiration() {
     assert!(result
         .unwrap_err()
         .to_string()
-        .contains(&SuiError::TransactionExpired.to_string()));
+        .contains(&IotaError::TransactionExpired.to_string()));
 
     // Non expired transaction signed without issue
     *data.expiration_mut_for_testing() = TransactionExpiration::Epoch(10);
@@ -127,7 +128,7 @@ async fn reconfig_with_revert_end_to_end_test() {
     let gas1 = gas_objects.pop().unwrap();
     let tx = test_cluster.wallet.sign_transaction(
         &TestTransactionBuilder::new(sender, gas1, rgp)
-            .transfer_sui(None, sender)
+            .transfer_iota(None, sender)
             .build(),
     );
     let effects1 = test_cluster.execute_transaction(tx).await;
@@ -137,12 +138,12 @@ async fn reconfig_with_revert_end_to_end_test() {
     let gas2 = gas_objects.pop().unwrap();
     let tx = test_cluster.wallet.sign_transaction(
         &TestTransactionBuilder::new(sender, gas2, rgp)
-            .transfer_sui(None, sender)
+            .transfer_iota(None, sender)
             .build(),
     );
     let net = test_cluster
         .fullnode_handle
-        .sui_node
+        .iota_node
         .with(|node| node.clone_authority_aggregator().unwrap());
     let cert = net
         .process_transaction(tx.clone(), None)
@@ -312,17 +313,17 @@ async fn test_expired_locks() {
     let receiver = accounts_and_objs[1].0;
     let gas_object = accounts_and_objs[0].1[0];
 
-    let transfer_sui = |amount| {
+    let transfer_iota = |amount| {
         test_cluster.wallet.sign_transaction(
             &TestTransactionBuilder::new(sender, gas_object, gas_price)
-                .transfer_sui(Some(amount), receiver)
+                .transfer_iota(Some(amount), receiver)
                 .build(),
         )
     };
 
-    let t1 = transfer_sui(1);
+    let t1 = transfer_iota(1);
     // attempt to equivocate
-    let t2 = transfer_sui(2);
+    let t2 = transfer_iota(2);
 
     for (idx, validator) in test_cluster.all_validator_handles().into_iter().enumerate() {
         let state = validator.state();
@@ -364,12 +365,12 @@ async fn test_expired_locks() {
 #[sim_test]
 async fn test_create_advance_epoch_tx_race() {
     use std::sync::Arc;
-    use sui_macros::{register_fail_point, register_fail_point_async};
+    use iota_macros::{register_fail_point, register_fail_point_async};
     use tokio::sync::broadcast;
     use tracing::info;
 
     telemetry_subscribers::init_for_testing();
-    sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+    iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
 
     // panic if we enter safe mode. If you remove the check for `is_tx_already_executed` in
     // AuthorityState::create_and_execute_advance_epoch_tx, this test should fail.
@@ -380,9 +381,9 @@ async fn test_create_advance_epoch_tx_race() {
     // Intercept the specified async wait point on a given node, and wait there until a message
     // is sent from the given tx.
     let register_wait = |failpoint, node_id, tx: Arc<broadcast::Sender<()>>| {
-        let node = sui_simulator::task::NodeId(node_id);
+        let node = iota_simulator::task::NodeId(node_id);
         register_fail_point_async(failpoint, move || {
-            let cur_node = sui_simulator::current_simnode_id();
+            let cur_node = iota_simulator::current_simnode_id();
             let tx = tx.clone();
             async move {
                 if cur_node == node {
@@ -435,7 +436,7 @@ async fn test_create_advance_epoch_tx_race() {
 
 #[sim_test]
 async fn test_reconfig_with_failing_validator() {
-    sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+    iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
 
     let test_cluster = Arc::new(
         TestClusterBuilder::new()
@@ -467,7 +468,7 @@ async fn test_validator_resign_effects() {
     // in previous epochs. This allows authority aggregator to form a new effects certificate
     // in the new epoch.
     let test_cluster = TestClusterBuilder::new().build().await;
-    let tx = make_transfer_sui_transaction(&test_cluster.wallet, None, None).await;
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
     let effects0 = test_cluster
         .execute_transaction(tx.clone())
         .await
@@ -478,7 +479,7 @@ async fn test_validator_resign_effects() {
 
     let net = test_cluster
         .fullnode_handle
-        .sui_node
+        .iota_node
         .with(|node| node.clone_authority_aggregator().unwrap());
     let effects1 = net
         .process_transaction(tx, None)
@@ -493,18 +494,18 @@ async fn test_validator_resign_effects() {
 #[sim_test]
 async fn test_validator_candidate_pool_read() {
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address: SuiAddress = (&new_validator.account_key_pair.public()).into();
+    let address: IotaAddress = (&new_validator.account_key_pair.public()).into();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
         .await;
     add_validator_candidate(&test_cluster, &new_validator).await;
-    test_cluster.fullnode_handle.sui_node.with(|node| {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
             .state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap();
-        let system_state_summary = system_state.clone().into_sui_system_state_summary();
+        let system_state_summary = system_state.clone().into_iota_system_state_summary();
         let staking_pool_id = get_validator_from_table(
             node.state().get_object_store().as_ref(),
             system_state_summary.validator_candidates_id,
@@ -519,7 +520,7 @@ async fn test_validator_candidate_pool_read() {
             staking_pool_id,
         )
         .unwrap();
-        assert_eq!(validator.sui_address, address);
+        assert_eq!(validator.iota_address, address);
     });
 }
 
@@ -531,24 +532,24 @@ async fn test_inactive_validator_pool_read() {
         .await;
     // Pick the first validator.
     let validator = test_cluster.swarm.validator_node_handles().pop().unwrap();
-    let address = validator.with(|node| node.get_config().sui_address());
-    let staking_pool_id = test_cluster.fullnode_handle.sui_node.with(|node| {
+    let address = validator.with(|node| node.get_config().iota_address());
+    let staking_pool_id = test_cluster.fullnode_handle.iota_node.with(|node| {
         node.state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap()
-            .into_sui_system_state_summary()
+            .into_iota_system_state_summary()
             .active_validators
             .iter()
-            .find(|v| v.sui_address == address)
+            .find(|v| v.iota_address == address)
             .unwrap()
             .staking_pool_id
     });
-    test_cluster.fullnode_handle.sui_node.with(|node| {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
             .state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap();
-        let system_state_summary = system_state.clone().into_sui_system_state_summary();
+        let system_state_summary = system_state.clone().into_iota_system_state_summary();
         // Validator is active. Check that we can find its summary by staking pool id.
         let validator = get_validator_by_pool_id(
             node.state().get_object_store().as_ref(),
@@ -557,7 +558,7 @@ async fn test_inactive_validator_pool_read() {
             staking_pool_id,
         )
         .unwrap();
-        assert_eq!(validator.sui_address, address);
+        assert_eq!(validator.iota_address, address);
     });
     execute_remove_validator_tx(&test_cluster, &validator).await;
 
@@ -572,10 +573,10 @@ async fn test_inactive_validator_pool_read() {
 
     // Check that the validator that just left now shows up in the inactive_validators,
     // and we can still deserialize it and get the inactive staking pool.
-    test_cluster.fullnode_handle.sui_node.with(|node| {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
             .state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap();
         assert_eq!(
             system_state
@@ -584,7 +585,7 @@ async fn test_inactive_validator_pool_read() {
                 .num_members(),
             4
         );
-        let system_state_summary = system_state.clone().into_sui_system_state_summary();
+        let system_state_summary = system_state.clone().into_iota_system_state_summary();
         let validator = get_validator_by_pool_id(
             node.state().get_object_store().as_ref(),
             &system_state,
@@ -592,7 +593,7 @@ async fn test_inactive_validator_pool_read() {
             staking_pool_id,
         )
         .unwrap();
-        assert_eq!(validator.sui_address, address);
+        assert_eq!(validator.iota_address, address);
         assert!(validator.staking_pool_deactivation_epoch.is_some());
     })
 }
@@ -613,7 +614,7 @@ async fn test_reconfig_with_committee_change_basic() {
     test_cluster.trigger_reconfiguration().await;
 
     // Check that a new validator has joined the committee.
-    test_cluster.fullnode_handle.sui_node.with(|node| {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
         assert_eq!(
             node.state()
                 .epoch_store_for_testing()
@@ -633,7 +634,7 @@ async fn test_reconfig_with_committee_change_basic() {
 
     execute_remove_validator_tx(&test_cluster, &new_validator_handle).await;
     test_cluster.trigger_reconfiguration().await;
-    test_cluster.fullnode_handle.sui_node.with(|node| {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
         assert_eq!(
             node.state()
                 .epoch_store_for_testing()
@@ -661,7 +662,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
     let addresses = candidates
         .iter()
         .map(|c| (&c.account_key_pair.public()).into())
-        .collect::<Vec<SuiAddress>>();
+        .collect::<Vec<IotaAddress>>();
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(7)
         .with_validator_candidates(addresses)
@@ -706,7 +707,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
         test_cluster.trigger_reconfiguration().await;
         let committee = test_cluster
             .fullnode_handle
-            .sui_node
+            .iota_node
             .with(|node| node.state().epoch_store_for_testing().committee().clone());
         cur_epoch = committee.epoch();
         assert_eq!(committee.num_members(), 7);
@@ -722,14 +723,14 @@ async fn do_test_reconfig_with_committee_change_stress() {
 #[sim_test]
 async fn test_epoch_flag_upgrade() {
     use std::sync::Mutex;
-    use sui_core::authority::epoch_start_configuration::EpochFlag;
-    use sui_core::authority::epoch_start_configuration::EpochStartConfigTrait;
-    use sui_macros::register_fail_point_arg;
+    use iota_core::authority::epoch_start_configuration::EpochFlag;
+    use iota_core::authority::epoch_start_configuration::EpochStartConfigTrait;
+    use iota_macros::register_fail_point_arg;
 
     let initial_flags_nodes = Arc::new(Mutex::new(HashSet::new()));
     register_fail_point_arg("initial_epoch_flags", move || {
         // only alter flags on each node once
-        let current_node = sui_simulator::current_simnode_id();
+        let current_node = iota_simulator::current_simnode_id();
 
         // override flags on up to 2 nodes.
         let mut initial_flags_nodes = initial_flags_nodes.lock().unwrap();
@@ -785,8 +786,8 @@ async fn test_epoch_flag_upgrade() {
 #[cfg(msim)]
 #[sim_test]
 async fn safe_mode_reconfig_test() {
-    use sui_test_transaction_builder::make_staking_transaction;
-    use sui_types::sui_system_state::advance_epoch_result_injection;
+    use iota_test_transaction_builder::make_staking_transaction;
+    use iota_types::iota_system_state::advance_epoch_result_injection;
 
     const EPOCH_DURATION: u64 = 10000;
 
@@ -799,9 +800,9 @@ async fn safe_mode_reconfig_test() {
         .await;
 
     let system_state = test_cluster
-        .sui_client()
+        .iota_client()
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await
         .unwrap();
 
@@ -829,9 +830,9 @@ async fn safe_mode_reconfig_test() {
 
     // Try a staking transaction.
     let validator_address = system_state
-        .into_sui_system_state_summary()
+        .into_iota_system_state_summary()
         .active_validators[0]
-        .sui_address;
+        .iota_address;
     let txn = make_staking_transaction(&test_cluster.wallet, validator_address).await;
     test_cluster.execute_transaction(txn).await;
 
@@ -848,11 +849,11 @@ async fn add_validator_candidate(
     test_cluster: &TestCluster,
     new_validator: &ValidatorGenesisConfig,
 ) {
-    let cur_validator_candidate_count = test_cluster.fullnode_handle.sui_node.with(|node| {
+    let cur_validator_candidate_count = test_cluster.fullnode_handle.iota_node.with(|node| {
         node.state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap()
-            .into_sui_system_state_summary()
+            .into_iota_system_state_summary()
             .validator_candidates_size
     });
     let address = (&new_validator.account_key_pair.public()).into();
@@ -872,12 +873,12 @@ async fn add_validator_candidate(
     test_cluster.execute_transaction(tx).await;
 
     // Check that the candidate can be found in the candidate table now.
-    test_cluster.fullnode_handle.sui_node.with(|node| {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
             .state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap();
-        let system_state_summary = system_state.into_sui_system_state_summary();
+        let system_state_summary = system_state.into_iota_system_state_summary();
         assert_eq!(
             system_state_summary.validator_candidates_size,
             cur_validator_candidate_count + 1
@@ -885,8 +886,8 @@ async fn add_validator_candidate(
     });
 }
 
-async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &SuiNodeHandle) {
-    let address = handle.with(|node| node.get_config().sui_address());
+async fn execute_remove_validator_tx(test_cluster: &TestCluster, handle: &IotaNodeHandle) {
+    let address = handle.with(|node| node.get_config().iota_address());
     let gas = test_cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
@@ -910,10 +911,10 @@ async fn execute_add_validator_transactions(
     test_cluster: &TestCluster,
     new_validator: &ValidatorGenesisConfig,
 ) {
-    let pending_active_count = test_cluster.fullnode_handle.sui_node.with(|node| {
+    let pending_active_count = test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
             .state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap();
         system_state
             .get_pending_active_validators(node.state().get_object_store().as_ref())
@@ -927,7 +928,7 @@ async fn execute_add_validator_transactions(
         .wallet
         .gas_for_owner_budget(
             address,
-            MIN_VALIDATOR_JOINING_STAKE_MIST,
+            MIN_VALIDATOR_JOINING_STAKE_NANOS,
             Default::default(),
         )
         .await
@@ -955,17 +956,17 @@ async fn execute_add_validator_transactions(
     test_cluster.execute_transaction(tx).await;
 
     // Check that we can get the pending validator from 0x5.
-    test_cluster.fullnode_handle.sui_node.with(|node| {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
         let system_state = node
             .state()
-            .get_sui_system_state_object_for_testing()
+            .get_iota_system_state_object_for_testing()
             .unwrap();
         let pending_active_validators = system_state
             .get_pending_active_validators(node.state().get_object_store().as_ref())
             .unwrap();
         assert_eq!(pending_active_validators.len(), pending_active_count + 1);
         assert_eq!(
-            pending_active_validators[pending_active_validators.len() - 1].sui_address,
+            pending_active_validators[pending_active_validators.len() - 1].iota_address,
             address
         );
     });

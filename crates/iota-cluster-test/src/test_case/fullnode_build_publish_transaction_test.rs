@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{TestCaseImpl, TestContext};
 use async_trait::async_trait;
 use jsonrpsee::rpc_params;
-use sui_core::test_utils::compile_basics_package;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_types::{base_types::ObjectID, object::Owner};
+use iota_core::test_utils::compile_basics_package;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_types::{base_types::ObjectID, object::Owner};
 
 pub struct FullNodeBuildPublishTransactionTest;
 

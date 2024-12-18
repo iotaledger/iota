@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -6,7 +7,7 @@ use std::collections::BTreeMap;
 use crate::base_types::ObjectID;
 use crate::effects::TransactionEffects;
 use crate::effects::TransactionEvents;
-use crate::error::SuiError;
+use crate::error::IotaError;
 use crate::object::Object;
 use crate::quorum_driver_types::ExecuteTransactionRequestV3;
 use crate::quorum_driver_types::ExecuteTransactionResponseV3;
@@ -26,7 +27,7 @@ pub trait TransactionExecutor: Send + Sync {
     fn simulate_transaction(
         &self,
         transaction: TransactionData,
-    ) -> Result<SimulateTransactionResult, SuiError>;
+    ) -> Result<SimulateTransactionResult, IotaError>;
 }
 
 pub struct SimulateTransactionResult {

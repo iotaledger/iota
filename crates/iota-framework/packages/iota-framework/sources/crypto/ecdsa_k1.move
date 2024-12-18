@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui::ecdsa_k1;
+module iota::ecdsa_k1;
 
 #[allow(unused_const)]
 /// Error if the public key cannot be recovered from the signature.

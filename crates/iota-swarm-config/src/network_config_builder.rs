@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
@@ -6,16 +7,16 @@ use std::time::Duration;
 use std::{num::NonZeroUsize, path::Path, sync::Arc};
 
 use rand::rngs::OsRng;
-use sui_config::genesis::{TokenAllocation, TokenDistributionScheduleBuilder};
-use sui_config::node::AuthorityOverloadConfig;
-use sui_config::ExecutionCacheConfig;
-use sui_macros::nondeterministic;
-use sui_types::base_types::{AuthorityName, SuiAddress};
-use sui_types::committee::{Committee, ProtocolVersion};
-use sui_types::crypto::{get_key_pair_from_rng, AccountKeyPair, KeypairTraits, PublicKey};
-use sui_types::object::Object;
-use sui_types::supported_protocol_versions::SupportedProtocolVersions;
-use sui_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
+use iota_config::genesis::{TokenAllocation, TokenDistributionScheduleBuilder};
+use iota_config::node::AuthorityOverloadConfig;
+use iota_config::ExecutionCacheConfig;
+use iota_macros::nondeterministic;
+use iota_types::base_types::{AuthorityName, IotaAddress};
+use iota_types::committee::{Committee, ProtocolVersion};
+use iota_types::crypto::{get_key_pair_from_rng, AccountKeyPair, KeypairTraits, PublicKey};
+use iota_types::object::Object;
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
 
 use crate::genesis_config::{AccountConfig, ValidatorGenesisConfigBuilder, DEFAULT_GAS_AMOUNT};
 use crate::genesis_config::{GenesisConfig, ValidatorGenesisConfig};
@@ -387,16 +388,16 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             // Add allocations for each validator
             for validator in &validators {
                 let account_key: PublicKey = validator.account_key_pair.public();
-                let address = SuiAddress::from(&account_key);
+                let address = IotaAddress::from(&account_key);
                 // Give each validator some gas so they can pay for their transactions.
                 let gas_coin = TokenAllocation {
                     recipient_address: address,
-                    amount_mist: DEFAULT_GAS_AMOUNT,
+                    amount_nanos: DEFAULT_GAS_AMOUNT,
                     staked_with_validator: None,
                 };
                 let stake = TokenAllocation {
                     recipient_address: address,
-                    amount_mist: validator.stake,
+                    amount_nanos: validator.stake,
                     staked_with_validator: Some(address),
                 };
                 builder.add_allocation(gas_coin);
@@ -406,7 +407,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
         };
 
         let genesis = {
-            let mut builder = sui_genesis_builder::Builder::new()
+            let mut builder = iota_genesis_builder::Builder::new()
                 .with_parameters(genesis_config.parameters)
                 .add_objects(self.additional_objects);
 
@@ -504,7 +505,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
 #[cfg(test)]
 mod tests {
-    use sui_config::node::Genesis;
+    use iota_config::node::Genesis;
 
     #[test]
     fn serialize_genesis_config_in_place() {
@@ -554,14 +555,14 @@ mod tests {
 mod test {
     use std::collections::HashSet;
     use std::sync::Arc;
-    use sui_config::genesis::Genesis;
-    use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use sui_types::epoch_data::EpochData;
-    use sui_types::gas::SuiGasStatus;
-    use sui_types::in_memory_storage::InMemoryStorage;
-    use sui_types::metrics::LimitsMetrics;
-    use sui_types::sui_system_state::SuiSystemStateTrait;
-    use sui_types::transaction::CheckedInputObjects;
+    use iota_config::genesis::Genesis;
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_types::epoch_data::EpochData;
+    use iota_types::gas::IotaGasStatus;
+    use iota_types::in_memory_storage::InMemoryStorage;
+    use iota_types::metrics::LimitsMetrics;
+    use iota_types::iota_system_state::IotaSystemStateTrait;
+    use iota_types::transaction::CheckedInputObjects;
 
     #[test]
     fn roundtrip() {
@@ -581,7 +582,7 @@ mod test {
         let builder = crate::network_config_builder::ConfigBuilder::new_with_temp_dir();
         let network_config = builder.build();
         let genesis = network_config.genesis;
-        let protocol_version = ProtocolVersion::new(genesis.sui_system_object().protocol_version());
+        let protocol_version = ProtocolVersion::new(genesis.iota_system_object().protocol_version());
         let protocol_config = ProtocolConfig::get_for_version(protocol_version, Chain::Unknown);
 
         let genesis_transaction = genesis.transaction().clone();
@@ -589,7 +590,7 @@ mod test {
         let genesis_digest = *genesis_transaction.digest();
 
         let silent = true;
-        let executor = sui_execution::executor(&protocol_config, silent, None)
+        let executor = iota_execution::executor(&protocol_config, silent, None)
             .expect("Creating an executor should not fail here");
 
         // Use a throwaway metrics registry for genesis transaction execution.
@@ -613,7 +614,7 @@ mod test {
                 epoch.epoch_start_timestamp(),
                 input_objects,
                 vec![],
-                SuiGasStatus::new_unmetered(),
+                IotaGasStatus::new_unmetered(),
                 kind,
                 signer,
                 genesis_digest,

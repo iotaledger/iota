@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { Button } from '_app/shared/ButtonUI';
 import { Heading } from '_app/shared/heading';
@@ -20,7 +21,7 @@ export function UsdcPromo() {
 		<div className="flex flex-col items-center gap-6">
 			<PageTitle back />
 			<img
-				src="https://fe-assets.mystenlabs.com/wallet_next/usdc_icon.png"
+				src="https://fe-assets.iota.org/wallet_next/usdc_icon.png"
 				alt="USDC"
 				className="h-16 w-16"
 			/>

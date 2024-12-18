@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::crypto::PublicKey;
-use crate::crypto::Secp256r1SuiSignature;
-use crate::crypto::SuiSignatureInner;
+use crate::crypto::Secp256r1IotaSignature;
+use crate::crypto::IotaSignatureInner;
 use crate::signature_verification::VerifiedDigestCache;
 use crate::{
-    base_types::{EpochId, SuiAddress},
-    crypto::{DefaultHash, Signature, SignatureScheme, SuiSignature},
+    base_types::{EpochId, IotaAddress},
+    crypto::{DefaultHash, Signature, SignatureScheme, IotaSignature},
     digests::ZKLoginInputsDigest,
-    error::{SuiError, SuiResult},
+    error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
 };
 use fastcrypto::hash::{HashFunction, Sha256};
@@ -74,45 +75,45 @@ pub struct RawPasskeyAuthenticator {
 
 /// Convert [struct RawPasskeyAuthenticator] to [struct PasskeyAuthenticator] with validations.
 impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
-    type Error = SuiError;
+    type Error = IotaError;
 
     fn try_from(raw: RawPasskeyAuthenticator) -> Result<Self, Self::Error> {
         let client_data_json_parsed: CollectedClientData =
             serde_json::from_str(&raw.client_data_json).map_err(|_| {
-                SuiError::InvalidSignature {
+                IotaError::InvalidSignature {
                     error: "Invalid client data json".to_string(),
                 }
             })?;
 
         if client_data_json_parsed.ty != ClientDataType::Get {
-            return Err(SuiError::InvalidSignature {
+            return Err(IotaError::InvalidSignature {
                 error: "Invalid client data type".to_string(),
             });
         };
 
         let challenge = Base64UrlUnpadded::decode_vec(&client_data_json_parsed.challenge)
-            .map_err(|_| SuiError::InvalidSignature {
+            .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid encoded challenge".to_string(),
             })?
             .try_into()
-            .map_err(|_| SuiError::InvalidSignature {
+            .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid encoded challenge".to_string(),
             })?;
 
         if raw.user_signature.scheme() != SignatureScheme::Secp256r1 {
-            return Err(SuiError::InvalidSignature {
+            return Err(IotaError::InvalidSignature {
                 error: "Invalid signature scheme".to_string(),
             });
         };
 
         let pk = Secp256r1PublicKey::from_bytes(raw.user_signature.public_key_bytes()).map_err(
-            |_| SuiError::InvalidSignature {
+            |_| IotaError::InvalidSignature {
                 error: "Invalid r1 pk".to_string(),
             },
         )?;
 
         let signature = Secp256r1Signature::from_bytes(raw.user_signature.signature_bytes())
-            .map_err(|_| SuiError::InvalidSignature {
+            .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid r1 sig".to_string(),
             })?;
 
@@ -137,7 +138,7 @@ impl<'de> Deserialize<'de> for PasskeyAuthenticator {
         let serializable = RawPasskeyAuthenticator::deserialize(deserializer)?;
         serializable
             .try_into()
-            .map_err(|e: SuiError| Error::custom(e.to_string()))
+            .map_err(|e: IotaError| Error::custom(e.to_string()))
     }
 }
 
@@ -146,7 +147,7 @@ impl Serialize for PasskeyAuthenticator {
     where
         S: serde::ser::Serializer,
     {
-        let mut bytes = Vec::with_capacity(Secp256r1SuiSignature::LENGTH);
+        let mut bytes = Vec::with_capacity(Secp256r1IotaSignature::LENGTH);
         bytes.push(SignatureScheme::Secp256r1.flag());
         bytes.extend_from_slice(self.signature.as_ref());
         bytes.extend_from_slice(self.pk.as_ref());
@@ -154,8 +155,8 @@ impl Serialize for PasskeyAuthenticator {
         let raw = RawPasskeyAuthenticator {
             authenticator_data: self.authenticator_data.clone(),
             client_data_json: self.client_data_json.clone(),
-            user_signature: Signature::Secp256r1SuiSignature(
-                Secp256r1SuiSignature::from_bytes(&bytes).unwrap(),
+            user_signature: Signature::Secp256r1IotaSignature(
+                Secp256r1IotaSignature::from_bytes(&bytes).unwrap(),
             ),
         };
         raw.serialize(serializer)
@@ -168,7 +169,7 @@ impl PasskeyAuthenticator {
         authenticator_data: Vec<u8>,
         client_data_json: String,
         user_signature: Signature,
-    ) -> Result<Self, SuiError> {
+    ) -> Result<Self, IotaError> {
         let raw = RawPasskeyAuthenticator {
             authenticator_data,
             client_data_json,
@@ -178,7 +179,7 @@ impl PasskeyAuthenticator {
     }
 
     /// Returns the public key of the passkey authenticator.
-    pub fn get_pk(&self) -> SuiResult<PublicKey> {
+    pub fn get_pk(&self) -> IotaResult<PublicKey> {
         Ok(PublicKey::Passkey((&self.pk).into()))
     }
 }
@@ -205,7 +206,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         &self,
         _epoch: EpochId,
         _max_epoch_upper_bound_delta: Option<u64>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         Ok(())
     }
 
@@ -213,16 +214,16 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
-        author: SuiAddress,
+        author: IotaAddress,
         _aux_verify_data: &VerifyParams,
         _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
-    ) -> SuiResult
+    ) -> IotaResult
     where
         T: Serialize,
     {
         // Check the intent and signing is consisted from what's parsed from client_data_json.challenge
         if self.challenge != to_signing_message(intent_msg) {
-            return Err(SuiError::InvalidSignature {
+            return Err(IotaError::InvalidSignature {
                 error: "Invalid challenge".to_string(),
             });
         };
@@ -233,8 +234,8 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         message.extend_from_slice(&client_data_hash);
 
         // Check if author is derived from the public key.
-        if author != SuiAddress::from(&self.get_pk()?) {
-            return Err(SuiError::InvalidSignature {
+        if author != IotaAddress::from(&self.get_pk()?) {
+            return Err(IotaError::InvalidSignature {
                 error: "Invalid author".to_string(),
             });
         };
@@ -242,7 +243,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         // Verify the signature against pk and message.
         self.pk
             .verify(&message, &self.signature)
-            .map_err(|_| SuiError::InvalidSignature {
+            .map_err(|_| IotaError::InvalidSignature {
                 error: "Fails to verify".to_string(),
             })
     }

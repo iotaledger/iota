@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::kiosk_marketplace_ext {
-    use sui::sui::SUI;
-    use sui::coin::Coin;
-    use sui::kiosk_extension as ext;
-    use sui::kiosk::{Self, KioskOwnerCap, Kiosk, PurchaseCap};
-    use sui::transfer_policy::{Self as policy, TransferPolicy, TransferRequest};
+module iota::kiosk_marketplace_ext {
+    use iota::iota::IOTA;
+    use iota::coin::Coin;
+    use iota::kiosk_extension as ext;
+    use iota::kiosk::{Self, KioskOwnerCap, Kiosk, PurchaseCap};
+    use iota::transfer_policy::{Self as policy, TransferPolicy, TransferRequest};
 
     /// Trying to access an owner-only action.
     const ENotOwner: u64 = 0;
-    /// Trying to purchase an item with an incorrect amount of SUI.
+    /// Trying to purchase an item with an incorrect amount of IOTA.
     const EIncorrectAmount: u64 = 1;
     /// Trying to accept a bid from an incorrect Kiosk.
     const EIncorrectKiosk: u64 = 2;
@@ -33,11 +34,11 @@ module sui::kiosk_marketplace_ext {
 
     // === Collection Bidding ===
 
-    /// Collection bidding: the Kiosk Owner offers a bid (in SUI) for an item of type `T`.
+    /// Collection bidding: the Kiosk Owner offers a bid (in IOTA) for an item of type `T`.
     ///
     /// There can be only one bid per type.
     public fun bid<Market, T: key + store>(
-        kiosk: &mut Kiosk, cap: &KioskOwnerCap, bid: Coin<SUI>
+        kiosk: &mut Kiosk, cap: &KioskOwnerCap, bid: Coin<IOTA>
     ) {
         assert!(kiosk.has_access(cap), ENotOwner);
         assert!(ext::is_installed<Ext<Market>>(kiosk), ENotInstalled);
@@ -53,7 +54,7 @@ module sui::kiosk_marketplace_ext {
         policy: &TransferPolicy<T>,
         lock: bool
     ): (TransferRequest<T>, TransferRequest<Market>) {
-        let bid: Coin<SUI> = ext::storage_mut(Ext<Market> {}, destination).remove(Bid<T> {});
+        let bid: Coin<IOTA> = ext::storage_mut(Ext<Market> {}, destination).remove(Bid<T> {});
 
         // form the request while we have all the data (not yet consumed)
         let market_request = policy::new_request(
@@ -91,7 +92,7 @@ module sui::kiosk_marketplace_ext {
     public fun purchase<Market, T: key + store>(
         kiosk: &mut Kiosk,
         item_id: ID,
-        payment: Coin<SUI>,
+        payment: Coin<IOTA>,
     ): (T, TransferRequest<T>, TransferRequest<Market>) {
         let purchase_cap: PurchaseCap<T> = ext::storage_mut(Ext<Market> {}, kiosk).remove(item_id);
 
@@ -122,9 +123,9 @@ module sui::kiosk_marketplace_ext {
 
 
 #[test_only]
-module sui::kiosk_extensions_tests {
-    use sui::kiosk_test_utils::{Self as test};
-    use sui::kiosk_extension as ext;
+module iota::kiosk_extensions_tests {
+    use iota::kiosk_test_utils::{Self as test};
+    use iota::kiosk_extension as ext;
 
     /// The `Ext` witness to use for testing.
     public struct Extension has drop {}
@@ -166,7 +167,7 @@ module sui::kiosk_extensions_tests {
     // - `ext::place` (not allowed | only lock)
     // - `ext::lock` (not allowed | only place)
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotAllowed)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotAllowed)]
     fun test_lock_not_allowed() {
         let ctx = &mut test::ctx();
         let (policy, _policy_cap) = test::get_policy(ctx);
@@ -179,7 +180,7 @@ module sui::kiosk_extensions_tests {
         abort 1337
     }
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotAllowed)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotAllowed)]
     fun test_lock_not_allowed_but_place() {
         let ctx = &mut test::ctx();
         let (policy, _policy_cap) = test::get_policy(ctx);
@@ -192,7 +193,7 @@ module sui::kiosk_extensions_tests {
         abort 1337
     }
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotAllowed)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotAllowed)]
     fun test_place_not_allowed() {
         let ctx = &mut test::ctx();
         let (policy, _policy_cap) = test::get_policy(ctx);
@@ -233,7 +234,7 @@ module sui::kiosk_extensions_tests {
     // - `ext::lock`
     // - `ext::place`
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotInstalled)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotInstalled)]
     fun test_enable_not_installed() {
         let ctx = &mut test::ctx();
         let (mut kiosk, owner_cap) = test::get_kiosk(ctx);
@@ -243,7 +244,7 @@ module sui::kiosk_extensions_tests {
         abort 1337
     }
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotInstalled)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotInstalled)]
     fun test_disable_not_installed() {
         let ctx = &mut test::ctx();
         let (mut kiosk, owner_cap) = test::get_kiosk(ctx);
@@ -253,7 +254,7 @@ module sui::kiosk_extensions_tests {
         abort 1337
     }
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotInstalled)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotInstalled)]
     fun test_remove_not_installed() {
         let ctx = &mut test::ctx();
         let (mut kiosk, owner_cap) = test::get_kiosk(ctx);
@@ -263,7 +264,7 @@ module sui::kiosk_extensions_tests {
         abort 1337
     }
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotInstalled)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotInstalled)]
     fun test_storage_not_installed() {
         let ctx = &mut test::ctx();
         let (kiosk, _owner_cap) = test::get_kiosk(ctx);
@@ -273,7 +274,7 @@ module sui::kiosk_extensions_tests {
         abort 1337
     }
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotInstalled)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotInstalled)]
     fun test_storage_mut_not_installed() {
         let ctx = &mut test::ctx();
         let (mut kiosk, _owner_cap) = test::get_kiosk(ctx);
@@ -283,7 +284,7 @@ module sui::kiosk_extensions_tests {
         abort 1337
     }
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotInstalled)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotInstalled)]
     fun test_lock_not_installed() {
         let ctx = &mut test::ctx();
         let (policy, _policy_cap) = test::get_policy(ctx);
@@ -295,7 +296,7 @@ module sui::kiosk_extensions_tests {
         abort 1337
     }
 
-    #[test, expected_failure(abort_code = sui::kiosk_extension::EExtensionNotInstalled)]
+    #[test, expected_failure(abort_code = iota::kiosk_extension::EExtensionNotInstalled)]
     fun test_place_not_installed() {
         let ctx = &mut test::ctx();
         let (policy, _policy_cap) = test::get_policy(ctx);

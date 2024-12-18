@@ -1,30 +1,30 @@
 ---
-title: Client App with Sui TypeScript SDK
+title: Client App with Iota TypeScript SDK
 ---
 
-This exercise diverges from the example built in the previous topics in this section. Rather than adding a frontend to the running example, the instruction walks you through setting up dApp Kit in a React App, allowing you to connect to wallets, and query data from Sui RPC nodes to display in your app. You can use it to create your own frontend for the example used previously, but if you want to get a fully functional app up and running quickly, run the following command in a terminal or console to scaffold a new app with all steps in this exercise already implemented:
+This exercise diverges from the example built in the previous topics in this section. Rather than adding a frontend to the running example, the instruction walks you through setting up dApp Kit in a React App, allowing you to connect to wallets, and query data from Iota RPC nodes to display in your app. You can use it to create your own frontend for the example used previously, but if you want to get a fully functional app up and running quickly, run the following command in a terminal or console to scaffold a new app with all steps in this exercise already implemented:
 
 {@include: ../../../snippets/info-pnpm-required.mdx}
 
 ```bash
-pnpm create @mysten/dapp --template react-client-dapp
+pnpm create @iota/dapp --template react-client-dapp
 ```
 
 or
 
 ```bash
-yarn create @mysten/dapp --template react-client-dapp
+yarn create @iota/dapp --template react-client-dapp
 ```
 
-## What is the Sui TypeScript SDK?
+## What is the Iota TypeScript SDK?
 
-The Sui TypeScript SDK (@mysten/sui) provides all the low-level functionality needed to interact with Sui ecosystem from TypeScript. You can use it in any TypeScript or JavaScript project, including web apps, Node.js apps, or mobile apps written with tools like React Native that support TypeScript.
+The Iota TypeScript SDK (@iota/iota-sdk) provides all the low-level functionality needed to interact with Iota ecosystem from TypeScript. You can use it in any TypeScript or JavaScript project, including web apps, Node.js apps, or mobile apps written with tools like React Native that support TypeScript.
 
-For more information on the Sui TypeScript SDK, see the [Sui TypeScript SDK documentation](https://sdk.mystenlabs.com/typescript).
+For more information on the Iota TypeScript SDK, see the [Iota TypeScript SDK documentation](https://docs.iota.org/references/ts-sdk/typescript).
 
 ## What is dApp Kit?
 
-dApp Kit (@mysten/dapp-kit) is a collection of React hooks, components, and utilities that make building dApps on Sui straightforward. For more information on dApp Kit, see the [dApp Kit documentation](https://sdk.mystenlabs.com/dapp-kit).
+dApp Kit (@iota/dapp-kit) is a collection of React hooks, components, and utilities that make building dApps on Iota straightforward. For more information on dApp Kit, see the [dApp Kit documentation](https://docs.iota.org/references/ts-sdk/dapp-kit).
 
 ## Installing dependencies
 
@@ -39,7 +39,7 @@ npm init vite
 Now that you have a React app, you can install the necessary dependencies to use dApp Kit:
 
 ```bash npm2yarn
-npm install @mysten/sui @mysten/dapp-kit @tanstack/react-query
+npm install @iota/iota-sdk @iota/dapp-kit @tanstack/react-query
 ```
 
 ## Setting up Provider components
@@ -64,11 +64,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 );
 ```
 
-Next, set up the `SuiClientProvider`. This `Provider` delivers a `SuiClient` instance from `@mysten/sui` to all the hooks in dApp Kit. This provider manages which network dApp Kit connects to, and can accept configuration for multiple networks. This exercise connects to `devnet`.
+Next, set up the `IotaClientProvider`. This `Provider` delivers a `IotaClient` instance from `@iota/iota-sdk` to all the hooks in dApp Kit. This provider manages which network dApp Kit connects to, and can accept configuration for multiple networks. This exercise connects to `devnet`.
 
 ```ts
-import { SuiClientProvider } from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui/client';
+import { IotaClientProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -80,21 +80,21 @@ const networks = {
 ReactDOM.createRoot(document.getElementById('root')!).render(
 	<React.StrictMode>
 		<QueryClientProvider client={queryClient}>
-			<SuiClientProvider networks={networks} defaultNetwork="devnet">
+			<IotaClientProvider networks={networks} defaultNetwork="devnet">
 				<App />
-			</SuiClientProvider>
+			</IotaClientProvider>
 		</QueryClientProvider>
 	</React.StrictMode>,
 );
 ```
 
-Finally, set up the `WalletProvider` from `@mysten/dapp-kit`, and import styles for the `dapp-kit` components.
+Finally, set up the `WalletProvider` from `@iota/dapp-kit`, and import styles for the `dapp-kit` components.
 
 ```ts
-import '@mysten/dapp-kit/dist/index.css';
+import '@iota/dapp-kit/dist/index.css';
 
-import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui/client';
+import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const queryClient = new QueryClient();
@@ -106,11 +106,11 @@ const networks = {
 ReactDOM.createRoot(document.getElementById('root')!).render(
 	<React.StrictMode>
 		<QueryClientProvider client={queryClient}>
-			<SuiClientProvider networks={networks} defaultNetwork="devnet">
+			<IotaClientProvider networks={networks} defaultNetwork="devnet">
 				<WalletProvider>
 					<App />
 				</WalletProvider>
-			</SuiClientProvider>
+			</IotaClientProvider>
 		</QueryClientProvider>
 	</React.StrictMode>,
 );
@@ -121,7 +121,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 With all `Providers` set up, you can use dApp Kit hooks and components. To allow users to connect their wallets to your dApp, add a `ConnectButton`.
 
 ```ts
-import { ConnectButton } from '@mysten/dapp-kit';
+import { ConnectButton } from '@iota/dapp-kit';
 
 function App() {
 	return (
@@ -141,7 +141,7 @@ The `ConnectButton` component displays a button that opens a modal on click, ena
 Now that you have a way for users to connect their wallets, you can start using the `useCurrentAccount` hook to get details about the connected wallet account.
 
 ```ts
-import { ConnectButton, useCurrentAccount } from '@mysten/dapp-kit';
+import { ConnectButton, useCurrentAccount } from '@iota/dapp-kit';
 
 function App() {
 	return (
@@ -166,12 +166,12 @@ function ConnectedAccount() {
 }
 ```
 
-## Querying data from Sui RPC nodes
+## Querying data from Iota RPC nodes
 
 Now that you have the account to connect to, you can query for objects the connected account owns:
 
 ```ts
-import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
+import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
 
 function ConnectedAccount() {
 	const account = useCurrentAccount();
@@ -189,7 +189,7 @@ function ConnectedAccount() {
 }
 
 function OwnedObjects({ address }: { address: string }) {
-	const { data } = useSuiClientQuery('getOwnedObjects', {
+	const { data } = useIotaClientQuery('getOwnedObjects', {
 		owner: address,
 	});
 	if (!data) {
@@ -217,5 +217,5 @@ You now have a dApp connected to wallets and can query data from RPC nodes.
 The next step from here is to start interacting with Move modules, constructing transaction blocks, and making Move calls. This exercise continues in the Counter end-to-end example.
 
 - [End-to-End Example](../app-examples/e2e-counter.mdx): Continue this exercise by creating an app.
-- [Sui 101](../sui-101.mdx): Learn the basics of the Sui network and how to interact with on-chain objects using Move.
-- [Sui Move CLI](/references/cli/move.mdx): The `move` commands in the Sui CLI provide console or terminal interaction with the Move VM.
+- [Iota 101](../iota-101.mdx): Learn the basics of the Iota network and how to interact with on-chain objects using Move.
+- [Iota Move CLI](/references/cli/move.mdx): The `move` commands in the Iota CLI provide console or terminal interaction with the Move VM.

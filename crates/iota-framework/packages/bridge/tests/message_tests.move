@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -7,12 +8,12 @@ module bridge::message_tests {
         chain_ids,
         message::{
             BridgeMessage, blocklist_validator_addresses,
-            create_add_tokens_on_sui_message, create_blocklist_message,
+            create_add_tokens_on_iota_message, create_blocklist_message,
             create_emergency_op_message, create_token_bridge_message,
             create_update_asset_price_message, create_update_bridge_limit_message,
             deserialize_message_test_only, emergency_op_pause, emergency_op_unpause,
-            extract_add_tokens_on_sui, extract_blocklist_payload, extract_token_bridge_payload,
-            extract_update_asset_price, extract_update_bridge_limit, make_add_token_on_sui,
+            extract_add_tokens_on_iota, extract_blocklist_payload, extract_token_bridge_payload,
+            extract_update_asset_price, extract_update_bridge_limit, make_add_token_on_iota,
             make_generic_message, make_payload, peel_u64_be_for_testing, reverse_bytes_test,
             serialize_message, set_payload,
             update_asset_price_payload_token_id, update_bridge_limit_payload_limit,
@@ -22,18 +23,18 @@ module bridge::message_tests {
         treasury::{Self, BTC, ETH, USDC},
     };
     use std::ascii;
-    use sui::{
+    use iota::{
         address, balance,
         coin::{Self, Coin},
         hex, test_scenario,
         test_utils::{assert_eq, destroy},
     };
-    use sui::bcs;
+    use iota::bcs;
 
     const INVALID_CHAIN: u8 = 42;
 
     #[test]
-    fun test_message_serialization_sui_to_eth() {
+    fun test_message_serialization_iota_to_eth() {
         let sender_address = address::from_u256(100);
         let mut scenario = test_scenario::begin(sender_address);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -42,7 +43,7 @@ module bridge::message_tests {
         let token_bridge_message = default_token_bridge_message(
             sender_address,
             &coin,
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             chain_ids::eth_sepolia(),
         );
 
@@ -75,7 +76,7 @@ module bridge::message_tests {
     }
 
     #[test]
-    fun test_message_serialization_eth_to_sui() {
+    fun test_message_serialization_eth_to_iota() {
         let address_1 = address::from_u256(100);
         let mut scenario = test_scenario::begin(address_1);
         let ctx = test_scenario::ctx(&mut scenario);
@@ -87,7 +88,7 @@ module bridge::message_tests {
             10, // seq_num
             // Eth address is 20 bytes long
             hex::decode(b"00000000000000000000000000000000000000c8"), // eth sender address
-            chain_ids::sui_testnet(), // target_chain
+            chain_ids::iota_testnet(), // target_chain
             address::to_bytes(address_1), // target address
             3u8, // token_type
             balance::value(coin::balance(&coin)), // amount: u64
@@ -96,7 +97,7 @@ module bridge::message_tests {
         // Test payload extraction
         let token_payload = make_payload(
             hex::decode(b"00000000000000000000000000000000000000c8"),
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             address::to_bytes(address_1),
             3u8,
             balance::value(coin::balance(&coin)),
@@ -119,7 +120,7 @@ module bridge::message_tests {
     #[test]
     fun test_emergency_op_message_serialization() {
         let emergency_op_message = create_emergency_op_message(
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             emergency_op_pause(),
         );
@@ -136,7 +137,7 @@ module bridge::message_tests {
     #[test]
     fun test_emergency_op_message_serialization_regression() {
         let emergency_op_message = create_emergency_op_message(
-            chain_ids::sui_custom(),
+            chain_ids::iota_custom(),
             55, // seq_num
             emergency_op_pause(),
         );
@@ -156,7 +157,7 @@ module bridge::message_tests {
 
         let validator_eth_addresses = vector[validator_pub_key1, validator_pub_key2];
         let blocklist_message = create_blocklist_message(
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             0,
             validator_eth_addresses,
@@ -183,7 +184,7 @@ module bridge::message_tests {
         // Test 1
         let validator_eth_addresses = vector[validator_eth_addr_1];
         let blocklist_message = create_blocklist_message(
-            chain_ids::sui_custom(), // source chain
+            chain_ids::iota_custom(), // source chain
             129, // seq_num
             0, // blocklist
             validator_eth_addresses,
@@ -204,7 +205,7 @@ module bridge::message_tests {
         // Test 2
         let validator_eth_addresses = vector[validator_eth_addr_1, validator_eth_addr_2];
         let blocklist_message = create_blocklist_message(
-            chain_ids::sui_custom(), // source chain
+            chain_ids::iota_custom(), // source chain
             68, // seq_num
             1, // unblocklist
             validator_eth_addresses,
@@ -226,7 +227,7 @@ module bridge::message_tests {
     #[test]
     fun test_update_bridge_limit_message_serialization() {
         let update_bridge_limit = create_update_bridge_limit_message(
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             chain_ids::eth_sepolia(),
             1000000000,
@@ -242,7 +243,7 @@ module bridge::message_tests {
         let bridge_limit = extract_update_bridge_limit(&update_bridge_limit);
         assert!(
             bridge_limit.update_bridge_limit_payload_receiving_chain()
-                == chain_ids::sui_testnet(),
+                == chain_ids::iota_testnet(),
         );
         assert!(
             bridge_limit.update_bridge_limit_payload_sending_chain()
@@ -255,7 +256,7 @@ module bridge::message_tests {
     #[test]
     fun test_update_bridge_limit_message_serialization_regression() {
         let update_bridge_limit = create_update_bridge_limit_message(
-            chain_ids::sui_custom(), // source chain
+            chain_ids::iota_custom(), // source chain
             15, // seq_num
             chain_ids::eth_custom(),
             10_000_000_000, // 1M USD
@@ -271,7 +272,7 @@ module bridge::message_tests {
         let bridge_limit = extract_update_bridge_limit(&update_bridge_limit);
         assert!(
             bridge_limit.update_bridge_limit_payload_receiving_chain()
-                == chain_ids::sui_custom(),
+                == chain_ids::iota_custom(),
         );
         assert!(
             bridge_limit.update_bridge_limit_payload_sending_chain()
@@ -284,7 +285,7 @@ module bridge::message_tests {
     fun test_update_asset_price_message_serialization() {
         let asset_price_message = create_update_asset_price_message(
             2,
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             12345,
         );
@@ -320,7 +321,7 @@ module bridge::message_tests {
 
         let asset_price_message = create_update_asset_price_message(
             treasury.token_id<BTC>(),
-            chain_ids::sui_custom(), // source chain
+            chain_ids::iota_custom(), // source chain
             266, // seq_num
             1_000_000_000, // $100k USD
         );
@@ -344,13 +345,13 @@ module bridge::message_tests {
     }
 
     #[test]
-    fun test_add_tokens_on_sui_message_serialization() {
+    fun test_add_tokens_on_iota_message_serialization() {
         let mut scenario = test_scenario::begin(@0x1);
         let ctx = test_scenario::ctx(&mut scenario);
         let treasury = treasury::mock_for_test(ctx);
 
-        let add_tokens_on_sui_message = create_add_tokens_on_sui_message(
-            chain_ids::sui_custom(),
+        let add_tokens_on_iota_message = create_add_tokens_on_iota_message(
+            chain_ids::iota_custom(),
             1, // seq_num
             false, // native_token
             vector[treasury.token_id<BTC>(), treasury.token_id<ETH>()],
@@ -364,7 +365,7 @@ module bridge::message_tests {
             ],
             vector[100, 100],
         );
-        let payload = add_tokens_on_sui_message.extract_add_tokens_on_sui();
+        let payload = add_tokens_on_iota_message.extract_add_tokens_on_iota();
         assert!(payload.is_native() == false);
         assert!(
             payload.token_ids() == vector[treasury.token_id<BTC>(), treasury.token_id<ETH>()], 
@@ -378,7 +379,7 @@ module bridge::message_tests {
         );
         assert!(payload.token_prices() == vector[100, 100]);
         assert!(
-            payload == make_add_token_on_sui(
+            payload == make_add_token_on_iota(
                 false,
                 vector[treasury.token_id<BTC>(), treasury.token_id<ETH>()],
                 vector[ascii::string(b"28ac483b6f2b62dd58abdf0bbc3f86900d86bbdc710c704ba0b33b7f1c4b43c8::btc::BTC"), ascii::string(b"0xbd69a54e7c754a332804f325307c6627c06631dc41037239707e3242bc542e99::eth::ETH")],
@@ -386,25 +387,25 @@ module bridge::message_tests {
             ),
         );
         // Test message serialization
-        let message = serialize_message(add_tokens_on_sui_message);
+        let message = serialize_message(add_tokens_on_iota_message);
         let expected_msg = hex::decode(
             b"060100000000000000010200020102024a323861633438336236663262363264643538616264663062626333663836393030643836626264633731306337303462613062333362376631633462343363383a3a6274633a3a4254434c3078626436396135346537633735346133333238303466333235333037633636323763303636333164633431303337323339373037653332343262633534326539393a3a6574683a3a4554480264000000000000006400000000000000",
         );
         assert_eq(message, expected_msg);
-        assert!(add_tokens_on_sui_message == deserialize_message_test_only(message));
+        assert!(add_tokens_on_iota_message == deserialize_message_test_only(message));
 
         destroy(treasury);
         test_scenario::end(scenario);
     }
 
     #[test]
-    fun test_add_tokens_on_sui_message_serialization_2() {
+    fun test_add_tokens_on_iota_message_serialization_2() {
         let mut scenario = test_scenario::begin(@0x1);
         let ctx = test_scenario::ctx(&mut scenario);
         let treasury = treasury::mock_for_test(ctx);
 
-        let add_tokens_on_sui_message = create_add_tokens_on_sui_message(
-            chain_ids::sui_custom(),
+        let add_tokens_on_iota_message = create_add_tokens_on_iota_message(
+            chain_ids::iota_custom(),
             0, // seq_num
             false, // native_token
             vector[1, 2, 3, 4],
@@ -424,9 +425,9 @@ module bridge::message_tests {
             ],
             vector[500_000_000, 30_000_000, 1_000, 1_000],
         );
-        let payload = add_tokens_on_sui_message.extract_add_tokens_on_sui();
+        let payload = add_tokens_on_iota_message.extract_add_tokens_on_iota();
         assert!(
-            payload == make_add_token_on_sui(
+            payload == make_add_token_on_iota(
                 false,
                 vector[1, 2, 3, 4],
                 vector[
@@ -439,17 +440,17 @@ module bridge::message_tests {
             ),
         );
         // Test message serialization
-        let message = serialize_message(add_tokens_on_sui_message);
+        let message = serialize_message(add_tokens_on_iota_message);
         let expected_msg = hex::decode(
             b"0601000000000000000002000401020304044a396235653133626364306362323366663235633037363938653839643438303536633734353333386438633964626430333361343137326238373032373037333a3a6274633a3a4254434a373937306437316330333537336635343061373135376630643339373065313137656666613661653136636566643530623435633734393637306232346536613a3a6574683a3a4554484c353030653432396132343437383430356435313330323232623230663835373061373436623662633232343233663134623464346536613865613538303733363a3a757364633a3a555344434c343662666535316461316264393531313931396139326562313135343134396233366330663432313231323138303865313365336535383537643630376139633a3a757364743a3a55534454040065cd1d0000000080c3c90100000000e803000000000000e803000000000000",
         );
         assert_eq(message, expected_msg);
-        assert!(add_tokens_on_sui_message == deserialize_message_test_only(message));
+        assert!(add_tokens_on_iota_message == deserialize_message_test_only(message));
 
-        let mut message_bytes = b"SUI_BRIDGE_MESSAGE";
+        let mut message_bytes = b"IOTA_BRIDGE_MESSAGE";
         message_bytes.append(message);
 
-        let pubkey = sui::ecdsa_k1::secp256k1_ecrecover(
+        let pubkey = iota::ecdsa_k1::secp256k1_ecrecover(
             &x"b75e64b040eef6fa510e4b9be853f0d35183de635c6456c190714f9546b163ba12583e615a2e9944ec2d21b520aebd9b14e181dcae0fcc6cdaefc0aa235b3abe00",
             &message_bytes,
             0,
@@ -483,7 +484,7 @@ module bridge::message_tests {
         let ctx = test_scenario::ctx(&mut scenario);
         let coin = coin::mint_for_testing<USDC>(12345, ctx);
         let mut token_bridge_message = create_token_bridge_message(
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             address::to_bytes(sender_address), // sender address
             chain_ids::eth_sepolia(), // target_chain
@@ -505,7 +506,7 @@ module bridge::message_tests {
     #[expected_failure(abort_code = bridge::message::ETrailingBytes)]
     fun test_bad_emergency_op() {
         let mut msg = create_emergency_op_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             0,
             emergency_op_pause(),
         );
@@ -519,7 +520,7 @@ module bridge::message_tests {
     #[expected_failure(abort_code = bridge::message::EEmptyList)]
     fun test_bad_blocklist() {
         let blocklist_message = create_blocklist_message(
-            chain_ids::sui_testnet(), 10, 0, vector[],
+            chain_ids::iota_testnet(), 10, 0, vector[],
         );
         blocklist_message.extract_blocklist_payload();
     }
@@ -541,14 +542,14 @@ module bridge::message_tests {
         // bad address
         let validator_pub_key2 = hex::decode(b"f7e93cc543d97af6632c9b8864417379dba4bf150000");
         let validator_eth_addresses = vector[validator_pub_key1, validator_pub_key2];
-        create_blocklist_message(chain_ids::sui_testnet(), 10, 0, validator_eth_addresses);
+        create_blocklist_message(chain_ids::iota_testnet(), 10, 0, validator_eth_addresses);
     }
 
     #[test]
     #[expected_failure(abort_code = bridge::message::ETrailingBytes)]
     fun test_bad_bridge_limit() {
         let mut update_bridge_limit = create_update_bridge_limit_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             10,
             chain_ids::eth_sepolia(),
             1000000000,
@@ -564,7 +565,7 @@ module bridge::message_tests {
     fun test_bad_update_price() {
         let mut asset_price_message = create_update_asset_price_message(
             2,
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             12345,
         );
@@ -581,8 +582,8 @@ module bridge::message_tests {
         let ctx = test_scenario::ctx(&mut scenario);
         let treasury = treasury::mock_for_test(ctx);
 
-        let mut add_token_message = create_add_tokens_on_sui_message(
-            chain_ids::sui_custom(),
+        let mut add_token_message = create_add_tokens_on_iota_message(
+            chain_ids::iota_custom(),
             1, // seq_num
             false, // native_token
             vector[treasury.token_id<BTC>(), treasury.token_id<ETH>()],
@@ -599,7 +600,7 @@ module bridge::message_tests {
         let mut payload = add_token_message.payload();
         payload.push_back(0u8);
         add_token_message.set_payload(payload);
-        add_token_message.extract_add_tokens_on_sui();
+        add_token_message.extract_add_tokens_on_iota();
 
         abort 0
     }
@@ -615,7 +616,7 @@ module bridge::message_tests {
         // double sender which wil make the payload different the 64 bytes
         sender.append(address::to_bytes(sender_address));
         create_token_bridge_message(
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             sender, // sender address
             chain_ids::eth_sepolia(), // target_chain
@@ -631,7 +632,7 @@ module bridge::message_tests {
     #[test]
     #[expected_failure(abort_code = bridge::message::EMustBeTokenMessage)]
     fun test_bad_token_transfer_type() {
-        let msg = create_update_asset_price_message(2, chain_ids::sui_testnet(), 10, 12345);
+        let msg = create_update_asset_price_message(2, chain_ids::iota_testnet(), 10, 12345);
         msg.to_parsed_token_transfer_message();
     }
 
@@ -645,14 +646,14 @@ module bridge::message_tests {
         let message = default_token_bridge_message(
             sender_address,
             &coin,
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             chain_ids::eth_sepolia(),
         );
         assert!(message.required_voting_power() == 3334);
 
         let treasury = treasury::mock_for_test(ctx);
-        let message = create_add_tokens_on_sui_message(
-            chain_ids::sui_custom(),
+        let message = create_add_tokens_on_iota_message(
+            chain_ids::iota_custom(),
             1, // seq_num
             false, // native_token
             vector[treasury.token_id<BTC>(), treasury.token_id<ETH>()],
@@ -673,13 +674,13 @@ module bridge::message_tests {
         test_scenario::end(scenario);
 
         let message = create_emergency_op_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             10,
             emergency_op_pause(),
         );
         assert!(message.required_voting_power() == 450);
         let message = create_emergency_op_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             10,
             emergency_op_unpause(),
         );
@@ -688,11 +689,11 @@ module bridge::message_tests {
         let message = default_blocklist_message();
         assert!(message.required_voting_power() == 5001);
 
-        let message = create_update_asset_price_message(2, chain_ids::sui_testnet(), 10, 12345);
+        let message = create_update_asset_price_message(2, chain_ids::iota_testnet(), 10, 12345);
         assert!(message.required_voting_power() == 5001);
 
         let message = create_update_bridge_limit_message(
-            chain_ids::sui_testnet(), // source chain
+            chain_ids::iota_testnet(), // source chain
             10, // seq_num
             chain_ids::eth_sepolia(),
             1000000000,
@@ -703,7 +704,7 @@ module bridge::message_tests {
     #[test]
     #[expected_failure(abort_code = bridge::message::EInvalidEmergencyOpType)]
     fun test_bad_voting_power_1() {
-        let message = create_emergency_op_message(chain_ids::sui_testnet(), 10, 3);
+        let message = create_emergency_op_message(chain_ids::iota_testnet(), 10, 3);
         message.required_voting_power();
     }
 
@@ -712,7 +713,7 @@ module bridge::message_tests {
     fun test_bad_voting_power_2() {
         let message = make_generic_message(
             100, // bad message type
-            1, 10, chain_ids::sui_testnet(), vector[],
+            1, 10, chain_ids::iota_testnet(), vector[],
         );
         message.required_voting_power();
     }
@@ -761,7 +762,7 @@ module bridge::message_tests {
         default_token_bridge_message(
             sender_address,
             &coin,
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             INVALID_CHAIN,
         );
         abort 0
@@ -795,7 +796,7 @@ module bridge::message_tests {
     #[test]
     #[expected_failure(abort_code = bridge::chain_ids::EInvalidBridgeRoute)]
     fun test_invalid_chain_id_6() {
-        create_update_bridge_limit_message(chain_ids::sui_testnet(), 1, INVALID_CHAIN, 1);
+        create_update_bridge_limit_message(chain_ids::iota_testnet(), 1, INVALID_CHAIN, 1);
         abort 0
     }
 
@@ -809,7 +810,7 @@ module bridge::message_tests {
     #[test]
     #[expected_failure(abort_code = bridge::chain_ids::EInvalidBridgeRoute)]
     fun test_invalid_chain_id_8() {
-        create_add_tokens_on_sui_message(INVALID_CHAIN, 1, false, vector[], vector[], vector[]);
+        create_add_tokens_on_iota_message(INVALID_CHAIN, 1, false, vector[], vector[], vector[]);
         abort 0
     }
 
@@ -817,6 +818,6 @@ module bridge::message_tests {
         let validator_pub_key1 = hex::decode(b"b14d3c4f5fbfbcfb98af2d330000d49c95b93aa7");
         let validator_pub_key2 = hex::decode(b"f7e93cc543d97af6632c9b8864417379dba4bf15");
         let validator_eth_addresses = vector[validator_pub_key1, validator_pub_key2];
-        create_blocklist_message(chain_ids::sui_testnet(), 10, 0, validator_eth_addresses)
+        create_blocklist_message(chain_ids::iota_testnet(), 10, 0, validator_eth_addresses)
     }
 }

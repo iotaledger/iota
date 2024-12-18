@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_store_types::{ObjectContentDigest, StoreData, StoreObject};
 use crate::checkpoints::{CheckpointStore, CheckpointWatermark};
 use crate::rpc_index::RpcIndexStore;
 use anyhow::anyhow;
-use mysten_metrics::{monitored_scope, spawn_monitored_task};
+use iota_metrics::{monitored_scope, spawn_monitored_task};
 use once_cell::sync::Lazy;
 use prometheus::{
     register_int_counter_with_registry, register_int_gauge_with_registry, IntCounter, IntGauge,
@@ -16,18 +17,18 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{sync::Arc, time::Duration};
-use sui_archival::reader::ArchiveReaderBalancer;
-use sui_config::node::AuthorityStorePruningConfig;
-use sui_storage::mutex_table::RwLockTable;
-use sui_types::base_types::SequenceNumber;
-use sui_types::committee::EpochId;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::message_envelope::Message;
-use sui_types::messages_checkpoint::{
+use iota_archival::reader::ArchiveReaderBalancer;
+use iota_config::node::AuthorityStorePruningConfig;
+use iota_storage::mutex_table::RwLockTable;
+use iota_types::base_types::SequenceNumber;
+use iota_types::committee::EpochId;
+use iota_types::effects::TransactionEffects;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::message_envelope::Message;
+use iota_types::messages_checkpoint::{
     CheckpointContents, CheckpointDigest, CheckpointSequenceNumber,
 };
-use sui_types::{
+use iota_types::{
     base_types::{ObjectID, VersionNumber},
     storage::ObjectKey,
 };
@@ -761,11 +762,11 @@ mod tests {
         StoreObjectWrapper,
     };
     use prometheus::Registry;
-    use sui_storage::mutex_table::RwLockTable;
-    use sui_types::base_types::ObjectDigest;
-    use sui_types::effects::TransactionEffects;
-    use sui_types::effects::TransactionEffectsAPI;
-    use sui_types::{
+    use iota_storage::mutex_table::RwLockTable;
+    use iota_types::base_types::ObjectDigest;
+    use iota_types::effects::TransactionEffects;
+    use iota_types::effects::TransactionEffectsAPI;
+    use iota_types::{
         base_types::{ObjectID, SequenceNumber},
         object::Object,
         storage::ObjectKey,
@@ -1083,11 +1084,11 @@ mod pprof_tests {
     use crate::authority::authority_store_types::{get_store_object_pair, StoreObjectWrapper};
     use pprof::Symbol;
     use prometheus::Registry;
-    use sui_types::base_types::ObjectDigest;
-    use sui_types::base_types::VersionNumber;
-    use sui_types::effects::TransactionEffects;
-    use sui_types::effects::TransactionEffectsAPI;
-    use sui_types::{
+    use iota_types::base_types::ObjectDigest;
+    use iota_types::base_types::VersionNumber;
+    use iota_types::effects::TransactionEffects;
+    use iota_types::effects::TransactionEffectsAPI;
+    use iota_types::{
         base_types::{ObjectID, SequenceNumber},
         object::Object,
         storage::ObjectKey,

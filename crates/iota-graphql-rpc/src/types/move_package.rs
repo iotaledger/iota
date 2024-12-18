@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -12,9 +13,9 @@ use super::move_module::MoveModule;
 use super::move_object::MoveObject;
 use super::object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus};
 use super::owner::OwnerImpl;
-use super::stake::StakedSui;
-use super::sui_address::SuiAddress;
-use super::suins_registration::{DomainFormat, SuinsRegistration};
+use super::stake::StakedIota;
+use super::iota_address::IotaAddress;
+use super::iotans_registration::{DomainFormat, IotaNSRegistration};
 use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
 use super::type_filter::ExactTypeFilter;
 use super::uint53::UInt53;
@@ -23,7 +24,7 @@ use crate::consistency::{Checkpointed, ConsistentNamedCursor};
 use crate::data::{DataLoader, Db, DbConnection, QueryExecutor};
 use crate::error::Error;
 use crate::raw_query::RawQuery;
-use crate::types::sui_address::addr;
+use crate::types::iota_address::addr;
 use crate::{filter, query};
 use async_graphql::connection::{Connection, CursorType, Edge};
 use async_graphql::dataloader::Loader;
@@ -32,11 +33,11 @@ use diesel::prelude::QueryableByName;
 use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, Selectable};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use serde::{Deserialize, Serialize};
-use sui_indexer::models::objects::StoredFullHistoryObject;
-use sui_indexer::schema::packages;
-use sui_package_resolver::{error::Error as PackageCacheError, Package as ParsedMovePackage};
-use sui_types::is_system_package;
-use sui_types::{move_package::MovePackage as NativeMovePackage, object::Data};
+use iota_indexer::models::objects::StoredFullHistoryObject;
+use iota_indexer::schema::packages;
+use iota_package_resolver::{error::Error as PackageCacheError, Package as ParsedMovePackage};
+use iota_types::is_system_package;
+use iota_types::{move_package::MovePackage as NativeMovePackage, object::Data};
 
 #[derive(Clone)]
 pub(crate) struct MovePackage {
@@ -95,10 +96,10 @@ pub(crate) enum PackageLookup {
 #[derive(SimpleObject)]
 struct Linkage {
     /// The ID on-chain of the first version of the dependency.
-    original_id: SuiAddress,
+    original_id: IotaAddress,
 
     /// The ID on-chain of the version of the dependency that this package depends on.
-    upgraded_id: SuiAddress,
+    upgraded_id: IotaAddress,
 
     /// The version of the dependency that this package depends on.
     version: UInt53,
@@ -115,7 +116,7 @@ struct TypeOrigin {
     struct_: String,
 
     /// The storage ID of the package that first defined this type.
-    defining_id: SuiAddress,
+    defining_id: IotaAddress,
 }
 
 /// A wrapper around the stored representation of a package, used to implement pagination-related
@@ -157,7 +158,7 @@ pub(crate) struct PackageCursor {
 /// does not work for system packages (whose versions do all reside under the same ID).
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct PackageVersionKey {
-    address: SuiAddress,
+    address: IotaAddress,
     version: u64,
 }
 
@@ -165,7 +166,7 @@ struct PackageVersionKey {
 /// version whose original ID matches the original ID of the package at `address`.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct LatestKey {
-    address: SuiAddress,
+    address: IotaAddress,
     checkpoint_viewed_at: u64,
 }
 
@@ -173,7 +174,7 @@ struct LatestKey {
 /// It exposes information about its modules, type definitions, functions, and dependencies.
 #[Object]
 impl MovePackage {
-    pub(crate) async fn address(&self) -> SuiAddress {
+    pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(&self.super_).address().await
     }
 
@@ -196,7 +197,7 @@ impl MovePackage {
     }
 
     /// Total balance of all coins with marker type owned by this package. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// it defaults to `0x2::iota::IOTA`.
     ///
     /// Note that coins owned by a package are inaccessible, because packages are immutable and
     /// cannot be owned by an address.
@@ -227,7 +228,7 @@ impl MovePackage {
 
     /// The coin objects owned by this package.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
     ///
     /// Note that coins owned by a package are inaccessible, because packages are immutable and
     /// cannot be owned by an address.
@@ -245,49 +246,49 @@ impl MovePackage {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this package.
+    /// The `0x3::staking_pool::StakedIota` objects owned by this package.
     ///
     /// Note that objects owned by a package are inaccessible, because packages are immutable and
     /// cannot be owned by an address.
-    pub(crate) async fn staked_suis(
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_)
-            .staked_suis(ctx, first, after, last, before)
+            .staked_iotas(ctx, first, after, last, before)
             .await
     }
 
     /// The domain explicitly configured as the default domain pointing to this object.
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_)
-            .default_suins_name(ctx, format)
+            .default_iotans_name(ctx, format)
             .await
     }
 
-    /// The SuinsRegistration NFTs owned by this package. These grant the owner the capability to
+    /// The IotaNSRegistration NFTs owned by this package. These grant the owner the capability to
     /// manage the associated domain.
     ///
     /// Note that objects owned by a package are inaccessible, because packages are immutable and
     /// cannot be owned by an address.
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         OwnerImpl::from(&self.super_)
-            .suins_registrations(ctx, first, after, last, before)
+            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -327,7 +328,7 @@ impl MovePackage {
             .await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
+    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
     /// recalculated based on the present storage gas price.
     ///
     /// Note that packages cannot be deleted or mutated, so this number is provided purely for
@@ -631,7 +632,7 @@ impl MovePackage {
 
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
         key: PackageLookup,
     ) -> Result<Option<Self>, Error> {
         let (address, key) = match key {
@@ -784,7 +785,7 @@ impl MovePackage {
     pub(crate) async fn paginate_by_version(
         db: &Db,
         page: Page<Cursor>,
-        package: SuiAddress,
+        package: IotaAddress,
         filter: Option<MovePackageVersionFilter>,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, MovePackage>, Error> {
@@ -828,7 +829,7 @@ impl MovePackage {
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
         let object = Object::new_serialized(
-            SuiAddress::from_bytes(&history_object.object_id)
+            IotaAddress::from_bytes(&history_object.object_id)
                 .map_err(|_| Error::Internal("Invalid package ID".to_string()))?,
             history_object.object_version as u64,
             history_object.serialized_object,
@@ -912,13 +913,13 @@ impl ScanLimited for BcsCursor<PackageCursor> {}
 
 #[async_trait::async_trait]
 impl Loader<PackageVersionKey> for Db {
-    type Value = SuiAddress;
+    type Value = IotaAddress;
     type Error = Error;
 
     async fn load(
         &self,
         keys: &[PackageVersionKey],
-    ) -> Result<HashMap<PackageVersionKey, SuiAddress>, Error> {
+    ) -> Result<HashMap<PackageVersionKey, IotaAddress>, Error> {
         use packages::dsl;
         let other = diesel::alias!(packages as other);
 
@@ -976,10 +977,10 @@ impl Loader<PackageVersionKey> for Db {
 
 #[async_trait::async_trait]
 impl Loader<LatestKey> for Db {
-    type Value = SuiAddress;
+    type Value = IotaAddress;
     type Error = Error;
 
-    async fn load(&self, keys: &[LatestKey]) -> Result<HashMap<LatestKey, SuiAddress>, Error> {
+    async fn load(&self, keys: &[LatestKey]) -> Result<HashMap<LatestKey, IotaAddress>, Error> {
         use packages::dsl;
         let other = diesel::alias!(packages as other);
 
@@ -1074,7 +1075,7 @@ impl TryFrom<&Object> for MovePackage {
 /// packages, this is the latest version of the package (for user packages, there is only one entry
 /// per package ID anyway as each version of a package gets its own ID).
 fn system_package_version_query(
-    package: SuiAddress,
+    package: IotaAddress,
     filter: Option<MovePackageVersionFilter>,
 ) -> RawQuery {
     // Query uses a left join to force the query planner to use `objects_version` in the outer loop.
@@ -1125,7 +1126,7 @@ fn system_package_version_query(
 /// Query for fetching all the versions of a non-system package (assumes that `package` has already
 /// been verified as a system package)
 fn user_package_version_query(
-    package: SuiAddress,
+    package: IotaAddress,
     filter: Option<MovePackageVersionFilter>,
 ) -> RawQuery {
     let mut q = query!(

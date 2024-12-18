@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { normalizeSuiObjectId } from './sui-types.js';
+import { normalizeIotaObjectId } from './iota-types.js';
 
-export const SUI_DECIMALS = 9;
-export const MIST_PER_SUI = BigInt(1000000000);
+export const IOTA_DECIMALS = 9;
+export const NANOS_PER_IOTA = BigInt(1000000000);
 
 export const MOVE_STDLIB_ADDRESS = '0x1';
-export const SUI_FRAMEWORK_ADDRESS = '0x2';
-export const SUI_SYSTEM_ADDRESS = '0x3';
-export const SUI_CLOCK_OBJECT_ID = normalizeSuiObjectId('0x6');
-export const SUI_SYSTEM_MODULE_NAME = 'sui_system';
-export const SUI_TYPE_ARG = `${SUI_FRAMEWORK_ADDRESS}::sui::SUI`;
-export const SUI_SYSTEM_STATE_OBJECT_ID: string = normalizeSuiObjectId('0x5');
+export const IOTA_FRAMEWORK_ADDRESS = '0x2';
+export const IOTA_SYSTEM_ADDRESS = '0x3';
+export const IOTA_CLOCK_OBJECT_ID = normalizeIotaObjectId('0x6');
+export const IOTA_SYSTEM_MODULE_NAME = 'iota_system';
+export const IOTA_TYPE_ARG = `${IOTA_FRAMEWORK_ADDRESS}::iota::IOTA`;
+export const IOTA_SYSTEM_STATE_OBJECT_ID: string = normalizeIotaObjectId('0x5');

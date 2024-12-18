@@ -37,16 +37,16 @@ task 6, line 92:
 //# view-object 3,0
 Owner: Object ID: ( fake(2,0) )
 Version: 4
-Contents: sui::dynamic_field::Field<u64, a::m::Counter> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::dynamic_field::Field<u64, a::m::Counter> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
     name: 0u64,
     value: a::m::Counter {
-        id: sui::object::UID {
-            id: sui::object::ID {
+        id: iota::object::UID {
+            id: iota::object::ID {
                 bytes: _,
             },
         },
@@ -70,16 +70,16 @@ task 9, line 98:
 //# view-object 3,0
 Owner: Object ID: ( fake(2,0) )
 Version: 4
-Contents: sui::dynamic_field::Field<u64, a::m::Counter> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::dynamic_field::Field<u64, a::m::Counter> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
     name: 0u64,
     value: a::m::Counter {
-        id: sui::object::UID {
-            id: sui::object::ID {
+        id: iota::object::UID {
+            id: iota::object::ID {
                 bytes: _,
             },
         },

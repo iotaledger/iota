@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test creates multiple coin types in the same module, and show that deny actions on one type does not affect
@@ -9,7 +10,7 @@
 //# publish --sender A
 #[allow(deprecated_usage)]
 module test::first_coin {
-    use sui::coin;
+    use iota::coin;
 
     public struct FIRST_COIN has drop {}
 
@@ -33,7 +34,7 @@ module test::first_coin {
 
 #[allow(deprecated_usage)]
 module test::second_coin {
-    use sui::coin;
+    use iota::coin;
 
     public struct SECOND_COIN has drop {}
 
@@ -78,7 +79,7 @@ module test::second_coin {
 //# view-object 1,10
 
 // Deny account A for FIRST_COIN.
-//# run sui::coin::deny_list_add --args object(0x403) object(1,5) @A --type-args test::first_coin::FIRST_COIN --sender A
+//# run iota::coin::deny_list_add --args object(0x403) object(1,5) @A --type-args test::first_coin::FIRST_COIN --sender A
 
 // Sending away first coin from A should fail.
 //# transfer-object 1,1 --sender A --recipient A

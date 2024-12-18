@@ -112,7 +112,7 @@ Event: emitted when a new Display object has been created for type T.
 Type signature of the event corresponds to the type while id serves for
 the discovery.
 
-Since Sui RPC supports querying events by type, finding a Display for the T
+Since Iota RPC supports querying events by type, finding a Display for the T
 would be as simple as looking for the first event with <code><a href="display.md#0x2_display_Display">Display</a>&lt;T&gt;</code>.
 
 

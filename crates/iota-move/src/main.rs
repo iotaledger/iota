@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
@@ -6,8 +7,8 @@ use std::path::PathBuf;
 use clap::*;
 use colored::Colorize;
 use move_package::BuildConfig as MoveBuildConfig;
-use sui_move::execute_move_command;
-use sui_types::exit_main;
+use iota_move::execute_move_command;
+use iota_types::exit_main;
 use tracing::debug;
 
 // Define the `GIT_REVISION` and `VERSION` consts
@@ -16,7 +17,7 @@ bin_version::bin_version!();
 #[derive(Parser)]
 #[clap(
     name = env!("CARGO_BIN_NAME"),
-    about = "Sui-Move CLI",
+    about = "Iota-Move CLI",
     rename_all = "kebab-case",
     author,
     version = VERSION,
@@ -36,7 +37,7 @@ struct Args {
     pub build_config: MoveBuildConfig,
     /// Subcommands.
     #[clap(subcommand)]
-    pub cmd: sui_move::Command,
+    pub cmd: iota_move::Command,
 }
 
 #[tokio::main]
@@ -47,7 +48,7 @@ async fn main() {
     let bin_name = env!("CARGO_BIN_NAME");
     let args = Args::parse();
     // let _guard = match args.command {
-    //     SuiCommand::Console { .. } | SuiCommand::Client { .. } => {
+    //     IotaCommand::Console { .. } | IotaCommand::Client { .. } => {
     //         telemetry_subscribers::TelemetryConfig::new()
     //             .with_log_file(&format!("{bin_name}.log"))
     //             .with_env()
@@ -62,7 +63,7 @@ async fn main() {
         .with_log_file(&format!("{bin_name}.log"))
         .with_env()
         .init();
-    debug!("Sui-Move CLI version: {VERSION}");
+    debug!("Iota-Move CLI version: {VERSION}");
 
     exit_main!(execute_move_command(
         args.package_path.as_deref(),

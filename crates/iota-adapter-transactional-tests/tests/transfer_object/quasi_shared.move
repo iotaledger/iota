@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests TransferObject should fail for a quasi-shared object
@@ -18,7 +19,7 @@ module test::m {
 
     public entry fun mint_child(s: &mut S, ctx: &mut TxContext) {
         let id = object::new(ctx);
-        sui::dynamic_object_field::add(&mut s.id, 0, Child { id });
+        iota::dynamic_object_field::add(&mut s.id, 0, Child { id });
     }
 }
 

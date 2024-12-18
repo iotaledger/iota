@@ -1,8 +1,8 @@
 [package]
-name = "Sui"
+name = "Iota"
 version = "0.0.1"
 published-at = "0x2"
 edition = "development"
 
 [addresses]
-sui = "0x2"
+iota = "0x2"

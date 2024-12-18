@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto_zkp::bn254::zk_login::{JwkId, JWK};
@@ -7,10 +8,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::base_types::SequenceNumber;
 use crate::dynamic_field::get_dynamic_field_from_store;
-use crate::error::{SuiError, SuiResult};
+use crate::error::{IotaError, IotaResult};
 use crate::object::Owner;
 use crate::storage::ObjectStore;
-use crate::{id::UID, SUI_AUTHENTICATOR_STATE_OBJECT_ID, SUI_FRAMEWORK_ADDRESS};
+use crate::{id::UID, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS};
 
 pub const AUTHENTICATOR_STATE_MODULE_NAME: &IdentStr = ident_str!("authenticator_state");
 pub const AUTHENTICATOR_STATE_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorState");
@@ -18,8 +19,8 @@ pub const AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME: &IdentStr =
     ident_str!("update_authenticator_state");
 pub const AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME: &IdentStr = ident_str!("create");
 pub const AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME: &IdentStr = ident_str!("expire_jwks");
-pub const RESOLVED_SUI_AUTHENTICATOR_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &SUI_FRAMEWORK_ADDRESS,
+pub const RESOLVED_IOTA_AUTHENTICATOR_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &IOTA_FRAMEWORK_ADDRESS,
     AUTHENTICATOR_STATE_MODULE_NAME,
     AUTHENTICATOR_STATE_STRUCT_NAME,
 );
@@ -107,18 +108,18 @@ impl std::cmp::Ord for ActiveJwk {
 
 pub fn get_authenticator_state(
     object_store: impl ObjectStore,
-) -> SuiResult<Option<AuthenticatorStateInner>> {
-    let outer = object_store.get_object(&SUI_AUTHENTICATOR_STATE_OBJECT_ID);
+) -> IotaResult<Option<AuthenticatorStateInner>> {
+    let outer = object_store.get_object(&IOTA_AUTHENTICATOR_STATE_OBJECT_ID);
     let Some(outer) = outer else {
         return Ok(None);
     };
     let move_object = outer.data.try_as_move().ok_or_else(|| {
-        SuiError::SuiSystemStateReadError(
+        IotaError::IotaSystemStateReadError(
             "AuthenticatorState object must be a Move object".to_owned(),
         )
     })?;
     let outer = bcs::from_bytes::<AuthenticatorState>(move_object.contents())
-        .map_err(|err| SuiError::SuiSystemStateReadError(err.to_string()))?;
+        .map_err(|err| IotaError::IotaSystemStateReadError(err.to_string()))?;
 
     // No other versions exist yet.
     assert_eq!(outer.version, AUTHENTICATOR_STATE_VERSION);
@@ -126,8 +127,8 @@ pub fn get_authenticator_state(
     let id = outer.id.id.bytes;
     let inner: AuthenticatorStateInner =
         get_dynamic_field_from_store(&object_store, id, &outer.version).map_err(|err| {
-            SuiError::DynamicFieldReadError(format!(
-                "Failed to load sui system state inner object with ID {:?} and version {:?}: {:?}",
+            IotaError::DynamicFieldReadError(format!(
+                "Failed to load iota system state inner object with ID {:?} and version {:?}: {:?}",
                 id, outer.version, err
             ))
         })?;
@@ -137,9 +138,9 @@ pub fn get_authenticator_state(
 
 pub fn get_authenticator_state_obj_initial_shared_version(
     object_store: &dyn ObjectStore,
-) -> SuiResult<Option<SequenceNumber>> {
+) -> IotaResult<Option<SequenceNumber>> {
     Ok(object_store
-        .get_object(&SUI_AUTHENTICATOR_STATE_OBJECT_ID)
+        .get_object(&IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
         .map(|obj| match obj.owner {
             Owner::Shared {
                 initial_shared_version,

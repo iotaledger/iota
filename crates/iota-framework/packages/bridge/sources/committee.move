@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_use)]
 module bridge::committee {
-    use sui::ecdsa_k1;
-    use sui::event::emit;
-    use sui::vec_map::{Self, VecMap};
-    use sui::vec_set;
-    use sui_system::sui_system::SuiSystemState;
+    use iota::ecdsa_k1;
+    use iota::event::emit;
+    use iota::vec_map::{Self, VecMap};
+    use iota::vec_set;
+    use iota_system::iota_system::IotaSystemState;
 
     use bridge::crypto;
     use bridge::message::{Self, Blocklist, BridgeMessage};
@@ -23,7 +24,7 @@ module bridge::committee {
     const EDuplicatePubkey: u64 = 8;
     const ESenderIsNotInBridgeCommittee: u64 = 9;
 
-    const SUI_MESSAGE_PREFIX: vector<u8> = b"SUI_BRIDGE_MESSAGE";
+    const IOTA_MESSAGE_PREFIX: vector<u8> = b"IOTA_BRIDGE_MESSAGE";
 
     const ECDSA_COMPRESSED_PUBKEY_LENGTH: u64 = 33;
 
@@ -59,8 +60,8 @@ module bridge::committee {
     }
 
     public struct CommitteeMember has copy, drop, store {
-        /// The Sui Address of the validator
-        sui_address: address,
+        /// The Iota Address of the validator
+        iota_address: address,
         /// The public key bytes of the bridge key
         bridge_pubkey_bytes: vector<u8>,
         /// Voting power, values are voting power in the scale of 10000.
@@ -73,8 +74,8 @@ module bridge::committee {
     }
 
     public struct CommitteeMemberRegistration has copy, drop, store {
-        /// The Sui Address of the validator
-        sui_address: address,
+        /// The Iota Address of the validator
+        iota_address: address,
         /// The public key bytes of the bridge key
         bridge_pubkey_bytes: vector<u8>,
         /// The HTTP REST URL the member's node listens to
@@ -95,7 +96,7 @@ module bridge::committee {
         let mut seen_pub_key = vec_set::empty<vector<u8>>();
         let required_voting_power = message.required_voting_power();
         // add prefix to the message bytes
-        let mut message_bytes = SUI_MESSAGE_PREFIX;
+        let mut message_bytes = IOTA_MESSAGE_PREFIX;
         message_bytes.append(message.serialize_message());
 
         let mut threshold = 0;
@@ -134,7 +135,7 @@ module bridge::committee {
 
     public(package) fun register(
         self: &mut BridgeCommittee,
-        system_state: &mut SuiSystemState,
+        system_state: &mut IotaSystemState,
         bridge_pubkey_bytes: vector<u8>,
         http_rest_url: vector<u8>,
         ctx: &TxContext
@@ -158,7 +159,7 @@ module bridge::committee {
             *registration
         } else {
             let registration = CommitteeMemberRegistration {
-                sui_address: sender,
+                iota_address: sender,
                 bridge_pubkey_bytes,
                 http_rest_url,
             };
@@ -194,13 +195,13 @@ module bridge::committee {
             // Find validator stake amount from system state
 
             // Process registration if it's active validator
-            let voting_power = active_validator_voting_power.try_get(&registration.sui_address);
+            let voting_power = active_validator_voting_power.try_get(&registration.iota_address);
             if (voting_power.is_some()) {
                 let voting_power = voting_power.destroy_some();
                 stake_participation_percentage = stake_participation_percentage + voting_power;
 
                 let member = CommitteeMember {
-                    sui_address: registration.sui_address,
+                    iota_address: registration.iota_address,
                     bridge_pubkey_bytes: registration.bridge_pubkey_bytes,
                     voting_power: (voting_power as u64),
                     http_rest_url: registration.http_rest_url,
@@ -277,7 +278,7 @@ module bridge::committee {
         let mut idx = 0;
         while (idx < self.members.size()) {
             let (_, member) = self.members.get_entry_by_idx_mut(idx);
-            if (member.sui_address == ctx.sender()) {
+            if (member.iota_address == ctx.sender()) {
                 member.http_rest_url = new_url;
                 emit (CommitteeMemberUrlUpdateEvent {
                     member: member.bridge_pubkey_bytes,
@@ -359,14 +360,14 @@ module bridge::committee {
 
     #[test_only]
     public(package) fun make_committee_member(
-        sui_address: address,
+        iota_address: address,
         bridge_pubkey_bytes: vector<u8>,
         voting_power: u64,
         http_rest_url: vector<u8>,
         blocklisted: bool,
     ): CommitteeMember {
         CommitteeMember {
-            sui_address,
+            iota_address,
             bridge_pubkey_bytes,
             voting_power,
             http_rest_url,

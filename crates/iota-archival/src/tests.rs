@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::reader::{ArchiveReader, ArchiveReaderMetrics};
@@ -16,13 +17,13 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_config::node::ArchiveReaderConfig;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_storage::object_store::util::path_to_filesystem;
-use sui_storage::{FileCompression, StorageFormat};
-use sui_swarm_config::test_utils::{empty_contents, CommitteeFixture};
-use sui_types::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
-use sui_types::storage::{ReadStore, SharedInMemoryStore, SingleCheckpointSharedInMemoryStore};
+use iota_config::node::ArchiveReaderConfig;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_storage::object_store::util::path_to_filesystem;
+use iota_storage::{FileCompression, StorageFormat};
+use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
+use iota_types::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
+use iota_types::storage::{ReadStore, SharedInMemoryStore, SingleCheckpointSharedInMemoryStore};
 use tempfile::tempdir;
 
 struct TestState {

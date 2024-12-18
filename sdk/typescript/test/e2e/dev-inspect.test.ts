@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { resolve } from 'path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { SuiClient } from '../../src/client';
+import { IotaClient } from '../../src/client';
 import { Keypair } from '../../src/cryptography';
 import { Transaction } from '../../src/transactions';
 import { setup, TestToolbox } from './utils/setup';
@@ -46,7 +47,7 @@ describe('Test dev inspect', () => {
 		const coin_0 = coins.data[0];
 		const obj = tx.moveCall({
 			target: `${packageId}::serializer_tests::return_struct`,
-			typeArguments: ['0x2::coin::Coin<0x2::sui::SUI>'],
+			typeArguments: ['0x2::coin::Coin<0x2::iota::IOTA>'],
 			arguments: [tx.object(coin_0.coinObjectId)],
 		});
 
@@ -69,7 +70,7 @@ describe('Test dev inspect', () => {
 });
 
 async function validateDevInspectTransaction(
-	client: SuiClient,
+	client: IotaClient,
 	signer: Keypair,
 	transactionBlock: Transaction,
 	status: 'success' | 'failure',
@@ -77,7 +78,7 @@ async function validateDevInspectTransaction(
 ) {
 	const result = await client.devInspectTransactionBlock({
 		transactionBlock,
-		sender: signer.getPublicKey().toSuiAddress(),
+		sender: signer.getPublicKey().toIotaAddress(),
 		gasPrice,
 	});
 	expect(result.effects.status.status).toEqual(status);

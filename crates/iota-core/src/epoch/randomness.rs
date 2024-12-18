@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anemo::PeerId;
@@ -18,15 +19,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Weak};
 use std::time::Instant;
-use sui_macros::fail_point_if;
-use sui_network::randomness;
-use sui_types::base_types::AuthorityName;
-use sui_types::committee::{Committee, EpochId, StakeUnit};
-use sui_types::crypto::{AuthorityKeyPair, RandomnessRound};
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::messages_consensus::VersionedDkgMessage;
-use sui_types::messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation};
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
+use iota_macros::fail_point_if;
+use iota_network::randomness;
+use iota_types::base_types::AuthorityName;
+use iota_types::committee::{Committee, EpochId, StakeUnit};
+use iota_types::crypto::{AuthorityKeyPair, RandomnessRound};
+use iota_types::error::{IotaError, IotaResult};
+use iota_types::messages_consensus::VersionedDkgMessage;
+use iota_types::messages_consensus::{ConsensusTransaction, VersionedDkgConfirmation};
+use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
 use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
@@ -384,7 +385,7 @@ impl RandomnessManager {
     }
 
     /// Sends the initial dkg::Message to begin the randomness DKG protocol.
-    pub async fn start_dkg(&mut self) -> SuiResult {
+    pub async fn start_dkg(&mut self) -> IotaResult {
         if self.used_messages.initialized() || self.dkg_output.initialized() {
             // DKG already started (or completed or failed).
             return Ok(());
@@ -445,7 +446,7 @@ impl RandomnessManager {
         &mut self,
         consensus_output: &mut ConsensusCommitOutput,
         round: Round,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let epoch_store = self.epoch_store()?;
 
         // Once we have enough Messages, send a Confirmation.
@@ -578,7 +579,7 @@ impl RandomnessManager {
         &mut self,
         authority: &AuthorityName,
         msg: VersionedDkgMessage,
-    ) -> SuiResult {
+    ) -> IotaResult {
         // message was received from other validators, so we need to ensure it uses a supported
         // version before we call other functions that assume the version is correct
         let dkg_version = self.epoch_store()?.protocol_config().dkg_version();
@@ -629,7 +630,7 @@ impl RandomnessManager {
         output: &mut ConsensusCommitOutput,
         authority: &AuthorityName,
         conf: VersionedDkgConfirmation,
-    ) -> SuiResult {
+    ) -> IotaResult {
         // confirmation was received from other validators, so we need to ensure it uses a supported
         // version before we call other functions that assume the version is correct
         let dkg_version = self.epoch_store()?.protocol_config().dkg_version();
@@ -667,7 +668,7 @@ impl RandomnessManager {
         &mut self,
         commit_timestamp: TimestampMs,
         output: &mut ConsensusCommitOutput,
-    ) -> SuiResult<Option<RandomnessRound>> {
+    ) -> IotaResult<Option<RandomnessRound>> {
         let epoch_store = self.epoch_store()?;
         let tables = epoch_store.tables()?;
 
@@ -720,10 +721,10 @@ impl RandomnessManager {
         }
     }
 
-    fn epoch_store(&self) -> SuiResult<Arc<AuthorityPerEpochStore>> {
+    fn epoch_store(&self) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         self.epoch_store
             .upgrade()
-            .ok_or(SuiError::EpochEnded(self.epoch))
+            .ok_or(IotaError::EpochEnded(self.epoch))
     }
 
     fn randomness_dkg_info_from_committee(
@@ -775,11 +776,11 @@ impl RandomnessReporter {
     /// Notifies the associated randomness manager that randomness for the given round has been
     /// durably committed in a checkpoint. This completes the process of generating randomness for
     /// the round.
-    pub fn notify_randomness_in_checkpoint(&self, round: RandomnessRound) -> SuiResult {
+    pub fn notify_randomness_in_checkpoint(&self, round: RandomnessRound) -> IotaResult {
         let epoch_store = self
             .epoch_store
             .upgrade()
-            .ok_or(SuiError::EpochEnded(self.epoch))?;
+            .ok_or(IotaError::EpochEnded(self.epoch))?;
         let mut highest_completed_round = self.highest_completed_round.lock();
         if Some(round) > *highest_completed_round {
             *highest_completed_round = Some(round);
@@ -814,9 +815,9 @@ mod tests {
     };
     use consensus_core::{BlockRef, BlockStatus};
     use std::num::NonZeroUsize;
-    use sui_protocol_config::ProtocolConfig;
-    use sui_protocol_config::{Chain, ProtocolVersion};
-    use sui_types::messages_consensus::ConsensusTransactionKind;
+    use iota_protocol_config::ProtocolConfig;
+    use iota_protocol_config::{Chain, ProtocolVersion};
+    use iota_types::messages_consensus::ConsensusTransactionKind;
     use tokio::sync::mpsc;
 
     #[tokio::test]
@@ -828,7 +829,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         let network_config =
-            sui_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
                 .committee_size(NonZeroUsize::new(4).unwrap())
                 .with_reference_gas_price(500)
                 .build();
@@ -873,7 +874,7 @@ mod tests {
             let randomness_manager = RandomnessManager::try_new(
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
-                sui_network::randomness::Handle::new_stub(),
+                iota_network::randomness::Handle::new_stub(),
                 validator.protocol_key_pair(),
             )
             .await
@@ -960,7 +961,7 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         let network_config =
-            sui_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
                 .committee_size(NonZeroUsize::new(4).unwrap())
                 .with_reference_gas_price(500)
                 .build();
@@ -1009,7 +1010,7 @@ mod tests {
             let randomness_manager = RandomnessManager::try_new(
                 Arc::downgrade(&epoch_store),
                 Box::new(consensus_adapter.clone()),
-                sui_network::randomness::Handle::new_stub(),
+                iota_network::randomness::Handle::new_stub(),
                 validator.protocol_key_pair(),
             )
             .await

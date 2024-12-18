@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::account_address::AccountAddress;
@@ -13,12 +14,12 @@ use move_core_types::{
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
-use sui_json_rpc_types::SuiMoveStruct;
+use iota_json_rpc_types::IotaMoveStruct;
 
-use sui_types::base_types::ObjectID;
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::{MOVE_STDLIB_ADDRESS, SUI_FRAMEWORK_ADDRESS};
+use iota_types::base_types::ObjectID;
+use iota_types::gas_coin::GasCoin;
+use iota_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::{MOVE_STDLIB_ADDRESS, IOTA_FRAMEWORK_ADDRESS};
 
 #[test]
 fn test_to_json_value() {
@@ -33,11 +34,11 @@ fn test_to_json_value() {
         ],
     };
     let event_bytes = bcs::to_bytes(&move_event).unwrap();
-    let sui_move_struct: SuiMoveStruct =
+    let iota_move_struct: IotaMoveStruct =
         BoundedVisitor::deserialize_struct(&event_bytes, &TestEvent::layout())
             .unwrap()
             .into();
-    let json_value = sui_move_struct.to_json_value();
+    let json_value = iota_move_struct.to_json_value();
     assert_eq!(
         Some(&json!("1000000")),
         json_value.pointer("/coins/0/balance")
@@ -75,8 +76,8 @@ pub struct TestEvent {
 impl TestEvent {
     fn type_() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
-            module: ident_str!("SUI").to_owned(),
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: ident_str!("IOTA").to_owned(),
             name: ident_str!("new_foobar").to_owned(),
             type_params: vec![],
         }
@@ -107,7 +108,7 @@ impl TestEvent {
 }
 
 // Rust version of the Move std::string::String type
-// TODO: Do we need this in the sui-types lib?
+// TODO: Do we need this in the iota-types lib?
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 struct UTF8String {
     bytes: String,

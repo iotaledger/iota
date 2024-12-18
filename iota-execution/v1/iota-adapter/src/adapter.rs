@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 mod checked {
     #[cfg(feature = "tracing")]
     use move_vm_config::runtime::VMProfilerConfig;
@@ -23,28 +24,28 @@ mod checked {
         move_vm::MoveVM, native_extensions::NativeContextExtensions,
         native_functions::NativeFunctionTable,
     };
-    use sui_move_natives::object_runtime;
-    use sui_types::metrics::BytecodeVerifierMetrics;
-    use sui_verifier::check_for_verifier_timeout;
+    use iota_move_natives::object_runtime;
+    use iota_types::metrics::BytecodeVerifierMetrics;
+    use iota_verifier::check_for_verifier_timeout;
     use tracing::instrument;
 
-    use sui_move_natives::{object_runtime::ObjectRuntime, NativesCostTable};
-    use sui_protocol_config::ProtocolConfig;
-    use sui_types::execution_config_utils::to_binary_config;
-    use sui_types::{
+    use iota_move_natives::{object_runtime::ObjectRuntime, NativesCostTable};
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::execution_config_utils::to_binary_config;
+    use iota_types::{
         base_types::*,
         error::ExecutionError,
-        error::{ExecutionErrorKind, SuiError},
+        error::{ExecutionErrorKind, IotaError},
         metrics::LimitsMetrics,
         storage::ChildObjectResolver,
     };
-    use sui_verifier::verifier::sui_verify_module_metered_check_timeout_only;
+    use iota_verifier::verifier::iota_verify_module_metered_check_timeout_only;
 
     pub fn new_move_vm(
         natives: NativeFunctionTable,
         protocol_config: &ProtocolConfig,
         _enable_profiler: Option<PathBuf>,
-    ) -> Result<MoveVM, SuiError> {
+    ) -> Result<MoveVM, IotaError> {
         #[cfg(not(feature = "tracing"))]
         let vm_profiler_config = None;
         #[cfg(feature = "tracing")]
@@ -77,7 +78,7 @@ mod checked {
                 max_type_to_layout_nodes: protocol_config.max_type_to_layout_nodes_as_option(),
             },
         )
-        .map_err(|_| SuiError::ExecutionInvariantViolation)
+        .map_err(|_| IotaError::ExecutionInvariantViolation)
     }
 
     pub fn new_native_extensions<'r>(
@@ -154,7 +155,7 @@ mod checked {
         verifier_config: &VerifierConfig,
         meter: &mut (impl Meter + ?Sized),
         metrics: &Arc<BytecodeVerifierMetrics>,
-    ) -> Result<(), SuiError> {
+    ) -> Result<(), IotaError> {
         // run the Move verifier
         for module in modules.iter() {
             let per_module_meter_verifier_timer = metrics
@@ -175,12 +176,12 @@ mod checked {
                             BytecodeVerifierMetrics::TIMEOUT_TAG,
                         ])
                         .inc();
-                    return Err(SuiError::ModuleVerificationFailure {
+                    return Err(IotaError::ModuleVerificationFailure {
                         error: format!("Verification timedout: {}", e),
                     });
                 };
             } else if let Err(err) =
-                sui_verify_module_metered_check_timeout_only(module, &BTreeMap::new(), meter)
+                iota_verify_module_metered_check_timeout_only(module, &BTreeMap::new(), meter)
             {
                 // We only checked that the failure was due to timeout
                 // Discard success timer, but record timeout/failure timer
@@ -190,7 +191,7 @@ mod checked {
                 metrics
                     .verifier_timeout_metrics
                     .with_label_values(&[
-                        BytecodeVerifierMetrics::SUI_VERIFIER_TAG,
+                        BytecodeVerifierMetrics::IOTA_VERIFIER_TAG,
                         BytecodeVerifierMetrics::TIMEOUT_TAG,
                     ])
                     .inc();

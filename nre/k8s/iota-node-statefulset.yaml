@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: sui-node
+  name: iota-node
   namespace: rpc-mainnet
 spec:
   ports:
@@ -10,7 +10,7 @@ spec:
     protocol: TCP
     targetPort: 9000
   selector:
-    app: sui-node
+    app: iota-node
   type: ClusterIP
 ---
 allowVolumeExpansion: true
@@ -28,8 +28,8 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   labels:
-    app: sui-node
-  name: sui-node
+    app: iota-node
+  name: iota-node
   namespace: rpc-mainnet
 spec:
   persistentVolumeClaimRetentionPolicy:
@@ -39,8 +39,8 @@ spec:
   revisionHistoryLimit: 5
   selector:
     matchLabels:
-      app: sui-node
-  serviceName: sui-node
+      app: iota-node
+  serviceName: iota-node
   template:
     metadata:
       annotations:
@@ -48,21 +48,21 @@ spec:
         prometheus.io/port: "9184"
         prometheus.io/scrape: "true"
       labels:
-        app: sui-node
+        app: iota-node
     spec:
       containers:
       - command:
-        - /opt/sui/bin/sui-node
+        - /opt/iota/bin/iota-node
         - --config-path
-        - /opt/sui/config/sui-node.yaml
+        - /opt/iota/config/iota-node.yaml
         env:
         - name: RUST_BACKTRACE
           value: "1"
         - name: RUST_LOG
-          value: info,sui_core=debug,sui_network=debug,narwhal=info,consensus=debug,jsonrpsee=error
+          value: info,iota_core=debug,iota_network=debug,narwhal=info,consensus=debug,jsonrpsee=error
         image: x
         imagePullPolicy: Always
-        name: sui-node
+        name: iota-node
         ports:
         - containerPort: 9000
           protocol: TCP
@@ -71,25 +71,25 @@ spec:
             cpu: "32"
             memory: 128G
         volumeMounts:
-        - mountPath: /opt/sui/db
+        - mountPath: /opt/iota/db
           name: ssd-storage
-        - mountPath: /opt/sui/config/sui-node.yaml
-          name: sui-config-volume
-          subPath: sui-node.yaml
-        - mountPath: /opt/sui/config/genesis.blob
-          name: sui-genesis-volume
+        - mountPath: /opt/iota/config/iota-node.yaml
+          name: iota-config-volume
+          subPath: iota-node.yaml
+        - mountPath: /opt/iota/config/genesis.blob
+          name: iota-genesis-volume
           subPath: genesis.blob
       restartPolicy: Always
       terminationGracePeriodSeconds: 180
       volumes:
       - configMap:
           defaultMode: 420
-          name: sui-config
-        name: sui-config-volume
+          name: iota-config
+        name: iota-config-volume
       - configMap:
           defaultMode: 420
-          name: sui-genesis
-        name: sui-genesis-volume
+          name: iota-genesis
+        name: iota-genesis-volume
   volumeClaimTemplates:
   - apiVersion: v1
     kind: PersistentVolumeClaim

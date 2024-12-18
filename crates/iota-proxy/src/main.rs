@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::Result;
 use clap::Parser;
 use std::env;
-use sui_proxy::config::ProxyConfig;
-use sui_proxy::{
+use iota_proxy::config::ProxyConfig;
+use iota_proxy::{
     admin::{
         app, create_server_cert_default_allow, create_server_cert_enforce_peer,
         make_reqwest_client, server, Labels,
@@ -12,7 +13,7 @@ use sui_proxy::{
     config::load,
     histogram_relay, metrics,
 };
-use sui_tls::TlsAcceptor;
+use iota_tls::TlsAcceptor;
 use telemetry_subscribers::TelemetryConfig;
 use tracing::info;
 
@@ -36,7 +37,7 @@ struct Args {
     #[clap(
         long,
         short,
-        default_value = "./sui-proxy.yaml",
+        default_value = "./iota-proxy.yaml",
         help = "Specify the config file path to use"
     )]
     config: String,
@@ -78,8 +79,8 @@ async fn main() -> Result<()> {
     let registry_service = metrics::start_prometheus_server(metrics_listener);
     let prometheus_registry = registry_service.default_registry();
     prometheus_registry
-        .register(mysten_metrics::uptime_metric(
-            "sui-proxy",
+        .register(iota_metrics::uptime_metric(
+            "iota-proxy",
             VERSION,
             "unavailable",
         ))

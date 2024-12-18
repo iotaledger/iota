@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -8,17 +9,17 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::RpcModule;
 use move_binary_format::normalized::Module as NormalizedModule;
 
-use sui_json_rpc::error::SuiRpcInputError;
-use sui_json_rpc::SuiRpcModule;
-use sui_json_rpc_api::MoveUtilsServer;
-use sui_json_rpc_types::ObjectValueKind;
-use sui_json_rpc_types::SuiMoveNormalizedType;
-use sui_json_rpc_types::{
-    MoveFunctionArgType, SuiMoveNormalizedFunction, SuiMoveNormalizedModule,
-    SuiMoveNormalizedStruct,
+use iota_json_rpc::error::IotaRpcInputError;
+use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc_api::MoveUtilsServer;
+use iota_json_rpc_types::ObjectValueKind;
+use iota_json_rpc_types::IotaMoveNormalizedType;
+use iota_json_rpc_types::{
+    MoveFunctionArgType, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
+    IotaMoveNormalizedStruct,
 };
-use sui_open_rpc::Module;
-use sui_types::base_types::ObjectID;
+use iota_open_rpc::Module;
+use iota_types::base_types::ObjectID;
 
 use crate::indexer_reader::IndexerReader;
 
@@ -37,23 +38,23 @@ impl MoveUtilsServer for MoveUtilsApi {
     async fn get_normalized_move_modules_by_package(
         &self,
         package_id: ObjectID,
-    ) -> RpcResult<BTreeMap<String, SuiMoveNormalizedModule>> {
+    ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
         let resolver_modules = self.inner.get_package(package_id).await?.modules().clone();
-        let sui_normalized_modules = resolver_modules
+        let iota_normalized_modules = resolver_modules
             .into_iter()
             .map(|(k, v)| (k, NormalizedModule::new(v.bytecode()).into()))
-            .collect::<BTreeMap<String, SuiMoveNormalizedModule>>();
-        Ok(sui_normalized_modules)
+            .collect::<BTreeMap<String, IotaMoveNormalizedModule>>();
+        Ok(iota_normalized_modules)
     }
 
     async fn get_normalized_move_module(
         &self,
         package: ObjectID,
         module_name: String,
-    ) -> RpcResult<SuiMoveNormalizedModule> {
+    ) -> RpcResult<IotaMoveNormalizedModule> {
         let mut modules = self.get_normalized_move_modules_by_package(package).await?;
         let module = modules.remove(&module_name).ok_or_else(|| {
-            SuiRpcInputError::GenericNotFound(format!(
+            IotaRpcInputError::GenericNotFound(format!(
                 "No module was found with name {module_name}",
             ))
         })?;
@@ -65,7 +66,7 @@ impl MoveUtilsServer for MoveUtilsApi {
         package: ObjectID,
         module_name: String,
         struct_name: String,
-    ) -> RpcResult<SuiMoveNormalizedStruct> {
+    ) -> RpcResult<IotaMoveNormalizedStruct> {
         let mut module = self
             .get_normalized_move_module(package, module_name)
             .await?;
@@ -73,7 +74,7 @@ impl MoveUtilsServer for MoveUtilsApi {
             .structs
             .remove(&struct_name)
             .ok_or_else(|| {
-                SuiRpcInputError::GenericNotFound(format!(
+                IotaRpcInputError::GenericNotFound(format!(
                     "No struct was found with struct name {struct_name}"
                 ))
             })
@@ -85,7 +86,7 @@ impl MoveUtilsServer for MoveUtilsApi {
         package: ObjectID,
         module_name: String,
         function_name: String,
-    ) -> RpcResult<SuiMoveNormalizedFunction> {
+    ) -> RpcResult<IotaMoveNormalizedFunction> {
         let mut module = self
             .get_normalized_move_module(package, module_name)
             .await?;
@@ -93,7 +94,7 @@ impl MoveUtilsServer for MoveUtilsApi {
             .exposed_functions
             .remove(&function_name)
             .ok_or_else(|| {
-                SuiRpcInputError::GenericNotFound(format!(
+                IotaRpcInputError::GenericNotFound(format!(
                     "No function was found with function name {function_name}",
                 ))
             })
@@ -113,16 +114,16 @@ impl MoveUtilsServer for MoveUtilsApi {
             .parameters
             .iter()
             .map(|p| match p {
-                SuiMoveNormalizedType::Struct { .. } => {
+                IotaMoveNormalizedType::Struct { .. } => {
                     MoveFunctionArgType::Object(ObjectValueKind::ByValue)
                 }
-                SuiMoveNormalizedType::Vector(_) => {
+                IotaMoveNormalizedType::Vector(_) => {
                     MoveFunctionArgType::Object(ObjectValueKind::ByValue)
                 }
-                SuiMoveNormalizedType::Reference(_) => {
+                IotaMoveNormalizedType::Reference(_) => {
                     MoveFunctionArgType::Object(ObjectValueKind::ByImmutableReference)
                 }
-                SuiMoveNormalizedType::MutableReference(_) => {
+                IotaMoveNormalizedType::MutableReference(_) => {
                     MoveFunctionArgType::Object(ObjectValueKind::ByMutableReference)
                 }
                 _ => MoveFunctionArgType::Pure,
@@ -132,12 +133,12 @@ impl MoveUtilsServer for MoveUtilsApi {
     }
 }
 
-impl SuiRpcModule for MoveUtilsApi {
+impl IotaRpcModule for MoveUtilsApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
 
     fn rpc_doc_module() -> Module {
-        sui_json_rpc_api::MoveUtilsOpenRpc::module_doc()
+        iota_json_rpc_api::MoveUtilsOpenRpc::module_doc()
     }
 }

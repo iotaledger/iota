@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test verifies the deny list also applies to receiving coin objects.
@@ -8,9 +9,9 @@
 //# publish --sender A
 #[allow(deprecated_usage)]
 module test::regulated_coin {
-    use sui::coin;
-    use sui::coin::Coin;
-    use sui::transfer::Receiving;
+    use iota::coin;
+    use iota::coin::Coin;
+    use iota::transfer::Receiving;
 
     public struct REGULATED_COIN has drop {}
 
@@ -61,13 +62,13 @@ module test::regulated_coin {
 //# view-object 1,6
 
 // Deny account A.
-//# run sui::coin::deny_list_add --args object(0x403) object(1,4) @A --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_add --args object(0x403) object(1,4) @A --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Try to receive coin in Wallet. This should now fail.
 //# run test::regulated_coin::receive_coin --args object(1,0) receiving(1,2) --sender A
 
 // Undeny account A.
-//# run sui::coin::deny_list_remove --args object(0x403) object(1,4) @A --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_remove --args object(0x403) object(1,4) @A --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Try to receive coin in Wallet. This should now succeed.
 //# run test::regulated_coin::receive_coin --args object(1,0) receiving(1,2) --sender A

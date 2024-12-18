@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt;
@@ -20,11 +21,11 @@ use serde_with::serde_as;
 use serde_with::DisplayFromStr;
 use serde_with::{Bytes, DeserializeAs, SerializeAs};
 
-use sui_protocol_config::ProtocolVersion;
+use iota_protocol_config::ProtocolVersion;
 
 use crate::{
-    parse_sui_struct_tag, parse_sui_type_tag, DEEPBOOK_ADDRESS, SUI_CLOCK_ADDRESS,
-    SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_ADDRESS, SUI_SYSTEM_STATE_ADDRESS,
+    parse_iota_struct_tag, parse_iota_type_tag, DEEPBOOK_ADDRESS, IOTA_CLOCK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS, IOTA_SYSTEM_STATE_ADDRESS,
 };
 
 #[inline]
@@ -127,9 +128,9 @@ impl<'de> DeserializeAs<'de, AccountAddress> for HexAccountAddress {
 
 /// Serializes a bitmap according to the roaring bitmap on-disk standard.
 /// <https://github.com/RoaringBitmap/RoaringFormatSpec>
-pub struct SuiBitmap;
+pub struct IotaBitmap;
 
-impl SerializeAs<roaring::RoaringBitmap> for SuiBitmap {
+impl SerializeAs<roaring::RoaringBitmap> for IotaBitmap {
     fn serialize_as<S>(source: &roaring::RoaringBitmap, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -143,7 +144,7 @@ impl SerializeAs<roaring::RoaringBitmap> for SuiBitmap {
     }
 }
 
-impl<'de> DeserializeAs<'de, roaring::RoaringBitmap> for SuiBitmap {
+impl<'de> DeserializeAs<'de, roaring::RoaringBitmap> for IotaBitmap {
     fn deserialize_as<D>(deserializer: D) -> Result<roaring::RoaringBitmap, D::Error>
     where
         D: Deserializer<'de>,
@@ -153,32 +154,32 @@ impl<'de> DeserializeAs<'de, roaring::RoaringBitmap> for SuiBitmap {
     }
 }
 
-pub struct SuiStructTag;
+pub struct IotaStructTag;
 
-impl SerializeAs<StructTag> for SuiStructTag {
+impl SerializeAs<StructTag> for IotaStructTag {
     fn serialize_as<S>(value: &StructTag, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let f = to_sui_struct_tag_string(value).map_err(S::Error::custom)?;
+        let f = to_iota_struct_tag_string(value).map_err(S::Error::custom)?;
         f.serialize(serializer)
     }
 }
 
-const SUI_ADDRESSES: [AccountAddress; 7] = [
+const IOTA_ADDRESSES: [AccountAddress; 7] = [
     AccountAddress::ZERO,
     AccountAddress::ONE,
-    SUI_FRAMEWORK_ADDRESS,
-    SUI_SYSTEM_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_SYSTEM_ADDRESS,
     DEEPBOOK_ADDRESS,
-    SUI_SYSTEM_STATE_ADDRESS,
-    SUI_CLOCK_ADDRESS,
+    IOTA_SYSTEM_STATE_ADDRESS,
+    IOTA_CLOCK_ADDRESS,
 ];
 /// Serialize StructTag as a string, retaining the leading zeros in the address.
-pub fn to_sui_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
+pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
     let mut f = String::new();
-    // trim leading zeros if address is in SUI_ADDRESSES
-    let address = if SUI_ADDRESSES.contains(&value.address) {
+    // trim leading zeros if address is in IOTA_ADDRESSES
+    let address = if IOTA_ADDRESSES.contains(&value.address) {
         value.address.short_str_lossless()
     } else {
         value.address.to_canonical_string(/* with_prefix */ false)
@@ -187,52 +188,52 @@ pub fn to_sui_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error>
     write!(f, "0x{}::{}::{}", address, value.module, value.name)?;
     if let Some(first_ty) = value.type_params.first() {
         write!(f, "<")?;
-        write!(f, "{}", to_sui_type_tag_string(first_ty)?)?;
+        write!(f, "{}", to_iota_type_tag_string(first_ty)?)?;
         for ty in value.type_params.iter().skip(1) {
-            write!(f, ", {}", to_sui_type_tag_string(ty)?)?;
+            write!(f, ", {}", to_iota_type_tag_string(ty)?)?;
         }
         write!(f, ">")?;
     }
     Ok(f)
 }
 
-fn to_sui_type_tag_string(value: &TypeTag) -> Result<String, fmt::Error> {
+fn to_iota_type_tag_string(value: &TypeTag) -> Result<String, fmt::Error> {
     match value {
-        TypeTag::Vector(t) => Ok(format!("vector<{}>", to_sui_type_tag_string(t)?)),
-        TypeTag::Struct(s) => to_sui_struct_tag_string(s),
+        TypeTag::Vector(t) => Ok(format!("vector<{}>", to_iota_type_tag_string(t)?)),
+        TypeTag::Struct(s) => to_iota_struct_tag_string(s),
         _ => Ok(value.to_string()),
     }
 }
 
-impl<'de> DeserializeAs<'de, StructTag> for SuiStructTag {
+impl<'de> DeserializeAs<'de, StructTag> for IotaStructTag {
     fn deserialize_as<D>(deserializer: D) -> Result<StructTag, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        parse_sui_struct_tag(&s).map_err(D::Error::custom)
+        parse_iota_struct_tag(&s).map_err(D::Error::custom)
     }
 }
 
-pub struct SuiTypeTag;
+pub struct IotaTypeTag;
 
-impl SerializeAs<TypeTag> for SuiTypeTag {
+impl SerializeAs<TypeTag> for IotaTypeTag {
     fn serialize_as<S>(value: &TypeTag, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let s = to_sui_type_tag_string(value).map_err(S::Error::custom)?;
+        let s = to_iota_type_tag_string(value).map_err(S::Error::custom)?;
         s.serialize(serializer)
     }
 }
 
-impl<'de> DeserializeAs<'de, TypeTag> for SuiTypeTag {
+impl<'de> DeserializeAs<'de, TypeTag> for IotaTypeTag {
     fn deserialize_as<D>(deserializer: D) -> Result<TypeTag, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        parse_sui_type_tag(&s).map_err(D::Error::custom)
+        parse_iota_type_tag(&s).map_err(D::Error::custom)
     }
 }
 

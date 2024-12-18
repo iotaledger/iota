@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::types::{
     AccountBalanceRequest, Amount, ConstructionMetadata, Currency, CurrencyMetadata,
@@ -6,21 +7,21 @@ use crate::types::{
 use quick_js::Context;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sui_types::base_types::{ObjectRef, SuiAddress};
+use iota_types::base_types::{ObjectRef, IotaAddress};
 
 #[tokio::test]
 async fn test_currency_defaults() {
     let expected = Currency {
-        symbol: "SUI".to_string(),
+        symbol: "IOTA".to_string(),
         decimals: 9,
         metadata: CurrencyMetadata {
-            coin_type: "0x2::sui::SUI".to_string(),
+            coin_type: "0x2::iota::IOTA".to_string(),
         },
     };
 
     let currency: Currency = serde_json::from_value(json!(
         {
-            "symbol": "SUI",
+            "symbol": "IOTA",
             "decimals": 9,
         }
     ))
@@ -38,7 +39,7 @@ async fn test_currency_defaults() {
     let account_balance_request: AccountBalanceRequest = serde_json::from_value(json!(
         {
             "network_identifier": {
-                "blockchain": "sui",
+                "blockchain": "iota",
                 "network": "mainnet"
             },
             "account_identifier": {
@@ -55,7 +56,7 @@ async fn test_currency_defaults() {
     let account_balance_request: AccountBalanceRequest = serde_json::from_value(json!(
         {
             "network_identifier": {
-                "blockchain": "sui",
+                "blockchain": "iota",
                 "network": "mainnet"
             },
             "account_identifier": {
@@ -75,7 +76,7 @@ async fn test_currency_defaults() {
 async fn test_metadata_total_coin_value_js_conversion_for_large_balance() {
     #[derive(Serialize, Deserialize, Debug)]
     pub struct TestConstructionMetadata {
-        pub sender: SuiAddress,
+        pub sender: IotaAddress,
         pub coins: Vec<ObjectRef>,
         pub objects: Vec<ObjectRef>,
         pub total_coin_value: u64,

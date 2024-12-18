@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_test_utils::{
@@ -6,28 +7,28 @@ use crate::authority::authority_test_utils::{
 };
 use crate::authority::test_authority_builder::TestAuthorityBuilder;
 use crate::authority::AuthorityState;
-use crate::test_utils::make_transfer_sui_transaction;
+use crate::test_utils::make_transfer_iota_transaction;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::traits::KeyPair;
 use move_core_types::ident_str;
 use std::path::PathBuf;
 use std::sync::Arc;
-use sui_config::certificate_deny_config::CertificateDenyConfigBuilder;
-use sui_config::transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder};
-use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::messages_grpc::HandleTransactionResponse;
-use sui_types::transaction::{
+use iota_config::certificate_deny_config::CertificateDenyConfigBuilder;
+use iota_config::transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder};
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
+use iota_swarm_config::network_config::NetworkConfig;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::error::{IotaError, IotaResult, UserInputError};
+use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
+use iota_types::messages_grpc::HandleTransactionResponse;
+use iota_types::transaction::{
     CallArg, CertifiedTransaction, Transaction, TransactionData, VerifiedCertificate,
     VerifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
 };
-use sui_types::utils::get_zklogin_user_address;
-use sui_types::utils::{
+use iota_types::utils::get_zklogin_user_address;
+use iota_types::utils::{
     make_zklogin_tx, to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
 };
 
@@ -36,7 +37,7 @@ const GAS_OBJECT_COUNT: usize = 15;
 
 async fn setup_test(deny_config: TransactionDenyConfig) -> (NetworkConfig, Arc<AuthorityState>) {
     let network_config =
-        sui_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+        iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
             .with_accounts(vec![
                 AccountConfig {
                     address: None,
@@ -66,7 +67,7 @@ async fn reload_state_with_new_deny_config(
         .await
 }
 
-type Account = (SuiAddress, Ed25519KeyPair, Vec<ObjectRef>);
+type Account = (IotaAddress, Ed25519KeyPair, Vec<ObjectRef>);
 
 fn get_accounts_and_coins(
     network_config: &NetworkConfig,
@@ -76,7 +77,7 @@ fn get_accounts_and_coins(
         .account_keys
         .iter()
         .map(|account| {
-            let address: SuiAddress = account.public().into();
+            let address: IotaAddress = account.public().into();
             let objects: Vec<_> = state
                 .get_owner_objects(address, None, GAS_OBJECT_COUNT, None)
                 .unwrap()
@@ -94,7 +95,7 @@ fn get_accounts_and_coins(
 async fn process_zklogin_tx(
     tx: Transaction,
     state: &Arc<AuthorityState>,
-) -> SuiResult<HandleTransactionResponse> {
+) -> IotaResult<HandleTransactionResponse> {
     let verified_tx = VerifiedTransaction::new_from_verified(tx);
 
     state
@@ -106,9 +107,9 @@ async fn transfer_with_account(
     sender_account: &Account,
     sponsor_account: &Account,
     state: &Arc<AuthorityState>,
-) -> SuiResult<HandleTransactionResponse> {
+) -> IotaResult<HandleTransactionResponse> {
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_transfer_sui_allow_sponsor(
+    let data = TransactionData::new_transfer_iota_allow_sponsor(
         sender_account.0,
         sender_account.0,
         None,
@@ -138,7 +139,7 @@ async fn handle_move_call_transaction(
     args: Vec<CallArg>,
     account: &Account,
     gas_payment_index: usize,
-) -> SuiResult<HandleTransactionResponse> {
+) -> IotaResult<HandleTransactionResponse> {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let data = TransactionData::new_move_call(
         account.0,
@@ -158,10 +159,10 @@ async fn handle_move_call_transaction(
     state.handle_transaction(&epoch_store, tx).await
 }
 
-fn assert_denied<T: std::fmt::Debug>(result: &SuiResult<T>) {
+fn assert_denied<T: std::fmt::Debug>(result: &IotaResult<T>) {
     assert!(matches!(
         result.as_ref().unwrap_err(),
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::TransactionDenied { .. }
         }
     ));
@@ -252,7 +253,7 @@ async fn test_shared_object_transaction_disabled() {
     let gas_price = state.reference_gas_price_for_testing().unwrap();
     let account = &accounts[0];
     let tx = TestTransactionBuilder::new(account.0, account.2[0], gas_price)
-        .call_staking(account.2[1], SuiAddress::default())
+        .call_staking(account.2[1], IotaAddress::default())
         .build_and_sign(&account.1);
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
@@ -444,7 +445,7 @@ async fn test_certificate_deny() {
     let (sender, key, gas_objects) = get_accounts_and_coins(&network_config, &state)
         .pop()
         .unwrap();
-    let tx = make_transfer_sui_transaction(
+    let tx = make_transfer_iota_transaction(
         gas_objects[0],
         sender,
         None,

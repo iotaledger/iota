@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import { useCoinsReFetchingConfig } from '_hooks';
@@ -12,11 +13,11 @@ import {
 	roundFloat,
 	useCoinMetadata,
 	useFormatCoin,
-} from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { type TransactionEffects } from '@mysten/sui/client';
-import { Transaction } from '@mysten/sui/transactions';
-import { normalizeStructTag, SUI_DECIMALS, SUI_TYPE_ARG } from '@mysten/sui/utils';
+} from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { type TransactionEffects } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { normalizeStructTag, IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useSearchParams } from 'react-router-dom';
 import { z } from 'zod';
@@ -39,13 +40,13 @@ export function useSwapData({
 	const activeAccountAddress = activeAccount?.address;
 	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 
-	const { data: baseCoinBalanceData, isPending: baseCoinBalanceDataLoading } = useSuiClientQuery(
+	const { data: baseCoinBalanceData, isPending: baseCoinBalanceDataLoading } = useIotaClientQuery(
 		'getBalance',
 		{ coinType: baseCoinType, owner: activeAccountAddress! },
 		{ enabled: !!activeAccountAddress, refetchInterval, staleTime },
 	);
 
-	const { data: quoteCoinBalanceData, isPending: quoteCoinBalanceDataLoading } = useSuiClientQuery(
+	const { data: quoteCoinBalanceData, isPending: quoteCoinBalanceDataLoading } = useIotaClientQuery(
 		'getBalance',
 		{ coinType: quoteCoinType, owner: activeAccountAddress! },
 		{ enabled: !!activeAccountAddress, refetchInterval, staleTime },
@@ -107,9 +108,9 @@ export function useCoinTypesFromRouteParams() {
 		return { fromCoinType, toCoinType };
 	}
 
-	// Neither is set, default to SUI -> USDC
+	// Neither is set, default to IOTA -> USDC
 	if (!fromCoinType && !toCoinType) {
-		return { fromCoinType: SUI_TYPE_ARG, toCoinType: USDC_TYPE_ARG };
+		return { fromCoinType: IOTA_TYPE_ARG, toCoinType: USDC_TYPE_ARG };
 	}
 
 	return { fromCoinType, toCoinType };
@@ -119,7 +120,7 @@ export function useGetBalance({ coinType, owner }: { coinType?: string; owner?: 
 	const { data: coinMetadata } = useCoinMetadata(coinType);
 	const refetchInterval = useFeatureValue('wallet-balance-refetch-interval', 20_000);
 
-	return useSuiClientQuery(
+	return useIotaClientQuery(
 		'getBalance',
 		{
 			coinType,
@@ -203,7 +204,7 @@ export function formatSwapQuote({
 		.minus(accessFees)
 		.toFormat(toCoinDecimals);
 
-	const gas = formatBalance(getTotalGasCost(dryRunResponse.effects), SUI_DECIMALS);
+	const gas = formatBalance(getTotalGasCost(dryRunResponse.effects), IOTA_DECIMALS);
 
 	return {
 		provider: result?.provider,

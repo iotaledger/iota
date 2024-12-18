@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::drivers::Interval;
@@ -13,11 +14,11 @@ use crate::workloads::{Gas, WorkloadBuilderInfo, WorkloadParams};
 use crate::{ExecutionEffects, ValidatorProxy};
 use async_trait::async_trait;
 use std::sync::Arc;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::crypto::get_key_pair;
-use sui_types::object::Owner;
-use sui_types::SUI_RANDOMNESS_STATE_OBJECT_ID;
-use sui_types::{
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::crypto::get_key_pair;
+use iota_types::object::Owner;
+use iota_types::IOTA_RANDOMNESS_STATE_OBJECT_ID;
+use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     transaction::Transaction,
 };
@@ -183,7 +184,7 @@ impl Workload<dyn Payload> for RandomnessWorkload {
         // Get randomness shared object initial version
         if self.randomness_initial_shared_version.is_none() {
             let obj = proxy
-                .get_object(SUI_RANDOMNESS_STATE_OBJECT_ID)
+                .get_object(IOTA_RANDOMNESS_STATE_OBJECT_ID)
                 .await
                 .expect("Failed to get randomness object");
             let Owner::Shared {

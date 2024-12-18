@@ -11,7 +11,7 @@ title: Module `0xb::message`
 -  [Struct `Blocklist`](#0xb_message_Blocklist)
 -  [Struct `UpdateBridgeLimit`](#0xb_message_UpdateBridgeLimit)
 -  [Struct `UpdateAssetPrice`](#0xb_message_UpdateAssetPrice)
--  [Struct `AddTokenOnSui`](#0xb_message_AddTokenOnSui)
+-  [Struct `AddTokenOnIota`](#0xb_message_AddTokenOnIota)
 -  [Struct `ParsedTokenTransferMessage`](#0xb_message_ParsedTokenTransferMessage)
 -  [Constants](#@Constants_0)
 -  [Function `extract_token_bridge_payload`](#0xb_message_extract_token_bridge_payload)
@@ -19,14 +19,14 @@ title: Module `0xb::message`
 -  [Function `extract_blocklist_payload`](#0xb_message_extract_blocklist_payload)
 -  [Function `extract_update_bridge_limit`](#0xb_message_extract_update_bridge_limit)
 -  [Function `extract_update_asset_price`](#0xb_message_extract_update_asset_price)
--  [Function `extract_add_tokens_on_sui`](#0xb_message_extract_add_tokens_on_sui)
+-  [Function `extract_add_tokens_on_iota`](#0xb_message_extract_add_tokens_on_iota)
 -  [Function `serialize_message`](#0xb_message_serialize_message)
 -  [Function `create_token_bridge_message`](#0xb_message_create_token_bridge_message)
 -  [Function `create_emergency_op_message`](#0xb_message_create_emergency_op_message)
 -  [Function `create_blocklist_message`](#0xb_message_create_blocklist_message)
 -  [Function `create_update_bridge_limit_message`](#0xb_message_create_update_bridge_limit_message)
 -  [Function `create_update_asset_price_message`](#0xb_message_create_update_asset_price_message)
--  [Function `create_add_tokens_on_sui_message`](#0xb_message_create_add_tokens_on_sui_message)
+-  [Function `create_add_tokens_on_iota_message`](#0xb_message_create_add_tokens_on_iota_message)
 -  [Function `create_key`](#0xb_message_create_key)
 -  [Function `key`](#0xb_message_key)
 -  [Function `message_version`](#0xb_message_message_version)
@@ -60,7 +60,7 @@ title: Module `0xb::message`
 
 <pre><code><b>use</b> <a href="../move-stdlib/ascii.md#0x1_ascii">0x1::ascii</a>;
 <b>use</b> <a href="../move-stdlib/vector.md#0x1_vector">0x1::vector</a>;
-<b>use</b> <a href="../sui-framework/bcs.md#0x2_bcs">0x2::bcs</a>;
+<b>use</b> <a href="../iota-framework/bcs.md#0x2_bcs">0x2::bcs</a>;
 <b>use</b> <a href="chain_ids.md#0xb_chain_ids">0xb::chain_ids</a>;
 <b>use</b> <a href="message_types.md#0xb_message_types">0xb::message_types</a>;
 </code></pre>
@@ -340,13 +340,13 @@ title: Module `0xb::message`
 
 </details>
 
-<a name="0xb_message_AddTokenOnSui"></a>
+<a name="0xb_message_AddTokenOnIota"></a>
 
-## Struct `AddTokenOnSui`
+## Struct `AddTokenOnIota`
 
 
 
-<pre><code><b>struct</b> <a href="message.md#0xb_message_AddTokenOnSui">AddTokenOnSui</a> <b>has</b> drop
+<pre><code><b>struct</b> <a href="message.md#0xb_message_AddTokenOnIota">AddTokenOnIota</a> <b>has</b> drop
 </code></pre>
 
 
@@ -722,13 +722,13 @@ Emergency op payload is just a single byte
 
 </details>
 
-<a name="0xb_message_extract_add_tokens_on_sui"></a>
+<a name="0xb_message_extract_add_tokens_on_iota"></a>
 
-## Function `extract_add_tokens_on_sui`
+## Function `extract_add_tokens_on_iota`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_extract_add_tokens_on_sui">extract_add_tokens_on_sui</a>(<a href="message.md#0xb_message">message</a>: &<a href="message.md#0xb_message_BridgeMessage">message::BridgeMessage</a>): <a href="message.md#0xb_message_AddTokenOnSui">message::AddTokenOnSui</a>
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_extract_add_tokens_on_iota">extract_add_tokens_on_iota</a>(<a href="message.md#0xb_message">message</a>: &<a href="message.md#0xb_message_BridgeMessage">message::BridgeMessage</a>): <a href="message.md#0xb_message_AddTokenOnIota">message::AddTokenOnIota</a>
 </code></pre>
 
 
@@ -737,7 +737,7 @@ Emergency op payload is just a single byte
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_extract_add_tokens_on_sui">extract_add_tokens_on_sui</a>(<a href="message.md#0xb_message">message</a>: &<a href="message.md#0xb_message_BridgeMessage">BridgeMessage</a>): <a href="message.md#0xb_message_AddTokenOnSui">AddTokenOnSui</a> {
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_extract_add_tokens_on_iota">extract_add_tokens_on_iota</a>(<a href="message.md#0xb_message">message</a>: &<a href="message.md#0xb_message_BridgeMessage">BridgeMessage</a>): <a href="message.md#0xb_message_AddTokenOnIota">AddTokenOnIota</a> {
     <b>let</b> <b>mut</b> <a href="../move-stdlib/bcs.md#0x1_bcs">bcs</a> = bcs::new(<a href="message.md#0xb_message">message</a>.payload);
     <b>let</b> native_token = <a href="../move-stdlib/bcs.md#0x1_bcs">bcs</a>.peel_bool();
     <b>let</b> token_ids = <a href="../move-stdlib/bcs.md#0x1_bcs">bcs</a>.peel_vec_u8();
@@ -751,7 +751,7 @@ Emergency op payload is just a single byte
         n = n + 1;
     };
     <b>assert</b>!(<a href="../move-stdlib/bcs.md#0x1_bcs">bcs</a>.into_remainder_bytes().is_empty(), <a href="message.md#0xb_message_ETrailingBytes">ETrailingBytes</a>);
-    <a href="message.md#0xb_message_AddTokenOnSui">AddTokenOnSui</a> {
+    <a href="message.md#0xb_message_AddTokenOnIota">AddTokenOnIota</a> {
         native_token,
         token_ids,
         token_type_names,
@@ -1067,11 +1067,11 @@ Update asset price message
 
 </details>
 
-<a name="0xb_message_create_add_tokens_on_sui_message"></a>
+<a name="0xb_message_create_add_tokens_on_iota_message"></a>
 
-## Function `create_add_tokens_on_sui_message`
+## Function `create_add_tokens_on_iota_message`
 
-Update Sui token message
+Update Iota token message
 [message_type:u8]
 [version:u8]
 [nonce:u64]
@@ -1082,7 +1082,7 @@ Update Sui token message
 [token_prices:vector<u64>]
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_create_add_tokens_on_sui_message">create_add_tokens_on_sui_message</a>(source_chain: u8, seq_num: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, native_token: bool, token_ids: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, type_names: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>&gt;, token_prices: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;): <a href="message.md#0xb_message_BridgeMessage">message::BridgeMessage</a>
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_create_add_tokens_on_iota_message">create_add_tokens_on_iota_message</a>(source_chain: u8, seq_num: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, native_token: bool, token_ids: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, type_names: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>&gt;, token_prices: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;): <a href="message.md#0xb_message_BridgeMessage">message::BridgeMessage</a>
 </code></pre>
 
 
@@ -1091,7 +1091,7 @@ Update Sui token message
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_create_add_tokens_on_sui_message">create_add_tokens_on_sui_message</a>(
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_create_add_tokens_on_iota_message">create_add_tokens_on_iota_message</a>(
     source_chain: u8,
     seq_num: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     native_token: bool,
@@ -1105,7 +1105,7 @@ Update Sui token message
     payload.append(<a href="../move-stdlib/bcs.md#0x1_bcs_to_bytes">bcs::to_bytes</a>(&type_names));
     payload.append(<a href="../move-stdlib/bcs.md#0x1_bcs_to_bytes">bcs::to_bytes</a>(&token_prices));
     <a href="message.md#0xb_message_BridgeMessage">BridgeMessage</a> {
-        message_type: <a href="message_types.md#0xb_message_types_add_tokens_on_sui">message_types::add_tokens_on_sui</a>(),
+        message_type: <a href="message_types.md#0xb_message_types_add_tokens_on_iota">message_types::add_tokens_on_iota</a>(),
         message_version: <a href="message.md#0xb_message_CURRENT_MESSAGE_VERSION">CURRENT_MESSAGE_VERSION</a>,
         seq_num,
         source_chain,
@@ -1580,7 +1580,7 @@ Update Sui token message
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_is_native">is_native</a>(self: &<a href="message.md#0xb_message_AddTokenOnSui">message::AddTokenOnSui</a>): bool
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_is_native">is_native</a>(self: &<a href="message.md#0xb_message_AddTokenOnIota">message::AddTokenOnIota</a>): bool
 </code></pre>
 
 
@@ -1589,7 +1589,7 @@ Update Sui token message
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_is_native">is_native</a>(self: &<a href="message.md#0xb_message_AddTokenOnSui">AddTokenOnSui</a>): bool {
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_is_native">is_native</a>(self: &<a href="message.md#0xb_message_AddTokenOnIota">AddTokenOnIota</a>): bool {
     self.native_token
 }
 </code></pre>
@@ -1604,7 +1604,7 @@ Update Sui token message
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_ids">token_ids</a>(self: &<a href="message.md#0xb_message_AddTokenOnSui">message::AddTokenOnSui</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_ids">token_ids</a>(self: &<a href="message.md#0xb_message_AddTokenOnIota">message::AddTokenOnIota</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;
 </code></pre>
 
 
@@ -1613,7 +1613,7 @@ Update Sui token message
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_ids">token_ids</a>(self: &<a href="message.md#0xb_message_AddTokenOnSui">AddTokenOnSui</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt; {
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_ids">token_ids</a>(self: &<a href="message.md#0xb_message_AddTokenOnIota">AddTokenOnIota</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt; {
     self.token_ids
 }
 </code></pre>
@@ -1628,7 +1628,7 @@ Update Sui token message
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_type_names">token_type_names</a>(self: &<a href="message.md#0xb_message_AddTokenOnSui">message::AddTokenOnSui</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_type_names">token_type_names</a>(self: &<a href="message.md#0xb_message_AddTokenOnIota">message::AddTokenOnIota</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/ascii.md#0x1_ascii_String">ascii::String</a>&gt;
 </code></pre>
 
 
@@ -1637,7 +1637,7 @@ Update Sui token message
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_type_names">token_type_names</a>(self: &<a href="message.md#0xb_message_AddTokenOnSui">AddTokenOnSui</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;String&gt; {
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_type_names">token_type_names</a>(self: &<a href="message.md#0xb_message_AddTokenOnIota">AddTokenOnIota</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;String&gt; {
     self.token_type_names
 }
 </code></pre>
@@ -1652,7 +1652,7 @@ Update Sui token message
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_prices">token_prices</a>(self: &<a href="message.md#0xb_message_AddTokenOnSui">message::AddTokenOnSui</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_prices">token_prices</a>(self: &<a href="message.md#0xb_message_AddTokenOnIota">message::AddTokenOnIota</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt;
 </code></pre>
 
 
@@ -1661,7 +1661,7 @@ Update Sui token message
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_prices">token_prices</a>(self: &<a href="message.md#0xb_message_AddTokenOnSui">AddTokenOnSui</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt; {
+<pre><code><b>public</b> <b>fun</b> <a href="message.md#0xb_message_token_prices">token_prices</a>(self: &<a href="message.md#0xb_message_AddTokenOnIota">AddTokenOnIota</a>): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="../move-stdlib/u64.md#0x1_u64">u64</a>&gt; {
     self.token_prices
 }
 </code></pre>
@@ -1754,7 +1754,7 @@ Return the required signature threshold for the message, values are voting power
         5001
     } <b>else</b> <b>if</b> (message_type == <a href="message_types.md#0xb_message_types_update_bridge_limit">message_types::update_bridge_limit</a>()) {
         5001
-    } <b>else</b> <b>if</b> (message_type == <a href="message_types.md#0xb_message_types_add_tokens_on_sui">message_types::add_tokens_on_sui</a>()) {
+    } <b>else</b> <b>if</b> (message_type == <a href="message_types.md#0xb_message_types_add_tokens_on_iota">message_types::add_tokens_on_iota</a>()) {
         5001
     } <b>else</b> {
         <b>abort</b> <a href="message.md#0xb_message_EInvalidMessageType">EInvalidMessageType</a>

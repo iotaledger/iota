@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_indexer::apis::{governance_api::exchange_rates, GovernanceReadApi};
+use iota_indexer::apis::{governance_api::exchange_rates, GovernanceReadApi};
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
@@ -39,14 +40,14 @@ impl TriggerExchangeRatesTask {
 
                 _ = self.epoch_rx.changed() => {
                     info!("Detected epoch boundary, triggering call to exchange rates");
-                    let latest_sui_sytem_state = self.db.inner
-                        .get_latest_sui_system_state()
-                        .await.map_err(|_| error!("Failed to fetch latest Sui system state"));
+                    let latest_iota_sytem_state = self.db.inner
+                        .get_latest_iota_system_state()
+                        .await.map_err(|_| error!("Failed to fetch latest Iota system state"));
 
-                    if let Ok(latest_sui_sytem_state) = latest_sui_sytem_state {
+                    if let Ok(latest_iota_sytem_state) = latest_iota_sytem_state {
                         let db = self.db.clone();
                         let governance_api = GovernanceReadApi::new(db.inner) ;
-                        exchange_rates(&governance_api, &latest_sui_sytem_state)
+                        exchange_rates(&governance_api, &latest_iota_sytem_state)
                             .await
                             .map_err(|e| error!("Failed to fetch exchange rates: {:?}", e))
                             .ok();

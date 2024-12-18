@@ -2,7 +2,7 @@
 {
   transactionBlocks(
     filter: {
-      function: "0x3::sui_system::request_withdraw_stake"
+      function: "0x3::iota_system::request_withdraw_stake"
     }
   ) {
     nodes {

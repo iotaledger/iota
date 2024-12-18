@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::limiter {
-    use sui::clock::{Self, Clock};
-    use sui::event::emit;
-    use sui::vec_map::{Self, VecMap};
+    use iota::clock::{Self, Clock};
+    use iota::event::emit;
+    use iota::vec_map::{Self, VecMap};
 
     use bridge::chain_ids::{Self, BridgeRoute};
     use bridge::treasury::BridgeTreasury;
@@ -176,33 +177,33 @@ module bridge::limiter {
     // It's tedious to list every pair, but it's safer to do so so we don't
     // accidentally turn off limiter for a new production route in the future.
     // Note limiter only takes effects on the receiving chain, so we only need to
-    // specify routes from Ethereum to Sui.
+    // specify routes from Ethereum to Iota.
     fun initial_transfer_limits(): VecMap<BridgeRoute, u64> {
         let mut transfer_limits = vec_map::empty();
-        // 5M limit on Sui -> Ethereum mainnet
+        // 5M limit on Iota -> Ethereum mainnet
         transfer_limits.insert(
-            chain_ids::get_route(chain_ids::eth_mainnet(), chain_ids::sui_mainnet()),
+            chain_ids::get_route(chain_ids::eth_mainnet(), chain_ids::iota_mainnet()),
             5_000_000 * USD_VALUE_MULTIPLIER
         );
 
         // MAX limit for testnet and devnet
         transfer_limits.insert(
-            chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_testnet()),
+            chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_testnet()),
             MAX_TRANSFER_LIMIT
         );
 
         transfer_limits.insert(
-            chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::sui_custom()),
+            chain_ids::get_route(chain_ids::eth_sepolia(), chain_ids::iota_custom()),
             MAX_TRANSFER_LIMIT
         );
 
         transfer_limits.insert(
-            chain_ids::get_route(chain_ids::eth_custom(), chain_ids::sui_testnet()),
+            chain_ids::get_route(chain_ids::eth_custom(), chain_ids::iota_testnet()),
             MAX_TRANSFER_LIMIT
         );
 
         transfer_limits.insert(
-            chain_ids::get_route(chain_ids::eth_custom(), chain_ids::sui_custom()),
+            chain_ids::get_route(chain_ids::eth_custom(), chain_ids::iota_custom()),
             MAX_TRANSFER_LIMIT
         );
 

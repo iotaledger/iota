@@ -1,32 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{SuiSystemState, SuiSystemStateTrait};
-use crate::base_types::{AuthorityName, ObjectID, SuiAddress};
+use super::{IotaSystemState, IotaSystemStateTrait};
+use crate::base_types::{AuthorityName, ObjectID, IotaAddress};
 use crate::committee::{CommitteeWithNetworkMetadata, NetworkMetadata};
 use crate::crypto::NetworkPublicKey;
 use crate::dynamic_field::get_dynamic_field_from_store;
-use crate::error::SuiError;
+use crate::error::IotaError;
 use crate::id::ID;
 use crate::multiaddr::Multiaddr;
 use crate::storage::ObjectStore;
-use crate::sui_serde::BigInt;
-use crate::sui_serde::Readable;
-use crate::sui_system_state::get_validator_from_table;
+use crate::iota_serde::BigInt;
+use crate::iota_serde::Readable;
+use crate::iota_system_state::get_validator_from_table;
 use fastcrypto::encoding::Base64;
 use fastcrypto::traits::ToFromBytes;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-/// This is the JSON-RPC type for the SUI system state object.
+/// This is the JSON-RPC type for the IOTA system state object.
 /// It flattens all fields to make them top-level fields such that it as minimum
-/// dependencies to the internal data structures of the SUI system state type.
+/// dependencies to the internal data structures of the IOTA system state type.
 
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SuiSystemStateSummary {
+pub struct IotaSystemStateSummary {
     /// The current epoch ID, starting from 0.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -119,7 +120,7 @@ pub struct SuiSystemStateSummary {
     pub validator_low_stake_grace_period: u64,
 
     // Stake subsidy information
-    /// Balance of SUI set aside for stake subsidies that will be drawn down over time.
+    /// Balance of IOTA set aside for stake subsidies that will be drawn down over time.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub stake_subsidy_balance: u64,
@@ -147,7 +148,7 @@ pub struct SuiSystemStateSummary {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub total_stake: u64,
     /// The list of active validators in the current epoch.
-    pub active_validators: Vec<SuiValidatorSummary>,
+    pub active_validators: Vec<IotaValidatorSummary>,
     /// ID of the object that contains the list of new validators that will join at the end of the epoch.
     pub pending_active_validators_id: ObjectID,
     /// Number of new validators that will join at the end of the epoch.
@@ -159,7 +160,7 @@ pub struct SuiSystemStateSummary {
     #[schemars(with = "Vec<BigInt<u64>>")]
     #[serde_as(as = "Vec<Readable<BigInt<u64>, _>>")]
     pub pending_removals: Vec<u64>,
-    /// ID of the object that maps from staking pool's ID to the sui address of a validator.
+    /// ID of the object that maps from staking pool's ID to the iota address of a validator.
     pub staking_pool_mappings_id: ObjectID,
     /// Number of staking pool mappings.
     #[schemars(with = "BigInt<u64>")]
@@ -178,15 +179,15 @@ pub struct SuiSystemStateSummary {
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
     pub validator_candidates_size: u64,
     /// Map storing the number of epochs for which each validator has been below the low stake threshold.
-    #[schemars(with = "Vec<(SuiAddress, BigInt<u64>)>")]
+    #[schemars(with = "Vec<(IotaAddress, BigInt<u64>)>")]
     #[serde_as(as = "Vec<(_, Readable<BigInt<u64>, _>)>")]
-    pub at_risk_validators: Vec<(SuiAddress, u64)>,
+    pub at_risk_validators: Vec<(IotaAddress, u64)>,
     /// A map storing the records of validator reporting each other.
-    pub validator_report_records: Vec<(SuiAddress, Vec<SuiAddress>)>,
+    pub validator_report_records: Vec<(IotaAddress, Vec<IotaAddress>)>,
 }
 
-impl SuiSystemStateSummary {
-    pub fn get_sui_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
+impl IotaSystemStateSummary {
+    pub fn get_iota_committee_for_benchmarking(&self) -> CommitteeWithNetworkMetadata {
         let validators = self
             .active_validators
             .iter()
@@ -216,14 +217,14 @@ impl SuiSystemStateSummary {
     }
 }
 
-/// This is the JSON-RPC type for the SUI validator. It flattens all inner structures
+/// This is the JSON-RPC type for the IOTA validator. It flattens all inner structures
 /// to top-level fields so that they are decoupled from the internal definitions.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SuiValidatorSummary {
+pub struct IotaValidatorSummary {
     // Metadata
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
     #[schemars(with = "Base64")]
     #[serde_as(as = "Base64")]
     pub protocol_pubkey_bytes: Vec<u8>,
@@ -292,10 +293,10 @@ pub struct SuiValidatorSummary {
     #[schemars(with = "Option<BigInt<u64>>")]
     #[serde_as(as = "Option<Readable<BigInt<u64>, _>>")]
     pub staking_pool_deactivation_epoch: Option<u64>,
-    /// The total number of SUI tokens in this pool.
+    /// The total number of IOTA tokens in this pool.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub staking_pool_sui_balance: u64,
+    pub staking_pool_iota_balance: u64,
     /// The epoch stake rewards will be added here at the end of each epoch.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -311,7 +312,7 @@ pub struct SuiValidatorSummary {
     /// Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
-    pub pending_total_sui_withdraw: u64,
+    pub pending_total_iota_withdraw: u64,
     /// Pending pool token withdrawn during the current epoch, emptied at epoch boundaries.
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "Readable<BigInt<u64>, _>")]
@@ -324,7 +325,7 @@ pub struct SuiValidatorSummary {
     pub exchange_rates_size: u64,
 }
 
-impl Default for SuiSystemStateSummary {
+impl Default for IotaSystemStateSummary {
     fn default() -> Self {
         Self {
             epoch: 0,
@@ -368,10 +369,10 @@ impl Default for SuiSystemStateSummary {
     }
 }
 
-impl Default for SuiValidatorSummary {
+impl Default for IotaValidatorSummary {
     fn default() -> Self {
         Self {
-            sui_address: SuiAddress::default(),
+            iota_address: IotaAddress::default(),
             protocol_pubkey_bytes: vec![],
             network_pubkey_bytes: vec![],
             worker_pubkey_bytes: vec![],
@@ -402,11 +403,11 @@ impl Default for SuiValidatorSummary {
             staking_pool_id: ObjectID::ZERO,
             staking_pool_activation_epoch: None,
             staking_pool_deactivation_epoch: None,
-            staking_pool_sui_balance: 0,
+            staking_pool_iota_balance: 0,
             rewards_pool: 0,
             pool_token_balance: 0,
             pending_stake: 0,
-            pending_total_sui_withdraw: 0,
+            pending_total_iota_withdraw: 0,
             pending_pool_token_withdraw: 0,
             exchange_rates_id: ObjectID::ZERO,
             exchange_rates_size: 0,
@@ -414,14 +415,14 @@ impl Default for SuiValidatorSummary {
     }
 }
 
-/// Given the staking pool id of a validator, return the validator's `SuiValidatorSummary`,
+/// Given the staking pool id of a validator, return the validator's `IotaValidatorSummary`,
 /// works for validator candidates, active validators, as well as inactive validators.
 pub fn get_validator_by_pool_id<S>(
     object_store: &S,
-    system_state: &SuiSystemState,
-    system_state_summary: &SuiSystemStateSummary,
+    system_state: &IotaSystemState,
+    system_state_summary: &IotaSystemStateSummary,
     pool_id: ObjectID,
-) -> Result<SuiValidatorSummary, SuiError>
+) -> Result<IotaValidatorSummary, IotaError>
 where
     S: ObjectStore + ?Sized,
 {
@@ -449,13 +450,13 @@ where
         return Ok(inactive);
     }
     // Finally look up the candidates pool.
-    let candidate_address: SuiAddress = get_dynamic_field_from_store(
+    let candidate_address: IotaAddress = get_dynamic_field_from_store(
         &object_store,
         system_state_summary.staking_pool_mappings_id,
         &ID::new(pool_id),
     )
     .map_err(|err| {
-        SuiError::SuiSystemStateReadError(format!(
+        IotaError::IotaSystemStateReadError(format!(
             "Failed to load candidate address from pool mappings: {:?}",
             err
         ))

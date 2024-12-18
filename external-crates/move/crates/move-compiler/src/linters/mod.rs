@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_symbol_pool::Symbol;
@@ -44,7 +45,7 @@ pub enum LinterDiagnosticCategory {
     Suspicious,
     Deprecated,
     Style,
-    Sui = 99,
+    Iota = 99,
 }
 
 macro_rules! lints {

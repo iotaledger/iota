@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Defines the `TransferPolicy` type and the logic to approve `TransferRequest`s.
@@ -21,16 +22,16 @@
 /// of their types and collect profits if a fee is required on sales. Custom
 /// policies can be removed at any moment, and the change will affect all instances
 /// of the type at once.
-module sui::transfer_policy;
+module iota::transfer_policy;
 
 use std::type_name::{Self, TypeName};
-use sui::balance::{Self, Balance};
-use sui::coin::{Self, Coin};
-use sui::dynamic_field as df;
-use sui::event;
-use sui::package::{Self, Publisher};
-use sui::sui::SUI;
-use sui::vec_set::{Self, VecSet};
+use iota::balance::{Self, Balance};
+use iota::coin::{Self, Coin};
+use iota::dynamic_field as df;
+use iota::event;
+use iota::package::{Self, Publisher};
+use iota::iota::IOTA;
+use iota::vec_set::{Self, VecSet};
 
 /// The number of receipts does not match the `TransferPolicy` requirement.
 const EPolicyNotSatisfied: u64 = 0;
@@ -52,7 +53,7 @@ public struct TransferRequest<phantom T> {
     /// constraints, the main use case for this module is to work
     /// with Objects.
     item: ID,
-    /// Amount of SUI paid for the item. Can be used to
+    /// Amount of IOTA paid for the item. Can be used to
     /// calculate the fee / transfer policy enforcement.
     paid: u64,
     /// The ID of the Kiosk / Safe the object is being sold from.
@@ -70,11 +71,11 @@ public struct TransferRequest<phantom T> {
 /// policies can be used to confirm the `TransferRequest`.
 public struct TransferPolicy<phantom T> has key, store {
     id: UID,
-    /// The Balance of the `TransferPolicy` which collects `SUI`.
+    /// The Balance of the `TransferPolicy` which collects `IOTA`.
     /// By default, transfer policy does not collect anything , and it's
     /// a matter of an implementation of a specific rule - whether to add
     /// to balance and how much.
-    balance: Balance<SUI>,
+    balance: Balance<IOTA>,
     /// Set of types of attached rules - used to verify `receipts` when
     /// a `TransferRequest` is received in `confirm_request` function.
     ///
@@ -131,8 +132,8 @@ public fun new<T>(pub: &Publisher, ctx: &mut TxContext): (TransferPolicy<T>, Tra
 /// sender.
 entry fun default<T>(pub: &Publisher, ctx: &mut TxContext) {
     let (policy, cap) = new<T>(pub, ctx);
-    sui::transfer::share_object(policy);
-    sui::transfer::transfer(cap, ctx.sender());
+    iota::transfer::share_object(policy);
+    iota::transfer::transfer(cap, ctx.sender());
 }
 
 /// Withdraw some amount of profits from the `TransferPolicy`. If amount
@@ -142,7 +143,7 @@ public fun withdraw<T>(
     cap: &TransferPolicyCap<T>,
     amount: Option<u64>,
     ctx: &mut TxContext,
-): Coin<SUI> {
+): Coin<IOTA> {
     assert!(object::id(self) == cap.policy_id, ENotOwner);
 
     let amount = if (amount.is_some()) {
@@ -162,7 +163,7 @@ public fun destroy_and_withdraw<T>(
     self: TransferPolicy<T>,
     cap: TransferPolicyCap<T>,
     ctx: &mut TxContext,
-): Coin<SUI> {
+): Coin<IOTA> {
     assert!(object::id(&self) == cap.policy_id, ENotOwner);
 
     let TransferPolicyCap { id: cap_id, policy_id } = cap;
@@ -230,8 +231,8 @@ public fun get_rule<T, Rule: drop, Config: store + drop>(
     df::borrow(&policy.id, RuleKey<Rule> {})
 }
 
-/// Add some `SUI` to the balance of a `TransferPolicy`.
-public fun add_to_balance<T, Rule: drop>(_: Rule, policy: &mut TransferPolicy<T>, coin: Coin<SUI>) {
+/// Add some `IOTA` to the balance of a `TransferPolicy`.
+public fun add_to_balance<T, Rule: drop>(_: Rule, policy: &mut TransferPolicy<T>, coin: Coin<IOTA>) {
     assert!(has_rule<T, Rule>(policy), EUnknownRequirement);
     coin::put(&mut policy.balance, coin)
 }

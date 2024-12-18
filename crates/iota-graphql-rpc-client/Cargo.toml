@@ -1,7 +1,7 @@
 [package]
-name = "sui-graphql-rpc-client"
+name = "iota-graphql-rpc-client"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -12,5 +12,5 @@ axum.workspace = true
 hyper.workspace = true
 reqwest.workspace = true
 serde_json.workspace = true
-sui-graphql-rpc-headers.workspace = true
+iota-graphql-rpc-headers.workspace = true
 thiserror.workspace = true

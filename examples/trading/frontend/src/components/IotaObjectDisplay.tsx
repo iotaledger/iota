@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { SuiObjectData } from "@mysten/sui/client";
+import { IotaObjectData } from "@iota/iota-sdk/client";
 import { Avatar, Box, Card, Flex, Inset, Text } from "@radix-ui/themes";
 import { ReactNode } from "react";
 import { ExplorerLink } from "./ExplorerLink";
@@ -13,20 +14,20 @@ import { ExplorerLink } from "./ExplorerLink";
  * below the object's display in a footer-like design.
  *
  */
-export function SuiObjectDisplay({
+export function IotaObjectDisplay({
   object,
   children,
   label,
   labelClasses,
 }: {
-  object?: SuiObjectData;
+  object?: IotaObjectData;
   children?: ReactNode | ReactNode[];
   label?: string;
   labelClasses?: string;
 }) {
   const display = object?.display?.data;
   return (
-    <Card className="!p-0 sui-object-card">
+    <Card className="!p-0 iota-object-card">
       {label && (
         <div className={`absolute top-0 right-0 m-2 ${labelClasses}`}>
           {label}

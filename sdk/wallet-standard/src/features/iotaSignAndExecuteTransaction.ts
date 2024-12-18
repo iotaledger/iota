@@ -1,34 +1,35 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SignedTransaction, SuiSignTransactionInput } from './suiSignTransaction.js';
+import type { SignedTransaction, IotaSignTransactionInput } from './iotaSignTransaction.js';
 
 /** The latest API version of the signAndExecuteTransactionBlock API. */
-export type SuiSignAndExecuteTransactionVersion = '2.0.0';
+export type IotaSignAndExecuteTransactionVersion = '2.0.0';
 
 /**
  * A Wallet Standard feature for signing a transaction, and submitting it to the
  * network. The wallet is expected to submit the transaction to the network via RPC,
  * and return the transaction response.
  */
-export type SuiSignAndExecuteTransactionFeature = {
+export type IotaSignAndExecuteTransactionFeature = {
 	/** Namespace for the feature. */
-	'sui:signAndExecuteTransaction': {
+	'iota:signAndExecuteTransaction': {
 		/** Version of the feature API. */
-		version: SuiSignAndExecuteTransactionVersion;
-		signAndExecuteTransaction: SuiSignAndExecuteTransactionMethod;
+		version: IotaSignAndExecuteTransactionVersion;
+		signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod;
 	};
 };
 
-export type SuiSignAndExecuteTransactionMethod = (
-	input: SuiSignAndExecuteTransactionInput,
-) => Promise<SuiSignAndExecuteTransactionOutput>;
+export type IotaSignAndExecuteTransactionMethod = (
+	input: IotaSignAndExecuteTransactionInput,
+) => Promise<IotaSignAndExecuteTransactionOutput>;
 
 /** Input for signing and sending transactions. */
-export interface SuiSignAndExecuteTransactionInput extends SuiSignTransactionInput {}
+export interface IotaSignAndExecuteTransactionInput extends IotaSignTransactionInput {}
 
 /** Output of signing and sending transactions. */
-export interface SuiSignAndExecuteTransactionOutput extends SignedTransaction {
+export interface IotaSignAndExecuteTransactionOutput extends SignedTransaction {
 	digest: string;
 	/** Transaction effects as base64 encoded bcs. */
 	effects: string;

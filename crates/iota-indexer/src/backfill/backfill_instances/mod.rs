@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::backfill::backfill_instances::ingestion_backfills::digest_task::DigestBackfill;
@@ -8,7 +9,7 @@ use crate::backfill::backfill_instances::ingestion_backfills::tx_affected_object
 use crate::backfill::backfill_task::BackfillTask;
 use crate::backfill::{BackfillTaskKind, IngestionBackfillKind};
 use std::sync::Arc;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 mod ingestion_backfills;
 mod sql_backfill;

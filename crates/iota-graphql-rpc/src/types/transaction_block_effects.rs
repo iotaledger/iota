@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -9,9 +10,9 @@ use async_graphql::{
     *,
 };
 use fastcrypto::encoding::{Base64 as FBase64, Encoding};
-use sui_indexer::models::transactions::StoredTransaction;
-use sui_package_resolver::{CleverError, ErrorConstants};
-use sui_types::{
+use iota_indexer::models::transactions::StoredTransaction;
+use iota_package_resolver::{CleverError, ErrorConstants};
+use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
     event::Event as NativeEvent,
     execution_status::{

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -10,12 +11,12 @@ use anyhow::{anyhow, ensure};
 use diesel::{upsert::excluded, ExpressionMethods};
 use diesel_async::RunQueryDsl;
 use futures::future::{try_join_all, Either};
-use sui_field_count::FieldCount;
-use sui_indexer_alt_framework::{
+use iota_field_count::FieldCount;
+use iota_indexer_alt_framework::{
     db,
     pipeline::{sequential::Handler, Processor},
 };
-use sui_types::{
+use iota_types::{
     base_types::ObjectID, effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointData,
     object::Owner,
 };

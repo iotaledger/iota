@@ -1,14 +1,14 @@
-module sui::object {
+module iota::object {
     public struct ID()
     public struct UID()
 }
-module sui::transfer {}
-module sui::tx_context {
+module iota::transfer {}
+module iota::tx_context {
     public struct TxContext()
 }
 
 module a::m {
-    use sui::object::{Self, ID, UID};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::object::{Self, ID, UID};
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
 }

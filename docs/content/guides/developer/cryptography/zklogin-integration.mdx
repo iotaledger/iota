@@ -7,7 +7,7 @@ Here is the high-level flow the wallet or frontend application must implement to
 1. The wallet creates an ephemeral key pair.
 1. The wallet prompts the user to complete an OAuth login flow with the nonce corresponding to the ephemeral public key.
 1. After receiving the JSON Web Token (JWT), the wallet obtains a zero-knowledge proof.
-1. The wallet obtains a unique user salt based on a JWT. Use the OAuth subject identifier and salt to compute the zkLogin Sui address.
+1. The wallet obtains a unique user salt based on a JWT. Use the OAuth subject identifier and salt to compute the zkLogin Iota address.
 1. The wallet signs transactions with the ephemeral private key.
 1. The wallet submits the transaction with the ephemeral signature and the zero-knowledge proof.
 
@@ -18,29 +18,29 @@ Let's dive into the specific implementation details.
 To use the zkLogin TypeScript SDK in your project, run the following command in your project root:
 
 ```sh npm2yarn
-npm install @mysten/sui
+npm install @iota/iota-sdk
 ```
 
 If you want to use the latest experimental version:
 
 ```sh npm2yarn
-npm install @mysten/sui@experimental
+npm install @iota/iota-sdk@experimental
 ```
 
 ## Get JWT
 
-1. Generate an ephemeral key pair. Follow the same process as you would generating a key pair in a traditional wallet. See [Sui SDK](https://sdk.mystenlabs.com/typescript/cryptography/keypairs) for details.
+1. Generate an ephemeral key pair. Follow the same process as you would generating a key pair in a traditional wallet. See [Iota SDK](https://docs.iota.org/references/ts-sdk/typescript/cryptography/keypairs) for details.
 
 1. Set the expiration time for the ephemeral key pair. The wallet decides whether the maximum epoch is the current epoch or later. The wallet also determines whether this is adjustable by the user.
 
 1. Assemble the OAuth URL with configured client ID, redirect URL, ephemeral public key and nonce: This is what the application sends the user to complete the login flow with a computed [nonce](#notations).
 
 ```typescript
-import { generateNonce, generateRandomness } from '@mysten/sui/zklogin';
+import { generateNonce, generateRandomness } from '@iota/iota-sdk/zklogin';
 
-const FULLNODE_URL = 'https://fullnode.devnet.sui.io'; // replace with the RPC URL you want to use
-const suiClient = new SuiClient({ url: FULLNODE_URL });
-const { epoch, epochDurationMs, epochStartTimestampMs } = await suiClient.getLatestSuiSystemState();
+const FULLNODE_URL = 'https://fullnode.devnet.iota.io'; // replace with the RPC URL you want to use
+const iotaClient = new IotaClient({ url: FULLNODE_URL });
+const { epoch, epochDurationMs, epochStartTimestampMs } = await iotaClient.getLatestIotaSystemState();
 
 const maxEpoch = Number(epoch) + 2; // this means the ephemeral key will be active for 2 epochs from now.
 const ephemeralKeyPair = new Ed25519Keypair();
@@ -92,7 +92,7 @@ export interface JwtPayload {
 
 ## User salt management
 
-zkLogin uses the user salt to compute the zkLogin Sui address (see [definition](#address-definition)). The salt must be a 16-byte value or a integer smaller than `2n**128n`. There are several options for the application to maintain the user salt:
+zkLogin uses the user salt to compute the zkLogin Iota address (see [definition](#address-definition)). The salt must be a 16-byte value or a integer smaller than `2n**128n`. There are several options for the application to maintain the user salt:
 
 1. Client side:
    - Option 1: Request user input for the salt during wallet access, transferring the responsibility to the user, who must then remember it.
@@ -101,22 +101,22 @@ zkLogin uses the user salt to compute the zkLogin Sui address (see [definition](
    - Option 3: Store a mapping from user identifier (e.g. `sub`) to user salt in a conventional database (e.g. `user` or `password` table). The salt is unique per user.
    - Option 4: Implement a service that keeps a master seed value, and derive a user salt with key derivation by validating and parsing the JWT. For example, use `HKDF(ikm = seed, salt = iss || aud, info = sub)` defined [here](https://github.com/MystenLabs/fastcrypto/blob/e6161f9279510e89bd9e9089a09edc018b30fbfe/fastcrypto/src/hmac.rs#L121). Note that this option does not allow any rotation on master seed or change in client ID (i.e. aud), otherwise a different user address will be derived and will result in loss of funds.
 
-Here's an example request and response for the Mysten Labs-maintained salt server (using option 4). If you want to use the Mysten Labs salt server, please refer to [Enoki docs](https://docs.enoki.mystenlabs.com/) and contact us. Only valid JWT authenticated with whitelisted client IDs are accepted.
+Here's an example request and response for the IOTA Foundation-maintained salt server (using option 4). If you want to use the IOTA Foundation salt server, please refer to [Enoki docs](https://docs.enoki.iota.org/) and contact us. Only valid JWT authenticated with whitelisted client IDs are accepted.
 
 ```bash
-curl -X POST https://salt.api.mystenlabs.com/get_salt -H 'Content-Type: application/json' -d '{"token": "$JWT_TOKEN"}'
+curl -X POST https://salt.api.iota.org/get_salt -H 'Content-Type: application/json' -d '{"token": "$JWT_TOKEN"}'
 
 Response: {"salt":"129390038577185583942388216820280642146"}
 ```
 
-User salt is used to disconnect the OAuth identifier (sub) from the on-chain Sui address to avoid linking Web2 credentials with Web3 credentials. While losing or misusing the salt could enable this link, it wouldn't compromise fund control or zkLogin asset authority. See more discussion [here](#security-and-privacy).
+User salt is used to disconnect the OAuth identifier (sub) from the on-chain Iota address to avoid linking Web2 credentials with Web3 credentials. While losing or misusing the salt could enable this link, it wouldn't compromise fund control or zkLogin asset authority. See more discussion [here](#security-and-privacy).
 
-## Get the user's Sui address
+## Get the user's Iota address
 
 Once the OAuth flow completes, the JWT can be found in the redirect URL. Along with the user salt, the zkLogin address can be derived as follows:
 
 ```typescript
-import { jwtToAddress } from '@mysten/sui/zklogin';
+import { jwtToAddress } from '@iota/iota-sdk/zklogin';
 
 const zkLoginUserAddress = jwtToAddress(jwt, userSalt);
 ```
@@ -128,7 +128,7 @@ The next step is to fetch the ZK proof. This is an attestation (proof) over the 
 First, generate the extended ephemeral public key to use as an input to the ZKP.
 
 ```typescript
-import { getExtendedEphemeralPublicKey } from '@mysten/sui/zklogin';
+import { getExtendedEphemeralPublicKey } from '@iota/iota-sdk/zklogin';
 
 const extendedEphemeralPublicKey = getExtendedEphemeralPublicKey(ephemeralKeyPair.getPublicKey());
 ```
@@ -139,14 +139,14 @@ Because generating a ZK proof can be resource-intensive and potentially slow on 
 
 There are two options:
 
-1. Call the Mysten Labs-maintained proving service.
+1. Call the IOTA Foundation-maintained proving service.
 1. Run the proving service in your backend using the provided Docker images.
 
-### Call the Mysten Labs-maintained proving service
+### Call the IOTA Foundation-maintained proving service
 
-If you want to use the Mysten hosted ZK Proving Service for Mainnet, please refer to [Enoki docs](https://docs.enoki.mystenlabs.com/) and contact us for accessing it.
+If you want to use the IOTA Foundation hosted ZK Proving Service for Mainnet, please refer to [Enoki docs](https://docs.enoki.iota.org/) and contact us for accessing it.
 
-Use the `prover-dev` endpoint (https://prover-dev.mystenlabs.com/v1) freely for testing on Devnet. Note that you can submit proofs generated with this endpoint for Devnet zkLogin transactions only; submitting them to Testnet or Mainnet fails.
+Use the `prover-dev` endpoint (https://prover-dev.iota.org/v1) freely for testing on Devnet. Note that you can submit proofs generated with this endpoint for Devnet zkLogin transactions only; submitting them to Testnet or Mainnet fails.
 
 You can use BigInt or Base64 encoding for `extendedEphemeralPublicKey`, `jwtRandomness`, and `salt`. The following examples show two sample requests with the first using BigInt encoding and the second using Base64.
 
@@ -226,16 +226,16 @@ const partialZkLoginSignature = proofResponse as PartialZkLoginSignature;
 
 1. Install [Git Large File Storage](https://git-lfs.com/) (an open-source Git extension for large file versioning) before downloading the zkey.
 
-1. Download the [Groth16 proving key zkey file](https://docs.circom.io/getting-started/proving-circuits/). There are zkeys available for all Sui networks. See [the Ceremony section](#ceremony) for more details on how the main proving key is generated.
+1. Download the [Groth16 proving key zkey file](https://docs.circom.io/getting-started/proving-circuits/). There are zkeys available for all Iota networks. See [the Ceremony section](#ceremony) for more details on how the main proving key is generated.
 
    - Main zkey (for Mainnet and Testnet)
      ```bash
-     wget -O - https://raw.githubusercontent.com/sui-foundation/zklogin-ceremony-contributions/main/download-main-zkey.sh | bash
+     wget -O - https://raw.githubusercontent.com/iota-foundation/zklogin-ceremony-contributions/main/download-main-zkey.sh | bash
      ```
    - Test zkey (for Devnet)
 
      ```bash
-     wget -O - https://raw.githubusercontent.com/sui-foundation/zklogin-ceremony-contributions/main/download-test-zkey.sh | bash
+     wget -O - https://raw.githubusercontent.com/iota-foundation/zklogin-ceremony-contributions/main/download-test-zkey.sh | bash
      ```
 
    - To verify the download contains the correct zkey file, you can run the following command to check the Blake2b hash: `b2sum ${file_name}.zkey`.
@@ -245,12 +245,12 @@ const partialZkLoginSignature = proofResponse as PartialZkLoginSignature;
      | Mainnet, Testnet | `zkLogin-main.zkey` | `060beb961802568ac9ac7f14de0fbcd55e373e8f5ec7cc32189e26fb65700aa4e36f5604f868022c765e634d14ea1cd58bd4d79cef8f3cf9693510696bcbcbce` |
      | Devnet           | `zkLogin-test.zkey` | `686e2f5fd969897b1c034d7654799ee2c3952489814e4eaaf3d7e1bb539841047ae8ee5fdcdaca5f4ddd76abb5a8e8eb77b44b693a2ba9d4be57e94292b26ce2` |
 
-1. For the next step, you need two Docker images from the [mysten/zklogin repository](https://hub.docker.com/repository/docker/mysten/zklogin/general) (tagged as `prover` and `prover-fe`). To simplify, a docker compose file is available that automates this process. Run `docker compose` with the downloaded zkey from the same directory as the YAML file.
+1. For the next step, you need two Docker images from the [iotaledger/zklogin repository](https://hub.docker.com/repository/docker/iotaledger/zklogin/general) (tagged as `prover` and `prover-fe`). To simplify, a docker compose file is available that automates this process. Run `docker compose` with the downloaded zkey from the same directory as the YAML file.
 
 ```yaml
 services:
   backend:
-    image: mysten/zklogin:prover-stable
+    image: iotaledger/zklogin:prover-stable
     volumes:
       # The ZKEY environment variable must be set to the path of the zkey file.
       - ${ZKEY}:/app/binaries/zkLogin.zkey
@@ -259,7 +259,7 @@ services:
       - WITNESS_BINARIES=/app/binaries
 
   frontend:
-    image: mysten/zklogin:prover-fe-stable
+    image: iotaledger/zklogin:prover-fe-stable
     command: '8080'
     ports:
       # The PROVER_PORT environment variable must be set to the desired port.
@@ -278,24 +278,24 @@ ZKEY=<path_to_zkLogin.zkey> PROVER_PORT=<PROVER_PORT> docker compose up
 
 1. To call the service, the following two endpoints are supported:
    - `/ping`: To test if the service is up. Running `curl http://localhost:PROVER_PORT/ping` should return `pong`.
-   - `/v1`: The request and response are the same as the Mysten Labs maintained service.
+   - `/v1`: The request and response are the same as the IOTA Foundation maintained service.
 
 A few important things to note:
 
-- The backend service (mysten/zklogin:prover-stable) is compute-heavy. Use at least the minimum recommended 16 cores and 16GB RAM. Using weaker instances can lead to timeout errors with the message "Call to rapidsnark service took longer than 15s". You can adjust the environment variable `PROVER_TIMEOUT` to set a different timeout value, for example, `PROVER_TIMEOUT=30` for a timeout of 30 seconds.
+- The backend service (iotaledger/zklogin:prover-stable) is compute-heavy. Use at least the minimum recommended 16 cores and 16GB RAM. Using weaker instances can lead to timeout errors with the message "Call to rapidsnark service took longer than 15s". You can adjust the environment variable `PROVER_TIMEOUT` to set a different timeout value, for example, `PROVER_TIMEOUT=30` for a timeout of 30 seconds.
 
-- If you want to compile the prover from scratch (for performance reasons), please see our fork of [rapidsnark](https://github.com/MystenLabs/rapidsnark#compile-prover-in-server-mode). You'd need to compile and launch the prover in server mode.
+- If you want to compile the prover from scratch (for performance reasons), please see our fork of [rapidsnark](https://github.com/iotaledger/rapidsnark#compile-prover-in-server-mode). You'd need to compile and launch the prover in server mode.
 
 - Setting `DEBUG=*` turns on all logs in the prover-fe service some of which may contain PII. Consider using DEBUG=zkLogin:info,jwks in production environments.
 
 ## Assemble the zkLogin signature and submit the transaction
 
-First, sign the transaction bytes with the ephemeral private key using the key pair generated previously. This is the same as [traditional KeyPair signing](https://sdk.mystenlabs.com/typescript/cryptography/keypairs). Make sure that the transaction `sender ` is also defined.
+First, sign the transaction bytes with the ephemeral private key using the key pair generated previously. This is the same as [traditional KeyPair signing](https://docs.iota.org/references/ts-sdk/typescript/cryptography/keypairs). Make sure that the transaction `sender ` is also defined.
 
 ```typescript
 const ephemeralKeyPair = new Ed25519Keypair();
 
-const client = new SuiClient({ url: '<YOUR_RPC_URL>' });
+const client = new IotaClient({ url: '<YOUR_RPC_URL>' });
 
 const txb = new Transaction();
 
@@ -315,7 +315,7 @@ You can now serialize the zkLogin signature by combining the ZK proof (`inputs`)
 the `maxEpoch`, and the ephemeral signature (`userSignature`).
 
 ```typescript
-import { genAddressSeed, getZkLoginSignature } from '@mysten/sui/zklogin';
+import { genAddressSeed, getZkLoginSignature } from '@iota/iota-sdk/zklogin';
 
 const addressSeed: string = genAddressSeed(
 	BigInt(userSalt!),
@@ -355,11 +355,11 @@ Consequently, you should not store them persistently in an unsecure storage loca
 
 ## Efficiency considerations
 
-Compared to traditional signatures, zkLogin signatures take a longer time to generate. For example, the prover that Mysten Labs maintains typically takes about three seconds to return a proof, which runs on a machine with 16 vCPUs and 64 GB RAM. Using more powerful machines, such as those with physical CPUs or graphics processing units (GPUs), can reduce the proving time further.
+Compared to traditional signatures, zkLogin signatures take a longer time to generate. For example, the prover that IOTA Foundation maintains typically takes about three seconds to return a proof, which runs on a machine with 16 vCPUs and 64 GB RAM. Using more powerful machines, such as those with physical CPUs or graphics processing units (GPUs), can reduce the proving time further.
 
 Carefully consider how many requests your application needs to make to the prover. Broadly speaking, the right metric to consider is the number of active user sessions and not the number of signatures. This is because you can cache the same ZK proof and reuse it across the session, as previously explained. For example, if you expect a million active user sessions per day, then you need a prover that can handle one or two requests per second (RPS), assuming evenly distributed traffic.
 
-The prover that Mysten Labs maintains is set to auto-scale to handle traffic surges. If you are not sure whether Mysten Labs can handle a specific number of requests or expect a sudden spike in the number of prover requests your application needs to make, please reach out to us on [Discord](https://discord.gg/sui). Our plan is to horizontally scale the prover to handle any RPS you require.
+The prover that IOTA Foundation maintains is set to auto-scale to handle traffic surges. If you are not sure whether IOTA Foundation can handle a specific number of requests or expect a sudden spike in the number of prover requests your application needs to make, please reach out to us on [Discord](https://discord.gg/iota). Our plan is to horizontally scale the prover to handle any RPS you require.
 
 ## Related links
 

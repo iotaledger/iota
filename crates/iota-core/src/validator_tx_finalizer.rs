@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
@@ -6,7 +7,7 @@ use crate::authority_aggregator::AuthorityAggregator;
 use crate::authority_client::AuthorityAPI;
 use crate::execution_cache::TransactionCacheRead;
 use arc_swap::ArcSwap;
-use mysten_metrics::LATENCY_SEC_BUCKETS;
+use iota_metrics::LATENCY_SEC_BUCKETS;
 use prometheus::{
     register_histogram_with_registry, register_int_counter_with_registry, Histogram, IntCounter,
     Registry,
@@ -17,8 +18,8 @@ use std::ops::Add;
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 use std::sync::Arc;
 use std::time::Duration;
-use sui_types::base_types::{AuthorityName, TransactionDigest};
-use sui_types::transaction::VerifiedSignedTransaction;
+use iota_types::base_types::{AuthorityName, TransactionDigest};
+use iota_types::transaction::VerifiedSignedTransaction;
 use tokio::select;
 use tokio::time::Instant;
 use tracing::{debug, error, trace};
@@ -288,31 +289,31 @@ mod tests {
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering::Relaxed;
     use std::sync::Arc;
-    use sui_macros::sim_test;
-    use sui_swarm_config::network_config_builder::ConfigBuilder;
-    use sui_test_transaction_builder::TestTransactionBuilder;
-    use sui_types::base_types::{AuthorityName, ObjectID, SuiAddress, TransactionDigest};
-    use sui_types::committee::{CommitteeTrait, StakeUnit};
-    use sui_types::crypto::{get_account_key_pair, AccountKeyPair};
-    use sui_types::effects::{TransactionEffectsAPI, TransactionEvents};
-    use sui_types::error::SuiError;
-    use sui_types::executable_transaction::VerifiedExecutableTransaction;
-    use sui_types::messages_checkpoint::{
+    use iota_macros::sim_test;
+    use iota_swarm_config::network_config_builder::ConfigBuilder;
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::base_types::{AuthorityName, ObjectID, IotaAddress, TransactionDigest};
+    use iota_types::committee::{CommitteeTrait, StakeUnit};
+    use iota_types::crypto::{get_account_key_pair, AccountKeyPair};
+    use iota_types::effects::{TransactionEffectsAPI, TransactionEvents};
+    use iota_types::error::IotaError;
+    use iota_types::executable_transaction::VerifiedExecutableTransaction;
+    use iota_types::messages_checkpoint::{
         CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
     };
-    use sui_types::messages_grpc::{
+    use iota_types::messages_grpc::{
         HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
         HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
     };
-    use sui_types::object::Object;
-    use sui_types::sui_system_state::SuiSystemState;
-    use sui_types::transaction::{
+    use iota_types::object::Object;
+    use iota_types::iota_system_state::IotaSystemState;
+    use iota_types::transaction::{
         CertifiedTransaction, SignedTransaction, Transaction, VerifiedCertificate,
         VerifiedSignedTransaction, VerifiedTransaction,
     };
-    use sui_types::utils::to_sender_signed_transaction;
+    use iota_types::utils::to_sender_signed_transaction;
 
     #[derive(Clone)]
     struct MockAuthorityClient {
@@ -326,9 +327,9 @@ mod tests {
             &self,
             transaction: Transaction,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleTransactionResponse, SuiError> {
+        ) -> Result<HandleTransactionResponse, IotaError> {
             if self.inject_fault.load(Relaxed) {
-                return Err(SuiError::TimeoutError);
+                return Err(IotaError::TimeoutError);
             }
             let epoch_store = self.authority.epoch_store_for_testing();
             self.authority
@@ -343,7 +344,7 @@ mod tests {
             &self,
             certificate: CertifiedTransaction,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleCertificateResponseV2, SuiError> {
+        ) -> Result<HandleCertificateResponseV2, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
             let (effects, _) = self
                 .authority
@@ -374,7 +375,7 @@ mod tests {
             &self,
             _request: HandleCertificateRequestV3,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleCertificateResponseV3, SuiError> {
+        ) -> Result<HandleCertificateResponseV3, IotaError> {
             unimplemented!()
         }
 
@@ -382,42 +383,42 @@ mod tests {
             &self,
             _request: HandleSoftBundleCertificatesRequestV3,
             _client_addr: Option<SocketAddr>,
-        ) -> Result<HandleSoftBundleCertificatesResponseV3, SuiError> {
+        ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
             unimplemented!()
         }
 
         async fn handle_object_info_request(
             &self,
             _request: ObjectInfoRequest,
-        ) -> Result<ObjectInfoResponse, SuiError> {
+        ) -> Result<ObjectInfoResponse, IotaError> {
             unimplemented!()
         }
 
         async fn handle_transaction_info_request(
             &self,
             _request: TransactionInfoRequest,
-        ) -> Result<TransactionInfoResponse, SuiError> {
+        ) -> Result<TransactionInfoResponse, IotaError> {
             unimplemented!()
         }
 
         async fn handle_checkpoint(
             &self,
             _request: CheckpointRequest,
-        ) -> Result<CheckpointResponse, SuiError> {
+        ) -> Result<CheckpointResponse, IotaError> {
             unimplemented!()
         }
 
         async fn handle_checkpoint_v2(
             &self,
             _request: CheckpointRequestV2,
-        ) -> Result<CheckpointResponseV2, SuiError> {
+        ) -> Result<CheckpointResponseV2, IotaError> {
             unimplemented!()
         }
 
         async fn handle_system_state_object(
             &self,
             _request: SystemStateRequest,
-        ) -> Result<SuiSystemState, SuiError> {
+        ) -> Result<IotaSystemState, IotaError> {
             unimplemented!()
         }
     }
@@ -667,7 +668,7 @@ mod tests {
     async fn create_tx(
         clients: &BTreeMap<AuthorityName, MockAuthorityClient>,
         state: &Arc<AuthorityState>,
-        sender: SuiAddress,
+        sender: IotaAddress,
         keypair: &AccountKeyPair,
         gas_object_id: ObjectID,
     ) -> VerifiedSignedTransaction {
@@ -681,7 +682,7 @@ mod tests {
             gas_object_ref,
             state.reference_gas_price_for_testing().unwrap(),
         )
-        .transfer_sui(None, sender)
+        .transfer_iota(None, sender)
         .build();
         let tx = to_sender_signed_transaction(tx_data, keypair);
         let response = clients

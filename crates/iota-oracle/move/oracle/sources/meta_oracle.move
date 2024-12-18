@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module oracle::meta_oracle {
@@ -8,8 +9,8 @@ module oracle::meta_oracle {
     use oracle::data::{Self, Data};
     use oracle::decimal_value::DecimalValue;
     use oracle::simple_oracle::SimpleOracle;
-    use sui::bcs;
-    use sui::math;
+    use iota::bcs;
+    use iota::math;
 
     #[test_only]
     use oracle::decimal_value;

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -7,8 +8,8 @@ use crate::{
 };
 use std::{collections::VecDeque, fmt::Formatter};
 use std::{fmt::Debug, str::FromStr};
-use sui_sdk::SuiClientBuilder;
-use sui_types::digests::TransactionDigest;
+use iota_sdk::IotaClientBuilder;
+use iota_types::digests::TransactionDigest;
 use tracing::info;
 
 const VALID_CHECKPOINT_START: u64 = 1;
@@ -75,7 +76,7 @@ impl TransactionProvider {
     pub async fn new(http_url: &str, source: TransactionSource) -> Result<Self, ReplayEngineError> {
         Ok(Self {
             fetcher: RemoteFetcher::new(
-                SuiClientBuilder::default()
+                IotaClientBuilder::default()
                     .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
                     .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
                     .build(http_url)

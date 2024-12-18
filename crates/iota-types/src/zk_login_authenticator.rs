@@ -1,13 +1,14 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::crypto::PublicKey;
 use crate::signature_verification::VerifiedDigestCache;
 use crate::{
-    base_types::{EpochId, SuiAddress},
-    crypto::{DefaultHash, Signature, SignatureScheme, SuiSignature},
+    base_types::{EpochId, IotaAddress},
+    crypto::{DefaultHash, Signature, SignatureScheme, IotaSignature},
     digests::ZKLoginInputsDigest,
-    error::{SuiError, SuiResult},
+    error::{IotaError, IotaResult},
     signature::{AuthenticatorTrait, VerifyParams},
 };
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
@@ -78,7 +79,7 @@ impl ZkLoginAuthenticator {
         }
     }
 
-    pub fn get_pk(&self) -> SuiResult<PublicKey> {
+    pub fn get_pk(&self) -> IotaResult<PublicKey> {
         PublicKey::from_zklogin_inputs(&self.inputs)
     }
 
@@ -123,13 +124,13 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         &self,
         epoch: EpochId,
         max_epoch_upper_bound_delta: Option<u64>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         // the checks here ensure that `current_epoch + max_epoch_upper_bound_delta >= self.max_epoch >= current_epoch`.
         // 1. if the config for upper bound is set, ensure that the max epoch in signature is not larger than epoch + upper_bound.
         if let Some(delta) = max_epoch_upper_bound_delta {
             let max_epoch_upper_bound = epoch + delta;
             if self.get_max_epoch() > max_epoch_upper_bound {
-                return Err(SuiError::InvalidSignature {
+                return Err(IotaError::InvalidSignature {
                     error: format!(
                         "ZKLogin max epoch too large {}, current epoch {}, max accepted: {}",
                         self.get_max_epoch(),
@@ -141,7 +142,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         }
         // 2. ensure that max epoch in signature is greater than the current epoch.
         if epoch > self.get_max_epoch() {
-            return Err(SuiError::InvalidSignature {
+            return Err(IotaError::InvalidSignature {
                 error: format!(
                     "ZKLogin expired at epoch {}, current epoch {}",
                     self.get_max_epoch(),
@@ -156,20 +157,20 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
     fn verify_claims<T>(
         &self,
         intent_msg: &IntentMessage<T>,
-        author: SuiAddress,
+        author: IotaAddress,
         aux_verify_data: &VerifyParams,
         zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
-    ) -> SuiResult
+    ) -> IotaResult
     where
         T: Serialize,
     {
         // Always evaluate the unpadded address derivation.
-        if author != SuiAddress::try_from_unpadded(&self.inputs)? {
+        if author != IotaAddress::try_from_unpadded(&self.inputs)? {
             // If the verify_legacy_zklogin_address flag is set, also evaluate the padded address derivation.
             if !aux_verify_data.verify_legacy_zklogin_address
-                || author != SuiAddress::try_from_padded(&self.inputs)?
+                || author != IotaAddress::try_from_padded(&self.inputs)?
             {
-                return Err(SuiError::InvalidAddress);
+                return Err(IotaError::InvalidAddress);
             }
         }
 
@@ -178,13 +179,13 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
         if !aux_verify_data.supported_providers.is_empty()
             && !aux_verify_data.supported_providers.contains(
                 &OIDCProvider::from_iss(self.inputs.get_iss()).map_err(|_| {
-                    SuiError::InvalidSignature {
+                    IotaError::InvalidSignature {
                         error: "Unknown provider".to_string(),
                     }
                 })?,
             )
         {
-            return Err(SuiError::InvalidSignature {
+            return Err(IotaError::InvalidSignature {
                 error: format!("OIDC provider not supported: {}", self.inputs.get_iss()),
             });
         }
@@ -210,7 +211,7 @@ impl AuthenticatorTrait for ZkLoginAuthenticator {
                 &aux_verify_data.oidc_provider_jwks,
                 &aux_verify_data.zk_login_env,
             )
-            .map_err(|e| SuiError::InvalidSignature {
+            .map_err(|e| IotaError::InvalidSignature {
                 error: e.to_string(),
             });
             match res {
@@ -229,7 +230,7 @@ fn verify_zklogin_inputs_wrapper(
     params: ZkLoginCachingParams,
     all_jwk: &im::HashMap<JwkId, JWK>,
     env: &ZkLoginEnv,
-) -> SuiResult<()> {
+) -> IotaResult<()> {
     verify_zk_login(
         &params.inputs,
         params.max_epoch,
@@ -237,7 +238,7 @@ fn verify_zklogin_inputs_wrapper(
         all_jwk,
         env,
     )
-    .map_err(|e| SuiError::InvalidSignature {
+    .map_err(|e| IotaError::InvalidSignature {
         error: e.to_string(),
     })
 }

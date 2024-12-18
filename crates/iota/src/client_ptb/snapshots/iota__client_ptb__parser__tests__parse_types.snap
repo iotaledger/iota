@@ -1,5 +1,5 @@
 ---
-source: crates/sui/src/client_ptb/parser.rs
+source: crates/iota/src/client_ptb/parser.rs
 expression: parsed
 ---
 [
@@ -78,7 +78,7 @@ expression: parsed
                 fq_name: ParsedFqName {
                     module: ParsedModuleId {
                         address: Named(
-                            "sui",
+                            "iota",
                         ),
                         name: "object",
                     },
@@ -122,7 +122,7 @@ expression: parsed
                         ),
                         name: "staking_pool",
                     },
-                    name: "StakedSui",
+                    name: "StakedIota",
                 },
                 type_args: [],
             },
@@ -152,9 +152,9 @@ expression: parsed
                                     address: Numerical(
                                         2,
                                     ),
-                                    name: "sui",
+                                    name: "iota",
                                 },
-                                name: "SUI",
+                                name: "IOTA",
                             },
                             type_args: [],
                         },
@@ -173,7 +173,7 @@ expression: parsed
                 fq_name: ParsedFqName {
                     module: ParsedModuleId {
                         address: Named(
-                            "sui",
+                            "iota",
                         ),
                         name: "table",
                     },
@@ -185,7 +185,7 @@ expression: parsed
                             fq_name: ParsedFqName {
                                 module: ParsedModuleId {
                                     address: Named(
-                                        "sui",
+                                        "iota",
                                     ),
                                     name: "object",
                                 },

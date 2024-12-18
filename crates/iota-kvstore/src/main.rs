@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::Result;
-use sui_data_ingestion_core::setup_single_workflow;
-use sui_kvstore::BigTableClient;
-use sui_kvstore::KvWorker;
+use iota_data_ingestion_core::setup_single_workflow;
+use iota_kvstore::BigTableClient;
+use iota_kvstore::KvWorker;
 use telemetry_subscribers::TelemetryConfig;
 
 #[tokio::main]
@@ -24,7 +25,7 @@ async fn main() -> Result<()> {
     let client = BigTableClient::new_remote(instance_id, false, None).await?;
     let (executor, _term_sender) = setup_single_workflow(
         KvWorker { client },
-        format!("https://checkpoints.{}.sui.io", network),
+        format!("https://checkpoints.{}.iota.io", network),
         0,
         1,
         None,

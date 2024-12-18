@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::net::SocketAddr;
@@ -14,12 +15,12 @@ use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 use tracing::info;
 
-use sui_sdk::{SuiClient, SUI_COIN_TYPE};
+use iota_sdk::{IotaClient, IOTA_COIN_TYPE};
 
 use crate::errors::Error;
 use crate::errors::Error::MissingMetadata;
 use crate::state::{CheckpointBlockProvider, OnlineServerContext};
-use crate::types::{Currency, CurrencyMetadata, SuiEnv};
+use crate::types::{Currency, CurrencyMetadata, IotaEnv};
 
 #[cfg(test)]
 #[path = "unit_tests/lib_tests.rs"]
@@ -35,21 +36,21 @@ pub mod operations;
 mod state;
 pub mod types;
 
-pub static SUI: Lazy<Currency> = Lazy::new(|| Currency {
-    symbol: "SUI".to_string(),
+pub static IOTA: Lazy<Currency> = Lazy::new(|| Currency {
+    symbol: "IOTA".to_string(),
     decimals: 9,
     metadata: CurrencyMetadata {
-        coin_type: SUI_COIN_TYPE.to_string(),
+        coin_type: IOTA_COIN_TYPE.to_string(),
     },
 });
 
 pub struct RosettaOnlineServer {
-    env: SuiEnv,
+    env: IotaEnv,
     context: OnlineServerContext,
 }
 
 impl RosettaOnlineServer {
-    pub fn new(env: SuiEnv, client: SuiClient) -> Self {
+    pub fn new(env: IotaEnv, client: IotaClient) -> Self {
         let coin_cache = CoinMetadataCache::new(client.clone(), NonZeroUsize::new(1000).unwrap());
         let blocks = Arc::new(CheckpointBlockProvider::new(
             client.clone(),
@@ -79,7 +80,7 @@ impl RosettaOnlineServer {
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
         info!(
-            "Sui Rosetta online server listening on {}",
+            "Iota Rosetta online server listening on {}",
             listener.local_addr().unwrap()
         );
         axum::serve(listener, app).await.unwrap();
@@ -87,11 +88,11 @@ impl RosettaOnlineServer {
 }
 
 pub struct RosettaOfflineServer {
-    env: SuiEnv,
+    env: IotaEnv,
 }
 
 impl RosettaOfflineServer {
-    pub fn new(env: SuiEnv) -> Self {
+    pub fn new(env: IotaEnv) -> Self {
         Self { env }
     }
 
@@ -110,7 +111,7 @@ impl RosettaOfflineServer {
         let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
 
         info!(
-            "Sui Rosetta offline server listening on {}",
+            "Iota Rosetta offline server listening on {}",
             listener.local_addr().unwrap()
         );
         axum::serve(listener, app).await.unwrap();
@@ -119,12 +120,12 @@ impl RosettaOfflineServer {
 
 #[derive(Clone)]
 pub struct CoinMetadataCache {
-    client: SuiClient,
+    client: IotaClient,
     metadata: Arc<Mutex<LruCache<TypeTag, Currency>>>,
 }
 
 impl CoinMetadataCache {
-    pub fn new(client: SuiClient, size: NonZeroUsize) -> Self {
+    pub fn new(client: IotaClient, size: NonZeroUsize) -> Self {
         Self {
             client,
             metadata: Arc::new(Mutex::new(LruCache::new(size))),

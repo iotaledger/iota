@@ -1,6 +1,6 @@
-# Sui KMS Signers
+# Iota KMS Signers
 
-The Sui KMS Signers package provides a set of tools for securely signing transactions using Key
+The Iota KMS Signers package provides a set of tools for securely signing transactions using Key
 Management Services (KMS) like AWS KMS.
 
 ## Table of Contents
@@ -14,12 +14,12 @@ Management Services (KMS) like AWS KMS.
 
 ## AWS KMS Signer
 
-The AWS KMS Signer allows you to leverage AWS's Key Management Service to sign Sui transactions.
+The AWS KMS Signer allows you to leverage AWS's Key Management Service to sign Iota transactions.
 
 ### Usage
 
 ```typescript
-import { AwsKmsSigner } from '@mysten/signers/aws';
+import { AwsKmsSigner } from '@iota/signers/aws';
 
 const prepareSigner = async () => {
 	const { AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, AWS_KMS_KEY_ID } = process.env;

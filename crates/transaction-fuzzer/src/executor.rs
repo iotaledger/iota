@@ -1,26 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright (c) The Diem Core Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{fmt::Debug, path::PathBuf, sync::Arc};
 
-use sui_core::authority::test_authority_builder::TestAuthorityBuilder;
-use sui_core::{authority::AuthorityState, test_utils::send_and_confirm_transaction};
-use sui_move_build::BuildConfig;
-use sui_types::base_types::ObjectID;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::error::SuiError;
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::object::Object;
-use sui_types::transaction::{Transaction, TransactionData};
-use sui_types::utils::to_sender_signed_transaction;
+use iota_core::authority::test_authority_builder::TestAuthorityBuilder;
+use iota_core::{authority::AuthorityState, test_utils::send_and_confirm_transaction};
+use iota_move_build::BuildConfig;
+use iota_types::base_types::ObjectID;
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::error::IotaError;
+use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
+use iota_types::object::Object;
+use iota_types::transaction::{Transaction, TransactionData};
+use iota_types::utils::to_sender_signed_transaction;
 use tokio::runtime::Runtime;
 
 use crate::account_universe::{AccountCurrent, PUBLISH_BUDGET};
 
-pub type ExecutionResult = Result<ExecutionStatus, SuiError>;
+pub type ExecutionResult = Result<ExecutionStatus, IotaError>;
 
 fn build_test_modules(test_dir: &str) -> (Vec<u8>, Vec<Vec<u8>>) {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

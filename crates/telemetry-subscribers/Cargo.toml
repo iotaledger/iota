@@ -2,7 +2,7 @@
 name = "telemetry-subscribers"
 version = "0.2.0"
 license = "Apache-2.0"
-authors = ["Evan Chan <echan@mystenlabs.com>"]
+authors = ["Evan Chan <echan@iota.org>"]
 description = "Library for common telemetry and observability functionality"
 repository = "https://github.com/mystenlabs/mysten-infra"
 edition = "2021"

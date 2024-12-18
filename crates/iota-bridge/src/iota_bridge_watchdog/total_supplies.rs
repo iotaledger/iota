@@ -1,31 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The SuiBridgeStatus observable monitors whether the Sui Bridge is paused.
+//! The IotaBridgeStatus observable monitors whether the Iota Bridge is paused.
 
-use crate::sui_bridge_watchdog::Observable;
+use crate::iota_bridge_watchdog::Observable;
 use async_trait::async_trait;
 use prometheus::IntGaugeVec;
 use std::{collections::BTreeMap, sync::Arc};
-use sui_sdk::SuiClient;
+use iota_sdk::IotaClient;
 
 use tokio::time::Duration;
 use tracing::{error, info};
 
 pub struct TotalSupplies {
-    sui_client: Arc<SuiClient>,
+    iota_client: Arc<IotaClient>,
     coins: BTreeMap<String, String>,
     metric: IntGaugeVec,
 }
 
 impl TotalSupplies {
     pub fn new(
-        sui_client: Arc<SuiClient>,
+        iota_client: Arc<IotaClient>,
         coins: BTreeMap<String, String>,
         metric: IntGaugeVec,
     ) -> Self {
         Self {
-            sui_client,
+            iota_client,
             coins,
             metric,
         }
@@ -41,7 +42,7 @@ impl Observable for TotalSupplies {
     async fn observe_and_report(&self) {
         for (coin_name, coin_type) in &self.coins {
             let resp = self
-                .sui_client
+                .iota_client
                 .coin_read_api()
                 .get_total_supply(coin_type.clone())
                 .await;

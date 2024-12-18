@@ -1,4 +1,4 @@
-# Sui Node Deterministic Build
+# Iota Node Deterministic Build
 
 ## General Requirements
 * Requires Docker `>=v26.0.1`
@@ -17,28 +17,28 @@
 ![alt text](./images/image-1.png)
 
 ## Build Steps
-In Root Directory, run: `./docker/sui-node-deterministic/build.sh`
+In Root Directory, run: `./docker/iota-node-deterministic/build.sh`
 
-Build artifact is output in: `build/oci/sui-node`
+Build artifact is output in: `build/oci/iota-node`
 
-Load the image with the command: `(cd build/oci/sui-node && tar -c .) | docker load`
+Load the image with the command: `(cd build/oci/iota-node && tar -c .) | docker load`
 
-## Extract sui-node Binary
+## Extract iota-node Binary
 
-### Find sui-node binary
+### Find iota-node binary
 
-Find oci blob with sui-node binary (it is the largest blob in `build/oci/sui-node/blobs/sha256`)
-`ls -lSh build/oci/sui-node/blobs/sha256`
+Find oci blob with iota-node binary (it is the largest blob in `build/oci/iota-node/blobs/sha256`)
+`ls -lSh build/oci/iota-node/blobs/sha256`
 
-### Extract sui-node Binary
+### Extract iota-node Binary
 
-Extract `sui-node` binary from blob:
-`tar xf build/oci/sui-node/blobs/sha256/<blob-digest>`
+Extract `iota-node` binary from blob:
+`tar xf build/oci/iota-node/blobs/sha256/<blob-digest>`
 
-### Get digest of sui-node.
+### Get digest of iota-node.
 
 On Linux run:
-`sha256sum opt/sui/bin/sui-node`
+`sha256sum opt/iota/bin/iota-node`
 
 On MacOS run:
-`shasum -a 256 opt/sui/bin/sui-node`
+`shasum -a 256 opt/iota/bin/iota-node`

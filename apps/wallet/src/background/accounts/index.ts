@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { createMessage, type Message } from '_src/shared/messaging/messages';
@@ -7,7 +8,7 @@ import {
 	type MethodPayload,
 } from '_src/shared/messaging/messages/payloads/MethodPayload';
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
-import { fromBase64 } from '@mysten/sui/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
 
 import { getAccountSourceByID } from '../account-sources';

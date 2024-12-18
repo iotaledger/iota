@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
@@ -17,29 +18,29 @@ use shared_crypto::intent::IntentMessage;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use sui_bridge::abi::EthBridgeCommittee;
-use sui_bridge::abi::{eth_sui_bridge, EthSuiBridge};
-use sui_bridge::crypto::BridgeAuthorityPublicKeyBytes;
-use sui_bridge::error::BridgeResult;
-use sui_bridge::sui_client::SuiBridgeClient;
-use sui_bridge::types::BridgeAction;
-use sui_bridge::types::{
-    AddTokensOnEvmAction, AddTokensOnSuiAction, AssetPriceUpdateAction, BlocklistCommitteeAction,
+use iota_bridge::abi::EthBridgeCommittee;
+use iota_bridge::abi::{eth_iota_bridge, EthIotaBridge};
+use iota_bridge::crypto::BridgeAuthorityPublicKeyBytes;
+use iota_bridge::error::BridgeResult;
+use iota_bridge::iota_client::IotaBridgeClient;
+use iota_bridge::types::BridgeAction;
+use iota_bridge::types::{
+    AddTokensOnEvmAction, AddTokensOnIotaAction, AssetPriceUpdateAction, BlocklistCommitteeAction,
     BlocklistType, EmergencyAction, EmergencyActionType, EvmContractUpgradeAction,
     LimitUpdateAction,
 };
-use sui_bridge::utils::{get_eth_signer_client, EthSigner};
-use sui_config::Config;
-use sui_json_rpc_types::SuiObjectDataOptions;
-use sui_keys::keypair_file::read_key;
-use sui_sdk::SuiClientBuilder;
-use sui_types::base_types::SuiAddress;
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::bridge::{BridgeChainId, BRIDGE_MODULE_NAME};
-use sui_types::crypto::{Signature, SuiKeyPair};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{ObjectArg, Transaction, TransactionData};
-use sui_types::{TypeTag, BRIDGE_PACKAGE_ID};
+use iota_bridge::utils::{get_eth_signer_client, EthSigner};
+use iota_config::Config;
+use iota_json_rpc_types::IotaObjectDataOptions;
+use iota_keys::keypair_file::read_key;
+use iota_sdk::IotaClientBuilder;
+use iota_types::base_types::IotaAddress;
+use iota_types::base_types::{ObjectID, ObjectRef};
+use iota_types::bridge::{BridgeChainId, BRIDGE_MODULE_NAME};
+use iota_types::crypto::{Signature, IotaKeyPair};
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::transaction::{ObjectArg, Transaction, TransactionData};
+use iota_types::{TypeTag, BRIDGE_PACKAGE_ID};
 use tracing::info;
 
 pub const SEPOLIA_BRIDGE_PROXY_ADDR: &str = "0xAE68F87938439afEEDd6552B0E83D2CbC2473623";
@@ -108,14 +109,14 @@ pub enum BridgeCommand {
     /// View current list of registered validators
     #[clap(name = "view-bridge-registration")]
     ViewBridgeRegistration {
-        #[clap(long = "sui-rpc-url")]
-        sui_rpc_url: String,
+        #[clap(long = "iota-rpc-url")]
+        iota_rpc_url: String,
     },
-    /// View current status of Sui bridge
-    #[clap(name = "view-sui-bridge")]
-    ViewSuiBridge {
-        #[clap(long = "sui-rpc-url")]
-        sui_rpc_url: String,
+    /// View current status of Iota bridge
+    #[clap(name = "view-iota-bridge")]
+    ViewIotaBridge {
+        #[clap(long = "iota-rpc-url")]
+        iota_rpc_url: String,
         #[clap(long, default_value = "false")]
         hex: bool,
         #[clap(long, default_value = "false")]
@@ -169,8 +170,8 @@ pub enum GovernanceClientCommands {
         #[clap(name = "new-usd-price", long)]
         new_usd_price: u64,
     },
-    #[clap(name = "add-tokens-on-sui")]
-    AddTokensOnSui {
+    #[clap(name = "add-tokens-on-iota")]
+    AddTokensOnIota {
         #[clap(name = "nonce", long)]
         nonce: u64,
         #[clap(name = "token-ids", use_value_delimiter = true, long)]
@@ -190,8 +191,8 @@ pub enum GovernanceClientCommands {
         token_addresses: Vec<EthAddress>,
         #[clap(name = "token-prices", use_value_delimiter = true, long)]
         token_prices: Vec<u64>,
-        #[clap(name = "token-sui-decimals", use_value_delimiter = true, long)]
-        token_sui_decimals: Vec<u8>,
+        #[clap(name = "token-iota-decimals", use_value_delimiter = true, long)]
+        token_iota_decimals: Vec<u8>,
     },
     #[clap(name = "upgrade-evm-contract")]
     UpgradeEVMContract {
@@ -254,7 +255,7 @@ pub fn make_action(chain_id: BridgeChainId, cmd: &GovernanceClientCommands) -> B
             token_id: *token_id,
             new_usd_price: *new_usd_price,
         }),
-        GovernanceClientCommands::AddTokensOnSui {
+        GovernanceClientCommands::AddTokensOnIota {
             nonce,
             token_ids,
             token_type_names,
@@ -262,7 +263,7 @@ pub fn make_action(chain_id: BridgeChainId, cmd: &GovernanceClientCommands) -> B
         } => {
             assert_eq!(token_ids.len(), token_type_names.len());
             assert_eq!(token_ids.len(), token_prices.len());
-            BridgeAction::AddTokensOnSuiAction(AddTokensOnSuiAction {
+            BridgeAction::AddTokensOnIotaAction(AddTokensOnIotaAction {
                 nonce: *nonce,
                 chain_id,
                 native: false, // only foreign tokens are supported now
@@ -276,11 +277,11 @@ pub fn make_action(chain_id: BridgeChainId, cmd: &GovernanceClientCommands) -> B
             token_ids,
             token_addresses,
             token_prices,
-            token_sui_decimals,
+            token_iota_decimals,
         } => {
             assert_eq!(token_ids.len(), token_addresses.len());
             assert_eq!(token_ids.len(), token_prices.len());
-            assert_eq!(token_ids.len(), token_sui_decimals.len());
+            assert_eq!(token_ids.len(), token_iota_decimals.len());
             BridgeAction::AddTokensOnEvmAction(AddTokensOnEvmAction {
                 nonce: *nonce,
                 native: true, // only eth native tokens are supported now
@@ -288,7 +289,7 @@ pub fn make_action(chain_id: BridgeChainId, cmd: &GovernanceClientCommands) -> B
                 token_ids: token_ids.clone(),
                 token_addresses: token_addresses.clone(),
                 token_prices: token_prices.clone(),
-                token_sui_decimals: token_sui_decimals.clone(),
+                token_iota_decimals: token_iota_decimals.clone(),
             })
         }
         GovernanceClientCommands::UpgradeEVMContract {
@@ -368,7 +369,7 @@ pub fn select_contract_address(
         GovernanceClientCommands::UpdateLimit { .. } => config.eth_bridge_limiter_proxy_address,
         GovernanceClientCommands::UpdateAssetPrice { .. } => config.eth_bridge_config_proxy_address,
         GovernanceClientCommands::UpgradeEVMContract { proxy_address, .. } => *proxy_address,
-        GovernanceClientCommands::AddTokensOnSui { .. } => unreachable!(),
+        GovernanceClientCommands::AddTokensOnIota { .. } => unreachable!(),
         GovernanceClientCommands::AddTokensOnEvm { .. } => config.eth_bridge_config_proxy_address,
     }
 }
@@ -377,31 +378,31 @@ pub fn select_contract_address(
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct BridgeCliConfig {
-    /// Rpc url for Sui fullnode, used for query stuff and submit transactions.
-    pub sui_rpc_url: String,
+    /// Rpc url for Iota fullnode, used for query stuff and submit transactions.
+    pub iota_rpc_url: String,
     /// Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
-    /// Proxy address for SuiBridge deployed on Eth
+    /// Proxy address for IotaBridge deployed on Eth
     pub eth_bridge_proxy_address: EthAddress,
     /// Path of the file where private key is stored. The content could be any of the following:
     /// - Base64 encoded `flag || privkey` for ECDSA key
     /// - Base64 encoded `privkey` for Raw key
     /// - Hex encoded `privkey` for Raw key
-    /// At leaset one of `sui_key_path` or `eth_key_path` must be provided.
-    /// If only one is provided, it will be used for both Sui and Eth.
-    pub sui_key_path: Option<PathBuf>,
-    /// See `sui_key_path`. Must be Secp256k1 key.
+    /// At leaset one of `iota_key_path` or `eth_key_path` must be provided.
+    /// If only one is provided, it will be used for both Iota and Eth.
+    pub iota_key_path: Option<PathBuf>,
+    /// See `iota_key_path`. Must be Secp256k1 key.
     pub eth_key_path: Option<PathBuf>,
 }
 
 impl Config for BridgeCliConfig {}
 
 pub struct LoadedBridgeCliConfig {
-    /// Rpc url for Sui fullnode, used for query stuff and submit transactions.
-    pub sui_rpc_url: String,
+    /// Rpc url for Iota fullnode, used for query stuff and submit transactions.
+    pub iota_rpc_url: String,
     /// Rpc url for Eth fullnode, used for query stuff.
     pub eth_rpc_url: String,
-    /// Proxy address for SuiBridge deployed on Eth
+    /// Proxy address for IotaBridge deployed on Eth
     pub eth_bridge_proxy_address: EthAddress,
     /// Proxy address for BridgeCommittee deployed on Eth
     pub eth_bridge_committee_proxy_address: EthAddress,
@@ -409,21 +410,21 @@ pub struct LoadedBridgeCliConfig {
     pub eth_bridge_config_proxy_address: EthAddress,
     /// Proxy address for BridgeLimiter deployed on Eth
     pub eth_bridge_limiter_proxy_address: EthAddress,
-    /// Key pair for Sui operations
-    sui_key: SuiKeyPair,
+    /// Key pair for Iota operations
+    iota_key: IotaKeyPair,
     /// Key pair for Eth operations, must be Secp256k1 key
     eth_signer: EthSigner,
 }
 
 impl LoadedBridgeCliConfig {
     pub async fn load(cli_config: BridgeCliConfig) -> anyhow::Result<Self> {
-        if cli_config.eth_key_path.is_none() && cli_config.sui_key_path.is_none() {
+        if cli_config.eth_key_path.is_none() && cli_config.iota_key_path.is_none() {
             return Err(anyhow!(
-                "At least one of `sui_key_path` or `eth_key_path` must be provided"
+                "At least one of `iota_key_path` or `eth_key_path` must be provided"
             ));
         }
-        let sui_key = if let Some(sui_key_path) = &cli_config.sui_key_path {
-            Some(read_key(sui_key_path, false)?)
+        let iota_key = if let Some(iota_key_path) = &cli_config.iota_key_path {
+            Some(read_key(iota_key_path, false)?)
         } else {
             None
         };
@@ -433,18 +434,18 @@ impl LoadedBridgeCliConfig {
         } else {
             None
         };
-        let (eth_key, sui_key) = {
+        let (eth_key, iota_key) = {
             if eth_key.is_none() {
-                let sui_key = sui_key.unwrap();
-                if !matches!(sui_key, SuiKeyPair::Secp256k1(_)) {
+                let iota_key = iota_key.unwrap();
+                if !matches!(iota_key, IotaKeyPair::Secp256k1(_)) {
                     return Err(anyhow!("Eth key must be an ECDSA key"));
                 }
-                (sui_key.copy(), sui_key)
-            } else if sui_key.is_none() {
+                (iota_key.copy(), iota_key)
+            } else if iota_key.is_none() {
                 let eth_key = eth_key.unwrap();
                 (eth_key.copy(), eth_key)
             } else {
-                (eth_key.unwrap(), sui_key.unwrap())
+                (eth_key.unwrap(), iota_key.unwrap())
             }
         };
 
@@ -455,29 +456,29 @@ impl LoadedBridgeCliConfig {
         );
         let private_key = Hex::encode(eth_key.to_bytes_no_flag());
         let eth_signer = get_eth_signer_client(&cli_config.eth_rpc_url, &private_key).await?;
-        let sui_bridge = EthSuiBridge::new(cli_config.eth_bridge_proxy_address, provider.clone());
-        let eth_bridge_committee_proxy_address: EthAddress = sui_bridge.committee().call().await?;
-        let eth_bridge_limiter_proxy_address: EthAddress = sui_bridge.limiter().call().await?;
+        let iota_bridge = EthIotaBridge::new(cli_config.eth_bridge_proxy_address, provider.clone());
+        let eth_bridge_committee_proxy_address: EthAddress = iota_bridge.committee().call().await?;
+        let eth_bridge_limiter_proxy_address: EthAddress = iota_bridge.limiter().call().await?;
         let eth_committee =
             EthBridgeCommittee::new(eth_bridge_committee_proxy_address, provider.clone());
-        let eth_bridge_committee_proxy_address: EthAddress = sui_bridge.committee().call().await?;
+        let eth_bridge_committee_proxy_address: EthAddress = iota_bridge.committee().call().await?;
         let eth_bridge_config_proxy_address: EthAddress = eth_committee.config().call().await?;
 
         let eth_address = eth_signer.address();
         let eth_chain_id = provider.get_chainid().await?;
-        let sui_address = SuiAddress::from(&sui_key.public());
-        println!("Using Sui address: {:?}", sui_address);
+        let iota_address = IotaAddress::from(&iota_key.public());
+        println!("Using Iota address: {:?}", iota_address);
         println!("Using Eth address: {:?}", eth_address);
         println!("Using Eth chain: {:?}", eth_chain_id);
 
         Ok(Self {
-            sui_rpc_url: cli_config.sui_rpc_url,
+            iota_rpc_url: cli_config.iota_rpc_url,
             eth_rpc_url: cli_config.eth_rpc_url,
             eth_bridge_proxy_address: cli_config.eth_bridge_proxy_address,
             eth_bridge_committee_proxy_address,
             eth_bridge_limiter_proxy_address,
             eth_bridge_config_proxy_address,
-            sui_key,
+            iota_key,
             eth_signer,
         })
     }
@@ -488,29 +489,29 @@ impl LoadedBridgeCliConfig {
         &self.eth_signer
     }
 
-    pub async fn get_sui_account_info(
+    pub async fn get_iota_account_info(
         self: &LoadedBridgeCliConfig,
-    ) -> anyhow::Result<(SuiKeyPair, SuiAddress, ObjectRef)> {
-        let pubkey = self.sui_key.public();
-        let sui_client_address = SuiAddress::from(&pubkey);
-        let sui_sdk_client = SuiClientBuilder::default()
-            .build(self.sui_rpc_url.clone())
+    ) -> anyhow::Result<(IotaKeyPair, IotaAddress, ObjectRef)> {
+        let pubkey = self.iota_key.public();
+        let iota_client_address = IotaAddress::from(&pubkey);
+        let iota_sdk_client = IotaClientBuilder::default()
+            .build(self.iota_rpc_url.clone())
             .await?;
-        let gases = sui_sdk_client
+        let gases = iota_sdk_client
             .coin_read_api()
-            .get_coins(sui_client_address, None, None, None)
+            .get_coins(iota_client_address, None, None, None)
             .await?
             .data;
-        // TODO: is 5 Sui a good number?
+        // TODO: is 5 Iota a good number?
         let gas = gases
             .into_iter()
             .find(|coin| coin.balance >= 5_000_000_000)
             .ok_or(anyhow!(
                 "Did not find gas object with enough balance for {}",
-                sui_client_address
+                iota_client_address
             ))?;
         println!("Using Gas object: {}", gas.coin_object_id);
-        Ok((self.sui_key.copy(), sui_client_address, gas.object_ref()))
+        Ok((self.iota_key.copy(), iota_client_address, gas.object_ref()))
     }
 }
 #[derive(Parser)]
@@ -523,10 +524,10 @@ pub enum BridgeClientCommands {
         #[clap(long)]
         target_chain: u8,
         #[clap(long)]
-        sui_recipient_address: SuiAddress,
+        iota_recipient_address: IotaAddress,
     },
-    #[clap(name = "deposit-on-sui")]
-    DepositOnSui {
+    #[clap(name = "deposit-on-iota")]
+    DepositOnIota {
         #[clap(long)]
         coin_object_id: ObjectID,
         #[clap(long)]
@@ -549,15 +550,15 @@ impl BridgeClientCommands {
     pub async fn handle(
         self,
         config: &LoadedBridgeCliConfig,
-        sui_bridge_client: SuiBridgeClient,
+        iota_bridge_client: IotaBridgeClient,
     ) -> anyhow::Result<()> {
         match self {
             BridgeClientCommands::DepositNativeEtherOnEth {
                 ether_amount,
                 target_chain,
-                sui_recipient_address,
+                iota_recipient_address,
             } => {
-                let eth_sui_bridge = EthSuiBridge::new(
+                let eth_iota_bridge = EthIotaBridge::new(
                     config.eth_bridge_proxy_address,
                     Arc::new(config.eth_signer().clone()),
                 );
@@ -567,22 +568,22 @@ impl BridgeClientCommands {
                 let int_wei = U256::from(int_part) * U256::exp10(18);
                 let frac_wei = U256::from((frac_part * 1_000_000_000_000_000_000f64) as u64);
                 let amount = int_wei + frac_wei;
-                let eth_tx = eth_sui_bridge
-                    .bridge_eth(sui_recipient_address.to_vec().into(), target_chain)
+                let eth_tx = eth_iota_bridge
+                    .bridge_eth(iota_recipient_address.to_vec().into(), target_chain)
                     .value(amount);
                 let pending_tx = eth_tx.send().await.unwrap();
                 let tx_receipt = pending_tx.await.unwrap().unwrap();
                 info!(
-                    "Deposited {ether_amount} Ethers to {:?} (target chain {target_chain}). Receipt: {:?}", sui_recipient_address, tx_receipt,
+                    "Deposited {ether_amount} Ethers to {:?} (target chain {target_chain}). Receipt: {:?}", iota_recipient_address, tx_receipt,
                 );
                 Ok(())
             }
             BridgeClientCommands::ClaimOnEth { seq_num, dry_run } => {
-                claim_on_eth(seq_num, config, sui_bridge_client, dry_run)
+                claim_on_eth(seq_num, config, iota_bridge_client, dry_run)
                     .await
                     .map_err(|e| anyhow!("{:?}", e))
             }
-            BridgeClientCommands::DepositOnSui {
+            BridgeClientCommands::DepositOnIota {
                 coin_object_id,
                 coin_type,
                 target_chain,
@@ -590,13 +591,13 @@ impl BridgeClientCommands {
             } => {
                 let target_chain = BridgeChainId::try_from(target_chain).expect("Invalid chain id");
                 let coin_type = TypeTag::from_str(&coin_type).expect("Invalid coin type");
-                deposit_on_sui(
+                deposit_on_iota(
                     coin_object_id,
                     coin_type,
                     target_chain,
                     recipient_address,
                     config,
-                    sui_bridge_client,
+                    iota_bridge_client,
                 )
                 .await
             }
@@ -604,35 +605,35 @@ impl BridgeClientCommands {
     }
 }
 
-async fn deposit_on_sui(
+async fn deposit_on_iota(
     coin_object_id: ObjectID,
     coin_type: TypeTag,
     target_chain: BridgeChainId,
     recipient_address: EthAddress,
     config: &LoadedBridgeCliConfig,
-    sui_bridge_client: SuiBridgeClient,
+    iota_bridge_client: IotaBridgeClient,
 ) -> anyhow::Result<()> {
     let target_chain = target_chain as u8;
-    let sui_client = sui_bridge_client.sui_client();
-    let bridge_object_arg = sui_bridge_client
+    let iota_client = iota_bridge_client.iota_client();
+    let bridge_object_arg = iota_bridge_client
         .get_mutable_bridge_object_arg_must_succeed()
         .await;
-    let rgp = sui_client
+    let rgp = iota_client
         .governance_api()
         .get_reference_gas_price()
         .await
         .unwrap();
-    let sender = SuiAddress::from(&config.sui_key.public());
-    let gas_obj_ref = sui_client
+    let sender = IotaAddress::from(&config.iota_key.public());
+    let gas_obj_ref = iota_client
         .coin_read_api()
         .select_coins(sender, None, 1_000_000_000, vec![])
         .await?
         .first()
         .ok_or(anyhow!("No coin found for address {}", sender))?
         .object_ref();
-    let coin_obj_ref = sui_client
+    let coin_obj_ref = iota_client
         .read_api()
-        .get_object_with_options(coin_object_id, SuiObjectDataOptions::default())
+        .get_object_with_options(coin_object_id, IotaObjectDataOptions::default())
         .await?
         .data
         .unwrap()
@@ -657,13 +658,13 @@ async fn deposit_on_sui(
     let tx_data =
         TransactionData::new_programmable(sender, vec![gas_obj_ref], pt, 500_000_000, rgp);
     let sig = Signature::new_secure(
-        &IntentMessage::new(Intent::sui_transaction(), tx_data.clone()),
-        &config.sui_key,
+        &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
+        &config.iota_key,
     );
     let signed_tx = Transaction::from_data(tx_data, vec![sig]);
     let tx_digest = *signed_tx.digest();
-    info!(?tx_digest, "Sending deposit transction to Sui.");
-    let resp = sui_bridge_client
+    info!(?tx_digest, "Sending deposit transction to Iota.");
+    let resp = iota_bridge_client
         .execute_transaction_block_with_effects(signed_tx)
         .await
         .expect("Failed to execute transaction block");
@@ -681,23 +682,23 @@ async fn deposit_on_sui(
 async fn claim_on_eth(
     seq_num: u64,
     config: &LoadedBridgeCliConfig,
-    sui_bridge_client: SuiBridgeClient,
+    iota_bridge_client: IotaBridgeClient,
     dry_run: bool,
 ) -> BridgeResult<()> {
-    let sui_chain_id = sui_bridge_client.get_bridge_summary().await?.chain_id;
-    let parsed_message = sui_bridge_client
-        .get_parsed_token_transfer_message(sui_chain_id, seq_num)
+    let iota_chain_id = iota_bridge_client.get_bridge_summary().await?.chain_id;
+    let parsed_message = iota_bridge_client
+        .get_parsed_token_transfer_message(iota_chain_id, seq_num)
         .await?;
     if parsed_message.is_none() {
-        println!("No record found for seq_num: {seq_num}, chain id: {sui_chain_id}");
+        println!("No record found for seq_num: {seq_num}, chain id: {iota_chain_id}");
         return Ok(());
     }
     let parsed_message = parsed_message.unwrap();
-    let sigs = sui_bridge_client
-        .get_token_transfer_action_onchain_signatures_until_success(sui_chain_id, seq_num)
+    let sigs = iota_bridge_client
+        .get_token_transfer_action_onchain_signatures_until_success(iota_chain_id, seq_num)
         .await;
     if sigs.is_none() {
-        println!("No signatures found for seq_num: {seq_num}, chain id: {sui_chain_id}");
+        println!("No signatures found for seq_num: {seq_num}, chain id: {iota_chain_id}");
         return Ok(());
     }
     let signatures = sigs
@@ -706,23 +707,23 @@ async fn claim_on_eth(
         .map(|sig: Vec<u8>| ethers::types::Bytes::from(sig))
         .collect::<Vec<_>>();
 
-    let eth_sui_bridge = EthSuiBridge::new(
+    let eth_iota_bridge = EthIotaBridge::new(
         config.eth_bridge_proxy_address,
         Arc::new(config.eth_signer().clone()),
     );
-    let message = eth_sui_bridge::Message::from(parsed_message);
-    let tx = eth_sui_bridge.transfer_bridged_tokens_with_signatures(signatures, message);
+    let message = eth_iota_bridge::Message::from(parsed_message);
+    let tx = eth_iota_bridge.transfer_bridged_tokens_with_signatures(signatures, message);
     if dry_run {
         let tx = tx.tx;
         let resp = config.eth_signer.estimate_gas(&tx, None).await;
         println!(
-            "Sui to Eth bridge transfer claim dry run result: {:?}",
+            "Iota to Eth bridge transfer claim dry run result: {:?}",
             resp
         );
     } else {
         let eth_claim_tx_receipt = tx.send().await.unwrap().await.unwrap().unwrap();
         println!(
-            "Sui to Eth bridge transfer claimed: {:?}",
+            "Iota to Eth bridge transfer claimed: {:?}",
             eth_claim_tx_receipt
         );
     }
@@ -738,7 +739,7 @@ mod tests {
     #[tokio::test]
     async fn test_encode_call_data() {
         let abi_json =
-            std::fs::read_to_string("../sui-bridge/abi/tests/mock_sui_bridge_v2.json").unwrap();
+            std::fs::read_to_string("../iota-bridge/abi/tests/mock_iota_bridge_v2.json").unwrap();
         let abi: ethers::abi::Abi = serde_json::from_str(&abi_json).unwrap();
 
         let function_selector = "initializeV2Params(uint256,bool,string)";

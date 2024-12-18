@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_json_rpc_types::SuiObjectDataFilter;
-use sui_types::base_types::ObjectID;
+use iota_json_rpc_types::IotaObjectDataFilter;
+use iota_types::base_types::ObjectID;
 
 pub trait DBFilter<C> {
     fn to_objects_history_sql(&self, cursor: Option<C>, limit: usize, columns: Vec<&str>)
@@ -10,7 +11,7 @@ pub trait DBFilter<C> {
     fn to_latest_objects_sql(&self, cursor: Option<C>, limit: usize, columns: Vec<&str>) -> String;
 }
 
-impl DBFilter<ObjectID> for SuiObjectDataFilter {
+impl DBFilter<ObjectID> for IotaObjectDataFilter {
     fn to_objects_history_sql(
         &self,
         cursor: Option<ObjectID>,
@@ -86,18 +87,18 @@ LIMIT {limit};"
     }
 }
 
-fn to_latest_objects_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
+fn to_latest_objects_clauses(filter: &IotaObjectDataFilter) -> Option<String> {
     match filter {
-        SuiObjectDataFilter::AddressOwner(a) => Some(format!(
+        IotaObjectDataFilter::AddressOwner(a) => Some(format!(
             "(o.owner_type = 'address_owner' AND o.owner_address = '{a}')"
         )),
         _ => None,
     }
 }
 
-fn to_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
+fn to_clauses(filter: &IotaObjectDataFilter) -> Option<String> {
     match filter {
-        SuiObjectDataFilter::MatchAll(sub_filters) => {
+        IotaObjectDataFilter::MatchAll(sub_filters) => {
             let sub_filters = sub_filters.iter().flat_map(to_clauses).collect::<Vec<_>>();
             if sub_filters.is_empty() {
                 None
@@ -107,7 +108,7 @@ fn to_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
                 Some(format!("({})", sub_filters.join(" AND ")))
             }
         }
-        SuiObjectDataFilter::MatchAny(sub_filters) => {
+        IotaObjectDataFilter::MatchAny(sub_filters) => {
             let sub_filters = sub_filters.iter().flat_map(to_clauses).collect::<Vec<_>>();
             if sub_filters.is_empty() {
                 // Any default to false
@@ -118,7 +119,7 @@ fn to_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
                 Some(format!("({})", sub_filters.join(" OR ")))
             }
         }
-        SuiObjectDataFilter::MatchNone(sub_filters) => {
+        IotaObjectDataFilter::MatchNone(sub_filters) => {
             let sub_filters = sub_filters.iter().flat_map(to_clauses).collect::<Vec<_>>();
             if sub_filters.is_empty() {
                 None
@@ -126,31 +127,31 @@ fn to_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
                 Some(format!("NOT ({})", sub_filters.join(" OR ")))
             }
         }
-        SuiObjectDataFilter::Package(p) => Some(format!("o.object_type LIKE '{}::%'", p.to_hex_literal())),
-        SuiObjectDataFilter::MoveModule { package, module } => Some(format!(
+        IotaObjectDataFilter::Package(p) => Some(format!("o.object_type LIKE '{}::%'", p.to_hex_literal())),
+        IotaObjectDataFilter::MoveModule { package, module } => Some(format!(
             "o.object_type LIKE '{}::{}::%'",
             package.to_hex_literal(),
             module
         )),
-        SuiObjectDataFilter::StructType(s) => {
+        IotaObjectDataFilter::StructType(s) => {
             // If people do not provide type_params, we will match all type_params
-            // e.g. `0x2::coin::Coin` can match `0x2::coin::Coin<0x2::sui::SUI>`
+            // e.g. `0x2::coin::Coin` can match `0x2::coin::Coin<0x2::iota::IOTA>`
             if s.type_params.is_empty() {
                 Some(format!("o.object_type LIKE '{s}%'"))
             } else {
                 Some(format!("o.object_type = '{s}'"))
             }
         },
-        SuiObjectDataFilter::AddressOwner(a) => {
+        IotaObjectDataFilter::AddressOwner(a) => {
             Some(format!("((o.owner_type = 'address_owner' AND o.owner_address = '{a}') OR (o.old_owner_type = 'address_owner' AND o.old_owner_address = '{a}'))"))
         }
-        SuiObjectDataFilter::ObjectOwner(o) => {
+        IotaObjectDataFilter::ObjectOwner(o) => {
             Some(format!("((o.owner_type = 'object_owner' AND o.owner_address = '{o}') OR (o.old_owner_type = 'object_owner' AND o.old_owner_address = '{o}'))"))
         }
-        SuiObjectDataFilter::ObjectId(id) => {
+        IotaObjectDataFilter::ObjectId(id) => {
             Some(format!("o.object_id = '{id}'"))
         }
-        SuiObjectDataFilter::ObjectIds(ids) => {
+        IotaObjectDataFilter::ObjectIds(ids) => {
             if ids.is_empty() {
                 None
             } else {
@@ -162,13 +163,13 @@ fn to_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
                 Some(format!("o.object_id IN '{ids}'"))
             }
         }
-        SuiObjectDataFilter::Version(v) => Some(format!("o.version = {v}")),
+        IotaObjectDataFilter::Version(v) => Some(format!("o.version = {v}")),
     }
 }
 
-fn to_outer_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
+fn to_outer_clauses(filter: &IotaObjectDataFilter) -> Option<String> {
     match filter {
-        SuiObjectDataFilter::MatchNone(sub_filters) => {
+        IotaObjectDataFilter::MatchNone(sub_filters) => {
             let sub_filters = sub_filters
                 .iter()
                 .flat_map(to_outer_clauses)
@@ -179,7 +180,7 @@ fn to_outer_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
                 Some(format!("NOT ({})", sub_filters.join(" OR ")))
             }
         }
-        SuiObjectDataFilter::MatchAll(sub_filters) => {
+        IotaObjectDataFilter::MatchAll(sub_filters) => {
             let sub_filters = sub_filters
                 .iter()
                 .flat_map(to_outer_clauses)
@@ -192,7 +193,7 @@ fn to_outer_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
                 Some(format!("({})", sub_filters.join(" AND ")))
             }
         }
-        SuiObjectDataFilter::MatchAny(sub_filters) => {
+        IotaObjectDataFilter::MatchAny(sub_filters) => {
             let sub_filters = sub_filters
                 .iter()
                 .flat_map(to_outer_clauses)
@@ -205,7 +206,7 @@ fn to_outer_clauses(filter: &SuiObjectDataFilter) -> Option<String> {
                 Some(format!("({})", sub_filters.join(" OR ")))
             }
         }
-        SuiObjectDataFilter::AddressOwner(a) => Some(format!("t1.owner_address = '{a}'")),
+        IotaObjectDataFilter::AddressOwner(a) => Some(format!("t1.owner_address = '{a}'")),
         _ => None,
     }
 }
@@ -216,19 +217,19 @@ mod test {
 
     use move_core_types::ident_str;
 
-    use sui_json_rpc_types::SuiObjectDataFilter;
-    use sui_types::base_types::{ObjectID, SuiAddress};
-    use sui_types::parse_sui_struct_tag;
+    use iota_json_rpc_types::IotaObjectDataFilter;
+    use iota_types::base_types::{ObjectID, IotaAddress};
+    use iota_types::parse_iota_struct_tag;
 
     use crate::store::query::DBFilter;
 
     #[test]
     fn test_address_filter() {
-        let address = SuiAddress::from_str(
+        let address = IotaAddress::from_str(
             "0x92dd4d9b0150c251661d821583ef078024ae9e9ee11063e216500861eec7f381",
         )
         .unwrap();
-        let filter = SuiObjectDataFilter::AddressOwner(address);
+        let filter = IotaObjectDataFilter::AddressOwner(address);
 
         let expected_sql =  "SELECT t1.*
 FROM (SELECT DISTINCT ON (o.object_id) *
@@ -247,7 +248,7 @@ LIMIT 100;";
 
     #[test]
     fn test_move_module_filter() {
-        let filter = SuiObjectDataFilter::MoveModule {
+        let filter = IotaObjectDataFilter::MoveModule {
             package: ObjectID::from_str(
                 "0x485d947e293f07e659127dc5196146b49cdf2efbe4b233f4d293fc56aff2aa17",
             )
@@ -270,7 +271,7 @@ LIMIT 100;";
 
     #[test]
     fn test_empty_all_filter() {
-        let filter = SuiObjectDataFilter::MatchAll(vec![]);
+        let filter = IotaObjectDataFilter::MatchAll(vec![]);
         let expected_sql = "SELECT t1.*
 FROM (SELECT DISTINCT ON (o.object_id) *
       FROM objects_history o
@@ -286,7 +287,7 @@ LIMIT 100;";
 
     #[test]
     fn test_empty_any_filter() {
-        let filter = SuiObjectDataFilter::MatchAny(vec![]);
+        let filter = IotaObjectDataFilter::MatchAny(vec![]);
         let expected_sql = "SELECT t1.*
 FROM (SELECT DISTINCT ON (o.object_id) *
       FROM objects_history o
@@ -303,14 +304,14 @@ LIMIT 100;";
 
     #[test]
     fn test_all_filter() {
-        let filter = SuiObjectDataFilter::MatchAll(vec![
-            SuiObjectDataFilter::ObjectId(
+        let filter = IotaObjectDataFilter::MatchAll(vec![
+            IotaObjectDataFilter::ObjectId(
                 ObjectID::from_str(
                     "0xef9fb75a7b3d4cb5551ef0b08c83528b94d5f5cd8be28b1d08a87dbbf3731738",
                 )
                 .unwrap(),
             ),
-            SuiObjectDataFilter::StructType(parse_sui_struct_tag("0x2::test::Test").unwrap()),
+            IotaObjectDataFilter::StructType(parse_iota_struct_tag("0x2::test::Test").unwrap()),
         ]);
 
         let expected_sql = "SELECT t1.*

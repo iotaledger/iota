@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module axelar::utils {
     use std::vector;
 
-    use sui::bcs;
-    use sui::hash;
+    use iota::bcs;
+    use iota::hash;
 
     const EInvalidSignatureLength: u64 = 0;
 
-    /// Prefix for Sui Messages.
-    const PREFIX: vector<u8> = b"\x19Sui Signed Message:\n";
+    /// Prefix for Iota Messages.
+    const PREFIX: vector<u8> = b"\x19Iota Signed Message:\n";
 
     /// Normalize last byte of the signature. Have it 1 or 0.
-    /// See https://tech.mystenlabs.com/cryptography-in-sui-cross-chain-signature-verification/
+    /// See https://tech.iota.org/cryptography-in-iota-cross-chain-signature-verification/
     public fun normalize_signature(signature: &mut vector<u8>) {
         // Compute v = 0 or 1.
         assert!(vector::length(signature) == 65, EInvalidSignatureLength);
@@ -28,7 +29,7 @@ module axelar::utils {
     }
 
     /// Add a prefix to the bytes.
-    public fun to_sui_signed(bytes: vector<u8>): vector<u8> {
+    public fun to_iota_signed(bytes: vector<u8>): vector<u8> {
         let mut res = vector[];
         vector::append(&mut res, PREFIX);
         vector::append(&mut res, bytes);

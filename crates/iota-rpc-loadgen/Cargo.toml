@@ -1,8 +1,8 @@
 [package]
-name = "sui-rpc-loadgen"
+name = "iota-rpc-loadgen"
 version.workspace = true
 edition = "2021"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 
@@ -21,12 +21,12 @@ itertools.workspace = true
 
 shellexpand.workspace = true
 
-sui-types.workspace = true
-sui-keys.workspace = true
-sui-sdk.workspace = true
+iota-types.workspace = true
+iota-keys.workspace = true
+iota-sdk.workspace = true
 telemetry-subscribers.workspace = true
-sui-json-rpc.workspace = true
-sui-json-rpc-types.workspace = true
+iota-json-rpc.workspace = true
+iota-json-rpc-types.workspace = true
 strum.workspace = true
 shared-crypto.workspace = true
 serde_json.workspace = true
@@ -37,5 +37,5 @@ test-cluster.workspace = true
 
 
 [[bin]]
-name = "sui-rpc-loadgen"
+name = "iota-rpc-loadgen"
 path = "src/main.rs"

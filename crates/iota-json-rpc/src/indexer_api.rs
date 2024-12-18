@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -13,26 +14,26 @@ use jsonrpsee::{
 };
 use move_bytecode_utils::layout::TypeLayoutBuilder;
 use move_core_types::language_storage::TypeTag;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use serde::Serialize;
-use sui_core::authority::AuthorityState;
-use sui_json::SuiJsonValue;
-use sui_json_rpc_api::{
+use iota_core::authority::AuthorityState;
+use iota_json::IotaJsonValue;
+use iota_json_rpc_api::{
     cap_page_limit, validate_limit, IndexerApiOpenRpc, IndexerApiServer, JsonRpcMetrics,
     ReadApiServer, QUERY_MAX_RESULT_LIMIT,
 };
-use sui_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, SuiObjectDataOptions,
-    SuiObjectResponse, SuiObjectResponseQuery, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseQuery, TransactionBlocksPage, TransactionFilter,
+use iota_json_rpc_types::{
+    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, IotaObjectDataOptions,
+    IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseQuery, TransactionBlocksPage, TransactionFilter,
 };
-use sui_open_rpc::Module;
-use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_types::{
-    base_types::{ObjectID, SuiAddress},
+use iota_open_rpc::Module;
+use iota_storage::key_value_store::TransactionKeyValueStore;
+use iota_types::{
+    base_types::{ObjectID, IotaAddress},
     digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
-    error::SuiObjectResponseError,
+    error::IotaObjectResponseError,
     event::EventID,
 };
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -40,9 +41,9 @@ use tracing::{debug, instrument, warn};
 
 use crate::{
     authority_state::{StateRead, StateReadResult},
-    error::{Error, SuiRpcInputError},
+    error::{Error, IotaRpcInputError},
     name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError},
-    with_tracing, SuiRpcModule,
+    with_tracing, IotaRpcModule,
 };
 
 pub fn spawn_subscription<S, T>(
@@ -105,15 +106,15 @@ impl<R: ReadApiServer> IndexerApi<R> {
     fn extract_values_from_dynamic_field_name(
         &self,
         name: DynamicFieldName,
-    ) -> Result<(TypeTag, Vec<u8>), SuiRpcInputError> {
+    ) -> Result<(TypeTag, Vec<u8>), IotaRpcInputError> {
         let DynamicFieldName {
             type_: name_type,
             value,
         } = name;
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
         let layout = TypeLayoutBuilder::build_with_types(&name_type, epoch_store.module_cache())?;
-        let sui_json_value = SuiJsonValue::new(value)?;
-        let name_bcs_value = sui_json_value.to_bcs_bytes(&layout)?;
+        let iota_json_value = IotaJsonValue::new(value)?;
+        let name_bcs_value = iota_json_value.to_bcs_bytes(&layout)?;
         Ok((name_type, name_bcs_value))
     }
 
@@ -140,16 +141,16 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     #[instrument(skip(self))]
     async fn get_owned_objects(
         &self,
-        address: SuiAddress,
-        query: Option<SuiObjectResponseQuery>,
+        address: IotaAddress,
+        query: Option<IotaObjectResponseQuery>,
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
         with_tracing!(async move {
             let limit =
-                validate_limit(limit, *QUERY_MAX_RESULT_LIMIT).map_err(SuiRpcInputError::from)?;
+                validate_limit(limit, *QUERY_MAX_RESULT_LIMIT).map_err(IotaRpcInputError::from)?;
             self.metrics.get_owned_objects_limit.observe(limit as f64);
-            let SuiObjectResponseQuery { filter, options } = query.unwrap_or_default();
+            let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
             let options = options.unwrap_or_default();
             let mut objects = self
                 .state
@@ -173,8 +174,8 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
                 }
                 false => objects
                     .into_iter()
-                    .map(|o_info| SuiObjectResponse::try_from((o_info, options.clone())))
-                    .collect::<Result<Vec<SuiObjectResponse>, _>>()?,
+                    .map(|o_info| IotaObjectResponse::try_from((o_info, options.clone())))
+                    .collect::<Result<Vec<IotaObjectResponse>, _>>()?,
             };
 
             self.metrics
@@ -194,7 +195,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     #[instrument(skip(self))]
     async fn query_transaction_blocks(
         &self,
-        query: SuiTransactionBlockResponseQuery,
+        query: IotaTransactionBlockResponseQuery,
         // If `Some`, the query will start from the next item after the specified cursor
         cursor: Option<TransactionDigest>,
         limit: Option<usize>,
@@ -228,10 +229,10 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             digests.truncate(limit);
             let next_cursor = digests.last().cloned().map_or(cursor, Some);
 
-            let data: Vec<SuiTransactionBlockResponse> = if opts.only_digest() {
+            let data: Vec<IotaTransactionBlockResponse> = if opts.only_digest() {
                 digests
                     .into_iter()
-                    .map(SuiTransactionBlockResponse::new)
+                    .map(IotaTransactionBlockResponse::new)
                     .collect()
             } else {
                 self.read_api
@@ -360,7 +361,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         &self,
         parent_object_id: ObjectID,
         name: DynamicFieldName,
-    ) -> RpcResult<SuiObjectResponse> {
+    ) -> RpcResult<IotaObjectResponse> {
         with_tracing!(async move {
             let (name_type, name_bcs_value) = self.extract_values_from_dynamic_field_name(name)?;
 
@@ -371,19 +372,19 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             // TODO(chris): add options to `get_dynamic_field_object` API as well
             if let Some(id) = id {
                 self.read_api
-                    .get_object(id, Some(SuiObjectDataOptions::full_content()))
+                    .get_object(id, Some(IotaObjectDataOptions::full_content()))
                     .await
                     .map_err(Error::from)
             } else {
-                Ok(SuiObjectResponse::new_with_error(
-                    SuiObjectResponseError::DynamicFieldNotFound { parent_object_id },
+                Ok(IotaObjectResponse::new_with_error(
+                    IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
                 ))
             }
         })
     }
 
     #[instrument(skip(self))]
-    async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<SuiAddress>> {
+    async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<IotaAddress>> {
         with_tracing!(async move {
             // prepare the requested domain's field id.
             let domain = name.parse::<Domain>().map_err(Error::from)?;
@@ -452,7 +453,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     #[instrument(skip(self))]
     async fn resolve_name_service_names(
         &self,
-        address: SuiAddress,
+        address: IotaAddress,
         _cursor: Option<ObjectID>,
         _limit: Option<usize>,
     ) -> RpcResult<Page<String, ObjectID>> {
@@ -474,7 +475,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
             };
 
             let domain = field_reverse_record_object
-                .to_rust::<Field<SuiAddress, Domain>>()
+                .to_rust::<Field<IotaAddress, Domain>>()
                 .ok_or_else(|| {
                     Error::UnexpectedError(format!("Malformed Object {reverse_record_id}"))
                 })?
@@ -500,7 +501,7 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
     }
 }
 
-impl<R: ReadApiServer> SuiRpcModule for IndexerApi<R> {
+impl<R: ReadApiServer> IotaRpcModule for IndexerApi<R> {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

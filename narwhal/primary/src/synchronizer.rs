@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anemo::{rpc::Status, Network, Request, Response};
@@ -8,10 +9,10 @@ use crypto::NetworkPublicKey;
 use fastcrypto::hash::Hash as _;
 use futures::{stream::FuturesOrdered, StreamExt};
 use itertools::Itertools;
-use mysten_common::sync::notify_once::NotifyOnce;
-use mysten_metrics::metered_channel::{channel_with_total, Sender};
-use mysten_metrics::{monitored_scope, spawn_logged_monitored_task};
-use mysten_network::anemo_ext::{NetworkExt, WaitingPeer};
+use iota_common::sync::notify_once::NotifyOnce;
+use iota_metrics::metered_channel::{channel_with_total, Sender};
+use iota_metrics::{monitored_scope, spawn_logged_monitored_task};
+use iota_network_stack::anemo_ext::{NetworkExt, WaitingPeer};
 use network::{client::NetworkClient, PrimaryToWorkerClient, RetryConfig};
 use parking_lot::Mutex;
 use std::{
@@ -24,7 +25,7 @@ use std::{
     time::Duration,
 };
 use storage::{CertificateStore, PayloadStore};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::task::spawn_blocking;
 use tokio::time::Instant;
 use tokio::{

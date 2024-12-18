@@ -1,26 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use std::collections::HashMap;
 use std::path::Path;
-use sui_data_ingestion_core::Worker;
-use sui_indexer::errors::IndexerError;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::{TypeTag, SYSTEM_PACKAGE_ADDRESSES};
+use iota_data_ingestion_core::Worker;
+use iota_indexer::errors::IndexerError;
+use iota_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::{TypeTag, SYSTEM_PACKAGE_ADDRESSES};
 use tap::tap::TapFallible;
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use sui_indexer::types::owner_to_owner_info;
-use sui_json_rpc_types::SuiMoveValue;
-use sui_package_resolver::Resolver;
-use sui_rpc_api::{CheckpointData, CheckpointTransaction};
-use sui_types::base_types::ObjectID;
-use sui_types::dynamic_field::visitor as DFV;
-use sui_types::dynamic_field::{DynamicFieldName, DynamicFieldType};
-use sui_types::object::Object;
+use iota_indexer::types::owner_to_owner_info;
+use iota_json_rpc_types::IotaMoveValue;
+use iota_package_resolver::Resolver;
+use iota_rpc_api::{CheckpointData, CheckpointTransaction};
+use iota_types::base_types::ObjectID;
+use iota_types::dynamic_field::visitor as DFV;
+use iota_types::dynamic_field::{DynamicFieldName, DynamicFieldType};
+use iota_types::object::Object;
 
 use crate::handlers::AnalyticsHandler;
 use crate::package_store::{LocalDBPackageStore, PackageCache};
@@ -137,7 +138,7 @@ impl DynamicFieldHandler {
             })?;
         let name = DynamicFieldName {
             type_: name_type,
-            value: SuiMoveValue::from(name_value).to_json_value(),
+            value: IotaMoveValue::from(name_value).to_json_value(),
         };
         let name_json = serde_json::to_string(&name)?;
         let (_owner_type, owner_id) = owner_to_owner_info(&object.owner);

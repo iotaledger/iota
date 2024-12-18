@@ -3,14 +3,14 @@
 	"version": "1.0.10",
 	"main": "src/index.ts",
 	"type": "module",
-	"author": "Patrick <patrick@mystenlabs.com>",
+	"author": "Patrick <patrick@iota.org>",
 	"license": "MIT",
 	"scripts": {
 		"start": "npx ts-node --esm src/index.ts"
 	},
 	"dependencies": {
-		"@mysten/bcs": "workspace:*",
-		"@mysten/sui": "workspace:*",
+		"@iota/bcs": "workspace:*",
+		"@iota/iota-sdk": "workspace:*",
 		"p-limit": "^6.1.0"
 	},
 	"devDependencies": {

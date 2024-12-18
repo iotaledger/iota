@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod adversarial;
@@ -17,8 +18,8 @@ use std::sync::Arc;
 
 use crate::drivers::Interval;
 use crate::workloads::payload::Payload;
-use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::AccountKeyPair;
+use iota_types::base_types::{ObjectRef, IotaAddress};
+use iota_types::crypto::AccountKeyPair;
 use workload::*;
 
 pub type GroupID = u32;
@@ -44,14 +45,14 @@ pub struct WorkloadInfo {
     pub workload: Box<dyn Workload<dyn Payload>>,
 }
 
-pub type Gas = (ObjectRef, SuiAddress, Arc<AccountKeyPair>);
+pub type Gas = (ObjectRef, IotaAddress, Arc<AccountKeyPair>);
 
 #[derive(Clone)]
 pub struct GasCoinConfig {
-    // amount of SUI to transfer to this gas coin
+    // amount of IOTA to transfer to this gas coin
     pub amount: u64,
     // recipient of this gas coin
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     // recipient account key pair (useful for signing txns)
     pub keypair: Arc<AccountKeyPair>,
 }

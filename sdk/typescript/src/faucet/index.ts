@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export {
-	requestSuiFromFaucetV0,
-	requestSuiFromFaucetV1,
+	requestIotaFromFaucetV0,
+	requestIotaFromFaucetV1,
 	getFaucetRequestStatus,
 	getFaucetHost,
 	FaucetRateLimitError,

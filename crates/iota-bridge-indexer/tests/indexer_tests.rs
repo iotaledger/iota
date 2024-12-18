@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::associations::HasTable;
@@ -7,19 +8,19 @@ use diesel_async::RunQueryDsl;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use prometheus::Registry;
 use std::time::Duration;
-use sui_bridge::e2e_tests::test_utils::{
-    initiate_bridge_eth_to_sui, BridgeTestCluster, BridgeTestClusterBuilder,
+use iota_bridge::e2e_tests::test_utils::{
+    initiate_bridge_eth_to_iota, BridgeTestCluster, BridgeTestClusterBuilder,
 };
-use sui_bridge_indexer::config::IndexerConfig;
-use sui_bridge_indexer::metrics::BridgeIndexerMetrics;
-use sui_bridge_indexer::models::{GovernanceAction, TokenTransfer};
-use sui_bridge_indexer::postgres_manager::get_connection_pool;
-use sui_bridge_indexer::storage::PgBridgePersistent;
-use sui_bridge_indexer::{create_sui_indexer, schema};
-use sui_data_ingestion_core::DataIngestionMetrics;
-use sui_indexer::database::Connection;
-use sui_indexer_builder::indexer_builder::IndexerProgressStore;
-use sui_pg_temp_db::TempDb;
+use iota_bridge_indexer::config::IndexerConfig;
+use iota_bridge_indexer::metrics::BridgeIndexerMetrics;
+use iota_bridge_indexer::models::{GovernanceAction, TokenTransfer};
+use iota_bridge_indexer::postgres_manager::get_connection_pool;
+use iota_bridge_indexer::storage::PgBridgePersistent;
+use iota_bridge_indexer::{create_iota_indexer, schema};
+use iota_data_ingestion_core::DataIngestionMetrics;
+use iota_indexer::database::Connection;
+use iota_indexer_builder::indexer_builder::IndexerProgressStore;
+use iota_pg_temp_db::TempDb;
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("src/migrations");
 
@@ -32,7 +33,7 @@ async fn test_indexing_transfer() {
     let (config, cluster, _db) = setup_bridge_env(false).await;
 
     let pool = get_connection_pool(config.db_url.clone()).await;
-    let indexer = create_sui_indexer(pool.clone(), metrics.clone(), ingestion_metrics, &config)
+    let indexer = create_iota_indexer(pool.clone(), metrics.clone(), ingestion_metrics, &config)
         .await
         .unwrap();
     let storage = indexer.test_only_storage().clone();
@@ -70,11 +71,11 @@ async fn test_indexing_transfer() {
     // 8 governance actions in total, token registration and approval events for ETH USDC, USDT and BTC.
     assert_eq!(8, data.len());
 
-    // transfer eth to sui
-    initiate_bridge_eth_to_sui(&cluster, 1000, 0).await.unwrap();
+    // transfer eth to iota
+    initiate_bridge_eth_to_iota(&cluster, 1000, 0).await.unwrap();
 
     let current_block_height = cluster
-        .sui_client()
+        .iota_client()
         .read_api()
         .get_latest_checkpoint_sequence_number()
         .await
@@ -156,17 +157,17 @@ async fn setup_bridge_env(with_eth_env: bool) -> (IndexerConfig, BridgeTestClust
     conn.run_pending_migrations(MIGRATIONS).await.unwrap();
 
     let config = IndexerConfig {
-        remote_store_url: format!("{}/rest", bridge_test_cluster.sui_rpc_url()),
+        remote_store_url: format!("{}/rest", bridge_test_cluster.iota_rpc_url()),
         checkpoints_path: None,
-        sui_rpc_url: bridge_test_cluster.sui_rpc_url(),
+        iota_rpc_url: bridge_test_cluster.iota_rpc_url(),
         eth_rpc_url: bridge_test_cluster.eth_rpc_url(),
         // TODO: add WS support
         eth_ws_url: "".to_string(),
         db_url: db.database().url().to_string(),
         concurrency: 10,
-        sui_bridge_genesis_checkpoint: 0,
+        iota_bridge_genesis_checkpoint: 0,
         eth_bridge_genesis_block: 0,
-        eth_sui_bridge_contract_address: bridge_test_cluster.sui_bridge_address(),
+        eth_iota_bridge_contract_address: bridge_test_cluster.iota_bridge_address(),
         metric_port: 9001,
     };
 

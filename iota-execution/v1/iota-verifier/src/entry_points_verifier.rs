@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{
@@ -6,14 +7,14 @@ use move_binary_format::{
     CompiledModule,
 };
 use move_bytecode_utils::format_signature_token;
-use sui_types::{
+use iota_types::{
     base_types::{TxContext, TxContextKind, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME},
     clock::Clock,
     error::ExecutionError,
     is_object, is_object_vector, is_primitive,
     move_package::{is_test_fun, FnInfoMap},
     transfer::Receiving,
-    SUI_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS,
 };
 
 use crate::{verification_failure, INIT_FN_NAME};
@@ -157,7 +158,7 @@ fn verify_init_function(module: &CompiledModule, fdef: &FunctionDefinition) -> R
             but found {5}",
             module.self_id(),
             INIT_FN_NAME,
-            SUI_FRAMEWORK_ADDRESS,
+            IOTA_FRAMEWORK_ADDRESS,
             TX_CONTEXT_MODULE_NAME,
             TX_CONTEXT_STRUCT_NAME,
             format_signature_token(module, &parameters[0]),
@@ -219,7 +220,7 @@ fn verify_param_type(
     function_type_args: &[AbilitySet],
     param: &SignatureToken,
 ) -> Result<(), String> {
-    // Only `sui::sui_system` is allowed to expose entry functions that accept a mutable clock
+    // Only `iota::iota_system` is allowed to expose entry functions that accept a mutable clock
     // parameter.
     if Clock::is_mutable(view, param) {
         return Err(format!(

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::db::ConnectionPoolConfig;
@@ -7,8 +8,8 @@ use clap::{Args, Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 use strum::IntoEnumIterator;
-use sui_json_rpc::name_service::NameServiceConfig;
-use sui_types::base_types::{ObjectID, SuiAddress};
+use iota_json_rpc::name_service::NameServiceConfig;
+use iota_types::base_types::{ObjectID, IotaAddress};
 use url::Url;
 
 /// The primary purpose of objects_history is to serve consistency query.
@@ -17,8 +18,8 @@ const OBJECTS_HISTORY_EPOCHS_TO_KEEP: u64 = 2;
 
 #[derive(Parser, Clone, Debug)]
 #[clap(
-    name = "Sui indexer",
-    about = "An off-fullnode service serving data from Sui protocol"
+    name = "Iota indexer",
+    about = "An off-fullnode service serving data from Iota protocol"
 )]
 pub struct IndexerConfig {
     #[clap(long, alias = "db-url")]
@@ -38,7 +39,7 @@ pub struct IndexerConfig {
 pub struct NameServiceOptions {
     #[arg(default_value_t = NameServiceConfig::default().package_address)]
     #[arg(long = "name-service-package-address")]
-    pub package_address: SuiAddress,
+    pub package_address: IotaAddress,
     #[arg(default_value_t = NameServiceConfig::default().registry_id)]
     #[arg(long = "name-service-registry-id")]
     pub registry_id: ObjectID,
@@ -395,11 +396,11 @@ impl Default for RestoreConfig {
     fn default() -> Self {
         Self {
             start_epoch: 0, // not used b/c it's required
-            snapshot_endpoint: "https://formal-snapshot.mainnet.sui.io".to_string(),
-            snapshot_bucket: "mysten-mainnet-formal".to_string(),
+            snapshot_endpoint: "https://formal-snapshot.mainnet.iota.io".to_string(),
+            snapshot_bucket: "iota-mainnet-formal".to_string(),
             snapshot_download_dir: "".to_string(), // not used b/c it's required
-            gcs_archive_bucket: "mysten-mainnet-archives".to_string(),
-            gcs_display_bucket: "mysten-mainnet-display-table".to_string(),
+            gcs_archive_bucket: "iota-mainnet-archives".to_string(),
+            gcs_display_bucket: "iota-mainnet-display-table".to_string(),
             object_store_concurrent_limit: 50,
             object_store_max_timeout_secs: 512,
         }

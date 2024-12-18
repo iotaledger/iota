@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Similar to `sui::dynamic_field`, this module allows for the access of dynamic fields. But
-/// unlike, `sui::dynamic_field` the values bound to these dynamic fields _must_ be objects
+/// Similar to `iota::dynamic_field`, this module allows for the access of dynamic fields. But
+/// unlike, `iota::dynamic_field` the values bound to these dynamic fields _must_ be objects
 /// themselves. This allows for the objects to still exist within in storage, which may be important
 /// for external tools. The difference is otherwise not observable from within Move.
-module sui::dynamic_object_field;
+module iota::dynamic_object_field;
 
-use sui::dynamic_field::{
+use iota::dynamic_field::{
     Self as field,
     add_child_object,
     borrow_child_object,

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type PermissionType } from '_src/shared/messaging/messages/payloads/permissions';
 import { getValidDAppUrl } from '_src/shared/utils';
-import { CheckFill16 } from '@mysten/icons';
+import { CheckFill16 } from '@iota/icons';
 import cn from 'clsx';
 
 import { useAccountByAddress } from '../hooks/useAccountByAddress';

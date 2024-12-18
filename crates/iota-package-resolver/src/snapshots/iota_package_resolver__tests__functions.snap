@@ -1,5 +1,5 @@
 ---
-source: crates/sui-package-resolver/src/lib.rs
+source: crates/iota-package-resolver/src/lib.rs
 expression: "format!(\"c0::m::foo: {foo:#?}\\n\\\n             c0::m::bar: {bar:#?}\\n\\\n             c0::m::baz: {baz:#?}\")"
 ---
 c0::m::foo: FunctionDef {

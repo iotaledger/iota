@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// A simple NFT that can be airdropped to users without a value and converted to a random metal NFT.
@@ -6,7 +7,7 @@
 module random_nft::example;
 
 use std::string;
-use sui::{object::delete, random::{Random, new_generator}};
+use iota::{object::delete, random::{Random, new_generator}};
 
 const EInvalidParams: u64 = 0;
 

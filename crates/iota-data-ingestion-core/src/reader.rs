@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::create_remote_store_client;
@@ -6,7 +7,7 @@ use crate::executor::MAX_CHECKPOINTS_IN_PROGRESS;
 use anyhow::Result;
 use backoff::backoff::Backoff;
 use futures::StreamExt;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 #[cfg(not(target_os = "macos"))]
 use notify::{RecommendedWatcher, RecursiveMode};
 use object_store::path::Path;
@@ -16,10 +17,10 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{collections::BTreeMap, sync::Arc};
-use sui_rpc_api::Client;
-use sui_storage::blob::Blob;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_rpc_api::Client;
+use iota_storage::blob::Blob;
+use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::pipe::Pipe;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -71,8 +72,8 @@ impl Default for ReaderOptions {
 
 enum RemoteStore {
     ObjectStore(Box<dyn ObjectStore>),
-    Rest(sui_rpc_api::Client),
-    Hybrid(Box<dyn ObjectStore>, sui_rpc_api::Client),
+    Rest(iota_rpc_api::Client),
+    Hybrid(Box<dyn ObjectStore>, iota_rpc_api::Client),
 }
 
 impl CheckpointReader {
@@ -187,9 +188,9 @@ impl CheckpointReader {
                 self.options.timeout_secs,
             )
             .expect("failed to create remote store client");
-            RemoteStore::Hybrid(object_store, sui_rpc_api::Client::new(fn_url).unwrap())
+            RemoteStore::Hybrid(object_store, iota_rpc_api::Client::new(fn_url).unwrap())
         } else if url.ends_with("/rest") {
-            RemoteStore::Rest(sui_rpc_api::Client::new(url).unwrap())
+            RemoteStore::Rest(iota_rpc_api::Client::new(url).unwrap())
         } else {
             let object_store = create_remote_store_client(
                 url,

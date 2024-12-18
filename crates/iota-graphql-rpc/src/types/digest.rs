@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::string_input::impl_string_input;
 use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
 use std::{fmt, str::FromStr};
-use sui_types::digests::{ObjectDigest, TransactionDigest};
+use iota_types::digests::{ObjectDigest, TransactionDigest};
 
 pub(crate) const BASE58_DIGEST_LENGTH: usize = 32;
 

@@ -1,5 +1,6 @@
 #!/bin/sh
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # fast fail.
@@ -21,7 +22,7 @@ else
 fi
 
 echo
-echo "Building sui-node docker image"
+echo "Building iota-node docker image"
 echo "Dockerfile: \t$DOCKERFILE"
 echo "docker context: $REPO_ROOT"
 echo "build date: \t$BUILD_DATE"

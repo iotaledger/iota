@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod codes;
@@ -832,9 +833,9 @@ macro_rules! diag {
 
 pub const ICE_BUG_REPORT_MESSAGE: &str =
     "The Move compiler has encountered an internal compiler error.\n \
-    Please report this this issue to the Mysten Labs Move language team,\n \
-    including this error and any relevant code, to the Mysten Labs issue tracker\n \
-    at : https://github.com/MystenLabs/sui/issues";
+    Please report this this issue to the IOTA Foundation Move language team,\n \
+    including this error and any relevant code, to the IOTA Foundation issue tracker\n \
+    at : https://github.com/iotaledger/iota/issues";
 
 #[macro_export]
 macro_rules! ice {

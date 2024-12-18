@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { API_ENV_TO_INFO } from '_app/ApiProvider';
@@ -9,8 +10,8 @@ import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLoc
 import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { Link } from '_src/ui/app/shared/Link';
 import { Text } from '_src/ui/app/shared/text';
-import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@mysten/icons';
-import SvgAccount24 from '@mysten/icons/src/Account24';
+import { ArrowUpRight12, Clipboard24, Domain24, LockLocked24, More24 } from '@iota/icons';
+import SvgAccount24 from '@iota/icons/src/Account24';
 import Browser from 'webextension-polyfill';
 
 import Loading from '../../loading';
@@ -64,7 +65,7 @@ function MenuList() {
 					weight="semibold"
 				/>
 				<Text variant="bodySmall" weight="medium" color="steel">
-					On Sui Wallet version v{version}
+					On Iota Wallet version v{version}
 				</Text>
 			</div>
 		</MenuLayout>

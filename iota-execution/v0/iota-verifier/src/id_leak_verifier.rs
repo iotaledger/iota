@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Objects whose struct type has key ability represent Sui objects.
+//! Objects whose struct type has key ability represent Iota objects.
 //! They have unique IDs that should never be reused. This verifier makes
-//! sure that the id field of Sui objects never get leaked.
+//! sure that the id field of Iota objects never get leaked.
 //! Unpack is the only bytecode that could extract the id field out of
-//! a Sui object. From there, we track the flow of the value and make
+//! a Iota object. From there, we track the flow of the value and make
 //! sure it can never get leaked outside of the function. There are four
 //! ways it can happen:
 //! 1. Returned
@@ -28,16 +29,16 @@ use move_core_types::{
     account_address::AccountAddress, ident_str, identifier::IdentStr, vm_status::StatusCode,
 };
 use std::{collections::BTreeMap, error::Error, num::NonZeroU64};
-use sui_types::{
+use iota_types::{
     clock::CLOCK_MODULE_NAME,
     error::{ExecutionError, VMMVerifierErrorSubStatusCode},
     id::OBJECT_MODULE_NAME,
-    sui_system_state::SUI_SYSTEM_MODULE_NAME,
-    SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_ADDRESS,
+    iota_system_state::IOTA_SYSTEM_MODULE_NAME,
+    IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS,
 };
 
 #[cfg(msim)]
-use sui_types::{
+use iota_types::{
     authenticator_state::AUTHENTICATOR_STATE_MODULE_NAME, coin::COIN_MODULE_NAME,
     randomness_state::RANDOMNESS_MODULE_NAME,
 };
@@ -58,27 +59,27 @@ enum AbstractValue {
 
 type FunctionIdent<'a> = (&'a AccountAddress, &'a IdentStr, &'a IdentStr);
 const OBJECT_NEW: FunctionIdent = (
-    &SUI_FRAMEWORK_ADDRESS,
+    &IOTA_FRAMEWORK_ADDRESS,
     OBJECT_MODULE_NAME,
     ident_str!("new"),
 );
 const OBJECT_NEW_UID_FROM_HASH: FunctionIdent = (
-    &SUI_FRAMEWORK_ADDRESS,
+    &IOTA_FRAMEWORK_ADDRESS,
     OBJECT_MODULE_NAME,
     ident_str!("new_uid_from_hash"),
 );
 const TS_NEW_OBJECT: FunctionIdent = (
-    &SUI_FRAMEWORK_ADDRESS,
+    &IOTA_FRAMEWORK_ADDRESS,
     ident_str!(TEST_SCENARIO_MODULE_NAME),
     ident_str!("new_object"),
 );
-const SUI_SYSTEM_CREATE: FunctionIdent = (
-    &SUI_SYSTEM_ADDRESS,
-    SUI_SYSTEM_MODULE_NAME,
+const IOTA_SYSTEM_CREATE: FunctionIdent = (
+    &IOTA_SYSTEM_ADDRESS,
+    IOTA_SYSTEM_MODULE_NAME,
     ident_str!("create"),
 );
-const SUI_CLOCK_CREATE: FunctionIdent = (
-    &SUI_FRAMEWORK_ADDRESS,
+const IOTA_CLOCK_CREATE: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
     CLOCK_MODULE_NAME,
     ident_str!("create"),
 );
@@ -88,35 +89,35 @@ const SUI_CLOCK_CREATE: FunctionIdent = (
 // to handle this case. Since that test only runs in the simulator we can special case it with
 // cfg(msim) so that we don't risk breaking release builds.
 #[cfg(msim)]
-const SUI_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
-    &SUI_FRAMEWORK_ADDRESS,
+const IOTA_AUTHENTICATOR_STATE_CREATE: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
     AUTHENTICATOR_STATE_MODULE_NAME,
     ident_str!("create"),
 );
 #[cfg(msim)]
-const SUI_RANDOMNESS_STATE_CREATE: FunctionIdent = (
-    &SUI_FRAMEWORK_ADDRESS,
+const IOTA_RANDOMNESS_STATE_CREATE: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
     RANDOMNESS_MODULE_NAME,
     ident_str!("create"),
 );
 #[cfg(msim)]
-const SUI_DENY_LIST_OBJECT_CREATE: FunctionIdent = (
-    &SUI_FRAMEWORK_ADDRESS,
+const IOTA_DENY_LIST_OBJECT_CREATE: FunctionIdent = (
+    &IOTA_FRAMEWORK_ADDRESS,
     COIN_MODULE_NAME,
     ident_str!("create_deny_list_object"),
 );
 
 const FRESH_ID_FUNCTIONS: &[FunctionIdent] = &[OBJECT_NEW, OBJECT_NEW_UID_FROM_HASH, TS_NEW_OBJECT];
 #[cfg(not(msim))]
-const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[SUI_SYSTEM_CREATE, SUI_CLOCK_CREATE];
+const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[IOTA_SYSTEM_CREATE, IOTA_CLOCK_CREATE];
 
 #[cfg(msim)]
 const FUNCTIONS_TO_SKIP: &[FunctionIdent] = &[
-    SUI_SYSTEM_CREATE,
-    SUI_CLOCK_CREATE,
-    SUI_AUTHENTICATOR_STATE_CREATE,
-    SUI_RANDOMNESS_STATE_CREATE,
-    SUI_DENY_LIST_OBJECT_CREATE,
+    IOTA_SYSTEM_CREATE,
+    IOTA_CLOCK_CREATE,
+    IOTA_AUTHENTICATOR_STATE_CREATE,
+    IOTA_RANDOMNESS_STATE_CREATE,
+    IOTA_DENY_LIST_OBJECT_CREATE,
 ];
 
 impl AbstractValue {
@@ -366,8 +367,8 @@ fn pack(
         let msg = format!(
             "Invalid object creation in {cur_package}::{cur_module}::{cur_function}. \
                 Object created without a newly created UID. \
-                The UID must come directly from sui::{}::{}. \
-                Or for tests, it can come from sui::{}::{}",
+                The UID must come directly from iota::{}::{}. \
+                Or for tests, it can come from iota::{}::{}",
             OBJECT_NEW.1, OBJECT_NEW.2, TS_NEW_OBJECT.1, TS_NEW_OBJECT.2,
         );
 

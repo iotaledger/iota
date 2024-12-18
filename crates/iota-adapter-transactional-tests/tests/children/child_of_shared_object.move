@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses t1=0x0 t2=0x0 t3=0x0 --accounts A
@@ -39,7 +40,7 @@ module t2::o2 {
 
     fun new(child: Obj3, ctx: &mut TxContext): Obj2 {
         let mut id = object::new(ctx);
-        sui::dynamic_object_field::add(&mut id, 0, child);
+        iota::dynamic_object_field::add(&mut id, 0, child);
         Obj2 { id }
     }
 }
@@ -66,7 +67,7 @@ module t1::o1 {
 
     fun new(child: Obj2, ctx: &mut TxContext): Obj1 {
         let mut id = object::new(ctx);
-        sui::dynamic_object_field::add(&mut id, 0, child);
+        iota::dynamic_object_field::add(&mut id, 0, child);
         Obj1 { id }
     }
 }

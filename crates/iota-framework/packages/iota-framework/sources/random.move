@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// This module provides functionality for generating secure randomness.
-module sui::random;
+module iota::random;
 
 use std::bcs;
-use sui::hmac::hmac_sha3_256;
-use sui::versioned::{Self, Versioned};
+use iota::hmac::hmac_sha3_256;
+use iota::versioned::{Self, Versioned};
 
 // Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 0;
@@ -139,7 +140,7 @@ public struct RandomGenerator has drop {
 /// Using randomness can be error-prone if you don't observe the subtleties in its correct use, for example, randomness
 /// dependent code might be exploitable to attacks that carefully set the gas budget
 /// in a way that breaks security. For more information, see:
-/// https://docs.sui.io/guides/developer/advanced/randomness-onchain
+/// https://docs.iota.org/guides/developer/advanced/randomness-onchain
 public fun new_generator(r: &Random, ctx: &mut TxContext): RandomGenerator {
     let inner = load_inner(r);
     let seed = hmac_sha3_256(

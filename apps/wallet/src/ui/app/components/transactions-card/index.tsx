@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { DateCard } from '_app/shared/date-card';
 import { Text } from '_app/shared/text';
 import { useGetTxnRecipientAddress } from '_hooks';
 import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
-import { getLabel, useTransactionSummary } from '@mysten/core';
-import type { SuiTransactionBlockResponse } from '@mysten/sui/client';
+import { getLabel, useTransactionSummary } from '@iota/core';
+import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
 
 import { TxnTypeLabel } from './TxnActionLabel';
@@ -16,7 +17,7 @@ export function TransactionCard({
 	txn,
 	address,
 }: {
-	txn: SuiTransactionBlockResponse;
+	txn: IotaTransactionBlockResponse;
 	address: string;
 }) {
 	const executionStatus = txn.effects?.status.status;
@@ -28,7 +29,7 @@ export function TransactionCard({
 		recognizedPackagesList,
 	});
 
-	// we only show Sui Transfer amount or the first non-Sui transfer amount
+	// we only show Iota Transfer amount or the first non-Iota transfer amount
 
 	const recipientAddress = useGetTxnRecipientAddress({ txn, address });
 
@@ -42,8 +43,8 @@ export function TransactionCard({
 	// For other transaction show Sent or Received
 
 	// TODO: Support programmable tx:
-	// Show sui symbol only if transfer transferAmount coinType is SUI_TYPE_ARG, staking or unstaking
-	const showSuiSymbol = false;
+	// Show iota symbol only if transfer transferAmount coinType is IOTA_TYPE_ARG, staking or unstaking
+	const showIotaSymbol = false;
 
 	const timestamp = txn.timestampMs;
 
@@ -86,9 +87,9 @@ export function TransactionCard({
 									<Text color="gray-90" weight="semibold">
 										{summary?.label}
 									</Text>
-									{showSuiSymbol && (
+									{showIotaSymbol && (
 										<Text color="gray-90" weight="normal" variant="subtitleSmall">
-											SUI
+											IOTA
 										</Text>
 									)}
 								</div>

@@ -20,8 +20,8 @@ task 3, line 55:
 Owner: Account Address ( A )
 Version: 2
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -44,8 +44,8 @@ task 6, lines 61-65:
 Owner: Account Address ( A )
 Version: 4
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -62,8 +62,8 @@ task 8, line 69:
 Owner: Account Address ( A )
 Version: 5
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(7,0),
         },
     },
@@ -85,8 +85,8 @@ task 11, lines 75-79:
 Owner: Account Address ( A )
 Version: 7
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(7,0),
         },
     },
@@ -103,8 +103,8 @@ task 13, line 83:
 Owner: Account Address ( A )
 Version: 8
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(12,0),
         },
     },
@@ -128,8 +128,8 @@ task 16, line 89:
 Owner: Account Address ( A )
 Version: 10
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(12,0),
         },
     },

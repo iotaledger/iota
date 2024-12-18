@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Tests that overload monitor only starts on validators.
@@ -7,8 +8,8 @@ mod simtests {
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
     use std::sync::Arc;
-    use sui_macros::register_fail_point;
-    use sui_macros::sim_test;
+    use iota_macros::register_fail_point;
+    use iota_macros::sim_test;
     use test_cluster::TestClusterBuilder;
 
     #[sim_test]

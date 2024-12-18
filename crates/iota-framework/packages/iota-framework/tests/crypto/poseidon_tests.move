@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::poseidon_tests {
-    use sui::poseidon::poseidon_bn254;
+module iota::poseidon_tests {
+    use iota::poseidon::poseidon_bn254;
 
     #[test]
     fun test_poseidon_bn254_hash() {
@@ -49,7 +50,7 @@ module sui::poseidon_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::poseidon::ENonCanonicalInput)]
+    #[expected_failure(abort_code = iota::poseidon::ENonCanonicalInput)]
     fun test_poseidon_bn254_non_canonical_input() {
         // Scalar field size.
         let msg = vector[21888242871839275222246405745257275088548364400416034343698204186575808495617u256];
@@ -57,7 +58,7 @@ module sui::poseidon_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::poseidon::EEmptyInput)]
+    #[expected_failure(abort_code = iota::poseidon::EEmptyInput)]
     fun test_poseidon_bn254_empty_input() {
         let msg = vector[];
         poseidon_bn254(&msg);

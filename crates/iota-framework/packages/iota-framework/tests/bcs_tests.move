@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::bcs_tests {
-    use sui::bcs::{Self, BCS, to_bytes, new};
+module iota::bcs_tests {
+    use iota::bcs::{Self, BCS, to_bytes, new};
     use std::unit_test::assert_eq;
 
     const U8_MAX: u8 = 0xFF;

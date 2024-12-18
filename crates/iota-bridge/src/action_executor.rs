@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! BridgeActionExecutor receives BridgeActions (from BridgeOrchestrator),
@@ -7,16 +8,16 @@
 use crate::retry_with_max_elapsed_time;
 use crate::types::IsBridgePaused;
 use arc_swap::ArcSwap;
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
 use shared_crypto::intent::{Intent, IntentMessage};
-use sui_json_rpc_types::{
-    SuiExecutionStatus, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse,
+use iota_json_rpc_types::{
+    IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
 };
-use sui_types::transaction::ObjectArg;
-use sui_types::TypeTag;
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
-    crypto::{Signature, SuiKeyPair},
+use iota_types::transaction::ObjectArg;
+use iota_types::TypeTag;
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, IotaAddress},
+    crypto::{Signature, IotaKeyPair},
     digests::TransactionDigest,
     gas_coin::GasCoin,
     object::Owner,
@@ -32,8 +33,8 @@ use crate::{
     client::bridge_authority_aggregator::BridgeAuthorityAggregator,
     error::BridgeError,
     storage::BridgeOrchestratorTables,
-    sui_client::{SuiClient, SuiClientInner},
-    sui_transaction_builder::build_sui_transaction,
+    iota_client::{IotaClient, IotaClientInner},
+    iota_transaction_builder::build_iota_transaction,
     types::{BridgeAction, BridgeActionStatus, VerifiedCertifiedBridgeAction},
 };
 use std::collections::HashMap;
@@ -66,32 +67,32 @@ pub trait BridgeActionExecutorTrait {
         self,
     ) -> (
         Vec<tokio::task::JoinHandle<()>>,
-        mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
     );
 }
 
 pub struct BridgeActionExecutor<C> {
-    sui_client: Arc<SuiClient<C>>,
+    iota_client: Arc<IotaClient<C>>,
     bridge_auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
-    key: SuiKeyPair,
-    sui_address: SuiAddress,
+    key: IotaKeyPair,
+    iota_address: IotaAddress,
     gas_object_id: ObjectID,
     store: Arc<BridgeOrchestratorTables>,
     bridge_object_arg: ObjectArg,
-    sui_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
+    iota_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
     bridge_pause_rx: tokio::sync::watch::Receiver<IsBridgePaused>,
     metrics: Arc<BridgeMetrics>,
 }
 
 impl<C> BridgeActionExecutorTrait for BridgeActionExecutor<C>
 where
-    C: SuiClientInner + 'static,
+    C: IotaClientInner + 'static,
 {
     fn run(
         self,
     ) -> (
         Vec<tokio::task::JoinHandle<()>>,
-        mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
     ) {
         let (tasks, sender, _) = self.run_inner();
         (tasks, sender)
@@ -100,31 +101,31 @@ where
 
 impl<C> BridgeActionExecutor<C>
 where
-    C: SuiClientInner + 'static,
+    C: IotaClientInner + 'static,
 {
     pub async fn new(
-        sui_client: Arc<SuiClient<C>>,
+        iota_client: Arc<IotaClient<C>>,
         bridge_auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         store: Arc<BridgeOrchestratorTables>,
-        key: SuiKeyPair,
-        sui_address: SuiAddress,
+        key: IotaKeyPair,
+        iota_address: IotaAddress,
         gas_object_id: ObjectID,
-        sui_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
+        iota_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
         bridge_pause_rx: tokio::sync::watch::Receiver<IsBridgePaused>,
         metrics: Arc<BridgeMetrics>,
     ) -> Self {
-        let bridge_object_arg = sui_client
+        let bridge_object_arg = iota_client
             .get_mutable_bridge_object_arg_must_succeed()
             .await;
         Self {
-            sui_client,
+            iota_client,
             bridge_auth_agg,
             store,
             key,
             gas_object_id,
-            sui_address,
+            iota_address,
             bridge_object_arg,
-            sui_token_type_tags,
+            iota_token_type_tags,
             bridge_pause_rx,
             metrics,
         }
@@ -134,22 +135,22 @@ where
         self,
     ) -> (
         Vec<tokio::task::JoinHandle<()>>,
-        mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mysten_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
+        iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        iota_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
     ) {
         let key = self.key;
 
-        let (sender, receiver) = mysten_metrics::metered_channel::channel(
+        let (sender, receiver) = iota_metrics::metered_channel::channel(
             CHANNEL_SIZE,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["executor_signing_queue"]),
         );
 
-        let (execution_tx, execution_rx) = mysten_metrics::metered_channel::channel(
+        let (execution_tx, execution_rx) = iota_metrics::metered_channel::channel(
             CHANNEL_SIZE,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["executor_execution_queue"]),
@@ -157,7 +158,7 @@ where
         let execution_tx_clone = execution_tx.clone();
         let sender_clone = sender.clone();
         let store_clone = self.store.clone();
-        let client_clone = self.sui_client.clone();
+        let client_clone = self.iota_client.clone();
         let mut tasks = vec![];
         let metrics = self.metrics.clone();
         tasks.push(spawn_logged_monitored_task!(
@@ -176,15 +177,15 @@ where
         let execution_tx_clone = execution_tx.clone();
         tasks.push(spawn_logged_monitored_task!(
             Self::run_onchain_execution_loop(
-                self.sui_client.clone(),
+                self.iota_client.clone(),
                 key,
-                self.sui_address,
+                self.iota_address,
                 self.gas_object_id,
                 self.store.clone(),
                 execution_tx_clone,
                 execution_rx,
                 self.bridge_object_arg,
-                self.sui_token_type_tags,
+                self.iota_token_type_tags,
                 self.bridge_pause_rx,
                 metrics,
             )
@@ -193,14 +194,14 @@ where
     }
 
     async fn run_signature_aggregation_loop(
-        sui_client: Arc<SuiClient<C>>,
+        iota_client: Arc<IotaClient<C>>,
         auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         store: Arc<BridgeOrchestratorTables>,
-        signing_queue_sender: mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mut signing_queue_receiver: mysten_metrics::metered_channel::Receiver<
+        signing_queue_sender: iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        mut signing_queue_receiver: iota_metrics::metered_channel::Receiver<
             BridgeActionExecutionWrapper,
         >,
-        execution_queue_sender: mysten_metrics::metered_channel::Sender<
+        execution_queue_sender: iota_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
         metrics: Arc<BridgeMetrics>,
@@ -213,7 +214,7 @@ where
                 &auth_agg,
                 &signing_queue_sender,
                 &execution_queue_sender,
-                &sui_client,
+                &iota_client,
                 &store,
                 action,
                 &metrics,
@@ -222,9 +223,9 @@ where
         }
     }
 
-    async fn should_proceed_signing(sui_client: &Arc<SuiClient<C>>) -> bool {
+    async fn should_proceed_signing(iota_client: &Arc<IotaClient<C>>) -> bool {
         let Ok(Ok(is_paused)) =
-            retry_with_max_elapsed_time!(sui_client.is_bridge_paused(), Duration::from_secs(600))
+            retry_with_max_elapsed_time!(iota_client.is_bridge_paused(), Duration::from_secs(600))
         else {
             error!("Failed to get bridge status after retry");
             return false;
@@ -236,13 +237,13 @@ where
     async fn handle_signing_task(
         semaphore: &Arc<Semaphore>,
         auth_agg: &Arc<ArcSwap<BridgeAuthorityAggregator>>,
-        signing_queue_sender: &mysten_metrics::metered_channel::Sender<
+        signing_queue_sender: &iota_metrics::metered_channel::Sender<
             BridgeActionExecutionWrapper,
         >,
-        execution_queue_sender: &mysten_metrics::metered_channel::Sender<
+        execution_queue_sender: &iota_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
-        sui_client: &Arc<SuiClient<C>>,
+        iota_client: &Arc<IotaClient<C>>,
         store: &Arc<BridgeOrchestratorTables>,
         action: BridgeActionExecutionWrapper,
         metrics: &Arc<BridgeMetrics>,
@@ -255,7 +256,7 @@ where
         // but the way is implemented is not ideal:
         // 1. it should check the direction
         // 2. should use a better mechanism to check the bridge status instead of polling for each action
-        let should_proceed = Self::should_proceed_signing(sui_client).await;
+        let should_proceed = Self::should_proceed_signing(iota_client).await;
         if !should_proceed {
             metrics.action_executor_signing_queue_skipped_actions.inc();
             warn!("skipping signing task: {:?}", action_key);
@@ -265,14 +266,14 @@ where
         let auth_agg_clone = auth_agg.clone();
         let signing_queue_sender_clone = signing_queue_sender.clone();
         let execution_queue_sender_clone = execution_queue_sender.clone();
-        let sui_client_clone = sui_client.clone();
+        let iota_client_clone = iota_client.clone();
         let store_clone = store.clone();
         let metrics_clone = metrics.clone();
         let semaphore_clone = semaphore.clone();
         spawn_logged_monitored_task!(
             Self::request_signatures(
                 semaphore_clone,
-                sui_client_clone,
+                iota_client_clone,
                 auth_agg_clone,
                 action,
                 store_clone,
@@ -289,12 +290,12 @@ where
     // If yes, skip this action and remove it from the pending log.
     // Returns true if the action is already processed.
     async fn handle_already_processed_token_transfer_action_maybe(
-        sui_client: &Arc<SuiClient<C>>,
+        iota_client: &Arc<IotaClient<C>>,
         action: &BridgeAction,
         store: &Arc<BridgeOrchestratorTables>,
         metrics: &Arc<BridgeMetrics>,
     ) -> bool {
-        let status = sui_client
+        let status = iota_client
             .get_token_transfer_action_onchain_status_until_success(
                 action.chain_id() as u8,
                 action.seq_number(),
@@ -314,7 +315,7 @@ where
                     });
                 true
             }
-            // Although theoretically a legit SuiToEthBridgeAction should not have
+            // Although theoretically a legit IotaToEthBridgeAction should not have
             // status `NotFound`
             BridgeActionStatus::Pending | BridgeActionStatus::NotFound => false,
         }
@@ -324,12 +325,12 @@ where
     // for various validators.
     async fn request_signatures(
         semaphore: Arc<Semaphore>,
-        sui_client: Arc<SuiClient<C>>,
+        iota_client: Arc<IotaClient<C>>,
         auth_agg: Arc<ArcSwap<BridgeAuthorityAggregator>>,
         action: BridgeActionExecutionWrapper,
         store: Arc<BridgeOrchestratorTables>,
-        signing_queue_sender: mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        execution_queue_sender: mysten_metrics::metered_channel::Sender<
+        signing_queue_sender: iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        execution_queue_sender: iota_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
         metrics: Arc<BridgeMetrics>,
@@ -343,13 +344,13 @@ where
 
         // Only token transfer action should reach here
         match &action {
-            BridgeAction::SuiToEthBridgeAction(_) | BridgeAction::EthToSuiBridgeAction(_) => (),
+            BridgeAction::IotaToEthBridgeAction(_) | BridgeAction::EthToIotaBridgeAction(_) => (),
             _ => unreachable!("Non token transfer action should not reach here"),
         };
 
         // If the action is already processed, skip it.
         if Self::handle_already_processed_token_transfer_action_maybe(
-            &sui_client,
+            &iota_client,
             &action,
             &store,
             &metrics,
@@ -393,22 +394,22 @@ where
         }
     }
 
-    // Before calling this function, `key` and `sui_address` need to be
+    // Before calling this function, `key` and `iota_address` need to be
     // verified to match.
     async fn run_onchain_execution_loop(
-        sui_client: Arc<SuiClient<C>>,
-        sui_key: SuiKeyPair,
-        sui_address: SuiAddress,
+        iota_client: Arc<IotaClient<C>>,
+        iota_key: IotaKeyPair,
+        iota_address: IotaAddress,
         gas_object_id: ObjectID,
         store: Arc<BridgeOrchestratorTables>,
-        execution_queue_sender: mysten_metrics::metered_channel::Sender<
+        execution_queue_sender: iota_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
-        mut execution_queue_receiver: mysten_metrics::metered_channel::Receiver<
+        mut execution_queue_receiver: iota_metrics::metered_channel::Receiver<
             CertifiedBridgeActionExecutionWrapper,
         >,
         bridge_object_arg: ObjectArg,
-        sui_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
+        iota_token_type_tags: Arc<ArcSwap<HashMap<u8, TypeTag>>>,
         bridge_pause_rx: tokio::sync::watch::Receiver<IsBridgePaused>,
         metrics: Arc<BridgeMetrics>,
     ) {
@@ -426,14 +427,14 @@ where
             }
             Self::handle_execution_task(
                 certificate_wrapper,
-                &sui_client,
-                &sui_key,
-                &sui_address,
+                &iota_client,
+                &iota_key,
+                &iota_address,
                 gas_object_id,
                 &store,
                 &execution_queue_sender,
                 &bridge_object_arg,
-                &sui_token_type_tags,
+                &iota_token_type_tags,
                 &metrics,
             )
             .await;
@@ -444,16 +445,16 @@ where
     #[instrument(level = "error", skip_all, fields(action_key=?certificate_wrapper.0.data().key(), attempt_times=?certificate_wrapper.1))]
     async fn handle_execution_task(
         certificate_wrapper: CertifiedBridgeActionExecutionWrapper,
-        sui_client: &Arc<SuiClient<C>>,
-        sui_key: &SuiKeyPair,
-        sui_address: &SuiAddress,
+        iota_client: &Arc<IotaClient<C>>,
+        iota_key: &IotaKeyPair,
+        iota_address: &IotaAddress,
         gas_object_id: ObjectID,
         store: &Arc<BridgeOrchestratorTables>,
-        execution_queue_sender: &mysten_metrics::metered_channel::Sender<
+        execution_queue_sender: &iota_metrics::metered_channel::Sender<
             CertifiedBridgeActionExecutionWrapper,
         >,
         bridge_object_arg: &ObjectArg,
-        sui_token_type_tags: &ArcSwap<HashMap<u8, TypeTag>>,
+        iota_token_type_tags: &ArcSwap<HashMap<u8, TypeTag>>,
         metrics: &Arc<BridgeMetrics>,
     ) {
         metrics
@@ -467,14 +468,14 @@ where
 
         // TODO check gas coin balance here. If gas balance too low, do not proceed.
         let (gas_coin, gas_object_ref) =
-            Self::get_gas_data_assert_ownership(*sui_address, gas_object_id, sui_client).await;
+            Self::get_gas_data_assert_ownership(*iota_address, gas_object_id, iota_client).await;
         metrics.gas_coin_balance.set(gas_coin.value() as i64);
 
         let ceriticate_clone = certificate.clone();
 
         // Check once: if the action is already processed, skip it.
         if Self::handle_already_processed_token_transfer_action_maybe(
-            sui_client, action, store, metrics,
+            iota_client, action, store, metrics,
         )
         .await
         {
@@ -482,19 +483,19 @@ where
             return;
         }
 
-        info!("Building Sui transaction");
-        let rgp = sui_client.get_reference_gas_price_until_success().await;
-        let tx_data = match build_sui_transaction(
-            *sui_address,
+        info!("Building Iota transaction");
+        let rgp = iota_client.get_reference_gas_price_until_success().await;
+        let tx_data = match build_iota_transaction(
+            *iota_address,
             &gas_object_ref,
             ceriticate_clone,
             *bridge_object_arg,
-            sui_token_type_tags.load().as_ref(),
+            iota_token_type_tags.load().as_ref(),
             rgp,
         ) {
             Ok(tx_data) => tx_data,
             Err(err) => {
-                metrics.err_build_sui_transaction.inc();
+                metrics.err_build_iota_transaction.inc();
                 error!(
                     "Manual intervention is required. Failed to build transaction for action {:?}: {:?}",
                     action, err
@@ -505,15 +506,15 @@ where
             }
         };
         let sig = Signature::new_secure(
-            &IntentMessage::new(Intent::sui_transaction(), &tx_data),
-            sui_key,
+            &IntentMessage::new(Intent::iota_transaction(), &tx_data),
+            iota_key,
         );
         let signed_tx = Transaction::from_data(tx_data, vec![sig]);
         let tx_digest = *signed_tx.digest();
 
         // Check twice: If the action is already processed, skip it.
         if Self::handle_already_processed_token_transfer_action_maybe(
-            sui_client, action, store, metrics,
+            iota_client, action, store, metrics,
         )
         .await
         {
@@ -521,8 +522,8 @@ where
             return;
         }
 
-        info!(?tx_digest, ?gas_object_ref, "Sending transaction to Sui");
-        match sui_client
+        info!(?tx_digest, ?gas_object_ref, "Sending transaction to Iota");
+        match iota_client
             .execute_transaction_block_with_effects(signed_tx)
             .await
         {
@@ -535,9 +536,9 @@ where
                 error!(
                     ?action_key,
                     ?tx_digest,
-                    "Sui transaction failed at signing: {err:?}"
+                    "Iota transaction failed at signing: {err:?}"
                 );
-                metrics.err_sui_transaction_submission.inc();
+                metrics.err_iota_transaction_submission.inc();
                 let metrics_clone = metrics.clone();
                 // Do this in a separate task so we won't deadlock here
                 let sender_clone = execution_queue_sender.clone();
@@ -545,7 +546,7 @@ where
                     // If it fails for too many times, log and ask for manual intervention.
                     if attempt_times >= MAX_EXECUTION_ATTEMPTS {
                         metrics_clone
-                            .err_sui_transaction_submission_too_many_failures
+                            .err_iota_transaction_submission_too_many_failures
                             .inc();
                         error!("Manual intervention is required. Failed to collect execute transaction for bridge action after {MAX_EXECUTION_ATTEMPTS} attempts: {:?}", err);
                         return;
@@ -569,7 +570,7 @@ where
     // TODO: do we need a mechanism to periodically read pending actions from DB?
     async fn handle_execution_effects(
         tx_digest: TransactionDigest,
-        response: SuiTransactionBlockResponse,
+        response: IotaTransactionBlockResponse,
         store: &Arc<BridgeOrchestratorTables>,
         action: &BridgeAction,
         metrics: &Arc<BridgeMetrics>,
@@ -580,7 +581,7 @@ where
             .expect("We requested effects but got None.");
         let status = effects.status();
         match status {
-            SuiExecutionStatus::Success => {
+            IotaExecutionStatus::Success => {
                 let events = response.events.expect("We requested events but got None.");
                 // If the transaction is successful, there must be either
                 // TokenTransferAlreadyClaimed or TokenTransferClaimed event.
@@ -594,33 +595,33 @@ where
                     "Expected TokenTransferAlreadyClaimed, TokenTransferClaimed, TokenTransferApproved or TokenTransferAlreadyApproved event but got: {:?}",
                     events,
                     );
-                info!(?tx_digest, "Sui transaction executed successfully");
+                info!(?tx_digest, "Iota transaction executed successfully");
                 store
                     .remove_pending_actions(&[action.digest()])
                     .unwrap_or_else(|e| {
                         panic!("Write to DB should not fail: {:?}", e);
                     })
             }
-            SuiExecutionStatus::Failure { error } => {
+            IotaExecutionStatus::Failure { error } => {
                 // In practice the transaction could fail because of running out of gas, but really
                 // should not be due to other reasons.
                 // This means manual intervention is needed. So we do not push them back to
                 // the execution queue because retries are mostly likely going to fail anyway.
                 // After human examination, the node should be restarted and fetch them from WAL.
 
-                metrics.err_sui_transaction_execution.inc();
-                error!(?tx_digest, "Manual intervention is needed. Sui transaction executed and failed with error: {error:?}");
+                metrics.err_iota_transaction_execution.inc();
+                error!(?tx_digest, "Manual intervention is needed. Iota transaction executed and failed with error: {error:?}");
             }
         }
     }
 
     /// Panics if the gas object is not owned by the address.
     async fn get_gas_data_assert_ownership(
-        sui_address: SuiAddress,
+        iota_address: IotaAddress,
         gas_object_id: ObjectID,
-        sui_client: &SuiClient<C>,
+        iota_client: &IotaClient<C>,
     ) -> (GasCoin, ObjectRef) {
-        let (gas_coin, gas_obj_ref, owner) = sui_client
+        let (gas_coin, gas_obj_ref, owner) = iota_client
             .get_gas_data_panic_if_not_gas(gas_object_id)
             .await;
 
@@ -628,17 +629,17 @@ where
         // transferred gas object instead.
         assert_eq!(
             owner,
-            Owner::AddressOwner(sui_address),
+            Owner::AddressOwner(iota_address),
             "Gas object {:?} is no longer owned by address {}",
             gas_object_id,
-            sui_address
+            iota_address
         );
         (gas_coin, gas_obj_ref)
     }
 }
 
 pub async fn submit_to_executor(
-    tx: &mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+    tx: &iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
     action: BridgeAction,
 ) -> Result<(), BridgeError> {
     tx.send(BridgeActionExecutionWrapper(action, 0))
@@ -655,13 +656,13 @@ mod tests {
     use prometheus::Registry;
     use std::collections::{BTreeMap, HashMap};
     use std::str::FromStr;
-    use sui_json_rpc_types::SuiTransactionBlockEffects;
-    use sui_json_rpc_types::SuiTransactionBlockEvents;
-    use sui_json_rpc_types::{SuiEvent, SuiTransactionBlockResponse};
-    use sui_types::crypto::get_key_pair;
-    use sui_types::gas_coin::GasCoin;
-    use sui_types::TypeTag;
-    use sui_types::{base_types::random_object_ref, transaction::TransactionData};
+    use iota_json_rpc_types::IotaTransactionBlockEffects;
+    use iota_json_rpc_types::IotaTransactionBlockEvents;
+    use iota_json_rpc_types::{IotaEvent, IotaTransactionBlockResponse};
+    use iota_types::crypto::get_key_pair;
+    use iota_types::gas_coin::GasCoin;
+    use iota_types::TypeTag;
+    use iota_types::{base_types::random_object_ref, transaction::TransactionData};
 
     use crate::{
         crypto::{
@@ -669,10 +670,10 @@ mod tests {
             BridgeAuthorityRecoverableSignature,
         },
         server::mock_handler::BridgeRequestMockHandler,
-        sui_mock_client::SuiMockClient,
+        iota_mock_client::IotaMockClient,
         test_utils::{
-            get_test_authorities_and_run_mock_bridge_server, get_test_eth_to_sui_bridge_action,
-            get_test_sui_to_eth_bridge_action, sign_action_with_key,
+            get_test_authorities_and_run_mock_bridge_server, get_test_eth_to_iota_bridge_action,
+            get_test_iota_to_eth_bridge_action, sign_action_with_key,
         },
         types::{BridgeCommittee, BridgeCommitteeValiditySignInfo, CertifiedBridgeAction},
     };
@@ -684,19 +685,19 @@ mod tests {
         let (
             signing_tx,
             _execution_tx,
-            sui_client_mock,
+            iota_client_mock,
             mut tx_subscription,
             store,
             secrets,
-            dummy_sui_key,
+            dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
             _handles,
             gas_object_ref,
-            sui_address,
-            sui_token_type_tags,
+            iota_address,
+            iota_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
@@ -706,9 +707,9 @@ mod tests {
             true,
         );
         let action = action_certificate.data().clone();
-        let id_token_map = (*sui_token_type_tags.load().clone()).clone();
-        let tx_data = build_sui_transaction(
-            sui_address,
+        let id_token_map = (*iota_token_type_tags.load().clone()).clone();
+        let tx_data = build_iota_transaction(
+            iota_address,
             &gas_object_ref,
             action_certificate,
             DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
@@ -717,23 +718,23 @@ mod tests {
         )
         .unwrap();
 
-        let tx_digest = get_tx_digest(tx_data, &dummy_sui_key);
+        let tx_digest = get_tx_digest(tx_data, &dummy_iota_key);
 
         let gas_coin = GasCoin::new_for_testing(1_000_000_000_000); // dummy gas coin
-        sui_client_mock.add_gas_object_info(
+        iota_client_mock.add_gas_object_info(
             gas_coin.clone(),
             gas_object_ref,
-            Owner::AddressOwner(sui_address),
+            Owner::AddressOwner(iota_address),
         );
 
         // Mock the transaction to be successfully executed
-        let mut event = SuiEvent::random_for_testing();
+        let mut event = IotaEvent::random_for_testing();
         event.type_ = TokenTransferClaimed.get().unwrap().clone();
         let events = vec![event];
         mock_transaction_response(
-            &sui_client_mock,
+            &iota_client_mock,
             tx_digest,
-            SuiExecutionStatus::Success,
+            IotaExecutionStatus::Success,
             Some(events),
             true,
         );
@@ -766,8 +767,8 @@ mod tests {
 
         let action = action_certificate.data().clone();
 
-        let tx_data = build_sui_transaction(
-            sui_address,
+        let tx_data = build_iota_transaction(
+            iota_address,
             &gas_object_ref,
             action_certificate,
             DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
@@ -775,13 +776,13 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_sui_key);
+        let tx_digest = get_tx_digest(tx_data, &dummy_iota_key);
 
         // Mock the transaction to fail
         mock_transaction_response(
-            &sui_client_mock,
+            &iota_client_mock,
             tx_digest,
-            SuiExecutionStatus::Failure {
+            IotaExecutionStatus::Failure {
                 error: "failure is mother of success".to_string(),
             },
             None,
@@ -820,8 +821,8 @@ mod tests {
 
         let action = action_certificate.data().clone();
 
-        let tx_data = build_sui_transaction(
-            sui_address,
+        let tx_data = build_iota_transaction(
+            iota_address,
             &gas_object_ref,
             action_certificate,
             DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
@@ -829,9 +830,9 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_sui_key);
+        let tx_digest = get_tx_digest(tx_data, &dummy_iota_key);
         mock_transaction_error(
-            &sui_client_mock,
+            &iota_client_mock,
             tx_digest,
             BridgeError::Generic("some random error".to_string()),
             true,
@@ -858,13 +859,13 @@ mod tests {
             .contains_key(&action.digest()));
 
         // Now let it succeed
-        let mut event = SuiEvent::random_for_testing();
+        let mut event = IotaEvent::random_for_testing();
         event.type_ = TokenTransferClaimed.get().unwrap().clone();
         let events = vec![event];
         mock_transaction_response(
-            &sui_client_mock,
+            &iota_client_mock,
             tx_digest,
-            SuiExecutionStatus::Success,
+            IotaExecutionStatus::Success,
             Some(events),
             true,
         );
@@ -882,23 +883,23 @@ mod tests {
         let (
             signing_tx,
             _execution_tx,
-            sui_client_mock,
+            iota_client_mock,
             mut tx_subscription,
             store,
             secrets,
-            dummy_sui_key,
+            dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
             _handles,
             gas_object_ref,
-            sui_address,
-            sui_token_type_tags,
+            iota_address,
+            iota_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
-        let id_token_map = (*sui_token_type_tags.load().clone()).clone();
-        let (action_certificate, sui_tx_digest, sui_tx_event_index) =
+        let id_token_map = (*iota_token_type_tags.load().clone()).clone();
+        let (action_certificate, iota_tx_digest, iota_tx_event_index) =
             get_bridge_authority_approved_action(
                 vec![&mock0, &mock1, &mock2, &mock3],
                 vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
@@ -908,22 +909,22 @@ mod tests {
         let action = action_certificate.data().clone();
         mock_bridge_authority_signing_errors(
             vec![&mock0, &mock1, &mock2],
-            sui_tx_digest,
-            sui_tx_event_index,
+            iota_tx_digest,
+            iota_tx_event_index,
         );
         let mut sigs = mock_bridge_authority_sigs(
             vec![&mock3],
             &action,
             vec![&secrets[3]],
-            sui_tx_digest,
-            sui_tx_event_index,
+            iota_tx_digest,
+            iota_tx_event_index,
         );
 
         let gas_coin = GasCoin::new_for_testing(1_000_000_000_000); // dummy gas coin
-        sui_client_mock.add_gas_object_info(
+        iota_client_mock.add_gas_object_info(
             gas_coin,
             gas_object_ref,
-            Owner::AddressOwner(sui_address),
+            Owner::AddressOwner(iota_address),
         );
         store.insert_pending_actions(&[action.clone()]).unwrap();
         assert_eq!(
@@ -939,7 +940,7 @@ mod tests {
         // Wait until the transaction is retried at least once (instead of deing dropped)
         loop {
             let requested_times =
-                mock0.get_sui_token_events_requested(sui_tx_digest, sui_tx_event_index);
+                mock0.get_iota_token_events_requested(iota_tx_digest, iota_tx_event_index);
             if requested_times >= 2 {
                 break;
             }
@@ -961,8 +962,8 @@ mod tests {
             vec![&mock2],
             &action,
             vec![&secrets[2]],
-            sui_tx_digest,
-            sui_tx_event_index,
+            iota_tx_digest,
+            iota_tx_event_index,
         );
         sigs.extend(sig_from_2);
         let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
@@ -970,8 +971,8 @@ mod tests {
             BridgeCommitteeValiditySignInfo { signatures: sigs },
         );
         let action_certificate = VerifiedCertifiedBridgeAction::new_from_verified(certified_action);
-        let tx_data = build_sui_transaction(
-            sui_address,
+        let tx_data = build_iota_transaction(
+            iota_address,
             &gas_object_ref,
             action_certificate,
             DUMMY_MUTALBE_BRIDGE_OBJECT_ARG,
@@ -979,15 +980,15 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_sui_key);
+        let tx_digest = get_tx_digest(tx_data, &dummy_iota_key);
 
-        let mut event = SuiEvent::random_for_testing();
+        let mut event = IotaEvent::random_for_testing();
         event.type_ = TokenTransferClaimed.get().unwrap().clone();
         let events = vec![event];
         mock_transaction_response(
-            &sui_client_mock,
+            &iota_client_mock,
             tx_digest,
-            SuiExecutionStatus::Success,
+            IotaExecutionStatus::Success,
             Some(events),
             true,
         );
@@ -1005,27 +1006,27 @@ mod tests {
         let (
             signing_tx,
             _execution_tx,
-            sui_client_mock,
+            iota_client_mock,
             mut tx_subscription,
             store,
             _secrets,
-            _dummy_sui_key,
+            _dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
             _handles,
             _gas_object_ref,
-            _sui_address,
-            _sui_token_type_tags,
+            _iota_address,
+            _iota_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
 
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_tx_event_index = 0;
-        let action = get_test_sui_to_eth_bridge_action(
-            Some(sui_tx_digest),
-            Some(sui_tx_event_index),
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_tx_event_index = 0;
+        let action = get_test_iota_to_eth_bridge_action(
+            Some(iota_tx_digest),
+            Some(iota_tx_event_index),
             None,
             None,
             None,
@@ -1034,8 +1035,8 @@ mod tests {
         );
         mock_bridge_authority_signing_errors(
             vec![&mock0, &mock1, &mock2, &mock3],
-            sui_tx_digest,
-            sui_tx_event_index,
+            iota_tx_digest,
+            iota_tx_event_index,
         );
         store.insert_pending_actions(&[action.clone()]).unwrap();
         assert_eq!(
@@ -1055,7 +1056,7 @@ mod tests {
         // And the action is still in WAL
         assert!(store.get_all_pending_actions().contains_key(&action_digest));
 
-        sui_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
+        iota_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
         // The next retry will see the action is already processed on chain and remove it from WAL
         let now = std::time::Instant::now();
@@ -1073,22 +1074,22 @@ mod tests {
         let (
             _signing_tx,
             execution_tx,
-            sui_client_mock,
+            iota_client_mock,
             mut tx_subscription,
             store,
             secrets,
-            dummy_sui_key,
+            dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
             _handles,
             gas_object_ref,
-            sui_address,
-            sui_token_type_tags,
+            iota_address,
+            iota_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
-        let id_token_map = (*sui_token_type_tags.load().clone()).clone();
+        let id_token_map = (*iota_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
             vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
@@ -1098,8 +1099,8 @@ mod tests {
 
         let action = action_certificate.data().clone();
         let arg = DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
-        let tx_data = build_sui_transaction(
-            sui_address,
+        let tx_data = build_iota_transaction(
+            iota_address,
             &gas_object_ref,
             action_certificate.clone(),
             arg,
@@ -1107,22 +1108,22 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_sui_key);
+        let tx_digest = get_tx_digest(tx_data, &dummy_iota_key);
         mock_transaction_error(
-            &sui_client_mock,
+            &iota_client_mock,
             tx_digest,
             BridgeError::Generic("some random error".to_string()),
             true,
         );
 
         let gas_coin = GasCoin::new_for_testing(1_000_000_000_000); // dummy gas coin
-        sui_client_mock.add_gas_object_info(
+        iota_client_mock.add_gas_object_info(
             gas_coin.clone(),
             gas_object_ref,
-            Owner::AddressOwner(sui_address),
+            Owner::AddressOwner(iota_address),
         );
 
-        sui_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Pending);
+        iota_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Pending);
 
         store.insert_pending_actions(&[action.clone()]).unwrap();
         assert_eq!(
@@ -1140,7 +1141,7 @@ mod tests {
         tx_subscription.recv().await.unwrap();
 
         // Set the action to be already approved on chain
-        sui_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
+        iota_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Approved);
 
         // The next retry will see the action is already processed on chain and remove it from WAL
         let now = std::time::Instant::now();
@@ -1158,22 +1159,22 @@ mod tests {
         let (
             _signing_tx,
             execution_tx,
-            sui_client_mock,
+            iota_client_mock,
             mut tx_subscription,
             store,
             secrets,
-            dummy_sui_key,
+            dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
             _handles,
             gas_object_ref,
-            sui_address,
-            sui_token_type_tags,
+            iota_address,
+            iota_token_type_tags,
             bridge_pause_tx,
         ) = setup().await;
-        let id_token_map: HashMap<u8, TypeTag> = (*sui_token_type_tags.load().clone()).clone();
+        let id_token_map: HashMap<u8, TypeTag> = (*iota_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
             vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
@@ -1183,8 +1184,8 @@ mod tests {
 
         let action = action_certificate.data().clone();
         let arg = DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
-        let tx_data = build_sui_transaction(
-            sui_address,
+        let tx_data = build_iota_transaction(
+            iota_address,
             &gas_object_ref,
             action_certificate.clone(),
             arg,
@@ -1192,22 +1193,22 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_sui_key);
+        let tx_digest = get_tx_digest(tx_data, &dummy_iota_key);
         mock_transaction_error(
-            &sui_client_mock,
+            &iota_client_mock,
             tx_digest,
             BridgeError::Generic("some random error".to_string()),
             true,
         );
 
         let gas_coin = GasCoin::new_for_testing(1_000_000_000_000); // dummy gas coin
-        sui_client_mock.add_gas_object_info(
+        iota_client_mock.add_gas_object_info(
             gas_coin.clone(),
             gas_object_ref,
-            Owner::AddressOwner(sui_address),
+            Owner::AddressOwner(iota_address),
         );
         let action_digest = action.digest();
-        sui_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Pending);
+        iota_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Pending);
 
         // assert bridge is unpaused now
         assert!(!*bridge_pause_tx.borrow());
@@ -1259,33 +1260,33 @@ mod tests {
         let (
             _signing_tx,
             execution_tx,
-            sui_client_mock,
+            iota_client_mock,
             mut tx_subscription,
             _store,
             secrets,
-            dummy_sui_key,
+            dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
             _handles,
             gas_object_ref,
-            sui_address,
-            sui_token_type_tags,
+            iota_address,
+            iota_token_type_tags,
             _bridge_pause_tx,
         ) = setup().await;
-        let mut id_token_map: HashMap<u8, TypeTag> = (*sui_token_type_tags.load().clone()).clone();
+        let mut id_token_map: HashMap<u8, TypeTag> = (*iota_token_type_tags.load().clone()).clone();
         let (action_certificate, _, _) = get_bridge_authority_approved_action(
             vec![&mock0, &mock1, &mock2, &mock3],
             vec![&secrets[0], &secrets[1], &secrets[2], &secrets[3]],
             Some(new_token_id),
-            false, // we need an eth -> sui action that entails the new token type tag in transaction building
+            false, // we need an eth -> iota action that entails the new token type tag in transaction building
         );
 
         let action = action_certificate.data().clone();
         let arg = DUMMY_MUTALBE_BRIDGE_OBJECT_ARG;
-        let tx_data = build_sui_transaction(
-            sui_address,
+        let tx_data = build_iota_transaction(
+            iota_address,
             &gas_object_ref,
             action_certificate.clone(),
             arg,
@@ -1295,21 +1296,21 @@ mod tests {
             1000,
         )
         .unwrap();
-        let tx_digest = get_tx_digest(tx_data, &dummy_sui_key);
+        let tx_digest = get_tx_digest(tx_data, &dummy_iota_key);
         mock_transaction_error(
-            &sui_client_mock,
+            &iota_client_mock,
             tx_digest,
             BridgeError::Generic("some random error".to_string()),
             true,
         );
 
         let gas_coin = GasCoin::new_for_testing(1_000_000_000_000); // dummy gas coin
-        sui_client_mock.add_gas_object_info(
+        iota_client_mock.add_gas_object_info(
             gas_coin.clone(),
             gas_object_ref,
-            Owner::AddressOwner(sui_address),
+            Owner::AddressOwner(iota_address),
         );
-        sui_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Pending);
+        iota_client_mock.set_action_onchain_status(&action, BridgeActionStatus::Pending);
 
         // Kick it (send to the execution queue, skipping the signing queue)
         execution_tx
@@ -1329,7 +1330,7 @@ mod tests {
 
         // Now insert the new token id
         id_token_map.insert(new_token_id, new_type_tag);
-        sui_token_type_tags.store(Arc::new(id_token_map));
+        iota_token_type_tags.store(Arc::new(id_token_map));
 
         // Kick it again
         execution_tx
@@ -1349,16 +1350,16 @@ mod tests {
         mocks: Vec<&BridgeRequestMockHandler>,
         action: &BridgeAction,
         secrets: Vec<&BridgeAuthorityKeyPair>,
-        sui_tx_digest: TransactionDigest,
-        sui_tx_event_index: u16,
+        iota_tx_digest: TransactionDigest,
+        iota_tx_event_index: u16,
     ) -> BTreeMap<BridgeAuthorityPublicKeyBytes, BridgeAuthorityRecoverableSignature> {
         assert_eq!(mocks.len(), secrets.len());
         let mut signed_actions = BTreeMap::new();
         for (mock, secret) in mocks.iter().zip(secrets.iter()) {
             let signed_action = sign_action_with_key(action, secret);
-            mock.add_sui_event_response(
-                sui_tx_digest,
-                sui_tx_event_index,
+            mock.add_iota_event_response(
+                iota_tx_digest,
+                iota_tx_event_index,
                 Ok(signed_action.clone()),
                 None,
             );
@@ -1369,13 +1370,13 @@ mod tests {
 
     fn mock_bridge_authority_signing_errors(
         mocks: Vec<&BridgeRequestMockHandler>,
-        sui_tx_digest: TransactionDigest,
-        sui_tx_event_index: u16,
+        iota_tx_digest: TransactionDigest,
+        iota_tx_event_index: u16,
     ) {
         for mock in mocks {
-            mock.add_sui_event_response(
-                sui_tx_digest,
-                sui_tx_event_index,
+            mock.add_iota_event_response(
+                iota_tx_digest,
+                iota_tx_event_index,
                 Err(BridgeError::RestAPIError("small issue".into())),
                 None,
             );
@@ -1387,14 +1388,14 @@ mod tests {
         mocks: Vec<&BridgeRequestMockHandler>,
         secrets: Vec<&BridgeAuthorityKeyPair>,
         token_id: Option<u8>,
-        sui_to_eth: bool,
+        iota_to_eth: bool,
     ) -> (VerifiedCertifiedBridgeAction, TransactionDigest, u16) {
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_tx_event_index = 1;
-        let action = if sui_to_eth {
-            get_test_sui_to_eth_bridge_action(
-                Some(sui_tx_digest),
-                Some(sui_tx_event_index),
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_tx_event_index = 1;
+        let action = if iota_to_eth {
+            get_test_iota_to_eth_bridge_action(
+                Some(iota_tx_digest),
+                Some(iota_tx_event_index),
                 None,
                 None,
                 None,
@@ -1402,26 +1403,26 @@ mod tests {
                 token_id,
             )
         } else {
-            get_test_eth_to_sui_bridge_action(None, None, None, token_id)
+            get_test_eth_to_iota_bridge_action(None, None, None, token_id)
         };
 
         let sigs =
-            mock_bridge_authority_sigs(mocks, &action, secrets, sui_tx_digest, sui_tx_event_index);
+            mock_bridge_authority_sigs(mocks, &action, secrets, iota_tx_digest, iota_tx_event_index);
         let certified_action = CertifiedBridgeAction::new_from_data_and_sig(
             action,
             BridgeCommitteeValiditySignInfo { signatures: sigs },
         );
         (
             VerifiedCertifiedBridgeAction::new_from_verified(certified_action),
-            sui_tx_digest,
-            sui_tx_event_index,
+            iota_tx_digest,
+            iota_tx_event_index,
         )
     }
 
-    fn get_tx_digest(tx_data: TransactionData, dummy_sui_key: &SuiKeyPair) -> TransactionDigest {
+    fn get_tx_digest(tx_data: TransactionData, dummy_iota_key: &IotaKeyPair) -> TransactionDigest {
         let sig = Signature::new_secure(
-            &IntentMessage::new(Intent::sui_transaction(), &tx_data),
-            dummy_sui_key,
+            &IntentMessage::new(Intent::iota_transaction(), &tx_data),
+            dummy_iota_key,
         );
         let signed_tx = Transaction::from_data(tx_data, vec![sig]);
         *signed_tx.digest()
@@ -1431,75 +1432,75 @@ mod tests {
     /// are part of transaction data. Depending on whose signatures
     /// are included in what order, this may change the tx digest.
     fn mock_transaction_response(
-        sui_client_mock: &SuiMockClient,
+        iota_client_mock: &IotaMockClient,
         tx_digest: TransactionDigest,
-        status: SuiExecutionStatus,
-        events: Option<Vec<SuiEvent>>,
+        status: IotaExecutionStatus,
+        events: Option<Vec<IotaEvent>>,
         wildcard: bool,
     ) {
-        let mut response = SuiTransactionBlockResponse::new(tx_digest);
-        let effects = SuiTransactionBlockEffects::new_for_testing(tx_digest, status);
+        let mut response = IotaTransactionBlockResponse::new(tx_digest);
+        let effects = IotaTransactionBlockEffects::new_for_testing(tx_digest, status);
         if let Some(events) = events {
-            response.events = Some(SuiTransactionBlockEvents { data: events });
+            response.events = Some(IotaTransactionBlockEvents { data: events });
         }
         response.effects = Some(effects);
         if wildcard {
-            sui_client_mock.set_wildcard_transaction_response(Ok(response));
+            iota_client_mock.set_wildcard_transaction_response(Ok(response));
         } else {
-            sui_client_mock.add_transaction_response(tx_digest, Ok(response));
+            iota_client_mock.add_transaction_response(tx_digest, Ok(response));
         }
     }
 
     fn mock_transaction_error(
-        sui_client_mock: &SuiMockClient,
+        iota_client_mock: &IotaMockClient,
         tx_digest: TransactionDigest,
         error: BridgeError,
         wildcard: bool,
     ) {
         if wildcard {
-            sui_client_mock.set_wildcard_transaction_response(Err(error));
+            iota_client_mock.set_wildcard_transaction_response(Err(error));
         } else {
-            sui_client_mock.add_transaction_response(tx_digest, Err(error));
+            iota_client_mock.add_transaction_response(tx_digest, Err(error));
         }
     }
 
     #[allow(clippy::type_complexity)]
     async fn setup() -> (
-        mysten_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
-        mysten_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
-        SuiMockClient,
+        iota_metrics::metered_channel::Sender<BridgeActionExecutionWrapper>,
+        iota_metrics::metered_channel::Sender<CertifiedBridgeActionExecutionWrapper>,
+        IotaMockClient,
         tokio::sync::broadcast::Receiver<TransactionDigest>,
         Arc<BridgeOrchestratorTables>,
         Vec<BridgeAuthorityKeyPair>,
-        SuiKeyPair,
+        IotaKeyPair,
         BridgeRequestMockHandler,
         BridgeRequestMockHandler,
         BridgeRequestMockHandler,
         BridgeRequestMockHandler,
         Vec<tokio::task::JoinHandle<()>>,
         ObjectRef,
-        SuiAddress,
+        IotaAddress,
         Arc<ArcSwap<HashMap<u8, TypeTag>>>,
         tokio::sync::watch::Sender<IsBridgePaused>,
     ) {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         init_all_struct_tags();
 
-        let (sui_address, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
-        let sui_key = SuiKeyPair::from(kp);
+        let (iota_address, kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
+        let iota_key = IotaKeyPair::from(kp);
         let gas_object_ref = random_object_ref();
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BridgeOrchestratorTables::new(temp_dir.path());
-        let sui_client_mock = SuiMockClient::default();
-        let tx_subscription = sui_client_mock.subscribe_to_requested_transactions();
-        let sui_client = Arc::new(SuiClient::new_for_testing(sui_client_mock.clone()));
+        let iota_client_mock = IotaMockClient::default();
+        let tx_subscription = iota_client_mock.subscribe_to_requested_transactions();
+        let iota_client = Arc::new(IotaClient::new_for_testing(iota_client_mock.clone()));
 
         // The dummy key is used to sign transaction so we can get TransactionDigest easily.
         // User signature is not part of the transaction so it does not matter which key it is.
         let (_, dummy_kp): (_, fastcrypto::secp256k1::Secp256k1KeyPair) = get_key_pair();
-        let dummy_sui_key = SuiKeyPair::from(dummy_kp);
+        let dummy_iota_key = IotaKeyPair::from(dummy_kp);
 
         let mock0 = BridgeRequestMockHandler::new();
         let mock1 = BridgeRequestMockHandler::new();
@@ -1517,17 +1518,17 @@ mod tests {
             BridgeAuthorityAggregator::new_for_testing(Arc::new(committee)),
         )));
         let metrics = Arc::new(BridgeMetrics::new(&registry));
-        let sui_token_type_tags = sui_client.get_token_id_map().await.unwrap();
-        let sui_token_type_tags = Arc::new(ArcSwap::new(Arc::new(sui_token_type_tags)));
+        let iota_token_type_tags = iota_client.get_token_id_map().await.unwrap();
+        let iota_token_type_tags = Arc::new(ArcSwap::new(Arc::new(iota_token_type_tags)));
         let (bridge_pause_tx, bridge_pause_rx) = tokio::sync::watch::channel(false);
         let executor = BridgeActionExecutor::new(
-            sui_client.clone(),
+            iota_client.clone(),
             agg.clone(),
             store.clone(),
-            sui_key,
-            sui_address,
+            iota_key,
+            iota_address,
             gas_object_ref.0,
-            sui_token_type_tags.clone(),
+            iota_token_type_tags.clone(),
             bridge_pause_rx,
             metrics,
         )
@@ -1539,19 +1540,19 @@ mod tests {
         (
             signing_tx,
             execution_tx,
-            sui_client_mock,
+            iota_client_mock,
             tx_subscription,
             store,
             secrets,
-            dummy_sui_key,
+            dummy_iota_key,
             mock0,
             mock1,
             mock2,
             mock3,
             handles,
             gas_object_ref,
-            sui_address,
-            sui_token_type_tags,
+            iota_address,
+            iota_token_type_tags,
             bridge_pause_tx,
         )
     }

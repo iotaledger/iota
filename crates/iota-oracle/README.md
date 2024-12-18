@@ -1,4 +1,4 @@
-# sui-oracle
+# iota-oracle
 
 This oracle is intended to serve as general reference and informational purposes only. We make no representations or warranties of any kind, express or implied, about the completeness, accuracy, reliability, suitability, or availability of the information provided by the oracle.
 

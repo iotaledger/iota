@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use move_core_types::account_address::AccountAddress;
-use sui_json_rpc_types::{SuiObjectDataOptions, SuiTransactionBlockResponseOptions};
+use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 
-use sui_rpc_api::CheckpointData;
-use sui_types::{
+use iota_rpc_api::CheckpointData;
+use iota_types::{
     base_types::ObjectID,
     committee::Committee,
     crypto::AuthorityQuorumSignInfo,
@@ -18,11 +19,11 @@ use sui_types::{
     object::{bounded_visitor::BoundedVisitor, Data, Object},
 };
 
-use sui_config::genesis::Genesis;
+use iota_config::genesis::Genesis;
 
-use sui_package_resolver::Result as ResolverResult;
-use sui_package_resolver::{Package, PackageStore, Resolver};
-use sui_sdk::SuiClientBuilder;
+use iota_package_resolver::Result as ResolverResult;
+use iota_package_resolver::{Package, PackageStore, Resolver};
+use iota_sdk::IotaClientBuilder;
 
 use clap::{Parser, Subcommand};
 use std::{collections::HashMap, fs, io::Write, path::PathBuf, str::FromStr, sync::Mutex};
@@ -35,7 +36,7 @@ use serde_json::json;
 use serde_json::Value;
 use url::Url;
 
-/// A light client for the Sui blockchain
+/// A light client for the Iota blockchain
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -263,7 +264,7 @@ async fn sync_checkpoint_list_to_latest(config: &Config) -> anyhow::Result<()> {
     let mut last_epoch = summary.epoch();
 
     // Download the very latest checkpoint
-    let client = SuiClientBuilder::default()
+    let client = IotaClientBuilder::default()
         .build(config.full_node_url.as_str())
         .await
         .expect("Cannot connect to full node");
@@ -420,15 +421,15 @@ async fn get_verified_effects_and_events(
     config: &Config,
     tid: TransactionDigest,
 ) -> anyhow::Result<(TransactionEffects, Option<TransactionEvents>)> {
-    let sui_mainnet: sui_sdk::SuiClient = SuiClientBuilder::default()
+    let iota_mainnet: iota_sdk::IotaClient = IotaClientBuilder::default()
         .build(config.full_node_url.as_str())
         .await
         .unwrap();
-    let read_api = sui_mainnet.read_api();
+    let read_api = iota_mainnet.read_api();
 
     info!("Getting effects and events for TID: {}", tid);
     // Lookup the transaction id and get the checkpoint sequence number
-    let options = SuiTransactionBlockResponseOptions::new();
+    let options = IotaTransactionBlockResponseOptions::new();
     let seq = read_api
         .get_transaction_with_options(tid, options)
         .await
@@ -490,8 +491,8 @@ async fn get_verified_effects_and_events(
 }
 
 async fn get_verified_object(config: &Config, id: ObjectID) -> anyhow::Result<Object> {
-    let sui_client: Arc<sui_sdk::SuiClient> = Arc::new(
-        SuiClientBuilder::default()
+    let iota_client: Arc<iota_sdk::IotaClient> = Arc::new(
+        IotaClientBuilder::default()
             .build(config.full_node_url.as_str())
             .await
             .unwrap(),
@@ -499,9 +500,9 @@ async fn get_verified_object(config: &Config, id: ObjectID) -> anyhow::Result<Ob
 
     info!("Getting object: {}", id);
 
-    let read_api = sui_client.read_api();
+    let read_api = iota_client.read_api();
     let object_json = read_api
-        .get_object_with_options(id, SuiObjectDataOptions::bcs_lossless())
+        .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
         .await
         .expect("Cannot get object");
     let object = object_json
@@ -628,7 +629,7 @@ pub async fn main() {
 // Make a test namespace
 #[cfg(test)]
 mod tests {
-    use sui_types::messages_checkpoint::FullCheckpointContents;
+    use iota_types::messages_checkpoint::FullCheckpointContents;
 
     use super::*;
     use std::path::{Path, PathBuf};

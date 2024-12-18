@@ -5,7 +5,7 @@ edition = "2024.beta"
 
 [dependencies]
 Examples = { local = "../object_basics" }
-Sui = { local = "../../../../../sui-framework/packages/sui-framework" }
+Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
 depends = "0x0"

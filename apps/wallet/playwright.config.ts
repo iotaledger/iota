@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { devices } from '@playwright/test';
@@ -58,7 +59,7 @@ const config: PlaywrightTestConfig = {
 		{
 			command:
 				process.env.E2E_RUN_LOCAL_NET_CMD ??
-				'RUST_LOG="consensus=off" cargo run --bin sui -- start --with-faucet --force-regenesis',
+				'RUST_LOG="consensus=off" cargo run --bin iota -- start --with-faucet --force-regenesis',
 			port: 9123,
 			timeout: 120 * 1000,
 			/* Set this to true to reuse the server instance on step 'Run Local net' in e2e.yml */

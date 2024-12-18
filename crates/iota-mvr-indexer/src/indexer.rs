@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -12,11 +13,11 @@ use tracing::info;
 
 use async_trait::async_trait;
 use futures::future::try_join_all;
-use mysten_metrics::spawn_monitored_task;
-use sui_data_ingestion_core::{
+use iota_metrics::spawn_monitored_task;
+use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
 };
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use crate::build_json_rpc_server;
 use crate::config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig};
@@ -41,10 +42,10 @@ impl Indexer {
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
-            "Sui Indexer Writer (version {:?}) started...",
+            "Iota Indexer Writer (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        info!("Sui Indexer Writer config: {config:?}",);
+        info!("Iota Indexer Writer config: {config:?}",);
 
         let extra_reader_options = ReaderOptions {
             batch_size: config.checkpoint_download_queue_size,
@@ -171,7 +172,7 @@ impl Indexer {
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
-            "Sui Indexer Reader (version {:?}) started...",
+            "Iota Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
         let indexer_reader = IndexerReader::new(pool);

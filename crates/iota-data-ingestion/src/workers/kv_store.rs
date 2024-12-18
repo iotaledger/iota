@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, Result};
@@ -16,10 +17,10 @@ use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::iter::repeat;
 use std::time::{Duration, Instant};
-use sui_data_ingestion_core::Worker;
-use sui_storage::http_key_value_store::TaggedKey;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::storage::ObjectKey;
+use iota_data_ingestion_core::Worker;
+use iota_storage::http_key_value_store::TaggedKey;
+use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::storage::ObjectKey;
 use tracing::error;
 
 const TIMEOUT: Duration = Duration::from_secs(60);

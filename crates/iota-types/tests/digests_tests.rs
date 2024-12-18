@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
 
-use sui_types::digests::{
+use iota_types::digests::{
     CheckpointContentsDigest, CheckpointDigest, EffectsAuxDataDigest, ObjectDigest,
     TransactionDigest, TransactionEventsDigest,
 };

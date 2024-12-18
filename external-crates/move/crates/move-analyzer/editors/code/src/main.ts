@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Context } from './context';
@@ -65,27 +66,27 @@ async function findPkgRoot(): Promise<string | undefined> {
     return undefined;
 }
 
-async function suiMoveCmd(context: Readonly<Context>, cmd: string): Promise<void> {
+async function iotaMoveCmd(context: Readonly<Context>, cmd: string): Promise<void> {
     const version = childProcess.spawnSync(
-        context.configuration.suiPath, ['--version'], { encoding: 'utf8' },
+        context.configuration.iotaPath, ['--version'], { encoding: 'utf8' },
     );
     if (version.stdout) {
         const pkgRoot = await findPkgRoot();
         if (pkgRoot !== undefined) {
-            const terminalName = 'sui move';
+            const terminalName = 'iota move';
             let terminal = vscode.window.terminals.find(t => t.name === terminalName);
             if (!terminal) {
                 terminal = vscode.window.createTerminal(terminalName);
             }
             terminal.show(true);
             terminal.sendText('cd ' + pkgRoot, true);
-            terminal.sendText(`${context.configuration.suiPath} move ${cmd}`, true);
+            terminal.sendText(`${context.configuration.iotaPath} move ${cmd}`, true);
         }
     } else {
         await vscode.window.showErrorMessage(
-            `A problem occurred when executing the Sui command: '${context.configuration.suiPath}'`
-            + 'Make sure that Sui CLI is installed and available, either in your global PATH, '
-            + 'or on a path set via `move.sui.path` configuration option.',
+            `A problem occurred when executing the Iota command: '${context.configuration.iotaPath}'`
+            + 'Make sure that Iota CLI is installed and available, either in your global PATH, '
+            + 'or on a path set via `move.iota.path` configuration option.',
         );
     }
 }
@@ -94,7 +95,7 @@ async function suiMoveCmd(context: Readonly<Context>, cmd: string): Promise<void
  * An extension command that that builds the current Move project.
  */
 async function buildProject(context: Readonly<Context>): Promise<void> {
-    return suiMoveCmd(context, 'build');
+    return iotaMoveCmd(context, 'build');
 }
 
 /**
@@ -109,7 +110,7 @@ async function testProject(context: Readonly<Context>): Promise<void> {
     });
     if (filter !== undefined) {
         const cmd = filter.length > 0 ? `test ${filter}` : 'test';
-        return suiMoveCmd(context, cmd);
+        return iotaMoveCmd(context, cmd);
     }
     return Promise.resolve();
 }
@@ -126,7 +127,7 @@ async function traceProject(context: Readonly<Context>): Promise<void> {
     });
     if (filter !== undefined) {
         const cmd = filter.length > 0 ? `test ${filter} --trace-execution` : 'test --trace-execution';
-        return suiMoveCmd(context, cmd);
+        return iotaMoveCmd(context, cmd);
     }
     return Promise.resolve();
 }

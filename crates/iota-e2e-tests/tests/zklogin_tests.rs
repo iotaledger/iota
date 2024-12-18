@@ -1,30 +1,31 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use shared_crypto::intent::Intent;
 use shared_crypto::intent::IntentMessage;
 use std::net::SocketAddr;
-use sui_core::authority_client::AuthorityAPI;
-use sui_macros::sim_test;
-use sui_protocol_config::ProtocolConfig;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::SuiAddress;
-use sui_types::committee::EpochId;
-use sui_types::crypto::Signature;
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::signature::GenericSignature;
-use sui_types::transaction::Transaction;
-use sui_types::utils::load_test_vectors;
-use sui_types::utils::{
+use iota_core::authority_client::AuthorityAPI;
+use iota_macros::sim_test;
+use iota_protocol_config::ProtocolConfig;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::IotaAddress;
+use iota_types::committee::EpochId;
+use iota_types::crypto::Signature;
+use iota_types::error::{IotaError, IotaResult, UserInputError};
+use iota_types::signature::GenericSignature;
+use iota_types::transaction::Transaction;
+use iota_types::utils::load_test_vectors;
+use iota_types::utils::{
     get_legacy_zklogin_user_address, get_zklogin_user_address, make_zklogin_tx,
 };
-use sui_types::zk_login_authenticator::ZkLoginAuthenticator;
-use sui_types::SUI_AUTHENTICATOR_STATE_OBJECT_ID;
+use iota_types::zk_login_authenticator::ZkLoginAuthenticator;
+use iota_types::IOTA_AUTHENTICATOR_STATE_OBJECT_ID;
 use test_cluster::TestCluster;
 use test_cluster::TestClusterBuilder;
 
-async fn do_zklogin_test(address: SuiAddress, legacy: bool) -> SuiResult {
+async fn do_zklogin_test(address: IotaAddress, legacy: bool) -> IotaResult {
     let test_cluster = TestClusterBuilder::new().build().await;
     let (_, tx, _) = make_zklogin_tx(address, legacy);
 
@@ -43,7 +44,7 @@ async fn do_zklogin_test(address: SuiAddress, legacy: bool) -> SuiResult {
 async fn build_zklogin_tx(test_cluster: &TestCluster, max_epoch: EpochId) -> Transaction {
     // load test vectors
     let (kp, pk_zklogin, inputs) =
-        &load_test_vectors("../sui-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
     let zklogin_addr = (pk_zklogin).into();
 
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -51,10 +52,10 @@ async fn build_zklogin_tx(test_cluster: &TestCluster, max_epoch: EpochId) -> Tra
         .fund_address_and_return_gas(rgp, Some(20000000000), zklogin_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
-        .transfer_sui(None, SuiAddress::ZERO)
+        .transfer_iota(None, IotaAddress::ZERO)
         .build();
 
-    let msg = IntentMessage::new(Intent::sui_transaction(), tx_data.clone());
+    let msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let eph_sig = Signature::new_secure(&msg, kp);
 
     // combine ephemeral sig with zklogin inputs.
@@ -67,7 +68,7 @@ async fn build_zklogin_tx(test_cluster: &TestCluster, max_epoch: EpochId) -> Tra
 }
 #[sim_test]
 async fn test_zklogin_feature_deny() {
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_zklogin_auth_for_testing(false);
@@ -80,7 +81,7 @@ async fn test_zklogin_feature_deny() {
 
     assert!(matches!(
         err,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::Unsupported(..)
         }
     ));
@@ -88,7 +89,7 @@ async fn test_zklogin_feature_deny() {
 
 #[sim_test]
 async fn test_zklogin_feature_legacy_address_deny() {
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_verify_legacy_zklogin_address_for_testing(false);
@@ -99,7 +100,7 @@ async fn test_zklogin_feature_legacy_address_deny() {
     let err = do_zklogin_test(get_legacy_zklogin_user_address(), true)
         .await
         .unwrap_err();
-    assert!(matches!(err, SuiError::SignerSignatureAbsent { .. }));
+    assert!(matches!(err, IotaError::SignerSignatureAbsent { .. }));
 }
 
 #[sim_test]
@@ -113,7 +114,7 @@ async fn test_legacy_zklogin_address_accept() {
         .unwrap_err();
 
     // it does not hit the signer absent error.
-    assert!(matches!(err, SuiError::InvalidSignature { .. }));
+    assert!(matches!(err, IotaError::InvalidSignature { .. }));
 }
 
 #[sim_test]
@@ -140,7 +141,7 @@ async fn zklogin_end_to_end_test() {
 
 #[sim_test]
 async fn test_max_epoch_too_large_fail_tx() {
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_zklogin_max_epoch_upper_bound_delta_for_testing(Some(1));
         config
@@ -179,7 +180,7 @@ async fn test_expired_zklogin_sig() {
 
     // load one test vector, the zklogin inputs corresponds to max_epoch = 1
     let (kp, pk_zklogin, inputs) =
-        &load_test_vectors("../sui-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
     let zklogin_addr = (pk_zklogin).into();
 
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -189,10 +190,10 @@ async fn test_expired_zklogin_sig() {
     let context = &test_cluster.wallet;
 
     let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
-        .transfer_sui(None, SuiAddress::ZERO)
+        .transfer_iota(None, IotaAddress::ZERO)
         .build();
 
-    let msg = IntentMessage::new(Intent::sui_transaction(), tx_data.clone());
+    let msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let eph_sig = Signature::new_secure(&msg, kp);
 
     // combine ephemeral sig with zklogin inputs.
@@ -244,7 +245,7 @@ async fn test_create_authenticator_state_object() {
             assert!(node
                 .state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(SUI_AUTHENTICATOR_STATE_OBJECT_ID)
+                .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
                 .is_none());
         });
     }
@@ -259,7 +260,7 @@ async fn test_create_authenticator_state_object() {
         h.with(|node| {
             node.state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(SUI_AUTHENTICATOR_STATE_OBJECT_ID)
+                .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
                 .expect("auth state object should exist");
         });
     }
@@ -273,10 +274,10 @@ async fn test_conflicting_jwks() {
     use futures::StreamExt;
     use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
-    use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-    use sui_json_rpc_types::TransactionFilter;
-    use sui_types::base_types::ObjectID;
-    use sui_types::transaction::{TransactionDataAPI, TransactionKind};
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_json_rpc_types::TransactionFilter;
+    use iota_types::base_types::ObjectID;
+    use iota_types::transaction::{TransactionDataAPI, TransactionKind};
     use tokio::time::Duration;
 
     let test_cluster = TestClusterBuilder::new()
@@ -288,7 +289,7 @@ async fn test_conflicting_jwks() {
     let jwks = Arc::new(Mutex::new(Vec::new()));
     let jwks_clone = jwks.clone();
 
-    test_cluster.fullnode_handle.sui_node.with(|node| {
+    test_cluster.fullnode_handle.iota_node.with(|node| {
         let mut txns = node.state().subscription_handler.subscribe_transactions(
             TransactionFilter::ChangedObject(ObjectID::from_hex_literal("0x7").unwrap()),
         );

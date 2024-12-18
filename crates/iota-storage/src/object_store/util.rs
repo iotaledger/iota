@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::object_store::{
@@ -417,7 +418,7 @@ mod tests {
     use object_store::path::Path;
     use std::fs;
     use std::num::NonZeroUsize;
-    use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+    use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
     use tempfile::TempDir;
 
     #[tokio::test]

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::backfill::backfill_instances::ingestion_backfills::IngestionBackfillTrait;
@@ -7,9 +8,9 @@ use crate::database::ConnectionPool;
 use dashmap::DashMap;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
-use sui_data_ingestion_core::{setup_single_workflow, ReaderOptions, Worker};
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_data_ingestion_core::{setup_single_workflow, ReaderOptions, Worker};
+use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::sync::Notify;
 
 pub struct IngestionBackfillTask<T: IngestionBackfillTrait> {

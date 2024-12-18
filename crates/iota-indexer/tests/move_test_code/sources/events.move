@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 
 module move_test_code::events_queries {
-    use sui::event;
+    use iota::event;
 
     public struct EventA has copy, drop {
         new_value: u64

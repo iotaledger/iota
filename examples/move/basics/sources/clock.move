@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module basics::clock;
 
-use sui::{clock::Clock, event};
+use iota::{clock::Clock, event};
 
 public struct TimeEvent has copy, drop, store {
     timestamp_ms: u64,

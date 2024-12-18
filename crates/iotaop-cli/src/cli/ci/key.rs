@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::cli::lib::{get_api_server, get_oauth_token};
@@ -71,7 +72,7 @@ async fn send_key_request(token: &str, action: &KeyAction) -> Result<()> {
             KeyAction::Create { repo_name } | KeyAction::ReCreate { repo_name } => {
                 if let Some(pubkey) = json_resp.pub_key {
                     let add_key_link = format!(
-                        "https://github.com/MystenLabs/{}/settings/keys/new",
+                        "https://github.com/iotaledger/{}/settings/keys/new",
                         repo_name
                     );
                     println!(

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::cli::lib::{get_api_server, get_oauth_token};
@@ -89,7 +90,7 @@ impl Display for RefType {
 pub enum ImageAction {
     #[command(name = "build")]
     Build {
-        /// The name of the git repository within the mystenlabs org
+        /// The name of the git repository within the IOTA Foundation
         #[arg(short, long)]
         repo_name: String,
         /// The path to the dockerfile within the source code repository given by `--repo_name`

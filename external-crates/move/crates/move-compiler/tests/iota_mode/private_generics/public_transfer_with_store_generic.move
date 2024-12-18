@@ -2,9 +2,9 @@
 // has store.
 
 module a::m {
-    use sui::transfer::{Self, Receiving};
+    use iota::transfer::{Self, Receiving};
     use a::other;
-    use sui::object::UID;
+    use iota::object::UID;
 
     public fun t<T: store>(s: other::S<T>) {
         transfer::public_transfer(s, @0x100)
@@ -38,19 +38,19 @@ module a::m {
 
 module a::other {
     struct S<T> has key, store {
-        id: sui::object::UID,
+        id: iota::object::UID,
         value: T,
     }
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }
 }
 
-module sui::transfer {
-    use sui::object::UID;
+module iota::transfer {
+    use iota::object::UID;
 
     struct Receiving<phantom T: key> { }
 

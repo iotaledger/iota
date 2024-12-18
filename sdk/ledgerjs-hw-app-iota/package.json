@@ -1,46 +1,46 @@
 {
-	"name": "@mysten/ledgerjs-hw-app-sui",
+	"name": "@iota/ledgerjs-hw-app-iota",
 	"version": "0.4.1",
-	"description": "Ledger Hardware Wallet Sui Application API",
+	"description": "Ledger Hardware Wallet Iota Application API",
 	"keywords": [
 		"Ledger",
 		"LedgerWallet",
-		"Sui",
+		"Iota",
 		"NanoS",
 		"Blue",
 		"Hardware Wallet"
 	],
-	"author": "Mysten Labs <build@mystenlabs.com>",
+	"author": "IOTA Foundation <info@iota.org>",
 	"license": "Apache-2.0",
 	"repository": {
 		"type": "git",
-		"url": "github.com:MystenLabs/sui.git"
+		"url": "github.com:iotaledger/iota.git"
 	},
 	"bugs": {
-		"url": "https://github.com/MystenLabs/sui/issues"
+		"url": "https://github.com/iotaledger/iota/issues"
 	},
 	"publishConfig": {
 		"access": "public"
 	},
-	"homepage": "https://github.com/MystenLabs/sui/sdk/ledgerjs-hw-app-sui/#readme",
+	"homepage": "https://github.com/iotaledger/iota/sdk/ledgerjs-hw-app-iota/#readme",
 	"files": [
 		"CHANGELOG.md",
 		"dist",
 		"src"
 	],
 	"type": "commonjs",
-	"main": "./dist/cjs/Sui.js",
-	"module": "./dist/esm/Sui.js",
-	"types": "./dist/cjs/Sui.d.ts",
+	"main": "./dist/cjs/iota-sdk",
+	"module": "./dist/esm/iota-sdk",
+	"types": "./dist/cjs/Iota.d.ts",
 	"exports": {
 		".": {
-			"import": "./dist/esm/Sui.js",
-			"require": "./dist/cjs/Sui.js"
+			"import": "./dist/esm/iota-sdk",
+			"require": "./dist/cjs/iota-sdk"
 		}
 	},
 	"size-limit": [
 		{
-			"path": "dist/Sui.js",
+			"path": "dist/iota-sdk",
 			"limit": "10 kB"
 		}
 	],
@@ -68,7 +68,7 @@
 	},
 	"devDependencies": {
 		"@ledgerhq/hw-transport-mocker": "^6.29.0",
-		"@mysten/build-scripts": "workspace:*",
+		"@iota/build-scripts": "workspace:*",
 		"@size-limit/preset-small-lib": "^11.1.4",
 		"@types/node": "^20.14.10",
 		"size-limit": "^11.1.4",

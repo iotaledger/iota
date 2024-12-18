@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientContext } from '@mysten/dapp-kit';
-import { KIOSK_ITEM, KioskClient, KioskItem, KioskOwnerCap } from '@mysten/kiosk';
-import { SuiClient } from '@mysten/sui/client';
+import { useIotaClientContext } from '@iota/dapp-kit';
+import { KIOSK_ITEM, KioskClient, KioskItem, KioskOwnerCap } from '@iota/kiosk';
+import { IotaClient } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { getKioskIdFromOwnerCap, ORIGINBYTE_KIOSK_OWNER_TOKEN } from '../utils/kiosk';
 import { useKioskClient } from './useKioskClient';
 
 export enum KioskTypes {
-	SUI = 'sui',
+	IOTA = 'iota',
 	ORIGINBYTE = 'originByte',
 }
 
@@ -22,7 +23,7 @@ export type Kiosk = {
 	ownerCap?: KioskOwnerCap;
 };
 
-async function getOriginByteKioskContents(address: string, client: SuiClient) {
+async function getOriginByteKioskContents(address: string, client: IotaClient) {
 	const data = await client.getOwnedObjects({
 		owner: address,
 		filter: {
@@ -75,7 +76,7 @@ async function getOriginByteKioskContents(address: string, client: SuiClient) {
 	return contents;
 }
 
-async function getSuiKioskContents(address: string, kioskClient: KioskClient) {
+async function getIotaKioskContents(address: string, kioskClient: KioskClient) {
 	const ownedKiosks = await kioskClient.getOwnedKiosks({ address });
 	const contents = await Promise.all(
 		ownedKiosks.kioskIds.map(async (id: string) => {
@@ -90,7 +91,7 @@ async function getSuiKioskContents(address: string, kioskClient: KioskClient) {
 				itemIds: kiosk.itemIds,
 				items: kiosk.items,
 				kioskId: id,
-				type: KioskTypes.SUI,
+				type: KioskTypes.IOTA,
 				ownerCap: ownedKiosks.kioskOwnerCaps.find((k) => k.kioskId === id),
 			};
 		}),
@@ -99,15 +100,15 @@ async function getSuiKioskContents(address: string, kioskClient: KioskClient) {
 }
 
 export function useGetKioskContents(address?: string | null, disableOriginByteKiosk?: boolean) {
-	const { client: suiClient, network } = useSuiClientContext();
+	const { client: iotaClient, network } = useIotaClientContext();
 	const kioskClient = useKioskClient();
 	return useQuery({
 		// eslint-disable-next-line @tanstack/query/exhaustive-deps
 		queryKey: ['get-kiosk-contents', address, disableOriginByteKiosk, network, kioskClient.network],
 		queryFn: async () => {
-			const suiKiosks = await getSuiKioskContents(address!, kioskClient);
-			const obKiosks = await getOriginByteKioskContents(address!, suiClient);
-			return [...suiKiosks, ...obKiosks];
+			const iotaKiosks = await getIotaKioskContents(address!, kioskClient);
+			const obKiosks = await getOriginByteKioskContents(address!, iotaClient);
+			return [...iotaKiosks, ...obKiosks];
 		},
 		select(data) {
 			const kiosks = new Map<string, Kiosk>();

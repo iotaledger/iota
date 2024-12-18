@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use camino::Utf8PathBuf;
-use sui_config::local_ip_utils;
-use sui_genesis_builder::validator_info::ValidatorInfo;
-use sui_genesis_builder::Builder;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{
+use iota_config::local_ip_utils;
+use iota_genesis_builder::validator_info::ValidatorInfo;
+use iota_genesis_builder::Builder;
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::{
     generate_proof_of_possession, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
     KeypairTraits, NetworkKeyPair,
 };
@@ -27,10 +28,10 @@ async fn main() {
             name: format!("Validator {}", i),
             protocol_key: key.public().into(),
             worker_key: worker_key.public().clone(),
-            account_address: SuiAddress::from(account_key.public()),
+            account_address: IotaAddress::from(account_key.public()),
             network_key: network_key.public().clone(),
-            gas_price: sui_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
-            commission_rate: sui_config::node::DEFAULT_COMMISSION_RATE,
+            gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
+            commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
             network_address: local_ip_utils::new_local_tcp_address_for_testing(),
             p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
             narwhal_primary_address: local_ip_utils::new_local_udp_address_for_testing(),

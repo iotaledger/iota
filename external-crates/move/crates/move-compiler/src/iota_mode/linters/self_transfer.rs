@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This analysis flags transfers of an object to tx_context::sender(). Such objects should be
@@ -24,7 +25,7 @@ use crate::{
     },
     hlir::ast::{Label, ModuleCall, Type, Type_, Var},
     parser::ast::Ability_,
-    sui_mode::{SUI_ADDR_VALUE, TX_CONTEXT_MODULE_NAME},
+    iota_mode::{IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME},
 };
 use std::collections::BTreeMap;
 
@@ -34,14 +35,14 @@ use super::{
 };
 
 const TRANSFER_FUNCTIONS: &[(AccountAddress, &str, &str)] = &[
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, PUBLIC_TRANSFER_FUN),
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, TRANSFER_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, PUBLIC_TRANSFER_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, TRANSFER_FUN),
 ];
 
 const SELF_TRANSFER_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagnosticCategory::Sui as u8,
+    LinterDiagnosticCategory::Iota as u8,
     LinterDiagnosticCode::SelfTransfer as u8,
     "non-composable transfer to sender",
 );
@@ -168,7 +169,7 @@ impl SimpleAbsInt for SelfTransferVerifierAI {
             }
             return Some(vec![]);
         }
-        if f.is(&SUI_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, "sender") {
+        if f.is(&IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, "sender") {
             return Some(vec![Value::SenderAddress(*loc)]);
         }
         Some(match &return_ty.value {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses Test=0x0 --accounts A
@@ -6,13 +7,13 @@
 //# publish
 module Test::M {
     public struct Obj has key {
-        id: sui::object::UID,
+        id: iota::object::UID,
         value: u64
     }
 
     public entry fun mint(ctx: &mut TxContext) {
-        sui::transfer::transfer(
-            Obj { id: sui::object::new(ctx), value: 0 },
+        iota::transfer::transfer(
+            Obj { id: iota::object::new(ctx), value: 0 },
             tx_context::sender(ctx),
         )
     }

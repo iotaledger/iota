@@ -1,8 +1,8 @@
 module a::m {
-    struct Obj has key { id: sui::object::UID }
+    struct Obj has key { id: iota::object::UID }
 }
 
-module sui::object {
+module iota::object {
     struct UID has store { value: address }
     public fun borrow_address(id: &UID): &address { &id.value }
 }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod health;
@@ -7,7 +8,7 @@ pub mod metrics;
 pub mod server_timing;
 mod service;
 
-pub use service::get_mysten_service;
+pub use service::get_iota_service;
 pub use service::serve;
 
 pub const DEFAULT_PORT: u16 = 2024;
@@ -32,7 +33,7 @@ mod tests {
 
     #[test]
     fn package_name_works() {
-        assert_eq!(package_name!(), "mysten-service",);
+        assert_eq!(package_name!(), "iota-service",);
     }
 
     #[test]

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Copy16, EyeClose16, EyeOpen16 } from '@mysten/icons';
+import { Copy16, EyeClose16, EyeOpen16 } from '@iota/icons';
 import { cx } from 'class-variance-authority';
 import { useEffect, useState } from 'react';
 

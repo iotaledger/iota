@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { API_ENV } from '_src/shared/api-env';
@@ -8,7 +9,7 @@ import Browser from 'webextension-polyfill';
 export const growthbook = new GrowthBook({
 	// If you want to develop locally, you can set the API host to this:
 	// apiHost: 'http://localhost:3003',
-	apiHost: 'https://apps-backend.sui.io',
+	apiHost: 'https://apps-backend.iota.io',
 	clientKey: process.env.NODE_ENV === 'development' ? 'development' : 'production',
 	enableDevMode: process.env.NODE_ENV === 'development',
 });

@@ -1,12 +1,12 @@
 [package]
-name = "SuiSystem"
+name = "IotaSystem"
 version = "0.0.1"
 published-at = "0x3"
 edition = "2024.beta"
 
 [dependencies]
 MoveStdlib = { local = "../move-stdlib" }
-Sui = { local = "../sui-framework" }
+Iota = { local = "../iota-framework" }
 
 [addresses]
-sui_system = "0x3"
+iota_system = "0x3"

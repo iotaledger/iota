@@ -1,30 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::annotated_value::MoveTypeLayout;
-use sui_json_rpc_types::SuiCallArg;
-use sui_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, SuiAddress};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::transaction::{CallArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER};
+use iota_json_rpc_types::IotaCallArg;
+use iota_types::base_types::{ObjectDigest, ObjectID, SequenceNumber, IotaAddress};
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::transaction::{CallArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER};
 
 use crate::operations::Operations;
 use crate::types::{ConstructionMetadata, OperationType};
-use crate::SUI;
+use crate::IOTA;
 
 #[tokio::test]
-async fn test_operation_data_parsing_pay_sui() -> Result<(), anyhow::Error> {
+async fn test_operation_data_parsing_pay_iota() -> Result<(), anyhow::Error> {
     let gas = (
         ObjectID::random(),
         SequenceNumber::new(),
         ObjectDigest::random(),
     );
 
-    let sender = SuiAddress::random_for_testing_only();
+    let sender = IotaAddress::random_for_testing_only();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_sui(vec![SuiAddress::random_for_testing_only()], vec![10000])
+            .pay_iota(vec![IotaAddress::random_for_testing_only()], vec![10000])
             .unwrap();
         builder.finish()
     };
@@ -40,7 +41,7 @@ async fn test_operation_data_parsing_pay_sui() -> Result<(), anyhow::Error> {
     let ops: Operations = data.clone().try_into()?;
     ops.0
         .iter()
-        .for_each(|op| assert_eq!(op.type_, OperationType::PaySui));
+        .for_each(|op| assert_eq!(op.type_, OperationType::PayIota));
     let metadata = ConstructionMetadata {
         sender,
         coins: vec![gas],
@@ -69,19 +70,19 @@ async fn test_operation_data_parsing_pay_coin() -> Result<(), anyhow::Error> {
         ObjectDigest::random(),
     );
 
-    let sender = SuiAddress::random_for_testing_only();
+    let sender = IotaAddress::random_for_testing_only();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
             .pay(
                 vec![coin],
-                vec![SuiAddress::random_for_testing_only()],
+                vec![IotaAddress::random_for_testing_only()],
                 vec![10000],
             )
             .unwrap();
         // the following is important in order to be able to transfer the coin type info between the various flow steps
-        builder.pure(serde_json::to_string(&SUI.clone())?)?;
+        builder.pure(serde_json::to_string(&IOTA.clone())?)?;
         builder.finish()
     };
     let gas_price = 10;
@@ -104,7 +105,7 @@ async fn test_operation_data_parsing_pay_coin() -> Result<(), anyhow::Error> {
         total_coin_value: 0,
         gas_price,
         budget: TEST_ONLY_GAS_UNIT_FOR_TRANSFER * gas_price,
-        currency: Some(SUI.clone()),
+        currency: Some(IOTA.clone()),
     };
     let parsed_data = ops.into_internal()?.try_into_data(metadata)?;
     assert_eq!(data, parsed_data);
@@ -112,10 +113,10 @@ async fn test_operation_data_parsing_pay_coin() -> Result<(), anyhow::Error> {
     Ok(())
 }
 #[tokio::test]
-async fn test_sui_json() {
+async fn test_iota_json() {
     let arg1 = CallArg::Pure(bcs::to_bytes(&1000000u64).unwrap());
     let arg2 = CallArg::Pure(bcs::to_bytes(&30215u64).unwrap());
-    let json1 = SuiCallArg::try_from(arg1, Some(&MoveTypeLayout::U64)).unwrap();
-    let json2 = SuiCallArg::try_from(arg2, Some(&MoveTypeLayout::U64)).unwrap();
+    let json1 = IotaCallArg::try_from(arg1, Some(&MoveTypeLayout::U64)).unwrap();
+    let json2 = IotaCallArg::try_from(arg2, Some(&MoveTypeLayout::U64)).unwrap();
     println!("{:?}, {:?}", json1, json2);
 }

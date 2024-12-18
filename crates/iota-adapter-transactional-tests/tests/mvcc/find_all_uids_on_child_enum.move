@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests finding UIDs for dynamic field access on a child object (non-input) that is an enm
@@ -8,7 +9,7 @@
 //# publish
 
 module test::m {
-    use sui::dynamic_field as field;
+    use iota::dynamic_field as field;
 
     public struct Parent has key, store {
         id: UID,

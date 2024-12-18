@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::coin::Coin;
@@ -9,7 +10,7 @@ use crate::coin::COIN_MODULE_NAME;
 use crate::coin::COIN_STRUCT_NAME;
 pub use crate::committee::EpochId;
 use crate::crypto::{
-    AuthorityPublicKeyBytes, DefaultHash, PublicKey, SignatureScheme, SuiPublicKey, SuiSignature,
+    AuthorityPublicKeyBytes, DefaultHash, PublicKey, SignatureScheme, IotaPublicKey, IotaSignature,
 };
 pub use crate::digests::{ObjectDigest, TransactionDigest, TransactionEffectsDigest};
 use crate::dynamic_field::DynamicFieldInfo;
@@ -18,28 +19,28 @@ use crate::effects::TransactionEffects;
 use crate::effects::TransactionEffectsAPI;
 use crate::epoch_data::EpochData;
 use crate::error::ExecutionErrorKind;
-use crate::error::SuiError;
-use crate::error::{ExecutionError, SuiResult};
+use crate::error::IotaError;
+use crate::error::{ExecutionError, IotaResult};
 use crate::gas_coin::GasCoin;
 use crate::gas_coin::GAS;
-use crate::governance::StakedSui;
-use crate::governance::STAKED_SUI_STRUCT_NAME;
+use crate::governance::StakedIota;
+use crate::governance::STAKED_IOTA_STRUCT_NAME;
 use crate::governance::STAKING_POOL_MODULE_NAME;
-use crate::id::RESOLVED_SUI_ID;
+use crate::id::RESOLVED_IOTA_ID;
 use crate::messages_checkpoint::CheckpointTimestamp;
 use crate::multisig::MultiSigPublicKey;
 use crate::object::{Object, Owner};
-use crate::parse_sui_struct_tag;
+use crate::parse_iota_struct_tag;
 use crate::signature::GenericSignature;
-use crate::sui_serde::Readable;
-use crate::sui_serde::{to_sui_struct_tag_string, HexAccountAddress};
+use crate::iota_serde::Readable;
+use crate::iota_serde::{to_iota_struct_tag_string, HexAccountAddress};
 use crate::transaction::Transaction;
 use crate::transaction::VerifiedTransaction;
 use crate::zk_login_authenticator::ZkLoginAuthenticator;
 use crate::MOVE_STDLIB_ADDRESS;
-use crate::SUI_CLOCK_OBJECT_ID;
-use crate::SUI_FRAMEWORK_ADDRESS;
-use crate::SUI_SYSTEM_ADDRESS;
+use crate::IOTA_CLOCK_OBJECT_ID;
+use crate::IOTA_FRAMEWORK_ADDRESS;
+use crate::IOTA_SYSTEM_ADDRESS;
 use anyhow::anyhow;
 use fastcrypto::encoding::decode_bytes_hex;
 use fastcrypto::encoding::{Encoding, Hex};
@@ -168,11 +169,11 @@ pub struct MoveObjectType(MoveObjectType_);
 pub enum MoveObjectType_ {
     /// A type that is not `0x2::coin::Coin<T>`
     Other(StructTag),
-    /// A SUI coin (i.e., `0x2::coin::Coin<0x2::sui::SUI>`)
+    /// A IOTA coin (i.e., `0x2::coin::Coin<0x2::iota::IOTA>`)
     GasCoin,
-    /// A record of a staked SUI coin (i.e., `0x3::staking_pool::StakedSui`)
-    StakedSui,
-    /// A non-SUI coin type (i.e., `0x2::coin::Coin<T> where T != 0x2::sui::SUI`)
+    /// A record of a staked IOTA coin (i.e., `0x3::staking_pool::StakedIota`)
+    StakedIota,
+    /// A non-IOTA coin type (i.e., `0x2::coin::Coin<T> where T != 0x2::iota::IOTA`)
     Coin(TypeTag),
     // NOTE: if adding a new type here, and there are existing on-chain objects of that
     // type with Other(_), that is ok, but you must hand-roll PartialEq/Eq/Ord/maybe Hash
@@ -184,14 +185,14 @@ impl MoveObjectType {
         Self(MoveObjectType_::GasCoin)
     }
 
-    pub fn staked_sui() -> Self {
-        Self(MoveObjectType_::StakedSui)
+    pub fn staked_iota() -> Self {
+        Self(MoveObjectType_::StakedIota)
     }
 
     pub fn address(&self) -> AccountAddress {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => SUI_FRAMEWORK_ADDRESS,
-            MoveObjectType_::StakedSui => SUI_SYSTEM_ADDRESS,
+            MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => IOTA_FRAMEWORK_ADDRESS,
+            MoveObjectType_::StakedIota => IOTA_SYSTEM_ADDRESS,
             MoveObjectType_::Other(s) => s.address,
         }
     }
@@ -199,7 +200,7 @@ impl MoveObjectType {
     pub fn module(&self) -> &IdentStr {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_MODULE_NAME,
-            MoveObjectType_::StakedSui => STAKING_POOL_MODULE_NAME,
+            MoveObjectType_::StakedIota => STAKING_POOL_MODULE_NAME,
             MoveObjectType_::Other(s) => &s.module,
         }
     }
@@ -207,7 +208,7 @@ impl MoveObjectType {
     pub fn name(&self) -> &IdentStr {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => COIN_STRUCT_NAME,
-            MoveObjectType_::StakedSui => STAKED_SUI_STRUCT_NAME,
+            MoveObjectType_::StakedIota => STAKED_IOTA_STRUCT_NAME,
             MoveObjectType_::Other(s) => &s.name,
         }
     }
@@ -215,7 +216,7 @@ impl MoveObjectType {
     pub fn type_params(&self) -> Vec<TypeTag> {
         match &self.0 {
             MoveObjectType_::GasCoin => vec![GAS::type_tag()],
-            MoveObjectType_::StakedSui => vec![],
+            MoveObjectType_::StakedIota => vec![],
             MoveObjectType_::Coin(inner) => vec![inner.clone()],
             MoveObjectType_::Other(s) => s.type_params.clone(),
         }
@@ -224,7 +225,7 @@ impl MoveObjectType {
     pub fn into_type_params(self) -> Vec<TypeTag> {
         match self.0 {
             MoveObjectType_::GasCoin => vec![GAS::type_tag()],
-            MoveObjectType_::StakedSui => vec![],
+            MoveObjectType_::StakedIota => vec![],
             MoveObjectType_::Coin(inner) => vec![inner],
             MoveObjectType_::Other(s) => s.type_params,
         }
@@ -234,7 +235,7 @@ impl MoveObjectType {
         match &self.0 {
             MoveObjectType_::GasCoin => Some(GAS::type_tag()),
             MoveObjectType_::Coin(inner) => Some(inner.clone()),
-            MoveObjectType_::StakedSui => None,
+            MoveObjectType_::StakedIota => None,
             MoveObjectType_::Other(_) => None,
         }
     }
@@ -247,25 +248,25 @@ impl MoveObjectType {
         // unwraps safe because a `StructTag` cannot fail to serialize
         match &self.0 {
             MoveObjectType_::GasCoin => 1,
-            MoveObjectType_::StakedSui => 1,
+            MoveObjectType_::StakedIota => 1,
             MoveObjectType_::Coin(inner) => bcs::serialized_size(inner).unwrap() + 1,
             MoveObjectType_::Other(s) => bcs::serialized_size(s).unwrap() + 1,
         }
     }
 
-    /// Return true if `self` is `0x2::coin::Coin<T>` for some T (note: T can be SUI)
+    /// Return true if `self` is `0x2::coin::Coin<T>` for some T (note: T can be IOTA)
     pub fn is_coin(&self) -> bool {
         match &self.0 {
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) => true,
-            MoveObjectType_::StakedSui | MoveObjectType_::Other(_) => false,
+            MoveObjectType_::StakedIota | MoveObjectType_::Other(_) => false,
         }
     }
 
-    /// Return true if `self` is 0x2::coin::Coin<0x2::sui::SUI>
+    /// Return true if `self` is 0x2::coin::Coin<0x2::iota::IOTA>
     pub fn is_gas_coin(&self) -> bool {
         match &self.0 {
             MoveObjectType_::GasCoin => true,
-            MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) | MoveObjectType_::Other(_) => {
+            MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) | MoveObjectType_::Other(_) => {
                 false
             }
         }
@@ -276,13 +277,13 @@ impl MoveObjectType {
         match &self.0 {
             MoveObjectType_::GasCoin => GAS::is_gas_type(t),
             MoveObjectType_::Coin(c) => t == c,
-            MoveObjectType_::StakedSui | MoveObjectType_::Other(_) => false,
+            MoveObjectType_::StakedIota | MoveObjectType_::Other(_) => false,
         }
     }
 
-    pub fn is_staked_sui(&self) -> bool {
+    pub fn is_staked_iota(&self) -> bool {
         match &self.0 {
-            MoveObjectType_::StakedSui => true,
+            MoveObjectType_::StakedIota => true,
             MoveObjectType_::GasCoin | MoveObjectType_::Coin(_) | MoveObjectType_::Other(_) => {
                 false
             }
@@ -291,7 +292,7 @@ impl MoveObjectType {
 
     pub fn is_coin_metadata(&self) -> bool {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
             MoveObjectType_::Other(s) => CoinMetadata::is_coin_metadata(s),
@@ -300,7 +301,7 @@ impl MoveObjectType {
 
     pub fn is_treasury_cap(&self) -> bool {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
             MoveObjectType_::Other(s) => TreasuryCap::is_treasury_type(s),
@@ -308,42 +309,42 @@ impl MoveObjectType {
     }
 
     pub fn is_upgrade_cap(&self) -> bool {
-        self.address() == SUI_FRAMEWORK_ADDRESS
+        self.address() == IOTA_FRAMEWORK_ADDRESS
             && self.module().as_str() == "package"
             && self.name().as_str() == "UpgradeCap"
     }
 
     pub fn is_regulated_coin_metadata(&self) -> bool {
-        self.address() == SUI_FRAMEWORK_ADDRESS
+        self.address() == IOTA_FRAMEWORK_ADDRESS
             && self.module().as_str() == "coin"
             && self.name().as_str() == "RegulatedCoinMetadata"
     }
 
     pub fn is_coin_deny_cap(&self) -> bool {
-        self.address() == SUI_FRAMEWORK_ADDRESS
+        self.address() == IOTA_FRAMEWORK_ADDRESS
             && self.module().as_str() == "coin"
             && self.name().as_str() == "DenyCap"
     }
 
     pub fn is_coin_deny_cap_v2(&self) -> bool {
-        self.address() == SUI_FRAMEWORK_ADDRESS
+        self.address() == IOTA_FRAMEWORK_ADDRESS
             && self.module().as_str() == "coin"
             && self.name().as_str() == "DenyCapV2"
     }
 
     pub fn is_dynamic_field(&self) -> bool {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
                 false
             }
             MoveObjectType_::Other(s) => DynamicFieldInfo::is_dynamic_field(s),
         }
     }
 
-    pub fn try_extract_field_name(&self, type_: &DynamicFieldType) -> SuiResult<TypeTag> {
+    pub fn try_extract_field_name(&self, type_: &DynamicFieldType) -> IotaResult<TypeTag> {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
-                Err(SuiError::ObjectDeserializationError {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                Err(IotaError::ObjectDeserializationError {
                     error: "Error extracting dynamic object name from Coin object".to_string(),
                 })
             }
@@ -351,10 +352,10 @@ impl MoveObjectType {
         }
     }
 
-    pub fn try_extract_field_value(&self) -> SuiResult<TypeTag> {
+    pub fn try_extract_field_value(&self) -> IotaResult<TypeTag> {
         match &self.0 {
-            MoveObjectType_::GasCoin | MoveObjectType_::StakedSui | MoveObjectType_::Coin(_) => {
-                Err(SuiError::ObjectDeserializationError {
+            MoveObjectType_::GasCoin | MoveObjectType_::StakedIota | MoveObjectType_::Coin(_) => {
+                Err(IotaError::ObjectDeserializationError {
                     error: "Error extracting dynamic object value from Coin object".to_string(),
                 })
             }
@@ -365,7 +366,7 @@ impl MoveObjectType {
     pub fn is(&self, s: &StructTag) -> bool {
         match &self.0 {
             MoveObjectType_::GasCoin => GasCoin::is_gas_coin(s),
-            MoveObjectType_::StakedSui => StakedSui::is_staked_sui(s),
+            MoveObjectType_::StakedIota => StakedIota::is_staked_iota(s),
             MoveObjectType_::Coin(inner) => {
                 Coin::is_coin(s) && s.type_params.len() == 1 && inner == &s.type_params[0]
             }
@@ -394,8 +395,8 @@ impl From<StructTag> for MoveObjectType {
         } else if Coin::is_coin(&s) {
             // unwrap safe because a coin has exactly one type parameter
             MoveObjectType_::Coin(s.type_params.pop().unwrap())
-        } else if StakedSui::is_staked_sui(&s) {
-            MoveObjectType_::StakedSui
+        } else if StakedIota::is_staked_iota(&s) {
+            MoveObjectType_::StakedIota
         } else {
             MoveObjectType_::Other(s)
         })
@@ -406,7 +407,7 @@ impl From<MoveObjectType> for StructTag {
     fn from(t: MoveObjectType) -> Self {
         match t.0 {
             MoveObjectType_::GasCoin => GasCoin::type_(),
-            MoveObjectType_::StakedSui => StakedSui::type_(),
+            MoveObjectType_::StakedIota => StakedIota::type_(),
             MoveObjectType_::Coin(inner) => Coin::type_(inner),
             MoveObjectType_::Other(s) => s,
         }
@@ -436,7 +437,7 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
             } = &**st;
             let resolved_struct = (address, module.as_ident_str(), name.as_ident_str());
             // is id or..
-            if resolved_struct == RESOLVED_SUI_ID {
+            if resolved_struct == RESOLVED_IOTA_ID {
                 return true;
             }
             // is utf8 string
@@ -456,7 +457,7 @@ pub fn is_primitive_type_tag(t: &TypeTag) -> bool {
     }
 }
 
-/// Type of a Sui object
+/// Type of a Iota object
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub enum ObjectType {
     /// Move package containing one or more bytecode modules
@@ -492,7 +493,7 @@ impl FromStr for ObjectType {
         if s.to_lowercase() == PACKAGE {
             Ok(ObjectType::Package)
         } else {
-            let tag = parse_sui_struct_tag(s)?;
+            let tag = parse_iota_struct_tag(s)?;
             Ok(ObjectType::Struct(MoveObjectType::from(tag)))
         }
     }
@@ -564,40 +565,40 @@ impl From<&ObjectInfo> for ObjectRef {
     }
 }
 
-pub const SUI_ADDRESS_LENGTH: usize = ObjectID::LENGTH;
+pub const IOTA_ADDRESS_LENGTH: usize = ObjectID::LENGTH;
 
 #[serde_as]
 #[derive(
     Eq, Default, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema,
 )]
 #[cfg_attr(feature = "fuzzing", derive(proptest_derive::Arbitrary))]
-pub struct SuiAddress(
+pub struct IotaAddress(
     #[schemars(with = "Hex")]
     #[serde_as(as = "Readable<Hex, _>")]
-    [u8; SUI_ADDRESS_LENGTH],
+    [u8; IOTA_ADDRESS_LENGTH],
 );
 
-impl SuiAddress {
-    pub const ZERO: Self = Self([0u8; SUI_ADDRESS_LENGTH]);
+impl IotaAddress {
+    pub const ZERO: Self = Self([0u8; IOTA_ADDRESS_LENGTH]);
 
     /// Convert the address to a byte buffer.
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
     }
 
-    /// Return a random SuiAddress.
+    /// Return a random IotaAddress.
     pub fn random_for_testing_only() -> Self {
         AccountAddress::random().into()
     }
 
     pub fn generate<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
-        let buf: [u8; SUI_ADDRESS_LENGTH] = rng.gen();
+        let buf: [u8; IOTA_ADDRESS_LENGTH] = rng.gen();
         Self(buf)
     }
 
-    /// Serialize an `Option<SuiAddress>` in Hex.
+    /// Serialize an `Option<IotaAddress>` in Hex.
     pub fn optional_address_as_hex<S>(
-        key: &Option<SuiAddress>,
+        key: &Option<IotaAddress>,
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
@@ -606,10 +607,10 @@ impl SuiAddress {
         serializer.serialize_str(&key.map(Hex::encode).unwrap_or_default())
     }
 
-    /// Deserialize into an `Option<SuiAddress>`.
+    /// Deserialize into an `Option<IotaAddress>`.
     pub fn optional_address_from_hex<'de, D>(
         deserializer: D,
-    ) -> Result<Option<SuiAddress>, D::Error>
+    ) -> Result<Option<IotaAddress>, D::Error>
     where
         D: serde::de::Deserializer<'de>,
     {
@@ -618,102 +619,102 @@ impl SuiAddress {
         Ok(Some(value))
     }
 
-    /// Return the underlying byte array of a SuiAddress.
-    pub fn to_inner(self) -> [u8; SUI_ADDRESS_LENGTH] {
+    /// Return the underlying byte array of a IotaAddress.
+    pub fn to_inner(self) -> [u8; IOTA_ADDRESS_LENGTH] {
         self.0
     }
 
-    /// Parse a SuiAddress from a byte array or buffer.
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, SuiError> {
-        <[u8; SUI_ADDRESS_LENGTH]>::try_from(bytes.as_ref())
-            .map_err(|_| SuiError::InvalidAddress)
-            .map(SuiAddress)
+    /// Parse a IotaAddress from a byte array or buffer.
+    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, IotaError> {
+        <[u8; IOTA_ADDRESS_LENGTH]>::try_from(bytes.as_ref())
+            .map_err(|_| IotaError::InvalidAddress)
+            .map(IotaAddress)
     }
 
     /// This derives a zkLogin address by parsing the iss and address_seed from [struct ZkLoginAuthenticator].
     /// Define as iss_bytes_len || iss_bytes || padded_32_byte_address_seed. This is to be differentiated with
     /// try_from_unpadded defined below.
-    pub fn try_from_padded(inputs: &ZkLoginInputs) -> SuiResult<Self> {
+    pub fn try_from_padded(inputs: &ZkLoginInputs) -> IotaResult<Self> {
         Ok((&PublicKey::from_zklogin_inputs(inputs)?).into())
     }
 
     /// Define as iss_bytes_len || iss_bytes || unpadded_32_byte_address_seed.
-    pub fn try_from_unpadded(inputs: &ZkLoginInputs) -> SuiResult<Self> {
+    pub fn try_from_unpadded(inputs: &ZkLoginInputs) -> IotaResult<Self> {
         let mut hasher = DefaultHash::default();
         hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
         let iss_bytes = inputs.get_iss().as_bytes();
         hasher.update([iss_bytes.len() as u8]);
         hasher.update(iss_bytes);
         hasher.update(inputs.get_address_seed().unpadded());
-        Ok(SuiAddress(hasher.finalize().digest))
+        Ok(IotaAddress(hasher.finalize().digest))
     }
 }
 
-impl From<ObjectID> for SuiAddress {
-    fn from(object_id: ObjectID) -> SuiAddress {
+impl From<ObjectID> for IotaAddress {
+    fn from(object_id: ObjectID) -> IotaAddress {
         Self(object_id.into_bytes())
     }
 }
 
-impl From<AccountAddress> for SuiAddress {
-    fn from(address: AccountAddress) -> SuiAddress {
+impl From<AccountAddress> for IotaAddress {
+    fn from(address: AccountAddress) -> IotaAddress {
         Self(address.into_bytes())
     }
 }
 
-impl TryFrom<&[u8]> for SuiAddress {
-    type Error = SuiError;
+impl TryFrom<&[u8]> for IotaAddress {
+    type Error = IotaError;
 
-    /// Tries to convert the provided byte array into a SuiAddress.
-    fn try_from(bytes: &[u8]) -> Result<Self, SuiError> {
+    /// Tries to convert the provided byte array into a IotaAddress.
+    fn try_from(bytes: &[u8]) -> Result<Self, IotaError> {
         Self::from_bytes(bytes)
     }
 }
 
-impl TryFrom<Vec<u8>> for SuiAddress {
-    type Error = SuiError;
+impl TryFrom<Vec<u8>> for IotaAddress {
+    type Error = IotaError;
 
-    /// Tries to convert the provided byte buffer into a SuiAddress.
-    fn try_from(bytes: Vec<u8>) -> Result<Self, SuiError> {
+    /// Tries to convert the provided byte buffer into a IotaAddress.
+    fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
         Self::from_bytes(bytes)
     }
 }
 
-impl AsRef<[u8]> for SuiAddress {
+impl AsRef<[u8]> for IotaAddress {
     fn as_ref(&self) -> &[u8] {
         &self.0[..]
     }
 }
 
-impl FromStr for SuiAddress {
+impl FromStr for IotaAddress {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         decode_bytes_hex(s).map_err(|e| anyhow!(e))
     }
 }
 
-impl<T: SuiPublicKey> From<&T> for SuiAddress {
+impl<T: IotaPublicKey> From<&T> for IotaAddress {
     fn from(pk: &T) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([T::SIGNATURE_SCHEME.flag()]);
         hasher.update(pk);
         let g_arr = hasher.finalize();
-        SuiAddress(g_arr.digest)
+        IotaAddress(g_arr.digest)
     }
 }
 
-impl From<&PublicKey> for SuiAddress {
+impl From<&PublicKey> for IotaAddress {
     fn from(pk: &PublicKey) -> Self {
         let mut hasher = DefaultHash::default();
         hasher.update([pk.flag()]);
         hasher.update(pk);
         let g_arr = hasher.finalize();
-        SuiAddress(g_arr.digest)
+        IotaAddress(g_arr.digest)
     }
 }
 
-impl From<&MultiSigPublicKey> for SuiAddress {
-    /// Derive a SuiAddress from [struct MultiSigPublicKey]. A MultiSig address
+impl From<&MultiSigPublicKey> for IotaAddress {
+    /// Derive a IotaAddress from [struct MultiSigPublicKey]. A MultiSig address
     /// is defined as the 32-byte Blake2b hash of serializing the flag, the
     /// threshold, concatenation of all n flag, public keys and
     /// its weight. `flag_MultiSig || threshold || flag_1 || pk_1 || weight_1
@@ -730,67 +731,67 @@ impl From<&MultiSigPublicKey> for SuiAddress {
             hasher.update(pk.as_ref());
             hasher.update(w.to_le_bytes());
         });
-        SuiAddress(hasher.finalize().digest)
+        IotaAddress(hasher.finalize().digest)
     }
 }
 
-/// Sui address for [struct ZkLoginAuthenticator] is defined as the black2b hash of
+/// Iota address for [struct ZkLoginAuthenticator] is defined as the black2b hash of
 /// [zklogin_flag || iss_bytes_length || iss_bytes || unpadded_address_seed_in_bytes].
-impl TryFrom<&ZkLoginAuthenticator> for SuiAddress {
-    type Error = SuiError;
-    fn try_from(authenticator: &ZkLoginAuthenticator) -> SuiResult<Self> {
-        SuiAddress::try_from_unpadded(&authenticator.inputs)
+impl TryFrom<&ZkLoginAuthenticator> for IotaAddress {
+    type Error = IotaError;
+    fn try_from(authenticator: &ZkLoginAuthenticator) -> IotaResult<Self> {
+        IotaAddress::try_from_unpadded(&authenticator.inputs)
     }
 }
 
-impl TryFrom<&GenericSignature> for SuiAddress {
-    type Error = SuiError;
-    /// Derive a SuiAddress from a serialized signature in Sui [GenericSignature].
-    fn try_from(sig: &GenericSignature) -> SuiResult<Self> {
+impl TryFrom<&GenericSignature> for IotaAddress {
+    type Error = IotaError;
+    /// Derive a IotaAddress from a serialized signature in Iota [GenericSignature].
+    fn try_from(sig: &GenericSignature) -> IotaResult<Self> {
         match sig {
             GenericSignature::Signature(sig) => {
                 let scheme = sig.scheme();
                 let pub_key_bytes = sig.public_key_bytes();
                 let pub_key = PublicKey::try_from_bytes(scheme, pub_key_bytes).map_err(|_| {
-                    SuiError::InvalidSignature {
+                    IotaError::InvalidSignature {
                         error: "Cannot parse pubkey".to_string(),
                     }
                 })?;
-                Ok(SuiAddress::from(&pub_key))
+                Ok(IotaAddress::from(&pub_key))
             }
             GenericSignature::MultiSig(ms) => Ok(ms.get_pk().into()),
             GenericSignature::MultiSigLegacy(ms) => {
                 Ok(crate::multisig::MultiSig::try_from(ms.clone())
-                    .map_err(|_| SuiError::InvalidSignature {
+                    .map_err(|_| IotaError::InvalidSignature {
                         error: "Invalid legacy multisig".to_string(),
                     })?
                     .get_pk()
                     .into())
             }
             GenericSignature::ZkLoginAuthenticator(zklogin) => {
-                SuiAddress::try_from_unpadded(&zklogin.inputs)
+                IotaAddress::try_from_unpadded(&zklogin.inputs)
             }
-            GenericSignature::PasskeyAuthenticator(s) => Ok(SuiAddress::from(&s.get_pk()?)),
+            GenericSignature::PasskeyAuthenticator(s) => Ok(IotaAddress::from(&s.get_pk()?)),
         }
     }
 }
 
-impl fmt::Display for SuiAddress {
+impl fmt::Display for IotaAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{}", Hex::encode(self.0))
     }
 }
 
-impl fmt::Debug for SuiAddress {
+impl fmt::Debug for IotaAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "0x{}", Hex::encode(self.0))
     }
 }
 
-/// Generate a fake SuiAddress with repeated one byte.
-pub fn dbg_addr(name: u8) -> SuiAddress {
-    let addr = [name; SUI_ADDRESS_LENGTH];
-    SuiAddress(addr)
+/// Generate a fake IotaAddress with repeated one byte.
+pub fn dbg_addr(name: u8) -> IotaAddress {
+    let addr = [name; IOTA_ADDRESS_LENGTH];
+    IotaAddress(addr)
 }
 
 #[derive(
@@ -953,7 +954,7 @@ pub enum TxContextKind {
 }
 
 impl TxContext {
-    pub fn new(sender: &SuiAddress, digest: &TransactionDigest, epoch_data: &EpochData) -> Self {
+    pub fn new(sender: &IotaAddress, digest: &TransactionDigest, epoch_data: &EpochData) -> Self {
         Self::new_from_components(
             sender,
             digest,
@@ -963,7 +964,7 @@ impl TxContext {
     }
 
     pub fn new_from_components(
-        sender: &SuiAddress,
+        sender: &IotaAddress,
         digest: &TransactionDigest,
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
@@ -992,7 +993,7 @@ impl TxContext {
 
         let (module_addr, module_name, struct_name) = resolve_struct(view, *idx);
         let is_tx_context_type = module_name == TX_CONTEXT_MODULE_NAME
-            && module_addr == &SUI_FRAMEWORK_ADDRESS
+            && module_addr == &IOTA_FRAMEWORK_ADDRESS
             && struct_name == TX_CONTEXT_STRUCT_NAME;
 
         if is_tx_context_type {
@@ -1019,8 +1020,8 @@ impl TxContext {
         TransactionDigest::new(self.digest.clone().try_into().unwrap())
     }
 
-    pub fn sender(&self) -> SuiAddress {
-        SuiAddress::from(ObjectID(self.sender))
+    pub fn sender(&self) -> IotaAddress {
+        IotaAddress::from(ObjectID(self.sender))
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -1048,14 +1049,14 @@ impl TxContext {
     // Generate a random TxContext for testing.
     pub fn random_for_testing_only() -> Self {
         Self::new(
-            &SuiAddress::random_for_testing_only(),
+            &IotaAddress::random_for_testing_only(),
             &TransactionDigest::random(),
             &EpochData::new_test(),
         )
     }
 
     /// Generate a TxContext for testing with a specific sender.
-    pub fn with_sender_for_testing_only(sender: &SuiAddress) -> Self {
+    pub fn with_sender_for_testing_only(sender: &IotaAddress) -> Self {
         Self::new(sender, &TransactionDigest::random(), &EpochData::new_test())
     }
 }
@@ -1302,12 +1303,12 @@ impl ObjectID {
     }
 
     pub fn is_clock(&self) -> bool {
-        *self == SUI_CLOCK_OBJECT_ID
+        *self == IOTA_CLOCK_OBJECT_ID
     }
 }
 
-impl From<SuiAddress> for ObjectID {
-    fn from(address: SuiAddress) -> ObjectID {
+impl From<IotaAddress> for ObjectID {
+    fn from(address: IotaAddress) -> ObjectID {
         let tmp: AccountAddress = address.into();
         tmp.into()
     }
@@ -1392,8 +1393,8 @@ impl From<ObjectID> for AccountAddress {
     }
 }
 
-impl From<SuiAddress> for AccountAddress {
-    fn from(address: SuiAddress) -> Self {
+impl From<IotaAddress> for AccountAddress {
+    fn from(address: IotaAddress) -> Self {
         Self::new(address.0)
     }
 }
@@ -1404,7 +1405,7 @@ impl fmt::Display for MoveObjectType {
         write!(
             f,
             "{}",
-            to_sui_struct_tag_string(&s).map_err(fmt::Error::custom)?
+            to_iota_struct_tag_string(&s).map_err(fmt::Error::custom)?
         )
     }
 }

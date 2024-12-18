@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 #[allow(unused_use)]
-module sui::random_tests {
-    use sui::test_utils::assert_eq;
-    use sui::bcs;
-    use sui::test_scenario;
-    use sui::random::{Self, Random};
+module iota::random_tests {
+    use iota::test_utils::assert_eq;
+    use iota::bcs;
+    use iota::test_scenario;
+    use iota::random::{Self, Random};
 
     // TODO: add a test from https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-22r1a.pdf ?
 

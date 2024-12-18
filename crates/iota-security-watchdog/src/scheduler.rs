@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::metrics::WatchdogMetrics;
@@ -18,7 +19,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::{error, info};
 use uuid::Uuid;
 
-const MIST_PER_SUI: i128 = 1_000_000_000;
+const NANOS_PER_IOTA: i128 = 1_000_000_000;
 
 // MonitoringEntry is an enum that represents the types of monitoring entries that can be scheduled.
 #[derive(Serialize, Deserialize)]
@@ -206,9 +207,9 @@ impl SchedulerService {
         };
         let incident_body = Body {
             details: format!(
-                "Current balance: {} SUI, Lower bound: {} SUI",
-                current_balance / MIST_PER_SUI,
-                lower_bound / MIST_PER_SUI
+                "Current balance: {} IOTA, Lower bound: {} IOTA",
+                current_balance / NANOS_PER_IOTA,
+                lower_bound / NANOS_PER_IOTA
             ),
             ..Default::default()
         };
@@ -221,7 +222,7 @@ impl SchedulerService {
         };
         let create_incident = CreateIncident { incident };
         pagerduty
-            .create_incident("sadhan@mystenlabs.com", create_incident)
+            .create_incident("sadhan@iota.org", create_incident)
             .await?;
         Ok(())
     }

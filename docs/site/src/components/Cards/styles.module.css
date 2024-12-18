@@ -1,17 +1,17 @@
 :root {
-  --sui-cards-border-color: transparent;
-  --sui-cards-background: #F5F8FA;
-  --sui-cards-header: #4DA2FF;
-  --sui-cards-copy: #91A3B1;
-  --sui-cards-background-hover: #EBF1F5;
+  --iota-cards-border-color: transparent;
+  --iota-cards-background: #F5F8FA;
+  --iota-cards-header: #4DA2FF;
+  --iota-cards-copy: #91A3B1;
+  --iota-cards-background-hover: #EBF1F5;
 }
 
 [data-theme='dark'] {
-    --sui-cards-border-color: rgba(247, 247, 248, 0.05);
-    --sui-cards-background: rgba(247, 247, 248, 0.05);
-    --sui-cards-background-hover: rgba(247, 247, 248, 0.15);
-    --sui-cards-header: #4DA2FF;
-    --sui-cards-copy: #ABBDCC;
+    --iota-cards-border-color: rgba(247, 247, 248, 0.05);
+    --iota-cards-background: rgba(247, 247, 248, 0.05);
+    --iota-cards-background-hover: rgba(247, 247, 248, 0.15);
+    --iota-cards-header: #4DA2FF;
+    --iota-cards-copy: #ABBDCC;
 }
 
 .card {
@@ -22,25 +22,25 @@
     border-radius: 20px;
     padding: 1.25rem;
     padding-bottom: 1.5rem;
-    background: var(--sui-cards-background);
+    background: var(--iota-cards-background);
     cursor: pointer;
     transition: background .25s ease-in-out;
-    border: solid 1px var(--sui-cards-border-color);
+    border: solid 1px var(--iota-cards-border-color);
 }
 .card:hover {
-    background: var(--sui-cards-background-hover);
+    background: var(--iota-cards-background-hover);
 }
 
 .card__header__copy {
     margin: 0;
     font-size: 1.125rem;
     line-height: 1.25rem;
-    color: var(--sui-cards-header);
+    color: var(--iota-cards-header);
 }
 
 .card__copy {
     font-size: .8125rem;
     line-height: 1.3125rem;
-    color: var(--sui-cards-copy);
+    color: var(--iota-cards-copy);
 }
 

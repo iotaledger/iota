@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::backfill::backfill_instances::ingestion_backfills::IngestionBackfillTrait;
 use crate::database::ConnectionPool;
-use sui_types::full_checkpoint_content::CheckpointData;
+use iota_types::full_checkpoint_content::CheckpointData;
 use tracing::info;
 
 /// Dummy backfill that only prints the sequence number and checkpoint of the digest. Intended to

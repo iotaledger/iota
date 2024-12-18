@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 use std::time::Duration;
-use sui_core::authority_client::NetworkAuthorityClient;
-use sui_core::transaction_orchestrator::TransactiondOrchestrator;
-use sui_macros::sim_test;
-use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use sui_test_transaction_builder::{
-    batch_make_transfer_transactions, make_staking_transaction, make_transfer_sui_transaction,
+use iota_core::authority_client::NetworkAuthorityClient;
+use iota_core::transaction_orchestrator::TransactiondOrchestrator;
+use iota_macros::sim_test;
+use iota_storage::key_value_store::TransactionKeyValueStore;
+use iota_storage::key_value_store_metrics::KeyValueStoreMetrics;
+use iota_test_transaction_builder::{
+    batch_make_transfer_transactions, make_staking_transaction, make_transfer_iota_transaction,
 };
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::quorum_driver_types::{
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::quorum_driver_types::{
     ExecuteTransactionRequestType, ExecuteTransactionRequestV3, ExecuteTransactionResponseV3,
     FinalizedEffects, IsTransactionExecutedLocally, QuorumDriverError,
 };
-use sui_types::transaction::Transaction;
+use iota_types::transaction::Transaction;
 use test_cluster::TestClusterBuilder;
 use tokio::time::timeout;
 use tracing::info;
@@ -29,7 +30,7 @@ fn make_socket_addr() -> std::net::SocketAddr {
 async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
-    let handle = &test_cluster.fullnode_handle.sui_node;
+    let handle = &test_cluster.fullnode_handle.iota_node;
     let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
 
     let txn_count = 4;
@@ -92,7 +93,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
 async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
     #[cfg(msim)]
     {
-        use sui_core::authority::{init_checkpoint_timeout_config, CheckpointTimeoutConfig};
+        use iota_core::authority::{init_checkpoint_timeout_config, CheckpointTimeoutConfig};
         init_checkpoint_timeout_config(CheckpointTimeoutConfig {
             warning_timeout: Duration::from_secs(2),
             panic_timeout: None,
@@ -104,7 +105,7 @@ async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
         .build()
         .await;
 
-    let handle = &test_cluster.fullnode_handle.sui_node;
+    let handle = &test_cluster.fullnode_handle.iota_node;
     let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
 
     let txn_count = 2;
@@ -177,7 +178,7 @@ async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
 async fn test_transaction_orchestrator_reconfig() {
     telemetry_subscribers::init_for_testing();
     let test_cluster = TestClusterBuilder::new().build().await;
-    let epoch = test_cluster.fullnode_handle.sui_node.with(|node| {
+    let epoch = test_cluster.fullnode_handle.iota_node.with(|node| {
         node.transaction_orchestrator()
             .unwrap()
             .quorum_driver()
@@ -192,7 +193,7 @@ async fn test_transaction_orchestrator_reconfig() {
     // to make the test more reliable.
     timeout(Duration::from_secs(5), async {
         loop {
-            let epoch = test_cluster.fullnode_handle.sui_node.with(|node| {
+            let epoch = test_cluster.fullnode_handle.iota_node.with(|node| {
                 node.transaction_orchestrator()
                     .unwrap()
                     .quorum_driver()
@@ -208,7 +209,7 @@ async fn test_transaction_orchestrator_reconfig() {
     .unwrap();
 
     assert_eq!(
-        test_cluster.fullnode_handle.sui_node.with(|node| node
+        test_cluster.fullnode_handle.iota_node.with(|node| node
             .clone_authority_aggregator()
             .unwrap()
             .committee
@@ -224,7 +225,7 @@ async fn test_tx_across_epoch_boundaries() {
     let (result_tx, mut result_rx) = tokio::sync::mpsc::channel::<FinalizedEffects>(total_tx_cnt);
 
     let test_cluster = TestClusterBuilder::new().build().await;
-    let tx = make_transfer_sui_transaction(&test_cluster.wallet, None, None).await;
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
     let authorities = test_cluster.swarm.validator_node_handles();
 
     // We first let 2 validators stop accepting user cert
@@ -239,7 +240,7 @@ async fn test_tx_across_epoch_boundaries() {
     // across the epoch boundary.
     let to = test_cluster
         .fullnode_handle
-        .sui_node
+        .iota_node
         .with(|node| node.transaction_orchestrator().unwrap());
 
     let tx_digest = *tx.digest();
@@ -298,7 +299,7 @@ async fn execute_with_orchestrator(
 async fn execute_transaction_v3() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
-    let handle = &test_cluster.fullnode_handle.sui_node;
+    let handle = &test_cluster.fullnode_handle.iota_node;
     let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
 
     let txn_count = 1;
@@ -356,19 +357,19 @@ async fn execute_transaction_v3() -> Result<(), anyhow::Error> {
 async fn execute_transaction_v3_staking_transaction() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
-    let handle = &test_cluster.fullnode_handle.sui_node;
+    let handle = &test_cluster.fullnode_handle.iota_node;
     let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
 
     let validator_address = context
         .get_client()
         .await?
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await?
         .active_validators
         .first()
         .unwrap()
-        .sui_address;
+        .iota_address;
     let transaction = make_staking_transaction(context, validator_address).await;
 
     let request = ExecuteTransactionRequestV3 {

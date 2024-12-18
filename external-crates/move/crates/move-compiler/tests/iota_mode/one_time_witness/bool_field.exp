@@ -1,5 +1,5 @@
 warning[W09004]: unnecessary trailing semicolon
-  ┌─ tests/sui_mode/one_time_witness/bool_field.move:9:15
+  ┌─ tests/iota_mode/one_time_witness/bool_field.move:9:15
   │
 9 │         return;
   │         ------^

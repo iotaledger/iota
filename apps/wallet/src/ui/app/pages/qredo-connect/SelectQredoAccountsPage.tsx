@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import Overlay from '_components/overlay';
 import { type Wallet } from '_src/shared/qredo-api';
-import { ArrowRight16 } from '@mysten/icons';
+import { ArrowRight16 } from '@iota/icons';
 import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
@@ -10,7 +11,7 @@ use std::{
     env, fs,
     path::{Path, PathBuf},
 };
-use sui_move_build::{BuildConfig, SuiPackageHooks};
+use iota_move_build::{BuildConfig, IotaPackageHooks};
 
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 const COMPILED_PACKAGES_DIR: &str = "packages_compiled";
@@ -19,7 +20,7 @@ const PUBLISHED_API_FILE: &str = "published_api.txt";
 
 #[test]
 fn build_system_packages() {
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let tempdir = tempfile::tempdir().unwrap();
     let out_dir = if std::env::var_os("UPDATE").is_some() {
         let crate_root = Path::new(CRATE_ROOT);
@@ -38,15 +39,15 @@ fn build_system_packages() {
 
     let bridge_path = packages_path.join("bridge");
     let deepbook_path = packages_path.join("deepbook");
-    let sui_system_path = packages_path.join("sui-system");
-    let sui_framework_path = packages_path.join("sui-framework");
+    let iota_system_path = packages_path.join("iota-system");
+    let iota_framework_path = packages_path.join("iota-framework");
     let move_stdlib_path = packages_path.join("move-stdlib");
 
     build_packages(
         &bridge_path,
         &deepbook_path,
-        &sui_system_path,
-        &sui_framework_path,
+        &iota_system_path,
+        &iota_framework_path,
         &move_stdlib_path,
         out_dir,
     );
@@ -65,9 +66,9 @@ fn check_diff(checked_in: &Path, built: &Path) {
             .unwrap();
         if !output.status.success() {
             let header =
-                "Generated and checked-in sui-framework packages and/or docs do not match.\n\
+                "Generated and checked-in iota-framework packages and/or docs do not match.\n\
                  Re-run with `UPDATE=1` to update checked-in packages and docs. e.g.\n\n\
-                 UPDATE=1 cargo test -p sui-framework --test build-system-packages";
+                 UPDATE=1 cargo test -p iota-framework --test build-system-packages";
 
             panic!(
                 "{header}\n\n{}\n\n{}",
@@ -81,8 +82,8 @@ fn check_diff(checked_in: &Path, built: &Path) {
 fn build_packages(
     bridge_path: &Path,
     deepbook_path: &Path,
-    sui_system_path: &Path,
-    sui_framework_path: &Path,
+    iota_system_path: &Path,
+    iota_framework_path: &Path,
     stdlib_path: &Path,
     out_dir: &Path,
 ) {
@@ -98,14 +99,14 @@ fn build_packages(
     build_packages_with_move_config(
         bridge_path,
         deepbook_path,
-        sui_system_path,
-        sui_framework_path,
+        iota_system_path,
+        iota_framework_path,
         stdlib_path,
         out_dir,
         "bridge",
         "deepbook",
-        "sui-system",
-        "sui-framework",
+        "iota-system",
+        "iota-framework",
         "move-stdlib",
         config,
     );
@@ -114,8 +115,8 @@ fn build_packages(
 fn build_packages_with_move_config(
     bridge_path: &Path,
     deepbook_path: &Path,
-    sui_system_path: &Path,
-    sui_framework_path: &Path,
+    iota_system_path: &Path,
+    iota_framework_path: &Path,
     stdlib_path: &Path,
     out_dir: &Path,
     bridge_dir: &str,
@@ -139,7 +140,7 @@ fn build_packages_with_move_config(
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
     }
-    .build(sui_framework_path)
+    .build(iota_framework_path)
     .unwrap();
     let system_pkg = BuildConfig {
         config: config.clone(),
@@ -147,7 +148,7 @@ fn build_packages_with_move_config(
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
     }
-    .build(sui_system_path)
+    .build(iota_system_path)
     .unwrap();
     let deepbook_pkg = BuildConfig {
         config: config.clone(),
@@ -167,17 +168,17 @@ fn build_packages_with_move_config(
     .unwrap();
 
     let move_stdlib = stdlib_pkg.get_stdlib_modules();
-    let sui_system = system_pkg.get_sui_system_modules();
-    let sui_framework = framework_pkg.get_sui_framework_modules();
+    let iota_system = system_pkg.get_iota_system_modules();
+    let iota_framework = framework_pkg.get_iota_framework_modules();
     let deepbook = deepbook_pkg.get_deepbook_modules();
     let bridge = bridge_pkg.get_bridge_modules();
 
     let compiled_packages_dir = out_dir.join(COMPILED_PACKAGES_DIR);
 
-    let sui_system_members =
-        serialize_modules_to_file(sui_system, &compiled_packages_dir.join(system_dir)).unwrap();
-    let sui_framework_members =
-        serialize_modules_to_file(sui_framework, &compiled_packages_dir.join(framework_dir))
+    let iota_system_members =
+        serialize_modules_to_file(iota_system, &compiled_packages_dir.join(system_dir)).unwrap();
+    let iota_framework_members =
+        serialize_modules_to_file(iota_framework, &compiled_packages_dir.join(framework_dir))
             .unwrap();
     let deepbook_members =
         serialize_modules_to_file(deepbook, &compiled_packages_dir.join(deepbook_dir)).unwrap();
@@ -216,8 +217,8 @@ fn build_packages_with_move_config(
     }
 
     let published_api = [
-        sui_system_members.join("\n"),
-        sui_framework_members.join("\n"),
+        iota_system_members.join("\n"),
+        iota_framework_members.join("\n"),
         deepbook_members.join("\n"),
         bridge_members.join("\n"),
         stdlib_members.join("\n"),

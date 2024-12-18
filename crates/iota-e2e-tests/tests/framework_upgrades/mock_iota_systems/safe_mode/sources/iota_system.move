@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::sui_system {
+module iota_system::iota_system {
     use std::vector;
 
-    use sui::balance::Balance;
-    use sui::object::UID;
-    use sui::sui::SUI;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
-    use sui::dynamic_field;
+    use iota::balance::Balance;
+    use iota::object::UID;
+    use iota::iota::IOTA;
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
+    use iota::dynamic_field;
 
-    use sui_system::validator::Validator;
-    use sui_system::sui_system_state_inner::SuiSystemStateInner;
-    use sui_system::sui_system_state_inner;
+    use iota_system::validator::Validator;
+    use iota_system::iota_system_state_inner::IotaSystemStateInner;
+    use iota_system::iota_system_state_inner;
 
-    public struct SuiSystemState has key {
+    public struct IotaSystemState has key {
         id: UID,
         version: u64,
     }
@@ -23,13 +24,13 @@ module sui_system::sui_system {
     public(package) fun create(
         id: UID,
         validators: vector<Validator>,
-        storage_fund: Balance<SUI>,
+        storage_fund: Balance<IOTA>,
         protocol_version: u64,
         epoch_start_timestamp_ms: u64,
         epoch_duration_ms: u64,
         ctx: &mut TxContext,
     ) {
-        let system_state = sui_system_state_inner::create(
+        let system_state = iota_system_state_inner::create(
             validators,
             storage_fund,
             protocol_version,
@@ -37,8 +38,8 @@ module sui_system::sui_system {
             epoch_duration_ms,
             ctx,
         );
-        let version = sui_system_state_inner::genesis_system_state_version();
-        let mut self = SuiSystemState {
+        let version = iota_system_state_inner::genesis_system_state_version();
+        let mut self = IotaSystemState {
             id,
             version,
         };
@@ -47,9 +48,9 @@ module sui_system::sui_system {
     }
 
     fun advance_epoch(
-        storage_reward: Balance<SUI>,
-        computation_reward: Balance<SUI>,
-        wrapper: &mut SuiSystemState,
+        storage_reward: Balance<IOTA>,
+        computation_reward: Balance<IOTA>,
+        wrapper: &mut IotaSystemState,
         _new_epoch: u64,
         _next_protocol_version: u64,
         storage_rebate: u64,
@@ -58,10 +59,10 @@ module sui_system::sui_system {
         _reward_slashing_rate: u64,
         _epoch_start_timestamp_ms: u64,
         ctx: &mut TxContext,
-    ) : Balance<SUI> {
+    ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
         assert!(tx_context::sender(ctx) == @0x1, 0); // aborts here
-        sui_system_state_inner::advance_epoch(
+        iota_system_state_inner::advance_epoch(
             self,
             storage_reward,
             computation_reward,
@@ -69,11 +70,11 @@ module sui_system::sui_system {
         )
     }
 
-    public fun active_validator_addresses(wrapper: &mut SuiSystemState): vector<address> {
+    public fun active_validator_addresses(wrapper: &mut IotaSystemState): vector<address> {
         vector::empty()
     }
 
-    fun load_system_state_mut(self: &mut SuiSystemState): &mut SuiSystemStateInner {
+    fun load_system_state_mut(self: &mut IotaSystemState): &mut IotaSystemStateInner {
         let version = self.version;
         dynamic_field::borrow_mut(&mut self.id, version)
     }

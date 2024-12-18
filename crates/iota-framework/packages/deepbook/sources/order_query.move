@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module deepbook::order_query {
     use std::option::{some, none};
     use deepbook::critbit::CritbitTree;
-    use sui::linked_table;
+    use iota::linked_table;
     use deepbook::critbit;
     use deepbook::clob_v2;
     use deepbook::clob_v2::{Order, Pool, TickLevel};

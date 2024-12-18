@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses tto=0x0
 
 //# publish
 module tto::M1 {
-    use sui::transfer::Receiving;
+    use iota::transfer::Receiving;
 
     public struct A has key, store {
         id: UID,
@@ -37,7 +38,7 @@ module tto::M1 {
 //# run tto::M1::receiver --args receiving(2,1)
 
 //# programmable --inputs receiving(2,1)
-//> sui::transfer::receiving_object_id<tto::M1::B>(Input(0))
+//> iota::transfer::receiving_object_id<tto::M1::B>(Input(0))
 
 //# programmable --inputs receiving(2,1)
 //> tto::M1::receiver(Input(0))

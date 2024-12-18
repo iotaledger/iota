@@ -1,30 +1,31 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IdentifierString, WalletAccount } from '@wallet-standard/core';
 
 /** The latest API version of the signTransaction API. */
-export type SuiSignTransactionVersion = '2.0.0';
+export type IotaSignTransactionVersion = '2.0.0';
 
 /**
  * A Wallet Standard feature for signing a transaction, and returning the
  * serialized transaction and transaction signature.
  */
-export type SuiSignTransactionFeature = {
+export type IotaSignTransactionFeature = {
 	/** Namespace for the feature. */
-	'sui:signTransaction': {
+	'iota:signTransaction': {
 		/** Version of the feature API. */
-		version: SuiSignTransactionVersion;
-		signTransaction: SuiSignTransactionMethod;
+		version: IotaSignTransactionVersion;
+		signTransaction: IotaSignTransactionMethod;
 	};
 };
 
-export type SuiSignTransactionMethod = (
-	input: SuiSignTransactionInput,
+export type IotaSignTransactionMethod = (
+	input: IotaSignTransactionInput,
 ) => Promise<SignedTransaction>;
 
 /** Input for signing transactions. */
-export interface SuiSignTransactionInput {
+export interface IotaSignTransactionInput {
 	transaction: { toJSON: () => Promise<string> };
 	account: WalletAccount;
 	chain: IdentifierString;

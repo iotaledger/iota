@@ -1,5 +1,5 @@
 warning[Lint W99000]: possible owned object share
-   ┌─ tests/sui_mode/linter/true_positive_share_owned.move:17:9
+   ┌─ tests/iota_mode/linter/true_positive_share_owned.move:17:9
    │
  7 │     struct Obj has key, store {
    │                         ----- Potentially an owned object because 'store' grants access to public transfers
@@ -16,7 +16,7 @@ warning[Lint W99000]: possible owned object share
    = This warning can be suppressed with '#[allow(lint(share_owned))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99000]: possible owned object share
-   ┌─ tests/sui_mode/linter/true_positive_share_owned.move:42:9
+   ┌─ tests/iota_mode/linter/true_positive_share_owned.move:42:9
    │
 37 │         transfer::transfer(arg, tx_context::sender(ctx));
    │         ------------------------------------------------ Transferred as an owned object here

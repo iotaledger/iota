@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt::Debug;
@@ -14,20 +15,20 @@ use serde_json::Value;
 use strum_macros::EnumIter;
 use strum_macros::EnumString;
 
-use sui_sdk::rpc_types::{SuiExecutionStatus, SuiTransactionBlockKind};
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest};
-use sui_types::crypto::PublicKey as SuiPublicKey;
-use sui_types::crypto::SignatureScheme;
-use sui_types::governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME};
-use sui_types::messages_checkpoint::CheckpointDigest;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::sui_system_state::SUI_SYSTEM_MODULE_NAME;
-use sui_types::transaction::{Argument, CallArg, Command, ObjectArg, TransactionData};
-use sui_types::SUI_SYSTEM_PACKAGE_ID;
+use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockKind};
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest};
+use iota_types::crypto::PublicKey as IotaPublicKey;
+use iota_types::crypto::SignatureScheme;
+use iota_types::governance::{ADD_STAKE_FUN_NAME, WITHDRAW_STAKE_FUN_NAME};
+use iota_types::messages_checkpoint::CheckpointDigest;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::iota_system_state::IOTA_SYSTEM_MODULE_NAME;
+use iota_types::transaction::{Argument, CallArg, Command, ObjectArg, TransactionData};
+use iota_types::IOTA_SYSTEM_PACKAGE_ID;
 
 use crate::errors::{Error, ErrorType};
 use crate::operations::Operations;
-use crate::SUI;
+use crate::IOTA;
 
 #[cfg(test)]
 #[path = "unit_tests/types_tests.rs"]
@@ -38,7 +39,7 @@ pub type BlockHeight = u64;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct NetworkIdentifier {
     pub blockchain: String,
-    pub network: SuiEnv,
+    pub network: IotaEnv,
 }
 
 #[derive(
@@ -46,19 +47,19 @@ pub struct NetworkIdentifier {
 )]
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
-pub enum SuiEnv {
+pub enum IotaEnv {
     MainNet,
     DevNet,
     TestNet,
     LocalNet,
 }
 
-impl SuiEnv {
+impl IotaEnv {
     pub fn check_network_identifier(
         &self,
         network_identifier: &NetworkIdentifier,
     ) -> Result<(), Error> {
-        if &network_identifier.blockchain != "sui" {
+        if &network_identifier.blockchain != "iota" {
             return Err(Error::UnsupportedBlockchain(
                 network_identifier.blockchain.clone(),
             ));
@@ -72,7 +73,7 @@ impl SuiEnv {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct AccountIdentifier {
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sub_account: Option<SubAccount>,
 }
@@ -90,8 +91,8 @@ pub enum SubAccountType {
     EstimatedReward,
 }
 
-impl From<SuiAddress> for AccountIdentifier {
-    fn from(address: SuiAddress) -> Self {
+impl From<IotaAddress> for AccountIdentifier {
+    fn from(address: IotaAddress) -> Self {
         AccountIdentifier {
             address,
             sub_account: None,
@@ -114,13 +115,13 @@ pub struct CurrencyMetadata {
 
 impl Default for CurrencyMetadata {
     fn default() -> Self {
-        SUI.metadata.clone()
+        IOTA.metadata.clone()
     }
 }
 
 impl Default for Currency {
     fn default() -> Self {
-        SUI.clone()
+        IOTA.clone()
     }
 }
 
@@ -194,7 +195,7 @@ pub struct AmountMetadata {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct SubBalance {
     pub stake_id: ObjectID,
-    pub validator: SuiAddress,
+    pub validator: IotaAddress,
     #[serde(with = "str_format")]
     pub value: i128,
 }
@@ -262,8 +263,8 @@ pub struct Coin {
     pub amount: Amount,
 }
 
-impl From<sui_sdk::rpc_types::Coin> for Coin {
-    fn from(coin: sui_sdk::rpc_types::Coin) -> Self {
+impl From<iota_sdk::rpc_types::Coin> for Coin {
+    fn from(coin: iota_sdk::rpc_types::Coin) -> Self {
         Self {
             coin_identifier: CoinIdentifier {
                 identifier: CoinID {
@@ -273,7 +274,7 @@ impl From<sui_sdk::rpc_types::Coin> for Coin {
             },
             amount: Amount {
                 value: coin.balance as i128,
-                currency: SUI.clone(),
+                currency: IOTA.clone(),
                 metadata: None,
             },
         }
@@ -370,26 +371,26 @@ pub struct PublicKey {
     pub curve_type: CurveType,
 }
 
-impl From<SuiPublicKey> for PublicKey {
-    fn from(pk: SuiPublicKey) -> Self {
+impl From<IotaPublicKey> for PublicKey {
+    fn from(pk: IotaPublicKey) -> Self {
         match pk {
-            SuiPublicKey::Ed25519(k) => PublicKey {
+            IotaPublicKey::Ed25519(k) => PublicKey {
                 hex_bytes: Hex::from_bytes(&k.0),
                 curve_type: CurveType::Edwards25519,
             },
-            SuiPublicKey::Secp256k1(k) => PublicKey {
+            IotaPublicKey::Secp256k1(k) => PublicKey {
                 hex_bytes: Hex::from_bytes(&k.0),
                 curve_type: CurveType::Secp256k1,
             },
-            SuiPublicKey::Secp256r1(k) => PublicKey {
+            IotaPublicKey::Secp256r1(k) => PublicKey {
                 hex_bytes: Hex::from_bytes(&k.0),
                 curve_type: CurveType::Secp256r1,
             },
-            SuiPublicKey::ZkLogin(k) => PublicKey {
+            IotaPublicKey::ZkLogin(k) => PublicKey {
                 hex_bytes: Hex::from_bytes(&k.0),
                 curve_type: CurveType::ZkLogin, // inaccurate but added for completeness.
             },
-            SuiPublicKey::Passkey(k) => PublicKey {
+            IotaPublicKey::Passkey(k) => PublicKey {
                 hex_bytes: Hex::from_bytes(&k.0),
                 curve_type: CurveType::Secp256r1,
             },
@@ -397,12 +398,12 @@ impl From<SuiPublicKey> for PublicKey {
     }
 }
 
-impl TryInto<SuiAddress> for PublicKey {
+impl TryInto<IotaAddress> for PublicKey {
     type Error = Error;
 
-    fn try_into(self) -> Result<SuiAddress, Self::Error> {
+    fn try_into(self) -> Result<IotaAddress, Self::Error> {
         let key_bytes = self.hex_bytes.to_vec()?;
-        let pub_key = SuiPublicKey::try_from_bytes(self.curve_type.into(), &key_bytes)?;
+        let pub_key = IotaPublicKey::try_from_bytes(self.curve_type.into(), &key_bytes)?;
         Ok((&pub_key).into())
     }
 }
@@ -452,15 +453,15 @@ pub struct ConstructionPayloadsRequest {
 pub enum OperationType {
     // Balance changing operations from TransactionEffect
     Gas,
-    SuiBalanceChange,
+    IotaBalanceChange,
     StakeReward,
     StakePrinciple,
-    // sui-rosetta supported operation type
-    PaySui,
+    // iota-rosetta supported operation type
+    PayIota,
     PayCoin,
     Stake,
     WithdrawStake,
-    // All other Sui transaction types, readonly
+    // All other Iota transaction types, readonly
     EpochChange,
     Genesis,
     ConsensusCommitPrologue,
@@ -470,26 +471,26 @@ pub enum OperationType {
     EndOfEpochTransaction,
 }
 
-impl From<&SuiTransactionBlockKind> for OperationType {
-    fn from(tx: &SuiTransactionBlockKind) -> Self {
+impl From<&IotaTransactionBlockKind> for OperationType {
+    fn from(tx: &IotaTransactionBlockKind) -> Self {
         match tx {
-            SuiTransactionBlockKind::ChangeEpoch(_) => OperationType::EpochChange,
-            SuiTransactionBlockKind::Genesis(_) => OperationType::Genesis,
-            SuiTransactionBlockKind::ConsensusCommitPrologue(_)
-            | SuiTransactionBlockKind::ConsensusCommitPrologueV2(_)
-            | SuiTransactionBlockKind::ConsensusCommitPrologueV3(_) => {
+            IotaTransactionBlockKind::ChangeEpoch(_) => OperationType::EpochChange,
+            IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
+            IotaTransactionBlockKind::ConsensusCommitPrologue(_)
+            | IotaTransactionBlockKind::ConsensusCommitPrologueV2(_)
+            | IotaTransactionBlockKind::ConsensusCommitPrologueV3(_) => {
                 OperationType::ConsensusCommitPrologue
             }
-            SuiTransactionBlockKind::ProgrammableTransaction(_) => {
+            IotaTransactionBlockKind::ProgrammableTransaction(_) => {
                 OperationType::ProgrammableTransaction
             }
-            SuiTransactionBlockKind::AuthenticatorStateUpdate(_) => {
+            IotaTransactionBlockKind::AuthenticatorStateUpdate(_) => {
                 OperationType::AuthenticatorStateUpdate
             }
-            SuiTransactionBlockKind::RandomnessStateUpdate(_) => {
+            IotaTransactionBlockKind::RandomnessStateUpdate(_) => {
                 OperationType::RandomnessStateUpdate
             }
-            SuiTransactionBlockKind::EndOfEpochTransaction(_) => {
+            IotaTransactionBlockKind::EndOfEpochTransaction(_) => {
                 OperationType::EndOfEpochTransaction
             }
         }
@@ -660,7 +661,7 @@ pub struct ConstructionMetadataResponse {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ConstructionMetadata {
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub coins: Vec<ObjectRef>,
     pub objects: Vec<ObjectRef>,
     #[serde(with = "str_format")]
@@ -735,7 +736,7 @@ pub struct SyncStatus {
 }
 #[derive(Serialize)]
 pub struct Peer {
-    pub peer_id: SuiAddress,
+    pub peer_id: IotaAddress,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
 }
@@ -786,11 +787,11 @@ pub enum OperationStatus {
     Failure,
 }
 
-impl From<SuiExecutionStatus> for OperationStatus {
-    fn from(es: SuiExecutionStatus) -> Self {
+impl From<IotaExecutionStatus> for OperationStatus {
+    fn from(es: IotaExecutionStatus) -> Self {
         match es {
-            SuiExecutionStatus::Success => OperationStatus::Success,
-            SuiExecutionStatus::Failure { .. } => OperationStatus::Failure,
+            IotaExecutionStatus::Success => OperationStatus::Success,
+            IotaExecutionStatus::Failure { .. } => OperationStatus::Failure,
         }
     }
 }
@@ -913,33 +914,33 @@ pub struct PrefundedAccount {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum InternalOperation {
-    PaySui {
-        sender: SuiAddress,
-        recipients: Vec<SuiAddress>,
+    PayIota {
+        sender: IotaAddress,
+        recipients: Vec<IotaAddress>,
         amounts: Vec<u64>,
     },
     PayCoin {
-        sender: SuiAddress,
-        recipients: Vec<SuiAddress>,
+        sender: IotaAddress,
+        recipients: Vec<IotaAddress>,
         amounts: Vec<u64>,
         currency: Currency,
     },
     Stake {
-        sender: SuiAddress,
-        validator: SuiAddress,
+        sender: IotaAddress,
+        validator: IotaAddress,
         amount: Option<u64>,
     },
     WithdrawStake {
-        sender: SuiAddress,
+        sender: IotaAddress,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         stake_ids: Vec<ObjectID>,
     },
 }
 
 impl InternalOperation {
-    pub fn sender(&self) -> SuiAddress {
+    pub fn sender(&self) -> IotaAddress {
         match self {
-            InternalOperation::PaySui { sender, .. }
+            InternalOperation::PayIota { sender, .. }
             | InternalOperation::PayCoin { sender, .. }
             | InternalOperation::Stake { sender, .. }
             | InternalOperation::WithdrawStake { sender, .. } => *sender,
@@ -948,13 +949,13 @@ impl InternalOperation {
     /// Combine with ConstructionMetadata to form the TransactionData
     pub fn try_into_data(self, metadata: ConstructionMetadata) -> Result<TransactionData, Error> {
         let pt = match self {
-            Self::PaySui {
+            Self::PayIota {
                 recipients,
                 amounts,
                 ..
             } => {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                builder.pay_sui(recipients, amounts)?;
+                builder.pay_iota(recipients, amounts)?;
                 builder.finish()
             }
             Self::PayCoin {
@@ -985,12 +986,12 @@ impl InternalOperation {
                 let (validator, system_state, amount) = if let Some(amount) = amount {
                     let amount = builder.pure(amount)?;
                     let validator = builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?;
-                    let state = builder.input(CallArg::SUI_SYSTEM_MUT)?;
+                    let state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
                     (validator, state, amount)
                 } else {
                     let amount =
                         builder.pure(metadata.total_coin_value as u64 - metadata.budget)?;
-                    let state = builder.input(CallArg::SUI_SYSTEM_MUT)?;
+                    let state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
                     let validator = builder.input(CallArg::Pure(bcs::to_bytes(&validator)?))?;
                     (validator, state, amount)
                 };
@@ -999,8 +1000,8 @@ impl InternalOperation {
                 let arguments = vec![system_state, coin, validator];
 
                 builder.command(Command::move_call(
-                    SUI_SYSTEM_PACKAGE_ID,
-                    SUI_SYSTEM_MODULE_NAME.to_owned(),
+                    IOTA_SYSTEM_PACKAGE_ID,
+                    IOTA_SYSTEM_MODULE_NAME.to_owned(),
                     ADD_STAKE_FUN_NAME.to_owned(),
                     vec![],
                     arguments,
@@ -1014,19 +1015,19 @@ impl InternalOperation {
                     // [WORKAROUND] - this is a hack to work out if the withdraw stake ops is for selected stake_ids or None (all stakes) using the index of the call args.
                     // if stake_ids is not empty, id input will be created after the system object input
                     let (system_state, id) = if !stake_ids.is_empty() {
-                        let system_state = builder.input(CallArg::SUI_SYSTEM_MUT)?;
+                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
                         let id = builder.obj(ObjectArg::ImmOrOwnedObject(stake_id))?;
                         (system_state, id)
                     } else {
                         let id = builder.obj(ObjectArg::ImmOrOwnedObject(stake_id))?;
-                        let system_state = builder.input(CallArg::SUI_SYSTEM_MUT)?;
+                        let system_state = builder.input(CallArg::IOTA_SYSTEM_MUT)?;
                         (system_state, id)
                     };
 
                     let arguments = vec![system_state, id];
                     builder.command(Command::move_call(
-                        SUI_SYSTEM_PACKAGE_ID,
-                        SUI_SYSTEM_MODULE_NAME.to_owned(),
+                        IOTA_SYSTEM_PACKAGE_ID,
+                        IOTA_SYSTEM_MODULE_NAME.to_owned(),
                         WITHDRAW_STAKE_FUN_NAME.to_owned(),
                         vec![],
                         arguments,

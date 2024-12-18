@@ -1,26 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::connection::{Connection, CursorType, Edge};
 use async_graphql::*;
 use move_disassembler::disassembler::Disassembler;
 use move_ir_types::location::Loc;
-use sui_types::move_package;
+use iota_types::move_package;
 
 use crate::consistency::{ConsistentIndexCursor, ConsistentNamedCursor};
 use crate::error::Error;
-use sui_package_resolver::Module as ParsedMoveModule;
+use iota_package_resolver::Module as ParsedMoveModule;
 
 use super::cursor::{JsonCursor, Page};
 use super::datatype::MoveDatatype;
 use super::move_enum::MoveEnum;
 use super::move_function::MoveFunction;
 use super::move_struct::MoveStruct;
-use super::{base64::Base64, move_package::MovePackage, sui_address::SuiAddress};
+use super::{base64::Base64, move_package::MovePackage, iota_address::IotaAddress};
 
 #[derive(Clone)]
 pub(crate) struct MoveModule {
-    pub storage_id: SuiAddress,
+    pub storage_id: IotaAddress,
     pub native: Vec<u8>,
     pub parsed: ParsedMoveModule,
     /// The checkpoint sequence number this was viewed at.
@@ -481,7 +482,7 @@ impl MoveModule {
 
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
         name: &str,
         checkpoint_viewed_at: u64,
     ) -> Result<Option<Self>, Error> {

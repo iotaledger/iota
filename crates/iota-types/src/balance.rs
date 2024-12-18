@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::{ExecutionError, ExecutionErrorKind};
-use crate::sui_serde::BigInt;
-use crate::sui_serde::Readable;
-use crate::SUI_FRAMEWORK_ADDRESS;
+use crate::iota_serde::BigInt;
+use crate::iota_serde::Readable;
+use crate::IOTA_FRAMEWORK_ADDRESS;
 use move_core_types::annotated_value::{MoveFieldLayout, MoveStructLayout, MoveTypeLayout};
 use move_core_types::ident_str;
 use move_core_types::identifier::IdentStr;
@@ -38,7 +39,7 @@ impl Balance {
 
     pub fn type_(type_param: TypeTag) -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: BALANCE_MODULE_NAME.to_owned(),
             name: BALANCE_STRUCT_NAME.to_owned(),
             type_params: vec![type_param],
@@ -46,7 +47,7 @@ impl Balance {
     }
 
     pub fn is_balance(s: &StructTag) -> bool {
-        s.address == SUI_FRAMEWORK_ADDRESS
+        s.address == IOTA_FRAMEWORK_ADDRESS
             && s.module.as_ident_str() == BALANCE_MODULE_NAME
             && s.name.as_ident_str() == BALANCE_STRUCT_NAME
     }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useRef } from "react";
@@ -13,7 +14,7 @@ import ScrollSpy from "react-ui-scrollspy";
 SyntaxHighlighter.registerLanguage("json", js);
 
 const pillStyle =
-  "p-2 border border-solid border-sui-blue-dark rounded-lg max-w-max bg-sui-ghost-white dark:bg-sui-gray-90";
+  "p-2 border border-solid border-iota-blue-dark rounded-lg max-w-max bg-iota-ghost-white dark:bg-iota-gray-90";
 
 const RefLink = (props) => {
   const { refer } = props;
@@ -140,10 +141,10 @@ const AnyOf = (props) => {
   const { anyof } = props;
   return (
     <div>
-      <p className="p-2 border border-solid border-sui-blue-dark rounded-lg max-w-max font-bold text-white bg-sui-blue-dark">
+      <p className="p-2 border border-solid border-iota-blue-dark rounded-lg max-w-max font-bold text-white bg-iota-blue-dark">
         Any of
       </p>
-      <div className="ml-1 border-0 border-l-4 border-solid border-sui-blue-dark">
+      <div className="ml-1 border-0 border-l-4 border-solid border-iota-blue-dark">
         <Of of={anyof} type="any" />
       </div>
     </div>
@@ -180,10 +181,10 @@ const OneOf = (props) => {
   const { oneof } = props;
   return (
     <div>
-      <p className="p-2 border border-solid border-sui-blue-dark rounded-lg max-w-max font-bold text-white bg-sui-blue-dark">
+      <p className="p-2 border border-solid border-iota-blue-dark rounded-lg max-w-max font-bold text-white bg-iota-blue-dark">
         One of
       </p>
-      <div className="ml-1 border-0 border-l-4 border-solid border-sui-blue-dark">
+      <div className="ml-1 border-0 border-l-4 border-solid border-iota-blue-dark">
         <Of of={oneof} type="one" />
       </div>
     </div>
@@ -276,7 +277,7 @@ const Components = (props) => {
             return (
               <div
                 key={name}
-                className="p-4 m-4 mt-8 snap-start scroll-mt-40 border border-sui-gray-50 border-solid rounded-lg"
+                className="p-4 m-4 mt-8 snap-start scroll-mt-40 border border-iota-gray-50 border-solid rounded-lg"
                 id={name.toLowerCase()}
               >
                 <h2>{name}</h2>
@@ -287,7 +288,7 @@ const Components = (props) => {
                   </p>
                 )}
                 {schemas[name].type && (
-                  <p className="p-2 border border-solid border-sui-blue-dark rounded-lg max-w-max font-bold text-white bg-sui-blue-dark">
+                  <p className="p-2 border border-solid border-iota-blue-dark rounded-lg max-w-max font-bold text-white bg-iota-blue-dark">
                     {schemas[name].type[0].toUpperCase()}
                     {schemas[name].type.substring(1)}
                     {schemas[name].enum &&

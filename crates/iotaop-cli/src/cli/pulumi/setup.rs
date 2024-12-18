@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{command::CommandOptions, run_cmd};
@@ -93,11 +94,11 @@ fn ensure_gcloud_logged_in() -> Result<()> {
     for account in accounts {
         let name = account.account;
         if account.status == "ACTIVE" {
-            if str::ends_with(name, "@mystenlabs.com") {
+            if str::ends_with(name, "@iota.org") {
                 return Ok(());
             } else {
                 error!(
-                    "Please select your @mystenlabs.com profile: {}",
+                    "Please select your @iota.org profile: {}",
                     "gcloud config set account `ACCOUNT`".bright_yellow()
                 );
                 return Err(anyhow!("Incorret account selected."));
@@ -105,7 +106,7 @@ fn ensure_gcloud_logged_in() -> Result<()> {
         }
     }
     error!(
-        "No gcloud credentials found! Please log into your @mystenlabs.com account via: {}",
+        "No gcloud credentials found! Please log into your @iota.org account via: {}",
         "gcloud auth login".bright_yellow()
     );
     Err(anyhow!("Missing gcloud credentials"))
@@ -123,7 +124,7 @@ fn ensure_gcloud_adc_logged_in() -> Result<()> {
         Ok(_) => Ok(()),
         Err(_) => {
             error!(
-                "No gcloud ADC (Application Default Credentials) found! Please log into your @mystenlabs.com account via: {}",
+                "No gcloud ADC (Application Default Credentials) found! Please log into your @iota.org account via: {}",
                 "gcloud auth application-default login".bright_yellow()
             );
             Err(anyhow!("Missing gcloud ADC credentials"))
@@ -159,7 +160,7 @@ pub fn ensure_gcloud() -> Result<()> {
 pub fn ensure_pulumi_setup() -> Result<()> {
     let home = env::var("HOME").unwrap();
     // check for marker file
-    let setup_marker = PathBuf::from(format!("{}/.suiop/pulumi_setup", home));
+    let setup_marker = PathBuf::from(format!("{}/.iotaop/pulumi_setup", home));
     if setup_marker.exists() {
         // our work here is done, it's set up!
         Ok(())

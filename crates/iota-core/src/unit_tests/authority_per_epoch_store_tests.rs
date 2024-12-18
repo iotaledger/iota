@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::time::Duration;
 
 use crate::authority::test_authority_builder::TestAuthorityBuilder;
-use sui_types::base_types::TransactionDigest;
+use iota_types::base_types::TransactionDigest;
 use tokio::time::timeout;
 
 #[tokio::test]

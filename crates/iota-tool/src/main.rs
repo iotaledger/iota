@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
 use colored::Colorize;
-use sui_tool::commands::ToolCommand;
-use sui_types::exit_main;
+use iota_tool::commands::ToolCommand;
+use iota_types::exit_main;
 
 // Define the `GIT_REVISION` and `VERSION` consts
 bin_version::bin_version!();
 
 #[derive(Parser)]
 #[command(
-    name = "sui-tool",
-    about = "Debugging utilities for sui",
+    name = "iota-tool",
+    about = "Debugging utilities for iota",
     rename_all = "kebab-case",
     author,
     version = VERSION,

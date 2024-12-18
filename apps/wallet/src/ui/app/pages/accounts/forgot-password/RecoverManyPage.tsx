@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { entropyToSerialized, mnemonicToEntropy } from '_src/shared/utils/bip39';
@@ -83,7 +84,7 @@ export function RecoverManyPage() {
 					}
 					setRecoverInfo(null);
 				}}
-				background="bg-sui-lightest"
+				background="bg-iota-lightest"
 			>
 				<div className="flex flex-col flex-nowrap w-full h-full gap-4 text-center">
 					<Text variant="pBody" color="gray-90">

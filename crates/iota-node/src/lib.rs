@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anemo::Network;
@@ -13,7 +14,7 @@ use arc_swap::ArcSwap;
 use fastcrypto_zkp::bn254::zk_login::JwkId;
 use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
 use futures::TryFutureExt;
-use mysten_network::server::SUI_TLS_SERVER_NAME;
+use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
 use prometheus::Registry;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt;
@@ -24,26 +25,26 @@ use std::str::FromStr;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTablesOptions;
-use sui_core::authority::epoch_start_configuration::EpochFlag;
-use sui_core::authority::RandomnessRoundReceiver;
-use sui_core::authority::CHAIN_IDENTIFIER;
-use sui_core::consensus_adapter::ConsensusClient;
-use sui_core::consensus_manager::UpdatableConsensusClient;
-use sui_core::epoch::randomness::RandomnessManager;
-use sui_core::execution_cache::build_execution_cache;
-use sui_core::state_accumulator::StateAccumulatorMetrics;
-use sui_core::storage::RestReadStore;
-use sui_core::traffic_controller::metrics::TrafficControllerMetrics;
-use sui_json_rpc::bridge_api::BridgeReadApi;
-use sui_json_rpc_api::JsonRpcMetrics;
-use sui_network::randomness;
-use sui_rpc_api::RpcMetrics;
-use sui_types::base_types::ConciseableName;
-use sui_types::crypto::RandomnessRound;
-use sui_types::digests::ChainIdentifier;
-use sui_types::messages_consensus::AuthorityCapabilitiesV2;
-use sui_types::sui_system_state::SuiSystemState;
+use iota_core::authority::authority_store_tables::AuthorityPerpetualTablesOptions;
+use iota_core::authority::epoch_start_configuration::EpochFlag;
+use iota_core::authority::RandomnessRoundReceiver;
+use iota_core::authority::CHAIN_IDENTIFIER;
+use iota_core::consensus_adapter::ConsensusClient;
+use iota_core::consensus_manager::UpdatableConsensusClient;
+use iota_core::epoch::randomness::RandomnessManager;
+use iota_core::execution_cache::build_execution_cache;
+use iota_core::state_accumulator::StateAccumulatorMetrics;
+use iota_core::storage::RestReadStore;
+use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
+use iota_json_rpc::bridge_api::BridgeReadApi;
+use iota_json_rpc_api::JsonRpcMetrics;
+use iota_network::randomness;
+use iota_rpc_api::RpcMetrics;
+use iota_types::base_types::ConciseableName;
+use iota_types::crypto::RandomnessRound;
+use iota_types::digests::ChainIdentifier;
+use iota_types::messages_consensus::AuthorityCapabilitiesV2;
+use iota_types::iota_system_state::IotaSystemState;
 use tap::tap::TapFallible;
 use tokio::runtime::Handle;
 use tokio::sync::{broadcast, mpsc, watch, Mutex};
@@ -53,91 +54,91 @@ use tracing::{debug, error, warn};
 use tracing::{error_span, info, Instrument};
 
 use fastcrypto_zkp::bn254::zk_login::JWK;
-pub use handle::SuiNodeHandle;
-use mysten_metrics::{spawn_monitored_task, RegistryService};
-use mysten_network::server::ServerBuilder;
-use mysten_service::server_timing::server_timing_middleware;
-use sui_archival::reader::ArchiveReaderBalancer;
-use sui_archival::writer::ArchiveWriter;
-use sui_config::node::{DBCheckpointConfig, RunWithRange};
-use sui_config::node_config_metrics::NodeConfigMetrics;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_config::{ConsensusConfig, NodeConfig};
-use sui_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::authority::epoch_start_configuration::EpochStartConfigTrait;
-use sui_core::authority::epoch_start_configuration::EpochStartConfiguration;
-use sui_core::authority_aggregator::{AuthAggMetrics, AuthorityAggregator};
-use sui_core::authority_server::{ValidatorService, ValidatorServiceMetrics};
-use sui_core::checkpoints::checkpoint_executor::metrics::CheckpointExecutorMetrics;
-use sui_core::checkpoints::checkpoint_executor::{CheckpointExecutor, StopReason};
-use sui_core::checkpoints::{
+pub use handle::IotaNodeHandle;
+use iota_metrics::{spawn_monitored_task, RegistryService};
+use iota_network_stack::server::ServerBuilder;
+use iota_service::server_timing::server_timing_middleware;
+use iota_archival::reader::ArchiveReaderBalancer;
+use iota_archival::writer::ArchiveWriter;
+use iota_config::node::{DBCheckpointConfig, RunWithRange};
+use iota_config::node_config_metrics::NodeConfigMetrics;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_config::{ConsensusConfig, NodeConfig};
+use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
+use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+use iota_core::authority::epoch_start_configuration::EpochStartConfigTrait;
+use iota_core::authority::epoch_start_configuration::EpochStartConfiguration;
+use iota_core::authority_aggregator::{AuthAggMetrics, AuthorityAggregator};
+use iota_core::authority_server::{ValidatorService, ValidatorServiceMetrics};
+use iota_core::checkpoints::checkpoint_executor::metrics::CheckpointExecutorMetrics;
+use iota_core::checkpoints::checkpoint_executor::{CheckpointExecutor, StopReason};
+use iota_core::checkpoints::{
     CheckpointMetrics, CheckpointService, CheckpointStore, SendCheckpointToStateSync,
     SubmitCheckpointToConsensus,
 };
-use sui_core::consensus_adapter::{
+use iota_core::consensus_adapter::{
     CheckConnection, ConnectionMonitorStatus, ConsensusAdapter, ConsensusAdapterMetrics,
 };
-use sui_core::consensus_manager::{ConsensusManager, ConsensusManagerTrait};
-use sui_core::consensus_throughput_calculator::{
+use iota_core::consensus_manager::{ConsensusManager, ConsensusManagerTrait};
+use iota_core::consensus_throughput_calculator::{
     ConsensusThroughputCalculator, ConsensusThroughputProfiler, ThroughputProfileRanges,
 };
-use sui_core::consensus_validator::{SuiTxValidator, SuiTxValidatorMetrics};
-use sui_core::db_checkpoint_handler::DBCheckpointHandler;
-use sui_core::epoch::committee_store::CommitteeStore;
-use sui_core::epoch::consensus_store_pruner::ConsensusStorePruner;
-use sui_core::epoch::epoch_metrics::EpochMetrics;
-use sui_core::epoch::reconfiguration::ReconfigurationInitiator;
-use sui_core::jsonrpc_index::IndexStore;
-use sui_core::module_cache_metrics::ResolverMetrics;
-use sui_core::overload_monitor::overload_monitor;
-use sui_core::rpc_index::RpcIndexStore;
-use sui_core::signature_verifier::SignatureVerifierMetrics;
-use sui_core::state_accumulator::StateAccumulator;
-use sui_core::storage::RocksDbStore;
-use sui_core::transaction_orchestrator::TransactiondOrchestrator;
-use sui_core::{
+use iota_core::consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics};
+use iota_core::db_checkpoint_handler::DBCheckpointHandler;
+use iota_core::epoch::committee_store::CommitteeStore;
+use iota_core::epoch::consensus_store_pruner::ConsensusStorePruner;
+use iota_core::epoch::epoch_metrics::EpochMetrics;
+use iota_core::epoch::reconfiguration::ReconfigurationInitiator;
+use iota_core::jsonrpc_index::IndexStore;
+use iota_core::module_cache_metrics::ResolverMetrics;
+use iota_core::overload_monitor::overload_monitor;
+use iota_core::rpc_index::RpcIndexStore;
+use iota_core::signature_verifier::SignatureVerifierMetrics;
+use iota_core::state_accumulator::StateAccumulator;
+use iota_core::storage::RocksDbStore;
+use iota_core::transaction_orchestrator::TransactiondOrchestrator;
+use iota_core::{
     authority::{AuthorityState, AuthorityStore},
     authority_client::NetworkAuthorityClient,
 };
-use sui_json_rpc::coin_api::CoinReadApi;
-use sui_json_rpc::governance_api::GovernanceReadApi;
-use sui_json_rpc::indexer_api::IndexerApi;
-use sui_json_rpc::move_utils::MoveUtils;
-use sui_json_rpc::read_api::ReadApi;
-use sui_json_rpc::transaction_builder_api::TransactionBuilderApi;
-use sui_json_rpc::transaction_execution_api::TransactionExecutionApi;
-use sui_json_rpc::JsonRpcServerBuilder;
-use sui_macros::fail_point;
-use sui_macros::{fail_point_async, replay_log};
-use sui_network::api::ValidatorServer;
-use sui_network::discovery;
-use sui_network::discovery::TrustedPeerChangeEvent;
-use sui_network::state_sync;
-use sui_protocol_config::{Chain, ProtocolConfig};
-use sui_snapshot::uploader::StateSnapshotUploader;
-use sui_storage::{
+use iota_json_rpc::coin_api::CoinReadApi;
+use iota_json_rpc::governance_api::GovernanceReadApi;
+use iota_json_rpc::indexer_api::IndexerApi;
+use iota_json_rpc::move_utils::MoveUtils;
+use iota_json_rpc::read_api::ReadApi;
+use iota_json_rpc::transaction_builder_api::TransactionBuilderApi;
+use iota_json_rpc::transaction_execution_api::TransactionExecutionApi;
+use iota_json_rpc::JsonRpcServerBuilder;
+use iota_macros::fail_point;
+use iota_macros::{fail_point_async, replay_log};
+use iota_network::api::ValidatorServer;
+use iota_network::discovery;
+use iota_network::discovery::TrustedPeerChangeEvent;
+use iota_network::state_sync;
+use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_snapshot::uploader::StateSnapshotUploader;
+use iota_storage::{
     http_key_value_store::HttpKVStore,
     key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
     key_value_store_metrics::KeyValueStoreMetrics,
 };
-use sui_storage::{FileCompression, StorageFormat};
-use sui_types::base_types::{AuthorityName, EpochId};
-use sui_types::committee::Committee;
-use sui_types::crypto::KeypairTraits;
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::messages_consensus::{
+use iota_storage::{FileCompression, StorageFormat};
+use iota_types::base_types::{AuthorityName, EpochId};
+use iota_types::committee::Committee;
+use iota_types::crypto::KeypairTraits;
+use iota_types::error::{IotaError, IotaResult};
+use iota_types::messages_consensus::{
     check_total_jwk_size, AuthorityCapabilitiesV1, ConsensusTransaction,
 };
-use sui_types::quorum_driver_types::QuorumDriverEffectsQueueResult;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use sui_types::supported_protocol_versions::SupportedProtocolVersions;
+use iota_types::quorum_driver_types::QuorumDriverEffectsQueueResult;
+use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
+use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
+use iota_types::iota_system_state::IotaSystemStateTrait;
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use typed_store::rocks::default_db_options;
 use typed_store::DBMetrics;
 
-use crate::metrics::{GrpcMetrics, SuiNodeMetrics};
+use crate::metrics::{GrpcMetrics, IotaNodeMetrics};
 
 pub mod admin;
 mod handle;
@@ -152,7 +153,7 @@ pub struct ValidatorComponents {
     // Keeping the handle to the checkpoint service tasks to shut them down during reconfiguration.
     checkpoint_service_tasks: JoinSet<()>,
     checkpoint_metrics: Arc<CheckpointMetrics>,
-    sui_tx_validator_metrics: Arc<SuiTxValidatorMetrics>,
+    iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
 }
 pub struct P2pComponents {
     p2p_network: Network,
@@ -168,22 +169,22 @@ mod simulator {
 
     use super::*;
     pub(super) struct SimState {
-        pub sim_node: sui_simulator::runtime::NodeHandle,
+        pub sim_node: iota_simulator::runtime::NodeHandle,
         pub sim_safe_mode_expected: AtomicBool,
-        _leak_detector: sui_simulator::NodeLeakDetector,
+        _leak_detector: iota_simulator::NodeLeakDetector,
     }
 
     impl Default for SimState {
         fn default() -> Self {
             Self {
-                sim_node: sui_simulator::runtime::NodeHandle::current(),
+                sim_node: iota_simulator::runtime::NodeHandle::current(),
                 sim_safe_mode_expected: AtomicBool::new(false),
-                _leak_detector: sui_simulator::NodeLeakDetector::new(),
+                _leak_detector: iota_simulator::NodeLeakDetector::new(),
             }
         }
     }
 
-    type JwkInjector = dyn Fn(AuthorityName, &OIDCProvider) -> SuiResult<Vec<(JwkId, JWK)>>
+    type JwkInjector = dyn Fn(AuthorityName, &OIDCProvider) -> IotaResult<Vec<(JwkId, JWK)>>
         + Send
         + Sync
         + 'static;
@@ -191,14 +192,14 @@ mod simulator {
     fn default_fetch_jwks(
         _authority: AuthorityName,
         _provider: &OIDCProvider,
-    ) -> SuiResult<Vec<(JwkId, JWK)>> {
+    ) -> IotaResult<Vec<(JwkId, JWK)>> {
         use fastcrypto_zkp::bn254::zk_login::parse_jwks;
         // Just load a default Twitch jwk for testing.
         parse_jwks(
-            sui_types::zk_login_util::DEFAULT_JWK_BYTES,
+            iota_types::zk_login_util::DEFAULT_JWK_BYTES,
             &OIDCProvider::Twitch,
         )
-        .map_err(|_| SuiError::JWKRetrievalError)
+        .map_err(|_| IotaError::JWKRetrievalError)
     }
 
     thread_local! {
@@ -218,13 +219,13 @@ mod simulator {
 pub use simulator::set_jwk_injector;
 #[cfg(msim)]
 use simulator::*;
-use sui_core::{
+use iota_core::{
     consensus_handler::ConsensusHandlerInitializer, safe_client::SafeClientMetricsBase,
     validator_tx_finalizer::ValidatorTxFinalizer,
 };
-use sui_types::execution_config_utils::to_binary_config;
+use iota_types::execution_config_utils::to_binary_config;
 
-pub struct SuiNode {
+pub struct IotaNode {
     config: NodeConfig,
     validator_components: Mutex<Option<ValidatorComponents>>,
     /// The http server responsible for serving JSON-RPC as well as the experimental rest service
@@ -232,7 +233,7 @@ pub struct SuiNode {
     state: Arc<AuthorityState>,
     transaction_orchestrator: Option<Arc<TransactiondOrchestrator<NetworkAuthorityClient>>>,
     registry_service: RegistryService,
-    metrics: Arc<SuiNodeMetrics>,
+    metrics: Arc<IotaNodeMetrics>,
 
     _discovery: discovery::Handle,
     _connection_monitor_handle: consensus_core::ConnectionMonitorHandle,
@@ -243,7 +244,7 @@ pub struct SuiNode {
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
 
     /// Broadcast channel to send the starting system state for the next epoch.
-    end_of_epoch_channel: broadcast::Sender<SuiSystemState>,
+    end_of_epoch_channel: broadcast::Sender<IotaSystemState>,
 
     /// Broadcast channel to notify state-sync for new validator peers.
     trusted_peer_change_tx: watch::Sender<TrustedPeerChangeEvent>,
@@ -256,7 +257,7 @@ pub struct SuiNode {
     _state_archive_handle: Option<broadcast::Sender<()>>,
 
     _state_snapshot_uploader_handle: Option<broadcast::Sender<()>>,
-    // Channel to allow signaling upstream to shutdown sui-node
+    // Channel to allow signaling upstream to shutdown iota-node
     shutdown_channel_tx: broadcast::Sender<Option<RunWithRange>>,
 
     /// AuthorityAggregator of the network, created at start and beginning of each epoch.
@@ -266,9 +267,9 @@ pub struct SuiNode {
     auth_agg: Arc<ArcSwap<AuthorityAggregator<NetworkAuthorityClient>>>,
 }
 
-impl fmt::Debug for SuiNode {
+impl fmt::Debug for IotaNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("SuiNode")
+        f.debug_struct("IotaNode")
             .field("name", &self.state.name.concise())
             .finish()
     }
@@ -276,18 +277,18 @@ impl fmt::Debug for SuiNode {
 
 static MAX_JWK_KEYS_PER_FETCH: usize = 100;
 
-impl SuiNode {
+impl IotaNode {
     pub async fn start(
         config: NodeConfig,
         registry_service: RegistryService,
         custom_rpc_runtime: Option<Handle>,
-    ) -> Result<Arc<SuiNode>> {
+    ) -> Result<Arc<IotaNode>> {
         Self::start_async(config, registry_service, custom_rpc_runtime, "unknown").await
     }
 
     fn start_jwk_updater(
         config: &NodeConfig,
-        metrics: Arc<SuiNodeMetrics>,
+        metrics: Arc<IotaNodeMetrics>,
         authority: AuthorityName,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_adapter: Arc<ConsensusAdapter>,
@@ -310,7 +311,7 @@ impl SuiNode {
         );
 
         fn validate_jwk(
-            metrics: &Arc<SuiNodeMetrics>,
+            metrics: &Arc<IotaNodeMetrics>,
             provider: &OIDCProvider,
             id: &JwkId,
             jwk: &JWK,
@@ -352,7 +353,7 @@ impl SuiNode {
         }
 
         // metrics is:
-        //  pub struct SuiNodeMetrics {
+        //  pub struct IotaNodeMetrics {
         //      pub jwk_requests: IntCounterVec,
         //      pub jwk_request_errors: IntCounterVec,
         //      pub total_jwks: IntCounterVec,
@@ -425,7 +426,7 @@ impl SuiNode {
         registry_service: RegistryService,
         custom_rpc_runtime: Option<Handle>,
         software_version: &'static str,
-    ) -> Result<Arc<SuiNode>> {
+    ) -> Result<Arc<IotaNode>> {
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         let mut config = config.clone();
         if config.supported_protocol_versions.is_none() {
@@ -442,17 +443,17 @@ impl SuiNode {
         let prometheus_registry = registry_service.default_registry();
 
         info!(node =? config.protocol_public_key(),
-            "Initializing sui-node listening on {}", config.network_address
+            "Initializing iota-node listening on {}", config.network_address
         );
 
         // Initialize metrics to track db usage before creating any stores
         DBMetrics::init(&prometheus_registry);
 
-        // Initialize Mysten metrics.
-        mysten_metrics::init_metrics(&prometheus_registry);
+        // Initialize IOTA metrics.
+        iota_metrics::init_metrics(&prometheus_registry);
         // Unsupported (because of the use of static variable) and unnecessary in simtests.
         #[cfg(not(msim))]
-        mysten_metrics::thread_stall_monitor::start_thread_stall_monitor();
+        iota_metrics::thread_stall_monitor::start_thread_stall_monitor();
 
         let genesis = config.genesis()?.clone();
 
@@ -534,15 +535,15 @@ impl SuiNode {
 
         // the database is empty at genesis time
         if is_genesis {
-            info!("checking SUI conservation at genesis");
+            info!("checking IOTA conservation at genesis");
             // When we are opening the db table, the only time when it's safe to
-            // check SUI conservation is at genesis. Otherwise we may be in the middle of
-            // an epoch and the SUI conservation check will fail. This also initialize
-            // the expected_network_sui_amount table.
+            // check IOTA conservation is at genesis. Otherwise we may be in the middle of
+            // an epoch and the IOTA conservation check will fail. This also initialize
+            // the expected_network_iota_amount table.
             cache_traits
                 .reconfig_api
-                .expensive_check_sui_conservation(&epoch_store)
-                .expect("SUI conservation check cannot fail at genesis");
+                .expensive_check_iota_conservation(&epoch_store)
+                .expect("IOTA conservation check cannot fail at genesis");
         }
 
         let effective_buffer_stake = epoch_store.get_effective_buffer_stake_bps();
@@ -712,10 +713,10 @@ impl SuiNode {
             let txn = &genesis.transaction();
             let span = error_span!("genesis_txn", tx_digest = ?txn.digest());
             let transaction =
-                sui_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
-                    sui_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
+                iota_types::executable_transaction::VerifiedExecutableTransaction::new_unchecked(
+                    iota_types::executable_transaction::ExecutableTransaction::new_from_data_and_sig(
                         genesis.transaction().data().clone(),
-                        sui_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
+                        iota_types::executable_transaction::CertificateProof::Checkpoint(0, 0),
                     ),
                 );
             state
@@ -737,7 +738,7 @@ impl SuiNode {
             .enable_secondary_index_checks()
         {
             if let Some(indexes) = state.indexes.clone() {
-                sui_core::verify_indexes::verify_indexes(
+                iota_core::verify_indexes::verify_indexes(
                     state.get_accumulator_store().as_ref(),
                     indexes,
                 )
@@ -784,7 +785,7 @@ impl SuiNode {
             .get_authority_names_to_peer_ids();
 
         let network_connection_metrics = consensus_core::QuinnConnectionMetrics::new(
-            "sui",
+            "iota",
             &registry_service.default_registry(),
         );
 
@@ -802,7 +803,7 @@ impl SuiNode {
         };
 
         let connection_monitor_status = Arc::new(connection_monitor_status);
-        let sui_node_metrics = Arc::new(SuiNodeMetrics::new(&registry_service.default_registry()));
+        let iota_node_metrics = Arc::new(IotaNodeMetrics::new(&registry_service.default_registry()));
 
         let validator_components = if state.is_validator(&epoch_store) {
             let components = Self::construct_validator_components(
@@ -816,7 +817,7 @@ impl SuiNode {
                 Arc::downgrade(&accumulator),
                 connection_monitor_status.clone(),
                 &registry_service,
-                sui_node_metrics.clone(),
+                iota_node_metrics.clone(),
             )
             .await?;
             // This is only needed during cold start.
@@ -837,7 +838,7 @@ impl SuiNode {
             state,
             transaction_orchestrator,
             registry_service,
-            metrics: sui_node_metrics,
+            metrics: iota_node_metrics,
 
             _discovery: discovery_handle,
             _connection_monitor_handle: connection_monitor_handle,
@@ -861,7 +862,7 @@ impl SuiNode {
             auth_agg,
         };
 
-        info!("SuiNode started!");
+        info!("IotaNode started!");
         let node = Arc::new(node);
         let node_copy = node.clone();
         spawn_monitored_task!(async move {
@@ -874,7 +875,7 @@ impl SuiNode {
         Ok(node)
     }
 
-    pub fn subscribe_to_epoch_change(&self) -> broadcast::Receiver<SuiSystemState> {
+    pub fn subscribe_to_epoch_change(&self) -> broadcast::Receiver<IotaSystemState> {
         self.end_of_epoch_channel.subscribe()
     }
 
@@ -891,19 +892,19 @@ impl SuiNode {
     }
 
     // Init reconfig process by starting to reject user certs
-    pub async fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) -> SuiResult {
+    pub async fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) -> IotaResult {
         info!("close_epoch (current epoch = {})", epoch_store.epoch());
         self.validator_components
             .lock()
             .await
             .as_ref()
-            .ok_or_else(|| SuiError::from("Node is not a validator"))?
+            .ok_or_else(|| IotaError::from("Node is not a validator"))?
             .consensus_adapter
             .close_epoch(epoch_store);
         Ok(())
     }
 
-    pub fn clear_override_protocol_upgrade_buffer_stake(&self, epoch: EpochId) -> SuiResult {
+    pub fn clear_override_protocol_upgrade_buffer_stake(&self, epoch: EpochId) -> IotaResult {
         self.state
             .clear_override_protocol_upgrade_buffer_stake(epoch)
     }
@@ -912,14 +913,14 @@ impl SuiNode {
         &self,
         epoch: EpochId,
         buffer_stake_bps: u64,
-    ) -> SuiResult {
+    ) -> IotaResult {
         self.state
             .set_override_protocol_upgrade_buffer_stake(epoch, buffer_stake_bps)
     }
 
     // Testing-only API to start epoch close process.
     // For production code, please use the non-testing version.
-    pub async fn close_epoch_for_testing(&self) -> SuiResult {
+    pub async fn close_epoch_for_testing(&self) -> IotaResult {
         let epoch_store = self.state.epoch_store_for_testing();
         self.close_epoch(&epoch_store).await
     }
@@ -1077,9 +1078,9 @@ impl SuiNode {
             let routes = routes.merge(randomness_router);
 
             let inbound_network_metrics =
-                consensus_core::NetworkRouteMetrics::new("sui", "inbound", prometheus_registry);
+                consensus_core::NetworkRouteMetrics::new("iota", "inbound", prometheus_registry);
             let outbound_network_metrics =
-                consensus_core::NetworkRouteMetrics::new("sui", "outbound", prometheus_registry);
+                consensus_core::NetworkRouteMetrics::new("iota", "outbound", prometheus_registry);
 
             let service = ServiceBuilder::new()
                 .layer(
@@ -1153,7 +1154,7 @@ impl SuiNode {
             }
             anemo_config.quic = Some(quic_config);
 
-            let server_name = format!("sui-{}", chain_identifier);
+            let server_name = format!("iota-{}", chain_identifier);
             let network = Network::bind(config.p2p_config.listen_address)
                 .server_name(&server_name)
                 .private_key(config.network_key_pair().copy().private().0.to_bytes())
@@ -1194,7 +1195,7 @@ impl SuiNode {
         accumulator: Weak<StateAccumulator>,
         connection_monitor_status: Arc<ConnectionMonitorStatus>,
         registry_service: &RegistryService,
-        sui_node_metrics: Arc<SuiNodeMetrics>,
+        iota_node_metrics: Arc<IotaNodeMetrics>,
     ) -> Result<ValidatorComponents> {
         let mut config_clone = config.clone();
         let consensus_config = config_clone
@@ -1224,8 +1225,8 @@ impl SuiNode {
         );
 
         let checkpoint_metrics = CheckpointMetrics::new(&registry_service.default_registry());
-        let sui_tx_validator_metrics =
-            SuiTxValidatorMetrics::new(&registry_service.default_registry());
+        let iota_tx_validator_metrics =
+            IotaTxValidatorMetrics::new(&registry_service.default_registry());
 
         let validator_server_handle = Self::start_grpc_validator_service(
             &config,
@@ -1267,8 +1268,8 @@ impl SuiNode {
             validator_server_handle,
             validator_overload_monitor_handle,
             checkpoint_metrics,
-            sui_node_metrics,
-            sui_tx_validator_metrics,
+            iota_node_metrics,
+            iota_tx_validator_metrics,
         )
         .await
     }
@@ -1287,8 +1288,8 @@ impl SuiNode {
         validator_server_handle: JoinHandle<Result<()>>,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
-        sui_node_metrics: Arc<SuiNodeMetrics>,
-        sui_tx_validator_metrics: Arc<SuiTxValidatorMetrics>,
+        iota_node_metrics: Arc<IotaNodeMetrics>,
+        iota_tx_validator_metrics: Arc<IotaTxValidatorMetrics>,
     ) -> Result<ValidatorComponents> {
         let (checkpoint_service, checkpoint_service_tasks) = Self::start_checkpoint_service(
             config,
@@ -1351,12 +1352,12 @@ impl SuiNode {
                 config,
                 epoch_store.clone(),
                 consensus_handler_initializer,
-                SuiTxValidator::new(
+                IotaTxValidator::new(
                     state.clone(),
                     consensus_adapter.clone(),
                     checkpoint_service.clone(),
                     state.transaction_manager().clone(),
-                    sui_tx_validator_metrics.clone(),
+                    iota_tx_validator_metrics.clone(),
                 ),
             )
             .await;
@@ -1364,7 +1365,7 @@ impl SuiNode {
         if epoch_store.authenticator_state_enabled() {
             Self::start_jwk_updater(
                 config,
-                sui_node_metrics,
+                iota_node_metrics,
                 state.name,
                 epoch_store.clone(),
                 consensus_adapter.clone(),
@@ -1379,7 +1380,7 @@ impl SuiNode {
             consensus_adapter,
             checkpoint_service_tasks,
             checkpoint_metrics,
-            sui_tx_validator_metrics,
+            iota_tx_validator_metrics,
         })
     }
 
@@ -1471,7 +1472,7 @@ impl SuiNode {
             config.firewall_config.clone(),
         );
 
-        let mut server_conf = mysten_network::config::Config::new();
+        let mut server_conf = iota_network_stack::config::Config::new();
         server_conf.global_concurrency_limit = config.grpc_concurrency_limit;
         server_conf.load_shed = config.grpc_load_shed;
         let mut server_builder =
@@ -1479,10 +1480,10 @@ impl SuiNode {
 
         server_builder = server_builder.add_service(ValidatorServer::new(validator_service));
 
-        let tls_config = sui_tls::create_rustls_server_config(
+        let tls_config = iota_tls::create_rustls_server_config(
             config.network_key_pair().copy().private(),
-            SUI_TLS_SERVER_NAME.to_string(),
-            sui_tls::AllowAll,
+            IOTA_TLS_SERVER_NAME.to_string(),
+            iota_tls::AllowAll,
         );
         let server = server_builder
             .bind(config.network_address(), Some(tls_config))
@@ -1609,7 +1610,7 @@ impl SuiNode {
             drop(checkpoint_executor);
 
             if stop_condition == StopReason::RunWithRangeCondition {
-                SuiNode::shutdown(&self).await;
+                IotaNode::shutdown(&self).await;
                 self.shutdown_channel_tx
                     .send(run_with_range)
                     .expect("RunWithRangeCondition met but failed to send shutdown message");
@@ -1620,8 +1621,8 @@ impl SuiNode {
             let latest_system_state = self
                 .state
                 .get_object_cache_reader()
-                .get_sui_system_state_object_unsafe()
-                .expect("Read Sui System State object cannot fail");
+                .get_iota_system_state_object_unsafe()
+                .expect("Read Iota System State object cannot fail");
 
             #[cfg(msim)]
             if !self
@@ -1653,7 +1654,7 @@ impl SuiNode {
                     .recreate_with_new_epoch_start_state(&new_epoch_start_state),
             ));
 
-            let next_epoch_committee = new_epoch_start_state.get_sui_committee();
+            let next_epoch_committee = new_epoch_start_state.get_iota_committee();
             let next_epoch = next_epoch_committee.epoch();
             assert_eq!(cur_epoch_store.epoch() + 1, next_epoch);
 
@@ -1693,7 +1694,7 @@ impl SuiNode {
                 consensus_adapter,
                 mut checkpoint_service_tasks,
                 checkpoint_metrics,
-                sui_tx_validator_metrics,
+                iota_tx_validator_metrics,
             }) = self.validator_components.lock().await.take()
             {
                 info!("Reconfiguring the validator.");
@@ -1758,7 +1759,7 @@ impl SuiNode {
                             validator_overload_monitor_handle,
                             checkpoint_metrics,
                             self.metrics.clone(),
-                            sui_tx_validator_metrics,
+                            iota_tx_validator_metrics,
                         )
                         .await?,
                     )
@@ -1830,7 +1831,7 @@ impl SuiNode {
                 self.state
                 .prune_checkpoints_for_eligible_epochs_for_testing(
                     self.config.clone(),
-                    sui_core::authority::authority_store_pruner::AuthorityStorePruningMetrics::new_for_test(),
+                    iota_core::authority::authority_store_pruner::AuthorityStorePruningMetrics::new_for_test(),
                 )
                 .await?;
             }
@@ -1901,22 +1902,22 @@ impl SuiNode {
 }
 
 #[cfg(not(msim))]
-impl SuiNode {
+impl IotaNode {
     async fn fetch_jwks(
         _authority: AuthorityName,
         provider: &OIDCProvider,
-    ) -> SuiResult<Vec<(JwkId, JWK)>> {
+    ) -> IotaResult<Vec<(JwkId, JWK)>> {
         use fastcrypto_zkp::bn254::zk_login::fetch_jwks;
         let client = reqwest::Client::new();
         fetch_jwks(provider, &client)
             .await
-            .map_err(|_| SuiError::JWKRetrievalError)
+            .map_err(|_| IotaError::JWKRetrievalError)
     }
 }
 
 #[cfg(msim)]
-impl SuiNode {
-    pub fn get_sim_node_id(&self) -> sui_simulator::task::NodeId {
+impl IotaNode {
+    pub fn get_sim_node_id(&self) -> iota_simulator::task::NodeId {
         self.sim_state.sim_node.id()
     }
 
@@ -1931,7 +1932,7 @@ impl SuiNode {
     async fn fetch_jwks(
         authority: AuthorityName,
         provider: &OIDCProvider,
-    ) -> SuiResult<Vec<(JwkId, JWK)>> {
+    ) -> IotaResult<Vec<(JwkId, JWK)>> {
         get_jwk_injector()(authority, provider)
     }
 }
@@ -2059,7 +2060,7 @@ pub async fn build_http_server(
                 config.name_service_registry_id,
                 config.name_service_reverse_registry_id,
             ) {
-                sui_json_rpc::name_service::NameServiceConfig::new(
+                iota_json_rpc::name_service::NameServiceConfig::new(
                     package_address,
                     registry_id,
                     reverse_registry_id,
@@ -2070,9 +2071,9 @@ pub async fn build_http_server(
                     .expect("chain_id should be initialized")
                     .chain()
                 {
-                    Chain::Mainnet => sui_json_rpc::name_service::NameServiceConfig::mainnet(),
-                    Chain::Testnet => sui_json_rpc::name_service::NameServiceConfig::testnet(),
-                    Chain::Unknown => sui_json_rpc::name_service::NameServiceConfig::default(),
+                    Chain::Mainnet => iota_json_rpc::name_service::NameServiceConfig::mainnet(),
+                    Chain::Testnet => iota_json_rpc::name_service::NameServiceConfig::testnet(),
+                    Chain::Unknown => iota_json_rpc::name_service::NameServiceConfig::default(),
                 }
             };
 
@@ -2094,7 +2095,7 @@ pub async fn build_http_server(
     router = router.merge(json_rpc_router);
 
     if config.enable_experimental_rest_api {
-        let mut rest_service = sui_rpc_api::RpcService::new(
+        let mut rest_service = iota_rpc_api::RpcService::new(
             Arc::new(RestReadStore::new(state.clone(), store)),
             software_version,
         );
@@ -2112,7 +2113,7 @@ pub async fn build_http_server(
         router = router.merge(rest_service.into_router());
     }
     // TODO: Remove this health check when experimental REST API becomes default
-    // This is a copy of the health check in crates/sui-rpc-api/src/health.rs
+    // This is a copy of the health check in crates/iota-rpc-api/src/health.rs
     router = router
         .route("/health", axum::routing::get(health_check_handler))
         .route_layer(axum::Extension(state));
@@ -2133,7 +2134,7 @@ pub async fn build_http_server(
         .unwrap()
     });
 
-    info!(local_addr =? addr, "Sui JSON-RPC server listening on {addr}");
+    info!(local_addr =? addr, "Iota JSON-RPC server listening on {addr}");
 
     Ok(Some(handle))
 }

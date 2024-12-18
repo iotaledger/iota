@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
@@ -81,7 +82,7 @@ impl OracleMetrics {
                 "oracle_uploaded_values",
                 "Values uploaded on chain",
                 &["feed"],
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -89,7 +90,7 @@ impl OracleMetrics {
                 "oracle_downloaded_values",
                 "Values downloaded on chain",
                 &["feed"],
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -108,7 +109,7 @@ impl OracleMetrics {
             computation_gas_used: register_histogram_with_registry!(
                 "oracle_computation_gas_used",
                 "computation gas used",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),

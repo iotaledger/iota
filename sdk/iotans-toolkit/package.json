@@ -1,7 +1,7 @@
 {
-	"name": "@mysten/suins-toolkit",
-	"author": "Mysten Labs <build@mystenlabs.com>",
-	"description": "SuiNS TypeScript SDK",
+	"name": "@iota/iotans-toolkit",
+	"author": "IOTA Foundation <info@iota.org>",
+	"description": "IotaNS TypeScript SDK",
 	"version": "0.5.30",
 	"license": "Apache-2.0",
 	"type": "commonjs",
@@ -36,12 +36,12 @@
 	},
 	"devDependencies": {
 		"@faker-js/faker": "^8.4.1",
-		"@mysten/build-scripts": "workspace:*",
+		"@iota/build-scripts": "workspace:*",
 		"ts-node": "^10.9.2",
 		"typescript": "^5.5.3",
 		"vitest": "^2.0.1"
 	},
 	"dependencies": {
-		"@mysten/sui": "workspace:*"
+		"@iota/iota-sdk": "workspace:*"
 	}
 }

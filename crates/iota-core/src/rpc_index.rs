@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
@@ -17,21 +18,21 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
-use sui_types::base_types::MoveObjectType;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SequenceNumber;
-use sui_types::base_types::SuiAddress;
-use sui_types::digests::TransactionDigest;
-use sui_types::dynamic_field::visitor as DFV;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::layout_resolver::LayoutResolver;
-use sui_types::messages_checkpoint::CheckpointContents;
-use sui_types::object::Object;
-use sui_types::object::Owner;
-use sui_types::storage::error::Error as StorageError;
-use sui_types::storage::BackingPackageStore;
-use sui_types::storage::DynamicFieldIndexInfo;
-use sui_types::storage::DynamicFieldKey;
+use iota_types::base_types::MoveObjectType;
+use iota_types::base_types::ObjectID;
+use iota_types::base_types::SequenceNumber;
+use iota_types::base_types::IotaAddress;
+use iota_types::digests::TransactionDigest;
+use iota_types::dynamic_field::visitor as DFV;
+use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::layout_resolver::LayoutResolver;
+use iota_types::messages_checkpoint::CheckpointContents;
+use iota_types::object::Object;
+use iota_types::object::Owner;
+use iota_types::storage::error::Error as StorageError;
+use iota_types::storage::BackingPackageStore;
+use iota_types::storage::DynamicFieldIndexInfo;
+use iota_types::storage::DynamicFieldKey;
 use tracing::{debug, info};
 use typed_store::rocks::{DBMap, MetricConf};
 use typed_store::traits::Map;
@@ -49,12 +50,12 @@ struct MetadataInfo {
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct OwnerIndexKey {
-    pub owner: SuiAddress,
+    pub owner: IotaAddress,
     pub object_id: ObjectID,
 }
 
 impl OwnerIndexKey {
-    fn new(owner: SuiAddress, object_id: ObjectID) -> Self {
+    fn new(owner: IotaAddress, object_id: ObjectID) -> Self {
         Self { owner, object_id }
     }
 }
@@ -409,7 +410,7 @@ impl IndexStoreTables {
 
     fn owner_iter(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: Option<ObjectID>,
     ) -> Result<impl Iterator<Item = (OwnerIndexKey, OwnerIndexInfo)> + '_, TypedStoreError> {
         let lower_bound = OwnerIndexKey::new(owner, ObjectID::ZERO);
@@ -537,7 +538,7 @@ impl RpcIndexStore {
 
     pub fn owner_iter(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: Option<ObjectID>,
     ) -> Result<impl Iterator<Item = (OwnerIndexKey, OwnerIndexInfo)> + '_, TypedStoreError> {
         self.tables.owner_iter(owner, cursor)
@@ -603,8 +604,8 @@ fn try_create_dynamic_field_info(
 }
 
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
-    use sui_types::coin::CoinMetadata;
-    use sui_types::coin::TreasuryCap;
+    use iota_types::coin::CoinMetadata;
+    use iota_types::coin::TreasuryCap;
 
     object
         .type_()

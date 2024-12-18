@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::genesis {
+module iota_system::genesis {
     use std::vector;
-    use sui::balance::{Self, Balance};
-    use sui::object::UID;
-    use sui::sui::SUI;
-    use sui::tx_context::{Self, TxContext};
+    use iota::balance::{Self, Balance};
+    use iota::object::UID;
+    use iota::iota::IOTA;
+    use iota::tx_context::{Self, TxContext};
     use std::option::Option;
 
-    use sui_system::sui_system;
-    use sui_system::validator;
+    use iota_system::iota_system;
+    use iota_system::validator;
 
     public struct GenesisValidatorMetadata has drop, copy {
         name: vector<u8>,
@@ -18,7 +19,7 @@ module sui_system::genesis {
         image_url: vector<u8>,
         project_url: vector<u8>,
 
-        sui_address: address,
+        iota_address: address,
 
         gas_price: u64,
         commission_rate: u64,
@@ -53,19 +54,19 @@ module sui_system::genesis {
     }
 
     public struct TokenDistributionSchedule has drop {
-        stake_subsidy_fund_mist: u64,
+        stake_subsidy_fund_nanos: u64,
         allocations: vector<TokenAllocation>,
     }
 
     public struct TokenAllocation has drop {
         recipient_address: address,
-        amount_mist: u64,
+        amount_nanos: u64,
         staked_with_validator: Option<address>,
     }
 
     fun create(
-        sui_system_state_id: UID,
-        mut sui_supply: Balance<SUI>,
+        iota_system_state_id: UID,
+        mut iota_supply: Balance<IOTA>,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         _token_distribution_schedule: TokenDistributionSchedule,
@@ -82,7 +83,7 @@ module sui_system::genesis {
                 description: _,
                 image_url: _,
                 project_url: _,
-                sui_address,
+                iota_address,
                 gas_price: _,
                 commission_rate: _,
                 protocol_public_key,
@@ -96,7 +97,7 @@ module sui_system::genesis {
             } = *vector::borrow(&genesis_validators, i);
 
             let validator = validator::new(
-                sui_address,
+                iota_address,
                 protocol_public_key,
                 network_public_key,
                 worker_public_key,
@@ -104,7 +105,7 @@ module sui_system::genesis {
                 p2p_address,
                 primary_address,
                 worker_address,
-                balance::split(&mut sui_supply, 2500),
+                balance::split(&mut iota_supply, 2500),
                 ctx
             );
 
@@ -113,10 +114,10 @@ module sui_system::genesis {
             i = i + 1;
         };
 
-        sui_system::create(
-            sui_system_state_id,
+        iota_system::create(
+            iota_system_state_id,
             validators,
-            sui_supply,     // storage_fund
+            iota_supply,     // storage_fund
             genesis_chain_parameters.protocol_version,
             genesis_chain_parameters.chain_start_timestamp_ms,
             genesis_chain_parameters.epoch_duration_ms,

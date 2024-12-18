@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(clippy::disallowed_names)]
@@ -13,19 +14,19 @@ use move_binary_format::file_format;
 use crate::crypto::bcs_signable_test::{Bar, Foo};
 use crate::crypto::{
     get_key_pair, get_key_pair_from_bytes, AccountKeyPair, AuthorityKeyPair, AuthoritySignature,
-    Signature, SuiAuthoritySignature, SuiSignature,
+    Signature, IotaAuthoritySignature, IotaSignature,
 };
 use crate::digests::Digest;
 use crate::id::{ID, UID};
-use crate::{gas_coin::GasCoin, object::Object, SUI_FRAMEWORK_ADDRESS};
+use crate::{gas_coin::GasCoin, object::Object, IOTA_FRAMEWORK_ADDRESS};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 
 use super::*;
 
 #[test]
 fn test_bcs_enum() {
-    let address = Owner::AddressOwner(SuiAddress::random_for_testing_only());
+    let address = Owner::AddressOwner(IotaAddress::random_for_testing_only());
     let shared = Owner::Shared {
         initial_shared_version: 1.into(),
     };
@@ -43,9 +44,9 @@ fn test_signatures() {
     let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
     let (addr2, _sec2): (_, AccountKeyPair) = get_key_pair();
 
-    let foo = IntentMessage::new(Intent::sui_transaction(), Foo("hello".into()));
-    let foox = IntentMessage::new(Intent::sui_transaction(), Foo("hellox".into()));
-    let bar = IntentMessage::new(Intent::sui_transaction(), Bar("hello".into()));
+    let foo = IntentMessage::new(Intent::iota_transaction(), Foo("hello".into()));
+    let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
+    let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
     let s = Signature::new_secure(&foo, &sec1);
     assert!(s
@@ -60,7 +61,7 @@ fn test_signatures() {
     assert!(s
         .verify_secure(
             &IntentMessage::new(
-                Intent::sui_app(IntentScope::SenderSignedTransaction),
+                Intent::iota_app(IntentScope::SenderSignedTransaction),
                 Foo("hello".into())
             ),
             addr1,
@@ -78,7 +79,7 @@ fn test_signatures() {
 fn test_signatures_serde() {
     let (_, sec1): (_, AccountKeyPair) = get_key_pair();
     let foo = Foo("hello".into());
-    let s = Signature::new_secure(&IntentMessage::new(Intent::sui_transaction(), foo), &sec1);
+    let s = Signature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
 
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{:?}", serialized);
@@ -236,45 +237,45 @@ fn test_object_id_zero_padding() {
     let obj_id_4: ObjectID = serde_json::from_str(&format!("\"{}\"", hex)).unwrap();
     let obj_id_5: ObjectID = serde_json::from_str(&format!("\"{}\"", long_hex)).unwrap();
     let obj_id_6: ObjectID = serde_json::from_str(&format!("\"{}\"", long_hex_alt)).unwrap();
-    assert_eq!(SUI_FRAMEWORK_ADDRESS, obj_id_1.0);
-    assert_eq!(SUI_FRAMEWORK_ADDRESS, obj_id_2.0);
-    assert_eq!(SUI_FRAMEWORK_ADDRESS, obj_id_3.0);
-    assert_eq!(SUI_FRAMEWORK_ADDRESS, obj_id_4.0);
-    assert_eq!(SUI_FRAMEWORK_ADDRESS, obj_id_5.0);
-    assert_eq!(SUI_FRAMEWORK_ADDRESS, obj_id_6.0);
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_1.0);
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_2.0);
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_3.0);
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_4.0);
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_5.0);
+    assert_eq!(IOTA_FRAMEWORK_ADDRESS, obj_id_6.0);
 }
 
 #[test]
 fn test_address_display() {
     let hex = SAMPLE_ADDRESS;
-    let id = SuiAddress::from_str(hex).unwrap();
+    let id = IotaAddress::from_str(hex).unwrap();
     assert_eq!(format!("{:?}", id), format!("0x{hex}"));
 }
 
 #[test]
 fn test_address_serde_not_human_readable() {
-    let address = SuiAddress::random_for_testing_only();
+    let address = IotaAddress::random_for_testing_only();
     let serialized = bincode::serialize(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
     // bincode use 8 bytes for BYTES len and bcs use 1 byte
     assert_eq!(serialized, bcs_serialized);
     assert_eq!(address.0, serialized[..]);
-    let deserialized: SuiAddress = bincode::deserialize(&serialized).unwrap();
+    let deserialized: IotaAddress = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, address);
 }
 
 #[test]
 fn test_address_serde_human_readable() {
-    let address = SuiAddress::random_for_testing_only();
+    let address = IotaAddress::random_for_testing_only();
     let serialized = serde_json::to_string(&address).unwrap();
     assert_eq!(format!("\"0x{}\"", Hex::encode(address)), serialized);
-    let deserialized: SuiAddress = serde_json::from_str(&serialized).unwrap();
+    let deserialized: IotaAddress = serde_json::from_str(&serialized).unwrap();
     assert_eq!(deserialized, address);
 }
 
 #[test]
 fn test_address_serde_with_expected_value() {
-    let address = SuiAddress::try_from(SAMPLE_ADDRESS_VEC.to_vec()).unwrap();
+    let address = IotaAddress::try_from(SAMPLE_ADDRESS_VEC.to_vec()).unwrap();
     let json_serialized = serde_json::to_string(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
 
@@ -311,7 +312,7 @@ fn test_transaction_digest_serde_human_readable() {
 fn test_authority_signature_serde_not_human_readable() {
     let (_, key): (_, AuthorityKeyPair) = get_key_pair();
     let sig = AuthoritySignature::new_secure(
-        &IntentMessage::new(Intent::sui_transaction(), Foo("some data".to_string())),
+        &IntentMessage::new(Intent::iota_transaction(), Foo("some data".to_string())),
         &0,
         &key,
     );
@@ -327,7 +328,7 @@ fn test_authority_signature_serde_not_human_readable() {
 fn test_authority_signature_serde_human_readable() {
     let (_, key): (_, AuthorityKeyPair) = get_key_pair();
     let sig = AuthoritySignature::new_secure(
-        &IntentMessage::new(Intent::sui_transaction(), Foo("some data".to_string())),
+        &IntentMessage::new(Intent::iota_transaction(), Foo("some data".to_string())),
         &0,
         &key,
     );
@@ -346,7 +347,7 @@ fn test_object_id_from_empty_string() {
 fn test_move_object_size_for_gas_metering() {
     let object = Object::with_id_owner_for_testing(
         ObjectID::random(),
-        SuiAddress::random_for_testing_only(),
+        IotaAddress::random_for_testing_only(),
     );
     let size = object.object_size_for_gas_metering();
     let serialized = bcs::to_bytes(&object).unwrap();
@@ -383,7 +384,7 @@ const SAMPLE_ADDRESS_VEC: [u8; 32] = [
 ];
 
 // Derive a sample address and public key tuple from KeyPair bytes.
-fn derive_sample_address() -> (SuiAddress, AccountKeyPair) {
+fn derive_sample_address() -> (IotaAddress, AccountKeyPair) {
     let (address, pub_key) = get_key_pair_from_bytes(&[
         10, 112, 5, 142, 174, 127, 187, 146, 251, 68, 22, 191, 128, 68, 84, 13, 102, 71, 77, 57,
         92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214, 189, 215, 127, 86, 129, 189, 1, 4,
@@ -429,7 +430,7 @@ fn move_object_type_consistency() {
         assert!(!ty.is_gas_coin() || ty.is_coin());
         let cases = [
             ty.is_coin(),
-            ty.is_staked_sui(),
+            ty.is_staked_iota(),
             ty.is_coin_metadata(),
             ty.is_dynamic_field(),
         ];
@@ -440,8 +441,8 @@ fn move_object_type_consistency() {
     let ty = assert_consistent(&GasCoin::type_());
     assert!(ty.is_coin());
     assert!(ty.is_gas_coin());
-    let ty = assert_consistent(&StakedSui::type_());
-    assert!(ty.is_staked_sui());
+    let ty = assert_consistent(&StakedIota::type_());
+    assert!(ty.is_staked_iota());
     let ty = assert_consistent(&Coin::type_(TypeTag::U64));
     assert!(ty.is_coin());
     let ty = assert_consistent(&CoinMetadata::type_(GasCoin::type_()));

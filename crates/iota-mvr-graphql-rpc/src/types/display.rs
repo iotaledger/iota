@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
@@ -6,14 +7,14 @@ use async_graphql::*;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
-use sui_indexer::{models::display::StoredDisplay, schema::display};
-use sui_types::TypeTag;
+use iota_indexer::{models::display::StoredDisplay, schema::display};
+use iota_types::TypeTag;
 
 use crate::{
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
 };
-use sui_json_rpc_types::SuiMoveValue;
+use iota_json_rpc_types::IotaMoveValue;
 
 pub(crate) struct Display {
     pub stored: StoredDisplay,
@@ -156,7 +157,7 @@ pub(crate) fn get_value_from_move_struct(
     if parts.is_empty() {
         return Err(DisplayRenderError::TemplateValueEmpty);
     }
-    // todo: 10 is a carry-over from the sui-json-rpc implementation
+    // todo: 10 is a carry-over from the iota-json-rpc implementation
     // we should introduce this as a new limit on the config
     if parts.len() > 10 {
         return Err(DisplayRenderError::ExceedsLookupDepth(parts.len(), 10));
@@ -182,15 +183,15 @@ pub(crate) fn get_value_from_move_struct(
             _ => Err(DisplayRenderError::UnexpectedMoveValue),
         })?;
 
-    // TODO: move off dependency on SuiMoveValue
-    let sui_move_value: SuiMoveValue = result.clone().into();
+    // TODO: move off dependency on IotaMoveValue
+    let iota_move_value: IotaMoveValue = result.clone().into();
 
-    match sui_move_value {
-        SuiMoveValue::Option(move_option) => match move_option.as_ref() {
+    match iota_move_value {
+        IotaMoveValue::Option(move_option) => match move_option.as_ref() {
             Some(move_value) => Ok(move_value.to_string()),
             None => Ok("".to_string()),
         },
-        SuiMoveValue::Vector(_) => Err(DisplayRenderError::Vector(var_name.to_string())),
-        _ => Ok(sui_move_value.to_string()),
+        IotaMoveValue::Vector(_) => Err(DisplayRenderError::Vector(var_name.to_string())),
+        _ => Ok(iota_move_value.to_string()),
     }
 }

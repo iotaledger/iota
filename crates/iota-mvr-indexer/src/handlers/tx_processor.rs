@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use sui_json_rpc::get_balance_changes_from_effect;
-use sui_json_rpc::get_object_changes;
-use sui_json_rpc::ObjectProvider;
-use sui_rpc_api::CheckpointData;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SequenceNumber;
-use sui_types::digests::TransactionDigest;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::object::Object;
-use sui_types::transaction::{TransactionData, TransactionDataAPI};
+use iota_json_rpc::get_balance_changes_from_effect;
+use iota_json_rpc::get_object_changes;
+use iota_json_rpc::ObjectProvider;
+use iota_rpc_api::CheckpointData;
+use iota_types::base_types::ObjectID;
+use iota_types::base_types::SequenceNumber;
+use iota_types::digests::TransactionDigest;
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::object::Object;
+use iota_types::transaction::{TransactionData, TransactionDataAPI};
 
 use crate::errors::IndexerError;
 use crate::metrics::IndexerMetrics;
@@ -78,7 +79,7 @@ impl TxChangesProcessor {
         effects: &TransactionEffects,
         tx_digest: &TransactionDigest,
     ) -> IndexerResult<(
-        Vec<sui_json_rpc_types::BalanceChange>,
+        Vec<iota_json_rpc_types::BalanceChange>,
         Vec<IndexedObjectChange>,
     )> {
         let _timer = self
@@ -181,7 +182,7 @@ impl ObjectProvider for TxChangesProcessor {
     }
 }
 
-// This is a struct that is used to extract SuiSystemState and its dynamic children
+// This is a struct that is used to extract IotaSystemState and its dynamic children
 // for end-of-epoch indexing.
 pub(crate) struct EpochEndIndexingObjectStore<'a> {
     objects: Vec<&'a Object>,
@@ -195,7 +196,7 @@ impl<'a> EpochEndIndexingObjectStore<'a> {
     }
 }
 
-impl<'a> sui_types::storage::ObjectStore for EpochEndIndexingObjectStore<'a> {
+impl<'a> iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'a> {
     fn get_object(&self, object_id: &ObjectID) -> Option<Object> {
         self.objects
             .iter()
@@ -207,7 +208,7 @@ impl<'a> sui_types::storage::ObjectStore for EpochEndIndexingObjectStore<'a> {
     fn get_object_by_key(
         &self,
         object_id: &ObjectID,
-        version: sui_types::base_types::VersionNumber,
+        version: iota_types::base_types::VersionNumber,
     ) -> Option<Object> {
         self.objects
             .iter()

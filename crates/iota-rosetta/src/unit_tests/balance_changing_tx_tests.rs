@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::operations::Operations;
@@ -15,45 +16,45 @@ use std::collections::{BTreeMap, HashMap};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::str::FromStr;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_json_rpc_types::{
-    ObjectChange, SuiObjectDataOptions, SuiObjectRef, SuiObjectResponseQuery,
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_json_rpc_types::{
+    ObjectChange, IotaObjectDataOptions, IotaObjectRef, IotaObjectResponseQuery,
 };
-use sui_keys::keystore::AccountKeystore;
-use sui_keys::keystore::Keystore;
-use sui_move_build::BuildConfig;
-use sui_sdk::rpc_types::{
-    OwnedObjectRef, SuiData, SuiExecutionStatus, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse,
+use iota_keys::keystore::AccountKeystore;
+use iota_keys::keystore::Keystore;
+use iota_move_build::BuildConfig;
+use iota_sdk::rpc_types::{
+    OwnedObjectRef, IotaData, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse,
 };
-use sui_sdk::SuiClient;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::gas_coin::{GasCoin, GAS};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::{
+use iota_sdk::IotaClient;
+use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
+use iota_types::gas_coin::{GasCoin, GAS};
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::transaction::{
     CallArg, InputObjectKind, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
     TransactionDataAPI, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
     TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
     TEST_ONLY_GAS_UNIT_FOR_STAKING, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
 };
-use sui_types::TypeTag;
+use iota_types::TypeTag;
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]
-async fn test_transfer_sui() {
+async fn test_transfer_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
     let keystore = &network.wallet.config.keystore;
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Transfer Sui
+    // Test Transfer Iota
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_sui(recipient, Some(50000));
+        builder.transfer_iota(recipient, Some(50000));
         builder.finish()
     };
     test_transaction(
@@ -71,19 +72,19 @@ async fn test_transfer_sui() {
 }
 
 #[tokio::test]
-async fn test_transfer_sui_whole_coin() {
+async fn test_transfer_iota_whole_coin() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
     let keystore = &network.wallet.config.keystore;
     let rgp = network.get_reference_gas_price().await;
 
-    // Test transfer sui whole coin
+    // Test transfer iota whole coin
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_sui(recipient, None);
+        builder.transfer_iota(recipient, None);
         builder.finish()
     };
     test_transaction(
@@ -111,7 +112,7 @@ async fn test_transfer_object() {
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
-    let object_ref = get_random_sui(&client, sender, vec![]).await;
+    let object_ref = get_random_iota(&client, sender, vec![]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_object(recipient, object_ref).unwrap();
@@ -234,7 +235,7 @@ async fn test_split_coin() {
 
     // Test spilt coin
     let sender = get_random_address(&network.get_addresses(), vec![]);
-    let coin = get_random_sui(&client, sender, vec![]).await;
+    let coin = get_random_iota(&client, sender, vec![]).await;
     let tx = client
         .transaction_builder()
         .split_coin(sender, coin.0, vec![100000], None, 10000)
@@ -267,8 +268,8 @@ async fn test_merge_coin() {
 
     // Test merge coin
     let sender = get_random_address(&network.get_addresses(), vec![]);
-    let coin = get_random_sui(&client, sender, vec![]).await;
-    let coin2 = get_random_sui(&client, sender, vec![coin.0]).await;
+    let coin = get_random_iota(&client, sender, vec![]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin.0]).await;
     let tx = client
         .transaction_builder()
         .merge_coins(sender, coin.0, coin2.0, None, 10000)
@@ -303,7 +304,7 @@ async fn test_pay() {
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
-    let coin = get_random_sui(&client, sender, vec![]).await;
+    let coin = get_random_iota(&client, sender, vec![]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -337,8 +338,8 @@ async fn test_pay_multiple_coin_multiple_recipient() {
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
     let recipient2 = get_random_address(&addresses, vec![sender, recipient1]);
-    let coin1 = get_random_sui(&client, sender, vec![]).await;
-    let coin2 = get_random_sui(&client, sender, vec![coin1.0]).await;
+    let coin1 = get_random_iota(&client, sender, vec![]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -365,7 +366,7 @@ async fn test_pay_multiple_coin_multiple_recipient() {
 }
 
 #[tokio::test]
-async fn test_pay_sui_multiple_coin_same_recipient() {
+async fn test_pay_iota_multiple_coin_same_recipient() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
     let keystore = &network.wallet.config.keystore;
@@ -375,12 +376,12 @@ async fn test_pay_sui_multiple_coin_same_recipient() {
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
-    let coin1 = get_random_sui(&client, sender, vec![]).await;
-    let coin2 = get_random_sui(&client, sender, vec![coin1.0]).await;
+    let coin1 = get_random_iota(&client, sender, vec![]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_sui(
+            .pay_iota(
                 vec![recipient1, recipient1, recipient1],
                 vec![100000, 100000, 100000],
             )
@@ -402,23 +403,23 @@ async fn test_pay_sui_multiple_coin_same_recipient() {
 }
 
 #[tokio::test]
-async fn test_pay_sui() {
+async fn test_pay_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
     let keystore = &network.wallet.config.keystore;
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Pay Sui
+    // Test Pay Iota
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
     let recipient2 = get_random_address(&addresses, vec![sender, recipient1]);
-    let coin1 = get_random_sui(&client, sender, vec![]).await;
-    let coin2 = get_random_sui(&client, sender, vec![coin1.0]).await;
+    let coin1 = get_random_iota(&client, sender, vec![]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_sui(vec![recipient1, recipient2], vec![1000000, 2000000])
+            .pay_iota(vec![recipient1, recipient2], vec![1000000, 2000000])
             .unwrap();
         builder.finish()
     };
@@ -437,23 +438,23 @@ async fn test_pay_sui() {
 }
 
 #[tokio::test]
-async fn test_failed_pay_sui() {
+async fn test_failed_pay_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
     let keystore = &network.wallet.config.keystore;
     let rgp = network.get_reference_gas_price().await;
 
-    // Test failed Pay Sui
+    // Test failed Pay Iota
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient1 = get_random_address(&addresses, vec![sender]);
     let recipient2 = get_random_address(&addresses, vec![sender, recipient1]);
-    let coin1 = get_random_sui(&client, sender, vec![]).await;
-    let coin2 = get_random_sui(&client, sender, vec![coin1.0]).await;
+    let coin1 = get_random_iota(&client, sender, vec![]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
-            .pay_sui(vec![recipient1, recipient2], vec![1000000, 2000000])
+            .pay_iota(vec![recipient1, recipient2], vec![1000000, 2000000])
             .unwrap();
         builder.finish()
     };
@@ -472,23 +473,23 @@ async fn test_failed_pay_sui() {
 }
 
 #[tokio::test]
-async fn test_stake_sui() {
+async fn test_stake_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
     let keystore = &network.wallet.config.keystore;
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Delegate Sui
+    // Test Delegate Iota
     let sender = get_random_address(&network.get_addresses(), vec![]);
-    let coin1 = get_random_sui(&client, sender, vec![]).await;
-    let coin2 = get_random_sui(&client, sender, vec![coin1.0]).await;
+    let coin1 = get_random_iota(&client, sender, vec![]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
     let validator = client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await
         .unwrap()
         .active_validators[0]
-        .sui_address;
+        .iota_address;
     let tx = client
         .transaction_builder()
         .request_add_stake(
@@ -520,23 +521,23 @@ async fn test_stake_sui() {
 }
 
 #[tokio::test]
-async fn test_stake_sui_with_none_amount() {
+async fn test_stake_iota_with_none_amount() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
     let keystore = &network.wallet.config.keystore;
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Staking Sui
+    // Test Staking Iota
     let sender = get_random_address(&network.get_addresses(), vec![]);
-    let coin1 = get_random_sui(&client, sender, vec![]).await;
-    let coin2 = get_random_sui(&client, sender, vec![coin1.0]).await;
+    let coin1 = get_random_iota(&client, sender, vec![]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
     let validator = client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await
         .unwrap()
         .active_validators[0]
-        .sui_address;
+        .iota_address;
     let tx = client
         .transaction_builder()
         .request_add_stake(
@@ -568,21 +569,21 @@ async fn test_stake_sui_with_none_amount() {
 }
 
 #[tokio::test]
-async fn test_pay_all_sui() {
+async fn test_pay_all_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
     let keystore = &network.wallet.config.keystore;
     let rgp = network.get_reference_gas_price().await;
 
-    // Test Pay All Sui
+    // Test Pay All Iota
     let addresses = network.get_addresses();
     let sender = get_random_address(&addresses, vec![]);
     let recipient = get_random_address(&addresses, vec![sender]);
-    let coin1 = get_random_sui(&client, sender, vec![]).await;
-    let coin2 = get_random_sui(&client, sender, vec![coin1.0]).await;
+    let coin1 = get_random_iota(&client, sender, vec![]).await;
+    let coin2 = get_random_iota(&client, sender, vec![coin1.0]).await;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_all_sui(recipient);
+        builder.pay_all_iota(recipient);
         builder.finish()
     };
     test_transaction(
@@ -605,21 +606,21 @@ async fn test_delegation_parsing() -> Result<(), anyhow::Error> {
     let rgp = network.get_reference_gas_price().await;
     let client = network.wallet.get_client().await.unwrap();
     let sender = get_random_address(&network.get_addresses(), vec![]);
-    let gas = get_random_sui(&client, sender, vec![]).await;
+    let gas = get_random_iota(&client, sender, vec![]).await;
     let validator = client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await
         .unwrap()
         .active_validators[0]
-        .sui_address;
+        .iota_address;
 
     let ops: Operations = serde_json::from_value(json!(
         [{
             "operation_identifier":{"index":0},
             "type":"Stake",
             "account": { "address" : sender.to_string() },
-            "amount" : { "value": "-100000" , "currency": { "symbol": "SUI", "decimals": 9}},
+            "amount" : { "value": "-100000" , "currency": { "symbol": "IOTA", "decimals": 9}},
             "metadata": { "Stake" : {"validator": validator.to_string()} }
         }]
     ))
@@ -658,7 +659,7 @@ fn find_module_object(
                 if type_pred(object_type) {
                     return Some(OwnedObjectRef {
                         owner: owner.clone(),
-                        reference: SuiObjectRef {
+                        reference: IotaObjectRef {
                             object_id: *object_id,
                             version: *version,
                             digest: *digest,
@@ -674,19 +675,19 @@ fn find_module_object(
     results.pop().unwrap()
 }
 
-// Record current Sui balance of an address then execute the transaction,
+// Record current Iota balance of an address then execute the transaction,
 // and compare the balance change reported by the event against the actual balance change.
 async fn test_transaction(
-    client: &SuiClient,
+    client: &IotaClient,
     keystore: &Keystore,
-    addr_to_check: Vec<SuiAddress>,
-    sender: SuiAddress,
+    addr_to_check: Vec<IotaAddress>,
+    sender: IotaAddress,
     tx: ProgrammableTransaction,
     gas: Vec<ObjectRef>,
     gas_budget: u64,
     gas_price: u64,
     expect_fail: bool,
-) -> SuiTransactionBlockResponse {
+) -> IotaTransactionBlockResponse {
     let gas = if !gas.is_empty() {
         gas
     } else {
@@ -702,7 +703,7 @@ async fn test_transaction(
                 }
             })
             .collect::<Vec<_>>();
-        vec![get_random_sui(client, sender, input_objects).await]
+        vec![get_random_iota(client, sender, input_objects).await]
     };
 
     let data = TransactionData::new_with_gas_coins(
@@ -714,7 +715,7 @@ async fn test_transaction(
     );
 
     let signature = keystore
-        .sign_secure(&data.sender(), &data, Intent::sui_transaction())
+        .sign_secure(&data.sender(), &data, Intent::iota_transaction())
         .unwrap();
 
     // Balance before execution
@@ -729,7 +730,7 @@ async fn test_transaction(
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(data.clone(), vec![signature]),
-            SuiTransactionBlockResponseOptions::full_content(),
+            IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
@@ -740,7 +741,7 @@ async fn test_transaction(
 
     if !expect_fail {
         assert_eq!(
-            SuiExecutionStatus::Success,
+            IotaExecutionStatus::Success,
             *effects.status(),
             "TX execution failed for {:#?}",
             data
@@ -748,7 +749,7 @@ async fn test_transaction(
     } else {
         assert!(matches!(
             effects.status(),
-            SuiExecutionStatus::Failure { .. }
+            IotaExecutionStatus::Failure { .. }
         ));
     }
     let coin_cache = CoinMetadataCache::new(client.clone(), NonZeroUsize::new(2).unwrap());
@@ -772,14 +773,14 @@ async fn test_transaction(
     response
 }
 
-fn extract_balance_changes_from_ops(ops: Operations) -> HashMap<SuiAddress, i128> {
+fn extract_balance_changes_from_ops(ops: Operations) -> HashMap<IotaAddress, i128> {
     ops.into_iter()
-        .fold(HashMap::<SuiAddress, i128>::new(), |mut changes, op| {
+        .fold(HashMap::<IotaAddress, i128>::new(), |mut changes, op| {
             if let Some(OperationStatus::Success) = op.status {
                 match op.type_ {
-                    OperationType::SuiBalanceChange
+                    OperationType::IotaBalanceChange
                     | OperationType::Gas
-                    | OperationType::PaySui
+                    | OperationType::PayIota
                     | OperationType::PayCoin
                     | OperationType::StakeReward
                     | OperationType::StakePrinciple
@@ -798,17 +799,17 @@ fn extract_balance_changes_from_ops(ops: Operations) -> HashMap<SuiAddress, i128
         })
 }
 
-async fn get_random_sui(
-    client: &SuiClient,
-    sender: SuiAddress,
+async fn get_random_iota(
+    client: &IotaClient,
+    sender: IotaAddress,
     except: Vec<ObjectID>,
 ) -> ObjectRef {
     let coins = client
         .read_api()
         .get_owned_objects(
             sender,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -833,7 +834,7 @@ async fn get_random_sui(
     (coin.object_id, coin.version, coin.digest)
 }
 
-fn get_random_address(addresses: &[SuiAddress], except: Vec<SuiAddress>) -> SuiAddress {
+fn get_random_address(addresses: &[IotaAddress], except: Vec<IotaAddress>) -> IotaAddress {
     *addresses
         .iter()
         .filter(|addr| !except.contains(*addr))
@@ -841,13 +842,13 @@ fn get_random_address(addresses: &[SuiAddress], except: Vec<SuiAddress>) -> SuiA
         .unwrap()
 }
 
-async fn get_balance(client: &SuiClient, address: SuiAddress) -> u64 {
+async fn get_balance(client: &IotaClient, address: IotaAddress) -> u64 {
     let coins = client
         .read_api()
         .get_owned_objects(
             address,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),
@@ -865,7 +866,7 @@ async fn get_balance(client: &SuiClient, address: SuiAddress) -> u64 {
         if obj.is_gas_coin() {
             let object = client
                 .read_api()
-                .get_object_with_options(obj.object_id, SuiObjectDataOptions::new().with_bcs())
+                .get_object_with_options(obj.object_id, IotaObjectDataOptions::new().with_bcs())
                 .await
                 .unwrap();
             let coin: GasCoin = object

@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromBase64, toBase64, toHex } from '@mysten/bcs';
+import { fromBase64, toBase64, toHex } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
 import { bytesToHex } from '@noble/hashes/utils';
 
 import { PublicKey } from '../cryptography/publickey.js';
 import type { PublicKeyInitData } from '../cryptography/publickey.js';
 import { SIGNATURE_SCHEME_TO_FLAG } from '../cryptography/signature-scheme.js';
-import { SuiGraphQLClient } from '../graphql/client.js';
+import { IotaGraphQLClient } from '../graphql/client.js';
 import { graphql } from '../graphql/schemas/2024.4/index.js';
-import { normalizeSuiAddress, SUI_ADDRESS_LENGTH } from '../utils/sui-types.js';
+import { normalizeIotaAddress, IOTA_ADDRESS_LENGTH } from '../utils/iota-types.js';
 import { extractClaimValue } from './jwt-utils.js';
 import { parseZkLoginSignature } from './signature.js';
 import { toBigEndianBytes, toPaddedBigEndianBytes } from './utils.js';
@@ -20,14 +21,14 @@ import { toBigEndianBytes, toPaddedBigEndianBytes } from './utils.js';
  */
 export class ZkLoginPublicIdentifier extends PublicKey {
 	#data: Uint8Array;
-	#client?: SuiGraphQLClient;
+	#client?: IotaGraphQLClient;
 	#legacyAddress: boolean;
 
 	/**
 	 * Create a new ZkLoginPublicIdentifier object
 	 * @param value zkLogin public identifier as buffer or base-64 encoded string
 	 */
-	constructor(value: PublicKeyInitData, { client }: { client?: SuiGraphQLClient } = {}) {
+	constructor(value: PublicKeyInitData, { client }: { client?: IotaGraphQLClient } = {}) {
 		super();
 
 		this.#client = client;
@@ -53,18 +54,18 @@ export class ZkLoginPublicIdentifier extends PublicKey {
 		return super.equals(publicKey);
 	}
 
-	override toSuiAddress(): string {
+	override toIotaAddress(): string {
 		if (this.#legacyAddress) {
 			const legacyBytes = normalizeZkLoginPublicKeyBytes(this.#data, true);
 			const addressBytes = new Uint8Array(legacyBytes.length + 1);
 			addressBytes[0] = this.flag();
 			addressBytes.set(legacyBytes, 1);
-			return normalizeSuiAddress(
-				bytesToHex(blake2b(addressBytes, { dkLen: 32 })).slice(0, SUI_ADDRESS_LENGTH * 2),
+			return normalizeIotaAddress(
+				bytesToHex(blake2b(addressBytes, { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
 			);
 		}
 
-		return super.toSuiAddress();
+		return super.toIotaAddress();
 	}
 
 	/**
@@ -75,7 +76,7 @@ export class ZkLoginPublicIdentifier extends PublicKey {
 	}
 
 	/**
-	 * Return the Sui address associated with this ZkLogin public identifier
+	 * Return the Iota address associated with this ZkLogin public identifier
 	 */
 	flag(): number {
 		return SIGNATURE_SCHEME_TO_FLAG['ZkLogin'];
@@ -93,7 +94,7 @@ export class ZkLoginPublicIdentifier extends PublicKey {
 	 */
 	verifyPersonalMessage(message: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
 		const parsedSignature = parseSerializedZkLoginSignature(signature);
-		const address = new ZkLoginPublicIdentifier(parsedSignature.publicKey).toSuiAddress();
+		const address = new ZkLoginPublicIdentifier(parsedSignature.publicKey).toIotaAddress();
 
 		return graphqlVerifyZkLoginSignature({
 			address: address,
@@ -109,7 +110,7 @@ export class ZkLoginPublicIdentifier extends PublicKey {
 	 */
 	verifyTransaction(transaction: Uint8Array, signature: Uint8Array | string): Promise<boolean> {
 		const parsedSignature = parseSerializedZkLoginSignature(signature);
-		const address = new ZkLoginPublicIdentifier(parsedSignature.publicKey).toSuiAddress();
+		const address = new ZkLoginPublicIdentifier(parsedSignature.publicKey).toIotaAddress();
 		return graphqlVerifyZkLoginSignature({
 			address: address,
 			bytes: toBase64(transaction),
@@ -124,7 +125,7 @@ export class ZkLoginPublicIdentifier extends PublicKey {
 export function toZkLoginPublicIdentifier(
 	addressSeed: bigint,
 	iss: string,
-	options?: { client?: SuiGraphQLClient; legacyAddress?: boolean },
+	options?: { client?: IotaGraphQLClient; legacyAddress?: boolean },
 ): ZkLoginPublicIdentifier {
 	// Consists of iss_bytes_len || iss_bytes || padded_32_byte_address_seed.
 	const addressSeedBytesBigEndian = options?.legacyAddress
@@ -144,7 +145,7 @@ const VerifyZkLoginSignatureQuery = graphql(`
 		$bytes: Base64!
 		$signature: Base64!
 		$intentScope: ZkLoginIntentScope!
-		$author: SuiAddress!
+		$author: IotaAddress!
 	) {
 		verifyZkloginSignature(
 			bytes: $bytes
@@ -175,15 +176,15 @@ async function graphqlVerifyZkLoginSignature({
 	bytes,
 	signature,
 	intentScope,
-	client = new SuiGraphQLClient({
-		url: 'https://sui-mainnet.mystenlabs.com/graphql',
+	client = new IotaGraphQLClient({
+		url: 'https://iota-mainnet.iota.org/graphql',
 	}),
 }: {
 	address: string;
 	bytes: string;
 	signature: string;
 	intentScope: 'PERSONAL_MESSAGE' | 'TRANSACTION_DATA';
-	client?: SuiGraphQLClient;
+	client?: IotaGraphQLClient;
 }) {
 	const resp = await client.query({
 		query: VerifyZkLoginSignatureQuery,

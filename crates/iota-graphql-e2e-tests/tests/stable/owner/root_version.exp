@@ -45,8 +45,8 @@ task 7, lines 105-107:
 Owner: Account Address ( _ )
 Version: 7
 Contents: P0::M::O {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -54,8 +54,8 @@ Contents: P0::M::O {
     wrapped: std::option::Option<P0::M::W> {
         vec: vector[
             P0::M::W {
-                id: sui::object::UID {
-                    id: sui::object::ID {
+                id: iota::object::UID {
+                    id: iota::object::ID {
                         bytes: fake(3,0),
                     },
                 },
@@ -90,8 +90,8 @@ task 12, line 121:
 Owner: Account Address ( _ )
 Version: 11
 Contents: P0::M::O {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -99,8 +99,8 @@ Contents: P0::M::O {
     wrapped: std::option::Option<P0::M::W> {
         vec: vector[
             P0::M::W {
-                id: sui::object::UID {
-                    id: sui::object::ID {
+                id: iota::object::UID {
+                    id: iota::object::ID {
                         bytes: fake(3,0),
                     },
                 },

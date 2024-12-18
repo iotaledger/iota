@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // test valid usages of shared coin
@@ -8,11 +9,11 @@
 //# publish
 
 module test::m1 {
-    use sui::sui::SUI;
-    use sui::coin;
+    use iota::iota::IOTA;
+    use iota::coin;
 
     public fun mint_shared(ctx: &mut TxContext) {
-        transfer::public_share_object(coin::zero<SUI>(ctx))
+        transfer::public_share_object(coin::zero<IOTA>(ctx))
     }
 }
 

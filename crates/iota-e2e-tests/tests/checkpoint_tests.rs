@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::atomic::AtomicUsize;
@@ -6,16 +7,16 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
-use sui_macros::register_fail_point;
-use sui_macros::register_fail_point_if;
-use sui_macros::sim_test;
-use sui_test_transaction_builder::make_transfer_sui_transaction;
+use iota_macros::register_fail_point;
+use iota_macros::register_fail_point_if;
+use iota_macros::sim_test;
+use iota_test_transaction_builder::make_transfer_iota_transaction;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
 async fn basic_checkpoints_integration_test() {
     let test_cluster = TestClusterBuilder::new().build().await;
-    let tx = make_transfer_sui_transaction(&test_cluster.wallet, None, None).await;
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
     let digest = *tx.digest();
     test_cluster.execute_transaction(tx).await;
 
@@ -48,7 +49,7 @@ async fn test_checkpoint_split_brain() {
     {
         // this test intentionally halts the network by causing a fork, so we cannot panic on
         // loss of liveness
-        use sui_core::authority::{init_checkpoint_timeout_config, CheckpointTimeoutConfig};
+        use iota_core::authority::{init_checkpoint_timeout_config, CheckpointTimeoutConfig};
         init_checkpoint_timeout_config(CheckpointTimeoutConfig {
             warning_timeout: Duration::from_secs(2),
             panic_timeout: None,
@@ -70,7 +71,7 @@ async fn test_checkpoint_split_brain() {
         .build()
         .await;
 
-    let tx = make_transfer_sui_transaction(&test_cluster.wallet, None, None).await;
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
     test_cluster
         .wallet
         .execute_transaction_may_fail(tx)

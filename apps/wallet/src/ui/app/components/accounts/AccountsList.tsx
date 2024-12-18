@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { Collapsible } from '_src/ui/app/shared/collapse';
-import { Filter16, Plus12 } from '@mysten/icons';
+import { Filter16, Plus12 } from '@iota/icons';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import cn from 'clsx';
 import { useMemo, useState } from 'react';

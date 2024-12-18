@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Basic raffle game that depends on Sui randomness.
+/// Basic raffle game that depends on Iota randomness.
 ///
 /// Anyone can create a new raffle game with an end time and a price. After the end time, anyone can trigger
 /// a function to determine the winner, and the winner gets the entire balance of the game.
@@ -10,12 +11,12 @@
 
 module raffles::example1;
 
-use sui::{
+use iota::{
     balance::{Self, Balance},
     clock::Clock,
     coin::{Self, Coin},
     random::{Random, new_generator},
-    sui::SUI
+    iota::IOTA
 };
 
 /// Error codes
@@ -29,11 +30,11 @@ const ENoParticipants: u64 = 5;
 /// Game represents a set of parameters of a single game.
 public struct Game has key {
     id: UID,
-    cost_in_sui: u64,
+    cost_in_iota: u64,
     participants: u32,
     end_time: u64,
     winner: Option<u32>,
-    balance: Balance<SUI>,
+    balance: Balance<IOTA>,
 }
 
 /// Ticket represents a participant in a single game.
@@ -44,10 +45,10 @@ public struct Ticket has key {
 }
 
 /// Create a shared-object Game.
-public fun create(end_time: u64, cost_in_sui: u64, ctx: &mut TxContext) {
+public fun create(end_time: u64, cost_in_iota: u64, ctx: &mut TxContext) {
     let game = Game {
         id: object::new(ctx),
-        cost_in_sui,
+        cost_in_iota,
         participants: 0,
         end_time,
         winner: option::none(),
@@ -73,12 +74,12 @@ entry fun determine_winner(game: &mut Game, r: &Random, clock: &Clock, ctx: &mut
 /// Anyone can play and receive a ticket.
 public fun buy_ticket(
     game: &mut Game,
-    coin: Coin<SUI>,
+    coin: Coin<IOTA>,
     clock: &Clock,
     ctx: &mut TxContext,
 ): Ticket {
     assert!(game.end_time > clock.timestamp_ms(), EGameAlreadyCompleted);
-    assert!(coin.value() == game.cost_in_sui, EInvalidAmount);
+    assert!(coin.value() == game.cost_in_iota, EInvalidAmount);
 
     game.participants = game.participants + 1;
     coin::put(&mut game.balance, coin);
@@ -91,12 +92,12 @@ public fun buy_ticket(
 }
 
 /// The winner can take the prize.
-public fun redeem(ticket: Ticket, game: Game, ctx: &mut TxContext): Coin<SUI> {
+public fun redeem(ticket: Ticket, game: Game, ctx: &mut TxContext): Coin<IOTA> {
     assert!(object::id(&game) == ticket.game_id, EGameMismatch);
     assert!(game.winner.contains(&ticket.participant_index), ENotWinner);
     destroy_ticket(ticket);
 
-    let Game { id, cost_in_sui: _, participants: _, end_time: _, winner: _, balance } = game;
+    let Game { id, cost_in_iota: _, participants: _, end_time: _, winner: _, balance } = game;
     object::delete(id);
     let reward = balance.into_coin(ctx);
     reward
@@ -110,8 +111,8 @@ public fun destroy_ticket(ticket: Ticket) {
 }
 
 #[test_only]
-public fun cost_in_sui(game: &Game): u64 {
-    game.cost_in_sui
+public fun cost_in_iota(game: &Game): u64 {
+    game.cost_in_iota
 }
 
 #[test_only]

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState, useEffect } from "react";
@@ -10,13 +11,13 @@ export default function ProtocolConfig() {
   const data = {
     jsonrpc: "2.0",
     id: 1,
-    method: "sui_getProtocolConfig",
+    method: "iota_getProtocolConfig",
     params: [],
   };
   const urls = [
-    "https://fullnode.mainnet.sui.io:443",
-    "https://fullnode.testnet.sui.io:443",
-    "https://fullnode.devnet.sui.io:443",
+    "https://fullnode.mainnet.iota.io:443",
+    "https://fullnode.testnet.iota.io:443",
+    "https://fullnode.devnet.iota.io:443",
   ];
   const [results, setResults] = useState({
     mainnet: null,
@@ -102,7 +103,7 @@ export default function ProtocolConfig() {
   }
 
   return (
-    <Tabs groupId="sui-network">
+    <Tabs groupId="iota-network">
       <TabItem value="mainnet" label="Mainnet">
         <DisplayResults results={results.mainnet} />
       </TabItem>

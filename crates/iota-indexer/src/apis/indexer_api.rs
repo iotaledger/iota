@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
@@ -8,22 +9,22 @@ use jsonrpsee::types::SubscriptionResult;
 use jsonrpsee::{RpcModule, SubscriptionSink};
 use tap::TapFallible;
 
-use sui_json_rpc::name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError};
-use sui_json_rpc::SuiRpcModule;
-use sui_json_rpc_api::{cap_page_limit, IndexerApiServer};
-use sui_json_rpc_types::{
-    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, SuiObjectResponse,
-    SuiObjectResponseQuery, SuiTransactionBlockResponseQuery, TransactionBlocksPage,
+use iota_json_rpc::name_service::{Domain, NameRecord, NameServiceConfig, NameServiceError};
+use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc_api::{cap_page_limit, IndexerApiServer};
+use iota_json_rpc_types::{
+    DynamicFieldPage, EventFilter, EventPage, ObjectsPage, Page, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaTransactionBlockResponseQuery, TransactionBlocksPage,
     TransactionFilter,
 };
-use sui_open_rpc::Module;
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::digests::TransactionDigest;
-use sui_types::dynamic_field::{DynamicFieldName, Field};
-use sui_types::error::SuiObjectResponseError;
-use sui_types::event::EventID;
-use sui_types::object::ObjectRead;
-use sui_types::TypeTag;
+use iota_open_rpc::Module;
+use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::digests::TransactionDigest;
+use iota_types::dynamic_field::{DynamicFieldName, Field};
+use iota_types::error::IotaObjectResponseError;
+use iota_types::event::EventID;
+use iota_types::object::ObjectRead;
+use iota_types::TypeTag;
 
 use crate::indexer_reader::IndexerReader;
 use crate::IndexerError;
@@ -43,12 +44,12 @@ impl IndexerApi {
 
     async fn get_owned_objects_internal(
         &self,
-        address: SuiAddress,
-        query: Option<SuiObjectResponseQuery>,
+        address: IotaAddress,
+        query: Option<IotaObjectResponseQuery>,
         cursor: Option<ObjectID>,
         limit: usize,
     ) -> RpcResult<ObjectsPage> {
-        let SuiObjectResponseQuery { filter, options } = query.unwrap_or_default();
+        let IotaObjectResponseQuery { filter, options } = query.unwrap_or_default();
         let options = options.unwrap_or_default();
         let objects = self
             .inner
@@ -82,31 +83,31 @@ impl IndexerApi {
             let options = options.clone();
             parallel_tasks.push(tokio::task::spawn(async move {
                 match o {
-                    ObjectRead::NotExists(id) => Ok(SuiObjectResponse::new_with_error(
-                        SuiObjectResponseError::NotExists { object_id: id },
+                    ObjectRead::NotExists(id) => Ok(IotaObjectResponse::new_with_error(
+                        IotaObjectResponseError::NotExists { object_id: id },
                     )),
                     ObjectRead::Exists(object_ref, o, layout) => {
                         if options.show_display {
                             match inner_clone.get_display_fields(&o, &layout).await {
-                                Ok(rendered_fields) => Ok(SuiObjectResponse::new_with_data(
+                                Ok(rendered_fields) => Ok(IotaObjectResponse::new_with_data(
                                     (object_ref, o, layout, options, Some(rendered_fields))
                                         .try_into()?,
                                 )),
-                                Err(e) => Ok(SuiObjectResponse::new(
+                                Err(e) => Ok(IotaObjectResponse::new(
                                     Some((object_ref, o, layout, options, None).try_into()?),
-                                    Some(SuiObjectResponseError::DisplayError {
+                                    Some(IotaObjectResponseError::DisplayError {
                                         error: e.to_string(),
                                     }),
                                 )),
                             }
                         } else {
-                            Ok(SuiObjectResponse::new_with_data(
+                            Ok(IotaObjectResponse::new_with_data(
                                 (object_ref, o, layout, options, None).try_into()?,
                             ))
                         }
                     }
                     ObjectRead::Deleted((object_id, version, digest)) => Ok(
-                        SuiObjectResponse::new_with_error(SuiObjectResponseError::Deleted {
+                        IotaObjectResponse::new_with_error(IotaObjectResponseError::Deleted {
                             object_id,
                             version,
                             digest,
@@ -135,8 +136,8 @@ impl IndexerApi {
 impl IndexerApiServer for IndexerApi {
     async fn get_owned_objects(
         &self,
-        address: SuiAddress,
-        query: Option<SuiObjectResponseQuery>,
+        address: IotaAddress,
+        query: Option<IotaObjectResponseQuery>,
         cursor: Option<ObjectID>,
         limit: Option<usize>,
     ) -> RpcResult<ObjectsPage> {
@@ -150,7 +151,7 @@ impl IndexerApiServer for IndexerApi {
 
     async fn query_transaction_blocks(
         &self,
-        query: SuiTransactionBlockResponseQuery,
+        query: IotaTransactionBlockResponseQuery,
         cursor: Option<TransactionDigest>,
         limit: Option<usize>,
         descending_order: Option<bool>,
@@ -238,22 +239,22 @@ impl IndexerApiServer for IndexerApi {
         &self,
         parent_object_id: ObjectID,
         name: DynamicFieldName,
-    ) -> RpcResult<SuiObjectResponse> {
+    ) -> RpcResult<IotaObjectResponse> {
         let name_bcs_value = self.inner.bcs_name_from_dynamic_field_name(&name).await?;
         // Try as Dynamic Field
-        let id = sui_types::dynamic_field::derive_dynamic_field_id(
+        let id = iota_types::dynamic_field::derive_dynamic_field_id(
             parent_object_id,
             &name.type_,
             &name_bcs_value,
         )
         .expect("deriving dynamic field id can't fail");
 
-        let options = sui_json_rpc_types::SuiObjectDataOptions::full_content();
+        let options = iota_json_rpc_types::IotaObjectDataOptions::full_content();
         match self.inner.get_object_read(id).await? {
-            sui_types::object::ObjectRead::NotExists(_)
-            | sui_types::object::ObjectRead::Deleted(_) => {}
-            sui_types::object::ObjectRead::Exists(object_ref, o, layout) => {
-                return Ok(SuiObjectResponse::new_with_data(
+            iota_types::object::ObjectRead::NotExists(_)
+            | iota_types::object::ObjectRead::Deleted(_) => {}
+            iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
+                return Ok(IotaObjectResponse::new_with_data(
                     (object_ref, o, layout, options, None).try_into()?,
                 ));
             }
@@ -261,26 +262,26 @@ impl IndexerApiServer for IndexerApi {
 
         // Try as Dynamic Field Object
         let dynamic_object_field_struct =
-            sui_types::dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(name.type_);
+            iota_types::dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(name.type_);
         let dynamic_object_field_type = TypeTag::Struct(Box::new(dynamic_object_field_struct));
-        let dynamic_object_field_id = sui_types::dynamic_field::derive_dynamic_field_id(
+        let dynamic_object_field_id = iota_types::dynamic_field::derive_dynamic_field_id(
             parent_object_id,
             &dynamic_object_field_type,
             &name_bcs_value,
         )
         .expect("deriving dynamic field id can't fail");
         match self.inner.get_object_read(dynamic_object_field_id).await? {
-            sui_types::object::ObjectRead::NotExists(_)
-            | sui_types::object::ObjectRead::Deleted(_) => {}
-            sui_types::object::ObjectRead::Exists(object_ref, o, layout) => {
-                return Ok(SuiObjectResponse::new_with_data(
+            iota_types::object::ObjectRead::NotExists(_)
+            | iota_types::object::ObjectRead::Deleted(_) => {}
+            iota_types::object::ObjectRead::Exists(object_ref, o, layout) => {
+                return Ok(IotaObjectResponse::new_with_data(
                     (object_ref, o, layout, options, None).try_into()?,
                 ));
             }
         }
 
-        Ok(SuiObjectResponse::new_with_error(
-            sui_types::error::SuiObjectResponseError::DynamicFieldNotFound { parent_object_id },
+        Ok(IotaObjectResponse::new_with_error(
+            iota_types::error::IotaObjectResponseError::DynamicFieldNotFound { parent_object_id },
         ))
     }
 
@@ -296,7 +297,7 @@ impl IndexerApiServer for IndexerApi {
         Err(SubscriptionEmptyError)
     }
 
-    async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<SuiAddress>> {
+    async fn resolve_name_service_address(&self, name: String) -> RpcResult<Option<IotaAddress>> {
         let domain: Domain = name.parse().map_err(IndexerError::NameServiceError)?;
         let parent_domain = domain.parent();
 
@@ -322,7 +323,7 @@ impl IndexerApiServer for IndexerApi {
             .multi_get_objects(requests)
             .await?
             .into_iter()
-            .map(|o| sui_types::object::Object::try_from(o).ok())
+            .map(|o| iota_types::object::Object::try_from(o).ok())
             .collect();
 
         // Find the requested object in the list of domains.
@@ -369,7 +370,7 @@ impl IndexerApiServer for IndexerApi {
 
     async fn resolve_name_service_names(
         &self,
-        address: SuiAddress,
+        address: IotaAddress,
         _cursor: Option<ObjectID>,
         _limit: Option<usize>,
     ) -> RpcResult<Page<String, ObjectID>> {
@@ -390,7 +391,7 @@ impl IndexerApiServer for IndexerApi {
         };
 
         let domain = field_reverse_record_object
-            .to_rust::<Field<SuiAddress, Domain>>()
+            .to_rust::<Field<IotaAddress, Domain>>()
             .ok_or_else(|| {
                 IndexerError::PersistentStorageDataCorruptionError(format!(
                     "Malformed Object {reverse_record_id}"
@@ -417,12 +418,12 @@ impl IndexerApiServer for IndexerApi {
     }
 }
 
-impl SuiRpcModule for IndexerApi {
+impl IotaRpcModule for IndexerApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
 
     fn rpc_doc_module() -> Module {
-        sui_json_rpc_api::IndexerApiOpenRpc::module_doc()
+        iota_json_rpc_api::IndexerApiOpenRpc::module_doc()
     }
 }

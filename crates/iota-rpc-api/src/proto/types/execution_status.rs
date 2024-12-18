@@ -5,14 +5,14 @@ use tap::Pipe;
 // ExecutionStatus
 //
 
-impl From<sui_sdk_types::types::ExecutionStatus> for super::ExecutionStatus {
-    fn from(value: sui_sdk_types::types::ExecutionStatus) -> Self {
+impl From<iota_sdk_types::types::ExecutionStatus> for super::ExecutionStatus {
+    fn from(value: iota_sdk_types::types::ExecutionStatus) -> Self {
         match value {
-            sui_sdk_types::types::ExecutionStatus::Success => Self {
+            iota_sdk_types::types::ExecutionStatus::Success => Self {
                 success: Some(true),
                 status: None,
             },
-            sui_sdk_types::types::ExecutionStatus::Failure { error, command } => Self {
+            iota_sdk_types::types::ExecutionStatus::Failure { error, command } => Self {
                 success: Some(false),
                 status: Some(super::FailureStatus {
                     command,
@@ -23,7 +23,7 @@ impl From<sui_sdk_types::types::ExecutionStatus> for super::ExecutionStatus {
     }
 }
 
-impl TryFrom<&super::ExecutionStatus> for sui_sdk_types::types::ExecutionStatus {
+impl TryFrom<&super::ExecutionStatus> for iota_sdk_types::types::ExecutionStatus {
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::ExecutionStatus) -> Result<Self, Self::Error> {
@@ -57,9 +57,9 @@ impl TryFrom<&super::ExecutionStatus> for sui_sdk_types::types::ExecutionStatus 
 // ExecutionError
 //
 
-impl From<sui_sdk_types::types::ExecutionError> for super::failure_status::ExecutionError {
-    fn from(value: sui_sdk_types::types::ExecutionError) -> Self {
-        use sui_sdk_types::types::ExecutionError::*;
+impl From<iota_sdk_types::types::ExecutionError> for super::failure_status::ExecutionError {
+    fn from(value: iota_sdk_types::types::ExecutionError) -> Self {
+        use iota_sdk_types::types::ExecutionError::*;
         match value {
             InsufficientGas => Self::InsufficientGas(()),
             InvalidGasObject => Self::InvalidGasObject(()),
@@ -83,7 +83,7 @@ impl From<sui_sdk_types::types::ExecutionError> for super::failure_status::Execu
             InsufficientCoinBalance => Self::InsufficientCoinBalance(()),
             CoinBalanceOverflow => Self::CoinBalanceOverflow(()),
             PublishErrorNonZeroAddress => Self::PublishErrorNonZeroAddress(()),
-            SuiMoveVerificationError => Self::SuiMoveVerificationError(()),
+            IotaMoveVerificationError => Self::IotaMoveVerificationError(()),
             MovePrimitiveRuntimeError { location } => {
                 Self::MovePrimitiveRuntimeError(super::MoveError {
                     location: location.map(Into::into),
@@ -143,7 +143,7 @@ impl From<sui_sdk_types::types::ExecutionError> for super::failure_status::Execu
                 max_size: Some(max_object_size),
             }),
             CertificateDenied => Self::CertificateDenied(()),
-            SuiMoveVerificationTimedout => Self::SuiMoveVerificationTimedout(()),
+            IotaMoveVerificationTimedout => Self::IotaMoveVerificationTimedout(()),
             SharedObjectOperationNotAllowed => Self::SharedObjectOperationNotAllowed(()),
             InputObjectDeleted => Self::InputObjectDeleted(()),
             ExecutionCancelledDueToSharedObjectCongestion { congested_objects } => {
@@ -165,7 +165,7 @@ impl From<sui_sdk_types::types::ExecutionError> for super::failure_status::Execu
     }
 }
 
-impl TryFrom<&super::failure_status::ExecutionError> for sui_sdk_types::types::ExecutionError {
+impl TryFrom<&super::failure_status::ExecutionError> for iota_sdk_types::types::ExecutionError {
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::failure_status::ExecutionError) -> Result<Self, Self::Error> {
@@ -190,7 +190,7 @@ impl TryFrom<&super::failure_status::ExecutionError> for sui_sdk_types::types::E
             InsufficientCoinBalance(()) => Self::InsufficientCoinBalance,
             CoinBalanceOverflow(()) => Self::CoinBalanceOverflow,
             PublishErrorNonZeroAddress(()) => Self::PublishErrorNonZeroAddress,
-            SuiMoveVerificationError(()) => Self::SuiMoveVerificationError,
+            IotaMoveVerificationError(()) => Self::IotaMoveVerificationError,
             MovePrimitiveRuntimeError(super::MoveError {
                 location,
                 abort_code: _,
@@ -268,7 +268,7 @@ impl TryFrom<&super::failure_status::ExecutionError> for sui_sdk_types::types::E
                 }
             }
             CertificateDenied(()) => Self::CertificateDenied,
-            SuiMoveVerificationTimedout(()) => Self::SuiMoveVerificationTimedout,
+            IotaMoveVerificationTimedout(()) => Self::IotaMoveVerificationTimedout,
             SharedObjectOperationNotAllowed(()) => Self::SharedObjectOperationNotAllowed,
             InputObjectDeleted(()) => Self::InputObjectDeleted,
             ExecutionCancelledDueToSharedObjectCongestion(super::CongestedObjectsError {
@@ -306,9 +306,9 @@ impl TryFrom<&super::failure_status::ExecutionError> for sui_sdk_types::types::E
 // CommandArgumentError
 //
 
-impl From<sui_sdk_types::types::CommandArgumentError> for super::command_argument_error::Kind {
-    fn from(value: sui_sdk_types::types::CommandArgumentError) -> Self {
-        use sui_sdk_types::types::CommandArgumentError::*;
+impl From<iota_sdk_types::types::CommandArgumentError> for super::command_argument_error::Kind {
+    fn from(value: iota_sdk_types::types::CommandArgumentError) -> Self {
+        use iota_sdk_types::types::CommandArgumentError::*;
 
         match value {
             TypeMismatch => Self::TypeMismatch(()),
@@ -334,7 +334,7 @@ impl From<sui_sdk_types::types::CommandArgumentError> for super::command_argumen
     }
 }
 
-impl TryFrom<&super::command_argument_error::Kind> for sui_sdk_types::types::CommandArgumentError {
+impl TryFrom<&super::command_argument_error::Kind> for iota_sdk_types::types::CommandArgumentError {
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::command_argument_error::Kind) -> Result<Self, Self::Error> {
@@ -378,9 +378,9 @@ impl TryFrom<&super::command_argument_error::Kind> for sui_sdk_types::types::Com
 // TypeArgumentError
 //
 
-impl From<sui_sdk_types::types::TypeArgumentError> for super::type_argument_error::Kind {
-    fn from(value: sui_sdk_types::types::TypeArgumentError) -> Self {
-        use sui_sdk_types::types::TypeArgumentError::*;
+impl From<iota_sdk_types::types::TypeArgumentError> for super::type_argument_error::Kind {
+    fn from(value: iota_sdk_types::types::TypeArgumentError) -> Self {
+        use iota_sdk_types::types::TypeArgumentError::*;
 
         match value {
             TypeNotFound => Self::TypeNotFound(()),
@@ -389,7 +389,7 @@ impl From<sui_sdk_types::types::TypeArgumentError> for super::type_argument_erro
     }
 }
 
-impl TryFrom<&super::type_argument_error::Kind> for sui_sdk_types::types::TypeArgumentError {
+impl TryFrom<&super::type_argument_error::Kind> for iota_sdk_types::types::TypeArgumentError {
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::type_argument_error::Kind) -> Result<Self, Self::Error> {
@@ -407,9 +407,9 @@ impl TryFrom<&super::type_argument_error::Kind> for sui_sdk_types::types::TypeAr
 // PackageUpgradeError
 //
 
-impl From<sui_sdk_types::types::PackageUpgradeError> for super::package_upgrade_error::Kind {
-    fn from(value: sui_sdk_types::types::PackageUpgradeError) -> Self {
-        use sui_sdk_types::types::PackageUpgradeError::*;
+impl From<iota_sdk_types::types::PackageUpgradeError> for super::package_upgrade_error::Kind {
+    fn from(value: iota_sdk_types::types::PackageUpgradeError) -> Self {
+        use iota_sdk_types::types::PackageUpgradeError::*;
 
         match value {
             UnableToFetchPackage { package_id } => Self::UnableToFetchPackage(package_id.into()),
@@ -428,7 +428,7 @@ impl From<sui_sdk_types::types::PackageUpgradeError> for super::package_upgrade_
     }
 }
 
-impl TryFrom<&super::package_upgrade_error::Kind> for sui_sdk_types::types::PackageUpgradeError {
+impl TryFrom<&super::package_upgrade_error::Kind> for iota_sdk_types::types::PackageUpgradeError {
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::package_upgrade_error::Kind) -> Result<Self, Self::Error> {
@@ -469,8 +469,8 @@ impl TryFrom<&super::package_upgrade_error::Kind> for sui_sdk_types::types::Pack
 // MoveLocation
 //
 
-impl From<sui_sdk_types::types::MoveLocation> for super::MoveLocation {
-    fn from(value: sui_sdk_types::types::MoveLocation) -> Self {
+impl From<iota_sdk_types::types::MoveLocation> for super::MoveLocation {
+    fn from(value: iota_sdk_types::types::MoveLocation) -> Self {
         Self {
             package: Some(value.package.into()),
             module: Some(value.module.into()),
@@ -481,7 +481,7 @@ impl From<sui_sdk_types::types::MoveLocation> for super::MoveLocation {
     }
 }
 
-impl TryFrom<&super::MoveLocation> for sui_sdk_types::types::MoveLocation {
+impl TryFrom<&super::MoveLocation> for iota_sdk_types::types::MoveLocation {
     type Error = TryFromProtoError;
 
     fn try_from(value: &super::MoveLocation) -> Result<Self, Self::Error> {

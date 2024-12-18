@@ -1,6 +1,6 @@
 ## Overview
 
-This directory contains the assets required to build and update the [Sui documentation](https://docs.sui.io). The directory is split between `content` and `site`. To run the docs.sui.io site locally, open the `site` directory in a terminal or console. Use a package manager to install the required modules:
+This directory contains the assets required to build and update the [Iota documentation](https://docs.iota.org). The directory is split between `content` and `site`. To run the docs.iota.org site locally, open the `site` directory in a terminal or console. Use a package manager to install the required modules:
 
 ```shell
 pnpm install
@@ -26,11 +26,11 @@ The deployment watches for updates to files in the `content` directory (and site
 
 Once you've finished making changes, you should again run `pnpm build`. This builds the static site and places the files in `site\build`. This is important to run before submitting your changes for review, because a build will fail on errors like bad internal links, displaying the cause of the error to the console. The development preview ignores such errors to provide a more agile environment.
 
-Sui Foundation is not able to provide support for building the documentation site locally. If you run into trouble, consult the [Docusaurus](https://docusaurus.io/) documentation.
+Iota Foundation is not able to provide support for building the documentation site locally. If you run into trouble, consult the [Docusaurus](https://docusaurus.io/) documentation.
 
 ## Pull requests
 
-Sui uses Vercel to host its documentation site. Vercel builds a preview of the documentation for every pull request submitted to the Sui repo. You can find a link to this preview in the PR comment section from the Vercel bot. Click the **Visit Preview** link for the **sui-core** project to verify your changes behave as you expect.
+Iota uses Vercel to host its documentation site. Vercel builds a preview of the documentation for every pull request submitted to the Iota repo. You can find a link to this preview in the PR comment section from the Vercel bot. Click the **Visit Preview** link for the **iota-core** project to verify your changes behave as you expect.
 
 If you'd like to view the Vercel preview before your changes are ready for review, then [mark your PR as a draft](https://github.blog/2019-02-14-introducing-draft-pull-requests/).
 
@@ -38,14 +38,14 @@ If you'd like to view the Vercel preview before your changes are ready for revie
 
 ## Contributing
 
-Sui is for the community. Contribute for the benefit of all.
+Iota is for the community. Contribute for the benefit of all.
 
-- [Docs contributing guidelines](https://docs.sui.io/references/contribute/contribution-process)
-- [Repo contributing guidelines](https://docs.sui.io/contribute-to-sui-repos)
-- [Style guide](https://docs.sui.io/style-guide)
-- [Localization](https://docs.sui.io/localize-sui-docs)
-- [Code of conduct](https://docs.sui.io/contribute/code-of-conduct)
+- [Docs contributing guidelines](https://docs.iota.org/references/contribute/contribution-process)
+- [Repo contributing guidelines](https://docs.iota.org/contribute-to-iota-repos)
+- [Style guide](https://docs.iota.org/style-guide)
+- [Localization](https://docs.iota.org/localize-iota-docs)
+- [Code of conduct](https://docs.iota.org/contribute/code-of-conduct)
 
 ## License
 
-The Sui Documentation is distributed under the [CC BY 4.0 license](../LICENSE-docs).
+The Iota Documentation is distributed under the [CC BY 4.0 license](../LICENSE-docs).

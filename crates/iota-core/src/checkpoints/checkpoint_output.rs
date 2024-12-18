@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
@@ -7,14 +8,14 @@ use crate::consensus_adapter::SubmitToConsensus;
 use crate::epoch::reconfiguration::ReconfigurationInitiator;
 use async_trait::async_trait;
 use std::sync::Arc;
-use sui_types::base_types::AuthorityName;
-use sui_types::error::SuiResult;
-use sui_types::message_envelope::Message;
-use sui_types::messages_checkpoint::{
+use iota_types::base_types::AuthorityName;
+use iota_types::error::IotaResult;
+use iota_types::message_envelope::Message;
+use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage, CheckpointSummary,
     SignedCheckpointSummary, VerifiedCheckpoint,
 };
-use sui_types::messages_consensus::ConsensusTransaction;
+use iota_types::messages_consensus::ConsensusTransaction;
 use tracing::{debug, info, instrument, trace};
 
 use super::{CheckpointMetrics, CheckpointStore};
@@ -27,13 +28,13 @@ pub trait CheckpointOutput: Sync + Send + 'static {
         contents: &CheckpointContents,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         checkpoint_store: &Arc<CheckpointStore>,
-    ) -> SuiResult;
+    ) -> IotaResult;
 }
 
 #[async_trait]
 pub trait CertifiedCheckpointOutput: Sync + Send + 'static {
     async fn certified_checkpoint_created(&self, summary: &CertifiedCheckpointSummary)
-        -> SuiResult;
+        -> IotaResult;
 }
 
 pub struct SubmitCheckpointToConsensus<T> {
@@ -67,7 +68,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
         contents: &CheckpointContents,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         checkpoint_store: &Arc<CheckpointStore>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         LogCheckpointOutput
             .checkpoint_created(summary, contents, epoch_store, checkpoint_store)
             .await?;
@@ -140,7 +141,7 @@ impl CheckpointOutput for LogCheckpointOutput {
         contents: &CheckpointContents,
         _epoch_store: &Arc<AuthorityPerEpochStore>,
         _checkpoint_store: &Arc<CheckpointStore>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         trace!(
             "Including following transactions in checkpoint {}: {:?}",
             summary.sequence_number,
@@ -166,7 +167,7 @@ impl CertifiedCheckpointOutput for LogCheckpointOutput {
     async fn certified_checkpoint_created(
         &self,
         summary: &CertifiedCheckpointSummary,
-    ) -> SuiResult {
+    ) -> IotaResult {
         info!(
             "Certified checkpoint with sequence {} and digest {}",
             summary.sequence_number,
@@ -177,11 +178,11 @@ impl CertifiedCheckpointOutput for LogCheckpointOutput {
 }
 
 pub struct SendCheckpointToStateSync {
-    handle: sui_network::state_sync::Handle,
+    handle: iota_network::state_sync::Handle,
 }
 
 impl SendCheckpointToStateSync {
-    pub fn new(handle: sui_network::state_sync::Handle) -> Self {
+    pub fn new(handle: iota_network::state_sync::Handle) -> Self {
         Self { handle }
     }
 }
@@ -192,7 +193,7 @@ impl CertifiedCheckpointOutput for SendCheckpointToStateSync {
     async fn certified_checkpoint_created(
         &self,
         summary: &CertifiedCheckpointSummary,
-    ) -> SuiResult {
+    ) -> IotaResult {
         info!(
             "Certified checkpoint with sequence {} and digest {}",
             summary.sequence_number,

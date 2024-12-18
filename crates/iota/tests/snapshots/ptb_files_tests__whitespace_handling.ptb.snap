@@ -1,5 +1,5 @@
 ---
-source: crates/sui/tests/ptb_files_tests.rs
+source: crates/iota/tests/ptb_files_tests.rs
 expression: "results.join(\"\\n\")"
 ---
  === PREVIEW === 
@@ -13,9 +13,9 @@ expression: "results.join(\"\\n\")"
 │ assign        │ x vector["1", "2,       3", "", "4                        "]                            │
 │ assign        │ x vector["1", "2,       3", "", "4                       \n            "]               │
 │ make-move-vec │ <u16> [1, 2, 3, 4]                                                                      │
-│ make-move-vec │ <sui::string::String> [1, 2, 3, 4]                                                      │
-│ make-move-vec │ <sui::string::String> ["1", "2,       3", "", "4                        "]              │
-│ make-move-vec │ <sui::string::String> ["1", "2,       3", "", "4                       \n            "] │
+│ make-move-vec │ <iota::string::String> [1, 2, 3, 4]                                                      │
+│ make-move-vec │ <iota::string::String> ["1", "2,       3", "", "4                        "]              │
+│ make-move-vec │ <iota::string::String> ["1", "2,       3", "", "4                       \n            "] │
 ╰───────────────┴─────────────────────────────────────────────────────────────────────────────────────────╯
  === BUILT PTB === 
 Input 0: Pure([1, 0])

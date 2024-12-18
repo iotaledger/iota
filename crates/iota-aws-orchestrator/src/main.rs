@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{str::FromStr, time::Duration};
@@ -29,10 +30,10 @@ pub mod settings;
 pub mod ssh;
 pub mod testbed;
 
-/// NOTE: Link these types to the correct protocol. Either Sui or Narwhal.
-// use protocol::sui::{SuiBenchmarkType, SuiProtocol};
-// type Protocol = SuiProtocol;
-// type BenchmarkType = SuiBenchmarkType;
+/// NOTE: Link these types to the correct protocol. Either Iota or Narwhal.
+// use protocol::iota::{IotaBenchmarkType, IotaProtocol};
+// type Protocol = IotaProtocol;
+// type BenchmarkType = IotaBenchmarkType;
 type Protocol = NarwhalProtocol;
 type BenchmarkType = NarwhalBenchmarkType;
 
@@ -44,7 +45,7 @@ pub struct Opts {
     #[clap(
         long,
         value_name = "FILE",
-        default_value = "crates/sui-aws-orchestrator/assets/settings.json",
+        default_value = "crates/iota-aws-orchestrator/assets/settings.json",
         global = true
     )]
     settings_path: String,

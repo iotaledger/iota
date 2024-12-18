@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use sui_json_rpc_types::BalanceChange as StoredBalanceChange;
-use sui_types::object::Owner as NativeOwner;
+use iota_json_rpc_types::BalanceChange as StoredBalanceChange;
+use iota_types::object::Owner as NativeOwner;
 
-use super::{big_int::BigInt, move_type::MoveType, owner::Owner, sui_address::SuiAddress};
+use super::{big_int::BigInt, move_type::MoveType, owner::Owner, iota_address::IotaAddress};
 use crate::error::Error;
 
 pub(crate) struct BalanceChange {
@@ -23,7 +24,7 @@ impl BalanceChange {
 
         match &self.stored.owner {
             O::AddressOwner(addr) | O::ObjectOwner(addr) => Some(Owner {
-                address: SuiAddress::from(*addr),
+                address: IotaAddress::from(*addr),
                 checkpoint_viewed_at: self.checkpoint_viewed_at,
                 root_version: None,
             }),
@@ -35,7 +36,7 @@ impl BalanceChange {
         }
     }
 
-    /// The inner type of the coin whose balance has changed (e.g. `0x2::sui::SUI`).
+    /// The inner type of the coin whose balance has changed (e.g. `0x2::iota::IOTA`).
     async fn coin_type(&self) -> Option<MoveType> {
         Some(self.stored.coin_type.clone().into())
     }

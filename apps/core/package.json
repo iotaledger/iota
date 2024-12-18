@@ -1,12 +1,12 @@
 {
-	"name": "@mysten/core",
+	"name": "@iota/core",
 	"main": "src/index.ts",
 	"private": true,
 	"sideEffects": false,
-	"author": "Mysten Labs <build@mystenlabs.com>",
+	"author": "IOTA Foundation <info@iota.org>",
 	"repository": {
 		"type": "git",
-		"url": "github.com:MystenLabs/sui.git"
+		"url": "github.com:iotaledger/iota.git"
 	},
 	"license": "Apache-2.0",
 	"scripts": {
@@ -26,9 +26,9 @@
 		"@amplitude/analytics-types": "^0.20.0",
 		"@growthbook/growthbook-react": "^0.15.0",
 		"@hookform/resolvers": "^3.9.0",
-		"@mysten/dapp-kit": "workspace:*",
-		"@mysten/kiosk": "workspace:*",
-		"@mysten/sui": "workspace:*",
+		"@iota/dapp-kit": "workspace:*",
+		"@iota/kiosk": "workspace:*",
+		"@iota/iota-sdk": "workspace:*",
 		"@sentry/react": "^7.59.2",
 		"@tanstack/react-query": "^5.50.1",
 		"bignumber.js": "^9.1.1",

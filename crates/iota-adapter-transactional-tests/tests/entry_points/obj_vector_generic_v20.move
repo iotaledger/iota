@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests vector of objects where operations involve generics (type parameters)
@@ -40,7 +41,7 @@ module Test::M {
     }
 
     public entry fun mint_child_any<Any>(v: u64, parent: &mut ObjAny<Any>, ctx: &mut TxContext) {
-        sui::dynamic_object_field::add(
+        iota::dynamic_object_field::add(
             &mut parent.id,
             0,
             ObjAny<Any> {

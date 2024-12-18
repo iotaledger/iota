@@ -1,19 +1,20 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
 use crate::base_types::random_object_ref;
 use crate::committee::Committee;
 use crate::crypto::bcs_signable_test::{get_obligation_input, Foo};
-use crate::crypto::Secp256k1SuiSignature;
-use crate::crypto::SuiKeyPair;
-use crate::crypto::SuiSignature;
-use crate::crypto::SuiSignatureInner;
+use crate::crypto::Secp256k1IotaSignature;
+use crate::crypto::IotaKeyPair;
+use crate::crypto::IotaSignature;
+use crate::crypto::IotaSignatureInner;
 use crate::crypto::VerificationObligation;
 use crate::crypto::{
     get_key_pair, AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes,
-    AuthoritySignInfoTrait, SuiAuthoritySignature,
+    AuthoritySignInfoTrait, IotaAuthoritySignature,
 };
 use crate::digests::TransactionEventsDigest;
 use crate::effects::{SignedTransactionEffects, TestEffectsBuilder, TransactionEffectsAPI};
@@ -201,7 +202,7 @@ fn test_new_with_signatures() {
         signatures.push(AuthoritySignInfo::new(
             0,
             &message,
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             name,
             &sec,
         ));
@@ -224,7 +225,7 @@ fn test_new_with_signatures() {
     assert_eq!(
         quorum
             .authorities(&committee)
-            .collect::<SuiResult<Vec<&AuthorityName>>>()
+            .collect::<IotaResult<Vec<&AuthorityName>>>()
             .unwrap(),
         alphabetical_authorities
     );
@@ -250,7 +251,7 @@ fn test_handle_reject_malicious_signature() {
             signatures.push(AuthoritySignInfo::new(
                 0,
                 &Foo("some data".to_string()),
-                Intent::sui_app(IntentScope::SenderSignedTransaction),
+                Intent::iota_app(IntentScope::SenderSignedTransaction),
                 name,
                 &sec,
             ))
@@ -263,7 +264,7 @@ fn test_handle_reject_malicious_signature() {
     {
         let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
         let sig = AuthoritySignature::new_secure(
-            &IntentMessage::new(Intent::sui_transaction(), message.clone()),
+            &IntentMessage::new(Intent::iota_transaction(), message.clone()),
             &committee.epoch,
             &sec,
         );
@@ -283,14 +284,14 @@ fn test_auth_sig_commit_to_wrong_epoch_id_fail() {
     let idx = obligation.add_message(
         &message,
         0, // Obligation added with correct epoch id.
-        Intent::sui_app(IntentScope::SenderSignedTransaction),
+        Intent::iota_app(IntentScope::SenderSignedTransaction),
     );
     let (_, sec): (_, AuthorityKeyPair) = get_key_pair();
 
     // Auth signtaure commits to epoch 0 verifies ok.
     let sig = AuthoritySignature::new_secure(
         &IntentMessage::new(
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             message.clone(),
         ),
         &0,
@@ -305,11 +306,11 @@ fn test_auth_sig_commit_to_wrong_epoch_id_fail() {
     let idx1 = obligation.add_message(
         &message,
         0, // Obligation added with correct epoch id.
-        Intent::sui_app(IntentScope::SenderSignedTransaction),
+        Intent::iota_app(IntentScope::SenderSignedTransaction),
     );
     let sig1 = AuthoritySignature::new_secure(
         &IntentMessage::new(
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             message.clone(),
         ),
         &1,
@@ -332,7 +333,7 @@ fn test_bitmap_out_of_range() {
         signatures.push(AuthoritySignInfo::new(
             0,
             &Foo("some data".to_string()),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             name,
             &sec,
         ));
@@ -364,7 +365,7 @@ fn test_reject_extra_public_key() {
         signatures.push(AuthoritySignInfo::new(
             0,
             &Foo("some data".to_string()),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             name,
             &sec,
         ));
@@ -404,7 +405,7 @@ fn test_reject_reuse_signatures() {
         signatures.push(AuthoritySignInfo::new(
             0,
             &Foo("some data".to_string()),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             name,
             &sec,
         ));
@@ -440,7 +441,7 @@ fn test_empty_bitmap() {
         signatures.push(AuthoritySignInfo::new(
             0,
             &Foo("some data".to_string()),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             name,
             &sec,
         ));
@@ -643,7 +644,7 @@ fn test_user_signature_committed_in_signed_transactions() {
         .auth_sig()
         .verify_secure(
             transaction_a.data(),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             &committee
         )
         .is_ok());
@@ -651,7 +652,7 @@ fn test_user_signature_committed_in_signed_transactions() {
         .auth_sig()
         .verify_secure(
             transaction_b.data(),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             &committee
         )
         .is_err());
@@ -681,9 +682,9 @@ fn signature_from_signer(
 #[test]
 fn test_sponsored_transaction_message() {
     let epoch = 0;
-    let sender_kp = SuiKeyPair::Ed25519(get_key_pair().1);
+    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let sender = (&sender_kp.public()).into();
-    let sponsor_kp = SuiKeyPair::Ed25519(get_key_pair().1);
+    let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let sponsor = (&sponsor_kp.public()).into();
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -702,7 +703,7 @@ fn test_sponsored_transaction_message() {
         budget: gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
     };
     let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data.clone());
-    let intent = Intent::sui_transaction();
+    let intent = Intent::iota_transaction();
     let sender_sig: GenericSignature =
         signature_from_signer(tx_data.clone(), intent.clone(), &sender_kp).into();
     let sponsor_sig: GenericSignature =
@@ -735,7 +736,7 @@ fn test_sponsored_transaction_message() {
         Transaction::from_generic_sig_data(tx_data.clone(), vec![sender_sig.clone()],)
             .try_into_verified_for_testing(epoch, &Default::default())
             .unwrap_err(),
-        SuiError::SignerSignatureNumberMismatch { .. }
+        IotaError::SignerSignatureNumberMismatch { .. }
     ));
 
     // Test incomplete signature lists (missing sender sig)
@@ -743,11 +744,11 @@ fn test_sponsored_transaction_message() {
         Transaction::from_generic_sig_data(tx_data.clone(), vec![sponsor_sig.clone()],)
             .try_into_verified_for_testing(epoch, &Default::default())
             .unwrap_err(),
-        SuiError::SignerSignatureNumberMismatch { .. }
+        IotaError::SignerSignatureNumberMismatch { .. }
     ));
 
     // Test incomplete signature lists (more sigs than expected)
-    let third_party_kp = SuiKeyPair::Ed25519(get_key_pair().1);
+    let third_party_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let third_party_sig: GenericSignature =
         signature_from_signer(tx_data.clone(), intent.clone(), &third_party_kp).into();
     assert!(matches!(
@@ -757,7 +758,7 @@ fn test_sponsored_transaction_message() {
         )
         .try_into_verified_for_testing(epoch, &Default::default())
         .unwrap_err(),
-        SuiError::SignerSignatureNumberMismatch { .. }
+        IotaError::SignerSignatureNumberMismatch { .. }
     ));
 
     // Test irrelevant sigs
@@ -765,7 +766,7 @@ fn test_sponsored_transaction_message() {
         Transaction::from_generic_sig_data(tx_data, vec![sponsor_sig, third_party_sig],)
             .try_into_verified_for_testing(epoch, &Default::default())
             .unwrap_err(),
-        SuiError::SignerSignatureAbsent { .. }
+        IotaError::SignerSignatureAbsent { .. }
     ));
 
     let tx = transaction.data().transaction_data();
@@ -777,9 +778,9 @@ fn test_sponsored_transaction_message() {
 
 #[test]
 fn test_sponsored_transaction_validity_check() {
-    let sender_kp = SuiKeyPair::Ed25519(get_key_pair().1);
+    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let sender = (&sender_kp.public()).into();
-    let sponsor_kp = SuiKeyPair::Ed25519(get_key_pair().1);
+    let sponsor_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let sponsor = (&sponsor_kp.public()).into();
 
     // This is a sponsored transaction
@@ -840,7 +841,7 @@ fn test_sponsored_transaction_validity_check() {
         builder
             .pay(
                 vec![random_object_ref()],
-                vec![SuiAddress::random_for_testing_only()],
+                vec![IotaAddress::random_for_testing_only()],
                 vec![100000],
             )
             .unwrap();
@@ -851,10 +852,10 @@ fn test_sponsored_transaction_validity_check() {
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
-    // TransferSui
+    // TransferIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_sui(SuiAddress::random_for_testing_only(), Some(50000));
+        builder.transfer_iota(IotaAddress::random_for_testing_only(), Some(50000));
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -862,10 +863,10 @@ fn test_sponsored_transaction_validity_check() {
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
-    // PaySui
+    // PayIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_sui(vec![], vec![]).unwrap();
+        builder.pay_iota(vec![], vec![]).unwrap();
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -873,10 +874,10 @@ fn test_sponsored_transaction_validity_check() {
         .validity_check(&ProtocolConfig::get_for_max_version_UNSAFE())
         .unwrap();
 
-    // PayAllSui
+    // PayAllIota
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_all_sui(SuiAddress::random_for_testing_only());
+        builder.pay_all_iota(IotaAddress::random_for_testing_only());
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -896,11 +897,11 @@ fn verify_sender_signature_correctly_with_flag() {
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
 
     // create a receiver keypair with Secp256k1
-    let receiver_kp = SuiKeyPair::Secp256k1(get_key_pair().1);
+    let receiver_kp = IotaKeyPair::Secp256k1(get_key_pair().1);
     let receiver_address = (&receiver_kp.public()).into();
 
     // create a sender keypair with Secp256k1
-    let sender_kp = SuiKeyPair::Secp256k1(get_key_pair().1);
+    let sender_kp = IotaKeyPair::Secp256k1(get_key_pair().1);
     // and creates a corresponding transaction
     let gas_price = 10;
     let tx_data = TransactionData::new_transfer(
@@ -913,13 +914,13 @@ fn verify_sender_signature_correctly_with_flag() {
     );
 
     // create a sender keypair with Ed25519
-    let sender_kp_2 = SuiKeyPair::Ed25519(get_key_pair().1);
+    let sender_kp_2 = IotaKeyPair::Ed25519(get_key_pair().1);
     let mut tx_data_2 = tx_data.clone();
     *tx_data_2.sender_mut_for_testing() = (&sender_kp_2.public()).into();
     tx_data_2.gas_data_mut().owner = tx_data_2.sender();
 
     // create a sender keypair with Secp256r1
-    let sender_kp_3 = SuiKeyPair::Secp256r1(get_key_pair().1);
+    let sender_kp_3 = IotaKeyPair::Secp256r1(get_key_pair().1);
     let mut tx_data_3 = tx_data.clone();
     *tx_data_3.sender_mut_for_testing() = (&sender_kp_3.public()).into();
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
@@ -941,14 +942,14 @@ fn verify_sender_signature_correctly_with_flag() {
         _ => panic!("invalid"),
     };
     // signature contains the correct Secp256k1 flag
-    assert_eq!(s.scheme().flag(), Secp256k1SuiSignature::SCHEME.flag());
+    assert_eq!(s.scheme().flag(), Secp256k1IotaSignature::SCHEME.flag());
 
     // authority accepts signs tx after verification
     assert!(signed_tx
         .auth_sig()
         .verify_secure(
             transaction.data(),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             &committee
         )
         .is_ok());
@@ -969,14 +970,14 @@ fn verify_sender_signature_correctly_with_flag() {
     };
 
     // signature contains the correct Ed25519 flag
-    assert_eq!(s.scheme().flag(), Ed25519SuiSignature::SCHEME.flag());
+    assert_eq!(s.scheme().flag(), Ed25519IotaSignature::SCHEME.flag());
 
     // signature verified
     assert!(signed_tx_1
         .auth_sig()
         .verify_secure(
             transaction_1.data(),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             &committee
         )
         .is_ok());
@@ -985,7 +986,7 @@ fn verify_sender_signature_correctly_with_flag() {
         .auth_sig()
         .verify_secure(
             transaction.data(),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             &committee
         )
         .is_err());
@@ -1013,7 +1014,7 @@ fn verify_sender_signature_correctly_with_flag() {
         .auth_sig()
         .verify_secure(
             tx_32.data(),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             &committee
         )
         .is_ok());
@@ -1025,7 +1026,7 @@ fn test_change_epoch_transaction() {
     assert!(tx.contains_shared_object());
     assert_eq!(
         tx.shared_input_objects().next().unwrap(),
-        SharedInputObject::SUI_SYSTEM_OBJ
+        SharedInputObject::IOTA_SYSTEM_OBJ
     );
     assert!(tx.is_system_tx());
     assert_eq!(
@@ -1046,8 +1047,8 @@ fn test_consensus_commit_prologue_transaction() {
     assert_eq!(
         tx.shared_input_objects().next().unwrap(),
         SharedInputObject {
-            id: SUI_CLOCK_OBJECT_ID,
-            initial_shared_version: SUI_CLOCK_OBJECT_SHARED_VERSION,
+            id: IOTA_CLOCK_OBJECT_ID,
+            initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: true,
         },
     );
@@ -1075,8 +1076,8 @@ fn test_consensus_commit_prologue_v2_transaction() {
     assert_eq!(
         tx.shared_input_objects().next().unwrap(),
         SharedInputObject {
-            id: SUI_CLOCK_OBJECT_ID,
-            initial_shared_version: SUI_CLOCK_OBJECT_SHARED_VERSION,
+            id: IOTA_CLOCK_OBJECT_ID,
+            initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: true,
         },
     );
@@ -1105,8 +1106,8 @@ fn test_consensus_commit_prologue_v3_transaction() {
     assert_eq!(
         tx.shared_input_objects().next().unwrap(),
         SharedInputObject {
-            id: SUI_CLOCK_OBJECT_ID,
-            initial_shared_version: SUI_CLOCK_OBJECT_SHARED_VERSION,
+            id: IOTA_CLOCK_OBJECT_ID,
+            initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: true,
         },
     );
@@ -1175,7 +1176,7 @@ fn test_move_input_objects() {
         args,
     ));
     let data = TransactionData::new_programmable(
-        SuiAddress::random_for_testing_only(),
+        IotaAddress::random_for_testing_only(),
         vec![gas_object_ref],
         builder.finish(),
         1_000_000, // any random number the transaction is not run
@@ -1257,7 +1258,7 @@ fn test_unique_input_objects() {
         }))
         .unwrap()];
 
-    let sender_kp = SuiKeyPair::Ed25519(get_key_pair().1);
+    let sender_kp = IotaKeyPair::Ed25519(get_key_pair().1);
     let sender = (&sender_kp.public()).into();
     let gas_price = 10;
     let gas_object_ref = random_object_ref();

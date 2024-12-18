@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use shared_crypto::intent::Intent;
 use std::{str::FromStr, time::Duration};
-use sui_config::{sui_config_dir, SUI_CLIENT_CONFIG};
-use sui_faucet::FaucetError;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_keys::keystore::AccountKeystore;
-use sui_sdk::wallet_context::WalletContext;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::{base_types::ObjectID, gas_coin::GasCoin, transaction::Transaction};
+use iota_config::{iota_config_dir, IOTA_CLIENT_CONFIG};
+use iota_faucet::FaucetError;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_keys::keystore::AccountKeystore;
+use iota_sdk::wallet_context::WalletContext;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::{base_types::ObjectID, gas_coin::GasCoin, transaction::Transaction};
 use tracing::info;
 
 #[tokio::main]
@@ -54,14 +55,14 @@ async fn _split_coins_equally(
     let signature = wallet
         .config
         .keystore
-        .sign_secure(&active_address, &tx_data, Intent::sui_transaction())
+        .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
         .unwrap();
     let tx = Transaction::from_data(tx_data, vec![signature]);
     let resp = client
         .quorum_driver_api()
         .execute_transaction_block(
             tx.clone(),
-            SuiTransactionBlockResponseOptions::new().with_effects(),
+            IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await?;
@@ -83,7 +84,7 @@ async fn _merge_coins(gas_coin: &str, mut wallet: WalletContext) -> Result<(), a
         .iter()
         // Ok to unwrap() since `get_gas_objects` guarantees gas
         .map(|q| GasCoin::try_from(&q.1).unwrap())
-        // Everything less than 1 sui
+        // Everything less than 1 iota
         .filter(|coin| coin.0.balance.value() <= 10000000000)
         .collect::<Vec<GasCoin>>();
 
@@ -103,19 +104,19 @@ async fn _merge_coins(gas_coin: &str, mut wallet: WalletContext) -> Result<(), a
 
         let tx_data = client
             .transaction_builder()
-            .pay_sui(active_address, coin_vector, target, target_amount, 1000000)
+            .pay_iota(active_address, coin_vector, target, target_amount, 1000000)
             .await?;
         let signature = wallet
             .config
             .keystore
-            .sign_secure(&active_address, &tx_data, Intent::sui_transaction())
+            .sign_secure(&active_address, &tx_data, Intent::iota_transaction())
             .unwrap();
         let tx = Transaction::from_data(tx_data, vec![signature]);
         client
             .quorum_driver_api()
             .execute_transaction_block(
                 tx.clone(),
-                SuiTransactionBlockResponseOptions::new().with_effects(),
+                IotaTransactionBlockResponseOptions::new().with_effects(),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
             .await?;
@@ -124,7 +125,7 @@ async fn _merge_coins(gas_coin: &str, mut wallet: WalletContext) -> Result<(), a
 }
 
 pub fn create_wallet_context(timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {
-    let wallet_conf = sui_config_dir()?.join(SUI_CLIENT_CONFIG);
+    let wallet_conf = iota_config_dir()?.join(IOTA_CLIENT_CONFIG);
     info!("Initialize wallet from config path: {:?}", wallet_conf);
     WalletContext::new(&wallet_conf, Some(Duration::from_secs(timeout_secs)), None)
 }

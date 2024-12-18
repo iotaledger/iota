@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![recursion_limit = "256"]
 
@@ -8,15 +9,15 @@ use anyhow::Result;
 use config::JsonRpcConfig;
 use jsonrpsee::http_client::{HeaderMap, HeaderValue, HttpClient, HttpClientBuilder};
 use metrics::IndexerMetrics;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use system_package_task::SystemPackageTask;
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
-use sui_json_rpc::ServerType;
-use sui_json_rpc::{JsonRpcServerBuilder, ServerHandle};
-use sui_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
+use iota_json_rpc::ServerType;
+use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle};
+use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 
 use crate::apis::{
     CoinReadApi, ExtendedApi, GovernanceReadApi, IndexerApi, MoveUtilsApi, ReadApi,

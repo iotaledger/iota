@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 module deepbook::critbit_test {
     use deepbook::critbit::{Self, InternalNode, Leaf, check_tree_struct};
-    use sui::test_scenario::{Self as test, ctx, Scenario, next_tx, end, TransactionEffects};
-    use sui::test_utils::assert_eq;
+    use iota::test_scenario::{Self as test, ctx, Scenario, next_tx, end, TransactionEffects};
+    use iota::test_utils::assert_eq;
 
     const PARTITION_INDEX: u64 = 1 << 63; // 9223372036854775808
     const MAX_U64: u64 = 0xFFFFFFFFFFFFFFFF; // 18446744073709551615

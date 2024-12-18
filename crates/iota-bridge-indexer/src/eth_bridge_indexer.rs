@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -11,21 +12,21 @@ use ethers::prelude::Transaction;
 use ethers::providers::{Http, Middleware, Provider, StreamExt, Ws};
 use ethers::types::{Address as EthAddress, Block, Filter, Log, H256};
 use prometheus::IntGauge;
-use sui_bridge::error::BridgeError;
-use sui_bridge::eth_client::EthClient;
-use sui_bridge::eth_syncer::EthSyncer;
-use sui_bridge::metered_eth_provider::MeteredEthHttpProvier;
-use sui_bridge::retry_with_max_elapsed_time;
-use sui_indexer_builder::Task;
+use iota_bridge::error::BridgeError;
+use iota_bridge::eth_client::EthClient;
+use iota_bridge::eth_syncer::EthSyncer;
+use iota_bridge::metered_eth_provider::MeteredEthHttpProvier;
+use iota_bridge::retry_with_max_elapsed_time;
+use iota_indexer_builder::Task;
 use tap::tap::TapFallible;
 use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 
-use mysten_metrics::spawn_monitored_task;
-use sui_bridge::abi::{
+use iota_metrics::spawn_monitored_task;
+use iota_bridge::abi::{
     EthBridgeCommitteeEvents, EthBridgeConfigEvents, EthBridgeEvent, EthBridgeLimiterEvents,
-    EthSuiBridgeEvents,
+    EthIotaBridgeEvents,
 };
 
 use crate::metrics::BridgeIndexerMetrics;
@@ -33,10 +34,10 @@ use crate::{
     BridgeDataSource, GovernanceAction, GovernanceActionType, ProcessedTxnData, TokenTransfer,
     TokenTransferData, TokenTransferStatus,
 };
-use sui_bridge::metrics::BridgeMetrics;
-use sui_bridge::types::{EthEvent, RawEthLog};
-use sui_indexer_builder::indexer_builder::{DataMapper, DataSender, Datasource};
-use sui_indexer_builder::metrics::IndexerMetricProvider;
+use iota_bridge::metrics::BridgeMetrics;
+use iota_bridge::types::{EthEvent, RawEthLog};
+use iota_indexer_builder::indexer_builder::{DataMapper, DataSender, Datasource};
+use iota_indexer_builder::metrics::IndexerMetricProvider;
 
 #[derive(Debug)]
 pub struct RawEthData {
@@ -58,14 +59,14 @@ pub struct EthSubscriptionDatasource {
 
 impl EthSubscriptionDatasource {
     pub async fn new(
-        eth_sui_bridge_contract_addresses: Vec<EthAddress>,
+        eth_iota_bridge_contract_addresses: Vec<EthAddress>,
         eth_client: Arc<EthClient<MeteredEthHttpProvier>>,
         eth_ws_url: String,
         metrics: Box<dyn IndexerMetricProvider>,
         genesis_block: u64,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            addresses: eth_sui_bridge_contract_addresses,
+            addresses: eth_iota_bridge_contract_addresses,
             eth_client,
             eth_ws_url,
             metrics,
@@ -236,7 +237,7 @@ pub struct EthFinalizedSyncDatasource {
 
 impl EthFinalizedSyncDatasource {
     pub async fn new(
-        eth_sui_bridge_contract_addresses: Vec<EthAddress>,
+        eth_iota_bridge_contract_addresses: Vec<EthAddress>,
         eth_client: Arc<EthClient<MeteredEthHttpProvier>>,
         eth_http_url: String,
         metrics: Box<dyn IndexerMetricProvider>,
@@ -244,7 +245,7 @@ impl EthFinalizedSyncDatasource {
         genesis_block: u64,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            bridge_addresses: eth_sui_bridge_contract_addresses,
+            bridge_addresses: eth_iota_bridge_contract_addresses,
             eth_http_url,
             eth_client,
             metrics,
@@ -507,8 +508,8 @@ impl DataMapper<RawEthData, ProcessedTxnData> for EthDataMapper {
         let txn_hash = transaction.hash.as_bytes().to_vec();
 
         match bridge_event {
-            EthBridgeEvent::EthSuiBridgeEvents(bridge_event) => match &bridge_event {
-                EthSuiBridgeEvents::TokensDepositedFilter(bridge_event) => {
+            EthBridgeEvent::EthIotaBridgeEvents(bridge_event) => match &bridge_event {
+                EthIotaBridgeEvents::TokensDepositedFilter(bridge_event) => {
                     info!(
                         "Observed Eth Deposit at block: {}, tx_hash: {}",
                         log.block_number(),
@@ -531,12 +532,12 @@ impl DataMapper<RawEthData, ProcessedTxnData> for EthDataMapper {
                             destination_chain: bridge_event.destination_chain_id,
                             recipient_address: bridge_event.recipient_address.to_vec(),
                             token_id: bridge_event.token_id,
-                            amount: bridge_event.sui_adjusted_amount,
+                            amount: bridge_event.iota_adjusted_amount,
                             is_finalized,
                         }),
                     }));
                 }
-                EthSuiBridgeEvents::TokensClaimedFilter(bridge_event) => {
+                EthIotaBridgeEvents::TokensClaimedFilter(bridge_event) => {
                     info!(
                         "Observed Eth Claim at block: {}, tx_hash: {}",
                         log.block_number(),
@@ -557,7 +558,7 @@ impl DataMapper<RawEthData, ProcessedTxnData> for EthDataMapper {
                         is_finalized,
                     }));
                 }
-                EthSuiBridgeEvents::EmergencyOperationFilter(f) => {
+                EthIotaBridgeEvents::EmergencyOperationFilter(f) => {
                     info!(
                         "Observed Eth Emergency Operation at block: {}, tx_hash: {}",
                         log.block_number(),
@@ -573,9 +574,9 @@ impl DataMapper<RawEthData, ProcessedTxnData> for EthDataMapper {
                         data: serde_json::to_value(bridge_event)?,
                     }));
                 }
-                EthSuiBridgeEvents::ContractUpgradedFilter(f) => {
+                EthIotaBridgeEvents::ContractUpgradedFilter(f) => {
                     info!(
-                        "Observed Eth SuiBridge Upgrade at block: {}, tx_hash: {}",
+                        "Observed Eth IotaBridge Upgrade at block: {}, tx_hash: {}",
                         log.block_number(),
                         log.tx_hash
                     );
@@ -591,10 +592,10 @@ impl DataMapper<RawEthData, ProcessedTxnData> for EthDataMapper {
                     }));
                 }
 
-                EthSuiBridgeEvents::InitializedFilter(_)
-                | EthSuiBridgeEvents::PausedFilter(_)
-                | EthSuiBridgeEvents::UnpausedFilter(_)
-                | EthSuiBridgeEvents::UpgradedFilter(_) => {
+                EthIotaBridgeEvents::InitializedFilter(_)
+                | EthIotaBridgeEvents::PausedFilter(_)
+                | EthIotaBridgeEvents::UnpausedFilter(_)
+                | EthIotaBridgeEvents::UpgradedFilter(_) => {
                     warn!("Unexpected event {bridge_event:?}.")
                 }
             },
@@ -752,7 +753,7 @@ impl DataMapper<RawEthData, ProcessedTxnData> for EthDataMapper {
                 }
                 EthBridgeConfigEvents::TokenAddedFilter(_) => {
                     info!(
-                        "Observed Eth AddSuiTokens at block: {}, tx_hash: {}",
+                        "Observed Eth AddIotaTokens at block: {}, tx_hash: {}",
                         log.block_number(),
                         log.tx_hash
                     );
@@ -769,7 +770,7 @@ impl DataMapper<RawEthData, ProcessedTxnData> for EthDataMapper {
                 }
                 EthBridgeConfigEvents::TokensAddedV2Filter(f) => {
                     info!(
-                        "Observed Eth AddSuiTokens at block: {}, tx_hash: {}",
+                        "Observed Eth AddIotaTokens at block: {}, tx_hash: {}",
                         log.block_number(),
                         log.tx_hash
                     );

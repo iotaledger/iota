@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod load_test;
@@ -11,8 +12,8 @@ use payload::AddressQueryType;
 use std::error::Error;
 use std::path::PathBuf;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use sui_types::crypto::{EncodeDecodeBase64, SuiKeyPair};
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
 use tracing::info;
 
 use crate::load_test::{LoadTest, LoadTestConfig};
@@ -23,9 +24,9 @@ use crate::payload::{
 
 #[derive(Parser)]
 #[clap(
-    name = "Sui RPC Load Generator",
+    name = "Iota RPC Load Generator",
     version = "0.1",
-    about = "A load test application for Sui RPC"
+    about = "A load test application for Iota RPC"
 )]
 struct Opts {
     // TODO(chris): support running multiple commands at once
@@ -38,10 +39,10 @@ struct Opts {
     #[clap(long, num_args(1..), default_value = "http://127.0.0.1:9000")]
     pub urls: Vec<String>,
     /// the path to log file directory
-    #[clap(long, default_value = "~/.sui/sui_config/logs")]
+    #[clap(long, default_value = "~/.iota/iota_config/logs")]
     logs_directory: String,
 
-    #[clap(long, default_value = "~/.sui/loadgen/data")]
+    #[clap(long, default_value = "~/.iota/loadgen/data")]
     data_directory: String,
 }
 
@@ -88,8 +89,8 @@ pub enum ClapCommand {
         #[clap(flatten)]
         common: CommonOptions,
     },
-    #[clap(name = "pay-sui")]
-    PaySui {
+    #[clap(name = "pay-iota")]
+    PayIota {
         // TODO(chris) customize recipients and amounts
         #[clap(flatten)]
         common: CommonOptions,
@@ -137,18 +138,18 @@ pub enum ClapCommand {
 
 fn get_keypair() -> Result<SignerInfo> {
     // TODO(chris) allow pass in custom path for keystore
-    // Load keystore from ~/.sui/sui_config/sui.keystore
-    let keystore_path = get_sui_config_directory().join("sui.keystore");
+    // Load keystore from ~/.iota/iota_config/iota.keystore
+    let keystore_path = get_iota_config_directory().join("iota.keystore");
     let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
     let active_address = keystore.addresses().pop().unwrap();
-    let keypair: &SuiKeyPair = keystore.get_key(&active_address)?;
+    let keypair: &IotaKeyPair = keystore.get_key(&active_address)?;
     println!("using address {active_address} for signing");
     Ok(SignerInfo::new(keypair.encode_base64()))
 }
 
-fn get_sui_config_directory() -> PathBuf {
+fn get_iota_config_directory() -> PathBuf {
     match dirs::home_dir() {
-        Some(v) => v.join(".sui").join("sui_config"),
+        Some(v) => v.join(".iota").join("iota_config"),
         None => panic!("Cannot obtain home directory path"),
     }
 }
@@ -163,7 +164,7 @@ fn get_log_file_path(dir_path: String) -> String {
     let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
     let timestamp = current_time.as_secs();
     // use timestamp to signify which file is newer
-    let log_filename = format!("sui-rpc-loadgen.{}.log", timestamp);
+    let log_filename = format!("iota-rpc-loadgen.{}.log", timestamp);
 
     let dir_path = expand_path(&dir_path);
     format!("{dir_path}/{log_filename}")
@@ -190,7 +191,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let (command, common, need_keystore) = match opts.command {
         ClapCommand::DryRun { common } => (Command::new_dry_run(), common, false),
-        ClapCommand::PaySui { common } => (Command::new_pay_sui(), common, true),
+        ClapCommand::PayIota { common } => (Command::new_pay_iota(), common, true),
         ClapCommand::GetCheckpoints {
             common,
             start,

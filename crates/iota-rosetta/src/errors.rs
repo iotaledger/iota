@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::rejection::JsonRejection;
@@ -14,17 +15,17 @@ use serde_json::{json, Value};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use sui_types::error::SuiError;
+use iota_types::error::IotaError;
 
-use crate::types::{BlockHash, OperationType, PublicKey, SuiEnv};
+use crate::types::{BlockHash, OperationType, PublicKey, IotaEnv};
 use strum::EnumProperty;
 use strum_macros::Display;
 use strum_macros::EnumDiscriminants;
 use thiserror::Error;
 use typed_store::TypedStoreError;
 
-/// Sui-Rosetta specific error types.
-/// This contains all the errors returns by the sui-rosetta server.
+/// Iota-Rosetta specific error types.
+/// This contains all the errors returns by the iota-rosetta server.
 #[derive(Debug, Error, EnumDiscriminants, EnumProperty)]
 #[strum_discriminants(
     name(ErrorType),
@@ -36,7 +37,7 @@ pub enum Error {
     #[error("Unsupported blockchain: {0}")]
     UnsupportedBlockchain(String),
     #[error("Unsupported network: {0:?}")]
-    UnsupportedNetwork(SuiEnv),
+    UnsupportedNetwork(IotaEnv),
     #[error("Invalid input: {0}")]
     InvalidInput(String),
     #[error("Missing input: {0}")]
@@ -70,9 +71,9 @@ pub enum Error {
     #[error(transparent)]
     CryptoError(#[from] FastCryptoError),
     #[error(transparent)]
-    SuiError(#[from] SuiError),
+    IotaError(#[from] IotaError),
     #[error(transparent)]
-    SuiRpcError(#[from] sui_sdk::error::Error),
+    IotaRpcError(#[from] iota_sdk::error::Error),
     #[error(transparent)]
     EncodingError(#[from] eyre::Report),
     #[error(transparent)]

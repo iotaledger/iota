@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import type { PublicKey, SignatureFlag } from '@mysten/sui/cryptography';
-import { SIGNATURE_FLAG_TO_SCHEME, Signer } from '@mysten/sui/cryptography';
-import { fromBase64, toBase64 } from '@mysten/sui/utils';
+import type { PublicKey, SignatureFlag } from '@iota/iota-sdk/cryptography';
+import { SIGNATURE_FLAG_TO_SCHEME, Signer } from '@iota/iota-sdk/cryptography';
+import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 import { secp256r1 } from '@noble/curves/p256';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { DERElement } from 'asn1-ts';
@@ -23,7 +24,7 @@ export interface AwsKmsSignerOptions {
 }
 
 /**
- * Aws KMS Signer integrates AWS Key Management Service (KMS) with the Sui blockchain
+ * Aws KMS Signer integrates AWS Key Management Service (KMS) with the Iota blockchain
  * to provide signing capabilities using AWS-managed cryptographic keys.
  */
 export class AwsKmsSigner extends Signer {
@@ -96,7 +97,7 @@ export class AwsKmsSigner extends Signer {
 	/**
 	 * Generates a concatenated signature from a DER-encoded signature.
 	 *
-	 * This signature format is consumable by Sui's `toSerializedSignature` method.
+	 * This signature format is consumable by Iota's `toSerializedSignature` method.
 	 *
 	 * @param signature - A `Uint8Array` representing the DER-encoded signature.
 	 * @returns A `Uint8Array` containing the concatenated signature in compact form.

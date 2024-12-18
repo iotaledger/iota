@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses tto=0x0 --accounts A
 
 //# publish
 module tto::M1 {
-    use sui::transfer::Receiving;
-    use sui::dynamic_object_field as dof;
-    use sui::dynamic_field as df;
+    use iota::transfer::Receiving;
+    use iota::dynamic_object_field as dof;
+    use iota::dynamic_field as df;
 
     const KEY: u64 = 0;
     const BKEY: u64 = 1;

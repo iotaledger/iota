@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use nonempty::NonEmpty;
@@ -6,7 +7,7 @@ use shared_crypto::intent::Intent;
 
 use crate::committee::EpochId;
 use crate::digests::ZKLoginInputsDigest;
-use crate::error::{SuiError, SuiResult};
+use crate::error::{IotaError, IotaResult};
 use crate::signature::VerifyParams;
 use crate::transaction::{SenderSignedData, TransactionDataAPI};
 use lru::LruCache;
@@ -74,10 +75,10 @@ impl<D: Hash + Eq + Copy> VerifiedDigestCache<D> {
         });
     }
 
-    pub fn is_verified<F, G>(&self, digest: D, verify_callback: F, uncached_checks: G) -> SuiResult
+    pub fn is_verified<F, G>(&self, digest: D, verify_callback: F, uncached_checks: G) -> IotaResult
     where
-        F: FnOnce() -> SuiResult,
-        G: FnOnce() -> SuiResult,
+        F: FnOnce() -> IotaResult,
+        G: FnOnce() -> IotaResult,
     {
         if !self.is_cached(&digest) {
             verify_callback()?;
@@ -110,9 +111,9 @@ pub fn verify_sender_signed_data_message_signatures(
     current_epoch: EpochId,
     verify_params: &VerifyParams,
     zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
-) -> SuiResult {
+) -> IotaResult {
     let intent_message = txn.intent_message();
-    assert_eq!(intent_message.intent, Intent::sui_transaction());
+    assert_eq!(intent_message.intent, Intent::iota_transaction());
 
     // 1. System transactions do not require signatures. User-submitted transactions are verified not to
     // be system transactions before this point
@@ -124,7 +125,7 @@ pub fn verify_sender_signed_data_message_signatures(
     let signers: NonEmpty<_> = txn.intent_message().value.signers();
     fp_ensure!(
         txn.inner().tx_signatures.len() == signers.len(),
-        SuiError::SignerSignatureNumberMismatch {
+        IotaError::SignerSignatureNumberMismatch {
             actual: txn.inner().tx_signatures.len(),
             expected: signers.len()
         }
@@ -134,7 +135,7 @@ pub fn verify_sender_signed_data_message_signatures(
     let present_sigs = txn.get_signer_sig_mapping(verify_params.verify_legacy_zklogin_address)?;
     for s in signers {
         if !present_sigs.contains_key(&s) {
-            return Err(SuiError::SignerSignatureAbsent {
+            return Err(IotaError::SignerSignatureAbsent {
                 expected: s.to_string(),
                 actual: present_sigs.keys().map(|s| s.to_string()).collect(),
             });

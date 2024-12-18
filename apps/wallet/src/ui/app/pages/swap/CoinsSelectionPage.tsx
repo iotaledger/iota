@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetAllBalances } from '_app/hooks/useGetAllBalances';
@@ -7,7 +8,7 @@ import Loading from '_components/loading';
 import Overlay from '_components/overlay';
 import { useActiveAddress, useSortedCoinsByCategories } from '_hooks';
 import { TokenRow } from '_pages/home/tokens/TokensDetails';
-import { normalizeStructTag } from '@mysten/sui/utils';
+import { normalizeStructTag } from '@iota/iota-sdk/utils';
 import { Fragment } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::message_types {
@@ -8,7 +9,7 @@ module bridge::message_types {
     const EMERGENCY_OP: u8 = 2;
     const UPDATE_BRIDGE_LIMIT: u8 = 3;
     const UPDATE_ASSET_PRICE: u8 = 4;
-    const ADD_TOKENS_ON_SUI: u8 = 6;
+    const ADD_TOKENS_ON_IOTA: u8 = 6;
 
     public fun token(): u8 { TOKEN }
 
@@ -20,5 +21,5 @@ module bridge::message_types {
 
     public fun update_asset_price(): u8 { UPDATE_ASSET_PRICE }
 
-    public fun add_tokens_on_sui(): u8 { ADD_TOKENS_ON_SUI }
+    public fun add_tokens_on_iota(): u8 { ADD_TOKENS_ON_IOTA }
 }

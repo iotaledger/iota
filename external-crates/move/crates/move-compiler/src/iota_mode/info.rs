@@ -1,8 +1,9 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! ProgramInfo extension for Sui Flavor
-//! Contains information that may be expensive to compute and is needed only for Sui
+//! ProgramInfo extension for Iota Flavor
+//! Contains information that may be expensive to compute and is needed only for Iota
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -18,8 +19,8 @@ use crate::{
         program_info::{DatatypeKind, TypingProgramInfo},
         unique_map::UniqueMap,
     },
-    sui_mode::{
-        OBJECT_MODULE_NAME, SUI_ADDR_VALUE, TRANSFER_FUNCTION_NAME, TRANSFER_MODULE_NAME,
+    iota_mode::{
+        OBJECT_MODULE_NAME, IOTA_ADDR_VALUE, TRANSFER_FUNCTION_NAME, TRANSFER_MODULE_NAME,
         UID_TYPE_NAME,
     },
     typing::{ast as T, visitor::TypingVisitorContext},
@@ -30,7 +31,7 @@ use move_proc_macros::growing_stack;
 
 #[derive(Debug, Clone, Copy)]
 pub enum UIDHolder {
-    /// is `sui::object::UID``
+    /// is `iota::object::UID``
     IsUID,
     /// holds UID directly as one of the fields
     Direct { field: Field, ty: Loc },
@@ -42,12 +43,12 @@ pub enum UIDHolder {
 pub enum TransferKind {
     /// The object has store
     PublicTransfer(Loc),
-    /// transferred within the module to an address vis `sui::transfer::transfer`
+    /// transferred within the module to an address vis `iota::transfer::transfer`
     PrivateTransfer(Loc),
 }
 
 #[derive(Debug, Clone)]
-pub struct SuiInfo {
+pub struct IotaInfo {
     /// All types that contain a UID, directly or indirectly
     /// This requires a DFS traversal of type declarations
     pub uid_holders: BTreeMap<(ModuleIdent, DatatypeName), UIDHolder>,
@@ -55,13 +56,13 @@ pub struct SuiInfo {
     pub transferred: BTreeMap<(ModuleIdent, DatatypeName), TransferKind>,
 }
 
-impl SuiInfo {
+impl IotaInfo {
     pub fn new(
         pre_compiled_lib: Option<Arc<FullyCompiledProgram>>,
         modules: &UniqueMap<ModuleIdent, T::ModuleDefinition>,
         info: &TypingProgramInfo,
     ) -> Self {
-        assert!(info.sui_flavor_info.is_none());
+        assert!(info.iota_flavor_info.is_none());
         let uid_holders = all_uid_holders(info);
         let transferred = all_transferred(pre_compiled_lib, modules, info);
         Self {
@@ -131,7 +132,7 @@ fn all_uid_holders(info: &TypingProgramInfo) -> BTreeMap<(ModuleIdent, DatatypeN
             N::Type_::Ref(_, inner) => visit_ty(info, visited, uid_holders, inner),
 
             N::Type_::Apply(_, sp!(_, tn_), _)
-                if tn_.is(&SUI_ADDR_VALUE, OBJECT_MODULE_NAME, UID_TYPE_NAME) =>
+                if tn_.is(&IOTA_ADDR_VALUE, OBJECT_MODULE_NAME, UID_TYPE_NAME) =>
             {
                 Some(UIDHolder::IsUID)
             }
@@ -286,7 +287,7 @@ fn add_private_transfers(
                 return false;
             };
             if !call.is(
-                &SUI_ADDR_VALUE,
+                &IOTA_ADDR_VALUE,
                 TRANSFER_MODULE_NAME,
                 TRANSFER_FUNCTION_NAME,
             ) {

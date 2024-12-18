@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::time::Duration;
@@ -6,10 +7,10 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use diesel::{OptionalExtension, QueryDsl, SelectableHelper};
 use diesel_async::RunQueryDsl;
-use sui_indexer_alt_framework::task::graceful_shutdown;
-use sui_types::{
+use iota_indexer_alt_framework::task::graceful_shutdown;
+use iota_types::{
     full_checkpoint_content::CheckpointData,
-    sui_system_state::{get_sui_system_state, SuiSystemStateTrait},
+    iota_system_state::{get_iota_system_state, IotaSystemStateTrait},
     transaction::{TransactionDataAPI, TransactionKind},
 };
 use tokio_util::sync::CancellationToken;
@@ -86,7 +87,7 @@ pub async fn bootstrap(
         bail!("Could not find Genesis transaction");
     };
 
-    let system_state = get_sui_system_state(&genesis_transaction.output_objects.as_slice())
+    let system_state = get_iota_system_state(&genesis_transaction.output_objects.as_slice())
         .context("Failed to get Genesis SystemState")?;
 
     let genesis = StoredGenesis {

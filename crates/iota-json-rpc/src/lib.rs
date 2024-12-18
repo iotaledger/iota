@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::env;
@@ -12,9 +13,9 @@ use hyper::Method;
 use hyper::Request;
 use jsonrpsee::RpcModule;
 use prometheus::Registry;
-use sui_core::traffic_controller::metrics::TrafficControllerMetrics;
-use sui_types::traffic_control::PolicyConfig;
-use sui_types::traffic_control::RemoteFirewallConfig;
+use iota_core::traffic_controller::metrics::TrafficControllerMetrics;
+use iota_types::traffic_control::PolicyConfig;
+use iota_types::traffic_control::RemoteFirewallConfig;
 use tokio::runtime::Handle;
 use tokio_util::sync::CancellationToken;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -23,12 +24,12 @@ use tracing::info;
 
 pub use balance_changes::*;
 pub use object_changes::*;
-pub use sui_config::node::ServerType;
-use sui_json_rpc_api::{
+pub use iota_config::node::ServerType;
+use iota_json_rpc_api::{
     CLIENT_REQUEST_METHOD_HEADER, CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER,
     CLIENT_TARGET_API_VERSION_HEADER,
 };
-use sui_open_rpc::{Module, Project};
+use iota_open_rpc::{Module, Project};
 
 use crate::error::Error;
 use crate::metrics::MetricsLogger;
@@ -64,16 +65,16 @@ pub struct JsonRpcServerBuilder {
     firewall_config: Option<RemoteFirewallConfig>,
 }
 
-pub fn sui_rpc_doc(version: &str) -> Project {
+pub fn iota_rpc_doc(version: &str) -> Project {
     Project::new(
         version,
-        "Sui JSON-RPC",
-        "Sui JSON-RPC API for interaction with Sui Full node. Make RPC calls using https://fullnode.NETWORK.sui.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
-        "Mysten Labs",
-        "https://mystenlabs.com",
-        "build@mystenlabs.com",
+        "Iota JSON-RPC",
+        "Iota JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://fullnode.NETWORK.iota.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
+        "IOTA Foundation",
+        "https://iota.org",
+        "build@iota.org",
         "Apache-2.0",
-        "https://raw.githubusercontent.com/MystenLabs/sui/main/LICENSE",
+        "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE",
     )
 }
 
@@ -86,14 +87,14 @@ impl JsonRpcServerBuilder {
     ) -> Self {
         Self {
             module: RpcModule::new(()),
-            rpc_doc: sui_rpc_doc(version),
+            rpc_doc: iota_rpc_doc(version),
             registry: prometheus_registry.clone(),
             policy_config,
             firewall_config,
         }
     }
 
-    pub fn register_module<T: SuiRpcModule>(&mut self, module: T) -> Result<(), Error> {
+    pub fn register_module<T: IotaRpcModule>(&mut self, module: T) -> Result<(), Error> {
         self.rpc_doc.add_module(T::rpc_doc_module());
         Ok(self.module.merge(module.rpc())?)
     }
@@ -292,7 +293,7 @@ impl JsonRpcServerBuilder {
         let handle = ServerHandle {
             handle: ServerHandleInner::Axum(handle),
         };
-        info!(local_addr =? addr, "Sui JSON-RPC server listening on {addr}");
+        info!(local_addr =? addr, "Iota JSON-RPC server listening on {addr}");
         Ok(handle)
     }
 }
@@ -313,7 +314,7 @@ enum ServerHandleInner {
     Axum(tokio::task::JoinHandle<()>),
 }
 
-pub trait SuiRpcModule
+pub trait IotaRpcModule
 where
     Self: Sized,
 {

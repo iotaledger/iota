@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
@@ -30,11 +31,11 @@ async fn main() {
     }
 
     let _guard = telemetry_subscribers::TelemetryConfig::new()
-        .with_log_level("off,sui_surfer=info")
+        .with_log_level("off,iota_surfer=info")
         .with_env()
         .init();
 
-    let results = sui_surfer::run(
+    let results = iota_surfer::run(
         Duration::from_secs(args.run_duration.unwrap_or(DEFAULT_RUN_DURATION)),
         Duration::from_secs(args.run_duration.unwrap_or(DEFAULT_EPOCH_DURATION)),
         args.packages,

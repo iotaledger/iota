@@ -1,9 +1,9 @@
 ---
-name: Sui doc content issue or request
-about: Creates an issue for Sui documentation
-title: 'Sui doc content issue or request'
+name: Iota doc content issue or request
+about: Creates an issue for Iota documentation
+title: 'Iota doc content issue or request'
 labels: doc-issue
-assignees: 'ronny-mysten'
+assignees: 'ronny-iota'
 ---
 
 If this is an issue with existing content, provide the URL or GitHub path to the topic. Otherwise, use **New**.

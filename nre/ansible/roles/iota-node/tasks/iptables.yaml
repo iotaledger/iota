@@ -38,45 +38,45 @@
     ctstate: ESTABLISHED,RELATED
     jump: ACCEPT
 
-- name: Allow TCP destination port 8080 / sui-node protocol connectivity
+- name: Allow TCP destination port 8080 / iota-node protocol connectivity
   iptables:
     chain: INPUT
     destination_port: 8080
     jump: ACCEPT
     protocol: tcp
-    comment: sui-node protocol
+    comment: iota-node protocol
 
-- name: Allow TCP destination port 8081 / sui-node consensus connectivity
+- name: Allow TCP destination port 8081 / iota-node consensus connectivity
   iptables:
     chain: INPUT
     destination_port: 8081
     jump: ACCEPT
     protocol: tcp
-    comment: sui-node consensus
+    comment: iota-node consensus
 
-- name: Allow UDP destination port 8081 / sui-node narwhal-primary-address connectivity
+- name: Allow UDP destination port 8081 / iota-node narwhal-primary-address connectivity
   iptables:
     chain: INPUT
     destination_port: 8081
     jump: ACCEPT
     protocol: udp
-    comment: sui-node narwhal-primary-address
+    comment: iota-node narwhal-primary-address
 
-- name: Allow UDP destination port 8082 / sui-node narwhal-worker-address connectivity
+- name: Allow UDP destination port 8082 / iota-node narwhal-worker-address connectivity
   iptables:
     chain: INPUT
     destination_port: 8082
     jump: ACCEPT
     protocol: udp
-    comment: sui-node narwhal-worker-address
+    comment: iota-node narwhal-worker-address
 
-- name: Allow UDP destination port 8084 / sui-node peer-to-peer connectivity
+- name: Allow UDP destination port 8084 / iota-node peer-to-peer connectivity
   iptables:
     chain: INPUT
     destination_port: 8084
     jump: ACCEPT
     protocol: udp
-    comment: sui-node peer-to-peer
+    comment: iota-node peer-to-peer
 
 - name: Set the policy for the INPUT chain to DROP (IPv4)
   iptables:

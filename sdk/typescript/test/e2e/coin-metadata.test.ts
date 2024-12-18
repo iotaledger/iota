@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { resolve } from 'path';
@@ -23,6 +24,6 @@ describe('Test Coin Metadata', () => {
 		expect(coinMetadata.decimals).to.equal(2);
 		expect(coinMetadata.name).to.equal('Test Coin');
 		expect(coinMetadata.description).to.equal('Test coin metadata');
-		expect(coinMetadata.iconUrl).to.equal('http://sui.io');
+		expect(coinMetadata.iconUrl).to.equal('http://iota.io');
 	});
 });

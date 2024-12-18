@@ -1,7 +1,7 @@
 // correct, wrong struct field type but not one-time witness candidate
 
 module a::m {
-    use sui::tx_context;
+    use iota::tx_context;
 
     struct M has store, drop { value: u64 }
 
@@ -15,12 +15,12 @@ module a::m {
 }
 
 module 0::beep {
-  struct BEEP has store { boop: sui::table::Table<u8, bool> }
+  struct BEEP has store { boop: iota::table::Table<u8, bool> }
 }
 
-module sui::tx_context {
+module iota::tx_context {
     struct TxContext has drop {}
 }
-module sui::table {
+module iota::table {
     struct Table<phantom K, phantom V> has store {}
 }

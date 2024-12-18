@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::mem;
 
-use sui_default_config::DefaultConfig;
-use sui_indexer_alt_framework::{
+use iota_default_config::DefaultConfig;
+use iota_indexer_alt_framework::{
     ingestion::IngestionConfig,
     pipeline::{
         concurrent::{ConcurrentConfig, PrunerConfig},

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module provides a function to render a Move abort status string into a more human-readable
@@ -20,16 +21,16 @@ use move_command_line_common::{
     error_bitset::ErrorBitset,
 };
 use move_core_types::account_address::AccountAddress;
-use sui_json_rpc_types::{SuiObjectDataOptions, SuiRawData};
-use sui_sdk::apis::ReadApi;
-use sui_types::{base_types::ObjectID, Identifier};
+use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
+use iota_sdk::apis::ReadApi;
+use iota_types::{base_types::ObjectID, Identifier};
 
 /// Take a Move abort status string and render it into a more human-readable error message using
 /// by parsing the string (as best we can) and seeing if the abort code is a Clever Error abort
 /// code. If it is, we attempt to render the error in a more huma-readable manner using the Read
 /// API and decoding the Clever Error encoding in the abort code.
 ///
-/// This function is used to render Clever Errors for on-chain errors only within the Sui CLI. This
+/// This function is used to render Clever Errors for on-chain errors only within the Iota CLI. This
 /// function is _not_ used at all for off-chain errors or Move unit tests. You should only use this
 /// function within this crate.
 pub(crate) async fn render_clever_error_opt(
@@ -63,10 +64,10 @@ pub(crate) async fn render_clever_error_opt(
             );
         }
 
-        let SuiRawData::Package(package) = read_api
+        let IotaRawData::Package(package) = read_api
             .get_object_with_options(
                 ObjectID::from_address(address),
-                SuiObjectDataOptions::bcs_lossless(),
+                IotaObjectDataOptions::bcs_lossless(),
             )
             .await
             .ok()?

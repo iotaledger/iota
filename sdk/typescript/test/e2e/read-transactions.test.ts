@@ -1,20 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { SuiTransactionBlockResponse } from '../../src/client';
+import { IotaTransactionBlockResponse } from '../../src/client';
 import { Transaction } from '../../src/transactions';
-import { executePaySuiNTimes, setup, TestToolbox } from './utils/setup';
+import { executePayIotaNTimes, setup, TestToolbox } from './utils/setup';
 
 describe('Transaction Reading API', () => {
 	let toolbox: TestToolbox;
-	let transactions: SuiTransactionBlockResponse[];
+	let transactions: IotaTransactionBlockResponse[];
 	const NUM_TRANSACTIONS = 10;
 
 	beforeAll(async () => {
 		toolbox = await setup();
-		transactions = await executePaySuiNTimes(toolbox.client, toolbox.keypair, NUM_TRANSACTIONS);
+		transactions = await executePayIotaNTimes(toolbox.client, toolbox.keypair, NUM_TRANSACTIONS);
 	});
 
 	it('Get Total Transactions', async () => {

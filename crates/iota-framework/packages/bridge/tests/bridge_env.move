@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -27,7 +28,7 @@ module bridge::bridge_env {
     use bridge::message::{
         Self,
         BridgeMessage,
-        create_add_tokens_on_sui_message,
+        create_add_tokens_on_iota_message,
         create_blocklist_message,
         emergency_op_pause,
         emergency_op_unpause
@@ -43,22 +44,22 @@ module bridge::bridge_env {
     use bridge::usdt::{Self, USDT};
     use std::ascii::String;
     use std::type_name;
-    use sui::address;
-    use sui::clock::Clock;
-    use sui::coin::{Self, Coin, CoinMetadata, TreasuryCap};
-    use sui::ecdsa_k1::{KeyPair, secp256k1_keypair_from_seed, secp256k1_sign};
-    use sui::event;
-    use sui::package::UpgradeCap;
-    use sui::test_scenario::{Self, Scenario};
-    use sui::test_utils::destroy;
-    use sui_system::governance_test_utils::{
+    use iota::address;
+    use iota::clock::Clock;
+    use iota::coin::{Self, Coin, CoinMetadata, TreasuryCap};
+    use iota::ecdsa_k1::{KeyPair, secp256k1_keypair_from_seed, secp256k1_sign};
+    use iota::event;
+    use iota::package::UpgradeCap;
+    use iota::test_scenario::{Self, Scenario};
+    use iota::test_utils::destroy;
+    use iota_system::governance_test_utils::{
         advance_epoch_with_reward_amounts,
-        create_sui_system_state_for_testing,
+        create_iota_system_state_for_testing,
         create_validator_for_testing
     };
-    use sui_system::sui_system::{
+    use iota_system::iota_system::{
         validator_voting_powers_for_testing,
-        SuiSystemState
+        IotaSystemState
     };
 
     //
@@ -209,7 +210,7 @@ module bridge::bridge_env {
     public fun create_env(chain_id: u8): BridgeEnv {
         let mut scenario = test_scenario::begin(@0x0);
         let ctx = scenario.ctx();
-        let mut clock = sui::clock::create_for_testing(ctx);
+        let mut clock = iota::clock::create_for_testing(ctx);
         clock.set_for_testing(1_000_000_000);
         let btc_coins = coin::zero<BTC>(ctx);
         let eth_coins = coin::zero<ETH>(ctx);
@@ -265,7 +266,7 @@ module bridge::bridge_env {
             },
         );
         env.validators = validators_info;
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, scenario);
     }
 
@@ -319,7 +320,7 @@ module bridge::bridge_env {
         let scenario = &mut env.scenario;
         scenario.next_tx(@0x0);
         let mut bridge = scenario.take_shared<Bridge>();
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(
             scenario,
         );
 
@@ -346,7 +347,7 @@ module bridge::bridge_env {
         let scenario = &mut env.scenario;
         scenario.next_tx(sender);
         let mut bridge = scenario.take_shared<Bridge>();
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(
             scenario,
         );
         let voting_powers = validator_voting_powers_for_testing(
@@ -427,9 +428,9 @@ module bridge::bridge_env {
         scenario.next_tx(sender);
         let mut bridge = scenario.take_shared<Bridge>();
 
-        let add_token_message = create_add_tokens_on_sui_message(
+        let add_token_message = create_add_tokens_on_iota_message(
             env.chain_id,
-            bridge.get_seq_num_for(message_types::add_tokens_on_sui()),
+            bridge.get_seq_num_for(message_types::add_tokens_on_iota()),
             false,
             vector[BTC_ID, ETH_ID, USDC_ID, USDT_ID],
             vector[
@@ -459,15 +460,15 @@ module bridge::bridge_env {
         token_id
     }
 
-    const SUI_MESSAGE_PREFIX: vector<u8> = b"SUI_BRIDGE_MESSAGE";
+    const IOTA_MESSAGE_PREFIX: vector<u8> = b"IOTA_BRIDGE_MESSAGE";
 
     fun sign_message(
         env: &BridgeEnv,
         message: BridgeMessage,
     ): vector<vector<u8>> {
-        let mut message_bytes = SUI_MESSAGE_PREFIX;
+        let mut message_bytes = IOTA_MESSAGE_PREFIX;
         message_bytes.append(message.serialize_message());
-        let mut message_bytes = SUI_MESSAGE_PREFIX;
+        let mut message_bytes = IOTA_MESSAGE_PREFIX;
         message_bytes.append(message.serialize_message());
         env
             .validators
@@ -488,7 +489,7 @@ module bridge::bridge_env {
         message: BridgeMessage,
         validator_idxs: vector<u64>,
     ): vector<vector<u8>> {
-        let mut message_bytes = SUI_MESSAGE_PREFIX;
+        let mut message_bytes = IOTA_MESSAGE_PREFIX;
         message_bytes.append(message.serialize_message());
         validator_idxs.map!(
             |idx| {
@@ -582,7 +583,7 @@ module bridge::bridge_env {
     }
 
     // Bridge the `amount` of the given `Token` from the `source_chain`.
-    public fun bridge_to_sui<Token>(
+    public fun bridge_to_iota<Token>(
         env: &mut BridgeEnv,
         source_chain: u8,
         source_address: vector<u8>,
@@ -961,9 +962,9 @@ module bridge::bridge_env {
         let mut bridge = scenario.take_shared<Bridge>();
 
         // message signed
-        let message = create_add_tokens_on_sui_message(
+        let message = create_add_tokens_on_iota_message(
             env.chain_id,
-            bridge.get_seq_num_for(message_types::add_tokens_on_sui()),
+            bridge.get_seq_num_for(message_types::add_tokens_on_iota()),
             native_token,
             token_ids,
             type_names,
@@ -1247,11 +1248,11 @@ module bridge::bridge_env {
 module bridge::test_token {
     use std::ascii;
     use std::type_name;
-    use sui::address;
-    use sui::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use sui::hex;
-    use sui::package::{UpgradeCap, test_publish};
-    use sui::test_utils::create_one_time_witness;
+    use iota::address;
+    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
+    use iota::hex;
+    use iota::package::{UpgradeCap, test_publish};
+    use iota::test_utils::create_one_time_witness;
 
     public struct TEST_TOKEN has drop {}
 
@@ -1284,11 +1285,11 @@ module bridge::test_token {
 module bridge::btc {
     use std::ascii;
     use std::type_name;
-    use sui::address;
-    use sui::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use sui::hex;
-    use sui::package::{UpgradeCap, test_publish};
-    use sui::test_utils::create_one_time_witness;
+    use iota::address;
+    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
+    use iota::hex;
+    use iota::package::{UpgradeCap, test_publish};
+    use iota::test_utils::create_one_time_witness;
 
     public struct BTC has drop {}
 
@@ -1321,11 +1322,11 @@ module bridge::btc {
 module bridge::eth {
     use std::ascii;
     use std::type_name;
-    use sui::address;
-    use sui::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use sui::hex;
-    use sui::package::{UpgradeCap, test_publish};
-    use sui::test_utils::create_one_time_witness;
+    use iota::address;
+    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
+    use iota::hex;
+    use iota::package::{UpgradeCap, test_publish};
+    use iota::test_utils::create_one_time_witness;
 
     public struct ETH has drop {}
 
@@ -1358,11 +1359,11 @@ module bridge::eth {
 module bridge::usdc {
     use std::ascii;
     use std::type_name;
-    use sui::address;
-    use sui::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use sui::hex;
-    use sui::package::{UpgradeCap, test_publish};
-    use sui::test_utils::create_one_time_witness;
+    use iota::address;
+    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
+    use iota::hex;
+    use iota::package::{UpgradeCap, test_publish};
+    use iota::test_utils::create_one_time_witness;
 
     public struct USDC has drop {}
 
@@ -1395,11 +1396,11 @@ module bridge::usdc {
 module bridge::usdt {
     use std::ascii;
     use std::type_name;
-    use sui::address;
-    use sui::coin::{CoinMetadata, TreasuryCap, create_currency};
-    use sui::hex;
-    use sui::package::{UpgradeCap, test_publish};
-    use sui::test_utils::create_one_time_witness;
+    use iota::address;
+    use iota::coin::{CoinMetadata, TreasuryCap, create_currency};
+    use iota::hex;
+    use iota::package::{UpgradeCap, test_publish};
+    use iota::test_utils::create_one_time_witness;
 
     public struct USDT has drop {}
 

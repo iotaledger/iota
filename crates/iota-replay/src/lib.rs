@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_recursion::async_recursion;
@@ -8,11 +9,11 @@ use fuzz::ReplayFuzzer;
 use fuzz::ReplayFuzzerConfig;
 use fuzz_mutations::base_fuzzers;
 use std::cmp::max;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SequenceNumber;
-use sui_types::digests::get_mainnet_chain_identifier;
-use sui_types::digests::get_testnet_chain_identifier;
-use sui_types::message_envelope::Message;
+use iota_types::base_types::ObjectID;
+use iota_types::base_types::SequenceNumber;
+use iota_types::digests::get_mainnet_chain_identifier;
+use iota_types::digests::get_testnet_chain_identifier;
+use iota_types::message_envelope::Message;
 use tracing::warn;
 use transaction_provider::{FuzzStartPoint, TransactionSource};
 
@@ -25,9 +26,9 @@ use std::env;
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::str::FromStr;
-use sui_config::node::ExpensiveSafetyCheckConfig;
-use sui_protocol_config::Chain;
-use sui_types::digests::TransactionDigest;
+use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_protocol_config::Chain;
+use iota_types::digests::TransactionDigest;
 use tracing::{error, info};
 
 pub mod batch_replay;

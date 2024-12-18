@@ -1,7 +1,7 @@
 {
-	"index": "Sui dApp Kit Quick Start",
-	"create-dapp": "@mysten/create-dapp",
-	"sui-client-provider": "SuiClientProvider",
+	"index": "Iota dApp Kit Quick Start",
+	"create-dapp": "@iota/create-dapp",
+	"iota-client-provider": "IotaClientProvider",
 	"rpc-hooks": "RPC Hooks",
 	"wallet-provider": "WalletProvider",
 	"wallet-components": "Wallet Components",

@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use axum::extract::State;
 use axum::routing::get;
-use mysten_service::get_mysten_service;
-use mysten_service::metrics::start_basic_prometheus_server;
-use mysten_service::package_name;
-use mysten_service::package_version;
-use mysten_service::serve;
+use iota_service::get_iota_service;
+use iota_service::metrics::start_basic_prometheus_server;
+use iota_service::package_name;
+use iota_service::package_version;
+use iota_service::serve;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
 use tracing::debug;
 
@@ -42,7 +43,7 @@ async fn main() -> Result<()> {
     // set up logging
     // note: this guard needs to not be dropped until the process exits
     // see http://tinyurl.com/34jsvyc4 for more
-    let _guard = mysten_service::logging::init();
+    let _guard = iota_service::logging::init();
     debug!("logging set up, setting up metrics");
 
     // initialize metrics
@@ -52,7 +53,7 @@ async fn main() -> Result<()> {
     debug!("metrics set up, starting service");
 
     let state = AppState { metrics };
-    let app = get_mysten_service(package_name!(), package_version!())
+    let app = get_iota_service(package_name!(), package_version!())
         // this is just an axum router – add your own routes here
         .route("/example", get(hello))
         // attach app state so that handlers can publish metrics

@@ -977,7 +977,7 @@
       },
       "id": 43,
       "panels": [],
-      "title": "NW behavior from Sui POV",
+      "title": "NW behavior from Iota POV",
       "type": "row"
     },
     {
@@ -6028,7 +6028,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Sui Validators - Narwhal",
+  "title": "Iota Validators - Narwhal",
   "uid": "SpRJIxL4z",
   "version": 7,
   "weekStart": ""

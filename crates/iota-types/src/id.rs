@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::MoveTypeTagTrait;
-use crate::{base_types::ObjectID, SUI_FRAMEWORK_ADDRESS};
+use crate::{base_types::ObjectID, IOTA_FRAMEWORK_ADDRESS};
 use move_core_types::account_address::AccountAddress;
 use move_core_types::language_storage::TypeTag;
 use move_core_types::{
@@ -18,16 +19,16 @@ pub const OBJECT_MODULE_NAME_STR: &str = "object";
 pub const OBJECT_MODULE_NAME: &IdentStr = ident_str!(OBJECT_MODULE_NAME_STR);
 pub const UID_STRUCT_NAME: &IdentStr = ident_str!("UID");
 pub const ID_STRUCT_NAME: &IdentStr = ident_str!("ID");
-pub const RESOLVED_SUI_ID: (&AccountAddress, &IdentStr, &IdentStr) =
-    (&SUI_FRAMEWORK_ADDRESS, OBJECT_MODULE_NAME, ID_STRUCT_NAME);
+pub const RESOLVED_IOTA_ID: (&AccountAddress, &IdentStr, &IdentStr) =
+    (&IOTA_FRAMEWORK_ADDRESS, OBJECT_MODULE_NAME, ID_STRUCT_NAME);
 
-/// Rust version of the Move sui::object::Info type
+/// Rust version of the Move iota::object::Info type
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Eq, PartialEq)]
 pub struct UID {
     pub id: ID,
 }
 
-/// Rust version of the Move sui::object::ID type
+/// Rust version of the Move iota::object::ID type
 #[derive(Debug, Serialize, Deserialize, JsonSchema, Clone, Eq, PartialEq)]
 #[serde(transparent)]
 pub struct ID {
@@ -43,7 +44,7 @@ impl UID {
 
     pub fn type_() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: OBJECT_MODULE_NAME.to_owned(),
             name: UID_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
@@ -76,7 +77,7 @@ impl ID {
 
     pub fn type_() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: OBJECT_MODULE_NAME.to_owned(),
             name: ID_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),

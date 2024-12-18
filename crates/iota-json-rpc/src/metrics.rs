@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashSet;
@@ -11,8 +12,8 @@ use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec,
 };
-use sui_json_rpc_api::TRANSIENT_ERROR_CODE;
-use sui_json_rpc_api::{CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER};
+use iota_json_rpc_api::TRANSIENT_ERROR_CODE;
+use iota_json_rpc_api::{CLIENT_SDK_TYPE_HEADER, CLIENT_TARGET_API_VERSION_HEADER};
 use tokio::time::Instant;
 
 const SPAM_LABEL: &str = "SPAM";

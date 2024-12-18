@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -6,24 +7,24 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use itertools::Itertools;
-use sui_types::dynamic_field::DynamicFieldInfo;
+use iota_types::dynamic_field::DynamicFieldInfo;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use move_core_types::language_storage::{StructTag, TypeTag};
-use mysten_metrics::{get_metrics, spawn_monitored_task};
-use sui_data_ingestion_core::Worker;
-use sui_rpc_api::{CheckpointData, CheckpointTransaction};
-use sui_types::dynamic_field::DynamicFieldType;
-use sui_types::effects::{ObjectChange, TransactionEffectsAPI};
-use sui_types::event::SystemEpochInfoEvent;
-use sui_types::messages_checkpoint::{
+use iota_metrics::{get_metrics, spawn_monitored_task};
+use iota_data_ingestion_core::Worker;
+use iota_rpc_api::{CheckpointData, CheckpointTransaction};
+use iota_types::dynamic_field::DynamicFieldType;
+use iota_types::effects::{ObjectChange, TransactionEffectsAPI};
+use iota_types::event::SystemEpochInfoEvent;
+use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
 };
-use sui_types::object::Object;
-use sui_types::object::Owner;
-use sui_types::sui_system_state::{get_sui_system_state, SuiSystemStateTrait};
-use sui_types::transaction::TransactionDataAPI;
+use iota_types::object::Object;
+use iota_types::object::Owner;
+use iota_types::iota_system_state::{get_iota_system_state, IotaSystemStateTrait};
+use iota_types::transaction::TransactionDataAPI;
 
 use crate::errors::IndexerError;
 use crate::handlers::committer::start_tx_checkpoint_commit_task;
@@ -68,7 +69,7 @@ pub async fn new_handlers(
         .unwrap();
     let global_metrics = get_metrics().unwrap();
     let (indexed_checkpoint_sender, indexed_checkpoint_receiver) =
-        mysten_metrics::metered_channel::channel(
+        iota_metrics::metered_channel::channel(
             checkpoint_queue_size,
             &global_metrics
                 .channel_inflight
@@ -95,7 +96,7 @@ pub async fn new_handlers(
 pub struct CheckpointHandler {
     state: PgIndexerStore,
     metrics: IndexerMetrics,
-    indexed_checkpoint_sender: mysten_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
 }
 
 #[async_trait]
@@ -137,7 +138,7 @@ impl CheckpointHandler {
     fn new(
         state: PgIndexerStore,
         metrics: IndexerMetrics,
-        indexed_checkpoint_sender: mysten_metrics::metered_channel::Sender<CheckpointDataToCommit>,
+        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     ) -> Self {
         Self {
             state,
@@ -162,7 +163,7 @@ impl CheckpointHandler {
         if *checkpoint_summary.sequence_number() == 0 {
             info!("Processing genesis epoch");
             let system_state_summary =
-                get_sui_system_state(&checkpoint_object_store)?.into_sui_system_state_summary();
+                get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
             return Ok(Some(EpochToCommit {
                 last_epoch: None,
                 new_epoch: StartOfEpochUpdate::new(system_state_summary, EpochStartInfo::default()),
@@ -175,7 +176,7 @@ impl CheckpointHandler {
         }
 
         let system_state_summary =
-            get_sui_system_state(&checkpoint_object_store)?.into_sui_system_state_summary();
+            get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
 
         let epoch_event_opt = transactions
             .iter()
@@ -196,7 +197,7 @@ impl CheckpointHandler {
             );
             assert!(
                 system_state_summary.safe_mode,
-                "Sui is not in safe mode but no SystemEpochInfoEvent found at end of epoch {}",
+                "Iota is not in safe mode but no SystemEpochInfoEvent found at end of epoch {}",
                 checkpoint_summary.epoch
             );
         }
@@ -296,7 +297,7 @@ impl CheckpointHandler {
 
             let successful_tx_num: u64 = db_transactions.iter().map(|t| t.successful_tx_num).sum();
             (
-                IndexedCheckpoint::from_sui_checkpoint(
+                IndexedCheckpoint::from_iota_checkpoint(
                     checkpoint_summary,
                     checkpoint_contents,
                     successful_tx_num as usize,
@@ -607,7 +608,7 @@ impl CheckpointHandler {
                     .iter()
                     .flat_map(|tx| &tx.output_objects)
                     .filter_map(|o| {
-                        if let sui_types::object::Data::Package(p) = &o.data {
+                        if let iota_types::object::Data::Package(p) = &o.data {
                             Some(IndexedPackage {
                                 package_id: o.id(),
                                 move_package: p.clone(),

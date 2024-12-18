@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
@@ -11,8 +12,8 @@ use anyhow::{anyhow, Result};
 use csv::{Writer, WriterBuilder};
 use serde::Serialize;
 
-use sui_storage::object_store::util::path_to_filesystem;
-use sui_types::base_types::EpochId;
+use iota_storage::object_store::util::path_to_filesystem;
+use iota_types::base_types::EpochId;
 
 use crate::writers::AnalyticsWriter;
 use crate::{FileFormat, FileType, ParquetSchema};

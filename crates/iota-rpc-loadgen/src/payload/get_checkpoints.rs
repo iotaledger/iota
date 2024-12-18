@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::payload::validation::check_transactions;
@@ -11,8 +12,8 @@ use itertools::Itertools;
 use std::sync::Arc;
 
 use crate::payload::checkpoint_utils::get_latest_checkpoint_stats;
-use sui_json_rpc_types::CheckpointId;
-use sui_types::base_types::TransactionDigest;
+use iota_json_rpc_types::CheckpointId;
+use iota_types::base_types::TransactionDigest;
 use tokio::sync::Mutex;
 use tracing::log::warn;
 use tracing::{debug, error, info};

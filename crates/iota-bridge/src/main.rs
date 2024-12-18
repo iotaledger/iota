@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
 use fastcrypto::traits::KeyPair;
-use mysten_metrics::start_prometheus_server;
+use iota_metrics::start_prometheus_server;
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
 };
-use sui_bridge::config::BridgeNodeConfig;
-use sui_bridge::metrics::start_metrics_push_task;
-use sui_bridge::node::run_bridge_node;
-use sui_bridge::server::BridgeNodePublicMetadata;
-use sui_config::Config;
+use iota_bridge::config::BridgeNodeConfig;
+use iota_bridge::metrics::start_metrics_push_task;
+use iota_bridge::node::run_bridge_node;
+use iota_bridge::server::BridgeNodePublicMetadata;
+use iota_config::Config;
 use tracing::info;
 
 // Define the `GIT_REVISION` and `VERSION` consts
@@ -37,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.metrics_port);
     let registry_service = start_prometheus_server(metrics_address);
     let prometheus_registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&prometheus_registry);
+    iota_metrics::init_metrics(&prometheus_registry);
     info!("Metrics server started at port {}", config.metrics_port);
 
     // Init logging

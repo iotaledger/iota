@@ -1,37 +1,38 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
 use futures::FutureExt;
 use std::collections::HashMap;
 use std::sync::Arc;
-use sui_protocol_config::ProtocolConfig;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{
+use iota_protocol_config::ProtocolConfig;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::{
     random_object_ref, ExecutionDigests, ObjectID, SequenceNumber, VersionNumber,
 };
-use sui_types::committee::Committee;
-use sui_types::crypto::KeypairTraits;
-use sui_types::crypto::{get_key_pair, AccountKeyPair};
-use sui_types::digests::{
+use iota_types::committee::Committee;
+use iota_types::crypto::KeypairTraits;
+use iota_types::crypto::{get_key_pair, AccountKeyPair};
+use iota_types::digests::{
     CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEventsDigest,
 };
-use sui_types::effects::{
+use iota_types::effects::{
     TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents,
 };
-use sui_types::error::SuiResult;
-use sui_types::event::Event;
-use sui_types::messages_checkpoint::{
+use iota_types::error::IotaResult;
+use iota_types::event::Event;
+use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
     SignedCheckpointSummary,
 };
-use sui_types::transaction::Transaction;
+use iota_types::transaction::Transaction;
 
-use sui_storage::http_key_value_store::*;
-use sui_storage::key_value_store::*;
-use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use sui_types::object::Object;
-use sui_types::storage::ObjectKey;
+use iota_storage::http_key_value_store::*;
+use iota_storage::key_value_store::*;
+use iota_storage::key_value_store_metrics::KeyValueStoreMetrics;
+use iota_types::object::Object;
+use iota_types::storage::ObjectKey;
 
 fn random_tx() -> Transaction {
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
@@ -162,7 +163,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         transactions: &[TransactionDigest],
         effects: &[TransactionDigest],
         events: &[TransactionEventsDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<Transaction>>,
         Vec<Option<TransactionEffects>>,
         Vec<Option<TransactionEvents>>,
@@ -190,7 +191,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         checkpoint_summaries: &[CheckpointSequenceNumber],
         checkpoint_contents: &[CheckpointSequenceNumber],
         checkpoint_summaries_by_digest: &[CheckpointDigest],
-    ) -> SuiResult<(
+    ) -> IotaResult<(
         Vec<Option<CertifiedCheckpointSummary>>,
         Vec<Option<CheckpointContents>>,
         Vec<Option<CertifiedCheckpointSummary>>,
@@ -216,7 +217,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
     async fn deprecated_get_transaction_checkpoint(
         &self,
         digest: TransactionDigest,
-    ) -> SuiResult<Option<CheckpointSequenceNumber>> {
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         Ok(self.tx_to_checkpoint.get(&digest).cloned())
     }
 
@@ -224,14 +225,14 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
         &self,
         object_id: ObjectID,
         version: VersionNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         Ok(self.objects.get(&ObjectKey(object_id, version)).cloned())
     }
 
     async fn multi_get_transaction_checkpoint(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<CheckpointSequenceNumber>>> {
+    ) -> IotaResult<Vec<Option<CheckpointSequenceNumber>>> {
         Ok(digests
             .iter()
             .map(|digest| self.tx_to_checkpoint.get(digest).cloned())
@@ -241,7 +242,7 @@ impl TransactionKeyValueStoreTrait for MockTxStore {
     async fn multi_get_events_by_tx_digests(
         &self,
         _: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<TransactionEvents>>> {
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         Ok(vec![])
     }
 }
@@ -434,8 +435,8 @@ mod simtests {
     use std::net::SocketAddr;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
-    use sui_macros::sim_test;
-    use sui_simulator::configs::constant_latency_ms;
+    use iota_macros::sim_test;
+    use iota_simulator::configs::constant_latency_ms;
     use tracing::info;
 
     async fn svc(
@@ -456,7 +457,7 @@ mod simtests {
     }
 
     async fn test_server(data: Arc<Mutex<HashMap<String, Vec<u8>>>>) {
-        let handle = sui_simulator::runtime::Handle::current();
+        let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(false);
         let startup_sender = Arc::new(startup_sender);

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module shared_no_tto::shared_cash_register;
 
 use common::identified_payment::{Self, IdentifiedPayment};
 use std::string::String;
-use sui::{coin::Coin, dynamic_field, sui::SUI, vec_set::{Self, VecSet}};
+use iota::{coin::Coin, dynamic_field, iota::IOTA, vec_set::{Self, VecSet}};
 
 const EInvalidOwner: u64 = 0;
 const EInvalidPaymentID: u64 = 1;
@@ -81,7 +82,7 @@ public fun process_payment(
     register: &mut CashRegister,
     payment_id: u64,
     ctx: &TxContext,
-): Coin<SUI> {
+): Coin<IOTA> {
     let sender = tx_context::sender(ctx);
     assert!(
         vec_set::contains(&register.authorized_individuals, &sender) || sender == register.register_owner,
@@ -95,6 +96,6 @@ public fun process_payment(
 
 /// Make a payment to the cash register -- this is the function that the
 /// customer will use to make a payment to the cash register.
-public fun pay(register: &mut CashRegister, payment_id: u64, coin: Coin<SUI>, ctx: &mut TxContext) {
+public fun pay(register: &mut CashRegister, payment_id: u64, coin: Coin<IOTA>, ctx: &mut TxContext) {
     identified_payment::make_shared_payment(&mut register.id, payment_id, coin, ctx);
 }

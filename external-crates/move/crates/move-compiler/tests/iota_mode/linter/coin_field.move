@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_field)]
 module a::test1 {
-    use sui::coin::Coin;
-    use sui::object::UID;
+    use iota::coin::Coin;
+    use iota::object::UID;
 
     struct S1 {}
 
@@ -16,8 +17,8 @@ module a::test1 {
 
 #[allow(unused_field)]
 module a::test2 {
-    use sui::coin::Coin as Balance;
-    use sui::object::UID;
+    use iota::coin::Coin as Balance;
+    use iota::object::UID;
 
     struct S1 {}
 
@@ -30,8 +31,8 @@ module a::test2 {
 
 #[allow(unused_field)]
 module a::test3 {
-    use sui::coin::TreasuryCap;
-    use sui::object::UID;
+    use iota::coin::TreasuryCap;
+    use iota::object::UID;
 
     struct S1 {}
 
@@ -43,14 +44,14 @@ module a::test3 {
     }
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }
 }
 
-module sui::coin {
-    use sui::object::UID;
+module iota::coin {
+    use iota::object::UID;
     struct Coin<phantom T> has key, store {
         id: UID
     }

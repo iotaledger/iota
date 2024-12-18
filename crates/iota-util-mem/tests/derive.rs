@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright 2020 Parity Technologies
@@ -11,7 +12,7 @@
 
 #![cfg(feature = "std")]
 
-use mysten_util_mem::{MallocSizeOf, MallocSizeOfExt};
+use iota_util_mem::{MallocSizeOf, MallocSizeOfExt};
 
 #[test]
 fn derive_vec() {

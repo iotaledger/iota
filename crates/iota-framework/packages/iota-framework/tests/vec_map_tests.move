@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::vec_map_tests {
-    use sui::vec_map::{Self, VecMap};
+module iota::vec_map_tests {
+    use iota::vec_map::{Self, VecMap};
 
     #[test]
     #[expected_failure(abort_code = vec_map::EKeyAlreadyExists)]

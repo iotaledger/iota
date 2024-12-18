@@ -1,6 +1,6 @@
 [package]
-name = "sui-kvstore"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+name = "iota-kvstore"
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -17,8 +17,8 @@ prometheus.workspace = true
 prost.workspace = true
 prost-types.workspace = true
 serde.workspace = true
-sui-data-ingestion-core.workspace = true
-sui-types.workspace = true
+iota-data-ingestion-core.workspace = true
+iota-types.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tonic = {version = "0.12.2",features = ["tls", "transport"] }

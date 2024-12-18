@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::Registry;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Weak};
-use sui_config::NodeConfig;
-use sui_node::{SuiNode, SuiNodeHandle};
-use sui_types::base_types::ConciseableName;
+use iota_config::NodeConfig;
+use iota_node::{IotaNode, IotaNodeHandle};
+use iota_types::base_types::ConciseableName;
 use tokio::sync::watch;
 use tracing::{info, trace};
 
@@ -16,12 +17,12 @@ use super::node::RuntimeType;
 pub(crate) struct Container {
     handle: Option<ContainerHandle>,
     cancel_sender: Option<tokio::sync::watch::Sender<bool>>,
-    node_watch: watch::Receiver<Weak<SuiNode>>,
+    node_watch: watch::Receiver<Weak<IotaNode>>,
 }
 
 #[derive(Debug)]
 struct ContainerHandle {
-    node_id: sui_simulator::task::NodeId,
+    node_id: iota_simulator::task::NodeId,
 }
 
 /// When dropped, stop and wait for the node running in this Container to completely shutdown.
@@ -29,7 +30,7 @@ impl Drop for Container {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
             tracing::info!("shutting down {}", handle.node_id);
-            sui_simulator::runtime::Handle::try_current().map(|h| h.delete_node(handle.node_id));
+            iota_simulator::runtime::Handle::try_current().map(|h| h.delete_node(handle.node_id));
         }
     }
 }
@@ -40,7 +41,7 @@ impl Container {
         let (startup_sender, mut startup_receiver) = tokio::sync::watch::channel(Weak::new());
         let (cancel_sender, cancel_receiver) = tokio::sync::watch::channel(false);
 
-        let handle = sui_simulator::runtime::Handle::current();
+        let handle = iota_simulator::runtime::Handle::current();
         let builder = handle.create_node();
 
         let socket_addr = config.network_address.to_socket_addr().unwrap();
@@ -59,8 +60,8 @@ impl Container {
                 let mut cancel_receiver = cancel_receiver.clone();
                 let startup_sender = startup_sender.clone();
                 async move {
-                    let registry_service = mysten_metrics::RegistryService::new(Registry::new());
-                    let server = SuiNode::start(config, registry_service, None)
+                    let registry_service = iota_metrics::RegistryService::new(Registry::new());
+                    let server = IotaNode::start(config, registry_service, None)
                         .await
                         .unwrap();
 
@@ -86,9 +87,9 @@ impl Container {
         }
     }
 
-    /// Get a SuiNodeHandle to the node owned by the container.
-    pub fn get_node_handle(&self) -> Option<SuiNodeHandle> {
-        Some(SuiNodeHandle::new(self.node_watch.borrow().upgrade()?))
+    /// Get a IotaNodeHandle to the node owned by the container.
+    pub fn get_node_handle(&self) -> Option<IotaNodeHandle> {
+        Some(IotaNodeHandle::new(self.node_watch.borrow().upgrade()?))
     }
 
     /// Check to see that the Node is still alive by checking if the receiving side of the

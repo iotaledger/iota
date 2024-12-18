@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
@@ -358,7 +359,7 @@ impl PartialOrd<Self> for CacheKey {
 /// ```
 /// use std::cmp::Ordering;
 /// use std::collections::BTreeMap;
-/// use sui::shell::CacheKey;
+/// use iota::shell::CacheKey;
 ///
 /// assert_eq!(Ordering::Equal, CacheKey::flag("--flag").cmp(&CacheKey::new("any command", "--flag")));
 ///

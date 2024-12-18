@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -7,12 +8,12 @@ use move_core_types::ident_str;
 use move_core_types::identifier::Identifier;
 use serde_json::json;
 
-use crate::base_types::{ObjectDigest, SuiAddress, TransactionDigest};
+use crate::base_types::{ObjectDigest, IotaAddress, TransactionDigest};
 use crate::event::{Event, EventEnvelope};
 use crate::filter::{EventFilter, Filter};
 use crate::gas_coin::GasCoin;
 use crate::object::OBJECT_START_VERSION;
-use crate::{ObjectID, MOVE_STDLIB_ADDRESS, SUI_FRAMEWORK_ADDRESS};
+use crate::{ObjectID, MOVE_STDLIB_ADDRESS, IOTA_FRAMEWORK_ADDRESS};
 
 #[test]
 fn test_move_event_filter() {
@@ -21,9 +22,9 @@ fn test_move_event_filter() {
     // TODO this is a bit of a nonsensical test as GasCoin does not implement drop, but it likely
     // doesn't matter as we just are testing a BCS type + value
     let move_event = Event {
-        package_id: ObjectID::from(SUI_FRAMEWORK_ADDRESS),
+        package_id: ObjectID::from(IOTA_FRAMEWORK_ADDRESS),
         transaction_module: Identifier::from(ident_str!("test_module")),
-        sender: SuiAddress::random_for_testing_only(),
+        sender: IotaAddress::random_for_testing_only(),
         type_: GasCoin::type_(),
         contents: GasCoin::new(event_coin_id, 10000).to_bcs_bytes(),
     };
@@ -39,7 +40,7 @@ fn test_move_event_filter() {
     let filters = vec![
         EventFilter::MoveEventType(GasCoin::type_()),
         EventFilter::Module(Identifier::from(ident_str!("test_module"))),
-        EventFilter::Package(ObjectID::from(SUI_FRAMEWORK_ADDRESS)),
+        EventFilter::Package(ObjectID::from(IOTA_FRAMEWORK_ADDRESS)),
         EventFilter::MoveEventField {
             path: "/balance".to_string(),
             value: json!(10000),
@@ -70,11 +71,11 @@ fn test_move_event_filter() {
 /*#[test]
 fn test_transfer_filter() {
     let object_id = ObjectID::random();
-    let sender = SuiAddress::random_for_testing_only();
-    let recipient = Owner::AddressOwner(SuiAddress::random_for_testing_only());
+    let sender = IotaAddress::random_for_testing_only();
+    let recipient = Owner::AddressOwner(IotaAddress::random_for_testing_only());
     // Create a test transfer event.
     let move_event = Event::TransferObject {
-        package_id: ObjectID::from(SUI_FRAMEWORK_ADDRESS),
+        package_id: ObjectID::from(IOTA_FRAMEWORK_ADDRESS),
         transaction_module: Identifier::from(ident_str!("test_module")),
         sender,
         recipient,
@@ -92,7 +93,7 @@ fn test_transfer_filter() {
     };
 
     let filters = vec![
-        EventFilter::Package(ObjectID::from(SUI_FRAMEWORK_ADDRESS)),
+        EventFilter::Package(ObjectID::from(IOTA_FRAMEWORK_ADDRESS)),
         EventFilter::Module(Identifier::from(ident_str!("test_module"))),
         EventFilter::SenderAddress(sender),
     ];
@@ -111,7 +112,7 @@ fn test_transfer_filter() {
 /*#[test]
 fn test_publish_filter() {
     let package_id = ObjectID::random();
-    let sender = SuiAddress::random_for_testing_only();
+    let sender = IotaAddress::random_for_testing_only();
     let version = OBJECT_START_VERSION;
     let digest = ObjectDigest::random();
     // Create a test publish event.
@@ -150,7 +151,7 @@ fn test_publish_filter() {
 fn test_delete_object_filter() {
     let package_id = ObjectID::random();
     let object_id = ObjectID::random();
-    let sender = SuiAddress::random_for_testing_only();
+    let sender = IotaAddress::random_for_testing_only();
     // Create a test delete object event.
     let move_event = Event::DeleteObject {
         package_id,
@@ -189,8 +190,8 @@ fn test_delete_object_filter() {
 fn test_new_object_filter() {
     let package_id = ObjectID::random();
     let object_id = ObjectID::random();
-    let sender = SuiAddress::random_for_testing_only();
-    let recipient = Owner::AddressOwner(SuiAddress::random_for_testing_only());
+    let sender = IotaAddress::random_for_testing_only();
+    let recipient = Owner::AddressOwner(IotaAddress::random_for_testing_only());
     // Create a test new object event.
     let move_event = Event::NewObject {
         package_id,

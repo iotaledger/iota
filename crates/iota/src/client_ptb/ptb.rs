@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    client_commands::{dry_run_or_execute_or_serialize, Opts, OptsWithGas, SuiClientCommandResult},
+    client_commands::{dry_run_or_execute_or_serialize, Opts, OptsWithGas, IotaClientCommandResult},
     client_ptb::{
         ast::{ParsedProgram, Program},
         builder::PTBBuilder,
@@ -18,10 +19,10 @@ use anyhow::{anyhow, ensure, Error};
 use clap::{arg, Args, ValueHint};
 use move_core_types::account_address::AccountAddress;
 use serde::Serialize;
-use sui_json_rpc_types::{SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
-use sui_keys::keystore::AccountKeystore;
-use sui_sdk::{wallet_context::WalletContext, SuiClient};
-use sui_types::{
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_keys::keystore::AccountKeystore;
+use iota_sdk::{wallet_context::WalletContext, IotaClient};
+use iota_types::{
     digests::TransactionDigest,
     gas::GasCostSummary,
     transaction::{ProgrammableTransaction, TransactionKind},
@@ -42,7 +43,7 @@ pub struct PTBPreview<'a> {
 #[derive(Serialize)]
 pub struct Summary {
     pub digest: TransactionDigest,
-    pub status: SuiExecutionStatus,
+    pub status: IotaExecutionStatus,
     pub gas_cost: GasCostSummary,
 }
 
@@ -163,16 +164,16 @@ impl PTB {
         .await?;
 
         let transaction_response = match transaction_response {
-            SuiClientCommandResult::DryRun(_) => {
+            IotaClientCommandResult::DryRun(_) => {
                 println!("{}", transaction_response);
                 return Ok(());
             }
-            SuiClientCommandResult::SerializedUnsignedTransaction(_)
-            | SuiClientCommandResult::SerializedSignedTransaction(_) => {
+            IotaClientCommandResult::SerializedUnsignedTransaction(_)
+            | IotaClientCommandResult::SerializedSignedTransaction(_) => {
                 println!("{}", transaction_response);
                 return Ok(());
             }
-            SuiClientCommandResult::TransactionBlock(response) => response,
+            IotaClientCommandResult::TransactionBlock(response) => response,
             _ => anyhow::bail!("Internal error, unexpected response from PTB execution."),
         };
 
@@ -219,7 +220,7 @@ impl PTB {
     pub async fn build_ptb(
         program: Program,
         context: &WalletContext,
-        client: SuiClient,
+        client: IotaClient,
     ) -> (
         Result<ProgrammableTransaction, Vec<PTBError>>,
         Vec<PTBError>,
@@ -270,7 +271,7 @@ pub fn to_source_string(strings: Vec<String>) -> String {
 }
 
 pub fn ptb_description() -> clap::Command {
-    clap::Command::new("sui client ptb")
+    clap::Command::new("iota client ptb")
         .about(
             "Build, preview, and execute programmable transaction blocks. Depending on your \
             shell, you might have to use quotes around arrays or other passed values. \
@@ -306,8 +307,8 @@ pub fn ptb_description() -> clap::Command {
             gas coin that it finds that has at least the requested gas-budget balance."
         ))
         .arg(arg!(
-            --"gas-budget" <MIST>
-            "An optional gas budget for this PTB (in MIST). If gas budget is not provided, the \
+            --"gas-budget" <NANOS>
+            "An optional gas budget for this PTB (in NANOS). If gas budget is not provided, the \
             tool will first perform a dry run to estimate the gas cost, and then it will execute \
             the transaction. Please note that this incurs a small cost in performance due to the \
             additional dry run call."
@@ -324,7 +325,7 @@ pub fn ptb_description() -> clap::Command {
             \n --make-move-vec <u64> []\
             \n --make-move-vec <u64> [1, 2, 3, 4]\
             \n --make-move-vec <std::option::Option<u64>> [none,none]\
-            \n --make-move-vec <sui::coin::Coin<sui::sui::SUI>> [gas]"
+            \n --make-move-vec <iota::coin::Coin<iota::iota::IOTA>> [gas]"
         )
         .value_names(["TYPE", "[VALUES]"]))
         .arg(arg!(
@@ -379,7 +380,7 @@ pub fn ptb_description() -> clap::Command {
         ).long_help(
             "Publish the Move package. It takes as input the folder where the package exists.\
             \n\nExamples:\
-            \n --move-call sui::tx_context::sender\
+            \n --move-call iota::tx_context::sender\
             \n --assign sender\
             \n --publish \".\"\
             \n --assign upgrade_cap\

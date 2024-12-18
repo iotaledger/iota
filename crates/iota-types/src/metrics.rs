@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
@@ -91,7 +92,7 @@ impl BytecodeVerifierMetrics {
     pub const MOVE_VERIFIER_TAG: &'static str = "move_verifier";
 
     /// DEPRECATED in latest metered verifier, which only report overall success or timeout.
-    pub const SUI_VERIFIER_TAG: &'static str = "sui_verifier";
+    pub const IOTA_VERIFIER_TAG: &'static str = "iota_verifier";
 
     pub const OVERALL_TAG: &'static str = "overall";
     pub const SUCCESS_TAG: &'static str = "success";

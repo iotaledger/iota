@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::abi::{
-    eth_bridge_committee, eth_committee_upgradeable_contract, eth_sui_bridge, EthBridgeCommittee,
+    eth_bridge_committee, eth_committee_upgradeable_contract, eth_iota_bridge, EthBridgeCommittee,
     EthBridgeLimiter, EthCommitteeUpgradeableContract,
 };
 use crate::abi::{eth_bridge_config, eth_bridge_limiter, EthBridgeConfig};
@@ -14,7 +15,7 @@ use crate::types::{
 };
 use crate::utils::EthSigner;
 use crate::{
-    abi::EthSuiBridge,
+    abi::EthIotaBridge,
     types::{BridgeAction, EmergencyAction},
 };
 use ethers::prelude::*;
@@ -33,10 +34,10 @@ pub async fn build_eth_transaction(
     // TODO: Check chain id?
     let sigs = action.auth_sig();
     match action.data() {
-        BridgeAction::SuiToEthBridgeAction(_) => {
+        BridgeAction::IotaToEthBridgeAction(_) => {
             unreachable!()
         }
-        BridgeAction::EthToSuiBridgeAction(_) => {
+        BridgeAction::EthToIotaBridgeAction(_) => {
             unreachable!()
         }
         BridgeAction::EmergencyAction(action) => {
@@ -68,7 +69,7 @@ pub async fn build_eth_transaction(
         BridgeAction::EvmContractUpgradeAction(action) => {
             build_evm_upgrade_transaction(signer, action.clone(), sigs).await
         }
-        BridgeAction::AddTokensOnSuiAction(_) => {
+        BridgeAction::AddTokensOnIotaAction(_) => {
             unreachable!();
         }
         BridgeAction::AddTokensOnEvmAction(action) => {
@@ -84,9 +85,9 @@ pub async fn build_emergency_op_approve_transaction(
     action: EmergencyAction,
     sigs: &BridgeCommitteeValiditySignInfo,
 ) -> BridgeResult<ContractCall<EthSigner, ()>> {
-    let contract = EthSuiBridge::new(contract_address, signer.into());
+    let contract = EthIotaBridge::new(contract_address, signer.into());
 
-    let message: eth_sui_bridge::Message = action.clone().into();
+    let message: eth_iota_bridge::Message = action.clone().into();
     let signatures = sigs
         .signatures
         .values()

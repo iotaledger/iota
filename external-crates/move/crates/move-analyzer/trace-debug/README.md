@@ -9,7 +9,7 @@ Currently we support trace-debugging of Move unit tests only. and the following 
 - tracking local variable values (including enums/structs and references)
 - line breakpoints
 
-Note that support for trace-debugging macros and enums is limited at this point - stepping through macros or code related to enums may result in somewhat unexpected results due to how these constructs are handled internally by the Move execution framework. In particular, variable value tracking may be affected when trace-debugging these constructs. Work is ongoing to improve state-of-the-art - improvement suggestions and bug reports files as issues agains Sui's GitHub [repository](https://github.com/MystenLabs/sui) are greatly appreciated.
+Note that support for trace-debugging macros and enums is limited at this point - stepping through macros or code related to enums may result in somewhat unexpected results due to how these constructs are handled internally by the Move execution framework. In particular, variable value tracking may be affected when trace-debugging these constructs. Work is ongoing to improve state-of-the-art - improvement suggestions and bug reports files as issues agains Iota's GitHub [repository](https://github.com/iotaledger/iota) are greatly appreciated.
 
 # How to Install
 
@@ -27,18 +27,18 @@ Debugging a Move unit tests consists of two steps: generating a Move trace and a
 
 ## Generating a Move trace
 
-If you have [Mysten's Move extension](https://marketplace.visualstudio.com/items?itemName=mysten.move) installed you can generate a Move trace for tests defined in a given file by navigating to this file in VSCode and running `Move: Trace Move test execution` from the command palette. See the description of [Mysten's Move extension](https://marketplace.visualstudio.com/items?itemName=mysten.move) for pre-requisites needed to run this command.
+If you have [IOTA Foundation's Move extension](https://marketplace.visualstudio.com/items?itemName=iota.move) installed you can generate a Move trace for tests defined in a given file by navigating to this file in VSCode and running `Move: Trace Move test execution` from the command palette. See the description of [IOTA Foundation's Move extension](https://marketplace.visualstudio.com/items?itemName=iota.move) for pre-requisites needed to run this command.
 
-If you plan to use the the Trace Debugging Extension by itself, you need to generate the traces using command-line interface of `sui` binary. See [here](https://docs.sui.io/guides/developer/getting-started/sui-install) for instructions on how to install `sui` binary. Note that the `sui` binary must be built with the `tracing` feature flag. If your version of the `sui` binary was not built with this feature flag, an attempt to trace test execution will fail. In this case you may have to build the `sui` binary from source following these [instructions](https://docs.sui.io/guides/developer/getting-started/sui-install#install-sui-binaries-from-source).
+If you plan to use the the Trace Debugging Extension by itself, you need to generate the traces using command-line interface of `iota` binary. See [here](https://docs.iota.org/guides/developer/getting-started/iota-install) for instructions on how to install `iota` binary. Note that the `iota` binary must be built with the `tracing` feature flag. If your version of the `iota` binary was not built with this feature flag, an attempt to trace test execution will fail. In this case you may have to build the `iota` binary from source following these [instructions](https://docs.iota.org/guides/developer/getting-started/iota-install#install-iota-binaries-from-source).
 
-Once the `sui` binary is installed, you generate traces for all test files in a given package by running the following command in the package's root directory:
+Once the `iota` binary is installed, you generate traces for all test files in a given package by running the following command in the package's root directory:
 ```shell
-sui move test --trace-execution
+iota move test --trace-execution
 ```
 
 You can limit trace generation to the tests whose name contains a filter string by passing this string as an additional argument to the trace generation command:
 ```shell
-sui move test FILTER_STRING --trace-execution
+iota move test FILTER_STRING --trace-execution
 ```
 
 ## Trace-debugging a test

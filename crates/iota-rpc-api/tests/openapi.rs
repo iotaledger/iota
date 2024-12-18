@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_rpc_api::rest::info;
-use sui_rpc_api::rest::openapi;
-use sui_rpc_api::rest::ENDPOINTS;
+use iota_rpc_api::rest::info;
+use iota_rpc_api::rest::openapi;
+use iota_rpc_api::rest::ENDPOINTS;
 
 #[test]
 fn openapi_spec() {

@@ -1,9 +1,9 @@
 [package]
-name = "sui-move-natives-latest"
+name = "iota-move-natives-latest"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
-description = "Move framework for sui platform"
+authors = ["IOTA Foundation <info@iota.org>"]
+description = "Move framework for iota platform"
 license = "Apache-2.0"
 publish = false
 
@@ -24,6 +24,6 @@ move-vm-types.workspace = true
 move-stdlib-natives = { path = "../../../external-crates/move/crates/move-stdlib-natives" }
 move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime" }
 
-sui-protocol-config.workspace = true
-sui-types.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 tracing.workspace = true

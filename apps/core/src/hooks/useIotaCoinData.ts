@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useQuery } from '@tanstack/react-query';
@@ -15,13 +16,13 @@ type CoinData = {
 	totalSupply: number;
 };
 
-export const COIN_GECKO_SUI_URL = 'https://www.coingecko.com/en/coins/sui';
+export const COIN_GECKO_IOTA_URL = 'https://www.coingecko.com/en/coins/iota';
 
-export function useSuiCoinData() {
+export function useIotaCoinData() {
 	const { request } = useAppsBackend();
 	return useQuery({
-		queryKey: ['sui-coin-data'],
-		queryFn: () => request<CoinData>('coins/sui', {}),
+		queryKey: ['iota-coin-data'],
+		queryFn: () => request<CoinData>('coins/iota', {}),
 		gcTime: 24 * 60 * 60 * 1000,
 		staleTime: Infinity,
 	});

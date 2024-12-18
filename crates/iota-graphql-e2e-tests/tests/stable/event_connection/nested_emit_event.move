@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test demonstrates that one can search for events emitted by a package or module.
@@ -9,7 +10,7 @@
 
 //# publish
 module Test::M1 {
-    use sui::event;
+    use iota::event;
 
     public struct EventA has copy, drop {
         new_value: u64

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
@@ -12,37 +13,37 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use sui_bridge::eth_client::EthClient;
-use sui_bridge::metered_eth_provider::{new_metered_eth_provider, MeteredEthHttpProvier};
-use sui_bridge::sui_bridge_watchdog::Observable;
-use sui_bridge::sui_client::SuiBridgeClient;
-use sui_bridge::utils::get_eth_contract_addresses;
-use sui_config::Config;
+use iota_bridge::eth_client::EthClient;
+use iota_bridge::metered_eth_provider::{new_metered_eth_provider, MeteredEthHttpProvier};
+use iota_bridge::iota_bridge_watchdog::Observable;
+use iota_bridge::iota_client::IotaBridgeClient;
+use iota_bridge::utils::get_eth_contract_addresses;
+use iota_config::Config;
 use tokio::task::JoinHandle;
 use tracing::info;
 
-use mysten_metrics::metered_channel::channel;
-use mysten_metrics::spawn_logged_monitored_task;
-use mysten_metrics::start_prometheus_server;
+use iota_metrics::metered_channel::channel;
+use iota_metrics::spawn_logged_monitored_task;
+use iota_metrics::start_prometheus_server;
 
-use sui_bridge::metrics::BridgeMetrics;
-use sui_bridge::sui_bridge_watchdog::{
+use iota_bridge::metrics::BridgeMetrics;
+use iota_bridge::iota_bridge_watchdog::{
     eth_bridge_status::EthBridgeStatus,
     eth_vault_balance::{EthereumVaultBalance, VaultAsset},
     metrics::WatchdogMetrics,
-    sui_bridge_status::SuiBridgeStatus,
+    iota_bridge_status::IotaBridgeStatus,
     BridgeWatchDog,
 };
-use sui_bridge_indexer::config::IndexerConfig;
-use sui_bridge_indexer::metrics::BridgeIndexerMetrics;
-use sui_bridge_indexer::postgres_manager::{get_connection_pool, read_sui_progress_store};
-use sui_bridge_indexer::sui_transaction_handler::handle_sui_transactions_loop;
-use sui_bridge_indexer::sui_transaction_queries::start_sui_tx_polling_task;
-use sui_bridge_indexer::{
-    create_eth_subscription_indexer, create_eth_sync_indexer, create_sui_indexer,
+use iota_bridge_indexer::config::IndexerConfig;
+use iota_bridge_indexer::metrics::BridgeIndexerMetrics;
+use iota_bridge_indexer::postgres_manager::{get_connection_pool, read_iota_progress_store};
+use iota_bridge_indexer::iota_transaction_handler::handle_iota_transactions_loop;
+use iota_bridge_indexer::iota_transaction_queries::start_iota_tx_polling_task;
+use iota_bridge_indexer::{
+    create_eth_subscription_indexer, create_eth_sync_indexer, create_iota_indexer,
 };
-use sui_data_ingestion_core::DataIngestionMetrics;
-use sui_sdk::SuiClientBuilder;
+use iota_data_ingestion_core::DataIngestionMetrics;
+use iota_sdk::IotaClientBuilder;
 
 #[derive(Parser, Clone, Debug)]
 struct Args {
@@ -74,7 +75,7 @@ async fn main() -> Result<()> {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.metric_port);
     let registry_service = start_prometheus_server(metrics_address);
     let registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     info!("Metrics server started at port {}", config.metric_port);
 
     let indexer_meterics = BridgeIndexerMetrics::new(&registry);
@@ -92,7 +93,7 @@ async fn main() -> Result<()> {
         )
         .await?,
     );
-    let eth_bridge_proxy_address = EthAddress::from_str(&config.eth_sui_bridge_contract_address)?;
+    let eth_bridge_proxy_address = EthAddress::from_str(&config.eth_iota_bridge_contract_address)?;
     let mut tasks = vec![];
     // Start the eth subscription indexer
     let eth_subscription_indexer = create_eth_subscription_indexer(
@@ -117,15 +118,15 @@ async fn main() -> Result<()> {
     .await?;
     tasks.push(spawn_logged_monitored_task!(eth_sync_indexer.start()));
 
-    let indexer = create_sui_indexer(pool, indexer_meterics, ingestion_metrics, &config).await?;
+    let indexer = create_iota_indexer(pool, indexer_meterics, ingestion_metrics, &config).await?;
     tasks.push(spawn_logged_monitored_task!(indexer.start()));
 
-    let sui_bridge_client =
-        Arc::new(SuiBridgeClient::new(&config.sui_rpc_url, bridge_metrics.clone()).await?);
+    let iota_bridge_client =
+        Arc::new(IotaBridgeClient::new(&config.iota_rpc_url, bridge_metrics.clone()).await?);
     start_watchdog(
         config,
         eth_bridge_proxy_address,
-        sui_bridge_client,
+        iota_bridge_client,
         &registry,
         bridge_metrics.clone(),
     )
@@ -139,7 +140,7 @@ async fn main() -> Result<()> {
 async fn start_watchdog(
     config: IndexerConfig,
     eth_bridge_proxy_address: EthAddress,
-    sui_client: Arc<SuiBridgeClient>,
+    iota_client: Arc<IotaBridgeClient>,
     registry: &Registry,
     bridge_metrics: Arc<BridgeMetrics>,
 ) -> Result<()> {
@@ -180,44 +181,44 @@ async fn start_watchdog(
         watchdog_metrics.eth_bridge_paused.clone(),
     );
 
-    let sui_bridge_status =
-        SuiBridgeStatus::new(sui_client, watchdog_metrics.sui_bridge_paused.clone());
+    let iota_bridge_status =
+        IotaBridgeStatus::new(iota_client, watchdog_metrics.iota_bridge_paused.clone());
     let observables: Vec<Box<dyn Observable + Send + Sync>> = vec![
         Box::new(eth_vault_balance),
         Box::new(usdt_vault_balance),
         Box::new(eth_bridge_status),
-        Box::new(sui_bridge_status),
+        Box::new(iota_bridge_status),
     ];
     BridgeWatchDog::new(observables).run().await;
     Ok(())
 }
 
 #[allow(unused)]
-async fn start_processing_sui_checkpoints_by_querying_txns(
-    sui_rpc_url: String,
+async fn start_processing_iota_checkpoints_by_querying_txns(
+    iota_rpc_url: String,
     db_url: String,
     indexer_metrics: BridgeIndexerMetrics,
 ) -> Result<Vec<JoinHandle<()>>> {
     let pg_pool = get_connection_pool(db_url.clone()).await;
     let (tx, rx) = channel(
         100,
-        &mysten_metrics::get_metrics()
+        &iota_metrics::get_metrics()
             .unwrap()
             .channel_inflight
-            .with_label_values(&["sui_transaction_processing_queue"]),
+            .with_label_values(&["iota_transaction_processing_queue"]),
     );
     let mut handles = vec![];
-    let cursor = read_sui_progress_store(&pg_pool)
+    let cursor = read_iota_progress_store(&pg_pool)
         .await
-        .expect("Failed to read cursor from sui progress store");
-    let sui_client = SuiClientBuilder::default().build(sui_rpc_url).await?;
+        .expect("Failed to read cursor from iota progress store");
+    let iota_client = IotaClientBuilder::default().build(iota_rpc_url).await?;
     handles.push(spawn_logged_monitored_task!(
-        start_sui_tx_polling_task(sui_client, cursor, tx),
-        "start_sui_tx_polling_task"
+        start_iota_tx_polling_task(iota_client, cursor, tx),
+        "start_iota_tx_polling_task"
     ));
     handles.push(spawn_logged_monitored_task!(
-        handle_sui_transactions_loop(pg_pool.clone(), rx, indexer_metrics.clone()),
-        "handle_sui_transcations_loop"
+        handle_iota_transactions_loop(pg_pool.clone(), rx, indexer_metrics.clone()),
+        "handle_iota_transcations_loop"
     ));
     Ok(handles)
 }

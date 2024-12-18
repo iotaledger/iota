@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Coin, Pool } from '../types/index.js';
@@ -29,9 +30,9 @@ export const testnetCoins: CoinMap = {
 		type: `0x36dbef866a1d62bf7328989a10fb2f07d769f4ee587c0de4a0a256e57e0a58a8::deep::DEEP`,
 		scalar: 1000000,
 	},
-	SUI: {
+	IOTA: {
 		address: `0x0000000000000000000000000000000000000000000000000000000000000002`,
-		type: `0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI`,
+		type: `0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA`,
 		scalar: 1000000000,
 	},
 	DBUSDC: {
@@ -52,9 +53,9 @@ export const mainnetCoins: CoinMap = {
 		type: `0xdeeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP`,
 		scalar: 1000000,
 	},
-	SUI: {
+	IOTA: {
 		address: `0x0000000000000000000000000000000000000000000000000000000000000002`,
-		type: `0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI`,
+		type: `0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA`,
 		scalar: 1000000000,
 	},
 	USDC: {
@@ -105,14 +106,14 @@ export const mainnetCoins: CoinMap = {
 };
 
 export const testnetPools: PoolMap = {
-	DEEP_SUI: {
+	DEEP_IOTA: {
 		address: `0x0d1b1746d220bd5ebac5231c7685480a16f1c707a46306095a4c67dc7ce4dcae`,
 		baseCoin: 'DEEP',
-		quoteCoin: 'SUI',
+		quoteCoin: 'IOTA',
 	},
-	SUI_DBUSDC: {
+	IOTA_DBUSDC: {
 		address: `0x520c89c6c78c566eed0ebf24f854a8c22d8fdd06a6f16ad01f108dad7f1baaea`,
-		baseCoin: 'SUI',
+		baseCoin: 'IOTA',
 		quoteCoin: 'DBUSDC',
 	},
 	DEEP_DBUSDC: {
@@ -128,14 +129,14 @@ export const testnetPools: PoolMap = {
 };
 
 export const mainnetPools: PoolMap = {
-	DEEP_SUI: {
+	DEEP_IOTA: {
 		address: `0xb663828d6217467c8a1838a03793da896cbe745b150ebd57d82f814ca579fc22`,
 		baseCoin: 'DEEP',
-		quoteCoin: 'SUI',
+		quoteCoin: 'IOTA',
 	},
-	SUI_USDC: {
+	IOTA_USDC: {
 		address: `0xe05dafb5133bcffb8d59f4e12465dc0e9faeaa05e3e342a08fe135800e3e4407`,
-		baseCoin: 'SUI',
+		baseCoin: 'IOTA',
 		quoteCoin: 'USDC',
 	},
 	DEEP_USDC: {
@@ -163,19 +164,19 @@ export const mainnetPools: PoolMap = {
 		baseCoin: 'NS',
 		quoteCoin: 'USDC',
 	},
-	NS_SUI: {
+	NS_IOTA: {
 		address: `0x27c4fdb3b846aa3ae4a65ef5127a309aa3c1f466671471a806d8912a18b253e8`,
 		baseCoin: 'NS',
-		quoteCoin: 'SUI',
+		quoteCoin: 'IOTA',
 	},
-	TYPUS_SUI: {
+	TYPUS_IOTA: {
 		address: `0xe8e56f377ab5a261449b92ac42c8ddaacd5671e9fec2179d7933dd1a91200eec`,
 		baseCoin: 'TYPUS',
-		quoteCoin: 'SUI',
+		quoteCoin: 'IOTA',
 	},
-	SUI_AUSD: {
+	IOTA_AUSD: {
 		address: `0x183df694ebc852a5f90a959f0f563b82ac9691e42357e9a9fe961d71a1b809c8`,
-		baseCoin: 'SUI',
+		baseCoin: 'IOTA',
 		quoteCoin: 'AUSD',
 	},
 	AUSD_USDC: {

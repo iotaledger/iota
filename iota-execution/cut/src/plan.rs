@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{bail, Context, Result};
@@ -718,7 +719,7 @@ mod tests {
         let cut = fs::canonicalize(env!("CARGO_MANIFEST_DIR")).unwrap();
         let root = discover_root(cut.clone()).unwrap();
 
-        let sui_execution = root.join("sui-execution");
+        let iota_execution = root.join("iota-execution");
         let move_vm_types = root.join("external-crates/move/crates/move-vm-types");
 
         let ws = Workspace::read(&root).unwrap();
@@ -727,14 +728,14 @@ mod tests {
         assert!(ws.members.contains(&cut));
 
         // Other examples
-        assert!(ws.members.contains(&sui_execution));
+        assert!(ws.members.contains(&iota_execution));
         assert!(ws.exclude.contains(&move_vm_types));
     }
 
     #[test]
     fn test_no_workspace() {
         let err = Workspace::read(env!("CARGO_MANIFEST_DIR")).unwrap_err();
-        expect!["No [workspace] found at $PATH/sui-execution/cut/Cargo.toml/Cargo.toml"]
+        expect!["No [workspace] found at $PATH/iota-execution/cut/Cargo.toml/Cargo.toml"]
             .assert_eq(&scrub_path(&format!("{:#}", err), repo_root()));
     }
 
@@ -822,9 +823,9 @@ mod tests {
             ],
             packages: vec![
                 "move-core-types".to_string(),
-                "sui-adapter-latest".to_string(),
-                "sui-execution-cut".to_string(),
-                "sui-verifier-latest".to_string(),
+                "iota-adapter-latest".to_string(),
+                "iota-execution-cut".to_string(),
+                "iota-verifier-latest".to_string(),
             ],
         })
         .unwrap();
@@ -833,33 +834,33 @@ mod tests {
             CutPlan {
                 root: "$PATH",
                 directories: {
-                    "$PATH/sui-execution/cut-cut",
-                    "$PATH/sui-execution/cut-move-core-types",
-                    "$PATH/sui-execution/exec-cut",
+                    "$PATH/iota-execution/cut-cut",
+                    "$PATH/iota-execution/cut-move-core-types",
+                    "$PATH/iota-execution/exec-cut",
                 },
                 packages: {
                     "move-core-types": CutPackage {
                         dst_name: "move-core-types-feature",
                         src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/sui-execution/cut-move-core-types",
+                        dst_path: "$PATH/iota-execution/cut-move-core-types",
                         ws_state: Exclude,
                     },
-                    "sui-adapter-latest": CutPackage {
-                        dst_name: "sui-adapter-feature",
-                        src_path: "$PATH/sui-execution/latest/sui-adapter",
-                        dst_path: "$PATH/sui-execution/exec-cut/sui-adapter",
+                    "iota-adapter-latest": CutPackage {
+                        dst_name: "iota-adapter-feature",
+                        src_path: "$PATH/iota-execution/latest/iota-adapter",
+                        dst_path: "$PATH/iota-execution/exec-cut/iota-adapter",
                         ws_state: Member,
                     },
-                    "sui-execution-cut": CutPackage {
-                        dst_name: "sui-execution-cut-feature",
-                        src_path: "$PATH/sui-execution/cut",
-                        dst_path: "$PATH/sui-execution/cut-cut",
+                    "iota-execution-cut": CutPackage {
+                        dst_name: "iota-execution-cut-feature",
+                        src_path: "$PATH/iota-execution/cut",
+                        dst_path: "$PATH/iota-execution/cut-cut",
                         ws_state: Member,
                     },
-                    "sui-verifier-latest": CutPackage {
-                        dst_name: "sui-verifier-feature",
-                        src_path: "$PATH/sui-execution/latest/sui-verifier",
-                        dst_path: "$PATH/sui-execution/exec-cut/sui-verifier",
+                    "iota-verifier-latest": CutPackage {
+                        dst_name: "iota-verifier-feature",
+                        src_path: "$PATH/iota-execution/latest/iota-verifier",
+                        dst_path: "$PATH/iota-execution/exec-cut/iota-verifier",
                         ws_state: Member,
                     },
                 },
@@ -870,22 +871,22 @@ mod tests {
             Copying packages in: $PATH
 
             new [workspace] members:
-             - to:   sui-adapter-feature
-                     sui-execution/exec-cut/sui-adapter
-               from: sui-adapter-latest
-                     sui-execution/latest/sui-adapter
-             - to:   sui-execution-cut-feature
-                     sui-execution/cut-cut
-               from: sui-execution-cut
-                     sui-execution/cut
-             - to:   sui-verifier-feature
-                     sui-execution/exec-cut/sui-verifier
-               from: sui-verifier-latest
-                     sui-execution/latest/sui-verifier
+             - to:   iota-adapter-feature
+                     iota-execution/exec-cut/iota-adapter
+               from: iota-adapter-latest
+                     iota-execution/latest/iota-adapter
+             - to:   iota-execution-cut-feature
+                     iota-execution/cut-cut
+               from: iota-execution-cut
+                     iota-execution/cut
+             - to:   iota-verifier-feature
+                     iota-execution/exec-cut/iota-verifier
+               from: iota-verifier-latest
+                     iota-execution/latest/iota-verifier
 
             new [workspace] excludes:
              - to:   move-core-types-feature
-                     sui-execution/cut-move-core-types
+                     iota-execution/cut-move-core-types
                from: move-core-types
                      external-crates/move/crates/move-core-types
 
@@ -924,9 +925,9 @@ mod tests {
             ],
             packages: vec![
                 "move-core-types".to_string(),
-                "sui-adapter-latest".to_string(),
-                "sui-execution-cut".to_string(),
-                "sui-verifier-latest".to_string(),
+                "iota-adapter-latest".to_string(),
+                "iota-execution-cut".to_string(),
+                "iota-verifier-latest".to_string(),
             ],
         })
         .unwrap();
@@ -935,31 +936,31 @@ mod tests {
             CutPlan {
                 root: "$PATH",
                 directories: {
-                    "$PATH/sui-execution/feature",
+                    "$PATH/iota-execution/feature",
                 },
                 packages: {
                     "move-core-types": CutPackage {
                         dst_name: "move-core-types-feature",
                         src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/sui-execution/feature/move/crates/move-core-types",
+                        dst_path: "$PATH/iota-execution/feature/move/crates/move-core-types",
                         ws_state: Exclude,
                     },
-                    "sui-adapter-latest": CutPackage {
-                        dst_name: "sui-adapter-feature",
-                        src_path: "$PATH/sui-execution/latest/sui-adapter",
-                        dst_path: "$PATH/sui-execution/feature/sui-adapter",
+                    "iota-adapter-latest": CutPackage {
+                        dst_name: "iota-adapter-feature",
+                        src_path: "$PATH/iota-execution/latest/iota-adapter",
+                        dst_path: "$PATH/iota-execution/feature/iota-adapter",
                         ws_state: Member,
                     },
-                    "sui-execution-cut": CutPackage {
-                        dst_name: "sui-execution-cut-feature",
-                        src_path: "$PATH/sui-execution/cut",
-                        dst_path: "$PATH/sui-execution/feature/cut",
+                    "iota-execution-cut": CutPackage {
+                        dst_name: "iota-execution-cut-feature",
+                        src_path: "$PATH/iota-execution/cut",
+                        dst_path: "$PATH/iota-execution/feature/cut",
                         ws_state: Member,
                     },
-                    "sui-verifier-latest": CutPackage {
-                        dst_name: "sui-verifier-feature",
-                        src_path: "$PATH/sui-execution/latest/sui-verifier",
-                        dst_path: "$PATH/sui-execution/feature/sui-verifier",
+                    "iota-verifier-latest": CutPackage {
+                        dst_name: "iota-verifier-feature",
+                        src_path: "$PATH/iota-execution/latest/iota-verifier",
+                        dst_path: "$PATH/iota-execution/feature/iota-verifier",
                         ws_state: Member,
                     },
                 },
@@ -1329,9 +1330,9 @@ mod tests {
             ],
             packages: vec![
                 "move-core-types".to_string(),
-                "sui-adapter-latest".to_string(),
-                "sui-execution-cut".to_string(),
-                "sui-verifier-latest".to_string(),
+                "iota-adapter-latest".to_string(),
+                "iota-execution-cut".to_string(),
+                "iota-verifier-latest".to_string(),
             ],
         })
         .unwrap();
@@ -1340,33 +1341,33 @@ mod tests {
             CutPlan {
                 root: "$PATH",
                 directories: {
-                    "$PATH/sui-execution/cut-cut",
-                    "$PATH/sui-execution/cut-move-core-types",
-                    "$PATH/sui-execution/exec-cut",
+                    "$PATH/iota-execution/cut-cut",
+                    "$PATH/iota-execution/cut-move-core-types",
+                    "$PATH/iota-execution/exec-cut",
                 },
                 packages: {
                     "move-core-types": CutPackage {
                         dst_name: "move-core-types-feature",
                         src_path: "$PATH/external-crates/move/crates/move-core-types",
-                        dst_path: "$PATH/sui-execution/cut-move-core-types",
+                        dst_path: "$PATH/iota-execution/cut-move-core-types",
                         ws_state: Unknown,
                     },
-                    "sui-adapter-latest": CutPackage {
-                        dst_name: "sui-adapter-feature",
-                        src_path: "$PATH/sui-execution/latest/sui-adapter",
-                        dst_path: "$PATH/sui-execution/exec-cut/sui-adapter",
+                    "iota-adapter-latest": CutPackage {
+                        dst_name: "iota-adapter-feature",
+                        src_path: "$PATH/iota-execution/latest/iota-adapter",
+                        dst_path: "$PATH/iota-execution/exec-cut/iota-adapter",
                         ws_state: Unknown,
                     },
-                    "sui-execution-cut": CutPackage {
-                        dst_name: "sui-execution-cut-feature",
-                        src_path: "$PATH/sui-execution/cut",
-                        dst_path: "$PATH/sui-execution/cut-cut",
+                    "iota-execution-cut": CutPackage {
+                        dst_name: "iota-execution-cut-feature",
+                        src_path: "$PATH/iota-execution/cut",
+                        dst_path: "$PATH/iota-execution/cut-cut",
                         ws_state: Unknown,
                     },
-                    "sui-verifier-latest": CutPackage {
-                        dst_name: "sui-verifier-feature",
-                        src_path: "$PATH/sui-execution/latest/sui-verifier",
-                        dst_path: "$PATH/sui-execution/exec-cut/sui-verifier",
+                    "iota-verifier-latest": CutPackage {
+                        dst_name: "iota-verifier-feature",
+                        src_path: "$PATH/iota-execution/latest/iota-verifier",
+                        dst_path: "$PATH/iota-execution/exec-cut/iota-verifier",
                         ws_state: Unknown,
                     },
                 },

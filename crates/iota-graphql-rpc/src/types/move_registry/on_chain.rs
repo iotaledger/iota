@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
@@ -8,9 +9,9 @@ use move_core_types::language_storage::StructTag;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use sui_json_rpc::name_service::{validate_label, Domain};
-use sui_types::{
-    base_types::{ObjectID, SuiAddress},
+use iota_json_rpc::name_service::{validate_label, Domain};
+use iota_types::{
+    base_types::{ObjectID, IotaAddress},
     collection_types::VecMap,
     dynamic_field::Field,
     id::ID,
@@ -74,7 +75,7 @@ pub(crate) struct AppRecord {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub(crate) struct AppInfo {
     pub(crate) package_info_id: Option<ID>,
-    pub(crate) package_address: Option<SuiAddress>,
+    pub(crate) package_address: Option<IotaAddress>,
     pub(crate) upgrade_cap_id: Option<ID>,
 }
 
@@ -102,7 +103,7 @@ impl Name {
         }
     }
 
-    pub(crate) fn type_(package_address: SuiAddress) -> StructTag {
+    pub(crate) fn type_(package_address: IotaAddress) -> StructTag {
         StructTag {
             address: package_address.into(),
             module: MOVE_REGISTRY_MODULE.to_owned(),
@@ -126,9 +127,9 @@ impl Name {
     ) -> Result<ObjectID, bcs::Error> {
         let domain_type_tag = Self::type_(config.package_address);
 
-        sui_types::dynamic_field::derive_dynamic_field_id(
+        iota_types::dynamic_field::derive_dynamic_field_id(
             config.registry_id,
-            &sui_types::TypeTag::Struct(Box::new(domain_type_tag)),
+            &iota_types::TypeTag::Struct(Box::new(domain_type_tag)),
             &self.to_bytes(),
         )
     }

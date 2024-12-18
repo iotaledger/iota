@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 extern crate core;
@@ -15,7 +16,7 @@ use versions::Versioning;
 
 /// OPEN-RPC documentation following the OpenRPC specification <https://spec.open-rpc.org>
 /// The implementation is partial, only required fields and subset of optional fields
-/// in the specification are implemented catered to Sui's need.
+/// in the specification are implemented catered to Iota's need.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Project {
     openrpc: String,

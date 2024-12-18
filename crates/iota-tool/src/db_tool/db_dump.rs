@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, Ok};
@@ -10,20 +11,20 @@ use std::path::PathBuf;
 use std::str;
 use std::sync::Arc;
 use strum_macros::EnumString;
-use sui_archival::reader::ArchiveReaderBalancer;
-use sui_config::node::AuthorityStorePruningConfig;
-use sui_core::authority::authority_per_epoch_store::AuthorityEpochTables;
-use sui_core::authority::authority_store_pruner::{
+use iota_archival::reader::ArchiveReaderBalancer;
+use iota_config::node::AuthorityStorePruningConfig;
+use iota_core::authority::authority_per_epoch_store::AuthorityEpochTables;
+use iota_core::authority::authority_store_pruner::{
     AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
 };
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::authority::authority_store_types::{StoreData, StoreObject};
-use sui_core::checkpoints::CheckpointStore;
-use sui_core::epoch::committee_store::CommitteeStoreTables;
-use sui_core::jsonrpc_index::IndexStoreTables;
-use sui_core::rpc_index::RpcIndexStore;
-use sui_storage::mutex_table::RwLockTable;
-use sui_types::base_types::{EpochId, ObjectID};
+use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+use iota_core::authority::authority_store_types::{StoreData, StoreObject};
+use iota_core::checkpoints::CheckpointStore;
+use iota_core::epoch::committee_store::CommitteeStoreTables;
+use iota_core::jsonrpc_index::IndexStoreTables;
+use iota_core::rpc_index::RpcIndexStore;
+use iota_storage::mutex_table::RwLockTable;
+use iota_types::base_types::{EpochId, ObjectID};
 use tracing::info;
 use typed_store::rocks::{default_db_options, MetricConf};
 use typed_store::rocksdb::MultiThreaded;
@@ -311,8 +312,8 @@ pub fn dump_table(
 
 #[cfg(test)]
 mod test {
-    use sui_core::authority::authority_per_epoch_store::AuthorityEpochTables;
-    use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
+    use iota_core::authority::authority_per_epoch_store::AuthorityEpochTables;
+    use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
 
     use crate::db_tool::db_dump::{dump_table, list_tables, StoreName};
 

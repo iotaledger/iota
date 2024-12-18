@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod autocomplete;
@@ -15,5 +16,5 @@ pub fn get_api_server() -> String {
         return api_server.to_string();
     }
 
-    "https://meta-svc.api.mystenlabs.com".to_string()
+    "https://meta-svc.api.iota.org".to_string()
 }

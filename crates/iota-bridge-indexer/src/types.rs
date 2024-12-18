@@ -1,23 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_json_rpc_types::{
-    SuiTransactionBlockEffects, SuiTransactionBlockEvents, SuiTransactionBlockResponse,
+use iota_json_rpc_types::{
+    IotaTransactionBlockEffects, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
 };
-use sui_types::digests::TransactionDigest;
+use iota_types::digests::TransactionDigest;
 
 #[derive(Clone)]
 pub struct RetrievedTransaction {
     pub tx_digest: TransactionDigest,
-    pub events: SuiTransactionBlockEvents,
+    pub events: IotaTransactionBlockEvents,
     pub checkpoint: u64,
     pub timestamp_ms: u64,
-    pub effects: SuiTransactionBlockEffects,
+    pub effects: IotaTransactionBlockEffects,
 }
 
-impl TryFrom<SuiTransactionBlockResponse> for RetrievedTransaction {
+impl TryFrom<IotaTransactionBlockResponse> for RetrievedTransaction {
     type Error = anyhow::Error;
-    fn try_from(response: SuiTransactionBlockResponse) -> Result<Self, Self::Error> {
+    fn try_from(response: IotaTransactionBlockResponse) -> Result<Self, Self::Error> {
         Ok(RetrievedTransaction {
             tx_digest: response.digest,
             events: response

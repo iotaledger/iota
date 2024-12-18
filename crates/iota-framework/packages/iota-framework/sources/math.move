@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// DEPRECATED, use the each integer type's individual module instead, e.g. `std::u64`
 #[deprecated(note = b"Use the each integer type's individual module instead, e.g. `std::u64`")]
-module sui::math;
+module iota::math;
 
 /// DEPRECATED, use `std::u64::max` instead
 public fun max(x: u64, y: u64): u64 {

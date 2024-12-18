@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 mod checked {
 
     use std::{
@@ -36,28 +37,28 @@ mod checked {
     };
     use move_vm_types::loaded_data::runtime_types::{CachedDatatype, Type};
     use serde::{de::DeserializeSeed, Deserialize};
-    use sui_move_natives::object_runtime::ObjectRuntime;
-    use sui_protocol_config::ProtocolConfig;
-    use sui_types::execution_config_utils::to_binary_config;
-    use sui_types::execution_status::{CommandArgumentError, PackageUpgradeError};
-    use sui_types::storage::{get_package_objects, PackageObject};
-    use sui_types::{
+    use iota_move_natives::object_runtime::ObjectRuntime;
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::execution_config_utils::to_binary_config;
+    use iota_types::execution_status::{CommandArgumentError, PackageUpgradeError};
+    use iota_types::storage::{get_package_objects, PackageObject};
+    use iota_types::{
         base_types::{
-            MoveObjectType, ObjectID, SuiAddress, TxContext, TxContextKind, RESOLVED_ASCII_STR,
+            MoveObjectType, ObjectID, IotaAddress, TxContext, TxContextKind, RESOLVED_ASCII_STR,
             RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME,
         },
         coin::Coin,
         error::{command_argument_error, ExecutionError, ExecutionErrorKind},
-        id::{RESOLVED_SUI_ID, UID},
+        id::{RESOLVED_IOTA_ID, UID},
         metrics::LimitsMetrics,
         move_package::{
             normalize_deserialized_modules, MovePackage, TypeOrigin, UpgradeCap, UpgradePolicy,
             UpgradeReceipt, UpgradeTicket,
         },
         transaction::{Argument, Command, ProgrammableMoveCall, ProgrammableTransaction},
-        SUI_FRAMEWORK_ADDRESS,
+        IOTA_FRAMEWORK_ADDRESS,
     };
-    use sui_verifier::{
+    use iota_verifier::{
         private_generics::{EVENT_MODULE, PRIVATE_TRANSFER_FUNCTIONS, TRANSFER_MODULE},
         INIT_FN_NAME,
     };
@@ -200,7 +201,7 @@ mod checked {
                     .enumerate()
                     .map(|(idx, arg)| context.by_value_arg(CommandKind::TransferObjects, idx, arg))
                     .collect::<Result<_, _>>()?;
-                let addr: SuiAddress =
+                let addr: IotaAddress =
                     context.by_value_arg(CommandKind::TransferObjects, objs.len(), addr_arg)?;
                 for obj in objs {
                     obj.ensure_public_transfer_eligible()?;
@@ -885,7 +886,7 @@ mod checked {
         package_id: ObjectID,
         modules: &[CompiledModule],
     ) -> Result<(), ExecutionError> {
-        // TODO(https://github.com/MystenLabs/sui/issues/69): avoid this redundant serialization by exposing VM API that allows us to run the linker directly on `Vec<CompiledModule>`
+        // TODO(https://github.com/iotaledger/iota/issues/69): avoid this redundant serialization by exposing VM API that allows us to run the linker directly on `Vec<CompiledModule>`
         let new_module_bytes: Vec<_> = modules
             .iter()
             .map(|m| {
@@ -905,11 +906,11 @@ mod checked {
             )
             .map_err(|e| context.convert_vm_error(e))?;
 
-        // run the Sui verifier
+        // run the Iota verifier
         for module in modules {
-            // Run Sui bytecode verifier, which runs some additional checks that assume the Move
+            // Run Iota bytecode verifier, which runs some additional checks that assume the Move
             // bytecode verifier has passed.
-            sui_verifier::verifier::sui_verify_module_unmetered(
+            iota_verifier::verifier::iota_verify_module_unmetered(
                 context.protocol_config,
                 module,
                 &BTreeMap::new(),
@@ -1196,19 +1197,19 @@ mod checked {
         _type_arguments: &[Type],
     ) -> Result<(), ExecutionError> {
         let module_ident = (module_id.address(), module_id.name());
-        if module_ident == (&SUI_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
-                format!("Cannot directly call functions in sui::{}", EVENT_MODULE),
+                format!("Cannot directly call functions in iota::{}", EVENT_MODULE),
             ));
         }
 
-        if module_ident == (&SUI_FRAMEWORK_ADDRESS, TRANSFER_MODULE)
+        if module_ident == (&IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE)
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
             let msg = format!(
-                "Cannot directly call sui::{m}::{f}. \
-            Use the public variant instead, sui::{m}::public_{f}",
+                "Cannot directly call iota::{m}::{f}. \
+            Use the public variant instead, iota::{m}::public_{f}",
                 m = TRANSFER_MODULE,
                 f = function
             );
@@ -1422,7 +1423,7 @@ mod checked {
             invariant_violation!("Loaded struct not found")
         };
         let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
-        let is_tx_context_type = module_addr == &SUI_FRAMEWORK_ADDRESS
+        let is_tx_context_type = module_addr == &IOTA_FRAMEWORK_ADDRESS
             && module_name == TX_CONTEXT_MODULE_NAME
             && struct_name == TX_CONTEXT_STRUCT_NAME;
         Ok(if is_tx_context_type {
@@ -1478,7 +1479,7 @@ mod checked {
                     invariant_violation!("Loaded struct not found")
                 };
                 let resolved_struct = get_datatype_ident(&s);
-                if resolved_struct == RESOLVED_SUI_ID {
+                if resolved_struct == RESOLVED_IOTA_ID {
                     Some(PrimitiveArgumentLayout::Address)
                 } else if resolved_struct == RESOLVED_ASCII_STR {
                     Some(PrimitiveArgumentLayout::Ascii)
@@ -1620,7 +1621,7 @@ mod checked {
                     Ok(())
                 }
                 PrimitiveArgumentLayout::Address => {
-                    SuiAddress::deserialize(deserializer)?;
+                    IotaAddress::deserialize(deserializer)?;
                     Ok(())
                 }
             }

@@ -1,4 +1,4 @@
-# Sui Network Docker Compose
+# Iota Network Docker Compose
 
 This was tested using MacOS 14.3.1, Docker Compose: v2.13.0.
 
@@ -10,22 +10,22 @@ Steps for running:
 
 ```
 cd docker/stress
-docker build -t stress:testing --build-arg SUI_TOOLS_IMAGE_TAG=mainnet-v1.19.1 .
+docker build -t stress:testing --build-arg IOTA_TOOLS_IMAGE_TAG=mainnet-v1.19.1 .
 ```
 
 2. run compose
 
 ```
-(optional) `rm -r /tmp/sui`
+(optional) `rm -r /tmp/iota`
 docker compose up
 ```
 
 
 **additional info**
-The version of `sui` which is used to generate the genesis outputs much be on the same protocol version as the fullnode/validators (eg: `mysten/sui-node:mainnet-v1.19.1`)
-Here's an example of how to build a `sui` binary that creates a genesis which is compatible with the release: `v1.19.1`
+The version of `iota` which is used to generate the genesis outputs much be on the same protocol version as the fullnode/validators (eg: `iotaledger/iota-node:mainnet-v1.19.1`)
+Here's an example of how to build a `iota` binary that creates a genesis which is compatible with the release: `v1.19.1`
 ```
-git checkout releases/sui-v1.19.0-release
-cargo build --bin sui
+git checkout releases/iota-v1.19.0-release
+cargo build --bin iota
 ```
-you can also use `sui-network/Dockerfile` for building genesis
+you can also use `iota-network/Dockerfile` for building genesis

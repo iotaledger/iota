@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use clap::Parser;
-use suioplib::{
+use iotaoplib::{
     cli::{
         ci_cmd, docker_cmd, iam_cmd, incidents_cmd, load_environment_cmd, pulumi_cmd,
         service::ServiceAction, service_cmd, CIArgs, DockerArgs, IAMArgs, IncidentsArgs,
@@ -18,8 +19,8 @@ use tracing_subscriber::{
 };
 
 #[derive(Parser, Debug)]
-#[command(author="build@mystenlabs.com", version, about, long_about = None)]
-pub(crate) struct SuiOpArgs {
+#[command(author="build@iota.org", version, about, long_about = None)]
+pub(crate) struct IotaOpArgs {
     /// The resource type we're operating on.
     #[command(subcommand)]
     resource: Resource,
@@ -57,11 +58,11 @@ async fn main() -> Result<()> {
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    // Load environment variables from ~/.suiop/env_vars
+    // Load environment variables from ~/.iotaop/env_vars
     debug!("loading environment variables");
     let home_dir = std::env::var("HOME").expect("HOME environment variable not set");
     let env_file_path = std::path::Path::new(&home_dir)
-        .join(".suiop")
+        .join(".iotaop")
         .join("env_vars");
 
     if let Ok(env_contents) = std::fs::read_to_string(env_file_path) {
@@ -72,14 +73,14 @@ async fn main() -> Result<()> {
             }
         }
     } else {
-        warn!("Warning: Could not read ~/.suiop/env_vars file. Environment variables not loaded.");
+        warn!("Warning: Could not read ~/.iotaop/env_vars file. Environment variables not loaded.");
     }
 
     if *DEBUG_MODE {
         info!("Debug mode enabled");
     }
 
-    let args = SuiOpArgs::parse();
+    let args = IotaOpArgs::parse();
     match args.resource {
         Resource::Docker(args) => {
             docker_cmd(&args).await?;

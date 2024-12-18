@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toBase58 } from '@mysten/bcs';
+import { toBase58 } from '@iota/bcs';
 import type { InferInput } from 'valibot';
 import { parse } from 'valibot';
 
 import { bcs } from '../bcs/index.js';
-import { normalizeSuiAddress } from '../utils/sui-types.js';
+import { normalizeIotaAddress } from '../utils/iota-types.js';
 import type {
 	Argument,
 	CallArg,
@@ -20,8 +21,8 @@ import type { SerializedTransactionDataV1 } from './data/v1.js';
 import type { SerializedTransactionDataV2 } from './data/v2.js';
 import { hashTypedData } from './hash.js';
 
-function prepareSuiAddress(address: string) {
-	return normalizeSuiAddress(address).replace('0x', '');
+function prepareIotaAddress(address: string) {
+	return normalizeIotaAddress(address).replace('0x', '');
 }
 
 export class TransactionDataBuilder implements TransactionData {
@@ -173,11 +174,11 @@ export class TransactionDataBuilder implements TransactionData {
 		}
 
 		const transactionData = {
-			sender: prepareSuiAddress(sender),
+			sender: prepareIotaAddress(sender),
 			expiration: expiration ? expiration : { None: true },
 			gasData: {
 				payment: gasData.payment,
-				owner: prepareSuiAddress(this.gasData.owner ?? sender),
+				owner: prepareIotaAddress(this.gasData.owner ?? sender),
 				price: BigInt(gasData.price),
 				budget: BigInt(gasData.budget),
 			},

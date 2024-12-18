@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module coin_deny_list_v1::regulated_coin {
     use std::option;
-    use sui::coin;
-    use sui::object::UID;
-    use sui::transfer;
-    use sui::tx_context;
-    use sui::tx_context::TxContext;
+    use iota::coin;
+    use iota::object::UID;
+    use iota::transfer;
+    use iota::tx_context;
+    use iota::tx_context::TxContext;
 
     public struct REGULATED_COIN has drop {}
 

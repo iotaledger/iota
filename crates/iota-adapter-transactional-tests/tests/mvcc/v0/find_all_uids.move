@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests finding UIDs for dynamic field access
@@ -8,7 +9,7 @@
 //# publish
 
 module test::m {
-    use sui::dynamic_field as field;
+    use iota::dynamic_field as field;
 
     public struct S has key, store {
         id: UID,

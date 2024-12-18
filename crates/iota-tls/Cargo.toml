@@ -1,8 +1,8 @@
 [package]
-name = "sui-tls"
+name = "iota-tls"
 version = "0.0.0"
 license = "Apache-2.0"
-authors = ["Brandon Williams <brandon@mystenlabs.com>"]
+authors = ["Brandon Williams <brandon@iota.org>"]
 description = "tools for rustls-based certificate generation and verification"
 edition = "2021"
 publish = false

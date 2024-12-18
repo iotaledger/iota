@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use sui_single_node_benchmark::command::Command;
-use sui_single_node_benchmark::run_benchmark;
-use sui_single_node_benchmark::workload::Workload;
+use iota_single_node_benchmark::command::Command;
+use iota_single_node_benchmark::run_benchmark;
+use iota_single_node_benchmark::workload::Workload;
 
 #[tokio::main]
 async fn main() {
     let _guard = telemetry_subscribers::TelemetryConfig::new()
-        .with_log_level("off,sui_single_node_benchmark=info")
+        .with_log_level("off,iota_single_node_benchmark=info")
         .with_env()
         .init();
 

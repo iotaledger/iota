@@ -31,7 +31,7 @@ Authenticator:
     0:
       SingleOwner:
         NEWTYPE:
-          TYPENAME: SuiAddress
+          TYPENAME: IotaAddress
 AuthenticatorStateExpire:
   STRUCT:
     - min_epoch: U64
@@ -114,7 +114,7 @@ CheckpointContentsV1:
 CheckpointData:
   STRUCT:
     - checkpoint_summary:
-        TYPENAME: "sui_types::message_envelope::Envelope<sui_types::messages_checkpoint::CheckpointSummary, sui_types::crypto::AuthorityQuorumSignInfo<true>>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>"
     - checkpoint_contents:
         TYPENAME: CheckpointContents
     - transactions:
@@ -147,7 +147,7 @@ CheckpointSummary:
 CheckpointTransaction:
   STRUCT:
     - transaction:
-        TYPENAME: "sui_types::message_envelope::Envelope<sui_types::transaction::SenderSignedData, sui_types::crypto::EmptySignInfo>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
     - events:
@@ -384,14 +384,14 @@ Event:
         TYPENAME: ObjectID
     - transaction_module: STR
     - sender:
-        TYPENAME: SuiAddress
+        TYPENAME: IotaAddress
     - type_:
         TYPENAME: StructTag
     - contents: BYTES
 ExecutionData:
   STRUCT:
     - transaction:
-        TYPENAME: "sui_types::message_envelope::Envelope<sui_types::transaction::SenderSignedData, sui_types::crypto::EmptySignInfo>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
 ExecutionDigests:
@@ -432,7 +432,7 @@ ExecutionFailureStatus:
     9:
       PublishErrorNonZeroAddress: UNIT
     10:
-      SuiMoveVerificationError: UNIT
+      IotaMoveVerificationError: UNIT
     11:
       MovePrimitiveRuntimeError:
         NEWTYPE:
@@ -499,7 +499,7 @@ ExecutionFailureStatus:
     29:
       CertificateDenied: UNIT
     30:
-      SuiMoveVerificationTimedout: UNIT
+      IotaMoveVerificationTimedout: UNIT
     31:
       SharedObjectOperationNotAllowed: UNIT
     32:
@@ -513,7 +513,7 @@ ExecutionFailureStatus:
       AddressDeniedForCoin:
         STRUCT:
           - address:
-              TYPENAME: SuiAddress
+              TYPENAME: IotaAddress
           - coin_type: STR
     35:
       CoinTypeGlobalPause:
@@ -556,7 +556,7 @@ GasData:
             - TYPENAME: SequenceNumber
             - TYPENAME: ObjectDigest
     - owner:
-        TYPENAME: SuiAddress
+        TYPENAME: IotaAddress
     - price: U64
     - budget: U64
 GenericSignature:
@@ -642,7 +642,7 @@ MoveObjectType_:
     1:
       GasCoin: UNIT
     2:
-      StakedSui: UNIT
+      StakedIota: UNIT
     3:
       Coin:
         NEWTYPE:
@@ -762,11 +762,11 @@ Owner:
     0:
       AddressOwner:
         NEWTYPE:
-          TYPENAME: SuiAddress
+          TYPENAME: IotaAddress
     1:
       ObjectOwner:
         NEWTYPE:
-          TYPENAME: SuiAddress
+          TYPENAME: IotaAddress
     2:
       Shared:
         STRUCT:
@@ -899,7 +899,7 @@ StructTag:
     - type_args:
         SEQ:
           TYPENAME: TypeTag
-SuiAddress:
+IotaAddress:
   NEWTYPESTRUCT:
     TUPLEARRAY:
       CONTENT: U8
@@ -915,7 +915,7 @@ TransactionDataV1:
     - kind:
         TYPENAME: TransactionKind
     - sender:
-        TYPENAME: SuiAddress
+        TYPENAME: IotaAddress
     - gas_data:
         TYPENAME: GasData
     - expiration:
@@ -1216,13 +1216,13 @@ ZkLoginAuthenticatorAsBytes:
 ZkLoginPublicIdentifier:
   NEWTYPESTRUCT:
     SEQ: U8
-"sui_types::message_envelope::Envelope<sui_types::messages_checkpoint::CheckpointSummary, sui_types::crypto::AuthorityQuorumSignInfo<true>>":
+"iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
   STRUCT:
     - data:
         TYPENAME: CheckpointSummary
     - auth_signature:
         TYPENAME: AuthorityQuorumSignInfo
-"sui_types::message_envelope::Envelope<sui_types::transaction::SenderSignedData, sui_types::crypto::EmptySignInfo>":
+"iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>":
   STRUCT:
     - data:
         TYPENAME: SenderSignedData

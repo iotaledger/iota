@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Tab } from '@headlessui/react';
-import { useCurrentAccount } from '@mysten/dapp-kit';
-import { formatAddress } from '@mysten/sui/utils';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 
 import { useKioskDetails } from '../../hooks/kiosk';
 import { useWithdrawMutation } from '../../mutations/kiosk';
 import { TANSTACK_KIOSK_DATA_KEY } from '../../utils/constants';
-import { formatSui, mistToSui } from '../../utils/utils';
+import { formatIota, nanosToIota } from '../../utils/utils';
 import { Button } from '../Base/Button';
 import { ExplorerLink } from '../Base/ExplorerLink';
 import { Loading } from '../Base/Loading';
@@ -32,7 +33,7 @@ export function KioskData({ kioskId }: { kioskId: string }) {
 		},
 	});
 
-	const profits = formatSui(mistToSui(kiosk?.profits));
+	const profits = formatIota(nanosToIota(kiosk?.profits));
 
 	if (isPending) return <Loading />;
 	return (
@@ -49,7 +50,7 @@ export function KioskData({ kioskId }: { kioskId: string }) {
 						</div>
 						<div className="mt-2">Items Count: {kiosk.itemCount}</div>
 						<div className="mt-2">
-							Profits: {profits} SUI
+							Profits: {profits} IOTA
 							{Number(kiosk.profits) > 0 && (
 								<Button
 									loading={withdrawMutation.isPending}

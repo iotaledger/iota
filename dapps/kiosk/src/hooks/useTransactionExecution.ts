@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSignTransaction, useSuiClient } from '@mysten/dapp-kit';
-import { SuiTransactionBlockResponseOptions } from '@mysten/sui/client';
-import { Transaction } from '@mysten/sui/transactions';
+import { useSignTransaction, useIotaClient } from '@iota/dapp-kit';
+import { IotaTransactionBlockResponseOptions } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
 // A helper to execute transactions by:
 // 1. Signing them using the wallet
 // 2. Executing them using the rpc provider
 export function useTransactionExecution() {
-	const provider = useSuiClient();
+	const provider = useIotaClient();
 
 	// sign transaction from the wallet
 	const { mutateAsync: signTransaction } = useSignTransaction();
@@ -20,7 +21,7 @@ export function useTransactionExecution() {
 		options = { showEffects: true },
 	}: {
 		tx: Transaction;
-		options?: SuiTransactionBlockResponseOptions | undefined;
+		options?: IotaTransactionBlockResponseOptions | undefined;
 	}) => {
 		const signedTx = await signTransaction({ transaction: tx });
 

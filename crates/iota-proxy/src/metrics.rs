@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use axum::{extract::Extension, http::StatusCode, routing::get, Router};
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use prometheus::{Registry, TextEncoder};
 use std::net::TcpListener;
 use std::sync::{Arc, RwLock};
@@ -66,7 +67,7 @@ pub fn start_prometheus_server(listener: TcpListener) -> RegistryService {
     registry_service
 }
 
-// DO NOT remove this handler, it is not compatible with the mysten_metrics::metric equivalent
+// DO NOT remove this handler, it is not compatible with the iota_metrics::metric equivalent
 async fn metrics(
     Extension(registry_service): Extension<RegistryService>,
     Extension(pod_health): Extension<HealthCheckMetrics>,

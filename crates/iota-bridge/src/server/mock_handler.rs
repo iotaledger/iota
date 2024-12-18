@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! A mock implementation for `BridgeRequestHandlerTrait`
@@ -20,7 +21,7 @@ use crate::types::SignedBridgeAction;
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use axum::Json;
-use sui_types::digests::TransactionDigest;
+use iota_types::digests::TransactionDigest;
 
 use super::handler::BridgeRequestHandlerTrait;
 use super::make_router;
@@ -29,43 +30,43 @@ use super::make_router;
 #[derive(Clone)]
 pub struct BridgeRequestMockHandler {
     signer: Arc<ArcSwap<Option<BridgeAuthorityKeyPair>>>,
-    sui_token_events: Arc<
+    iota_token_events: Arc<
         Mutex<
             HashMap<(TransactionDigest, u16), (BridgeResult<SignedBridgeAction>, Option<Duration>)>,
         >,
     >,
-    sui_token_events_requested: Arc<Mutex<HashMap<(TransactionDigest, u16), u64>>>,
+    iota_token_events_requested: Arc<Mutex<HashMap<(TransactionDigest, u16), u64>>>,
 }
 
 impl BridgeRequestMockHandler {
     pub fn new() -> Self {
         Self {
             signer: Arc::new(ArcSwap::new(Arc::new(None))),
-            sui_token_events: Arc::new(Mutex::new(HashMap::new())),
-            sui_token_events_requested: Arc::new(Mutex::new(HashMap::new())),
+            iota_token_events: Arc::new(Mutex::new(HashMap::new())),
+            iota_token_events_requested: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    pub fn add_sui_event_response(
+    pub fn add_iota_event_response(
         &self,
         tx_digest: TransactionDigest,
         idx: u16,
         response: BridgeResult<SignedBridgeAction>,
         delay: Option<Duration>,
     ) {
-        self.sui_token_events
+        self.iota_token_events
             .lock()
             .unwrap()
             .insert((tx_digest, idx), (response, delay));
     }
 
-    pub fn get_sui_token_events_requested(
+    pub fn get_iota_token_events_requested(
         &self,
         tx_digest: TransactionDigest,
         event_index: u16,
     ) -> u64 {
         *self
-            .sui_token_events_requested
+            .iota_token_events_requested
             .lock()
             .unwrap()
             .get(&(tx_digest, event_index))
@@ -93,7 +94,7 @@ impl BridgeRequestHandlerTrait for BridgeRequestMockHandler {
         unimplemented!()
     }
 
-    async fn handle_sui_tx_digest(
+    async fn handle_iota_tx_digest(
         &self,
         tx_digest_base58: String,
         event_idx: u16,
@@ -101,15 +102,15 @@ impl BridgeRequestHandlerTrait for BridgeRequestMockHandler {
         let tx_digest = TransactionDigest::from_str(&tx_digest_base58)
             .map_err(|_e| BridgeError::InvalidTxHash)?;
         let (result, delay) = {
-            let preset = self.sui_token_events.lock().unwrap();
+            let preset = self.iota_token_events.lock().unwrap();
             if !preset.contains_key(&(tx_digest, event_idx)) {
                 // Ok to panic in test
                 panic!(
-                    "No preset handle_sui_tx_digest result for tx_digest: {}, event_idx: {}",
+                    "No preset handle_iota_tx_digest result for tx_digest: {}, event_idx: {}",
                     tx_digest, event_idx
                 );
             }
-            let mut requested = self.sui_token_events_requested.lock().unwrap();
+            let mut requested = self.iota_token_events_requested.lock().unwrap();
             let entry = requested.entry((tx_digest, event_idx)).or_default();
             *entry += 1;
             let (result, delay) = preset.get(&(tx_digest, event_idx)).unwrap();
@@ -118,7 +119,7 @@ impl BridgeRequestHandlerTrait for BridgeRequestMockHandler {
         if let Some(delay) = delay {
             tokio::time::sleep(delay).await;
         }
-        let signed_action: sui_types::message_envelope::Envelope<
+        let signed_action: iota_types::message_envelope::Envelope<
             crate::types::BridgeAction,
             crate::crypto::BridgeAuthoritySignInfo,
         > = result?;

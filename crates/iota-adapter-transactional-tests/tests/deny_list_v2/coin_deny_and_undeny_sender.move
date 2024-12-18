@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test verifies the basic e2e work flow of coin deny list v2 for the sender.
@@ -12,8 +13,8 @@
 
 //# publish --sender A
 module test::regulated_coin {
-    use sui::coin;
-    use sui::deny_list::DenyList;
+    use iota::coin;
+    use iota::deny_list::DenyList;
 
     public struct REGULATED_COIN has drop {}
 
@@ -49,10 +50,10 @@ module test::regulated_coin {
 //# view-object 1,3
 
 // Transfer away the newly minted coin works normally.
-//# run sui::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::pay::split_and_transfer --args object(1,1) 1 @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Deny account B.
-//# run sui::coin::deny_list_v2_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that the address is denied.
 //# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B true --sender A
@@ -61,10 +62,10 @@ module test::regulated_coin {
 //# transfer-object 3,0 --sender B --recipient A
 
 // Try using the coin in a Move call. This should also be denied.
-//# run sui::pay::split_and_transfer --args object(3,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
+//# run iota::pay::split_and_transfer --args object(3,0) 1 @A --type-args test::regulated_coin::REGULATED_COIN --sender B
 
 // Undeny account B.
-//# run sui::coin::deny_list_v2_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Assert that the address is no longer denied.
 //# run test::regulated_coin::assert_address_deny_status --args immshared(0x403) @B false --sender A

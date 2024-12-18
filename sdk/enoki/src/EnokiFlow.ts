@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient } from '@mysten/sui/client';
-import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import type { Transaction } from '@mysten/sui/transactions';
-import { fromBase64, toBase64 } from '@mysten/sui/utils';
-import type { ZkLoginSignatureInputs } from '@mysten/sui/zklogin';
+import type { IotaClient } from '@iota/iota-sdk/client';
+import { decodeIotaPrivateKey } from '@iota/iota-sdk/cryptography';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import type { Transaction } from '@iota/iota-sdk/transactions';
+import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
+import type { ZkLoginSignatureInputs } from '@iota/iota-sdk/zklogin';
 import { decodeJwt } from 'jose';
 import type { WritableAtom } from 'nanostores';
 import { atom, onMount, onSet } from 'nanostores';
@@ -163,7 +164,7 @@ export class EnokiFlow {
 			expiresAt: estimatedExpiration,
 			maxEpoch,
 			randomness,
-			ephemeralKeyPair: toBase64(decodeSuiPrivateKey(ephemeralKeyPair.getSecretKey()).secretKey),
+			ephemeralKeyPair: toBase64(decodeIotaPrivateKey(ephemeralKeyPair.getSecretKey()).secretKey),
 		});
 
 		return oauthUrl;
@@ -322,7 +323,7 @@ export class EnokiFlow {
 	}: {
 		network?: 'mainnet' | 'testnet';
 		transaction: Transaction;
-		client: SuiClient;
+		client: IotaClient;
 	}) {
 		const session = await this.getSession();
 
@@ -351,7 +352,7 @@ export class EnokiFlow {
 		network?: 'mainnet' | 'testnet';
 		bytes: string;
 		digest: string;
-		client: SuiClient;
+		client: IotaClient;
 	}) {
 		const keypair = await this.getKeypair({ network });
 		const userSignature = await keypair.signTransaction(fromBase64(bytes));
@@ -374,7 +375,7 @@ export class EnokiFlow {
 	}: {
 		network?: 'mainnet' | 'testnet';
 		transaction: Transaction;
-		client: SuiClient;
+		client: IotaClient;
 	}) {
 		const { bytes, digest } = await this.sponsorTransaction({
 			network,

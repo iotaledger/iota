@@ -1,4 +1,4 @@
-# Axelar cross-chain gateway protocol Sui implementation
+# Axelar cross-chain gateway protocol Iota implementation
 
 
 ## Design

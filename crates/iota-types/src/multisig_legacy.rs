@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
     multisig::{MultiSig, MultiSigPublicKey},
     signature::{AuthenticatorTrait, GenericSignature, VerifyParams},
     signature_verification::VerifiedDigestCache,
-    sui_serde::SuiBitmap,
+    iota_serde::IotaBitmap,
 };
 pub use enum_dispatch::enum_dispatch;
 use fastcrypto::{
@@ -27,9 +28,9 @@ use std::{
 };
 
 use crate::{
-    base_types::{EpochId, SuiAddress},
+    base_types::{EpochId, IotaAddress},
     crypto::PublicKey,
-    error::SuiError,
+    error::IotaError,
 };
 
 pub type WeightUnit = u8;
@@ -45,7 +46,7 @@ pub struct MultiSigLegacy {
     sigs: Vec<CompressedSignature>,
     /// A bitmap that indicates the position of which public key the signature should be authenticated with.
     #[schemars(with = "Base64")]
-    #[serde_as(as = "SuiBitmap")]
+    #[serde_as(as = "IotaBitmap")]
     bitmap: RoaringBitmap,
     /// The public key encoded with each public key with its signature scheme used along with the corresponding weight.
     multisig_pk: MultiSigPublicKeyLegacy,
@@ -95,11 +96,11 @@ impl AuthenticatorTrait for MultiSigLegacy {
         &self,
         epoch_id: EpochId,
         max_epoch_upper_bound_delta: Option<u64>,
-    ) -> Result<(), SuiError> {
+    ) -> Result<(), IotaError> {
         let multisig: MultiSig =
             self.clone()
                 .try_into()
-                .map_err(|_| SuiError::InvalidSignature {
+                .map_err(|_| IotaError::InvalidSignature {
                     error: "Invalid legacy multisig".to_string(),
                 })?;
         multisig.verify_user_authenticator_epoch(epoch_id, max_epoch_upper_bound_delta)
@@ -108,17 +109,17 @@ impl AuthenticatorTrait for MultiSigLegacy {
     fn verify_claims<T>(
         &self,
         value: &IntentMessage<T>,
-        author: SuiAddress,
+        author: IotaAddress,
         aux_verify_data: &VerifyParams,
         zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
-    ) -> Result<(), SuiError>
+    ) -> Result<(), IotaError>
     where
         T: Serialize,
     {
         let multisig: MultiSig =
             self.clone()
                 .try_into()
-                .map_err(|_| SuiError::InvalidSignature {
+                .map_err(|_| IotaError::InvalidSignature {
                     error: "Invalid legacy multisig".to_string(),
                 })?;
         multisig.verify_claims(value, author, aux_verify_data, zklogin_inputs_cache)
@@ -165,15 +166,15 @@ impl MultiSigLegacy {
     pub fn combine(
         full_sigs: Vec<GenericSignature>,
         multisig_pk: MultiSigPublicKeyLegacy,
-    ) -> Result<Self, SuiError> {
+    ) -> Result<Self, IotaError> {
         multisig_pk
             .validate()
-            .map_err(|_| SuiError::InvalidSignature {
+            .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid multisig public key".to_string(),
             })?;
 
         if full_sigs.len() > multisig_pk.pk_map.len() || full_sigs.is_empty() {
-            return Err(SuiError::InvalidSignature {
+            return Err(IotaError::InvalidSignature {
                 error: "Invalid number of signatures".to_string(),
             });
         }
@@ -182,12 +183,12 @@ impl MultiSigLegacy {
         for s in full_sigs {
             let pk = s.to_public_key()?;
             let inserted = bitmap.insert(multisig_pk.get_index(&pk).ok_or(
-                SuiError::IncorrectSigner {
+                IotaError::IncorrectSigner {
                     error: format!("pk does not exist: {:?}", pk),
                 },
             )?);
             if !inserted {
-                return Err(SuiError::InvalidSignature {
+                return Err(IotaError::InvalidSignature {
                     error: "Duplicate sigature".to_string(),
                 });
             }
@@ -290,7 +291,7 @@ impl MultiSigPublicKeyLegacy {
         pks: Vec<PublicKey>,
         weights: Vec<WeightUnit>,
         threshold: ThresholdUnit,
-    ) -> Result<Self, SuiError> {
+    ) -> Result<Self, IotaError> {
         if pks.is_empty()
             || weights.is_empty()
             || threshold == 0
@@ -303,7 +304,7 @@ impl MultiSigPublicKeyLegacy {
                 .sum::<ThresholdUnit>()
                 < threshold
         {
-            return Err(SuiError::InvalidSignature {
+            return Err(IotaError::InvalidSignature {
                 error: "Invalid multisig public key construction".to_string(),
             });
         }

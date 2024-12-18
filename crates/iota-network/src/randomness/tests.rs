@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{randomness::*, utils};
 use fastcrypto::{groups::bls12381, serde_helpers::ToFromByteArray};
 use fastcrypto_tbls::{mocked_dkg, nodes};
 use std::collections::BTreeSet;
-use sui_swarm_config::test_utils::CommitteeFixture;
-use sui_types::{
+use iota_swarm_config::test_utils::CommitteeFixture;
+use iota_types::{
     base_types::ConciseableName,
     committee::Committee,
     crypto::{AuthorityPublicKeyBytes, ToFromBytes},

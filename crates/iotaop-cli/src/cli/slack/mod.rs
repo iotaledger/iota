@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod slack_api;
@@ -31,7 +32,7 @@ fn get_serialize_filepath(subname: &str) -> PathBuf {
         .join(subname)
 }
 
-/// Serialize the obj into ~/.suiop/{subname} so we can cache it across
+/// Serialize the obj into ~/.iotaop/{subname} so we can cache it across
 /// executions
 pub fn serialize_to_file<T: Serialize>(subname: &str, obj: &Vec<T>) -> Result<()> {
     let filepath = get_serialize_filepath(subname);
@@ -44,7 +45,7 @@ pub fn serialize_to_file<T: Serialize>(subname: &str, obj: &Vec<T>) -> Result<()
     Ok(())
 }
 
-/// Check if the file in ~/.suiop/{subname} is less than 1 day old
+/// Check if the file in ~/.iotaop/{subname} is less than 1 day old
 /// and if so, deserialize the value from it.
 ///
 /// Otherwise return None
@@ -127,6 +128,6 @@ impl Slack {
 
 impl Channel {
     pub fn url(self) -> String {
-        format!("https://mysten-labs.slack.com/archives/{}", self.id)
+        format!("https://iota-foundation.slack.com/archives/{}", self.id)
     }
 }

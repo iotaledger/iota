@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { type AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';

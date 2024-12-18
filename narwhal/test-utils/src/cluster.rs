@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::{latest_protocol_version, temp_dir, CommitteeFixture};
 use config::{AuthorityIdentifier, Committee, Parameters, WorkerCache, WorkerId};
@@ -6,8 +7,8 @@ use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::SerializedTransaction;
 use fastcrypto::traits::KeyPair as _;
 use itertools::Itertools;
-use mysten_metrics::RegistryService;
-use mysten_network::multiaddr::Multiaddr;
+use iota_metrics::RegistryService;
+use iota_network_stack::multiaddr::Multiaddr;
 use network::client::NetworkClient;
 use node::primary_node::PrimaryNode;
 use node::worker_node::WorkerNode;
@@ -746,7 +747,7 @@ impl AuthorityDetails {
     ) -> TransactionsClient<Channel> {
         let internal = self.internal.read().await;
 
-        let config = mysten_network::config::Config::new();
+        let config = iota_network_stack::config::Config::new();
         let channel = config
             .connect_lazy(
                 &internal

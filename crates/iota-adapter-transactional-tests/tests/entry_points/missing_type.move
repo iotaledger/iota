@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests invalid type args
@@ -16,7 +17,7 @@ entry fun foo<T>() {}
 
 //# run test::m::foo --type-args test::x::x
 
-//# run test::m::foo --type-args test::m::SUI
+//# run test::m::foo --type-args test::m::IOTA
 
 //# run test::m::foo --type-args test::m::S
 

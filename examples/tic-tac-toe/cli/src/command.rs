@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use sui_types::base_types::{ObjectID, SuiAddress};
+use iota_types::base_types::{ObjectID, IotaAddress};
 
 use crate::{
     client::{Client, Connection},
@@ -84,7 +85,7 @@ impl Command {
                 /* shared */
                 {
                     assert!(!multi_sig);
-                    let opponent = SuiAddress::from_str(&opponent)
+                    let opponent = IotaAddress::from_str(&opponent)
                         .with_context(|| format!("Invalid opponent address {opponent}"))?;
 
                     client.new_shared_game(opponent).await.with_context(|| {

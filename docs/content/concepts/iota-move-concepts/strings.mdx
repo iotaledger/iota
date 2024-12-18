@@ -6,8 +6,8 @@ Move does not have a native type for strings, but it has a useful wrapper.
 
 ```move
 module examples::strings {
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
+    use iota::object::{Self, UID};
+    use iota::tx_context::TxContext;
 
     // Use this dependency to get a type wrapper for UTF-8 strings
     use std::string::{Self, String};

@@ -5,7 +5,7 @@ edition = "2024.beta"
 
 [dependencies]
 B = { local = "../b" }
-Sui = { local = "../../../../../../sui-framework/packages/sui-framework" }
+Iota = { local = "../../../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
 a = "_"

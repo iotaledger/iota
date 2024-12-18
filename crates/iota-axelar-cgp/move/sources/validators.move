@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module axelar::validators {
     use std::string::{Self, String};
     use std::vector;
 
-    use sui::table::{Self, Table};
-    use sui::address;
-    use sui::bcs;
-    use sui::dynamic_field as df;
-    use sui::ecdsa_k1 as ecdsa;
-    use sui::event;
-    use sui::hash;
-    use sui::object::{Self, UID};
-    use sui::transfer;
-    use sui::tx_context::TxContext;
-    use sui::vec_map:: {Self, VecMap};
+    use iota::table::{Self, Table};
+    use iota::address;
+    use iota::bcs;
+    use iota::dynamic_field as df;
+    use iota::ecdsa_k1 as ecdsa;
+    use iota::event;
+    use iota::hash;
+    use iota::object::{Self, UID};
+    use iota::transfer;
+    use iota::tx_context::TxContext;
+    use iota::vec_map:: {Self, VecMap};
 
     use axelar::channel::{Self, ApprovedCall};
     use axelar::utils::{normalize_signature, operators_hash};
@@ -260,7 +261,7 @@ module axelar::validators {
     }
 
     #[test_only]
-    use axelar::utils::to_sui_signed;
+    use axelar::utils::to_iota_signed;
 
     #[test_only]
     public fun drop_for_test(self: AxelarValidators) {
@@ -281,20 +282,20 @@ module axelar::validators {
     const SIGNER: vector<u8> = x"037286a4f1177bea06c8e15cf6ec3df0b7747a01ac2329ca2999dfd74eff599028";
 
     #[test]
-    /// Tests `ecrecover`, makes sure external signing process works with Sui ecrecover.
+    /// Tests `ecrecover`, makes sure external signing process works with Iota ecrecover.
     /// Samples for this test are generated with the `presets/` application.
     fun test_ecrecover() {
         let message = x"68656c6c6f20776f726c64"; // hello world
         let mut signature = x"0e88ac153a06d86f28dc0f946654d02302099c0c6558806b569d43f8bd062d5c295beb095e9cc396cd68a6b18daa0f1c0489b778831c4b3bb46f7aa1171c23b101";
 
         normalize_signature(&mut signature);
-        let pubkey = ecdsa::secp256k1_ecrecover(&signature, &to_sui_signed(message), 0);
+        let pubkey = ecdsa::secp256k1_ecrecover(&signature, &to_iota_signed(message), 0);
 
         assert!(pubkey == SIGNER, 0);
     }
 
     #[test]
-    /// Tests "Sui Signed Message" prefix addition ecrecover.
+    /// Tests "Iota Signed Message" prefix addition ecrecover.
     /// Checks if the signature generated outside matches the message generated in this module.
     /// Samples for this test are generated with the `presets/` application.
     fun test_to_signed() {
@@ -302,7 +303,7 @@ module axelar::validators {
         let mut signature = x"0e88ac153a06d86f28dc0f946654d02302099c0c6558806b569d43f8bd062d5c295beb095e9cc396cd68a6b18daa0f1c0489b778831c4b3bb46f7aa1171c23b101";
         normalize_signature(&mut signature);
 
-        let pub_key = ecdsa::secp256k1_ecrecover(&signature, &to_sui_signed(message), 0);
+        let pub_key = ecdsa::secp256k1_ecrecover(&signature, &to_iota_signed(message), 0);
         assert!(pub_key == SIGNER, 0);
     }
 }

@@ -1,5 +1,5 @@
-full_node_url: "https://fullnode.mainnet.sui.io:443"
+full_node_url: "https://fullnode.mainnet.iota.io:443"
 checkpoint_summary_dir: "checkpoints_dir"
 genesis_filename: "genesis.blob"
-object_store_url: "https://checkpoints.mainnet.sui.io"
-graphql_url: "https://sui-mainnet.mystenlabs.com/graphql"
+object_store_url: "https://checkpoints.mainnet.iota.io"
+graphql_url: "https://iota-mainnet.iota.org/graphql"

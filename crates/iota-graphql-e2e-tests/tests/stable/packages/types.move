@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses P0=0x0 --simulator
@@ -7,7 +8,7 @@
 # Happy path -- valid type, get everything
 
 {
-    type(type: "0x2::priority_queue::PriorityQueue<0x2::coin::Coin<0x2::sui::SUI>>") {
+    type(type: "0x2::priority_queue::PriorityQueue<0x2::coin::Coin<0x2::iota::IOTA>>") {
         repr
         signature
         layout
@@ -80,19 +81,19 @@
 # Querying abilities for concrete types
 
 {
-    token: type(type: "0x2::token::Token<0x2::sui::SUI>") {
+    token: type(type: "0x2::token::Token<0x2::iota::IOTA>") {
         abilities
     }
 
-    coin: type(type: "0x2::coin::Coin<0x2::sui::SUI>") {
+    coin: type(type: "0x2::coin::Coin<0x2::iota::IOTA>") {
         abilities
     }
 
-    balance: type(type: "0x2::balance::Balance<0x2::sui::SUI>") {
+    balance: type(type: "0x2::balance::Balance<0x2::iota::IOTA>") {
         abilities
     }
 
-    coin_vector: type(type: "vector<0x2::coin::Coin<0x2::sui::SUI>>") {
+    coin_vector: type(type: "vector<0x2::coin::Coin<0x2::iota::IOTA>>") {
         abilities
     }
 

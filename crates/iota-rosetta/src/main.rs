@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -14,24 +15,24 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::traits::EncodeDecodeBase64;
 use serde_json::{json, Value};
-use sui_config::{sui_config_dir, Config, NodeConfig, SUI_FULLNODE_CONFIG, SUI_KEYSTORE_FILENAME};
-use sui_node::SuiNode;
-use sui_rosetta::types::{CurveType, PrefundedAccount, SuiEnv};
-use sui_rosetta::{RosettaOfflineServer, RosettaOnlineServer, SUI};
-use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{KeypairTraits, SuiKeyPair, ToFromBytes};
+use iota_config::{iota_config_dir, Config, NodeConfig, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME};
+use iota_node::IotaNode;
+use iota_rosetta::types::{CurveType, PrefundedAccount, IotaEnv};
+use iota_rosetta::{RosettaOfflineServer, RosettaOnlineServer, IOTA};
+use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::{KeypairTraits, IotaKeyPair, ToFromBytes};
 use tracing::info;
 use tracing::log::warn;
 
 #[derive(Parser)]
-#[clap(name = "sui-rosetta", rename_all = "kebab-case", author, version)]
+#[clap(name = "iota-rosetta", rename_all = "kebab-case", author, version)]
 pub enum RosettaServerCommand {
     GenerateRosettaCLIConfig {
         #[clap(long)]
         keystore_path: Option<PathBuf>,
         #[clap(long, default_value = "localnet")]
-        env: SuiEnv,
+        env: IotaEnv,
         #[clap(long, default_value = "http://rosetta-online:9002")]
         online_url: String,
         #[clap(long, default_value = "http://rosetta-offline:9003")]
@@ -39,7 +40,7 @@ pub enum RosettaServerCommand {
     },
     StartOnlineRemoteServer {
         #[clap(long, default_value = "localnet")]
-        env: SuiEnv,
+        env: IotaEnv,
         #[clap(long, default_value = "0.0.0.0:9002")]
         addr: SocketAddr,
         #[clap(long)]
@@ -49,7 +50,7 @@ pub enum RosettaServerCommand {
     },
     StartOnlineServer {
         #[clap(long, default_value = "localnet")]
-        env: SuiEnv,
+        env: IotaEnv,
         #[clap(long, default_value = "0.0.0.0:9002")]
         addr: SocketAddr,
         #[clap(long)]
@@ -59,7 +60,7 @@ pub enum RosettaServerCommand {
     },
     StartOfflineServer {
         #[clap(long, default_value = "localnet")]
-        env: SuiEnv,
+        env: IotaEnv,
         #[clap(long, default_value = "0.0.0.0:9003")]
         addr: SocketAddr,
     },
@@ -75,12 +76,12 @@ impl RosettaServerCommand {
                 offline_url,
             } => {
                 let path = keystore_path
-                    .unwrap_or_else(|| sui_config_dir().unwrap().join(SUI_KEYSTORE_FILENAME));
+                    .unwrap_or_else(|| iota_config_dir().unwrap().join(IOTA_KEYSTORE_FILENAME));
 
                 let prefunded_accounts = read_prefunded_account(&path)?;
 
                 info!(
-                    "Retrieved {} Sui address from keystore file {:?}",
+                    "Retrieved {} Iota address from keystore file {:?}",
                     prefunded_accounts.len(),
                     &path
                 );
@@ -118,11 +119,11 @@ impl RosettaServerCommand {
                     config_path
                 );
 
-                let dsl_path = PathBuf::from(".").join("sui.ros");
-                let dsl = include_str!("../resources/sui.ros");
+                let dsl_path = PathBuf::from(".").join("iota.ros");
+                let dsl = include_str!("../resources/iota.ros");
                 fs::write(
                     &dsl_path,
-                    dsl.replace("{{sui.env}}", json!(env).as_str().unwrap()),
+                    dsl.replace("{{iota.env}}", json!(env).as_str().unwrap()),
                 )?;
                 info!("Rosetta DSL file is stored in {:?}", dsl_path);
             }
@@ -138,12 +139,12 @@ impl RosettaServerCommand {
                 data_path,
             } => {
                 info!(
-                    "Starting Rosetta Online Server with remove Sui full node [{full_node_url}]."
+                    "Starting Rosetta Online Server with remove Iota full node [{full_node_url}]."
                 );
-                let sui_client = wait_for_sui_client(full_node_url).await;
+                let iota_client = wait_for_iota_client(full_node_url).await;
                 let rosetta_path = data_path.join("rosetta_db");
                 info!("Rosetta db path : {rosetta_path:?}");
-                let rosetta = RosettaOnlineServer::new(env, sui_client);
+                let rosetta = RosettaOnlineServer::new(env, iota_client);
                 rosetta.serve(addr).await;
             }
 
@@ -153,30 +154,30 @@ impl RosettaServerCommand {
                 node_config,
                 data_path,
             } => {
-                info!("Starting Rosetta Online Server with embedded Sui full node.");
+                info!("Starting Rosetta Online Server with embedded Iota full node.");
                 info!("Data directory path: {data_path:?}");
 
                 let node_config = node_config.unwrap_or_else(|| {
-                    let path = sui_config_dir().unwrap().join(SUI_FULLNODE_CONFIG);
+                    let path = iota_config_dir().unwrap().join(IOTA_FULLNODE_CONFIG);
                     info!("Using default node config from {path:?}");
                     path
                 });
 
                 let mut config = NodeConfig::load(&node_config)?;
-                config.db_path = data_path.join("sui_db");
-                info!("Overriding Sui db path to : {:?}", config.db_path);
+                config.db_path = data_path.join("iota_db");
+                info!("Overriding Iota db path to : {:?}", config.db_path);
 
                 let registry_service =
-                    mysten_metrics::start_prometheus_server(config.metrics_address);
+                    iota_metrics::start_prometheus_server(config.metrics_address);
                 // Staring a full node for the rosetta server.
                 let rpc_address = format!("http://127.0.0.1:{}", config.json_rpc_address.port());
-                let _node = SuiNode::start(config, registry_service, None).await?;
+                let _node = IotaNode::start(config, registry_service, None).await?;
 
-                let sui_client = wait_for_sui_client(rpc_address).await;
+                let iota_client = wait_for_iota_client(rpc_address).await;
 
                 let rosetta_path = data_path.join("rosetta_db");
                 info!("Rosetta db path : {rosetta_path:?}");
-                let rosetta = RosettaOnlineServer::new(env, sui_client);
+                let rosetta = RosettaOnlineServer::new(env, iota_client);
                 rosetta.serve(addr).await;
             }
         };
@@ -184,23 +185,23 @@ impl RosettaServerCommand {
     }
 }
 
-async fn wait_for_sui_client(rpc_address: String) -> SuiClient {
+async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
     loop {
-        match SuiClientBuilder::default()
+        match IotaClientBuilder::default()
             .max_concurrent_requests(usize::MAX)
             .build(&rpc_address)
             .await
         {
             Ok(client) => return client,
             Err(e) => {
-                warn!("Error connecting to Sui RPC server [{rpc_address}]: {e}, retrying in 5 seconds.");
+                warn!("Error connecting to Iota RPC server [{rpc_address}]: {e}, retrying in 5 seconds.");
                 tokio::time::sleep(Duration::from_millis(5000)).await;
             }
         }
     }
 }
 
-/// This method reads the keypairs from the Sui keystore to create the PrefundedAccount objects,
+/// This method reads the keypairs from the Iota keystore to create the PrefundedAccount objects,
 /// PrefundedAccount will be written to the rosetta-cli config file for testing.
 ///
 fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::Error> {
@@ -209,8 +210,8 @@ fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::
     let keys = kp_strings
         .iter()
         .map(|kpstr| {
-            let key = SuiKeyPair::decode_base64(kpstr);
-            key.map(|k| (SuiAddress::from(&k.public()), k))
+            let key = IotaKeyPair::decode_base64(kpstr);
+            key.map(|k| (IotaAddress::from(&k.public()), k))
         })
         .collect::<Result<BTreeMap<_, _>, _>>()
         .unwrap();
@@ -219,13 +220,13 @@ fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::
         .into_iter()
         .map(|(address, key)| {
             let (privkey, curve_type) = match key {
-                SuiKeyPair::Ed25519(k) => {
+                IotaKeyPair::Ed25519(k) => {
                     (Hex::encode(k.private().as_bytes()), CurveType::Edwards25519)
                 }
-                SuiKeyPair::Secp256k1(k) => {
+                IotaKeyPair::Secp256k1(k) => {
                     (Hex::encode(k.private().as_bytes()), CurveType::Secp256k1)
                 }
-                SuiKeyPair::Secp256r1(k) => {
+                IotaKeyPair::Secp256r1(k) => {
                     (Hex::encode(k.private().as_bytes()), CurveType::Secp256r1)
                 }
             };
@@ -233,7 +234,7 @@ fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::
                 privkey,
                 account_identifier: address.into(),
                 curve_type,
-                currency: SUI.clone(),
+                currency: IOTA.clone(),
             }
         })
         .collect())
@@ -241,11 +242,11 @@ fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::
 
 #[test]
 fn test_read_keystore() {
-    use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-    use sui_types::crypto::SignatureScheme;
+    use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+    use iota_types::crypto::SignatureScheme;
 
     let temp_dir = tempfile::tempdir().unwrap();
-    let path = temp_dir.path().join("sui.keystore");
+    let path = temp_dir.path().join("iota.keystore");
     let mut ks = Keystore::from(FileBasedKeystore::new(&path).unwrap());
     let key1 = ks
         .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)

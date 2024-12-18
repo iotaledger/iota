@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
@@ -13,7 +14,7 @@ export function ImportPassphrasePage() {
 	const navigate = useNavigate();
 	const [, setFormValues] = useAccountsFormContext();
 	return (
-		<div className="rounded-20 bg-sui-lightest shadow-wallet-content flex flex-col items-center px-6 py-10 h-full overflow-auto">
+		<div className="rounded-20 bg-iota-lightest shadow-wallet-content flex flex-col items-center px-6 py-10 h-full overflow-auto">
 			<Text variant="caption" color="steel-dark" weight="semibold">
 				Wallet Setup
 			</Text>

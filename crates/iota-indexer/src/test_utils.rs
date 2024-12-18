@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_metrics::init_metrics;
+use iota_metrics::init_metrics;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -10,8 +11,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_pg_temp_db::{get_available_port, TempDb};
+use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_pg_temp_db::{get_available_port, TempDb};
 
 use crate::config::{IngestionConfig, RetentionConfig, SnapshotLagConfig, UploadOptions};
 use crate::database::Connection;
@@ -174,21 +175,21 @@ pub async fn start_indexer_writer_for_testing_with_mvr_mode(
 }
 
 #[derive(Clone)]
-pub struct SuiTransactionBlockResponseBuilder<'a> {
-    response: SuiTransactionBlockResponse,
-    full_response: &'a SuiTransactionBlockResponse,
+pub struct IotaTransactionBlockResponseBuilder<'a> {
+    response: IotaTransactionBlockResponse,
+    full_response: &'a IotaTransactionBlockResponse,
 }
 
-impl<'a> SuiTransactionBlockResponseBuilder<'a> {
-    pub fn new(full_response: &'a SuiTransactionBlockResponse) -> Self {
+impl<'a> IotaTransactionBlockResponseBuilder<'a> {
+    pub fn new(full_response: &'a IotaTransactionBlockResponse) -> Self {
         Self {
-            response: SuiTransactionBlockResponse::default(),
+            response: IotaTransactionBlockResponse::default(),
             full_response,
         }
     }
 
     pub fn with_input(mut self) -> Self {
-        self.response = SuiTransactionBlockResponse {
+        self.response = IotaTransactionBlockResponse {
             transaction: self.full_response.transaction.clone(),
             ..self.response
         };
@@ -196,7 +197,7 @@ impl<'a> SuiTransactionBlockResponseBuilder<'a> {
     }
 
     pub fn with_raw_input(mut self) -> Self {
-        self.response = SuiTransactionBlockResponse {
+        self.response = IotaTransactionBlockResponse {
             raw_transaction: self.full_response.raw_transaction.clone(),
             ..self.response
         };
@@ -204,7 +205,7 @@ impl<'a> SuiTransactionBlockResponseBuilder<'a> {
     }
 
     pub fn with_effects(mut self) -> Self {
-        self.response = SuiTransactionBlockResponse {
+        self.response = IotaTransactionBlockResponse {
             effects: self.full_response.effects.clone(),
             ..self.response
         };
@@ -212,7 +213,7 @@ impl<'a> SuiTransactionBlockResponseBuilder<'a> {
     }
 
     pub fn with_events(mut self) -> Self {
-        self.response = SuiTransactionBlockResponse {
+        self.response = IotaTransactionBlockResponse {
             events: self.full_response.events.clone(),
             ..self.response
         };
@@ -220,7 +221,7 @@ impl<'a> SuiTransactionBlockResponseBuilder<'a> {
     }
 
     pub fn with_balance_changes(mut self) -> Self {
-        self.response = SuiTransactionBlockResponse {
+        self.response = IotaTransactionBlockResponse {
             balance_changes: self.full_response.balance_changes.clone(),
             ..self.response
         };
@@ -228,7 +229,7 @@ impl<'a> SuiTransactionBlockResponseBuilder<'a> {
     }
 
     pub fn with_object_changes(mut self) -> Self {
-        self.response = SuiTransactionBlockResponse {
+        self.response = IotaTransactionBlockResponse {
             object_changes: self.full_response.object_changes.clone(),
             ..self.response
         };
@@ -236,7 +237,7 @@ impl<'a> SuiTransactionBlockResponseBuilder<'a> {
     }
 
     pub fn with_input_and_changes(mut self) -> Self {
-        self.response = SuiTransactionBlockResponse {
+        self.response = IotaTransactionBlockResponse {
             transaction: self.full_response.transaction.clone(),
             balance_changes: self.full_response.balance_changes.clone(),
             object_changes: self.full_response.object_changes.clone(),
@@ -245,8 +246,8 @@ impl<'a> SuiTransactionBlockResponseBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> SuiTransactionBlockResponse {
-        SuiTransactionBlockResponse {
+    pub fn build(self) -> IotaTransactionBlockResponse {
+        IotaTransactionBlockResponse {
             transaction: self.response.transaction,
             raw_transaction: self.response.raw_transaction,
             effects: self.response.effects,
@@ -291,7 +292,7 @@ pub async fn set_up_on_mvr_mode(
         .unwrap();
 
     let server_handle = tokio::spawn(async move {
-        sui_rpc_api::RpcService::new_without_version(sim)
+        iota_rpc_api::RpcService::new_without_version(sim)
             .start_service(server_url)
             .await;
     });
@@ -326,7 +327,7 @@ pub async fn set_up_with_start_and_end_checkpoints(
         .parse()
         .unwrap();
     let server_handle = tokio::spawn(async move {
-        sui_rpc_api::RpcService::new_without_version(sim)
+        iota_rpc_api::RpcService::new_without_version(sim)
             .start_service(server_url)
             .await;
     });

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::future;
@@ -9,42 +10,42 @@ use move_core_types::ident_str;
 use rand::rngs::OsRng;
 use std::path::PathBuf;
 use std::sync::Arc;
-use sui::client_commands::{OptsWithGas, SuiClientCommandResult, SuiClientCommands};
-use sui_config::node::RunWithRange;
-use sui_json_rpc_types::{EventFilter, TransactionFilter};
-use sui_json_rpc_types::{
-    EventPage, SuiEvent, SuiExecutionStatus, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+use iota::client_commands::{OptsWithGas, IotaClientCommandResult, IotaClientCommands};
+use iota_config::node::RunWithRange;
+use iota_json_rpc_types::{EventFilter, TransactionFilter};
+use iota_json_rpc_types::{
+    EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use sui_keys::keystore::AccountKeystore;
-use sui_macros::*;
-use sui_node::SuiNodeHandle;
-use sui_sdk::wallet_context::WalletContext;
-use sui_storage::key_value_store::TransactionKeyValueStore;
-use sui_storage::key_value_store_metrics::KeyValueStoreMetrics;
-use sui_test_transaction_builder::{
+use iota_keys::keystore::AccountKeystore;
+use iota_macros::*;
+use iota_node::IotaNodeHandle;
+use iota_sdk::wallet_context::WalletContext;
+use iota_storage::key_value_store::TransactionKeyValueStore;
+use iota_storage::key_value_store_metrics::KeyValueStoreMetrics;
+use iota_test_transaction_builder::{
     batch_make_transfer_transactions, create_nft, delete_nft, increment_counter,
     publish_basics_package, publish_basics_package_and_make_counter, publish_nfts_package,
     TestTransactionBuilder,
 };
-use sui_tool::restore_from_db_checkpoint;
-use sui_types::base_types::{ObjectID, SuiAddress, TransactionDigest};
-use sui_types::base_types::{ObjectRef, SequenceNumber};
-use sui_types::crypto::{get_key_pair, SuiKeyPair};
-use sui_types::error::{SuiError, UserInputError};
-use sui_types::message_envelope::Message;
-use sui_types::messages_grpc::TransactionInfoRequest;
-use sui_types::object::{Object, ObjectRead, Owner, PastObjectRead};
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::{
+use iota_tool::restore_from_db_checkpoint;
+use iota_types::base_types::{ObjectID, IotaAddress, TransactionDigest};
+use iota_types::base_types::{ObjectRef, SequenceNumber};
+use iota_types::crypto::{get_key_pair, IotaKeyPair};
+use iota_types::error::{IotaError, UserInputError};
+use iota_types::message_envelope::Message;
+use iota_types::messages_grpc::TransactionInfoRequest;
+use iota_types::object::{Object, ObjectRead, Owner, PastObjectRead};
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::quorum_driver_types::{
     ExecuteTransactionRequestType, ExecuteTransactionRequestV3, QuorumDriverResponse,
 };
-use sui_types::storage::ObjectStore;
-use sui_types::transaction::{
+use iota_types::storage::ObjectStore;
+use iota_types::transaction::{
     CallArg, GasData, TransactionData, TransactionKind, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
     TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
 };
-use sui_types::utils::{
+use iota_types::utils::{
     to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
 };
 use test_cluster::TestClusterBuilder;
@@ -55,11 +56,11 @@ use tracing::info;
 #[sim_test]
 async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
-    let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
 
     let context = &mut test_cluster.wallet;
 
-    // TODO: test fails on CI due to flakiness without this. Once https://github.com/MystenLabs/sui/pull/7056 is
+    // TODO: test fails on CI due to flakiness without this. Once https://github.com/iotaledger/iota/pull/7056 is
     // merged we should be able to root out the flakiness.
     sleep(Duration::from_millis(10)).await;
 
@@ -110,7 +111,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     .await;
     let digest = response.digest;
     handle
-        .sui_node
+        .iota_node
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
@@ -192,7 +193,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
 async fn test_full_node_move_function_index() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let mut test_cluster = TestClusterBuilder::new().build().await;
-    let node = &test_cluster.fullnode_handle.sui_node;
+    let node = &test_cluster.fullnode_handle.iota_node;
     let sender = test_cluster.get_address_0();
     let context = &mut test_cluster.wallet;
 
@@ -272,7 +273,7 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
         .enable_fullnode_events()
         .build()
         .await;
-    let node = &test_cluster.fullnode_handle.sui_node;
+    let node = &test_cluster.fullnode_handle.iota_node;
     let context = &mut test_cluster.wallet;
 
     let (transferred_object, sender, receiver, digest, _) = transfer_coin(context).await?;
@@ -361,19 +362,19 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
     let sender_balance_change = BalanceChange {
         change_type: BalanceChangeType::Pay,
         owner: sender,
-        coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
+        coin_type: parse_struct_tag("0x2::iota::IOTA").unwrap(),
         amount: -100000000000000,
     };
     let recipient_balance_change = BalanceChange {
         change_type: BalanceChangeType::Receive,
         owner: receiver,
-        coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
+        coin_type: parse_struct_tag("0x2::iota::IOTA").unwrap(),
         amount: 100000000000000,
     };
     let gas_balance_change = BalanceChange {
         change_type: BalanceChangeType::Gas,
         owner: sender,
-        coin_type: parse_struct_tag("0x2::sui::SUI").unwrap(),
+        coin_type: parse_struct_tag("0x2::iota::IOTA").unwrap(),
         amount: (gas_used as i128).neg(),
     };
 
@@ -465,7 +466,7 @@ async fn test_full_node_indexes() -> Result<(), anyhow::Error> {
         .state()
         .query_events(
             EventQuery::MoveModule {
-                package: SuiFramework::ID,
+                package: IotaFramework::ID,
                 module: "unused_input_object".to_string(),
             },
             None,
@@ -500,7 +501,7 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
     sleep(Duration::from_millis(1000)).await;
 
     // Start a new fullnode that is not on the write path
-    let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
 
     fullnode
         .state()
@@ -534,7 +535,7 @@ async fn do_test_full_node_sync_flood() {
     let mut test_cluster = TestClusterBuilder::new().build().await;
 
     // Start a new fullnode that is not on the write path
-    let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
 
     let context = test_cluster.wallet;
 
@@ -572,7 +573,7 @@ async fn do_test_full_node_sync_flood() {
             for _ in 0..10 {
                 let res = {
                     let context = &mut context.lock().await;
-                    SuiClientCommands::SplitCoin {
+                    IotaClientCommands::SplitCoin {
                         amounts: Some(vec![1]),
                         count: None,
                         coin_id: object_to_split.0,
@@ -587,11 +588,11 @@ async fn do_test_full_node_sync_flood() {
                     .unwrap()
                 };
 
-                owned_tx_digest = if let SuiClientCommandResult::TransactionBlock(resp) = res {
+                owned_tx_digest = if let IotaClientCommandResult::TransactionBlock(resp) = res {
                     Some(resp.digest)
                 } else {
                     panic!(
-                        "SplitCoin command did not return SuiClientCommandResult::TransactionBlock"
+                        "SplitCoin command did not return IotaClientCommandResult::TransactionBlock"
                     );
                 };
 
@@ -639,7 +640,7 @@ async fn test_full_node_event_read_api_ok() {
         .await;
 
     let context = &mut test_cluster.wallet;
-    let node = &test_cluster.fullnode_handle.sui_node;
+    let node = &test_cluster.fullnode_handle.iota_node;
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
     let (package_id, gas_id_1, _) = publish_nfts_package(context).await;
@@ -675,8 +676,8 @@ async fn test_full_node_event_read_api_ok() {
 
     // query by move event struct name
     let params = rpc_params![digest2];
-    let events: Vec<SuiEvent> = jsonrpc_client
-        .request("sui_getEvents", params)
+    let events: Vec<IotaEvent> = jsonrpc_client
+        .request("iota_getEvents", params)
         .await
         .unwrap();
     assert_eq!(events.len(), 1);
@@ -709,7 +710,7 @@ async fn test_full_node_event_query_by_module_ok() {
         module: ident_str!("testnet_nft").into()
     }];
     let page: EventPage = jsonrpc_client
-        .request("suix_queryEvents", params)
+        .request("iotax_queryEvents", params)
         .await
         .unwrap();
     assert_eq!(page.data.len(), 1);
@@ -719,7 +720,7 @@ async fn test_full_node_event_query_by_module_ok() {
 #[sim_test]
 async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
-    let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     let metrics = KeyValueStoreMetrics::new_for_tests();
     let kv_store = Arc::new(TransactionKeyValueStore::new(
         "rocksdb",
@@ -845,11 +846,11 @@ async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error
     context
         .config
         .keystore
-        .add_key(None, SuiKeyPair::Secp256k1(get_key_pair().1))?;
+        .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
     context
         .config
         .keystore
-        .add_key(None, SuiKeyPair::Ed25519(get_key_pair().1))?;
+        .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
@@ -861,15 +862,15 @@ async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error
         let params = rpc_params![
             tx_bytes,
             signatures,
-            SuiTransactionBlockResponseOptions::new(),
+            IotaTransactionBlockResponseOptions::new(),
             ExecuteTransactionRequestType::WaitForLocalExecution
         ];
-        let response: SuiTransactionBlockResponse = jsonrpc_client
-            .request("sui_executeTransactionBlock", params)
+        let response: IotaTransactionBlockResponse = jsonrpc_client
+            .request("iota_executeTransactionBlock", params)
             .await
             .unwrap();
 
-        let SuiTransactionBlockResponse {
+        let IotaTransactionBlockResponse {
             digest,
             confirmed_local_execution,
             ..
@@ -902,15 +903,15 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
     let params = rpc_params![
         tx_bytes,
         signatures,
-        SuiTransactionBlockResponseOptions::new(),
+        IotaTransactionBlockResponseOptions::new(),
         ExecuteTransactionRequestType::WaitForLocalExecution
     ];
-    let response: SuiTransactionBlockResponse = jsonrpc_client
-        .request("sui_executeTransactionBlock", params)
+    let response: IotaTransactionBlockResponse = jsonrpc_client
+        .request("iota_executeTransactionBlock", params)
         .await
         .unwrap();
 
-    let SuiTransactionBlockResponse {
+    let IotaTransactionBlockResponse {
         digest,
         confirmed_local_execution,
         ..
@@ -918,8 +919,8 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
-    let _response: SuiTransactionBlockResponse = jsonrpc_client
-        .request("sui_getTransactionBlock", rpc_params![*tx_digest])
+    let _response: IotaTransactionBlockResponse = jsonrpc_client
+        .request("iota_getTransactionBlock", rpc_params![*tx_digest])
         .await
         .unwrap();
 
@@ -928,15 +929,15 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
     let params = rpc_params![
         tx_bytes,
         signatures,
-        SuiTransactionBlockResponseOptions::new().with_effects(),
+        IotaTransactionBlockResponseOptions::new().with_effects(),
         ExecuteTransactionRequestType::WaitForEffectsCert
     ];
-    let response: SuiTransactionBlockResponse = jsonrpc_client
-        .request("sui_executeTransactionBlock", params)
+    let response: IotaTransactionBlockResponse = jsonrpc_client
+        .request("iota_executeTransactionBlock", params)
         .await
         .unwrap();
 
-    let SuiTransactionBlockResponse {
+    let IotaTransactionBlockResponse {
         effects,
         confirmed_local_execution,
         ..
@@ -948,7 +949,7 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
 }
 
 async fn get_obj_read_from_node(
-    node: &SuiNodeHandle,
+    node: &IotaNodeHandle,
     object_id: ObjectID,
 ) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let ObjectRead::Exists(obj_ref, object, layout) = node.state().get_object_read(&object_id)? {
@@ -959,7 +960,7 @@ async fn get_obj_read_from_node(
 }
 
 async fn get_past_obj_read_from_node(
-    node: &SuiNodeHandle,
+    node: &IotaNodeHandle,
     object_id: ObjectID,
     seq_num: SequenceNumber,
 ) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
@@ -977,7 +978,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;
-    let node = &test_cluster.fullnode_handle.sui_node;
+    let node = &test_cluster.fullnode_handle.iota_node;
     let package_id = publish_nfts_package(&test_cluster.wallet).await.0;
 
     // Create the object
@@ -1006,7 +1007,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     let (object_ref_v2, object_v2, _) = get_obj_read_from_node(node, object_id).await?;
     assert_ne!(object_ref_v2, object_ref_v1);
 
-    // Transfer some SUI to recipient
+    // Transfer some IOTA to recipient
     transfer_coin(&test_cluster.wallet)
         .await
         .expect("Failed to transfer coins to recipient");
@@ -1015,7 +1016,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     let response = delete_nft(&test_cluster.wallet, recipient, package_id, object_ref_v2).await;
     assert_eq!(
         *response.effects.unwrap().status(),
-        SuiExecutionStatus::Success
+        IotaExecutionStatus::Success
     );
     sleep(Duration::from_secs(1)).await;
 
@@ -1082,7 +1083,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
 
     let checkpoint_path = test_cluster
         .fullnode_handle
-        .sui_node
+        .iota_node
         .with(|node| node.db_checkpoint_path());
     let config = test_cluster
         .fullnode_config_builder()
@@ -1107,7 +1108,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
     let node = test_cluster
         .start_fullnode_from_config(config)
         .await
-        .sui_node;
+        .iota_node;
 
     node.state()
         .get_transaction_cache_reader()
@@ -1140,7 +1141,7 @@ async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
 async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;
-    let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
 
     let context = &mut test_cluster.wallet;
 
@@ -1152,7 +1153,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
         .cloned()
         .unwrap();
 
-    // TODO: this is publishing the wrong package - we should be publishing the one in `sui-core/src/unit_tests/data` instead.
+    // TODO: this is publishing the wrong package - we should be publishing the one in `iota-core/src/unit_tests/data` instead.
     let package_ref = publish_basics_package(context).await;
 
     let gas_obj = context
@@ -1218,7 +1219,7 @@ async fn test_access_old_object_pruned() {
     let sender = tx_builder.sender();
     let gas_object = tx_builder.gas_object();
     let effects = test_cluster
-        .sign_and_execute_transaction(&tx_builder.transfer_sui(None, sender).build())
+        .sign_and_execute_transaction(&tx_builder.transfer_iota(None, sender).build())
         .await
         .effects
         .unwrap();
@@ -1231,7 +1232,7 @@ async fn test_access_old_object_pruned() {
             .await
             // Make sure we are doing something different from the first transaction.
             // Otherwise we would just end up with the same digest.
-            .transfer_sui(Some(1), sender)
+            .transfer_iota(Some(1), sender)
             .build(),
     );
     for validator in test_cluster.swarm.active_validators() {
@@ -1261,7 +1262,7 @@ async fn test_access_old_object_pruned() {
                         )
                         .await
                         .unwrap_err(),
-                    SuiError::UserInputError {
+                    IotaError::UserInputError {
                         error: UserInputError::ObjectVersionUnavailableForConsumption {
                             provided_obj_ref: gas_object,
                             current_version: new_gas_version,
@@ -1288,8 +1289,8 @@ async fn transfer_coin(
 ) -> Result<
     (
         ObjectID,
-        SuiAddress,
-        SuiAddress,
+        IotaAddress,
+        IotaAddress,
         TransactionDigest,
         ObjectRef,
     ),
@@ -1328,7 +1329,7 @@ async fn test_full_node_run_with_range_checkpoint() -> Result<(), anyhow::Error>
     assert_eq!(got_run_with_range, want_run_with_range);
 
     // ensure the highest synced checkpoint matches
-    assert!(test_cluster.fullnode_handle.sui_node.with(|node| {
+    assert!(test_cluster.fullnode_handle.iota_node.with(|node| {
         node.state()
             .get_checkpoint_store()
             .get_highest_executed_checkpoint_seq_number()
@@ -1340,7 +1341,7 @@ async fn test_full_node_run_with_range_checkpoint() -> Result<(), anyhow::Error>
     tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
 
     // verify again execution has not progressed beyond expectations
-    assert!(test_cluster.fullnode_handle.sui_node.with(|node| {
+    assert!(test_cluster.fullnode_handle.iota_node.with(|node| {
         node.state()
             .get_checkpoint_store()
             .get_highest_executed_checkpoint_seq_number()
@@ -1351,7 +1352,7 @@ async fn test_full_node_run_with_range_checkpoint() -> Result<(), anyhow::Error>
     // we dont want transaction orchestrator enabled when run_with_range != None
     assert!(test_cluster
         .fullnode_handle
-        .sui_node
+        .iota_node
         .with(|node| node.transaction_orchestrator())
         .is_none());
     Ok(())
@@ -1379,7 +1380,7 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     // epoch + 1
     assert!(test_cluster
         .fullnode_handle
-        .sui_node
+        .iota_node
         .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1));
 
     // epoch duration is 10s for testing, lets sleep long enough that epoch would normally progress
@@ -1388,13 +1389,13 @@ async fn test_full_node_run_with_range_epoch() -> Result<(), anyhow::Error> {
     // ensure we are still at epoch + 1
     assert!(test_cluster
         .fullnode_handle
-        .sui_node
+        .iota_node
         .with(|node| node.current_epoch_for_testing() == stop_after_epoch + 1));
 
     // we dont want transaction orchestrator enabled when run_with_range != None
     assert!(test_cluster
         .fullnode_handle
-        .sui_node
+        .iota_node
         .with(|node| node.transaction_orchestrator())
         .is_none());
 
@@ -1419,7 +1420,7 @@ async fn publish_init_events_without_local_execution() {
         .quorum_driver_api()
         .execute_transaction_block(
             tx,
-            SuiTransactionBlockResponseOptions::new().with_events(),
+            IotaTransactionBlockResponseOptions::new().with_events(),
             Some(ExecuteTransactionRequestType::WaitForEffectsCert),
         )
         .await

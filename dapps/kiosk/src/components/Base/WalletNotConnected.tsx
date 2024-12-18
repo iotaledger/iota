@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { SuiConnectButton } from './SuiConnectButton';
+import { IotaConnectButton } from './IotaConnectButton';
 
 export function WalletNotConnected() {
 	return (
@@ -15,7 +16,7 @@ export function WalletNotConnected() {
 							purchase from other kiosks.
 						</p>
 					</div>
-					<SuiConnectButton />
+					<IotaConnectButton />
 				</div>
 			</div>
 		</div>

@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
-use sui_cluster_test::{config::ClusterTestOpt, ClusterTest};
+use iota_cluster_test::{config::ClusterTestOpt, ClusterTest};
 
 #[tokio::main]
 async fn main() {

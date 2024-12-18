@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! BridgeAuthorityAggregator aggregates signatures from BridgeCommittee.
@@ -18,11 +19,11 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_authority_aggregation::ReduceOutput;
-use sui_authority_aggregation::{quorum_map_then_reduce_with_timeout_and_prefs, SigRequestPrefs};
-use sui_types::base_types::ConciseableName;
-use sui_types::committee::StakeUnit;
-use sui_types::committee::TOTAL_VOTING_POWER;
+use iota_authority_aggregation::ReduceOutput;
+use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout_and_prefs, SigRequestPrefs};
+use iota_types::base_types::ConciseableName;
+use iota_types::committee::StakeUnit;
+use iota_types::committee::TOTAL_VOTING_POWER;
 use tracing::{error, info, warn};
 
 const TOTAL_TIMEOUT_MS: u64 = 5_000;
@@ -173,7 +174,7 @@ impl GetSigsState {
                 .map(|(k, v)| (k.clone(), v.signature.clone()))
                 .collect::<BTreeMap<_, _>>();
             let sig_info = BridgeCommitteeValiditySignInfo { signatures };
-            let certified_action: sui_types::message_envelope::Envelope<
+            let certified_action: iota_types::message_envelope::Envelope<
                 BridgeAction,
                 BridgeCommitteeValiditySignInfo,
             > = CertifiedBridgeAction::new_from_data_and_sig(
@@ -229,13 +230,13 @@ async fn request_sign_bridge_action_into_certification(
     // we pass in `Some` to make sure the validators with higher voting power are requested first
     // to save gas cost.
     let preference = match action {
-        BridgeAction::SuiToEthBridgeAction(_) => Some(SigRequestPrefs {
+        BridgeAction::IotaToEthBridgeAction(_) => Some(SigRequestPrefs {
             ordering_pref: BTreeSet::new(),
             prefetch_timeout,
         }),
-        BridgeAction::EthToSuiBridgeAction(_) => None,
+        BridgeAction::EthToIotaBridgeAction(_) => None,
         _ => {
-            if action.chain_id().is_sui_chain() {
+            if action.chain_id().is_iota_chain() {
                 None
             } else {
                 Some(SigRequestPrefs {
@@ -342,8 +343,8 @@ mod tests {
     use std::collections::BTreeSet;
 
     use fastcrypto::traits::ToFromBytes;
-    use sui_types::committee::VALIDITY_THRESHOLD;
-    use sui_types::digests::TransactionDigest;
+    use iota_types::committee::VALIDITY_THRESHOLD;
+    use iota_types::digests::TransactionDigest;
 
     use crate::crypto::BridgeAuthorityPublicKey;
     use crate::server::mock_handler::BridgeRequestMockHandler;
@@ -351,7 +352,7 @@ mod tests {
     use super::*;
     use crate::test_utils::{
         get_test_authorities_and_run_mock_bridge_server, get_test_authority_and_key,
-        get_test_sui_to_eth_bridge_action, sign_action_with_key,
+        get_test_iota_to_eth_bridge_action, sign_action_with_key,
     };
     use crate::types::BridgeCommittee;
 
@@ -423,13 +424,13 @@ mod tests {
 
         let agg = BridgeAuthorityAggregator::new_for_testing(Arc::new(committee));
 
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_tx_event_index = 0;
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_tx_event_index = 0;
         let nonce = 0;
         let amount = 1000;
-        let action = get_test_sui_to_eth_bridge_action(
-            Some(sui_tx_digest),
-            Some(sui_tx_event_index),
+        let action = get_test_iota_to_eth_bridge_action(
+            Some(iota_tx_digest),
+            Some(iota_tx_event_index),
             Some(nonce),
             Some(amount),
             None,
@@ -438,27 +439,27 @@ mod tests {
         );
 
         // All authorities return signatures
-        mock0.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock0.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[0])),
             None,
         );
-        mock1.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock1.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[1])),
             None,
         );
-        mock2.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock2.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[2])),
             None,
         );
-        mock3.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock3.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[3])),
             None,
         );
@@ -467,9 +468,9 @@ mod tests {
             .unwrap();
 
         // 1 out of 4 authorities returns error
-        mock3.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock3.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Err(BridgeError::RestAPIError("".into())),
             None,
         );
@@ -478,9 +479,9 @@ mod tests {
             .unwrap();
 
         // 2 out of 4 authorities returns error
-        mock2.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock2.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Err(BridgeError::RestAPIError("".into())),
             None,
         );
@@ -489,9 +490,9 @@ mod tests {
             .unwrap();
 
         // 3 out of 4 authorities returns error - good stake below valdiity threshold
-        mock1.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock1.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Err(BridgeError::RestAPIError("".into())),
             None,
         );
@@ -540,13 +541,13 @@ mod tests {
 
         let agg = BridgeAuthorityAggregator::new_for_testing(committee.clone());
 
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_tx_event_index = 0;
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_tx_event_index = 0;
         let nonce = 0;
         let amount = 1000;
-        let action = get_test_sui_to_eth_bridge_action(
-            Some(sui_tx_digest),
-            Some(sui_tx_event_index),
+        let action = get_test_iota_to_eth_bridge_action(
+            Some(iota_tx_digest),
+            Some(iota_tx_event_index),
             Some(nonce),
             Some(amount),
             None,
@@ -555,57 +556,57 @@ mod tests {
         );
 
         // All authorities return signatures
-        mock0.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock0.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[0])),
             Some(Duration::from_millis(200)),
         );
-        mock1.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock1.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[1])),
             Some(Duration::from_millis(200)),
         );
-        mock2.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock2.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[2])),
             Some(Duration::from_millis(700)),
         );
-        mock3.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock3.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[3])),
             Some(Duration::from_millis(700)),
         );
-        mock4.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock4.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[4])),
             Some(Duration::from_millis(700)),
         );
-        mock5.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock5.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[5])),
             Some(Duration::from_millis(700)),
         );
-        mock6.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock6.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[6])),
             Some(Duration::from_millis(700)),
         );
-        mock7.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock7.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[7])),
             Some(Duration::from_millis(900)),
         );
-        mock8.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock8.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[8])),
             Some(Duration::from_millis(1_500)),
         );
@@ -713,13 +714,13 @@ mod tests {
 
         let agg = BridgeAuthorityAggregator::new_for_testing(Arc::new(committee));
 
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_tx_event_index = 0;
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_tx_event_index = 0;
         let nonce = 0;
         let amount = 1000;
-        let action = get_test_sui_to_eth_bridge_action(
-            Some(sui_tx_digest),
-            Some(sui_tx_event_index),
+        let action = get_test_iota_to_eth_bridge_action(
+            Some(iota_tx_digest),
+            Some(iota_tx_event_index),
             Some(nonce),
             Some(amount),
             None,
@@ -729,15 +730,15 @@ mod tests {
 
         // Only mock authority 2 and 3 to return signatures, such that if BridgeAuthorityAggregator
         // requests to authority 0 and 1 (which should not happen) it will panic.
-        mock2.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock2.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[2])),
             None,
         );
-        mock3.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock3.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[3])),
             None,
         );
@@ -760,9 +761,9 @@ mod tests {
         );
 
         // if mock 3 returns error, then it won't reach validity threshold
-        mock3.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock3.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Err(BridgeError::RestAPIError("".into())),
             None,
         );
@@ -776,9 +777,9 @@ mod tests {
         ));
 
         // if mock 3 returns duplicated signature (by authority 2), `BridgeClient` will catch this
-        mock3.add_sui_event_response(
-            sui_tx_digest,
-            sui_tx_event_index,
+        mock3.add_iota_event_response(
+            iota_tx_digest,
+            iota_tx_event_index,
             Ok(sign_action_with_key(&action, &secrets[2])),
             None,
         );
@@ -869,13 +870,13 @@ mod tests {
             Arc::new(BTreeMap::new()),
         );
 
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_tx_event_index = 0;
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_tx_event_index = 0;
         let nonce = 0;
         let amount = 1000;
-        let action = get_test_sui_to_eth_bridge_action(
-            Some(sui_tx_digest),
-            Some(sui_tx_event_index),
+        let action = get_test_iota_to_eth_bridge_action(
+            Some(iota_tx_digest),
+            Some(iota_tx_event_index),
             Some(nonce),
             Some(amount),
             None,

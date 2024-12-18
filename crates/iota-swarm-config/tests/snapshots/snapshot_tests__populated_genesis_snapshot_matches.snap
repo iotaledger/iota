@@ -1,6 +1,6 @@
 ---
-source: crates/sui-config/tests/snapshot_tests.rs
-expression: genesis.sui_system_wrapper_object()
+source: crates/iota-config/tests/snapshot_tests.rs
+expression: genesis.iota_system_wrapper_object()
 ---
 id:
   id: "0x0000000000000000000000000000000000000000000000000000000000000005"

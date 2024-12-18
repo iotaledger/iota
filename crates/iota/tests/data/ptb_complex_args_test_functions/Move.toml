@@ -3,7 +3,7 @@ name = "test_functions"
 edition = "2024.beta"
 
 [dependencies]
-Sui = { local = "../../../../sui-framework/packages/sui-framework" }
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
 test_functions = "0x0"

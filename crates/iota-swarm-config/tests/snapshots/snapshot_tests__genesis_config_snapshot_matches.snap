@@ -1,5 +1,5 @@
 ---
-source: crates/sui-swarm-config/tests/snapshot_tests.rs
+source: crates/iota-swarm-config/tests/snapshot_tests.rs
 expression: genesis_config
 ---
 ssfn_config_info: ~

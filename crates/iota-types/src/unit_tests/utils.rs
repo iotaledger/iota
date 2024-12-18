@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::crypto::{Signer, SuiKeyPair};
+use crate::crypto::{Signer, IotaKeyPair};
 use crate::multisig::{MultiSig, MultiSigPublicKey};
 use crate::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use crate::transaction::{SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER};
-use crate::SuiAddress;
+use crate::IotaAddress;
 use crate::{
     base_types::{dbg_addr, ObjectID},
     committee::Committee,
@@ -72,7 +73,7 @@ pub fn create_fake_transaction() -> Transaction {
     let object = Object::immutable_with_id_for_testing(object_id);
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_sui(recipient, None);
+        builder.transfer_iota(recipient, None);
         builder.finish()
     };
     let data = TransactionData::new_programmable(
@@ -85,13 +86,13 @@ pub fn create_fake_transaction() -> Transaction {
     to_sender_signed_transaction(data, &sender_key)
 }
 
-pub fn make_transaction_data(sender: SuiAddress) -> TransactionData {
+pub fn make_transaction_data(sender: IotaAddress) -> TransactionData {
     let object = Object::immutable_with_id_for_testing(ObjectID::random_from_rng(
         &mut StdRng::from_seed([0; 32]),
     ));
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_sui(dbg_addr(2), None);
+        builder.transfer_iota(dbg_addr(2), None);
         builder.finish()
     };
     TransactionData::new_programmable(
@@ -105,7 +106,7 @@ pub fn make_transaction_data(sender: SuiAddress) -> TransactionData {
 
 /// Make a user signed transaction with the given sender and its keypair. This
 /// is not verified or signed by authority.
-pub fn make_transaction(sender: SuiAddress, kp: &SuiKeyPair) -> Transaction {
+pub fn make_transaction(sender: IotaAddress, kp: &IotaKeyPair) -> Transaction {
     let data = make_transaction_data(sender);
     Transaction::from_data_and_signer(data, vec![kp])
 }
@@ -137,14 +138,14 @@ mod zk_login {
     pub static SHORT_ADDRESS_SEED: &str =
         "380704556853533152350240698167704405529973457670972223618755249929828551006";
 
-    pub fn load_test_vectors(path: &str) -> Vec<(SuiKeyPair, PublicKey, ZkLoginInputs)> {
+    pub fn load_test_vectors(path: &str) -> Vec<(IotaKeyPair, PublicKey, ZkLoginInputs)> {
         // read in test files that has a list of matching zklogin_inputs and its ephemeral private keys.
         let file = std::fs::File::open(path).expect("Unable to open file");
 
         let test_datum: Vec<TestData> = serde_json::from_reader(file).unwrap();
         let mut res = vec![];
         for test in test_datum {
-            let kp = SuiKeyPair::decode(&test.kp).unwrap();
+            let kp = IotaKeyPair::decode(&test.kp).unwrap();
             let inputs =
                 ZkLoginInputs::from_json(&test.zklogin_inputs, &test.address_seed).unwrap();
             let pk_zklogin = PublicKey::from_zklogin_inputs(&inputs).unwrap();
@@ -159,9 +160,9 @@ mod zk_login {
         test_data[1].zklogin_inputs.clone()
     }
 
-    pub fn get_zklogin_user_address() -> SuiAddress {
+    pub fn get_zklogin_user_address() -> IotaAddress {
         thread_local! {
-            static USER_ADDRESS: SuiAddress = {
+            static USER_ADDRESS: IotaAddress = {
                 // Derive user address manually: Blake2b_256 hash of [zklogin_flag || iss_bytes_length || iss_bytes || address seed in bytes])
                 let mut hasher = DefaultHash::default();
                 hasher.update([SignatureScheme::ZkLoginAuthenticator.flag()]);
@@ -170,14 +171,14 @@ mod zk_login {
                 hasher.update([iss_bytes.len() as u8]);
                 hasher.update(iss_bytes);
                 hasher.update(inputs.get_address_seed().unpadded());
-                SuiAddress::from_bytes(hasher.finalize().digest).unwrap()
+                IotaAddress::from_bytes(hasher.finalize().digest).unwrap()
             };
         }
         USER_ADDRESS.with(|a| *a)
     }
 
-    fn get_zklogin_user_key() -> SuiKeyPair {
-        SuiKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])))
+    fn get_zklogin_user_key() -> IotaKeyPair {
+        IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])))
     }
 
     fn get_inputs_with_bad_address_seed() -> ZkLoginInputs {
@@ -186,17 +187,17 @@ mod zk_login {
         ZKLOGIN_INPUTS.with(|a| a.clone())
     }
 
-    pub fn get_legacy_zklogin_user_address() -> SuiAddress {
+    pub fn get_legacy_zklogin_user_address() -> IotaAddress {
         thread_local! {
-            static USER_ADDRESS: SuiAddress = {
+            static USER_ADDRESS: IotaAddress = {
                 let inputs = get_inputs_with_bad_address_seed();
-                SuiAddress::from(&PublicKey::from_zklogin_inputs(&inputs).unwrap())
+                IotaAddress::from(&PublicKey::from_zklogin_inputs(&inputs).unwrap())
             };
         }
         USER_ADDRESS.with(|a| *a)
     }
 
-    pub fn sign_zklogin_personal_msg(data: PersonalMessage) -> (SuiAddress, GenericSignature) {
+    pub fn sign_zklogin_personal_msg(data: PersonalMessage) -> (IotaAddress, GenericSignature) {
         let inputs = get_zklogin_inputs();
         let msg = IntentMessage::new(Intent::personal_message(), data);
         let s = Signature::new_secure(&msg, &get_zklogin_user_key());
@@ -209,7 +210,7 @@ mod zk_login {
     pub fn sign_zklogin_tx_with_default_proof(
         data: TransactionData,
         legacy: bool,
-    ) -> (SuiAddress, Transaction, GenericSignature) {
+    ) -> (IotaAddress, Transaction, GenericSignature) {
         let inputs = if legacy {
             get_inputs_with_bad_address_seed()
         } else {
@@ -220,10 +221,10 @@ mod zk_login {
     }
 
     pub fn sign_zklogin_tx(
-        user_key: &SuiKeyPair,
+        user_key: &IotaKeyPair,
         proof: ZkLoginInputs,
         data: TransactionData,
-    ) -> (SuiAddress, Transaction, GenericSignature) {
+    ) -> (IotaAddress, Transaction, GenericSignature) {
         let tx = Transaction::from_data_and_signer(data.clone(), vec![user_key]);
 
         let s = match tx.inner().tx_signatures.first().unwrap() {
@@ -243,18 +244,18 @@ mod zk_login {
     }
 
     pub fn make_zklogin_tx(
-        address: SuiAddress,
+        address: IotaAddress,
         legacy: bool,
-    ) -> (SuiAddress, Transaction, GenericSignature) {
+    ) -> (IotaAddress, Transaction, GenericSignature) {
         let data = make_transaction_data(address);
         sign_zklogin_tx_with_default_proof(data, legacy)
     }
 
-    pub fn keys() -> Vec<SuiKeyPair> {
+    pub fn keys() -> Vec<IotaKeyPair> {
         let mut seed = StdRng::from_seed([0; 32]);
-        let kp1: SuiKeyPair = SuiKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
-        let kp2: SuiKeyPair = SuiKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
-        let kp3: SuiKeyPair = SuiKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
+        let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
+        let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut seed).1);
+        let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut seed).1);
         vec![kp1, kp2, kp3]
     }
 
@@ -270,10 +271,10 @@ mod zk_login {
             2,
         )
         .unwrap();
-        let addr = SuiAddress::from(&multisig_pk);
+        let addr = IotaAddress::from(&multisig_pk);
         let tx = make_transaction(addr, &keys[0]);
 
-        let msg = IntentMessage::new(Intent::sui_transaction(), tx.transaction_data().clone());
+        let msg = IntentMessage::new(Intent::iota_transaction(), tx.transaction_data().clone());
         let sig1 = Signature::new_secure(&msg, &keys[0]).into();
         let sig2 = Signature::new_secure(&msg, &keys[1]).into();
 

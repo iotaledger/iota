@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::Path;
@@ -6,13 +7,13 @@ use std::path::Path;
 use move_cli::base::test::UnitTestResult;
 use move_package::LintFlag;
 use move_unit_test::UnitTestingConfig;
-use sui_move::unit_test::run_move_unit_tests;
-use sui_move_build::BuildConfig;
+use iota_move::unit_test::run_move_unit_tests;
+use iota_move_build::BuildConfig;
 
 pub(crate) const EXAMPLES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples");
 pub(crate) const FRAMEWORK: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../crates/sui-framework/packages"
+    "/../../crates/iota-framework/packages"
 );
 
 /// Ensure packages build outside of test mode.

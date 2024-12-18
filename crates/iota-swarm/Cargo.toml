@@ -1,7 +1,7 @@
 [package]
-name = "sui-swarm"
+name = "iota-swarm"
 version = "0.0.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -20,17 +20,17 @@ tonic-health.workspace = true
 tap.workspace = true
 prometheus.workspace = true
 
-sui-config.workspace = true
-sui-swarm-config.workspace = true
-sui-macros.workspace = true
-sui-node.workspace = true
-sui-protocol-config.workspace = true
-sui-tls.workspace = true
-sui-types.workspace = true
-mysten-metrics.workspace = true
-mysten-network.workspace = true
+iota-config.workspace = true
+iota-swarm-config.workspace = true
+iota-macros.workspace = true
+iota-node.workspace = true
+iota-protocol-config.workspace = true
+iota-tls.workspace = true
+iota-types.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 telemetry-subscribers.workspace = true
 
 [target.'cfg(msim)'.dependencies]
-sui-simulator.workspace = true
+iota-simulator.workspace = true
 

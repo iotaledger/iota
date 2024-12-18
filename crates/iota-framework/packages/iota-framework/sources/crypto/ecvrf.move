@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui::ecvrf;
+module iota::ecvrf;
 
 #[allow(unused_const)]
 const EInvalidHashLength: u64 = 1;

@@ -1,17 +1,17 @@
-# Hello Sui
+# Hello Iota
 
 import { Callout } from 'nextra/components';
 
-This basic example introduces you to the Sui TypeScript SDK. The Node.js example mints SUI on a Sui
-network and then queries the address to get a sum for the owned SUI. You don't need to use an IDE to
+This basic example introduces you to the Iota TypeScript SDK. The Node.js example mints IOTA on a Iota
+network and then queries the address to get a sum for the owned IOTA. You don't need to use an IDE to
 complete the example, but one like Microsoft Visual Studio Code helps centralize more advanced
 projects.
 
 ## Before you begin
 
-You need an address on a Sui development network (Devnet, Testnet, local). If you don't already have
-an address, use the [Sui Client CLI](https://docs.sui.io/references/cli/client) or the
-[Sui Wallet browser extension](https://docs.mystenlabs.com) to create one.
+You need an address on a Iota development network (Devnet, Testnet, local). If you don't already have
+an address, use the [Iota Client CLI](https://docs.iota.org/references/cli/client) or the
+[Iota Wallet browser extension](https://docs.iota.org) to create one.
 
 You also need [Node.js](https://nodejs.org/en/download/current) and a package manager like
 [pnpm](https://pnpm.io/installation) to follow this example, so install them on your system if you
@@ -19,76 +19,76 @@ haven't already.
 
 ## Start a project
 
-Using a Terminal or Console, create a folder on your system (`hello-sui` in this example) and make
+Using a Terminal or Console, create a folder on your system (`hello-iota` in this example) and make
 it the working directory.
 
 ```sh
-mkdir hello-sui
-cd hello-sui
+mkdir hello-iota
+cd hello-iota
 ```
 
 When you use a package manager to install the necessary packages, it downloads the modules to your
 `node_modules` folder and adds the references to your `package.json` file, creating the file if it
-doesn't already exist. For this example, you need only the Sui TypeScript SDK:
+doesn't already exist. For this example, you need only the Iota TypeScript SDK:
 
 ```sh npm2yarn
-npm i -D @mysten/sui
+npm i -D @iota/iota-sdk
 ```
 
-Your `package.json` file now has a _dependencies_ section with `@mysten/sui` listed with the package
+Your `package.json` file now has a _dependencies_ section with `@iota/iota-sdk` listed with the package
 version number.
 
 ```json
 "dependencies": {
-    "@mysten/sui": "^<VERSION_NUMBER>"
+    "@iota/iota-sdk": "^<VERSION_NUMBER>"
 }
 ```
 
-## Get some SUI for your account
+## Get some IOTA for your account
 
-Instead of a 'Hello World' output to your console, this example introduces some SUI to your wallet
-address. You must be on Devnet, Testnet, or a local network to use a faucet for minting SUI.
+Instead of a 'Hello World' output to your console, this example introduces some IOTA to your wallet
+address. You must be on Devnet, Testnet, or a local network to use a faucet for minting IOTA.
 
 Create a new `index.js` file in the root of your project with the following code.
 
 ```js
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-import { getFaucetHost, requestSuiFromFaucetV1 } from '@mysten/sui/faucet';
-import { MIST_PER_SUI } from '@mysten/sui/utils';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { getFaucetHost, requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
-// replace <YOUR_SUI_ADDRESS> with your actual address, which is in the form 0x123...
-const MY_ADDRESS = '<YOUR_SUI_ADDRESS>';
+// replace <YOUR_IOTA_ADDRESS> with your actual address, which is in the form 0x123...
+const MY_ADDRESS = '<YOUR_IOTA_ADDRESS>';
 
-// create a new SuiClient object pointing to the network you want to use
-const suiClient = new SuiClient({ url: getFullnodeUrl('devnet') });
+// create a new IotaClient object pointing to the network you want to use
+const iotaClient = new IotaClient({ url: getFullnodeUrl('devnet') });
 
-// Convert MIST to Sui
+// Convert NANOS to Iota
 const balance = (balance) => {
-	return Number.parseInt(balance.totalBalance) / Number(MIST_PER_SUI);
+	return Number.parseInt(balance.totalBalance) / Number(NANOS_PER_IOTA);
 };
 
-// store the JSON representation for the SUI the address owns before using faucet
-const suiBefore = await suiClient.getBalance({
+// store the JSON representation for the IOTA the address owns before using faucet
+const iotaBefore = await iotaClient.getBalance({
 	owner: MY_ADDRESS,
 });
 
-await requestSuiFromFaucetV1({
+await requestIotaFromFaucetV1({
 	// use getFaucetHost to make sure you're using correct faucet address
-	// you can also just use the address (see Sui TypeScript SDK Quick Start for values)
+	// you can also just use the address (see Iota TypeScript SDK Quick Start for values)
 	host: getFaucetHost('devnet'),
 	recipient: MY_ADDRESS,
 });
 
-// store the JSON representation for the SUI the address owns after using faucet
-const suiAfter = await suiClient.getBalance({
+// store the JSON representation for the IOTA the address owns after using faucet
+const iotaAfter = await iotaClient.getBalance({
 	owner: MY_ADDRESS,
 });
 
 // Output result to console.
 console.log(
-	`Balance before faucet: ${balance(suiBefore)} SUI. Balance after: ${balance(
-		suiAfter,
-	)} SUI. Hello, SUI!`,
+	`Balance before faucet: ${balance(iotaBefore)} IOTA. Balance after: ${balance(
+		iotaAfter,
+	)} IOTA. Hello, IOTA!`,
 );
 ```
 
@@ -98,15 +98,15 @@ Save the file, then use Node.js to run it in your Console or Terminal:
 node index.js
 ```
 
-The code imports the `requestSuiFromFaucetV1` function from the SDK and calls it to mint SUI for the
-provided address. The code also imports `SuiClient` to create a new client on the Sui network that
-it uses to query the address and output the amount of SUI the address owns before and after using
-the faucet. You can check the total SUI for your address using the Sui Wallet or Sui Client CLI.
+The code imports the `requestIotaFromFaucetV1` function from the SDK and calls it to mint IOTA for the
+provided address. The code also imports `IotaClient` to create a new client on the Iota network that
+it uses to query the address and output the amount of IOTA the address owns before and after using
+the faucet. You can check the total IOTA for your address using the Iota Wallet or Iota Client CLI.
 
 <Callout type="info">
 	Faucets on Devnet and Testnet are rate limited. If you run the script too many times, you surpass
 	the limit and must wait to successfully run it again.
 </Callout>
 
-You can also use the [Sui Client CLI](https://docs.sui.io/references/cli/client) to perform client
-calls on a Sui network.
+You can also use the [Iota Client CLI](https://docs.iota.org/references/cli/client) to perform client
+calls on a Iota network.

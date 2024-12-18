@@ -1,11 +1,12 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_types::SUI_RANDOMNESS_STATE_OBJECT_ID;
+use iota_types::IOTA_RANDOMNESS_STATE_OBJECT_ID;
 use test_cluster::TestClusterBuilder;
 
-use sui_macros::sim_test;
+use iota_macros::sim_test;
 
 #[sim_test]
 async fn test_create_randomness_state_object() {
@@ -23,7 +24,7 @@ async fn test_create_randomness_state_object() {
             assert!(node
                 .state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(SUI_RANDOMNESS_STATE_OBJECT_ID)
+                .get_latest_object_ref_or_tombstone(IOTA_RANDOMNESS_STATE_OBJECT_ID)
                 .is_none());
         });
     }
@@ -38,7 +39,7 @@ async fn test_create_randomness_state_object() {
         h.with(|node| {
             node.state()
                 .get_object_cache_reader()
-                .get_latest_object_ref_or_tombstone(SUI_RANDOMNESS_STATE_OBJECT_ID)
+                .get_latest_object_ref_or_tombstone(IOTA_RANDOMNESS_STATE_OBJECT_ID)
                 .expect("randomness state object should exist");
         });
     }

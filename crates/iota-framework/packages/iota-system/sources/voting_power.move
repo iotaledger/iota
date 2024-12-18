@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::voting_power {
-    use sui_system::validator::Validator;
+module iota_system::voting_power {
+    use iota_system::validator::Validator;
 
     #[allow(unused_field)]
     /// Deprecated. Use VotingPowerInfoV2 instead.

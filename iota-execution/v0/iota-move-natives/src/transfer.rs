@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::object_runtime::{ObjectRuntime, TransferResult};
@@ -14,7 +15,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 use std::collections::VecDeque;
-use sui_types::{base_types::SequenceNumber, object::Owner};
+use iota_types::{base_types::SequenceNumber, object::Owner};
 
 const E_SHARED_NON_NEW_OBJECT: u64 = 0;
 
@@ -150,7 +151,7 @@ fn object_runtime_transfer(
     if !matches!(context.type_to_type_tag(&ty)?, TypeTag::Struct(_)) {
         return Err(
             PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                .with_message("Sui verifier guarantees this is a struct".to_string()),
+                .with_message("Iota verifier guarantees this is a struct".to_string()),
         );
     }
 

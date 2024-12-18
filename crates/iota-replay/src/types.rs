@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use jsonrpsee::core::Error as JsonRpseeError;
@@ -8,15 +9,15 @@ use move_core_types::language_storage::{ModuleId, StructTag};
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Debug;
-use sui_json_rpc_types::SuiEvent;
-use sui_json_rpc_types::SuiTransactionBlockEffects;
-use sui_protocol_config::{Chain, ProtocolVersion};
-use sui_sdk::error::Error as SuiRpcError;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, VersionNumber};
-use sui_types::digests::{ObjectDigest, TransactionDigest};
-use sui_types::error::{SuiError, SuiObjectResponseError, SuiResult, UserInputError};
-use sui_types::object::Object;
-use sui_types::transaction::{InputObjectKind, SenderSignedData, TransactionKind};
+use iota_json_rpc_types::IotaEvent;
+use iota_json_rpc_types::IotaTransactionBlockEffects;
+use iota_protocol_config::{Chain, ProtocolVersion};
+use iota_sdk::error::Error as IotaRpcError;
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress, VersionNumber};
+use iota_types::digests::{ObjectDigest, TransactionDigest};
+use iota_types::error::{IotaError, IotaObjectResponseError, IotaResult, UserInputError};
+use iota_types::object::Object;
+use iota_types::transaction::{InputObjectKind, SenderSignedData, TransactionKind};
 use thiserror::Error;
 use tokio::time::Duration;
 use tracing::{error, warn};
@@ -30,7 +31,7 @@ pub(crate) const MAX_CONCURRENT_REQUESTS: usize = 1_000;
 
 // Struct tag used in system epoch change events
 pub(crate) const EPOCH_CHANGE_STRUCT_TAG: &str =
-    "0x3::sui_system_state_inner::SystemEpochInfoEvent";
+    "0x3::iota_system_state_inner::SystemEpochInfoEvent";
 
 // TODO: A lot of the information in OnChainTransactionInfo is redundant from what's already in
 // SenderSignedData. We should consider removing them.
@@ -38,7 +39,7 @@ pub(crate) const EPOCH_CHANGE_STRUCT_TAG: &str =
 pub struct OnChainTransactionInfo {
     pub tx_digest: TransactionDigest,
     pub sender_signed_data: SenderSignedData,
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub input_objects: Vec<InputObjectKind>,
     pub kind: TransactionKind,
     pub modified_at_versions: Vec<(ObjectID, SequenceNumber)>,
@@ -58,7 +59,7 @@ pub struct OnChainTransactionInfo {
     // it is really difficult to get the raw effects given a transaction digest.
     // 2. This data structure is not bcs/bincode friendly. It makes it much more expensive to
     // store the sandbox state for batch replay.
-    pub effects: SuiTransactionBlockEffects,
+    pub effects: IotaTransactionBlockEffects,
     pub protocol_version: ProtocolVersion,
     pub epoch_start_timestamp: u64,
     pub reference_gas_price: u64,
@@ -74,14 +75,14 @@ fn unspecified_chain() -> Chain {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Error, Clone)]
 pub enum ReplayEngineError {
-    #[error("SuiError: {:#?}", err)]
-    SuiError { err: SuiError },
+    #[error("IotaError: {:#?}", err)]
+    IotaError { err: IotaError },
 
-    #[error("SuiRpcError: {:#?}", err)]
-    SuiRpcError { err: String },
+    #[error("IotaRpcError: {:#?}", err)]
+    IotaRpcError { err: String },
 
-    #[error("SuiObjectResponseError: {:#?}", err)]
-    SuiObjectResponseError { err: SuiObjectResponseError },
+    #[error("IotaObjectResponseError: {:#?}", err)]
+    IotaObjectResponseError { err: IotaObjectResponseError },
 
     #[error("UserInputError: {:#?}", err)]
     UserInputError { err: UserInputError },
@@ -89,8 +90,8 @@ pub enum ReplayEngineError {
     #[error("GeneralError: {:#?}", err)]
     GeneralError { err: String },
 
-    #[error("SuiRpcRequestTimeout")]
-    SuiRpcRequestTimeout,
+    #[error("IotaRpcRequestTimeout")]
+    IotaRpcRequestTimeout,
 
     #[error("ObjectNotExist: {:#?}", id)]
     ObjectNotExist { id: ObjectID },
@@ -133,8 +134,8 @@ pub enum ReplayEngineError {
     EffectsForked {
         digest: TransactionDigest,
         diff: String,
-        on_chain: Box<SuiTransactionBlockEffects>,
-        local: Box<SuiTransactionBlockEffects>,
+        on_chain: Box<IotaTransactionBlockEffects>,
+        local: Box<IotaTransactionBlockEffects>,
     },
 
     #[error(
@@ -162,7 +163,7 @@ pub enum ReplayEngineError {
     InvalidEpochChangeTx { epoch: u64 },
 
     #[error("Unexpected event format {:#?}", event)]
-    UnexpectedEventFormat { event: SuiEvent },
+    UnexpectedEventFormat { event: IotaEvent },
 
     #[error("Unable to find event for epoch {epoch}")]
     EventNotFound { epoch: u64 },
@@ -201,13 +202,13 @@ pub enum ReplayEngineError {
     UnableToGetChainId { err: String },
 }
 
-impl From<SuiObjectResponseError> for ReplayEngineError {
-    fn from(err: SuiObjectResponseError) -> Self {
+impl From<IotaObjectResponseError> for ReplayEngineError {
+    fn from(err: IotaObjectResponseError) -> Self {
         match err {
-            SuiObjectResponseError::NotExists { object_id } => {
+            IotaObjectResponseError::NotExists { object_id } => {
                 ReplayEngineError::ObjectNotExist { id: object_id }
             }
-            SuiObjectResponseError::Deleted {
+            IotaObjectResponseError::Deleted {
                 object_id,
                 digest,
                 version,
@@ -216,29 +217,29 @@ impl From<SuiObjectResponseError> for ReplayEngineError {
                 version,
                 digest,
             },
-            _ => ReplayEngineError::SuiObjectResponseError { err },
+            _ => ReplayEngineError::IotaObjectResponseError { err },
         }
     }
 }
 
-impl From<ReplayEngineError> for SuiError {
+impl From<ReplayEngineError> for IotaError {
     fn from(err: ReplayEngineError) -> Self {
-        SuiError::Unknown(format!("{:#?}", err))
+        IotaError::Unknown(format!("{:#?}", err))
     }
 }
 
-impl From<SuiError> for ReplayEngineError {
-    fn from(err: SuiError) -> Self {
-        ReplayEngineError::SuiError { err }
+impl From<IotaError> for ReplayEngineError {
+    fn from(err: IotaError) -> Self {
+        ReplayEngineError::IotaError { err }
     }
 }
-impl From<SuiRpcError> for ReplayEngineError {
-    fn from(err: SuiRpcError) -> Self {
+impl From<IotaRpcError> for ReplayEngineError {
+    fn from(err: IotaRpcError) -> Self {
         match err {
-            SuiRpcError::RpcError(JsonRpseeError::RequestTimeout) => {
-                ReplayEngineError::SuiRpcRequestTimeout
+            IotaRpcError::RpcError(JsonRpseeError::RequestTimeout) => {
+                ReplayEngineError::IotaRpcRequestTimeout
             }
-            _ => ReplayEngineError::SuiRpcError {
+            _ => ReplayEngineError::IotaRpcError {
                 err: format!("{:?}", err),
             },
         }
@@ -264,12 +265,12 @@ impl From<anyhow::Error> for ReplayEngineError {
 pub enum ExecutionStoreEvent {
     BackingPackageGetPackageObject {
         package_id: ObjectID,
-        result: SuiResult<Option<Object>>,
+        result: IotaResult<Option<Object>>,
     },
     ChildObjectResolverStoreReadChildObject {
         parent: ObjectID,
         child: ObjectID,
-        result: SuiResult<Option<Object>>,
+        result: IotaResult<Option<Object>>,
     },
     ParentSyncStoreGetLatestParentEntryRef {
         object_id: ObjectID,
@@ -278,29 +279,29 @@ pub enum ExecutionStoreEvent {
     ResourceResolverGetResource {
         address: AccountAddress,
         typ: StructTag,
-        result: SuiResult<Option<Vec<u8>>>,
+        result: IotaResult<Option<Vec<u8>>>,
     },
     ModuleResolverGetModule {
         module_id: ModuleId,
-        result: SuiResult<Option<Vec<u8>>>,
+        result: IotaResult<Option<Vec<u8>>>,
     },
     ObjectStoreGetObject {
         object_id: ObjectID,
-        result: SuiResult<Option<Object>>,
+        result: IotaResult<Option<Object>>,
     },
     ObjectStoreGetObjectByKey {
         object_id: ObjectID,
         version: VersionNumber,
-        result: SuiResult<Option<Object>>,
+        result: IotaResult<Option<Object>>,
     },
     GetModuleGetModuleByModuleId {
         id: ModuleId,
-        result: SuiResult<Option<CompiledModule>>,
+        result: IotaResult<Option<CompiledModule>>,
     },
     ReceiveObject {
         owner: ObjectID,
         receive: ObjectID,
         receive_at_version: SequenceNumber,
-        result: SuiResult<Option<Object>>,
+        result: IotaResult<Option<Object>>,
     },
 }

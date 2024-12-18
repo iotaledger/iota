@@ -1,8 +1,9 @@
 #!/bin/bash
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 #
-# assumes sui cli installed (brew install sui or cargo build --bin sui)
+# assumes iota cli installed (brew install iota or cargo build --bin iota)
 
 cd genesis
 python3 -m venv .venv

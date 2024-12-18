@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::connection::{Connection, CursorType, Edge};
 use async_graphql::*;
 use diesel_async::scoped_futures::ScopedFutureExt;
 use move_core_types::language_storage::TypeTag;
-use sui_indexer::models::objects::StoredHistoryObject;
-use sui_indexer::types::OwnerType;
-use sui_types::dynamic_field::visitor::{Field, FieldVisitor};
-use sui_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, DynamicFieldType};
+use iota_indexer::models::objects::StoredHistoryObject;
+use iota_indexer::types::OwnerType;
+use iota_types::dynamic_field::visitor::{Field, FieldVisitor};
+use iota_types::dynamic_field::{derive_dynamic_field_id, DynamicFieldInfo, DynamicFieldType};
 
 use super::available_range::AvailableRange;
 use super::cursor::{Page, Target};
 use super::object::{self, Object, ObjectKind};
 use super::type_filter::ExactTypeFilter;
 use super::{
-    base64::Base64, move_object::MoveObject, move_value::MoveValue, sui_address::SuiAddress,
+    base64::Base64, move_object::MoveObject, move_value::MoveValue, iota_address::IotaAddress,
 };
 use crate::consistency::{build_objects_query, View};
 use crate::data::package_resolver::PackageResolver;
@@ -53,7 +54,7 @@ pub(crate) struct DynamicFieldName {
 /// 1) Dynamic Fields can store any value that has the `store` ability, however an object
 ///    stored in this kind of field will be considered wrapped and will not be accessible
 ///    directly via its ID by external tools (explorers, wallets, etc) accessing storage.
-/// 2) Dynamic Object Fields values must be Sui objects (have the `key` and `store`
+/// 2) Dynamic Object Fields values must be Iota objects (have the `key` and `store`
 ///    abilities, and id: UID as the first field), but will still be directly accessible off-chain
 ///    via their object ID after being attached.
 #[Object]
@@ -110,7 +111,7 @@ impl DynamicField {
             .extend()?;
 
         if kind == DynamicFieldType::DynamicObject {
-            let df_object_id: SuiAddress = bcs::from_bytes(value_bytes)
+            let df_object_id: IotaAddress = bcs::from_bytes(value_bytes)
                 .map_err(|e| Error::Internal(format!("Failed to deserialize object ID: {e}")))
                 .extend()?;
 
@@ -144,7 +145,7 @@ impl DynamicField {
     /// field is returned as bounded by the `checkpoint_viewed_at` parameter.
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        parent: SuiAddress,
+        parent: IotaAddress,
         parent_version: Option<u64>,
         name: DynamicFieldName,
         kind: DynamicFieldType,
@@ -162,7 +163,7 @@ impl DynamicField {
 
         let super_ = MoveObject::query(
             ctx,
-            SuiAddress::from(field_id),
+            IotaAddress::from(field_id),
             if let Some(parent_version) = parent_version {
                 Object::under_parent(parent_version, checkpoint_viewed_at)
             } else {
@@ -184,7 +185,7 @@ impl DynamicField {
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<object::Cursor>,
-        parent: SuiAddress,
+        parent: IotaAddress,
         parent_version: Option<u64>,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, DynamicField>, Error> {
@@ -286,7 +287,7 @@ impl DynamicField {
 /// can have arbitrary `object_version`s, dynamic fields on a parent cannot have a version greater
 /// than its parent.
 fn dynamic_fields_query(
-    parent: SuiAddress,
+    parent: IotaAddress,
     parent_version: Option<u64>,
     range: AvailableRange,
     page: &Page<object::Cursor>,
@@ -306,7 +307,7 @@ fn dynamic_fields_query(
     )
 }
 
-fn apply_filter(query: RawQuery, parent: SuiAddress, parent_version: Option<u64>) -> RawQuery {
+fn apply_filter(query: RawQuery, parent: IotaAddress, parent_version: Option<u64>) -> RawQuery {
     let query = filter!(
         query,
         format!(

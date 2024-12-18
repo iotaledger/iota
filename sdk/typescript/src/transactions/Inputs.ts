@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toBase64 } from '@mysten/bcs';
-import type { SerializedBcs } from '@mysten/bcs';
+import { toBase64 } from '@iota/bcs';
+import type { SerializedBcs } from '@iota/bcs';
 
-import { normalizeSuiAddress } from '../utils/sui-types.js';
+import { normalizeIotaAddress } from '../utils/iota-types.js';
 import type { CallArg, ObjectRef } from './data/internal.js';
 
 function Pure(data: Uint8Array | SerializedBcs<any>): Extract<CallArg, { Pure: unknown }> {
@@ -26,7 +27,7 @@ export const Inputs = {
 				ImmOrOwnedObject: {
 					digest,
 					version,
-					objectId: normalizeSuiAddress(objectId),
+					objectId: normalizeIotaAddress(objectId),
 				},
 			},
 		};
@@ -47,7 +48,7 @@ export const Inputs = {
 				SharedObject: {
 					mutable,
 					initialSharedVersion,
-					objectId: normalizeSuiAddress(objectId),
+					objectId: normalizeIotaAddress(objectId),
 				},
 			},
 		};
@@ -60,7 +61,7 @@ export const Inputs = {
 				Receiving: {
 					digest,
 					version,
-					objectId: normalizeSuiAddress(objectId),
+					objectId: normalizeIotaAddress(objectId),
 				},
 			},
 		};

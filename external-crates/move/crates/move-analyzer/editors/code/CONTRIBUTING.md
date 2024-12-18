@@ -45,10 +45,10 @@ You can run the extensions tests from within the "Run and Debug" view:
 
 To add new versions of the move-analyzer Visual Studio Code extension, you will need to:
 
-1. Request to be added to the `mysten` publisher team.
+1. Request to be added to the `iota` publisher team.
 2. Package and upload a new extension version.
 
-### 1: Become a member of the `mysten` publisher team
+### 1: Become a member of the `iota` publisher team
 
 As [Visual Studio Code's documentation](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) explains, the Visual Studio Marketplace  uses [Azure DevOps](https://azure.microsoft.com/services/devops/) to authenticate users who are allowed to manage extensions. To register with Azure DevOps, you need a Microsoft account.
 
@@ -74,7 +74,7 @@ To publish a new version of the extension, you'll need to:
 
 Follow the instructions in [the Visual Studio Code documentation on creating a personal access token](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#get-a-personal-access-token). To summarize:
 
-1. From the [`move` publisher page](https://marketplace.visualstudio.com/manage/publishers/mysten), click on your username in the upper-right of the page. This will load [your Azure DevOps page](https://aex.dev.azure.com/me).
+1. From the [`move` publisher page](https://marketplace.visualstudio.com/manage/publishers/iota), click on your username in the upper-right of the page. This will load [your Azure DevOps page](https://aex.dev.azure.com/me).
 2. On that page, click on the `dev.azure.com/<name>` link below "Azure DevOps Organizations." If you have more than one organization listed there, choose the one you feel is best. This will load the `https://dev.azure.com/<name>` organization page.
 3. On that page, click on the "User Settings" icon in the upper-right, and select "Personal access tokens" from the drop-down menu. This will load the "Personal Access Tokens" page.
 4. On that page, click "New Token." Name it whatever you like but make sure to select an expiration of 30 days, select "All accessible organizations" under the "Organization" drop-down menu, and click the "Custom defined" button under "Scopes" followed by setting (only) "Marketplace" scope on the list of custom scopes to "Manage". Click "Create," and copy the token that is presented on the following page to your clipboard.

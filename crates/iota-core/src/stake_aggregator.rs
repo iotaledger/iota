@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use serde::Serialize;
@@ -7,12 +8,12 @@ use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
 use std::sync::Arc;
-use sui_types::base_types::AuthorityName;
-use sui_types::base_types::ConciseableName;
-use sui_types::committee::{Committee, CommitteeTrait, StakeUnit};
-use sui_types::crypto::{AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait};
-use sui_types::error::SuiError;
-use sui_types::message_envelope::{Envelope, Message};
+use iota_types::base_types::AuthorityName;
+use iota_types::base_types::ConciseableName;
+use iota_types::committee::{Committee, CommitteeTrait, StakeUnit};
+use iota_types::crypto::{AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait};
+use iota_types::error::IotaError;
+use iota_types::message_envelope::{Envelope, Message};
 use tracing::warn;
 
 /// StakeAggregator allows us to keep track of the total stake of a set of validators.
@@ -62,7 +63,7 @@ impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
         match self.data.entry(authority) {
             Entry::Occupied(oc) => {
                 return InsertResult::Failed {
-                    error: SuiError::StakeAggregatorRepeatedSigner {
+                    error: IotaError::StakeAggregatorRepeatedSigner {
                         signer: authority,
                         conflicting_sig: oc.get() != &s,
                     },
@@ -85,7 +86,7 @@ impl<S: Clone + Eq, const STRENGTH: bool> StakeAggregator<S, STRENGTH> {
             }
         } else {
             InsertResult::Failed {
-                error: SuiError::InvalidAuthenticator,
+                error: IotaError::InvalidAuthenticator,
             }
         }
     }
@@ -126,7 +127,7 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
         let (data, sig) = envelope.into_data_and_sig();
         if self.committee.epoch != sig.epoch {
             return InsertResult::Failed {
-                error: SuiError::WrongEpoch {
+                error: IotaError::WrongEpoch {
                     expected_epoch: self.committee.epoch,
                     actual_epoch: sig.epoch,
                 },
@@ -141,7 +142,7 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                     Ok(aggregated) => {
                         match aggregated.verify_secure(
                             &data,
-                            Intent::sui_app(T::SCOPE),
+                            Intent::iota_app(T::SCOPE),
                             self.committee(),
                         ) {
                             // In the happy path, the aggregated signature verifies ok and no need to verify
@@ -161,7 +162,7 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
                                 for (name, sig) in &self.data.clone() {
                                     if let Err(err) = sig.verify_secure(
                                         &data,
-                                        Intent::sui_app(T::SCOPE),
+                                        Intent::iota_app(T::SCOPE),
                                         self.committee(),
                                     ) {
                                         // TODO(joyqvq): Currently, the aggregator cannot do much with an authority that
@@ -201,7 +202,7 @@ impl<const STRENGTH: bool> StakeAggregator<AuthoritySignInfo, STRENGTH> {
 pub enum InsertResult<CertT> {
     QuorumReached(CertT),
     Failed {
-        error: SuiError,
+        error: IotaError,
     },
     NotEnoughVotes {
         bad_votes: u64,

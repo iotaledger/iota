@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type Wallet } from '_src/shared/qredo-api';
-import { Search16 } from '@mysten/icons';
+import { Search16 } from '@iota/icons';
 import { useState } from 'react';
 
 import { QredoAccountItem } from './QredoAccountItem';

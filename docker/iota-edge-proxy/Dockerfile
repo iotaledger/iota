@@ -9,12 +9,12 @@ COPY .git/ .git/
 COPY Cargo.toml Cargo.lock ./
 COPY consensus consensus
 COPY crates crates
-COPY sui-execution sui-execution
+COPY iota-execution iota-execution
 COPY narwhal narwhal
 COPY external-crates external-crates
 
-RUN cargo build --profile ${PROFILE} --bin sui-edge-proxy
+RUN cargo build --profile ${PROFILE} --bin iota-edge-proxy
 
 FROM gcr.io/distroless/cc-debian12 as deploy
 
-COPY --from=build --chmod=755 /work/target/release/sui-edge-proxy /opt/sui/bin/sui-edge-proxy
+COPY --from=build --chmod=755 /work/target/release/iota-edge-proxy /opt/iota/bin/iota-edge-proxy

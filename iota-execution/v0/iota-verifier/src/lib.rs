@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod verifier;
@@ -12,17 +13,17 @@ pub mod private_generics;
 pub mod struct_with_key_verifier;
 
 use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};
-use sui_types::error::{ExecutionError, ExecutionErrorKind};
+use iota_types::error::{ExecutionError, ExecutionErrorKind};
 
 pub const INIT_FN_NAME: &IdentStr = ident_str!("init");
 pub const TEST_SCENARIO_MODULE_NAME: &str = "test_scenario";
 
 fn verification_failure(error: String) -> ExecutionError {
-    ExecutionError::new_with_source(ExecutionErrorKind::SuiMoveVerificationError, error)
+    ExecutionError::new_with_source(ExecutionErrorKind::IotaMoveVerificationError, error)
 }
 
 fn to_verification_timeout_error(error: String) -> ExecutionError {
-    ExecutionError::new_with_source(ExecutionErrorKind::SuiMoveVerificationTimedout, error)
+    ExecutionError::new_with_source(ExecutionErrorKind::IotaMoveVerificationTimedout, error)
 }
 
 /// Runs the Move verifier and checks if the error counts as a Move verifier timeout

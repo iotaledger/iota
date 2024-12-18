@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, HashMap};
@@ -17,13 +18,13 @@ use futures::future::Either;
 use itertools::Itertools;
 use object_store::path::Path;
 use strum::IntoEnumIterator;
-use sui_types::base_types::ObjectID;
+use iota_types::base_types::ObjectID;
 use tap::TapFallible;
 use tracing::{info, warn};
 
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_protocol_config::ProtocolConfig;
-use sui_storage::object_store::util::put;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_protocol_config::ProtocolConfig;
+use iota_storage::object_store::util::put;
 
 use crate::config::UploadOptions;
 use crate::database::ConnectionPool;
@@ -65,7 +66,7 @@ use super::IndexerStore;
 
 use crate::models::raw_checkpoints::StoredRawCheckpoint;
 use diesel::upsert::excluded;
-use sui_types::digests::{ChainIdentifier, CheckpointDigest};
+use iota_types::digests::{ChainIdentifier, CheckpointDigest};
 
 #[macro_export]
 macro_rules! chunk {

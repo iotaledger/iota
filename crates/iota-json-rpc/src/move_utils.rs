@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority_state::StateRead;
-use crate::error::{Error, SuiRpcInputError};
-use crate::{with_tracing, SuiRpcModule};
+use crate::error::{Error, IotaRpcInputError};
+use crate::{with_tracing, IotaRpcModule};
 use async_trait::async_trait;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::RpcModule;
@@ -16,16 +17,16 @@ use move_binary_format::{
 use move_core_types::identifier::Identifier;
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use sui_core::authority::AuthorityState;
-use sui_json_rpc_api::{MoveUtilsOpenRpc, MoveUtilsServer};
-use sui_json_rpc_types::{
-    MoveFunctionArgType, ObjectValueKind, SuiMoveNormalizedFunction, SuiMoveNormalizedModule,
-    SuiMoveNormalizedStruct,
+use iota_core::authority::AuthorityState;
+use iota_json_rpc_api::{MoveUtilsOpenRpc, MoveUtilsServer};
+use iota_json_rpc_types::{
+    MoveFunctionArgType, ObjectValueKind, IotaMoveNormalizedFunction, IotaMoveNormalizedModule,
+    IotaMoveNormalizedStruct,
 };
-use sui_open_rpc::Module;
-use sui_types::base_types::ObjectID;
-use sui_types::move_package::normalize_modules;
-use sui_types::object::{Data, ObjectRead};
+use iota_open_rpc::Module;
+use iota_types::base_types::ObjectID;
+use iota_types::move_package::normalize_modules;
+use iota_types::object::{Data, ObjectRead};
 use tap::TapFallible;
 use tracing::{error, instrument, warn};
 
@@ -72,7 +73,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         let normalized = self.get_move_modules_by_package(package).await?;
         Ok(match normalized.get(&module_name) {
             Some(module) => Ok(module.clone()),
-            None => Err(SuiRpcInputError::GenericNotFound(format!(
+            None => Err(IotaRpcInputError::GenericNotFound(format!(
                 "No module found with module name {}",
                 module_name
             ))),
@@ -103,13 +104,13 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
                             Error::from(e)
                         })
                     }
-                    _ => Err(SuiRpcInputError::GenericInvalid(format!(
+                    _ => Err(IotaRpcInputError::GenericInvalid(format!(
                         "Object is not a package with ID {}",
                         package
                     )))?,
                 }
             }
-            _ => Err(SuiRpcInputError::GenericNotFound(format!(
+            _ => Err(IotaRpcInputError::GenericNotFound(format!(
                 "Package object does not exist with ID {}",
                 package
             )))?,
@@ -134,7 +135,7 @@ impl MoveUtils {
     }
 }
 
-impl SuiRpcModule for MoveUtils {
+impl IotaRpcModule for MoveUtils {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
@@ -150,13 +151,13 @@ impl MoveUtilsServer for MoveUtils {
     async fn get_normalized_move_modules_by_package(
         &self,
         package: ObjectID,
-    ) -> RpcResult<BTreeMap<String, SuiMoveNormalizedModule>> {
+    ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
         with_tracing!(async move {
             let modules = self.internal.get_move_modules_by_package(package).await?;
             Ok(modules
                 .into_iter()
                 .map(|(name, module)| (name, module.into()))
-                .collect::<BTreeMap<String, SuiMoveNormalizedModule>>())
+                .collect::<BTreeMap<String, IotaMoveNormalizedModule>>())
         })
     }
 
@@ -165,7 +166,7 @@ impl MoveUtilsServer for MoveUtils {
         &self,
         package: ObjectID,
         module_name: String,
-    ) -> RpcResult<SuiMoveNormalizedModule> {
+    ) -> RpcResult<IotaMoveNormalizedModule> {
         with_tracing!(async move {
             let module = self.internal.get_move_module(package, module_name).await?;
             Ok(module.into())
@@ -178,15 +179,15 @@ impl MoveUtilsServer for MoveUtils {
         package: ObjectID,
         module_name: String,
         struct_name: String,
-    ) -> RpcResult<SuiMoveNormalizedStruct> {
+    ) -> RpcResult<IotaMoveNormalizedStruct> {
         with_tracing!(async move {
             let module = self.internal.get_move_module(package, module_name).await?;
             let structs = module.structs;
             let identifier = Identifier::new(struct_name.as_str())
-                .map_err(|e| SuiRpcInputError::GenericInvalid(format!("{e}")))?;
+                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
             match structs.get(&identifier) {
                 Some(struct_) => Ok(struct_.clone().into()),
-                None => Err(SuiRpcInputError::GenericNotFound(format!(
+                None => Err(IotaRpcInputError::GenericNotFound(format!(
                     "No struct was found with struct name {}",
                     struct_name
                 )))?,
@@ -200,15 +201,15 @@ impl MoveUtilsServer for MoveUtils {
         package: ObjectID,
         module_name: String,
         function_name: String,
-    ) -> RpcResult<SuiMoveNormalizedFunction> {
+    ) -> RpcResult<IotaMoveNormalizedFunction> {
         with_tracing!(async move {
             let module = self.internal.get_move_module(package, module_name).await?;
             let functions = module.functions;
             let identifier = Identifier::new(function_name.as_str())
-                .map_err(|e| SuiRpcInputError::GenericInvalid(format!("{e}")))?;
+                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
             match functions.get(&identifier) {
                 Some(function) => Ok(function.clone().into()),
-                None => Err(SuiRpcInputError::GenericNotFound(format!(
+                None => Err(IotaRpcInputError::GenericNotFound(format!(
                     "No function was found with function name {}",
                     function_name
                 )))?,
@@ -235,19 +236,19 @@ impl MoveUtilsServer for MoveUtils {
                         normalize_modules(p.serialized_module_map().values(), &binary_config)
                             .map_err(Error::from)
                     }
-                    _ => Err(SuiRpcInputError::GenericInvalid(format!(
+                    _ => Err(IotaRpcInputError::GenericInvalid(format!(
                         "Object is not a package with ID {}",
                         package
                     )))?,
                 },
-                _ => Err(SuiRpcInputError::GenericNotFound(format!(
+                _ => Err(IotaRpcInputError::GenericNotFound(format!(
                     "Package object does not exist with ID {}",
                     package
                 )))?,
             }?;
 
             let identifier = Identifier::new(function.as_str())
-                .map_err(|e| SuiRpcInputError::GenericInvalid(format!("{e}")))?;
+                .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
             let parameters = normalized
                 .get(&module)
                 .and_then(|m| m.functions.get(&identifier).map(|f| f.parameters.clone()));
@@ -271,7 +272,7 @@ impl MoveUtilsServer for MoveUtils {
                         _ => MoveFunctionArgType::Pure,
                     })
                     .collect::<Vec<MoveFunctionArgType>>()),
-                None => Err(SuiRpcInputError::GenericNotFound(format!(
+                None => Err(IotaRpcInputError::GenericNotFound(format!(
                     "No parameters found for function {}",
                     function
                 )))?,
@@ -299,7 +300,7 @@ mod tests {
 
             let m = basic_test_module();
             let normalized_module = NormalizedModule::new(&m);
-            let expected_module: SuiMoveNormalizedModule = normalized_module.clone().into();
+            let expected_module: IotaMoveNormalizedModule = normalized_module.clone().into();
 
             mock_internal
                 .expect_get_move_module()
@@ -324,7 +325,7 @@ mod tests {
             let mut mock_internal = MockMoveUtilsInternalTrait::new();
             let error_string = format!("No module found with module name {module_name}");
             let expected_error =
-                Error::SuiRpcInputError(SuiRpcInputError::GenericNotFound(error_string.clone()));
+                Error::IotaRpcInputError(IotaRpcInputError::GenericNotFound(error_string.clone()));
             mock_internal
                 .expect_get_move_module()
                 .return_once(move |_package, _module_name| Err(expected_error));

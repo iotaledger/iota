@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::remote_write;
 use crate::var;
@@ -386,7 +387,7 @@ pub mod tests {
                         "sample values do not match"
                     );
 
-                    // timestamps are injected on the sui-node and we copy it to our sample
+                    // timestamps are injected on the iota-node and we copy it to our sample
                     // make sure that works
                     assert_eq!(
                         actual_sample.timestamp, expected_sample.timestamp,

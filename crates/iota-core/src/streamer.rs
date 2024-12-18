@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::subscription_handler::{SubscriptionMetrics, EVENT_DISPATCH_BUFFER_SIZE};
 use futures::Stream;
-use mysten_metrics::metered_channel::Sender;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::metered_channel::Sender;
+use iota_metrics::spawn_monitored_task;
 use parking_lot::RwLock;
 use prometheus::Registry;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use sui_json_rpc_types::Filter;
-use sui_types::base_types::ObjectID;
-use sui_types::error::SuiError;
+use iota_json_rpc_types::Filter;
+use iota_types::base_types::ObjectID;
+use iota_types::error::IotaError;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, warn};
@@ -38,21 +39,21 @@ where
         metrics_label: &'static str,
     ) -> Self {
         let channel_label = format!("streamer_{}", metrics_label);
-        let gauge = if let Some(metrics) = mysten_metrics::get_metrics() {
+        let gauge = if let Some(metrics) = iota_metrics::get_metrics() {
             metrics
                 .channel_inflight
                 .with_label_values(&[&channel_label])
         } else {
             // We call init_metrics very early when starting a node. Therefore when this happens,
             // it's probably in a test.
-            mysten_metrics::init_metrics(&Registry::default());
-            mysten_metrics::get_metrics()
+            iota_metrics::init_metrics(&Registry::default());
+            iota_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&[&channel_label])
         };
 
-        let (tx, rx) = mysten_metrics::metered_channel::channel(buffer, &gauge);
+        let (tx, rx) = iota_metrics::metered_channel::channel(buffer, &gauge);
         let streamer = Self {
             streamer_queue: tx,
             subscribers: Default::default(),
@@ -136,11 +137,11 @@ where
         ReceiverStream::new(rx)
     }
 
-    pub async fn send(&self, data: T) -> Result<(), SuiError> {
+    pub async fn send(&self, data: T) -> Result<(), IotaError> {
         self.streamer_queue
             .send(data)
             .await
-            .map_err(|e| SuiError::FailedToDispatchSubscription {
+            .map_err(|e| IotaError::FailedToDispatchSubscription {
                 error: e.to_string(),
             })
     }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -11,19 +12,19 @@ use fastcrypto::hash::HashFunction;
 use futures::StreamExt;
 
 use shared_crypto::intent::{Intent, IntentMessage};
-use sui_json_rpc_types::{
-    StakeStatus, SuiObjectDataOptions, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    StakeStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponseOptions,
 };
-use sui_sdk::rpc_types::SuiExecutionStatus;
-use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::{DefaultHash, SignatureScheme, ToFromBytes};
-use sui_types::error::SuiError;
-use sui_types::signature::{GenericSignature, VerifyParams};
-use sui_types::signature_verification::{
+use iota_sdk::rpc_types::IotaExecutionStatus;
+use iota_types::base_types::{ObjectRef, IotaAddress};
+use iota_types::crypto::{DefaultHash, SignatureScheme, ToFromBytes};
+use iota_types::error::IotaError;
+use iota_types::signature::{GenericSignature, VerifyParams};
+use iota_types::signature_verification::{
     verify_sender_signed_data_message_signatures, VerifiedDigestCache,
 };
-use sui_types::transaction::{Transaction, TransactionData, TransactionDataAPI};
+use iota_types::transaction::{Transaction, TransactionData, TransactionDataAPI};
 
 use crate::errors::Error;
 use crate::types::{
@@ -35,7 +36,7 @@ use crate::types::{
     InternalOperation, MetadataOptions, SignatureType, SigningPayload, TransactionIdentifier,
     TransactionIdentifierResponse,
 };
-use crate::{OnlineServerContext, SuiEnv};
+use crate::{OnlineServerContext, IotaEnv};
 
 /// This module implements the [Rosetta Construction API](https://www.rosetta-api.org/docs/ConstructionApi.html)
 
@@ -43,11 +44,11 @@ use crate::{OnlineServerContext, SuiEnv};
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionderive)
 pub async fn derive(
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<ConstructionDeriveRequest>, Error>,
 ) -> Result<ConstructionDeriveResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
-    let address: SuiAddress = request.public_key.try_into()?;
+    let address: IotaAddress = request.public_key.try_into()?;
     Ok(ConstructionDeriveResponse {
         account_identifier: address.into(),
     })
@@ -59,7 +60,7 @@ pub async fn derive(
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionpayloads)
 pub async fn payloads(
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<ConstructionPayloadsRequest>, Error>,
 ) -> Result<ConstructionPayloadsResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
@@ -70,7 +71,7 @@ pub async fn payloads(
         .operations
         .into_internal()?
         .try_into_data(metadata)?;
-    let intent_msg = IntentMessage::new(Intent::sui_transaction(), data);
+    let intent_msg = IntentMessage::new(Intent::iota_transaction(), data);
     let intent_msg_bytes = bcs::to_bytes(&intent_msg)?;
 
     let mut hasher = DefaultHash::default();
@@ -92,7 +93,7 @@ pub async fn payloads(
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructioncombine)
 pub async fn combine(
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<ConstructionCombineRequest>, Error>,
 ) -> Result<ConstructionCombineResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
@@ -137,7 +138,7 @@ pub async fn combine(
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionsubmit)
 pub async fn submit(
     State(context): State<OnlineServerContext>,
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<ConstructionSubmitRequest>, Error>,
 ) -> Result<TransactionIdentifierResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
@@ -152,7 +153,7 @@ pub async fn submit(
         .read_api()
         .dry_run_transaction_block(tx_data)
         .await?;
-    if let SuiExecutionStatus::Failure { error } = dry_run.effects.status() {
+    if let IotaExecutionStatus::Failure { error } = dry_run.effects.status() {
         return Err(Error::TransactionDryRunError(error.clone()));
     };
 
@@ -161,7 +162,7 @@ pub async fn submit(
         .quorum_driver_api()
         .execute_transaction_block(
             signed_tx,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
                 .with_balance_changes(),
@@ -169,7 +170,7 @@ pub async fn submit(
         )
         .await?;
 
-    if let SuiExecutionStatus::Failure { error } = response
+    if let IotaExecutionStatus::Failure { error } = response
         .effects
         .expect("Execute transaction should return effects")
         .status()
@@ -190,7 +191,7 @@ pub async fn submit(
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionpreprocess)
 pub async fn preprocess(
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<ConstructionPreprocessRequest>, Error>,
 ) -> Result<ConstructionPreprocessResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
@@ -211,7 +212,7 @@ pub async fn preprocess(
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionhash)
 pub async fn hash(
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<ConstructionHashRequest>, Error>,
 ) -> Result<TransactionIdentifierResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
@@ -225,13 +226,13 @@ pub async fn hash(
 }
 
 /// Get any information required to construct a transaction for a specific network.
-/// For Sui, we are returning the latest object refs for all the input objects,
+/// For Iota, we are returning the latest object refs for all the input objects,
 /// which will be used in transaction construction.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionmetadata)
 pub async fn metadata(
     State(context): State<OnlineServerContext>,
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<ConstructionMetadataRequest>, Error>,
 ) -> Result<ConstructionMetadataResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
@@ -254,7 +255,7 @@ pub async fn metadata(
 
     // Get amount, objects, for the operation
     let (total_required_amount, objects) = match &option.internal_operation {
-        InternalOperation::PaySui { amounts, .. } => {
+        InternalOperation::PayIota { amounts, .. } => {
             let amount = amounts.iter().sum::<u64>();
             (Some(amount), vec![])
         }
@@ -285,7 +286,7 @@ pub async fn metadata(
                     .flat_map(|s| {
                         s.stakes.into_iter().filter_map(|s| {
                             if let StakeStatus::Active { .. } = s.status {
-                                Some(s.staked_sui_id)
+                                Some(s.staked_iota_id)
                             } else {
                                 None
                             }
@@ -303,13 +304,13 @@ pub async fn metadata(
             let responses = context
                 .client
                 .read_api()
-                .multi_get_object_with_options(stake_ids, SuiObjectDataOptions::default())
+                .multi_get_object_with_options(stake_ids, IotaObjectDataOptions::default())
                 .await?;
             let stake_refs = responses
                 .into_iter()
                 .map(|stake| stake.into_object().map(|o| o.object_ref()))
                 .collect::<Result<Vec<_>, _>>()
-                .map_err(SuiError::from)?;
+                .map_err(IotaError::from)?;
 
             (Some(0), stake_refs)
         }
@@ -327,7 +328,7 @@ pub async fn metadata(
                     sender,
                     coins: vec![],
                     objects: objects.clone(),
-                    // Mock coin have 1B SUI
+                    // Mock coin have 1B IOTA
                     total_coin_value: 1_000_000_000 * 1_000_000_000,
                     gas_price,
                     // MAX BUDGET
@@ -342,7 +343,7 @@ pub async fn metadata(
                 .await?;
             let effects = dry_run.effects;
 
-            if let SuiExecutionStatus::Failure { error } = effects.status() {
+            if let IotaExecutionStatus::Failure { error } = effects.status() {
                 return Err(Error::TransactionDryRunError(error.to_string()));
             }
             effects.gas_cost_summary().computation_cost + effects.gas_cost_summary().storage_cost
@@ -362,7 +363,7 @@ pub async fn metadata(
         None
     };
 
-    // If required amount is None (all SUI) or failed to select coin (might not have enough SUI), select all coins.
+    // If required amount is None (all IOTA) or failed to select coin (might not have enough IOTA), select all coins.
     let coins = if let Some(coins) = coins {
         coins
     } else {
@@ -400,7 +401,7 @@ pub async fn metadata(
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/ConstructionApi.html#constructionparse)
 pub async fn parse(
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<ConstructionParseRequest>, Error>,
 ) -> Result<ConstructionParseResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;

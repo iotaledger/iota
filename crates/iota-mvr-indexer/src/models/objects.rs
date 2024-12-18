@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -8,13 +9,13 @@ use diesel::prelude::*;
 use serde::de::DeserializeOwned;
 
 use move_core_types::annotated_value::MoveTypeLayout;
-use sui_json_rpc::coin_api::parse_to_struct_tag;
-use sui_json_rpc_types::{Balance, Coin as SuiCoin};
-use sui_package_resolver::{PackageStore, Resolver};
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::digests::ObjectDigest;
-use sui_types::dynamic_field::{DynamicFieldType, Field};
-use sui_types::object::{Object, ObjectRead};
+use iota_json_rpc::coin_api::parse_to_struct_tag;
+use iota_json_rpc_types::{Balance, Coin as IotaCoin};
+use iota_package_resolver::{PackageStore, Resolver};
+use iota_types::base_types::{ObjectID, ObjectRef};
+use iota_types::digests::ObjectDigest;
+use iota_types::dynamic_field::{DynamicFieldType, Field};
+use iota_types::object::{Object, ObjectRead};
 
 use crate::errors::IndexerError;
 use crate::schema::{full_objects_history, objects, objects_history, objects_snapshot};
@@ -305,7 +306,7 @@ impl StoredObject {
         package_resolver: Arc<Resolver<impl PackageStore>>,
     ) -> Result<ObjectRead, IndexerError> {
         let oref = self.get_object_ref()?;
-        let object: sui_types::object::Object = self.try_into()?;
+        let object: iota_types::object::Object = self.try_into()?;
         let Some(move_object) = object.data.try_as_move().cloned() else {
             return Err(IndexerError::PostgresReadError(format!(
                 "Object {:?} is not a Move object",
@@ -370,7 +371,7 @@ impl StoredObject {
     }
 }
 
-impl TryFrom<StoredObject> for SuiCoin {
+impl TryFrom<StoredObject> for IotaCoin {
     type Error = IndexerError;
 
     fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
@@ -396,7 +397,7 @@ impl TryFrom<StoredObject> for SuiCoin {
                 "Object {} is supposed to be a coin but has an empty coin_balance column",
                 coin_object_id,
             )))?;
-        Ok(SuiCoin {
+        Ok(IotaCoin {
             coin_type,
             coin_object_id,
             version,
@@ -470,7 +471,7 @@ impl From<IndexedDeletedObject> for StoredFullHistoryObject {
 #[cfg(test)]
 mod tests {
     use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
-    use sui_types::{
+    use iota_types::{
         coin::Coin,
         digests::TransactionDigest,
         gas_coin::{GasCoin, GAS},
@@ -489,7 +490,7 @@ mod tests {
 
         match stored_obj.object_type {
             Some(t) => {
-                assert_eq!(t, "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>");
+                assert_eq!(t, "0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>");
             }
             None => {
                 panic!("object_type should not be none");
@@ -498,14 +499,14 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_stored_obj_to_sui_coin() {
+    fn test_convert_stored_obj_to_iota_coin() {
         let test_obj = Object::new_gas_for_testing();
         let indexed_obj = IndexedObject::from_object(1, test_obj, None);
 
         let stored_obj = StoredObject::from(indexed_obj);
 
-        let sui_coin = SuiCoin::try_from(stored_obj).unwrap();
-        assert_eq!(sui_coin.coin_type, "0x2::sui::SUI");
+        let iota_coin = IotaCoin::try_from(stored_obj).unwrap();
+        assert_eq!(iota_coin.coin_type, "0x2::iota::IOTA");
     }
 
     #[test]
@@ -520,12 +521,12 @@ mod tests {
             coin_balance: 100,
         };
         let balance = Balance::try_from(test_balance).unwrap();
-        assert_eq!(balance.coin_type, "0x2::sui::SUI");
+        assert_eq!(balance.coin_type, "0x2::iota::IOTA");
     }
 
     #[test]
-    fn test_vec_of_coin_sui_conversion() {
-        // 0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::sui::SUI>>>
+    fn test_vec_of_coin_iota_conversion() {
+        // 0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>
         let vec_coins_type = TypeTag::Vector(Box::new(
             Coin::type_(TypeTag::Struct(Box::new(GAS::type_()))).into(),
         ));
@@ -569,7 +570,7 @@ mod tests {
 
         match stored_obj.object_type {
             Some(t) => {
-                assert_eq!(t, "0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>>>");
+                assert_eq!(t, "0x00000000000000000000000000000000000000000000000000000000000000e7::vec_coin::VecCoin<vector<0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>>>");
             }
             None => {
                 panic!("object_type should not be none");

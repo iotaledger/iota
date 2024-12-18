@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::backfill::backfill_task::BackfillTask;
@@ -8,7 +9,7 @@ use async_trait::async_trait;
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::{AsyncConnection, RunQueryDsl};
 use std::ops::RangeInclusive;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 
 pub struct SystemStateSummaryJsonBackfill;
 
@@ -29,7 +30,7 @@ impl BackfillTask for SystemStateSummaryJsonBackfill {
             let Some(bytes) = bytes else {
                 continue;
             };
-            let system_state_summary: SuiSystemStateSummary = bcs::from_bytes(&bytes).unwrap();
+            let system_state_summary: IotaSystemStateSummary = bcs::from_bytes(&bytes).unwrap();
             let json_ser = serde_json::to_value(&system_state_summary).unwrap();
             if system_state_summary.epoch == 1 {
                 // Each existing system state's epoch is off by 1.

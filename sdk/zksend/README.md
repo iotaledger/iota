@@ -1,1 +1,1 @@
-# `@mysten/zksend`
+# `@iota/zksend`

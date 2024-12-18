@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { normalizeStructTag } from '@mysten/sui/utils';
+import { normalizeStructTag } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 
 import { useAppsBackend } from '../../../../../core';

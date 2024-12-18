@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::object_runtime::LocalProtocolConfig;
@@ -14,8 +15,8 @@ use std::{
     collections::{btree_map, BTreeMap},
     sync::Arc,
 };
-use sui_protocol_config::{check_limit_by_meter, LimitThresholdCrossed};
-use sui_types::{
+use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed};
+use iota_types::{
     base_types::{MoveObjectType, ObjectID, SequenceNumber},
     error::VMMemoryLimitExceededSubStatusCode,
     metrics::LimitsMetrics,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useActiveAccount } from '_app/hooks/useActiveAccount';
 import { useSigner } from '_app/hooks/useSigner';
@@ -27,10 +28,10 @@ import {
 } from '_pages/swap/utils';
 import { ampli } from '_shared/analytics/ampli';
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { useBalanceInUSD, useCoinMetadata, useZodForm } from '@mysten/core';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { ArrowDown12, ArrowRight16 } from '@mysten/icons';
-import { normalizeStructTag, SUI_TYPE_ARG } from '@mysten/sui/utils';
+import { useBalanceInUSD, useCoinMetadata, useZodForm } from '@iota/core';
+import { useIotaClient } from '@iota/dapp-kit';
+import { ArrowDown12, ArrowRight16 } from '@iota/icons';
+import { normalizeStructTag, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import clsx from 'clsx';
@@ -41,7 +42,7 @@ import { z } from 'zod';
 
 export function SwapPage() {
 	const navigate = useNavigate();
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const queryClient = useQueryClient();
 	const activeAccount = useActiveAccount();
 	const signer = useSigner(activeAccount);
@@ -52,8 +53,8 @@ export function SwapPage() {
 	const defaultSlippage = useFeatureValue('defi-max-slippage', DEFAULT_MAX_SLIPPAGE_PERCENTAGE);
 	const maxSlippage = Number(searchParams.get('maxSlippage') || defaultSlippage);
 	const presetAmount = searchParams.get('presetAmount');
-	const isSui = fromCoinType
-		? normalizeStructTag(fromCoinType) === normalizeStructTag(SUI_TYPE_ARG)
+	const isIota = fromCoinType
+		? normalizeStructTag(fromCoinType) === normalizeStructTag(IOTA_TYPE_ARG)
 		: false;
 	const { data: fromCoinData } = useCoinMetadata(fromCoinType);
 
@@ -156,13 +157,13 @@ export function SwapPage() {
 		const bnBalance = new BigNumber(balance?.totalBalance || 0).shiftedBy(
 			-1 * (fromCoinData?.decimals ?? 0),
 		);
-		return isSui && bnBalance.gt(GAS_RESERVE)
+		return isIota && bnBalance.gt(GAS_RESERVE)
 			? bnBalance
 					.minus(GAS_RESERVE)
 					.decimalPlaces(fromCoinData?.decimals ?? 0)
 					.toString()
 			: bnBalance.decimalPlaces(fromCoinData?.decimals ?? 0).toString();
-	}, [balance?.totalBalance, fromCoinData?.decimals, isSui]);
+	}, [balance?.totalBalance, fromCoinData?.decimals, isIota]);
 
 	const { data: toCoinData } = useCoinMetadata(toCoinType);
 	const fromCoinSymbol = fromCoinData?.symbol;
@@ -183,7 +184,7 @@ export function SwapPage() {
 		amount: parsed.toString(),
 		slippage: Number(allowedMaxSlippagePercentage),
 		enabled: isFormValid && parsed > 0n && !!fromCoinType && !!toCoinType,
-		source: 'sui-wallet',
+		source: 'iota-wallet',
 	});
 
 	const swapData = useMemo(() => {
@@ -246,7 +247,7 @@ export function SwapPage() {
 		handleSwap(formData);
 	};
 
-	const showGasFeeBanner = !swapTransactionPending && swapData && isSui && isMaxBalance;
+	const showGasFeeBanner = !swapTransactionPending && swapData && isIota && isMaxBalance;
 
 	return (
 		<Overlay showModal title="Swap" closeOverlay={() => navigate('/')}>
@@ -327,7 +328,7 @@ export function SwapPage() {
 								<div
 									className={clsx(
 										'flex flex-col border border-hero-darkest/20 rounded-xl p-5 gap-4 border-solid',
-										{ 'bg-sui-primaryBlue2023/10': isFormValid },
+										{ 'bg-iota-primaryBlue2023/10': isFormValid },
 									)}
 								>
 									<AssetData

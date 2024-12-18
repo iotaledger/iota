@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type BalanceChange } from '@mysten/sui/client';
+import { type BalanceChange } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { useDryRunContext } from '../DryRunContext';

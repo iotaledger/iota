@@ -6,8 +6,8 @@ edition = "2024.beta"
 
 [dependencies]
 MoveStdlib = { local = "../move-stdlib" }
-Sui = { local = "../sui-framework" }
-SuiSystem = { local = "../sui-system" }
+Iota = { local = "../iota-framework" }
+IotaSystem = { local = "../iota-system" }
 
 [addresses]
 bridge = "0xb"

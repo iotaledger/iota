@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod util;
@@ -19,7 +20,7 @@ use tokio::sync::mpsc;
 use tokio::task;
 use tracing::{debug, info};
 
-// Okta client created for Mysten Labs
+// Okta client created for IOTA Foundation
 // Contact #techops-suport for replacement
 const CLIENT_ID: &str = "0oacw4bwt1BOV410t697";
 
@@ -59,7 +60,7 @@ impl TokenData {
 
 fn get_token_file_path() -> String {
     let home = dirs::home_dir().unwrap();
-    let token_file_path = format!("{}/.suiop/okta_token.json", home.display());
+    let token_file_path = format!("{}/.iotaop/okta_token.json", home.display());
     fs::create_dir_all(Path::new(&token_file_path).parent().unwrap()).unwrap();
     token_file_path
 }
@@ -105,7 +106,7 @@ async fn authorize_callback_handler(
 ) -> impl IntoResponse {
     // exchange authorization code for access token
     let url = format!(
-        "https://mystenlabs.okta.com/oauth2/v1/token?\
+        "https://iotafoundation.okta.com/oauth2/v1/token?\
             &grant_type=authorization_code\
             &client_id={}\
             &code={}\

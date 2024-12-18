@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 module ibe::tests;
 
 use ibe::example;
-use sui::{bcs, bls12381};
+use iota::{bcs, bls12381};
 
 #[test_only]
 use std::hash::sha2_256;
 #[test_only]
-use sui::test_utils::assert_eq;
+use iota::test_utils::assert_eq;
 
 // This test emulates drand based timelock encryption (using quicknet).
 #[test]

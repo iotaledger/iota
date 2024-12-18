@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use mysten_network::callback::CallbackLayer;
+use iota_network_stack::callback::CallbackLayer;
 use reader::StateReader;
 use rest::build_rest_router;
 use std::sync::Arc;
-use sui_types::storage::RpcStateReader;
-use sui_types::transaction_executor::TransactionExecutor;
+use iota_types::storage::RpcStateReader;
+use iota_types::transaction_executor::TransactionExecutor;
 use tap::Pipe;
 
 pub mod client;
@@ -25,7 +26,7 @@ pub use client::Client;
 pub use config::Config;
 pub use error::{Result, RpcServiceError};
 pub use metrics::RpcMetrics;
-pub use sui_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
+pub use iota_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
 pub use types::CheckpointResponse;
 pub use types::ObjectResponse;
 
@@ -33,7 +34,7 @@ pub use types::ObjectResponse;
 pub struct RpcService {
     reader: StateReader,
     executor: Option<Arc<dyn TransactionExecutor>>,
-    chain_id: sui_types::digests::ChainIdentifier,
+    chain_id: iota_types::digests::ChainIdentifier,
     software_version: &'static str,
     metrics: Option<Arc<RpcMetrics>>,
     config: Config,
@@ -68,7 +69,7 @@ impl RpcService {
         self.metrics = Some(Arc::new(metrics));
     }
 
-    pub fn chain_id(&self) -> sui_types::digests::ChainIdentifier {
+    pub fn chain_id(&self) -> iota_types::digests::ChainIdentifier {
         self.chain_id
     }
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::programmable_transactions::context::new_session_for_linkage;
@@ -11,11 +12,11 @@ use move_core_types::annotated_value as A;
 use move_core_types::language_storage::{StructTag, TypeTag};
 use move_core_types::resolver::ResourceResolver;
 use move_vm_runtime::{move_vm::MoveVM, session::Session};
-use sui_types::base_types::ObjectID;
-use sui_types::error::SuiResult;
-use sui_types::execution::TypeLayoutStore;
-use sui_types::storage::{BackingPackageStore, PackageObject};
-use sui_types::{error::SuiError, layout_resolver::LayoutResolver};
+use iota_types::base_types::ObjectID;
+use iota_types::error::IotaResult;
+use iota_types::execution::TypeLayoutStore;
+use iota_types::storage::{BackingPackageStore, PackageObject};
+use iota_types::{error::IotaError, layout_resolver::LayoutResolver};
 
 /// Retrieve a `MoveStructLayout` from a `Type`.
 /// Invocation into the `Session` to leverage the `LinkageView` implementation
@@ -24,15 +25,15 @@ pub struct TypeLayoutResolver<'state, 'vm> {
     session: Session<'state, 'vm, LinkageView<'state>>,
 }
 
-/// Implements SuiResolver traits by providing null implementations for module and resource
+/// Implements IotaResolver traits by providing null implementations for module and resource
 /// resolution and delegating backing package resolution to the trait object.
-struct NullSuiResolver<'state>(Box<dyn TypeLayoutStore + 'state>);
+struct NullIotaResolver<'state>(Box<dyn TypeLayoutStore + 'state>);
 
 impl<'state, 'vm> TypeLayoutResolver<'state, 'vm> {
     pub fn new(vm: &'vm MoveVM, state_view: Box<dyn TypeLayoutStore + 'state>) -> Self {
         let session = new_session_for_linkage(
             vm,
-            LinkageView::new(Box::new(NullSuiResolver(state_view)), LinkageInfo::Unset),
+            LinkageView::new(Box::new(NullIotaResolver(state_view)), LinkageInfo::Unset),
         );
         Self { session }
     }
@@ -42,16 +43,16 @@ impl<'state, 'vm> LayoutResolver for TypeLayoutResolver<'state, 'vm> {
     fn get_annotated_layout(
         &mut self,
         struct_tag: &StructTag,
-    ) -> Result<A::MoveDatatypeLayout, SuiError> {
+    ) -> Result<A::MoveDatatypeLayout, IotaError> {
         let type_tag: TypeTag = TypeTag::from(struct_tag.clone());
         let Ok(ty) = load_type(&mut self.session, &type_tag) else {
-            return Err(SuiError::FailObjectLayout {
+            return Err(IotaError::FailObjectLayout {
                 st: format!("{}", struct_tag),
             });
         };
         let layout = self.session.type_to_fully_annotated_layout(&ty);
         let Ok(A::MoveTypeLayout::Struct(layout)) = layout else {
-            return Err(SuiError::FailObjectLayout {
+            return Err(IotaError::FailObjectLayout {
                 st: format!("{}", struct_tag),
             });
         };
@@ -59,14 +60,14 @@ impl<'state, 'vm> LayoutResolver for TypeLayoutResolver<'state, 'vm> {
     }
 }
 
-impl<'state> BackingPackageStore for NullSuiResolver<'state> {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
+impl<'state> BackingPackageStore for NullIotaResolver<'state> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.0.get_package_object(package_id)
     }
 }
 
-impl<'state> ResourceResolver for NullSuiResolver<'state> {
-    type Error = SuiError;
+impl<'state> ResourceResolver for NullIotaResolver<'state> {
+    type Error = IotaError;
 
     fn get_resource(
         &self,

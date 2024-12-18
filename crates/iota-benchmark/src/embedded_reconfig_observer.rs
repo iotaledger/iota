@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
 use async_trait::async_trait;
 use std::sync::Arc;
-use sui_core::authority_aggregator::AuthorityAggregator;
-use sui_core::quorum_driver::AuthorityAggregatorUpdatable;
-use sui_core::{
+use iota_core::authority_aggregator::AuthorityAggregator;
+use iota_core::quorum_driver::AuthorityAggregatorUpdatable;
+use iota_core::{
     authority_client::NetworkAuthorityClient, quorum_driver::reconfig_observer::ReconfigObserver,
 };
-use sui_network::default_mysten_network_config;
-use sui_types::sui_system_state::SuiSystemStateTrait;
+use iota_network::default_iota_network_config;
+use iota_types::iota_system_state::IotaSystemStateTrait;
 use tracing::{error, info, trace};
 
 /// A ReconfigObserver that polls validators periodically
@@ -50,7 +51,7 @@ impl EmbeddedReconfigObserver {
         {
             Err(err) => Err(err),
             Ok(committee_info) => {
-                let network_config = default_mysten_network_config();
+                let network_config = default_iota_network_config();
                 let new_epoch = committee_info.epoch();
                 if new_epoch <= cur_epoch {
                     trace!(

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { BcsType, BcsTypeOptions } from '@mysten/bcs';
-import { bcs, fromBase58, fromBase64, fromHex, toBase58, toBase64, toHex } from '@mysten/bcs';
+import type { BcsType, BcsTypeOptions } from '@iota/bcs';
+import { bcs, fromBase58, fromBase64, fromHex, toBase58, toBase64, toHex } from '@iota/bcs';
 
-import { isValidSuiAddress, normalizeSuiAddress, SUI_ADDRESS_LENGTH } from '../utils/sui-types.js';
+import { isValidIotaAddress, normalizeIotaAddress, IOTA_ADDRESS_LENGTH } from '../utils/iota-types.js';
 import { TypeTagSerializer } from './type-tag-serializer.js';
 import type { TypeTag as TypeTagType } from './types.js';
 
@@ -27,16 +28,16 @@ function optionEnum<T extends BcsType<any, any>>(type: T) {
 	});
 }
 
-export const Address = bcs.bytes(SUI_ADDRESS_LENGTH).transform({
+export const Address = bcs.bytes(IOTA_ADDRESS_LENGTH).transform({
 	validate: (val) => {
 		const address = typeof val === 'string' ? val : toHex(val);
-		if (!address || !isValidSuiAddress(normalizeSuiAddress(address))) {
-			throw new Error(`Invalid Sui address ${address}`);
+		if (!address || !isValidIotaAddress(normalizeIotaAddress(address))) {
+			throw new Error(`Invalid Iota address ${address}`);
 		}
 	},
 	input: (val: string | Uint8Array) =>
-		typeof val === 'string' ? fromHex(normalizeSuiAddress(val)) : val,
-	output: (val) => normalizeSuiAddress(toHex(val)),
+		typeof val === 'string' ? fromHex(normalizeIotaAddress(val)) : val,
+	output: (val) => normalizeIotaAddress(toHex(val)),
 });
 
 export const ObjectDigest = bcs.vector(bcs.u8()).transform({
@@ -50,7 +51,7 @@ export const ObjectDigest = bcs.vector(bcs.u8()).transform({
 	},
 });
 
-export const SuiObjectRef = bcs.struct('SuiObjectRef', {
+export const IotaObjectRef = bcs.struct('IotaObjectRef', {
 	objectId: Address,
 	version: bcs.u64(),
 	digest: ObjectDigest,
@@ -63,9 +64,9 @@ export const SharedObjectRef = bcs.struct('SharedObjectRef', {
 });
 
 export const ObjectArg = bcs.enum('ObjectArg', {
-	ImmOrOwnedObject: SuiObjectRef,
+	ImmOrOwnedObject: IotaObjectRef,
 	SharedObject: SharedObjectRef,
-	Receiving: SuiObjectRef,
+	Receiving: IotaObjectRef,
 });
 
 export const CallArg = bcs.enum('CallArg', {
@@ -210,7 +211,7 @@ export const StructTag = bcs.struct('StructTag', {
 });
 
 export const GasData = bcs.struct('GasData', {
-	payment: bcs.vector(SuiObjectRef),
+	payment: bcs.vector(IotaObjectRef),
 	owner: Address,
 	price: bcs.u64(),
 	budget: bcs.u64(),
@@ -239,7 +240,7 @@ export const IntentVersion = bcs.enum('IntentVersion', {
 });
 
 export const AppId = bcs.enum('AppId', {
-	Sui: null,
+	Iota: null,
 });
 
 export const Intent = bcs.struct('Intent', {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::AuthorityAggregatorUpdatable;
@@ -11,9 +12,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use std::sync::Arc;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::sui_system_state::SuiSystemStateTrait;
+use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
+use iota_types::iota_system_state::IotaSystemState;
+use iota_types::iota_system_state::IotaSystemStateTrait;
 use tokio::sync::broadcast::error::RecvError;
 use tracing::{info, warn};
 
@@ -26,7 +27,7 @@ pub trait ReconfigObserver<A: Clone> {
 /// A ReconfigObserver that subscribes to a reconfig channel of new committee.
 /// This is used in TransactionOrchestrator.
 pub struct OnsiteReconfigObserver {
-    reconfig_rx: tokio::sync::broadcast::Receiver<SuiSystemState>,
+    reconfig_rx: tokio::sync::broadcast::Receiver<IotaSystemState>,
     execution_cache: Arc<dyn ObjectCacheRead>,
     committee_store: Arc<CommitteeStore>,
     // TODO: Use Arc for both metrics.
@@ -36,7 +37,7 @@ pub struct OnsiteReconfigObserver {
 
 impl OnsiteReconfigObserver {
     pub fn new(
-        reconfig_rx: tokio::sync::broadcast::Receiver<SuiSystemState>,
+        reconfig_rx: tokio::sync::broadcast::Receiver<IotaSystemState>,
         execution_cache: Arc<dyn ObjectCacheRead>,
         committee_store: Arc<CommitteeStore>,
         safe_client_metrics_base: SafeClientMetricsBase,
@@ -72,7 +73,7 @@ impl ReconfigObserver<NetworkAuthorityClient> for OnsiteReconfigObserver {
             match self.reconfig_rx.recv().await {
                 Ok(system_state) => {
                     let epoch_start_state = system_state.into_epoch_start_state();
-                    let committee = epoch_start_state.get_sui_committee();
+                    let committee = epoch_start_state.get_iota_committee();
                     info!("Got reconfig message. New committee: {}", committee);
                     if committee.epoch() > updatable.epoch() {
                         let new_auth_agg = updatable

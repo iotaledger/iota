@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! WritePathPendingTransactionLog is used in the transaction write path (e.g. in
@@ -7,11 +8,11 @@
 //! 2. When Fullnode crashes and restarts, the pending transaction will be loaded and retried.
 
 use std::path::PathBuf;
-use sui_types::base_types::TransactionDigest;
-use sui_types::crypto::EmptySignInfo;
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::message_envelope::TrustedEnvelope;
-use sui_types::transaction::{SenderSignedData, VerifiedTransaction};
+use iota_types::base_types::TransactionDigest;
+use iota_types::crypto::EmptySignInfo;
+use iota_types::error::{IotaError, IotaResult};
+use iota_types::message_envelope::TrustedEnvelope;
+use iota_types::transaction::{SenderSignedData, VerifiedTransaction};
 use typed_store::rocks::MetricConf;
 use typed_store::traits::{TableSummary, TypedStoreDebug};
 use typed_store::DBMapUtils;
@@ -49,7 +50,7 @@ impl WritePathPendingTransactionLog {
     pub async fn write_pending_transaction_maybe(
         &self,
         tx: &VerifiedTransaction,
-    ) -> SuiResult<IsFirstRecord> {
+    ) -> IotaResult<IsFirstRecord> {
         let tx_digest = tx.digest();
         let mut transaction = self.pending_transactions.logs.transaction()?;
         if transaction
@@ -76,10 +77,10 @@ impl WritePathPendingTransactionLog {
     //        function may happen in between hence making the second request
     //        thinks it is the first record. It's preventable by checking this
     //        transaction again after the call of `write_pending_transaction_maybe`.
-    pub fn finish_transaction(&self, tx: &TransactionDigest) -> SuiResult {
+    pub fn finish_transaction(&self, tx: &TransactionDigest) -> IotaResult {
         let mut write_batch = self.pending_transactions.logs.batch();
         write_batch.delete_batch(&self.pending_transactions.logs, std::iter::once(tx))?;
-        write_batch.write().map_err(SuiError::from)
+        write_batch.write().map_err(IotaError::from)
     }
 
     pub fn load_all_pending_transactions(&self) -> Vec<VerifiedTransaction> {
@@ -96,7 +97,7 @@ mod tests {
     use super::*;
     use anyhow;
     use std::collections::HashSet;
-    use sui_types::utils::create_fake_transaction;
+    use iota_types::utils::create_fake_transaction;
 
     #[tokio::test]
     async fn test_pending_tx_log_basic() -> anyhow::Result<()> {

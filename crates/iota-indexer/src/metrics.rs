@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{extract::Extension, http::StatusCode, routing::get, Router};
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use prometheus::{
     register_histogram_with_registry, register_int_counter_with_registry,
     register_int_gauge_with_registry, Histogram, IntCounter, IntGauge,

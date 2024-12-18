@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::time::Duration;
@@ -8,16 +9,16 @@ use serde::Deserialize;
 use serde_json::json;
 
 use rosetta_client::start_rosetta_test_server;
-use sui_keys::keystore::AccountKeystore;
-use sui_rosetta::operations::Operations;
-use sui_rosetta::types::{
+use iota_keys::keystore::AccountKeystore;
+use iota_rosetta::operations::Operations;
+use iota_rosetta::types::{
     ConstructionCombineRequest, ConstructionCombineResponse, ConstructionMetadataRequest,
     ConstructionMetadataResponse, ConstructionPayloadsRequest, ConstructionPayloadsResponse,
     ConstructionPreprocessRequest, ConstructionPreprocessResponse, ConstructionSubmitRequest,
-    NetworkIdentifier, PreprocessMetadata, Signature, SignatureType, SuiEnv,
+    NetworkIdentifier, PreprocessMetadata, Signature, SignatureType, IotaEnv,
     TransactionIdentifierResponse,
 };
-use sui_types::crypto::SuiSignature;
+use iota_types::crypto::IotaSignature;
 use test_cluster::TestClusterBuilder;
 
 use crate::rosetta_client::RosettaEndpoint;
@@ -59,24 +60,24 @@ async fn pay_with_gas_budget(budget: u64) -> TransactionIdentifierResponseResult
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     let network_identifier = NetworkIdentifier {
-        blockchain: "sui".to_string(),
-        network: SuiEnv::LocalNet,
+        blockchain: "iota".to_string(),
+        network: IotaEnv::LocalNet,
     };
 
     let ops: Operations = serde_json::from_value(json!(
         [{
             "operation_identifier":{"index":0},
-            "type":"PaySui",
+            "type":"PayIota",
             "account": { "address" : recipient.to_string() },
-            "amount" : { "value": "1000000000" , "currency": { "symbol": "SUI", "decimals": 9}}
+            "amount" : { "value": "1000000000" , "currency": { "symbol": "IOTA", "decimals": 9}}
         },{
             "operation_identifier":{"index":1},
-            "type":"PaySui",
+            "type":"PayIota",
             "account": { "address" : sender.to_string() },
             "amount" : {
                 "value": "-1000000000",
                 "currency": {
-                    "symbol": "SUI",
+                    "symbol": "IOTA",
                     "decimals": 9,
                 }
             },
@@ -144,7 +145,7 @@ async fn pay_with_gas_budget(budget: u64) -> TransactionIdentifierResponseResult
                     signing_payload: signing_payload.clone(),
                     public_key: public_key.into(),
                     signature_type: SignatureType::Ed25519,
-                    hex_bytes: Hex::from_bytes(SuiSignature::signature_bytes(&signature)),
+                    hex_bytes: Hex::from_bytes(IotaSignature::signature_bytes(&signature)),
                 }],
             },
         )

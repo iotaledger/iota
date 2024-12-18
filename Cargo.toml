@@ -73,109 +73,109 @@ members = [
     "consensus/core",
     "crates/anemo-benchmark",
     "crates/bin-version",
-    "crates/mysten-common",
-    "crates/mysten-metrics",
-    "crates/mysten-network",
-    "crates/mysten-service",
-    "crates/mysten-util-mem",
-    "crates/mysten-util-mem-derive",
+    "crates/iota-common",
+    "crates/iota-metrics",
+    "crates/iota-network-stack",
+    "crates/iota-service",
+    "crates/iota-util-mem",
+    "crates/iota-util-mem-derive",
     "crates/prometheus-closure-metric",
     "crates/shared-crypto",
     "crates/simulacrum",
-    "crates/sui",
-    "crates/sui-adapter-transactional-tests",
-    "crates/sui-analytics-indexer",
-    "crates/sui-analytics-indexer-derive",
-    "crates/sui-archival",
-    "crates/sui-authority-aggregation",
-    "crates/sui-aws-orchestrator",
-    "crates/sui-benchmark",
-    "crates/sui-bridge",
-    "crates/sui-bridge-cli",
-    "crates/sui-bridge-indexer",
-    "crates/sui-cluster-test",
-    "crates/sui-config",
-    "crates/sui-core",
-    "crates/sui-cost",
-    "crates/sui-data-ingestion",
-    "crates/sui-data-ingestion-core",
-    "crates/sui-deepbook-indexer",
-    "crates/sui-default-config",
-    "crates/sui-e2e-tests",
-    "crates/sui-edge-proxy",
-    "crates/sui-enum-compat-util",
-    "crates/sui-faucet",
-    "crates/sui-field-count",
-    "crates/sui-field-count-derive",
-    "crates/sui-framework",
-    "crates/sui-framework-snapshot",
-    "crates/sui-framework-tests",
-    "crates/sui-genesis-builder",
-    "crates/sui-graphql-e2e-tests",
-    "crates/sui-graphql-rpc",
-    "crates/sui-graphql-rpc-client",
-    "crates/sui-graphql-rpc-headers",
-    "crates/sui-indexer",
-    "crates/sui-indexer-alt",
-    "crates/sui-indexer-alt-framework",
-    "crates/sui-indexer-builder",
-    "crates/sui-json",
-    "crates/sui-json-rpc",
-    "crates/sui-json-rpc-api",
-    "crates/sui-json-rpc-tests",
-    "crates/sui-json-rpc-types",
-    "crates/sui-keys",
-    "crates/sui-kvstore",
-    "crates/sui-light-client",
-    "crates/sui-macros",
-    "crates/sui-metric-checker",
-    "crates/sui-move",
-    "crates/sui-move-build",
-    "crates/sui-move-lsp",
-    "crates/sui-mvr-graphql-rpc",
-    "crates/sui-mvr-indexer",
-    "crates/sui-network",
-    "crates/sui-node",
-    "crates/sui-open-rpc",
-    "crates/sui-open-rpc-macros",
-    "crates/sui-oracle",
-    "crates/sui-package-dump",
-    "crates/sui-package-management",
-    "crates/sui-package-resolver",
-    "crates/sui-pg-temp-db",
-    "crates/sui-proc-macros",
-    "crates/sui-protocol-config",
-    "crates/sui-protocol-config-macros",
-    "crates/sui-proxy",
-    "crates/sui-replay",
-    "crates/sui-rosetta",
-    "crates/sui-rpc-api",
-    "crates/sui-rpc-loadgen",
-    "crates/sui-sdk",
-    "crates/sui-security-watchdog",
-    "crates/sui-simulator",
-    "crates/sui-single-node-benchmark",
-    "crates/sui-snapshot",
-    "crates/sui-source-validation",
-    "crates/sui-source-validation-service",
-    "crates/sui-storage",
-    "crates/sui-surfer",
-    "crates/sui-swarm",
-    "crates/sui-swarm-config",
-    "crates/sui-synthetic-ingestion",
-    "crates/sui-telemetry",
-    "crates/sui-test-transaction-builder",
-    "crates/sui-test-validator",
-    "crates/sui-tls",
-    "crates/sui-tool",
-    "crates/sui-transaction-builder",
-    "crates/sui-transaction-checks",
-    "crates/sui-transactional-test-runner",
-    "crates/sui-types",
-    "crates/sui-upgrade-compatibility-transactional-tests",
-    "crates/sui-verifier-transactional-tests",
-    "crates/suins-indexer",
-    "crates/suiop-cli",
+    "crates/iota",
+    "crates/iota-adapter-transactional-tests",
+    "crates/iota-analytics-indexer",
+    "crates/iota-analytics-indexer-derive",
+    "crates/iota-archival",
+    "crates/iota-authority-aggregation",
+    "crates/iota-aws-orchestrator",
+    "crates/iota-benchmark",
+    "crates/iota-bridge",
+    "crates/iota-bridge-cli",
+    "crates/iota-bridge-indexer",
+    "crates/iota-cluster-test",
+    "crates/iota-config",
+    "crates/iota-core",
+    "crates/iota-cost",
+    "crates/iota-data-ingestion",
+    "crates/iota-data-ingestion-core",
+    "crates/iota-deepbook-indexer",
+    "crates/iota-default-config",
+    "crates/iota-e2e-tests",
+    "crates/iota-edge-proxy",
+    "crates/iota-enum-compat-util",
+    "crates/iota-faucet",
+    "crates/iota-field-count",
+    "crates/iota-field-count-derive",
+    "crates/iota-framework",
+    "crates/iota-framework-snapshot",
+    "crates/iota-framework-tests",
+    "crates/iota-genesis-builder",
+    "crates/iota-graphql-e2e-tests",
+    "crates/iota-graphql-rpc",
+    "crates/iota-graphql-rpc-client",
+    "crates/iota-graphql-rpc-headers",
+    "crates/iota-indexer",
+    "crates/iota-indexer-alt",
+    "crates/iota-indexer-alt-framework",
+    "crates/iota-indexer-builder",
+    "crates/iota-json",
+    "crates/iota-json-rpc",
+    "crates/iota-json-rpc-api",
+    "crates/iota-json-rpc-tests",
+    "crates/iota-json-rpc-types",
+    "crates/iota-keys",
+    "crates/iota-kvstore",
+    "crates/iota-light-client",
+    "crates/iota-macros",
+    "crates/iota-metric-checker",
+    "crates/iota-move",
+    "crates/iota-move-build",
+    "crates/iota-move-lsp",
+    "crates/iota-mvr-graphql-rpc",
+    "crates/iota-mvr-indexer",
+    "crates/iota-network",
+    "crates/iota-node",
+    "crates/iota-open-rpc",
+    "crates/iota-open-rpc-macros",
+    "crates/iota-oracle",
+    "crates/iota-package-dump",
+    "crates/iota-package-management",
+    "crates/iota-package-resolver",
+    "crates/iota-pg-temp-db",
+    "crates/iota-proc-macros",
+    "crates/iota-protocol-config",
+    "crates/iota-protocol-config-macros",
+    "crates/iota-proxy",
+    "crates/iota-replay",
+    "crates/iota-rosetta",
+    "crates/iota-rpc-api",
+    "crates/iota-rpc-loadgen",
+    "crates/iota-sdk",
+    "crates/iota-security-watchdog",
+    "crates/iota-simulator",
+    "crates/iota-single-node-benchmark",
+    "crates/iota-snapshot",
+    "crates/iota-source-validation",
+    "crates/iota-source-validation-service",
+    "crates/iota-storage",
+    "crates/iota-surfer",
+    "crates/iota-swarm",
+    "crates/iota-swarm-config",
+    "crates/iota-synthetic-ingestion",
+    "crates/iota-telemetry",
+    "crates/iota-test-transaction-builder",
+    "crates/iota-test-validator",
+    "crates/iota-tls",
+    "crates/iota-tool",
+    "crates/iota-transaction-builder",
+    "crates/iota-transaction-checks",
+    "crates/iota-transactional-test-runner",
+    "crates/iota-types",
+    "crates/iota-upgrade-compatibility-transactional-tests",
+    "crates/iota-verifier-transactional-tests",
+    "crates/iotans-indexer",
+    "crates/iotaop-cli",
     "crates/telemetry-subscribers",
     "crates/test-cluster",
     "crates/transaction-fuzzer",
@@ -194,24 +194,24 @@ members = [
     "narwhal/test-utils",
     "narwhal/types",
     "narwhal/worker",
-    "sui-execution",
-    "sui-execution/cut",
-    "sui-execution/latest/sui-adapter",
-    "sui-execution/latest/sui-move-natives",
-    "sui-execution/latest/sui-verifier",
-    "sui-execution/v0/sui-adapter",
-    "sui-execution/v0/sui-move-natives",
-    "sui-execution/v0/sui-verifier",
-    "sui-execution/v1/sui-adapter",
-    "sui-execution/v1/sui-move-natives",
-    "sui-execution/v1/sui-verifier",
-    "sui-execution/v2/sui-adapter",
-    "sui-execution/v2/sui-move-natives",
-    "sui-execution/v2/sui-verifier",
+    "iota-execution",
+    "iota-execution/cut",
+    "iota-execution/latest/iota-adapter",
+    "iota-execution/latest/iota-move-natives",
+    "iota-execution/latest/iota-verifier",
+    "iota-execution/v0/iota-adapter",
+    "iota-execution/v0/iota-move-natives",
+    "iota-execution/v0/iota-verifier",
+    "iota-execution/v1/iota-adapter",
+    "iota-execution/v1/iota-move-natives",
+    "iota-execution/v1/iota-verifier",
+    "iota-execution/v2/iota-adapter",
+    "iota-execution/v2/iota-move-natives",
+    "iota-execution/v2/iota-verifier",
 ]
 
 [workspace.package]
-# This version string will be inherited by sui-core, sui-faucet, sui-node, sui-tools, sui-sdk, sui-move-build, and sui crates.
+# This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
 version = "1.39.4"
 
 [profile.release]
@@ -219,7 +219,7 @@ version = "1.39.4"
 debug = 1
 # Write debug info into a separate file.
 split-debuginfo = 'packed'
-# Without stripping, sui binary size would be > 1GB.
+# Without stripping, iota binary size would be > 1GB.
 strip = 'debuginfo'
 # Exit process with SIGABRT when any thread panics
 panic = 'abort'
@@ -604,101 +604,101 @@ anemo-cli = { git = "https://github.com/mystenlabs/anemo.git", rev = "e609f7697e
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "e609f7697ed6169bf0760882a0b6c032a57e4f3b" }
 
 # core-types with json format for REST api
-# sui-sdk-types = { version = "0.0.1", features = ["hash", "serde", "schemars"] }
-sui-sdk-types = { git = "https://github.com/MystenLabs/sui-rust-sdk.git", rev = "24c34933c421319e9aa1c48b3b7108c756e1422f", features = ["hash", "serde", "schemars"] }
+# iota-sdk-types = { version = "0.0.1", features = ["hash", "serde", "schemars"] }
+iota-sdk-types = { git = "https://github.com/MystenLabs/sui-rust-sdk.git", rev = "24c34933c421319e9aa1c48b3b7108c756e1422f", features = ["hash", "serde", "schemars"] }
 
 ### Workspace Members ###
 anemo-benchmark = { path = "crates/anemo-benchmark" }
 bin-version = { path = "crates/bin-version" }
-mysten-common = { path = "crates/mysten-common" }
-mysten-metrics = { path = "crates/mysten-metrics" }
-mysten-network = { path = "crates/mysten-network" }
-mysten-service = { path = "crates/mysten-service" }
-mysten-util-mem = { path = "crates/mysten-util-mem" }
-mysten-util-mem-derive = { path = "crates/mysten-util-mem-derive" }
+iota-common = { path = "crates/iota-common" }
+iota-metrics = { path = "crates/iota-metrics" }
+iota-network-stack = { path = "crates/iota-network-stack" }
+iota-service = { path = "crates/iota-service" }
+iota-util-mem = { path = "crates/iota-util-mem" }
+iota-util-mem-derive = { path = "crates/iota-util-mem-derive" }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }
-sui = { path = "crates/sui" }
-sui-adapter-transactional-tests = { path = "crates/sui-adapter-transactional-tests" }
-sui-analytics-indexer = { path = "crates/sui-analytics-indexer" }
-sui-analytics-indexer-derive = { path = "crates/sui-analytics-indexer-derive" }
-sui-archival = { path = "crates/sui-archival" }
-sui-authority-aggregation = { path = "crates/sui-authority-aggregation" }
-sui-benchmark = { path = "crates/sui-benchmark" }
-sui-bridge = { path = "crates/sui-bridge" }
-sui-cluster-test = { path = "crates/sui-cluster-test" }
-sui-config = { path = "crates/sui-config" }
-sui-core = { path = "crates/sui-core" }
-sui-cost = { path = "crates/sui-cost" }
-sui-data-ingestion = { path = "crates/sui-data-ingestion" }
-sui-data-ingestion-core = { path = "crates/sui-data-ingestion-core" }
-sui-default-config = { path = "crates/sui-default-config" }
-sui-e2e-tests = { path = "crates/sui-e2e-tests" }
-sui-enum-compat-util = { path = "crates/sui-enum-compat-util" }
-sui-faucet = { path = "crates/sui-faucet" }
-sui-field-count = { path = "crates/sui-field-count" }
-sui-field-count-derive = { path = "crates/sui-field-count-derive" }
-sui-framework = { path = "crates/sui-framework" }
-sui-framework-snapshot = { path = "crates/sui-framework-snapshot" }
-sui-framework-tests = { path = "crates/sui-framework-tests" }
-sui-graphql-rpc = { path = "crates/sui-graphql-rpc" }
-sui-graphql-rpc-client = { path = "crates/sui-graphql-rpc-client" }
-sui-graphql-rpc-headers = { path = "crates/sui-graphql-rpc-headers" }
-sui-genesis-builder = { path = "crates/sui-genesis-builder" }
-sui-indexer = { path = "crates/sui-indexer" }
-sui-indexer-alt-framework = { path = "crates/sui-indexer-alt-framework" }
-sui-indexer-builder = { path = "crates/sui-indexer-builder" }
-sui-json = { path = "crates/sui-json" }
-sui-json-rpc = { path = "crates/sui-json-rpc" }
-sui-json-rpc-api = { path = "crates/sui-json-rpc-api" }
-sui-json-rpc-types = { path = "crates/sui-json-rpc-types" }
-sui-keys = { path = "crates/sui-keys" }
-sui-kvstore = {path = "crates/sui-kvstore"}
-sui-macros = { path = "crates/sui-macros" }
-sui-metric-checker = { path = "crates/sui-metric-checker" }
-sui-move = { path = "crates/sui-move" }
-sui-move-build = { path = "crates/sui-move-build" }
-sui-move-lsp = { path = "crates/sui-move-lsp" }
-sui-mvr-graphql-rpc = { path = "crates/sui-mvr-graphql-rpc" }
-sui-mvr-indexer = { path = "crates/sui-mvr-indexer" }
-sui-network = { path = "crates/sui-network" }
-sui-node = { path = "crates/sui-node" }
-sui-open-rpc = { path = "crates/sui-open-rpc" }
-sui-open-rpc-macros = { path = "crates/sui-open-rpc-macros" }
-sui-package-dump = { path = "crates/sui-package-dump" }
-sui-package-management = { path = "crates/sui-package-management" }
-sui-package-resolver = { path = "crates/sui-package-resolver" }
-sui-pg-temp-db = { path = "crates/sui-pg-temp-db" }
-sui-proc-macros = { path = "crates/sui-proc-macros" }
-sui-protocol-config = { path = "crates/sui-protocol-config" }
-sui-protocol-config-macros = { path = "crates/sui-protocol-config-macros" }
-sui-proxy = { path = "crates/sui-proxy" }
-sui-replay = { path = "crates/sui-replay" }
-sui-rosetta = { path = "crates/sui-rosetta" }
-sui-rpc-loadgen = { path = "crates/sui-rpc-loadgen" }
-sui-sdk = { path = "crates/sui-sdk" }
-sui-simulator = { path = "crates/sui-simulator" }
-sui-snapshot = { path = "crates/sui-snapshot" }
-sui-source-validation = { path = "crates/sui-source-validation" }
-sui-source-validation-service = { path = "crates/sui-source-validation-service" }
-sui-storage = { path = "crates/sui-storage" }
-sui-surfer = { path = "crates/sui-surfer" }
-sui-swarm = { path = "crates/sui-swarm" }
-sui-swarm-config = { path = "crates/sui-swarm-config" }
-sui-synthetic-ingestion = { path = "crates/sui-synthetic-ingestion" }
-sui-telemetry = { path = "crates/sui-telemetry" }
-sui-test-transaction-builder = { path = "crates/sui-test-transaction-builder" }
-sui-test-validator = { path = "crates/sui-test-validator" }
-sui-tls = { path = "crates/sui-tls" }
-sui-rpc-api = { path = "crates/sui-rpc-api" }
-sui-tool = { path = "crates/sui-tool" }
-sui-transaction-builder = { path = "crates/sui-transaction-builder" }
-sui-transaction-checks = { path = "crates/sui-transaction-checks" }
-sui-transactional-test-runner = { path = "crates/sui-transactional-test-runner" }
-sui-types = { path = "crates/sui-types" }
-sui-upgrade-compatibility-transactional-tests = { path = "crates/sui-upgrade-compatibility-transactional-tests" }
-sui-verifier-transactional-tests = { path = "crates/sui-verifier-transactional-tests" }
+iota = { path = "crates/iota" }
+iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
+iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
+iota-analytics-indexer-derive = { path = "crates/iota-analytics-indexer-derive" }
+iota-archival = { path = "crates/iota-archival" }
+iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
+iota-benchmark = { path = "crates/iota-benchmark" }
+iota-bridge = { path = "crates/iota-bridge" }
+iota-cluster-test = { path = "crates/iota-cluster-test" }
+iota-config = { path = "crates/iota-config" }
+iota-core = { path = "crates/iota-core" }
+iota-cost = { path = "crates/iota-cost" }
+iota-data-ingestion = { path = "crates/iota-data-ingestion" }
+iota-data-ingestion-core = { path = "crates/iota-data-ingestion-core" }
+iota-default-config = { path = "crates/iota-default-config" }
+iota-e2e-tests = { path = "crates/iota-e2e-tests" }
+iota-enum-compat-util = { path = "crates/iota-enum-compat-util" }
+iota-faucet = { path = "crates/iota-faucet" }
+iota-field-count = { path = "crates/iota-field-count" }
+iota-field-count-derive = { path = "crates/iota-field-count-derive" }
+iota-framework = { path = "crates/iota-framework" }
+iota-framework-snapshot = { path = "crates/iota-framework-snapshot" }
+iota-framework-tests = { path = "crates/iota-framework-tests" }
+iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
+iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
+iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
+iota-genesis-builder = { path = "crates/iota-genesis-builder" }
+iota-indexer = { path = "crates/iota-indexer" }
+iota-indexer-alt-framework = { path = "crates/iota-indexer-alt-framework" }
+iota-indexer-builder = { path = "crates/iota-indexer-builder" }
+iota-json = { path = "crates/iota-json" }
+iota-json-rpc = { path = "crates/iota-json-rpc" }
+iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
+iota-json-rpc-types = { path = "crates/iota-json-rpc-types" }
+iota-keys = { path = "crates/iota-keys" }
+iota-kvstore = {path = "crates/iota-kvstore"}
+iota-macros = { path = "crates/iota-macros" }
+iota-metric-checker = { path = "crates/iota-metric-checker" }
+iota-move = { path = "crates/iota-move" }
+iota-move-build = { path = "crates/iota-move-build" }
+iota-move-lsp = { path = "crates/iota-move-lsp" }
+iota-mvr-graphql-rpc = { path = "crates/iota-mvr-graphql-rpc" }
+iota-mvr-indexer = { path = "crates/iota-mvr-indexer" }
+iota-network = { path = "crates/iota-network" }
+iota-node = { path = "crates/iota-node" }
+iota-open-rpc = { path = "crates/iota-open-rpc" }
+iota-open-rpc-macros = { path = "crates/iota-open-rpc-macros" }
+iota-package-dump = { path = "crates/iota-package-dump" }
+iota-package-management = { path = "crates/iota-package-management" }
+iota-package-resolver = { path = "crates/iota-package-resolver" }
+iota-pg-temp-db = { path = "crates/iota-pg-temp-db" }
+iota-proc-macros = { path = "crates/iota-proc-macros" }
+iota-protocol-config = { path = "crates/iota-protocol-config" }
+iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
+iota-proxy = { path = "crates/iota-proxy" }
+iota-replay = { path = "crates/iota-replay" }
+iota-rosetta = { path = "crates/iota-rosetta" }
+iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
+iota-sdk = { path = "crates/iota-sdk" }
+iota-simulator = { path = "crates/iota-simulator" }
+iota-snapshot = { path = "crates/iota-snapshot" }
+iota-source-validation = { path = "crates/iota-source-validation" }
+iota-source-validation-service = { path = "crates/iota-source-validation-service" }
+iota-storage = { path = "crates/iota-storage" }
+iota-surfer = { path = "crates/iota-surfer" }
+iota-swarm = { path = "crates/iota-swarm" }
+iota-swarm-config = { path = "crates/iota-swarm-config" }
+iota-synthetic-ingestion = { path = "crates/iota-synthetic-ingestion" }
+iota-telemetry = { path = "crates/iota-telemetry" }
+iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
+iota-test-validator = { path = "crates/iota-test-validator" }
+iota-tls = { path = "crates/iota-tls" }
+iota-rpc-api = { path = "crates/iota-rpc-api" }
+iota-tool = { path = "crates/iota-tool" }
+iota-transaction-builder = { path = "crates/iota-transaction-builder" }
+iota-transaction-checks = { path = "crates/iota-transaction-checks" }
+iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner" }
+iota-types = { path = "crates/iota-types" }
+iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-compatibility-transactional-tests" }
+iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
 telemetry-subscribers = { path = "crates/telemetry-subscribers" }
 test-cluster = { path = "crates/test-cluster" }
 transaction-fuzzer = { path = "crates/transaction-fuzzer" }
@@ -720,15 +720,15 @@ narwhal-test-utils = { path = "narwhal/test-utils" }
 narwhal-types = { path = "narwhal/types" }
 narwhal-worker = { path = "narwhal/worker" }
 
-sui-execution = { path = "sui-execution" }
-# sui-move-natives = { path = "sui-execution/latest/sui-move-natives", package = "sui-move-natives-latest" }
-# sui-adapter = { path = "sui-execution/latest/sui-adapter", package = "sui-adapter-latest" }
-# sui-verifier = { path = "sui-execution/latest/sui-verifier", package = "sui-verifier-latest" }
+iota-execution = { path = "iota-execution" }
+# iota-move-natives = { path = "iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
+# iota-adapter = { path = "iota-execution/latest/iota-adapter", package = "iota-adapter-latest" }
+# iota-verifier = { path = "iota-execution/latest/iota-verifier", package = "iota-verifier-latest" }
 # move-stdlib = { path = "external-crates/move/move-stdlib" }
 # move-vm-runtime = { path = "external-crates/move/move-vm/runtime" }
 # move-bytecode-verifier = { path = "external-crates/move/move-bytecode-verifier" }
 
-# suiop dependencies
+# iotaop dependencies
 docker-api = "0.12.2"
 field_names = "0.2.0"
 semver = "1.0.16"

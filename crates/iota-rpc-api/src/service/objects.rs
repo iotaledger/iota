@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::GetObjectOptions;
 use crate::types::ObjectResponse;
 use crate::Result;
 use crate::RpcService;
-use sui_sdk_types::types::ObjectId;
-use sui_sdk_types::types::Version;
+use iota_sdk_types::types::ObjectId;
+use iota_sdk_types::types::Version;
 use tap::Pipe;
 
 impl RpcService {

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Module: test_coin
 module test_coin::test_coin {
 
-    use sui::coin;
+    use iota::coin;
 
     public struct TEST_COIN has drop {}
 

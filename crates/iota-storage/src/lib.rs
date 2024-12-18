@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
@@ -19,11 +20,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::{fs, io};
-use sui_types::committee::Committee;
-use sui_types::messages_checkpoint::{
+use iota_types::committee::Committee;
+use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointSequenceNumber, VerifiedCheckpoint,
 };
-use sui_types::storage::WriteStore;
+use iota_types::storage::WriteStore;
 use tracing::debug;
 
 pub mod blob;

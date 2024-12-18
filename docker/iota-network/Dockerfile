@@ -1,6 +1,6 @@
-ARG SUI_TOOLS_IMAGE_TAG
+ARG IOTA_TOOLS_IMAGE_TAG
 
-FROM mysten/sui-tools:$SUI_TOOLS_IMAGE_TAG AS setup
+FROM iotaledger/iota-tools:$IOTA_TOOLS_IMAGE_TAG AS setup
 
 RUN apt update
 RUN apt install python3 python3-pip -y
@@ -11,14 +11,14 @@ COPY ./genesis /genesis
 
 WORKDIR /
 
-ARG SUI_NODE_A_TAG
-ARG SUI_NODE_B_TAG
-ENV SUI_NODE_A_TAG=$SUI_NODE_A_TAG
-ENV SUI_NODE_B_TAG=$SUI_NODE_B_TAG
+ARG IOTA_NODE_A_TAG
+ARG IOTA_NODE_B_TAG
+ENV IOTA_NODE_A_TAG=$IOTA_NODE_A_TAG
+ENV IOTA_NODE_B_TAG=$IOTA_NODE_B_TAG
 
 RUN ./new-genesis.sh
-RUN echo "SUI_NODE_A_TAG=$SUI_NODE_A_TAG" >> /.env
-RUN echo "SUI_NODE_B_TAG=$SUI_NODE_B_TAG" >> /.env
+RUN echo "IOTA_NODE_A_TAG=$IOTA_NODE_A_TAG" >> /.env
+RUN echo "IOTA_NODE_B_TAG=$IOTA_NODE_B_TAG" >> /.env
 
 FROM scratch
 

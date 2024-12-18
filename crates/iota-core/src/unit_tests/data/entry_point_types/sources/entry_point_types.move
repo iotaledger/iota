@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module entry_point_types::entry_point_types {
     use std::ascii;
     use std::string;
-    use sui::tx_context::TxContext;
+    use iota::tx_context::TxContext;
     use std::vector;
     use std::option::Option;
 

@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::abi::EthToSuiTokenBridgeV1;
+use crate::abi::EthToIotaTokenBridgeV1;
 use crate::crypto::BridgeAuthorityPublicKeyBytes;
 use crate::crypto::{
     BridgeAuthorityPublicKey, BridgeAuthorityRecoverableSignature, BridgeAuthoritySignInfo,
 };
 use crate::encoding::BridgeMessageEncoding;
 use crate::error::{BridgeError, BridgeResult};
-use crate::events::EmittedSuiToEthTokenBridgeV1;
+use crate::events::EmittedIotaToEthTokenBridgeV1;
 use enum_dispatch::enum_dispatch;
 use ethers::types::Address as EthAddress;
 use ethers::types::Log;
@@ -24,24 +25,24 @@ use shared_crypto::intent::IntentScope;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 use strum_macros::Display;
-use sui_types::base_types::SuiAddress;
-use sui_types::bridge::{
+use iota_types::base_types::IotaAddress;
+use iota_types::bridge::{
     BridgeChainId, MoveTypeTokenTransferPayload, APPROVAL_THRESHOLD_ADD_TOKENS_ON_EVM,
-    APPROVAL_THRESHOLD_ADD_TOKENS_ON_SUI, BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
+    APPROVAL_THRESHOLD_ADD_TOKENS_ON_IOTA, BRIDGE_COMMITTEE_MAXIMAL_VOTING_POWER,
     BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER,
 };
-use sui_types::bridge::{
+use iota_types::bridge::{
     MoveTypeParsedTokenTransferMessage, APPROVAL_THRESHOLD_ASSET_PRICE_UPDATE,
     APPROVAL_THRESHOLD_COMMITTEE_BLOCKLIST, APPROVAL_THRESHOLD_EMERGENCY_PAUSE,
     APPROVAL_THRESHOLD_EMERGENCY_UNPAUSE, APPROVAL_THRESHOLD_EVM_CONTRACT_UPGRADE,
     APPROVAL_THRESHOLD_LIMIT_UPDATE, APPROVAL_THRESHOLD_TOKEN_TRANSFER,
 };
-use sui_types::committee::CommitteeTrait;
-use sui_types::committee::StakeUnit;
-use sui_types::crypto::ToFromBytes;
-use sui_types::digests::{Digest, TransactionDigest};
-use sui_types::message_envelope::{Envelope, Message, VerifiedEnvelope};
-use sui_types::TypeTag;
+use iota_types::committee::CommitteeTrait;
+use iota_types::committee::StakeUnit;
+use iota_types::crypto::ToFromBytes;
+use iota_types::digests::{Digest, TransactionDigest};
+use iota_types::message_envelope::{Envelope, Message, VerifiedEnvelope};
+use iota_types::TypeTag;
 
 pub const BRIDGE_AUTHORITY_TOTAL_VOTING_POWER: u64 = 10000;
 
@@ -53,7 +54,7 @@ pub const BRIDGE_UNPAUSED: bool = false;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct BridgeAuthority {
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
     pub pubkey: BridgeAuthorityPublicKey,
     pub voting_power: u64,
     pub base_url: String,
@@ -211,7 +212,7 @@ pub enum BridgeActionType {
     LimitUpdate = 3,
     AssetPriceUpdate = 4,
     EvmContractUpgrade = 5,
-    AddTokensOnSui = 6,
+    AddTokensOnIota = 6,
     AddTokensOnEvm = 7,
 }
 
@@ -242,21 +243,21 @@ pub enum BridgeActionStatus {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct SuiToEthBridgeAction {
+pub struct IotaToEthBridgeAction {
     // Digest of the transaction where the event was emitted
-    pub sui_tx_digest: TransactionDigest,
+    pub iota_tx_digest: TransactionDigest,
     // The index of the event in the transaction
-    pub sui_tx_event_index: u16,
-    pub sui_bridge_event: EmittedSuiToEthTokenBridgeV1,
+    pub iota_tx_event_index: u16,
+    pub iota_bridge_event: EmittedIotaToEthTokenBridgeV1,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct EthToSuiBridgeAction {
+pub struct EthToIotaBridgeAction {
     // Digest of the transaction where the event was emitted
     pub eth_tx_hash: EthTransactionHash,
     // The index of the event in the transaction
     pub eth_event_index: u16,
-    pub eth_bridge_event: EthToSuiTokenBridgeV1,
+    pub eth_bridge_event: EthToIotaTokenBridgeV1,
 }
 
 #[derive(
@@ -314,8 +315,8 @@ pub struct EmergencyAction {
 pub struct LimitUpdateAction {
     pub nonce: u64,
     // The chain id that will receive this signed action. It's also the destination chain id
-    // for the limit update. For example, if chain_id is EthMainnet and sending_chain_id is SuiMainnet,
-    // it means we want to update the limit for the SuiMainnet to EthMainnet route.
+    // for the limit update. For example, if chain_id is EthMainnet and sending_chain_id is IotaMainnet,
+    // it means we want to update the limit for the IotaMainnet to EthMainnet route.
     pub chain_id: BridgeChainId,
     // The sending chain id for the limit update.
     pub sending_chain_id: BridgeChainId,
@@ -341,7 +342,7 @@ pub struct EvmContractUpgradeAction {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct AddTokensOnSuiAction {
+pub struct AddTokensOnIotaAction {
     pub nonce: u64,
     pub chain_id: BridgeChainId,
     pub native: bool,
@@ -357,7 +358,7 @@ pub struct AddTokensOnEvmAction {
     pub native: bool,
     pub token_ids: Vec<u8>,
     pub token_addresses: Vec<EthAddress>,
-    pub token_sui_decimals: Vec<u8>,
+    pub token_iota_decimals: Vec<u8>,
     pub token_prices: Vec<u64>,
 }
 
@@ -366,16 +367,16 @@ pub struct AddTokensOnEvmAction {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[enum_dispatch(BridgeMessageEncoding)]
 pub enum BridgeAction {
-    /// Sui to Eth bridge action
-    SuiToEthBridgeAction(SuiToEthBridgeAction),
-    /// Eth to sui bridge action
-    EthToSuiBridgeAction(EthToSuiBridgeAction),
+    /// Iota to Eth bridge action
+    IotaToEthBridgeAction(IotaToEthBridgeAction),
+    /// Eth to iota bridge action
+    EthToIotaBridgeAction(EthToIotaBridgeAction),
     BlocklistCommitteeAction(BlocklistCommitteeAction),
     EmergencyAction(EmergencyAction),
     LimitUpdateAction(LimitUpdateAction),
     AssetPriceUpdateAction(AssetPriceUpdateAction),
     EvmContractUpgradeAction(EvmContractUpgradeAction),
-    AddTokensOnSuiAction(AddTokensOnSuiAction),
+    AddTokensOnIotaAction(AddTokensOnIotaAction),
     AddTokensOnEvmAction(AddTokensOnEvmAction),
 }
 
@@ -397,14 +398,14 @@ impl BridgeAction {
 
     pub fn chain_id(&self) -> BridgeChainId {
         match self {
-            BridgeAction::SuiToEthBridgeAction(a) => a.sui_bridge_event.sui_chain_id,
-            BridgeAction::EthToSuiBridgeAction(a) => a.eth_bridge_event.eth_chain_id,
+            BridgeAction::IotaToEthBridgeAction(a) => a.iota_bridge_event.iota_chain_id,
+            BridgeAction::EthToIotaBridgeAction(a) => a.eth_bridge_event.eth_chain_id,
             BridgeAction::BlocklistCommitteeAction(a) => a.chain_id,
             BridgeAction::EmergencyAction(a) => a.chain_id,
             BridgeAction::LimitUpdateAction(a) => a.chain_id,
             BridgeAction::AssetPriceUpdateAction(a) => a.chain_id,
             BridgeAction::EvmContractUpgradeAction(a) => a.chain_id,
-            BridgeAction::AddTokensOnSuiAction(a) => a.chain_id,
+            BridgeAction::AddTokensOnIotaAction(a) => a.chain_id,
             BridgeAction::AddTokensOnEvmAction(a) => a.chain_id,
         }
     }
@@ -417,7 +418,7 @@ impl BridgeAction {
             BridgeActionType::LimitUpdate => true,
             BridgeActionType::AssetPriceUpdate => true,
             BridgeActionType::EvmContractUpgrade => true,
-            BridgeActionType::AddTokensOnSui => true,
+            BridgeActionType::AddTokensOnIota => true,
             BridgeActionType::AddTokensOnEvm => true,
         }
     }
@@ -425,14 +426,14 @@ impl BridgeAction {
     // Also called `message_type`
     pub fn action_type(&self) -> BridgeActionType {
         match self {
-            BridgeAction::SuiToEthBridgeAction(_) => BridgeActionType::TokenTransfer,
-            BridgeAction::EthToSuiBridgeAction(_) => BridgeActionType::TokenTransfer,
+            BridgeAction::IotaToEthBridgeAction(_) => BridgeActionType::TokenTransfer,
+            BridgeAction::EthToIotaBridgeAction(_) => BridgeActionType::TokenTransfer,
             BridgeAction::BlocklistCommitteeAction(_) => BridgeActionType::UpdateCommitteeBlocklist,
             BridgeAction::EmergencyAction(_) => BridgeActionType::EmergencyButton,
             BridgeAction::LimitUpdateAction(_) => BridgeActionType::LimitUpdate,
             BridgeAction::AssetPriceUpdateAction(_) => BridgeActionType::AssetPriceUpdate,
             BridgeAction::EvmContractUpgradeAction(_) => BridgeActionType::EvmContractUpgrade,
-            BridgeAction::AddTokensOnSuiAction(_) => BridgeActionType::AddTokensOnSui,
+            BridgeAction::AddTokensOnIotaAction(_) => BridgeActionType::AddTokensOnIota,
             BridgeAction::AddTokensOnEvmAction(_) => BridgeActionType::AddTokensOnEvm,
         }
     }
@@ -440,22 +441,22 @@ impl BridgeAction {
     // Also called `nonce`
     pub fn seq_number(&self) -> u64 {
         match self {
-            BridgeAction::SuiToEthBridgeAction(a) => a.sui_bridge_event.nonce,
-            BridgeAction::EthToSuiBridgeAction(a) => a.eth_bridge_event.nonce,
+            BridgeAction::IotaToEthBridgeAction(a) => a.iota_bridge_event.nonce,
+            BridgeAction::EthToIotaBridgeAction(a) => a.eth_bridge_event.nonce,
             BridgeAction::BlocklistCommitteeAction(a) => a.nonce,
             BridgeAction::EmergencyAction(a) => a.nonce,
             BridgeAction::LimitUpdateAction(a) => a.nonce,
             BridgeAction::AssetPriceUpdateAction(a) => a.nonce,
             BridgeAction::EvmContractUpgradeAction(a) => a.nonce,
-            BridgeAction::AddTokensOnSuiAction(a) => a.nonce,
+            BridgeAction::AddTokensOnIotaAction(a) => a.nonce,
             BridgeAction::AddTokensOnEvmAction(a) => a.nonce,
         }
     }
 
     pub fn approval_threshold(&self) -> u64 {
         match self {
-            BridgeAction::SuiToEthBridgeAction(_) => APPROVAL_THRESHOLD_TOKEN_TRANSFER,
-            BridgeAction::EthToSuiBridgeAction(_) => APPROVAL_THRESHOLD_TOKEN_TRANSFER,
+            BridgeAction::IotaToEthBridgeAction(_) => APPROVAL_THRESHOLD_TOKEN_TRANSFER,
+            BridgeAction::EthToIotaBridgeAction(_) => APPROVAL_THRESHOLD_TOKEN_TRANSFER,
             BridgeAction::BlocklistCommitteeAction(_) => APPROVAL_THRESHOLD_COMMITTEE_BLOCKLIST,
             BridgeAction::EmergencyAction(a) => match a.action_type {
                 EmergencyActionType::Pause => APPROVAL_THRESHOLD_EMERGENCY_PAUSE,
@@ -464,7 +465,7 @@ impl BridgeAction {
             BridgeAction::LimitUpdateAction(_) => APPROVAL_THRESHOLD_LIMIT_UPDATE,
             BridgeAction::AssetPriceUpdateAction(_) => APPROVAL_THRESHOLD_ASSET_PRICE_UPDATE,
             BridgeAction::EvmContractUpgradeAction(_) => APPROVAL_THRESHOLD_EVM_CONTRACT_UPGRADE,
-            BridgeAction::AddTokensOnSuiAction(_) => APPROVAL_THRESHOLD_ADD_TOKENS_ON_SUI,
+            BridgeAction::AddTokensOnIotaAction(_) => APPROVAL_THRESHOLD_ADD_TOKENS_ON_IOTA,
             BridgeAction::AddTokensOnEvmAction(_) => APPROVAL_THRESHOLD_ADD_TOKENS_ON_EVM,
         }
     }
@@ -561,22 +562,22 @@ impl EthEvent for RawEthLog {
 /// Check if the bridge route is valid
 /// Only mainnet can bridge to mainnet, other than that we do not care.
 pub fn is_route_valid(one: BridgeChainId, other: BridgeChainId) -> bool {
-    if one.is_sui_chain() && other.is_sui_chain() {
+    if one.is_iota_chain() && other.is_iota_chain() {
         return false;
     }
-    if !one.is_sui_chain() && !other.is_sui_chain() {
+    if !one.is_iota_chain() && !other.is_iota_chain() {
         return false;
     }
     if one == BridgeChainId::EthMainnet {
-        return other == BridgeChainId::SuiMainnet;
+        return other == BridgeChainId::IotaMainnet;
     }
-    if one == BridgeChainId::SuiMainnet {
+    if one == BridgeChainId::IotaMainnet {
         return other == BridgeChainId::EthMainnet;
     }
     if other == BridgeChainId::EthMainnet {
-        return one == BridgeChainId::SuiMainnet;
+        return one == BridgeChainId::IotaMainnet;
     }
-    if other == BridgeChainId::SuiMainnet {
+    if other == BridgeChainId::IotaMainnet {
         return one == BridgeChainId::EthMainnet;
     }
     true
@@ -615,13 +616,13 @@ impl TryFrom<MoveTypeParsedTokenTransferMessage> for ParsedTokenTransferMessage 
 #[cfg(test)]
 mod tests {
     use crate::test_utils::get_test_authority_and_key;
-    use crate::test_utils::get_test_eth_to_sui_bridge_action;
-    use crate::test_utils::get_test_sui_to_eth_bridge_action;
+    use crate::test_utils::get_test_eth_to_iota_bridge_action;
+    use crate::test_utils::get_test_iota_to_eth_bridge_action;
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::KeyPair;
     use std::collections::HashSet;
-    use sui_types::bridge::TOKEN_ID_BTC;
-    use sui_types::crypto::get_key_pair;
+    use iota_types::bridge::TOKEN_ID_BTC;
+    use iota_types::crypto::get_key_pair;
 
     use super::*;
 
@@ -690,10 +691,10 @@ mod tests {
     // Regression test to avoid accidentally change to approval threshold
     #[test]
     fn test_bridge_action_approval_threshold_regression_test() -> anyhow::Result<()> {
-        let action = get_test_sui_to_eth_bridge_action(None, None, None, None, None, None, None);
+        let action = get_test_iota_to_eth_bridge_action(None, None, None, None, None, None, None);
         assert_eq!(action.approval_threshold(), 3334);
 
-        let action = get_test_eth_to_sui_bridge_action(None, None, None, None);
+        let action = get_test_eth_to_iota_bridge_action(None, None, None, None);
         assert_eq!(action.approval_threshold(), 3334);
 
         let action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
@@ -720,7 +721,7 @@ mod tests {
 
         let action = BridgeAction::LimitUpdateAction(LimitUpdateAction {
             nonce: 15,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             sending_chain_id: BridgeChainId::EthCustom,
             new_usd_limit: 1_000_000 * USD_MULTIPLIER,
         });
@@ -728,7 +729,7 @@ mod tests {
 
         let action = BridgeAction::AssetPriceUpdateAction(AssetPriceUpdateAction {
             nonce: 266,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             token_id: TOKEN_ID_BTC,
             new_usd_price: 100_000 * USD_MULTIPLIER,
         });

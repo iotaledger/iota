@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::future::join_all;
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::fmt::Debug;
-use sui_json_rpc_types::{
-    SuiObjectDataOptions, SuiObjectResponse, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use sui_sdk::SuiClient;
-use sui_types::base_types::{ObjectID, TransactionDigest};
+use iota_sdk::IotaClient;
+use iota_types::base_types::{ObjectID, TransactionDigest};
 use tracing::error;
 use tracing::log::warn;
 
@@ -58,18 +59,18 @@ where
 }
 
 pub(crate) async fn check_transactions(
-    clients: &[SuiClient],
+    clients: &[IotaClient],
     digests: &[TransactionDigest],
     cross_validate: bool,
     verify_objects: bool,
-) -> Vec<Vec<SuiTransactionBlockResponse>> {
-    let transactions: Vec<Vec<SuiTransactionBlockResponse>> =
+) -> Vec<Vec<IotaTransactionBlockResponse>> {
+    let transactions: Vec<Vec<IotaTransactionBlockResponse>> =
         join_all(clients.iter().map(|client| async move {
             client
                 .read_api()
                 .multi_get_transactions_with_options(
                     digests.to_vec(),
-                    SuiTransactionBlockResponseOptions::full_content(), // todo(Will) support options for this
+                    IotaTransactionBlockResponseOptions::full_content(), // todo(Will) support options for this
                 )
                 .await
         }))
@@ -106,7 +107,7 @@ pub(crate) async fn check_transactions(
     transactions
 }
 
-pub(crate) fn get_all_object_ids(response: &SuiTransactionBlockResponse) -> Vec<ObjectID> {
+pub(crate) fn get_all_object_ids(response: &IotaTransactionBlockResponse) -> Vec<ObjectID> {
     let objects = match response.effects.as_ref() {
         // TODO: handle deleted and wrapped objects
         Some(effects) => effects.all_changed_objects(),
@@ -139,7 +140,7 @@ where
 }
 
 pub(crate) async fn check_objects(
-    clients: &[SuiClient],
+    clients: &[IotaClient],
     object_ids: &[ObjectID],
     cross_validate: bool,
 ) {
@@ -154,10 +155,10 @@ pub(crate) async fn check_objects(
 }
 
 pub(crate) async fn multi_get_object(
-    clients: &[SuiClient],
+    clients: &[IotaClient],
     object_ids: &[ObjectID],
-) -> Vec<Vec<SuiObjectResponse>> {
-    let objects: Vec<Vec<SuiObjectResponse>> = join_all(clients.iter().map(|client| async move {
+) -> Vec<Vec<IotaObjectResponse>> {
+    let objects: Vec<Vec<IotaObjectResponse>> = join_all(clients.iter().map(|client| async move {
         let object_ids = if object_ids.len() > LOADGEN_QUERY_MAX_RESULT_LIMIT {
             warn!(
                 "The input size for multi_get_object_with_options has exceed the query limit\
@@ -173,7 +174,7 @@ pub(crate) async fn multi_get_object(
             .read_api()
             .multi_get_object_with_options(
                 object_ids.to_vec(),
-                SuiObjectDataOptions::full_content(), // todo(Will) support options for this
+                IotaObjectDataOptions::full_content(), // todo(Will) support options for this
             )
             .await
     }))

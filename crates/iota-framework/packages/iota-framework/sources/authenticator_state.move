@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_use)]
@@ -7,10 +8,10 @@
 //
 // This module is not currently accessible from user contracts, and is used only to record the JWK
 // state to the chain for auditability + restore from snapshot purposes.
-module sui::authenticator_state;
+module iota::authenticator_state;
 
 use std::string::{Self, String, utf8};
-use sui::dynamic_field;
+use iota::dynamic_field;
 
 /// Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 0;
@@ -286,7 +287,7 @@ fun expire_jwks(
     min_epoch: u64,
     ctx: &TxContext,
 ) {
-    // This will only be called by sui_system::advance_epoch
+    // This will only be called by iota_system::advance_epoch
     assert!(ctx.sender() == @0x0, ENotSystemAddress);
 
     let inner = load_inner_mut(self);

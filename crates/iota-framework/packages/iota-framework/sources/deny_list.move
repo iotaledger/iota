@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Defines the `DenyList` type. The `DenyList` shared object is used to restrict access to
 /// instances of certain core types from being used as inputs by specified addresses in the deny
 /// list.
-module sui::deny_list;
+module iota::deny_list;
 
-use sui::bag::{Self, Bag};
-use sui::config::{Self, Config};
-use sui::dynamic_object_field as ofield;
-use sui::table::{Self, Table};
-use sui::vec_set::{Self, VecSet};
+use iota::bag::{Self, Bag};
+use iota::config::{Self, Config};
+use iota::dynamic_object_field as ofield;
+use iota::table::{Self, Table};
+use iota::vec_set::{Self, VecSet};
 
 /// Trying to create a deny list object when not called by the system address.
 const ENotSystemAddress: u64 = 0;
@@ -19,7 +20,7 @@ const ENotDenied: u64 = 1;
 /// The specified address cannot be added to the deny list.
 const EInvalidAddress: u64 = 1;
 
-/// The index into the deny list vector for the `sui::coin::Coin` type.
+/// The index into the deny list vector for the `iota::coin::Coin` type.
 const COIN_INDEX: u64 = 0;
 
 /// These addresses are reserved and cannot be added to the deny list.
@@ -246,7 +247,7 @@ fun add_per_type_config(
     let config = config::new(&mut ConfigWriteCap(), ctx);
     let config_id = object::id(&config);
     ofield::internal_add(&mut deny_list.id, key, config);
-    sui::event::emit(PerTypeConfigCreated { key, config_id });
+    iota::event::emit(PerTypeConfigCreated { key, config_id });
 }
 
 fun borrow_per_type_config_mut(
@@ -297,7 +298,7 @@ public struct PerTypeList has key, store {
     /// Used to quickly skip checks for most addresses.
     denied_count: Table<address, u64>,
     /// Set of addresses that are banned for a given type.
-    /// For example with `sui::coin::Coin`: If addresses A and B are banned from using
+    /// For example with `iota::coin::Coin`: If addresses A and B are banned from using
     /// "0...0123::my_coin::MY_COIN", this will be "0...0123::my_coin::MY_COIN" -> {A, B}.
     denied_addresses: Table<vector<u8>, VecSet<address>>,
 }
@@ -393,7 +394,7 @@ fun create(ctx: &mut TxContext) {
     let mut lists = bag::new(ctx);
     lists.add(COIN_INDEX, per_type_list(ctx));
     let deny_list_object = DenyList {
-        id: object::sui_deny_list_object_id(),
+        id: object::iota_deny_list_object_id(),
         lists,
     };
     transfer::share_object(deny_list_object);

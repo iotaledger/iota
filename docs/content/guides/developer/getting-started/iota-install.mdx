@@ -1,13 +1,13 @@
 ---
-title: Install Sui
-description: Install the Sui framework and required prerequisites on your system, including the Sui command line interface to interact with the Sui network.
+title: Install Iota
+description: Install the Iota framework and required prerequisites on your system, including the Iota command line interface to interact with the Iota network.
 ---
 
-The quickest way to install Sui is using the binaries delivered with every release. If you require more control over the install process, you can install from source. To take advantage of containerization, you can utilize the Docker images in the `docker` folder of the sui repository.
+The quickest way to install Iota is using the binaries delivered with every release. If you require more control over the install process, you can install from source. To take advantage of containerization, you can utilize the Docker images in the `docker` folder of the iota repository.
 
 ## Supported operating systems {#supported-operating-systems}
 
-Sui supports the following operating systems:
+Iota supports the following operating systems:
 
 - Linux - Ubuntu version 20.04 (Bionic Beaver) or later
 - macOS - macOS Monterey or later
@@ -21,62 +21,62 @@ Sui supports the following operating systems:
 
 :::note
 
-If you use this method to install Sui, you are all set. The quick install is suitable for most use cases. The remaining installation methods are for those wanting more control over the installation process.
+If you use this method to install Iota, you are all set. The quick install is suitable for most use cases. The remaining installation methods are for those wanting more control over the installation process.
 
 :::
 ::::
 
 ## Download binaries from GitHub {#install-binaries}
 
-Each Sui release provides a set of binaries for several operating systems. You can download these binaries from GitHub and use them to install Sui.
+Each Iota release provides a set of binaries for several operating systems. You can download these binaries from GitHub and use them to install Iota.
 
 <Tabs groupId="operating-systems">
 
 <TabItem value="linux" label="Linux">
-1. Go to https://github.com/MystenLabs/sui.
+1. Go to https://github.com/iotaledger/iota.
 1. In the right pane, find the **Releases** section.
 
-    ![Sui releases in GitHub](./images/releases.png)
+    ![Iota releases in GitHub](./images/releases.png)
 1. Click the release tagged **Latest** to open the release's page.
 1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
-1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `sui` folder at the user root of your system for demonstration purposes. Replace references to this location in subsequent steps if you choose a different directory.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the user root of your system for demonstration purposes. Replace references to this location in subsequent steps if you choose a different directory.
 1. Navigate to the expanded folder. You should have the following extracted files:
 
     {@include: ../../../snippets/binaries-file-list.mdx}
 
-1. Add the folder containing the extracted files to your `PATH` variable. To do so, you can update your `~/.bashrc` to include the location of the Sui binaries. If using the suggested location, you type `export PATH=$PATH:~/sui` and press Enter.
+1. Add the folder containing the extracted files to your `PATH` variable. To do so, you can update your `~/.bashrc` to include the location of the Iota binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
 1. Start a new terminal session or type `source ~/.bashrc` to load the new `PATH` value.
 
 </TabItem>
 
 <TabItem value="mac" label="macOS">
 
-1. Go to https://github.com/MystenLabs/sui.
+1. Go to https://github.com/iotaledger/iota.
 1. In the right pane, find the **Releases** section.
 
-    ![Sui releases in GitHub](./images/releases.png)
+    ![Iota releases in GitHub](./images/releases.png)
 1. Click the release tagged **Latest** to open the release's page.
 1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
-1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `sui` folder at the user root of your system. Replace references to this location in subsequent steps if you choose a different directory.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the user root of your system. Replace references to this location in subsequent steps if you choose a different directory.
 1. Navigate to the expanded folder. You should have the following extracted files: 
     
     {@include: ../../../snippets/binaries-file-list.mdx}
 
-1. Add the folder containing the extracted files to your `PATH` variable. To do so, you can update your `~/.zshrc` or `~/.bashrc` to include the location of the Sui binaries. If using the suggested location, you type `export PATH=$PATH:~/sui` and press Enter.
+1. Add the folder containing the extracted files to your `PATH` variable. To do so, you can update your `~/.zshrc` or `~/.bashrc` to include the location of the Iota binaries. If using the suggested location, you type `export PATH=$PATH:~/iota` and press Enter.
 1. Start a new terminal session or type `source ~/.zshrc` (or `.bashrc`) to load the new `PATH` value.
-1. If running the binaries for the first time, you might receive an error from MacOS that prevents the binaries from running. If you receive this error, close the dialog and type `xattr -d com.apple.quarantine ~/sui/*` in your terminal and press Enter (be sure to adjust the path if different). 
+1. If running the binaries for the first time, you might receive an error from MacOS that prevents the binaries from running. If you receive this error, close the dialog and type `xattr -d com.apple.quarantine ~/iota/*` in your terminal and press Enter (be sure to adjust the path if different). 
 
 </TabItem>
 
 <TabItem value="win" label="Windows">
 
-1. Go to https://github.com/MystenLabs/sui.
+1. Go to https://github.com/iotaledger/iota.
 1. In the right pane, find the **Releases** section.
 
-    ![Sui releases in GitHub](./images/releases.png)
+    ![Iota releases in GitHub](./images/releases.png)
 1. Click the release tagged **Latest** to open the release's page.
 1. In the **Assets** section of the release, select the .tgz compressed file that corresponds to your operating system.
-1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `sui` folder at the root of your C drive. Replace references to this location in subsequent steps if you choose a different directory.
+1. Extract all files from the .tgz file into the preferred location on your system. These instructions assume you extract the files into a `iota` folder at the root of your C drive. Replace references to this location in subsequent steps if you choose a different directory.
 
     :::info 
 
@@ -90,7 +90,7 @@ Each Sui release provides a set of binaries for several operating systems. You c
 
 1. Add the folder containing the extracted files to your `PATH` variable. There are several ways to get to the setting depending on your version of Windows. One way that works on all versions of Windows is to type `sysdm.cpl` in a console to open the System Properties window. Under the **Advanced** tab, click the **Environment Variables...** button.
 1. In the Environment Variables window, select the `Path` variable and click the **Edit...** button. 
-1. In the Edit environment variable window, click **New** and add the path to your expanded folder. Using the example path, this would be `C:\sui`.
+1. In the Edit environment variable window, click **New** and add the path to your expanded folder. Using the example path, this would be `C:\iota`.
 1. Click **OK**.
 
 </TabItem>
@@ -99,23 +99,23 @@ Each Sui release provides a set of binaries for several operating systems. You c
 
 :::info 
 
-Running binaries other than `sui` might require installing prerequisites itemized in the following section. 
+Running binaries other than `iota` might require installing prerequisites itemized in the following section. 
 
 :::
 
 #### Confirm the installation {#confirm-the-installation}
 
-To confirm that Sui installed correctly, type `sui --version` in your console or terminal and press Enter. The response should provide the Sui version installed. If the console or terminal responds with a command not found error, make sure the full path to your Sui binaries is included in your `PATH` variable.
+To confirm that Iota installed correctly, type `iota --version` in your console or terminal and press Enter. The response should provide the Iota version installed. If the console or terminal responds with a command not found error, make sure the full path to your Iota binaries is included in your `PATH` variable.
 
-## Install from Cargo {#install-sui-binaries-from-source}
+## Install from Cargo {#install-iota-binaries-from-source}
 
-Run the following command to install Sui binaries from the `testnet` branch:
+Run the following command to install Iota binaries from the `testnet` branch:
 
 ```shell
-cargo install --locked --git https://github.com/MystenLabs/sui.git --branch testnet sui --features tracing
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota --features tracing
 ```
 
-Enabling the `tracing` feature is important as it adds Move test coverage and debugger support in the Sui CLI. Without it these two features will not be able to be used.
+Enabling the `tracing` feature is important as it adds Move test coverage and debugger support in the Iota CLI. Without it these two features will not be able to be used.
 
 The install process can take a while to complete. You can monitor installation progress in the terminal. If you encounter an error, make sure to install the latest version of all prerequisites and then try the command again.
 
@@ -125,33 +125,33 @@ To update to the latest stable version of Rust:
 rustup update stable
 ```
 
-The command installs Sui components in the `~/.cargo/bin` folder.
+The command installs Iota components in the `~/.cargo/bin` folder.
 
 ## Upgrade from Cargo
 
-If you previously installed the Sui binaries, you can update them to the most recent release with the same command you used to install them (changing `testnet` to the desired branch):
+If you previously installed the Iota binaries, you can update them to the most recent release with the same command you used to install them (changing `testnet` to the desired branch):
 
 ```shell
-cargo install --locked --git https://github.com/MystenLabs/sui.git --branch testnet sui --features tracing
+cargo install --locked --git https://github.com/iotaledger/iota.git --branch testnet iota --features tracing
 ```
 
-The `tracing` feature is important as it adds Move test coverage and debugger support in the Sui CLI. Unless it is enabled you will not be able to use these two features.
+The `tracing` feature is important as it adds Move test coverage and debugger support in the Iota CLI. Unless it is enabled you will not be able to use these two features.
 
 ## Build from source
 
-Follow the instructions in this topic to install the Rust crates (packages) required to interact with Sui networks, including the Sui CLI.
+Follow the instructions in this topic to install the Rust crates (packages) required to interact with Iota networks, including the Iota CLI.
 
-To install Sui from source, you first need to install its [prerequisites](#prerequisites) for your operating system. After installing the supporting technologies, you can install [Sui binaries from source](#install-sui-binaries-from-source).
+To install Iota from source, you first need to install its [prerequisites](#prerequisites) for your operating system. After installing the supporting technologies, you can install [Iota binaries from source](#install-iota-binaries-from-source).
 
-You can also download the [source code](/references/contribute/sui-environment.mdx) to have local access to files.
+You can also download the [source code](/references/contribute/iota-environment.mdx) to have local access to files.
 
 #### Prerequisites {#prerequisites}
 
-Your system needs the following prerequisites available to successfully install Sui.
+Your system needs the following prerequisites available to successfully install Iota.
 
 #### Rust and Cargo {#rust-and-cargo}
 
-Sui requires Rust and Cargo (Rust's package manager) on all supported operating systems. The suggested method to install Rust is with `rustup` using cURL.
+Iota requires Rust and Cargo (Rust's package manager) on all supported operating systems. The suggested method to install Rust is with `rustup` using cURL.
 
 Some other commands in the installation instructions also require cURL to run. If you can't run the cURL command to install Rust, see the instructions to install cURL for your operating system in the following section before you install Rust.
 
@@ -165,7 +165,7 @@ If you use Windows 11, see information about using the [Rust installer](https://
 
 For additional installation options, see [Install Rust](https://www.rust-lang.org/tools/install).
 
-Sui uses the latest version of Cargo to build and manage dependencies. See the [Cargo installation](https://doc.rust-lang.org/cargo/getting-started/installation.html) page on the Rust website for more information.
+Iota uses the latest version of Cargo to build and manage dependencies. See the [Cargo installation](https://doc.rust-lang.org/cargo/getting-started/installation.html) page on the Rust website for more information.
 
 Use the following command to update Rust with `rustup`:
 
@@ -402,35 +402,35 @@ Download [Protocol Buffers](https://github.com/protocolbuffers/protobuf/releases
 
 #### Additional tools for Windows {#additional-tools-windows}
 
-Sui requires the following additional tools on computers running Windows.
+Iota requires the following additional tools on computers running Windows.
 
 - For Windows on ARM64 only - [Visual Studio 2022 Preview](https://visualstudio.microsoft.com/vs/preview/).
 - [C++ build tools](https://visualstudio.microsoft.com/downloads/) is required to [install Rust](#rust-and-cargo).
 - The [LLVM Compiler Infrastructure](https://releases.llvm.org/). Look for a file with a name similar to LLVM-15.0.7-win64.exe for 64-bit Windows, or LLVM-15.0.7-win32.exe for 32-bit Windows.
 
-**Known issue** - The `sui console` command does not work in PowerShell.
+**Known issue** - The `iota console` command does not work in PowerShell.
 
 </TabItem>
 
 </Tabs>
 
-## Using Sui from command line
+## Using Iota from command line
 
-With Sui installed, you can interact with Sui networks using the Sui CLI. For more details, see the [Sui CLI](/references/cli.mdx) reference.
+With Iota installed, you can interact with Iota networks using the Iota CLI. For more details, see the [Iota CLI](/references/cli.mdx) reference.
 
-## Installing Sui developer tools
+## Installing Iota developer tools
 
-If you use VSCode, you can install the [Move extension](https://marketplace.visualstudio.com/items?itemName=mysten.move) to get language server support for Move, as well as support for building, testing, and debugging Move code within the IDE. 
-You can install the extension either by searhing the fully-qualified extension name, `Mysten.move`, in the extension view, or by pressing `Ctrl-P` or `Cmd-P` and typing `ext install mysten.move`.
-Installing the Move extension also installs the appropriate `move-analyzer` binary for your operating system, as well as the [Move Trace Debugger](https://marketplace.visualstudio.com/items?itemName=mysten.move-trace-debug) extension, and [Move Syntax](https://marketplace.visualstudio.com/items?itemName=damirka.move-syntax) extension.
+If you use VSCode, you can install the [Move extension](https://marketplace.visualstudio.com/items?itemName=iota.move) to get language server support for Move, as well as support for building, testing, and debugging Move code within the IDE. 
+You can install the extension either by searhing the fully-qualified extension name, `IOTA Foundation.move`, in the extension view, or by pressing `Ctrl-P` or `Cmd-P` and typing `ext install iota.move`.
+Installing the Move extension also installs the appropriate `move-analyzer` binary for your operating system, as well as the [Move Trace Debugger](https://marketplace.visualstudio.com/items?itemName=iota.move-trace-debug) extension, and [Move Syntax](https://marketplace.visualstudio.com/items?itemName=damirka.move-syntax) extension.
 
 There are also community Move packages for [Emacs](https://github.com/amnn/move-mode) and [Vim](https://github.com/yanganto/move.vim). 
 
 ## Next steps {#next-steps}
 
-Now that you have Sui installed, it's time to start developing. Check out the following topics to start working with Sui:
+Now that you have Iota installed, it's time to start developing. Check out the following topics to start working with Iota:
 
-- Read about the [Sui CLI](/references/cli.mdx), the most straightforward way to start exploring Sui networks.
+- Read about the [Iota CLI](/references/cli.mdx), the most straightforward way to start exploring Iota networks.
 - [Learn about the available networks](./connect.mdx) and connect to one.
 - [Get some coins](./get-coins.mdx) on a development network.
 - [Build your first dApp](../first-app.mdx) to start your on-chain journey.

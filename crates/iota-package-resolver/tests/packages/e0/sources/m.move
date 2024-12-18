@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_field)]
@@ -6,7 +7,7 @@ module e::m {
     use std::ascii::String as ASCII;
     use std::option::Option;
     use std::string::String as UTF8;
-    use sui::object::UID;
+    use iota::object::UID;
 
     public struct O has key { id: UID }
 

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::ValidatorProxy;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use tokio::sync::oneshot::Sender;
 use tokio::sync::watch;
 use tokio::sync::watch::Receiver;

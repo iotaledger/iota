@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module move_registry::move_registry;
 
 use move_registry::name;
 use std::string::String;
-use sui::dynamic_field as df;
-use sui::vec_map::{Self, VecMap};
+use iota::dynamic_field as df;
+use iota::vec_map::{Self, VecMap};
 
 public struct AppInfo has copy, store, drop {
     package_info_id: Option<ID>,
@@ -17,7 +18,7 @@ public struct AppInfo has copy, store, drop {
 public struct AppRecord has store {
     /// The Capability object used for managing the `AppRecord`.
     app_cap_id: ID,
-    /// The SuiNS registration object that created this record.
+    /// The IotaNS registration object that created this record.
     ns_nft_id: ID,
     // The mainnet `AppInfo` object. This is optional until a `mainnet` package
     // is mapped to a record, making the record immutable.

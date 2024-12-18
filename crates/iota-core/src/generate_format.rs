@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use clap::*;
 use fastcrypto_zkp::bn254::zk_login::OIDCProvider;
@@ -15,24 +16,24 @@ use serde_reflection::{Registry, Result, Samples, Tracer, TracerConfig};
 use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use std::str::FromStr;
 use std::{fs::File, io::Write};
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::{
     AggregateAuthoritySignature, AuthorityQuorumSignInfo, AuthorityStrongQuorumSignInfo,
 };
-use sui_types::effects::TransactionEvents;
-use sui_types::event::Event;
-use sui_types::execution_status::{
+use iota_types::effects::TransactionEvents;
+use iota_types::event::Event;
+use iota_types::execution_status::{
     CommandArgumentError, ExecutionFailureStatus, ExecutionStatus, PackageUpgradeError,
     TypeArgumentError,
 };
-use sui_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
-use sui_types::messages_checkpoint::CertifiedCheckpointSummary;
-use sui_types::messages_grpc::ObjectInfoRequestKind;
-use sui_types::move_package::TypeOrigin;
-use sui_types::object::Object;
-use sui_types::transaction::{SenderSignedData, TransactionData};
-use sui_types::type_input::{StructInput, TypeInput};
-use sui_types::{
+use iota_types::full_checkpoint_content::{CheckpointData, CheckpointTransaction};
+use iota_types::messages_checkpoint::CertifiedCheckpointSummary;
+use iota_types::messages_grpc::ObjectInfoRequestKind;
+use iota_types::move_package::TypeOrigin;
+use iota_types::object::Object;
+use iota_types::transaction::{SenderSignedData, TransactionData};
+use iota_types::type_input::{StructInput, TypeInput};
+use iota_types::{
     base_types::MoveObjectType_,
     crypto::Signer,
     messages_checkpoint::{
@@ -41,13 +42,13 @@ use sui_types::{
     },
     transaction::TransactionExpiration,
 };
-use sui_types::{
+use iota_types::{
     base_types::{
         self, MoveObjectType, ObjectDigest, ObjectID, TransactionDigest, TransactionEffectsDigest,
     },
     crypto::{
         get_key_pair, get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair,
-        AuthorityPublicKeyBytes, AuthoritySignature, KeypairTraits, Signature, SuiKeyPair,
+        AuthorityPublicKeyBytes, AuthoritySignature, KeypairTraits, Signature, IotaKeyPair,
     },
     multisig::{MultiSig, MultiSigPublicKey},
     object::{Data, Owner},
@@ -57,7 +58,7 @@ use sui_types::{
         Argument, CallArg, Command, EndOfEpochTransactionKind, ObjectArg, TransactionKind,
     },
 };
-use sui_types::{
+use iota_types::{
     crypto::{PublicKey, ZkLoginPublicIdentifier},
     effects::{IDOperation, ObjectIn, ObjectOut, TransactionEffects, UnchangedSharedKind},
     utils::DEFAULT_ADDRESS_SEED,
@@ -99,12 +100,12 @@ fn get_registry() -> Result<Registry> {
     let sig: Signature = Signer::sign(&s_kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let kp1: SuiKeyPair =
-        SuiKeyPair::Ed25519(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
-    let kp2: SuiKeyPair =
-        SuiKeyPair::Secp256k1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
-    let kp3: SuiKeyPair =
-        SuiKeyPair::Secp256r1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
+    let kp1: IotaKeyPair =
+        IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
+    let kp2: IotaKeyPair =
+        IotaKeyPair::Secp256k1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
+    let kp3: IotaKeyPair =
+        IotaKeyPair::Secp256r1(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
     let pk_zklogin = PublicKey::ZkLogin(
         ZkLoginPublicIdentifier::new(
             &OIDCProvider::Twitch.get_config().iss,
@@ -121,7 +122,7 @@ fn get_registry() -> Result<Registry> {
     .unwrap();
 
     let msg = IntentMessage::new(
-        Intent::sui_transaction(),
+        Intent::iota_transaction(),
         PersonalMessage {
             message: "Message".as_bytes().to_vec(),
         },
@@ -150,7 +151,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_value(&mut samples, &sig3).unwrap();
     tracer.trace_value(&mut samples, &sig4).unwrap();
     tracer.trace_value(&mut samples, &sig5).unwrap();
-    // ObjectID and SuiAddress are the same length
+    // ObjectID and IotaAddress are the same length
     let oid: ObjectID = addr.into();
     tracer.trace_value(&mut samples, &oid).unwrap();
 
@@ -166,7 +167,7 @@ fn get_registry() -> Result<Registry> {
     let ccd = CheckpointContentsDigest::random();
     tracer.trace_value(&mut samples, &ccd).unwrap();
 
-    let struct_tag = StructTag::from_str("0x2::coin::Coin<0x2::sui::SUI>").unwrap();
+    let struct_tag = StructTag::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap();
     tracer.trace_value(&mut samples, &struct_tag).unwrap();
 
     let ccd = CheckpointDigest::random();
@@ -207,7 +208,7 @@ fn get_registry() -> Result<Registry> {
     tracer.trace_type::<MoveObjectType>(&samples).unwrap();
     tracer.trace_type::<MoveObjectType_>(&samples).unwrap();
     tracer
-        .trace_type::<base_types::SuiAddress>(&samples)
+        .trace_type::<base_types::IotaAddress>(&samples)
         .unwrap();
     tracer.trace_type::<DeleteKind>(&samples).unwrap();
     tracer.trace_type::<Argument>(&samples).unwrap();
@@ -238,7 +239,7 @@ fn get_registry() -> Result<Registry> {
     let sender_data = SenderSignedData::new(
         TransactionData::new_with_gas_coins(
             TransactionKind::EndOfEpochTransaction(Vec::new()),
-            SuiAddress::ZERO,
+            IotaAddress::ZERO,
             Vec::new(),
             0,
             0,
@@ -261,7 +262,7 @@ fn get_registry() -> Result<Registry> {
     let event = Event {
         package_id: ObjectID::random(),
         transaction_module: Identifier::new("foo").unwrap(),
-        sender: SuiAddress::ZERO,
+        sender: IotaAddress::ZERO,
         type_: struct_tag.clone(),
         contents: vec![0],
     };
@@ -288,15 +289,15 @@ enum Action {
 
 #[derive(Debug, Parser)]
 #[clap(
-    name = "Sui format generator",
-    about = "Trace serde (de)serialization to generate format descriptions for Sui types"
+    name = "Iota format generator",
+    about = "Trace serde (de)serialization to generate format descriptions for Iota types"
 )]
 struct Options {
     #[clap(value_enum, default_value = "Print", ignore_case = true)]
     action: Action,
 }
 
-const FILE_PATH: &str = "sui-core/tests/staged/sui.yaml";
+const FILE_PATH: &str = "iota-core/tests/staged/iota.yaml";
 
 fn main() {
     let options = Options::parse();

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use sui_types::effects::InputSharedObject as NativeInputSharedObject;
+use iota_types::effects::InputSharedObject as NativeInputSharedObject;
 
-use super::{object_read::ObjectRead, sui_address::SuiAddress, uint53::UInt53};
+use super::{object_read::ObjectRead, iota_address::IotaAddress, uint53::UInt53};
 
 /// Details pertaining to shared objects that are referenced by but not changed by a transaction.
 /// This information is considered part of the effects, because although the transaction specifies
@@ -29,7 +30,7 @@ pub(crate) struct SharedObjectRead {
 #[derive(SimpleObject)]
 pub(crate) struct SharedObjectDelete {
     /// ID of the shared object.
-    address: SuiAddress,
+    address: IotaAddress,
 
     /// The version of the shared object that was assigned to this transaction during by consensus,
     /// during sequencing.
@@ -44,7 +45,7 @@ pub(crate) struct SharedObjectDelete {
 #[derive(SimpleObject)]
 pub(crate) struct SharedObjectCancelled {
     /// ID of the shared object.
-    address: SuiAddress,
+    address: IotaAddress,
 
     /// The assigned shared object version. It is a special version indicating transaction cancellation reason.
     version: UInt53,

@@ -1,4 +1,4 @@
-CREATE TABLE sui_error_transactions
+CREATE TABLE iota_error_transactions
 (
     txn_digest                  bytea        PRIMARY KEY,
     sender_address              bytea        NOT NULL,

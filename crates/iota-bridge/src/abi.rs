@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::encoding::{
@@ -13,8 +14,8 @@ use crate::error::{BridgeError, BridgeResult};
 use crate::types::ParsedTokenTransferMessage;
 use crate::types::{
     AddTokensOnEvmAction, AssetPriceUpdateAction, BlocklistCommitteeAction, BridgeAction,
-    BridgeActionType, EmergencyAction, EthLog, EthToSuiBridgeAction, EvmContractUpgradeAction,
-    LimitUpdateAction, SuiToEthBridgeAction,
+    BridgeActionType, EmergencyAction, EthLog, EthToIotaBridgeAction, EvmContractUpgradeAction,
+    LimitUpdateAction, IotaToEthBridgeAction,
 };
 use ethers::types::Log;
 use ethers::{
@@ -23,8 +24,8 @@ use ethers::{
     types::Address as EthAddress,
 };
 use serde::{Deserialize, Serialize};
-use sui_types::base_types::SuiAddress;
-use sui_types::bridge::BridgeChainId;
+use iota_types::base_types::IotaAddress;
+use iota_types::bridge::BridgeChainId;
 
 macro_rules! gen_eth_events {
     ($($contract:ident, $contract_event:ident, $abi_path:literal),* $(,)?) => {
@@ -79,7 +80,7 @@ macro_rules! gen_eth_events {
 
 #[rustfmt::skip]
 gen_eth_events!(
-    EthSuiBridge, EthSuiBridgeEvents, "abi/sui_bridge.json",
+    EthIotaBridge, EthIotaBridgeEvents, "abi/iota_bridge.json",
     EthBridgeCommittee, EthBridgeCommitteeEvents, "abi/bridge_committee.json",
     EthBridgeLimiter, EthBridgeLimiterEvents, "abi/bridge_limiter.json",
     EthBridgeConfig, EthBridgeConfigEvents, "abi/bridge_config.json",
@@ -101,12 +102,12 @@ impl EthBridgeEvent {
         eth_event_index: u16,
     ) -> BridgeResult<Option<BridgeAction>> {
         Ok(match self {
-            EthBridgeEvent::EthSuiBridgeEvents(event) => {
+            EthBridgeEvent::EthIotaBridgeEvents(event) => {
                 match event {
-                    EthSuiBridgeEvents::TokensDepositedFilter(event) => {
-                        let bridge_event = match EthToSuiTokenBridgeV1::try_from(&event) {
+                    EthIotaBridgeEvents::TokensDepositedFilter(event) => {
+                        let bridge_event = match EthToIotaTokenBridgeV1::try_from(&event) {
                             Ok(bridge_event) => {
-                                if bridge_event.sui_adjusted_amount == 0 {
+                                if bridge_event.iota_adjusted_amount == 0 {
                                     return Err(BridgeError::ZeroValueBridgeTransfer(format!(
                                         "Manual intervention is required: {}",
                                         eth_tx_hash
@@ -119,23 +120,23 @@ impl EthBridgeEvent {
                             // We log error here.
                             // TODO: add metrics and alert
                             Err(e) => {
-                                return Err(BridgeError::Generic(format!("Manual intervention is required. Failed to convert TokensDepositedFilter log to EthToSuiTokenBridgeV1. This indicates incorrect parameters or a bug in the code: {:?}. Err: {:?}", event, e)));
+                                return Err(BridgeError::Generic(format!("Manual intervention is required. Failed to convert TokensDepositedFilter log to EthToIotaTokenBridgeV1. This indicates incorrect parameters or a bug in the code: {:?}. Err: {:?}", event, e)));
                             }
                         };
 
-                        Some(BridgeAction::EthToSuiBridgeAction(EthToSuiBridgeAction {
+                        Some(BridgeAction::EthToIotaBridgeAction(EthToIotaBridgeAction {
                             eth_tx_hash,
                             eth_event_index,
                             eth_bridge_event: bridge_event,
                         }))
                     }
-                    EthSuiBridgeEvents::TokensClaimedFilter(_event) => None,
-                    EthSuiBridgeEvents::PausedFilter(_event) => None,
-                    EthSuiBridgeEvents::UnpausedFilter(_event) => None,
-                    EthSuiBridgeEvents::UpgradedFilter(_event) => None,
-                    EthSuiBridgeEvents::InitializedFilter(_event) => None,
-                    EthSuiBridgeEvents::ContractUpgradedFilter(_event) => None,
-                    EthSuiBridgeEvents::EmergencyOperationFilter(_event) => None,
+                    EthIotaBridgeEvents::TokensClaimedFilter(_event) => None,
+                    EthIotaBridgeEvents::PausedFilter(_event) => None,
+                    EthIotaBridgeEvents::UnpausedFilter(_event) => None,
+                    EthIotaBridgeEvents::UpgradedFilter(_event) => None,
+                    EthIotaBridgeEvents::InitializedFilter(_event) => None,
+                    EthIotaBridgeEvents::ContractUpgradedFilter(_event) => None,
+                    EthIotaBridgeEvents::EmergencyOperationFilter(_event) => None,
                 }
             }
             EthBridgeEvent::EthBridgeCommitteeEvents(event) => match event {
@@ -174,27 +175,27 @@ impl EthBridgeEvent {
 /// The event emitted when tokens are deposited into the bridge on Ethereum.
 /// Sanity checked version of TokensDepositedFilter
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Hash)]
-pub struct EthToSuiTokenBridgeV1 {
+pub struct EthToIotaTokenBridgeV1 {
     pub nonce: u64,
-    pub sui_chain_id: BridgeChainId,
+    pub iota_chain_id: BridgeChainId,
     pub eth_chain_id: BridgeChainId,
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
     pub eth_address: EthAddress,
     pub token_id: u8,
-    pub sui_adjusted_amount: u64,
+    pub iota_adjusted_amount: u64,
 }
 
-impl TryFrom<&TokensDepositedFilter> for EthToSuiTokenBridgeV1 {
+impl TryFrom<&TokensDepositedFilter> for EthToIotaTokenBridgeV1 {
     type Error = BridgeError;
     fn try_from(event: &TokensDepositedFilter) -> BridgeResult<Self> {
         Ok(Self {
             nonce: event.nonce,
-            sui_chain_id: BridgeChainId::try_from(event.destination_chain_id)?,
+            iota_chain_id: BridgeChainId::try_from(event.destination_chain_id)?,
             eth_chain_id: BridgeChainId::try_from(event.source_chain_id)?,
-            sui_address: SuiAddress::from_bytes(event.recipient_address.as_ref())?,
+            iota_address: IotaAddress::from_bytes(event.recipient_address.as_ref())?,
             eth_address: event.sender_address,
             token_id: event.token_id,
-            sui_adjusted_amount: event.sui_adjusted_amount,
+            iota_adjusted_amount: event.iota_adjusted_amount,
         })
     }
 }
@@ -203,21 +204,21 @@ impl TryFrom<&TokensDepositedFilter> for EthToSuiTokenBridgeV1 {
 //                        Eth Message Conversion                      //
 ////////////////////////////////////////////////////////////////////////
 
-impl From<SuiToEthBridgeAction> for eth_sui_bridge::Message {
-    fn from(action: SuiToEthBridgeAction) -> Self {
-        eth_sui_bridge::Message {
+impl From<IotaToEthBridgeAction> for eth_iota_bridge::Message {
+    fn from(action: IotaToEthBridgeAction) -> Self {
+        eth_iota_bridge::Message {
             message_type: BridgeActionType::TokenTransfer as u8,
             version: TOKEN_TRANSFER_MESSAGE_VERSION,
-            nonce: action.sui_bridge_event.nonce,
-            chain_id: action.sui_bridge_event.sui_chain_id as u8,
+            nonce: action.iota_bridge_event.nonce,
+            chain_id: action.iota_bridge_event.iota_chain_id as u8,
             payload: action.as_payload_bytes().into(),
         }
     }
 }
 
-impl From<ParsedTokenTransferMessage> for eth_sui_bridge::Message {
+impl From<ParsedTokenTransferMessage> for eth_iota_bridge::Message {
     fn from(parsed_message: ParsedTokenTransferMessage) -> Self {
-        eth_sui_bridge::Message {
+        eth_iota_bridge::Message {
             message_type: BridgeActionType::TokenTransfer as u8,
             version: parsed_message.message_version,
             nonce: parsed_message.seq_num,
@@ -227,9 +228,9 @@ impl From<ParsedTokenTransferMessage> for eth_sui_bridge::Message {
     }
 }
 
-impl From<EmergencyAction> for eth_sui_bridge::Message {
+impl From<EmergencyAction> for eth_iota_bridge::Message {
     fn from(action: EmergencyAction) -> Self {
-        eth_sui_bridge::Message {
+        eth_iota_bridge::Message {
             message_type: BridgeActionType::EmergencyButton as u8,
             version: EMERGENCY_BUTTON_MESSAGE_VERSION,
             nonce: action.nonce,
@@ -310,7 +311,7 @@ mod tests {
     use fastcrypto::encoding::{Encoding, Hex};
     use hex_literal::hex;
     use std::str::FromStr;
-    use sui_types::{bridge::TOKEN_ID_ETH, crypto::ToFromBytes};
+    use iota_types::{bridge::TOKEN_ID_ETH, crypto::ToFromBytes};
 
     #[test]
     fn test_eth_message_conversion_emergency_action_regression() -> anyhow::Result<()> {
@@ -321,10 +322,10 @@ mod tests {
             chain_id: BridgeChainId::EthSepolia,
             action_type: EmergencyActionType::Pause,
         };
-        let message: eth_sui_bridge::Message = action.into();
+        let message: eth_iota_bridge::Message = action.into();
         assert_eq!(
             message,
-            eth_sui_bridge::Message {
+            eth_iota_bridge::Message {
                 message_type: BridgeActionType::EmergencyButton as u8,
                 version: EMERGENCY_BUTTON_MESSAGE_VERSION,
                 nonce: 2,
@@ -371,7 +372,7 @@ mod tests {
         let action = LimitUpdateAction {
             nonce: 2,
             chain_id: BridgeChainId::EthSepolia,
-            sending_chain_id: BridgeChainId::SuiTestnet,
+            sending_chain_id: BridgeChainId::IotaTestnet,
             new_usd_limit: 4200000,
         };
         let message: eth_bridge_limiter::Message = action.into();
@@ -447,7 +448,7 @@ mod tests {
                 EthAddress::repeat_byte(2),
                 EthAddress::repeat_byte(3),
             ],
-            token_sui_decimals: vec![5, 6, 7],
+            token_iota_decimals: vec![5, 6, 7],
             token_prices: vec![1_000_000_000, 2_000_000_000, 3_000_000_000],
         };
         let message: eth_bridge_config::Message = action.into();
@@ -465,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn test_token_deposit_eth_log_to_sui_bridge_event_regression() -> anyhow::Result<()> {
+    fn test_token_deposit_eth_log_to_iota_bridge_event_regression() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let tx_hash = TxHash::random();
         let action = EthLog {
@@ -496,13 +497,13 @@ mod tests {
         let event = EthBridgeEvent::try_from_eth_log(&action).unwrap();
         assert_eq!(
             event,
-            EthBridgeEvent::EthSuiBridgeEvents(EthSuiBridgeEvents::TokensDepositedFilter(
+            EthBridgeEvent::EthIotaBridgeEvents(EthIotaBridgeEvents::TokensDepositedFilter(
                 TokensDepositedFilter {
                     source_chain_id: 12,
                     nonce: 0,
                     destination_chain_id: 2,
                     token_id: 2,
-                    sui_adjusted_amount: 4200000000,
+                    iota_adjusted_amount: 4200000000,
                     sender_address: EthAddress::from_str(
                         "0x14dc79964da2c08b23698b3d3cc7ca32193d9955"
                     )
@@ -520,17 +521,17 @@ mod tests {
     }
 
     #[test]
-    fn test_0_sui_amount_conversion_for_eth_event() {
-        let e = EthBridgeEvent::EthSuiBridgeEvents(EthSuiBridgeEvents::TokensDepositedFilter(
+    fn test_0_iota_amount_conversion_for_eth_event() {
+        let e = EthBridgeEvent::EthIotaBridgeEvents(EthIotaBridgeEvents::TokensDepositedFilter(
             TokensDepositedFilter {
                 source_chain_id: BridgeChainId::EthSepolia as u8,
                 nonce: 0,
-                destination_chain_id: BridgeChainId::SuiTestnet as u8,
+                destination_chain_id: BridgeChainId::IotaTestnet as u8,
                 token_id: 2,
-                sui_adjusted_amount: 1,
+                iota_adjusted_amount: 1,
                 sender_address: EthAddress::random(),
                 recipient_address: ethers::types::Bytes::from(
-                    SuiAddress::random_for_testing_only().to_vec(),
+                    IotaAddress::random_for_testing_only().to_vec(),
                 ),
             },
         ));
@@ -539,16 +540,16 @@ mod tests {
             .unwrap()
             .is_some());
 
-        let e = EthBridgeEvent::EthSuiBridgeEvents(EthSuiBridgeEvents::TokensDepositedFilter(
+        let e = EthBridgeEvent::EthIotaBridgeEvents(EthIotaBridgeEvents::TokensDepositedFilter(
             TokensDepositedFilter {
                 source_chain_id: BridgeChainId::EthSepolia as u8,
                 nonce: 0,
-                destination_chain_id: BridgeChainId::SuiTestnet as u8,
+                destination_chain_id: BridgeChainId::IotaTestnet as u8,
                 token_id: 2,
-                sui_adjusted_amount: 0, // <------------
+                iota_adjusted_amount: 0, // <------------
                 sender_address: EthAddress::random(),
                 recipient_address: ethers::types::Bytes::from(
-                    SuiAddress::random_for_testing_only().to_vec(),
+                    IotaAddress::random_for_testing_only().to_vec(),
                 ),
             },
         ));

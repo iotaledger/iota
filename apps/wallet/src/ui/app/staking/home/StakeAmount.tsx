@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Heading } from '_app/shared/heading';
 import { Text } from '_app/shared/text';
-import { useFormatCoin } from '@mysten/core';
-import { SUI_TYPE_ARG } from '@mysten/sui/utils';
+import { useFormatCoin } from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 //TODO unify StakeAmount and CoinBalance
 interface StakeAmountProps {
@@ -14,7 +15,7 @@ interface StakeAmountProps {
 }
 
 export function StakeAmount({ balance, variant, isEarnedRewards }: StakeAmountProps) {
-	const [formatted, symbol] = useFormatCoin(balance, SUI_TYPE_ARG);
+	const [formatted, symbol] = useFormatCoin(balance, IOTA_TYPE_ARG);
 	// Handle case of 0 balance
 	const zeroBalanceColor = !!balance;
 	const earnRewardColor = isEarnedRewards && (zeroBalanceColor ? 'success-dark' : 'gray-60');

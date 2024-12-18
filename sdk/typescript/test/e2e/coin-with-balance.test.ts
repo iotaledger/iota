@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { resolve } from 'path';
-import { fromHex, toBase64 } from '@mysten/bcs';
+import { fromHex, toBase64 } from '@iota/bcs';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { bcs } from '../../src/bcs';
 import { Ed25519Keypair } from '../../src/keypairs/ed25519';
 import { Transaction } from '../../src/transactions';
 import { coinWithBalance } from '../../src/transactions/intents/CoinWithBalance';
-import { normalizeSuiAddress } from '../../src/utils';
+import { normalizeIotaAddress } from '../../src/utils';
 import { setup, TestToolbox } from './utils/setup';
 
 describe('coinWithBalance', () => {
@@ -23,11 +24,11 @@ describe('coinWithBalance', () => {
 		[toolbox, publishToolbox] = await Promise.all([setup(), setup()]);
 		const packagePath = resolve(__dirname, './data/coin_metadata');
 		packageId = await publishToolbox.getPackage(packagePath);
-		testType = normalizeSuiAddress(packageId) + '::test::TEST';
-		testTypeZero = normalizeSuiAddress(packageId) + '::test_zero::TEST_ZERO';
+		testType = normalizeIotaAddress(packageId) + '::test::TEST';
+		testTypeZero = normalizeIotaAddress(packageId) + '::test_zero::TEST_ZERO';
 	});
 
-	it('works with sui', async () => {
+	it('works with iota', async () => {
 		const tx = new Transaction();
 		const receiver = new Ed25519Keypair();
 
@@ -38,9 +39,9 @@ describe('coinWithBalance', () => {
 					balance: 12345n,
 				}),
 			],
-			receiver.toSuiAddress(),
+			receiver.toIotaAddress(),
 		);
-		tx.setSender(publishToolbox.keypair.toSuiAddress());
+		tx.setSender(publishToolbox.keypair.toIotaAddress());
 
 		expect(
 			JSON.parse(
@@ -59,11 +60,11 @@ describe('coinWithBalance', () => {
 			inputs: [
 				{
 					Pure: {
-						bytes: toBase64(fromHex(receiver.toSuiAddress())),
+						bytes: toBase64(fromHex(receiver.toIotaAddress())),
 					},
 				},
 			],
-			sender: publishToolbox.keypair.toSuiAddress(),
+			sender: publishToolbox.keypair.toIotaAddress(),
 			commands: [
 				{
 					$Intent: {
@@ -109,7 +110,7 @@ describe('coinWithBalance', () => {
 			inputs: [
 				{
 					Pure: {
-						bytes: toBase64(fromHex(receiver.toSuiAddress())),
+						bytes: toBase64(fromHex(receiver.toIotaAddress())),
 					},
 				},
 				{
@@ -118,7 +119,7 @@ describe('coinWithBalance', () => {
 					},
 				},
 			],
-			sender: publishToolbox.keypair.toSuiAddress(),
+			sender: publishToolbox.keypair.toIotaAddress(),
 			commands: [
 				{
 					SplitCoins: {
@@ -164,13 +165,13 @@ describe('coinWithBalance', () => {
 				(change) =>
 					typeof change.owner === 'object' &&
 					'AddressOwner' in change.owner &&
-					change.owner.AddressOwner === receiver.toSuiAddress(),
+					change.owner.AddressOwner === receiver.toIotaAddress(),
 			),
 		).toEqual({
 			amount: '12345',
-			coinType: '0x2::sui::SUI',
+			coinType: '0x2::iota::IOTA',
 			owner: {
-				AddressOwner: receiver.toSuiAddress(),
+				AddressOwner: receiver.toIotaAddress(),
 			},
 		});
 	});
@@ -186,9 +187,9 @@ describe('coinWithBalance', () => {
 					balance: 1n,
 				}),
 			],
-			receiver.toSuiAddress(),
+			receiver.toIotaAddress(),
 		);
-		tx.setSender(publishToolbox.keypair.toSuiAddress());
+		tx.setSender(publishToolbox.keypair.toIotaAddress());
 
 		expect(
 			JSON.parse(
@@ -207,11 +208,11 @@ describe('coinWithBalance', () => {
 			inputs: [
 				{
 					Pure: {
-						bytes: toBase64(fromHex(receiver.toSuiAddress())),
+						bytes: toBase64(fromHex(receiver.toIotaAddress())),
 					},
 				},
 			],
-			sender: publishToolbox.keypair.toSuiAddress(),
+			sender: publishToolbox.keypair.toIotaAddress(),
 			commands: [
 				{
 					$Intent: {
@@ -257,7 +258,7 @@ describe('coinWithBalance', () => {
 			inputs: [
 				{
 					Pure: {
-						bytes: toBase64(fromHex(receiver.toSuiAddress())),
+						bytes: toBase64(fromHex(receiver.toIotaAddress())),
 					},
 				},
 				{
@@ -271,7 +272,7 @@ describe('coinWithBalance', () => {
 					},
 				},
 			],
-			sender: publishToolbox.keypair.toSuiAddress(),
+			sender: publishToolbox.keypair.toIotaAddress(),
 			commands: [
 				{
 					SplitCoins: {
@@ -313,13 +314,13 @@ describe('coinWithBalance', () => {
 				(change) =>
 					typeof change.owner === 'object' &&
 					'AddressOwner' in change.owner &&
-					change.owner.AddressOwner === receiver.toSuiAddress(),
+					change.owner.AddressOwner === receiver.toIotaAddress(),
 			),
 		).toEqual({
 			amount: '1',
 			coinType: testType,
 			owner: {
-				AddressOwner: receiver.toSuiAddress(),
+				AddressOwner: receiver.toIotaAddress(),
 			},
 		});
 	});
@@ -335,9 +336,9 @@ describe('coinWithBalance', () => {
 					balance: 0n,
 				}),
 			],
-			receiver.toSuiAddress(),
+			receiver.toIotaAddress(),
 		);
-		tx.setSender(publishToolbox.keypair.toSuiAddress());
+		tx.setSender(publishToolbox.keypair.toIotaAddress());
 
 		expect(
 			JSON.parse(
@@ -356,11 +357,11 @@ describe('coinWithBalance', () => {
 			inputs: [
 				{
 					Pure: {
-						bytes: toBase64(fromHex(receiver.toSuiAddress())),
+						bytes: toBase64(fromHex(receiver.toIotaAddress())),
 					},
 				},
 			],
-			sender: publishToolbox.keypair.toSuiAddress(),
+			sender: publishToolbox.keypair.toIotaAddress(),
 			commands: [
 				{
 					$Intent: {
@@ -406,11 +407,11 @@ describe('coinWithBalance', () => {
 			inputs: [
 				{
 					Pure: {
-						bytes: toBase64(fromHex(receiver.toSuiAddress())),
+						bytes: toBase64(fromHex(receiver.toIotaAddress())),
 					},
 				},
 			],
-			sender: publishToolbox.keypair.toSuiAddress(),
+			sender: publishToolbox.keypair.toIotaAddress(),
 			commands: [
 				{
 					MoveCall: {
@@ -451,7 +452,7 @@ describe('coinWithBalance', () => {
 
 				return (
 					change.objectType === `0x2::coin::Coin<${testTypeZero}>` &&
-					change.owner.AddressOwner === receiver.toSuiAddress()
+					change.owner.AddressOwner === receiver.toIotaAddress()
 				);
 			}).length,
 		).toEqual(1);
@@ -469,10 +470,10 @@ describe('coinWithBalance', () => {
 				coinWithBalance({ type: 'gas', balance: 4n }),
 				coinWithBalance({ type: testTypeZero, balance: 0n }),
 			],
-			receiver.toSuiAddress(),
+			receiver.toIotaAddress(),
 		);
 
-		tx.setSender(publishToolbox.keypair.toSuiAddress());
+		tx.setSender(publishToolbox.keypair.toIotaAddress());
 
 		expect(
 			JSON.parse(
@@ -491,11 +492,11 @@ describe('coinWithBalance', () => {
 			inputs: [
 				{
 					Pure: {
-						bytes: toBase64(fromHex(receiver.toSuiAddress())),
+						bytes: toBase64(fromHex(receiver.toIotaAddress())),
 					},
 				},
 			],
-			sender: publishToolbox.keypair.toSuiAddress(),
+			sender: publishToolbox.keypair.toIotaAddress(),
 			commands: [
 				{
 					$Intent: {
@@ -593,7 +594,7 @@ describe('coinWithBalance', () => {
 			inputs: [
 				{
 					Pure: {
-						bytes: toBase64(fromHex(receiver.toSuiAddress())),
+						bytes: toBase64(fromHex(receiver.toIotaAddress())),
 					},
 				},
 				{
@@ -622,7 +623,7 @@ describe('coinWithBalance', () => {
 					},
 				},
 			],
-			sender: publishToolbox.keypair.toSuiAddress(),
+			sender: publishToolbox.keypair.toIotaAddress(),
 			commands: [
 				{
 					SplitCoins: {
@@ -715,21 +716,21 @@ describe('coinWithBalance', () => {
 				(change) =>
 					typeof change.owner === 'object' &&
 					'AddressOwner' in change.owner &&
-					change.owner.AddressOwner === receiver.toSuiAddress(),
+					change.owner.AddressOwner === receiver.toIotaAddress(),
 			),
 		).toEqual([
 			{
 				amount: '7',
-				coinType: '0x2::sui::SUI',
+				coinType: '0x2::iota::IOTA',
 				owner: {
-					AddressOwner: receiver.toSuiAddress(),
+					AddressOwner: receiver.toIotaAddress(),
 				},
 			},
 			{
 				amount: '3',
 				coinType: testType,
 				owner: {
-					AddressOwner: receiver.toSuiAddress(),
+					AddressOwner: receiver.toIotaAddress(),
 				},
 			},
 		]);
@@ -740,7 +741,7 @@ describe('coinWithBalance', () => {
 
 				return (
 					change.objectType === `0x2::coin::Coin<${testTypeZero}>` &&
-					change.owner.AddressOwner === receiver.toSuiAddress()
+					change.owner.AddressOwner === receiver.toIotaAddress()
 				);
 			}).length,
 		).toEqual(1);

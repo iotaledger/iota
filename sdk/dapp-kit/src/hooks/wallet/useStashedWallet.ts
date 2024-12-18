@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { StashedWallet } from '@mysten/zksend';
-import { registerStashedWallet } from '@mysten/zksend';
+import type { StashedWallet } from '@iota/zksend';
+import { registerStashedWallet } from '@iota/zksend';
 import { useEffect, useLayoutEffect, useState } from 'react';
 
 import { useAutoConnectWallet } from './useAutoConnectWallet.js';

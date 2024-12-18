@@ -1,5 +1,5 @@
 ---
-source: crates/sui/tests/ptb_files_tests.rs
+source: crates/iota/tests/ptb_files_tests.rs
 expression: "results.join(\"\\n\")"
 ---
  === PREVIEW === 
@@ -16,7 +16,7 @@ expression: "results.join(\"\\n\")"
 │ move-call │ std::option::isnone<u64> a             │
 │ move-call │ std::option::is_none<u64>              │
 │ move-call │ std::option::is_none<u64> a b          │
-│ move-call │ sui::coin::destroy_zero @0x1           │
+│ move-call │ iota::coin::destroy_zero @0x1           │
 │ move-call │ std::option::is_none<u64, bool> a      │
 ╰───────────┴────────────────────────────────────────╯
  === BUILDING PTB ERRORS === 
@@ -75,13 +75,13 @@ expression: "results.join(\"\\n\")"
  8 │ --move-call std::option::is_none<u64> a b
    ·                                       ─┬─
    ·                                        ╰── Expected 1 argument, but got 2
- 9 │ --move-call sui::coin::destroy_zero @0x1
+ 9 │ --move-call iota::coin::destroy_zero @0x1
    ╰────
 
   × Error when processing PTB
     ╭─[9:37]
   8 │ --move-call std::option::is_none<u64> a b
-  9 │ --move-call sui::coin::destroy_zero @0x1
+  9 │ --move-call iota::coin::destroy_zero @0x1
     ·                                     ──┬─
     ·                                       ╰── Not enough type parameters supplied for Move call
  10 │ --move-call std::option::is_none<u64, bool> a 

@@ -5,13 +5,13 @@ module a::m {
         abort 0
     }
 
-    struct Obj has key { id: sui::object::UID }
+    struct Obj has key { id: iota::object::UID }
     public entry fun t2(_: bool, _: &mut Obj) {
         abort 0
     }
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }

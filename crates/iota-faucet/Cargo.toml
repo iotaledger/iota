@@ -1,8 +1,8 @@
 [package]
-name = "sui-faucet"
+name = "iota-faucet"
 version.workspace = true
 edition = "2021"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 
@@ -30,21 +30,21 @@ tempfile.workspace = true
 parking_lot.workspace = true
 tonic.workspace = true
 
-sui-json-rpc-types.workspace = true
-sui-types.workspace = true
-sui-config.workspace = true
-sui-keys.workspace = true
-sui-sdk.workspace = true
-mysten-metrics.workspace = true
+iota-json-rpc-types.workspace = true
+iota-types.workspace = true
+iota-config.workspace = true
+iota-keys.workspace = true
+iota-sdk.workspace = true
+iota-metrics.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 shared-crypto.workspace = true
 async-recursion.workspace = true
-mysten-network.workspace = true
+iota-network-stack.workspace = true
 
 [dev-dependencies]
 test-cluster.workspace = true
 
 [[bin]]
-name = "sui-faucet"
+name = "iota-faucet"
 path = "src/main.rs"

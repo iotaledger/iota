@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientQuery } from '@mysten/dapp-kit';
+import { useIotaClientQuery } from '@iota/dapp-kit';
 
 import { useActiveAddress } from '../../hooks';
 import { useConfig } from './useConfig';
@@ -9,7 +10,7 @@ import { useConfig } from './useConfig';
 export function useBuyNLargeAssets() {
 	const config = useConfig();
 	const address = useActiveAddress();
-	const { data } = useSuiClientQuery(
+	const { data } = useIotaClientQuery(
 		'getOwnedObjects',
 		{
 			owner: address ?? '',

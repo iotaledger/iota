@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
 use std::{collections::HashMap, sync::Arc};
-use sui_core::{
+use iota_core::{
     authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
     authority_client::NetworkAuthorityClient,
     epoch::committee_store::CommitteeStore,
     quorum_driver::{reconfig_observer::ReconfigObserver, AuthorityAggregatorUpdatable},
     safe_client::SafeClientMetricsBase,
 };
-use sui_sdk::{SuiClient, SuiClientBuilder};
+use iota_sdk::{IotaClient, IotaClientBuilder};
 use tracing::{debug, error, trace};
 
 /// A ReconfigObserver that polls FullNode periodically
@@ -20,7 +21,7 @@ use tracing::{debug, error, trace};
 /// as stress, but may not be suitable in some other cases.
 #[derive(Clone)]
 pub struct FullNodeReconfigObserver {
-    pub fullnode_client: SuiClient,
+    pub fullnode_client: IotaClient,
     committee_store: Arc<CommitteeStore>,
     safe_client_metrics_base: SafeClientMetricsBase,
     auth_agg_metrics: Arc<AuthAggMetrics>,
@@ -34,12 +35,12 @@ impl FullNodeReconfigObserver {
         auth_agg_metrics: Arc<AuthAggMetrics>,
     ) -> Self {
         Self {
-            fullnode_client: SuiClientBuilder::default()
+            fullnode_client: IotaClientBuilder::default()
                 .build(fullnode_rpc_url)
                 .await
                 .unwrap_or_else(|e| {
                     panic!(
-                        "Can't create SuiClient with rpc url {fullnode_rpc_url}: {:?}",
+                        "Can't create IotaClient with rpc url {fullnode_rpc_url}: {:?}",
                         e
                     )
                 }),
@@ -62,19 +63,19 @@ impl ReconfigObserver<NetworkAuthorityClient> for FullNodeReconfigObserver {
             match self
                 .fullnode_client
                 .governance_api()
-                .get_latest_sui_system_state()
+                .get_latest_iota_system_state()
                 .await
             {
-                Ok(sui_system_state) => {
-                    let epoch_id = sui_system_state.epoch;
+                Ok(iota_system_state) => {
+                    let epoch_id = iota_system_state.epoch;
                     if epoch_id > driver.epoch() {
-                        debug!(epoch_id, "Got SuiSystemState in newer epoch");
-                        let new_committee = sui_system_state.get_sui_committee_for_benchmarking();
+                        debug!(epoch_id, "Got IotaSystemState in newer epoch");
+                        let new_committee = iota_system_state.get_iota_committee_for_benchmarking();
                         let _ = self
                             .committee_store
                             .insert_new_committee(new_committee.committee());
                         let auth_agg = AuthorityAggregator::new_from_committee(
-                            sui_system_state.get_sui_committee_for_benchmarking(),
+                            iota_system_state.get_iota_committee_for_benchmarking(),
                             &self.committee_store,
                             self.safe_client_metrics_base.clone(),
                             self.auth_agg_metrics.clone(),
@@ -88,7 +89,7 @@ impl ReconfigObserver<NetworkAuthorityClient> for FullNodeReconfigObserver {
                         );
                     }
                 }
-                Err(err) => error!("Can't get SuiSystemState from Full Node: {:?}", err,),
+                Err(err) => error!("Can't get IotaSystemState from Full Node: {:?}", err,),
             }
         }
     }

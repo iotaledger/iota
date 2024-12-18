@@ -105,13 +105,13 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.0
         version: 3.9.0(react-hook-form@7.52.1(react@18.3.1))
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@mysten/kiosk':
+      '@iota/kiosk':
         specifier: workspace:*
         version: link:../../sdk/kiosk
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@sentry/react':
@@ -229,31 +229,31 @@ importers:
       '@metamask/browser-passworder':
         specifier: ^4.1.0
         version: 4.1.0
-      '@mysten/core':
+      '@iota/core':
         specifier: workspace:*
         version: link:../core
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@mysten/deepbook':
+      '@iota/deepbook':
         specifier: workspace:*
         version: link:../../sdk/deepbook
-      '@mysten/icons':
+      '@iota/icons':
         specifier: workspace:*
         version: link:../icons
-      '@mysten/kiosk':
+      '@iota/kiosk':
         specifier: workspace:*
         version: link:../../sdk/kiosk
-      '@mysten/ledgerjs-hw-app-sui':
+      '@iota/ledgerjs-hw-app-iota':
         specifier: workspace:*
-        version: link:../../sdk/ledgerjs-hw-app-sui
-      '@mysten/sui':
+        version: link:../../sdk/ledgerjs-hw-app-iota
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
-      '@mysten/wallet-standard':
+      '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../../sdk/wallet-standard
-      '@mysten/zklogin':
+      '@iota/zklogin':
         specifier: workspace:*
         version: link:../../sdk/zklogin
       '@noble/hashes':
@@ -584,13 +584,13 @@ importers:
       '@headlessui/react':
         specifier: ^1.7.15
         version: 1.7.15(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@mysten/kiosk':
+      '@iota/kiosk':
         specifier: workspace:*
         version: link:../../sdk/kiosk
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@tanstack/react-query':
@@ -642,10 +642,10 @@ importers:
 
   dapps/kiosk-cli:
     dependencies:
-      '@mysten/kiosk':
+      '@iota/kiosk':
         specifier: workspace:*
         version: link:../../sdk/kiosk
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       commander:
@@ -663,10 +663,10 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.0
         version: 3.9.0(react-hook-form@7.52.1(react@18.3.1))
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@noble/hashes':
@@ -779,10 +779,10 @@ importers:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
     devDependencies:
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../sdk/dapp-kit
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       '@types/react':
@@ -812,10 +812,10 @@ importers:
 
   examples/mev_bot:
     dependencies:
-      '@mysten/bcs':
+      '@iota/bcs':
         specifier: workspace:*
         version: link:../../sdk/bcs
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../sdk/typescript
       p-limit:
@@ -831,10 +831,10 @@ importers:
 
   examples/tic-tac-toe/ui:
     dependencies:
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../../sdk/dapp-kit
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../sdk/typescript
       '@radix-ui/colors':
@@ -901,7 +901,7 @@ importers:
 
   examples/trading/api:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../sdk/typescript
       '@prisma/client':
@@ -938,10 +938,10 @@ importers:
 
   examples/trading/frontend:
     dependencies:
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../../sdk/dapp-kit
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../sdk/typescript
       '@radix-ui/colors':
@@ -1014,10 +1014,10 @@ importers:
 
   examples/usdc-transfer-app:
     dependencies:
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: ^0.14.25
         version: 0.14.25(@tanstack/react-query@5.59.0(react@18.3.1))(@types/react-dom@18.3.0)(@types/react@18.3.3)(immer@9.0.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.3)
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: ^1.12.0
         version: 1.12.0(typescript@5.6.3)
       '@tanstack/react-query':
@@ -1068,7 +1068,7 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@size-limit/preset-small-lib':
@@ -1114,10 +1114,10 @@ importers:
 
   sdk/create-dapp:
     dependencies:
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../dapp-kit
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@types/node':
@@ -1127,7 +1127,7 @@ importers:
         specifier: ^2.4.1
         version: 2.4.1
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       typescript:
@@ -1136,10 +1136,10 @@ importers:
 
   sdk/create-dapp/templates/react-client-dapp:
     dependencies:
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../../dapp-kit
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../typescript
       '@radix-ui/colors':
@@ -1197,10 +1197,10 @@ importers:
 
   sdk/create-dapp/templates/react-e2e-counter:
     dependencies:
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../../../dapp-kit
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../../../typescript
       '@radix-ui/colors':
@@ -1261,13 +1261,13 @@ importers:
 
   sdk/dapp-kit:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
-      '@mysten/wallet-standard':
+      '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../wallet-standard
-      '@mysten/zksend':
+      '@iota/zksend':
         specifier: workspace:*
         version: link:../zksend
       '@radix-ui/react-dialog':
@@ -1295,7 +1295,7 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4(@types/react@18.3.3)(immer@9.0.21)(react@18.3.1)
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@size-limit/preset-small-lib':
@@ -1349,11 +1349,11 @@ importers:
 
   sdk/deepbook:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@types/node':
@@ -1383,14 +1383,14 @@ importers:
 
   sdk/deepbook-v3:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
       '@iarna/toml':
         specifier: ^2.2.5
         version: 2.2.5
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@types/node':
@@ -1420,34 +1420,34 @@ importers:
 
   sdk/docs:
     dependencies:
-      '@mysten/bcs':
+      '@iota/bcs':
         specifier: workspace:*
         version: link:../bcs
-      '@mysten/dapp-kit':
+      '@iota/dapp-kit':
         specifier: workspace:*
         version: link:../dapp-kit
-      '@mysten/deepbook':
+      '@iota/deepbook':
         specifier: workspace:*
         version: link:../deepbook
-      '@mysten/enoki':
+      '@iota/enoki':
         specifier: workspace:*
         version: link:../enoki
-      '@mysten/graphql-transport':
+      '@iota/graphql-transport':
         specifier: workspace:*
         version: link:../graphql-transport
-      '@mysten/kiosk':
+      '@iota/kiosk':
         specifier: workspace:*
         version: link:../kiosk
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
-      '@mysten/wallet-standard':
+      '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../wallet-standard
-      '@mysten/zklogin':
+      '@iota/zklogin':
         specifier: workspace:*
         version: link:../zklogin
-      '@mysten/zksend':
+      '@iota/zksend':
         specifier: workspace:*
         version: link:../zksend
       '@tanstack/react-query':
@@ -1484,10 +1484,10 @@ importers:
 
   sdk/enoki:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
-      '@mysten/zklogin':
+      '@iota/zklogin':
         specifier: workspace:*
         version: link:../zklogin
       '@nanostores/react':
@@ -1500,7 +1500,7 @@ importers:
         specifier: ^0.10.3
         version: 0.10.3
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@types/node':
@@ -1533,10 +1533,10 @@ importers:
       '@graphql-typed-document-node/core':
         specifier: ^3.2.0
         version: 3.2.0(graphql@16.9.0)
-      '@mysten/bcs':
+      '@iota/bcs':
         specifier: workspace:*
         version: link:../bcs
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       graphql:
@@ -1561,7 +1561,7 @@ importers:
       '@graphql-codegen/typescript-operations':
         specifier: ^4.2.3
         version: 4.2.3(graphql@16.9.0)
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@parcel/watcher':
@@ -1585,11 +1585,11 @@ importers:
 
   sdk/kiosk:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       cross-env:
@@ -1614,7 +1614,7 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0
 
-  sdk/ledgerjs-hw-app-sui:
+  sdk/ledgerjs-hw-app-iota:
     dependencies:
       '@ledgerhq/hw-transport':
         specifier: ^6.31.0
@@ -1626,7 +1626,7 @@ importers:
       '@ledgerhq/hw-transport-mocker':
         specifier: ^6.29.0
         version: 6.29.0
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@size-limit/preset-small-lib':
@@ -1647,10 +1647,10 @@ importers:
 
   sdk/move-bytecode-template:
     devDependencies:
-      '@mysten/bcs':
+      '@iota/bcs':
         specifier: workspace:*
         version: link:../bcs
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       typescript:
@@ -1665,7 +1665,7 @@ importers:
 
   sdk/signers:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@noble/curves':
@@ -1678,7 +1678,7 @@ importers:
         specifier: ^8.0.2
         version: 8.0.2
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@types/node':
@@ -1694,16 +1694,16 @@ importers:
         specifier: ^2.0.1
         version: 2.0.1(@types/node@20.14.10)(happy-dom@14.12.3)(jsdom@24.1.0)(lightningcss@1.27.0)(sass@1.77.6)(terser@5.31.1)
 
-  sdk/suins-toolkit:
+  sdk/iotans-toolkit:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
       '@faker-js/faker':
         specifier: ^8.4.1
         version: 8.4.1
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       ts-node:
@@ -1721,7 +1721,7 @@ importers:
       '@graphql-typed-document-node/core':
         specifier: ^3.2.0
         version: 3.2.0(graphql@16.9.0)
-      '@mysten/bcs':
+      '@iota/bcs':
         specifier: workspace:*
         version: link:../bcs
       '@noble/curves':
@@ -1782,7 +1782,7 @@ importers:
       '@iarna/toml':
         specifier: ^2.2.5
         version: 2.2.5
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:^
         version: link:../build-scripts
       '@types/node':
@@ -1827,14 +1827,14 @@ importers:
 
   sdk/wallet-standard:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
       '@wallet-standard/core':
         specifier: 1.0.3
         version: 1.0.3
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       typescript:
@@ -1846,11 +1846,11 @@ importers:
 
   sdk/zklogin:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@types/node':
@@ -1865,10 +1865,10 @@ importers:
 
   sdk/zksend:
     dependencies:
-      '@mysten/sui':
+      '@iota/iota-sdk':
         specifier: workspace:*
         version: link:../typescript
-      '@mysten/wallet-standard':
+      '@iota/wallet-standard':
         specifier: workspace:*
         version: link:../wallet-standard
       mitt:
@@ -1881,7 +1881,7 @@ importers:
         specifier: ^0.36.0
         version: 0.36.0
     devDependencies:
-      '@mysten/build-scripts':
+      '@iota/build-scripts':
         specifier: workspace:*
         version: link:../build-scripts
       '@types/node':
@@ -4334,23 +4334,23 @@ packages:
     resolution: {integrity: sha512-3rDakgJZ77+RiQUuSK69t1F0m8BQKA8Vh5DCS5V0DWvNY67zob2JhhQrhCO0AKLGINTRSFd1tBaHcJTkhefoSw==}
     engines: {node: '>=18'}
 
-  '@mysten/bcs@1.1.0':
+  '@iota/bcs@1.1.0':
     resolution: {integrity: sha512-yy9/1Y4d0FlRywS1+9ze/T7refCbrvwFwJIOKs9M3QBK1njbcHZp+LkVeLqBvIJA5eZ3ZCzmhQ1Xq4Sed5mEBA==}
 
-  '@mysten/dapp-kit@0.14.25':
+  '@iota/dapp-kit@0.14.25':
     resolution: {integrity: sha512-6efjJgikX09AprXU28srmxkLy8e21YtQRtY23OHGLtP3MUkI71kqt3PhBEK4Tg61e0+YCAY/9UlgVWMBX1Hong==}
     peerDependencies:
       '@tanstack/react-query': ^5.0.0
       react: '*'
 
-  '@mysten/sui@1.12.0':
+  '@iota/iota-sdk@1.12.0':
     resolution: {integrity: sha512-DrSyja04xyGrTGlIQKMwZ6MywxNPkjyIcDLm915Zisoy1/uIgPoHc4cx53JyiG92z/HgowTVGGCCIzH53DIYXA==}
     engines: {node: '>=18'}
 
-  '@mysten/wallet-standard@0.13.7':
+  '@iota/wallet-standard@0.13.7':
     resolution: {integrity: sha512-FXlqn3Gp4E7aQf33rZQfaCEUeEq9TbmkIFA7kX/Yab5SC5892XVhkLRu040eBs8Cest98jFUZ2ZJ4YWR+a7e5g==}
 
-  '@mysten/zksend@0.11.6':
+  '@iota/zksend@0.11.6':
     resolution: {integrity: sha512-dkwPQxzPUK9xDTl2mMa2+VcCQNWtKwiTTr8yq17AYOSIqtmPjoX4F4q+oOunL9vgyiJONSNktO1kq37GSjIa6w==}
 
   '@nanostores/react@0.7.2':
@@ -18483,15 +18483,15 @@ snapshots:
       outvariant: 1.4.3
       strict-event-emitter: 0.5.1
 
-  '@mysten/bcs@1.1.0':
+  '@iota/bcs@1.1.0':
     dependencies:
       bs58: 6.0.0
 
-  '@mysten/dapp-kit@0.14.25(@tanstack/react-query@5.59.0(react@18.3.1))(@types/react-dom@18.3.0)(@types/react@18.3.3)(immer@9.0.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.3)':
+  '@iota/dapp-kit@0.14.25(@tanstack/react-query@5.59.0(react@18.3.1))(@types/react-dom@18.3.0)(@types/react@18.3.3)(immer@9.0.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.3)':
     dependencies:
-      '@mysten/sui': 1.12.0(typescript@5.6.3)
-      '@mysten/wallet-standard': 0.13.7(typescript@5.6.3)
-      '@mysten/zksend': 0.11.6(typescript@5.6.3)
+      '@iota/iota-sdk': 1.12.0(typescript@5.6.3)
+      '@iota/wallet-standard': 0.13.7(typescript@5.6.3)
+      '@iota/zksend': 0.11.6(typescript@5.6.3)
       '@radix-ui/react-dialog': 1.1.1(@types/react-dom@18.3.0)(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-dropdown-menu': 2.1.1(@types/react-dom@18.3.0)(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-slot': 1.1.0(@types/react@18.3.3)(react@18.3.1)
@@ -18511,10 +18511,10 @@ snapshots:
       - svelte
       - typescript
 
-  '@mysten/sui@1.12.0(typescript@5.6.3)':
+  '@iota/iota-sdk@1.12.0(typescript@5.6.3)':
     dependencies:
       '@graphql-typed-document-node/core': 3.2.0(graphql@16.9.0)
-      '@mysten/bcs': 1.1.0
+      '@iota/bcs': 1.1.0
       '@noble/curves': 1.4.2
       '@noble/hashes': 1.4.0
       '@scure/bip32': 1.4.0
@@ -18529,18 +18529,18 @@ snapshots:
       - svelte
       - typescript
 
-  '@mysten/wallet-standard@0.13.7(typescript@5.6.3)':
+  '@iota/wallet-standard@0.13.7(typescript@5.6.3)':
     dependencies:
-      '@mysten/sui': 1.12.0(typescript@5.6.3)
+      '@iota/iota-sdk': 1.12.0(typescript@5.6.3)
       '@wallet-standard/core': 1.0.3
     transitivePeerDependencies:
       - svelte
       - typescript
 
-  '@mysten/zksend@0.11.6(typescript@5.6.3)':
+  '@iota/zksend@0.11.6(typescript@5.6.3)':
     dependencies:
-      '@mysten/sui': 1.12.0(typescript@5.6.3)
-      '@mysten/wallet-standard': 0.13.7(typescript@5.6.3)
+      '@iota/iota-sdk': 1.12.0(typescript@5.6.3)
+      '@iota/wallet-standard': 0.13.7(typescript@5.6.3)
       mitt: 3.0.1
       nanostores: 0.10.3
       valibot: 0.36.0

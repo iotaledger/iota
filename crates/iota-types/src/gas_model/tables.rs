@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -154,7 +155,7 @@ impl GasStatus {
     }
 
     #[allow(dead_code)]
-    fn to_mist(&self, val: InternalGas) -> u64 {
+    fn to_nanos(&self, val: InternalGas) -> u64 {
         let gas: Gas = InternalGas::to_unit_round_down(val);
         u64::from(gas) * self.gas_price
     }

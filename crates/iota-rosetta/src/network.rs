@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::State;
@@ -8,24 +9,24 @@ use serde_json::json;
 use strum::IntoEnumIterator;
 
 use fastcrypto::encoding::Hex;
-use sui_types::base_types::ObjectID;
+use iota_types::base_types::ObjectID;
 
 use crate::errors::{Error, ErrorType};
 use crate::types::{
     Allow, Case, NetworkIdentifier, NetworkListResponse, NetworkOptionsResponse, NetworkRequest,
     NetworkStatusResponse, OperationStatus, OperationType, Peer, SyncStatus, Version,
 };
-use crate::{OnlineServerContext, SuiEnv};
+use crate::{OnlineServerContext, IotaEnv};
 
 /// This module implements the [Rosetta Network API](https://www.rosetta-api.org/docs/NetworkApi.html)
 
 /// This endpoint returns a list of NetworkIdentifiers that the Rosetta server supports.
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/NetworkApi.html#networklist)
-pub async fn list(Extension(env): Extension<SuiEnv>) -> Result<NetworkListResponse, Error> {
+pub async fn list(Extension(env): Extension<IotaEnv>) -> Result<NetworkListResponse, Error> {
     Ok(NetworkListResponse {
         network_identifiers: vec![NetworkIdentifier {
-            blockchain: "sui".to_string(),
+            blockchain: "iota".to_string(),
             network: env,
         }],
     })
@@ -36,7 +37,7 @@ pub async fn list(Extension(env): Extension<SuiEnv>) -> Result<NetworkListRespon
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/NetworkApi.html#networkstatus)
 pub async fn status(
     State(context): State<OnlineServerContext>,
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<NetworkRequest>, Error>,
 ) -> Result<NetworkStatusResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;
@@ -44,17 +45,17 @@ pub async fn status(
     let system_state = context
         .client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await?;
 
     let peers = system_state
         .active_validators
         .iter()
         .map(|validator| Peer {
-            peer_id: ObjectID::from(validator.sui_address).into(),
+            peer_id: ObjectID::from(validator.iota_address).into(),
             metadata: Some(json!({
                 "public_key": Hex::from_bytes(&validator.protocol_pubkey_bytes),
-                "stake_amount": validator.staking_pool_sui_balance,
+                "stake_amount": validator.staking_pool_iota_balance,
             })),
         })
         .collect();
@@ -86,7 +87,7 @@ pub async fn status(
 ///
 /// [Rosetta API Spec](https://www.rosetta-api.org/docs/NetworkApi.html#networkoptions)
 pub async fn options(
-    Extension(env): Extension<SuiEnv>,
+    Extension(env): Extension<IotaEnv>,
     WithRejection(Json(request), _): WithRejection<Json<NetworkRequest>, Error>,
 ) -> Result<NetworkOptionsResponse, Error> {
     env.check_network_identifier(&request.network_identifier)?;

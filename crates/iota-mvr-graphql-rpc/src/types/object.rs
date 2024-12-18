@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -16,14 +17,14 @@ use super::dynamic_field::{DynamicField, DynamicFieldName};
 use super::move_object::MoveObject;
 use super::move_package::MovePackage;
 use super::owner::OwnerImpl;
-use super::stake::StakedSui;
-use super::sui_address::addr;
-use super::suins_registration::{DomainFormat, SuinsRegistration};
+use super::stake::StakedIota;
+use super::iota_address::addr;
+use super::iotans_registration::{DomainFormat, IotaNSRegistration};
 use super::transaction_block;
 use super::transaction_block::TransactionBlockFilter;
 use super::type_filter::{ExactTypeFilter, TypeFilter};
 use super::uint53::UInt53;
-use super::{owner::Owner, sui_address::SuiAddress, transaction_block::TransactionBlock};
+use super::{owner::Owner, iota_address::IotaAddress, transaction_block::TransactionBlock};
 use crate::connection::ScanConnection;
 use crate::consistency::{build_objects_query, Checkpointed, View};
 use crate::data::package_resolver::PackageResolver;
@@ -41,20 +42,20 @@ use diesel_async::scoped_futures::ScopedFutureExt;
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use move_core_types::language_storage::StructTag;
 use serde::{Deserialize, Serialize};
-use sui_indexer::models::obj_indices::StoredObjectVersion;
-use sui_indexer::models::objects::{StoredFullHistoryObject, StoredHistoryObject};
-use sui_indexer::schema::{full_objects_history, objects_version};
-use sui_indexer::types::ObjectStatus as NativeObjectStatus;
-use sui_indexer::types::OwnerType;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::object::{
+use iota_indexer::models::obj_indices::StoredObjectVersion;
+use iota_indexer::models::objects::{StoredFullHistoryObject, StoredHistoryObject};
+use iota_indexer::schema::{full_objects_history, objects_version};
+use iota_indexer::types::ObjectStatus as NativeObjectStatus;
+use iota_indexer::types::OwnerType;
+use iota_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::object::{
     MoveObject as NativeMoveObject, Object as NativeObject, Owner as NativeOwner,
 };
-use sui_types::TypeTag;
+use iota_types::TypeTag;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Object {
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     pub version: u64,
     pub kind: ObjectKind,
     /// The checkpoint sequence number at which this was viewed at.
@@ -101,7 +102,7 @@ pub enum ObjectStatus {
 #[derive(Clone, Debug, PartialEq, Eq, InputObject)]
 pub(crate) struct ObjectRef {
     /// ID of the object.
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     /// Version or sequence number of the object.
     pub version: UInt53,
     /// Digest of the object.
@@ -120,14 +121,14 @@ pub(crate) struct ObjectFilter {
     /// name.
     ///
     /// Generic types can be queried by either the generic type name, e.g. `0x2::coin::Coin`, or by
-    /// the full type name, such as `0x2::coin::Coin<0x2::sui::SUI>`.
+    /// the full type name, such as `0x2::coin::Coin<0x2::iota::IOTA>`.
     pub type_: Option<TypeFilter>,
 
     /// Filter for live objects by their current owners.
-    pub owner: Option<SuiAddress>,
+    pub owner: Option<IotaAddress>,
 
     /// Filter for live objects by their IDs.
-    pub object_ids: Option<Vec<SuiAddress>>,
+    pub object_ids: Option<Vec<IotaAddress>>,
 
     /// Filter for live or potentially historical objects by their ID and version.
     pub object_keys: Option<Vec<ObjectKey>>,
@@ -135,7 +136,7 @@ pub(crate) struct ObjectFilter {
 
 #[derive(InputObject, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct ObjectKey {
-    pub object_id: SuiAddress,
+    pub object_id: IotaAddress,
     pub version: UInt53,
 }
 
@@ -277,8 +278,8 @@ pub(crate) enum IObject {
     MoveObject(MoveObject),
     Coin(Coin),
     CoinMetadata(CoinMetadata),
-    StakedSui(StakedSui),
-    SuinsRegistration(SuinsRegistration),
+    StakedIota(StakedIota),
+    IotaNSRegistration(IotaNSRegistration),
 }
 
 /// `DataLoader` key for fetching an `Object` at a specific version, constrained by a consistency
@@ -286,7 +287,7 @@ pub(crate) enum IObject {
 /// fail).
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct HistoricalKey {
-    id: SuiAddress,
+    id: IotaAddress,
     version: u64,
     checkpoint_viewed_at: u64,
 }
@@ -297,7 +298,7 @@ struct HistoricalKey {
 /// than the object's actual parent as of `checkpoint_viewed_at`.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct ParentVersionKey {
-    id: SuiAddress,
+    id: IotaAddress,
     parent_version: u64,
     checkpoint_viewed_at: u64,
 }
@@ -305,7 +306,7 @@ struct ParentVersionKey {
 /// `DataLoader` key for fetching the latest version of an object as of a given checkpoint.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct LatestAtKey {
-    id: SuiAddress,
+    id: IotaAddress,
     checkpoint_viewed_at: u64,
 }
 
@@ -313,16 +314,16 @@ struct LatestAtKey {
 /// This does not have any consistency constraints.
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 struct PointLookupKey {
-    id: SuiAddress,
+    id: IotaAddress,
     version: u64,
 }
 
-/// An object in Sui is a package (set of Move bytecode modules) or object (typed data structure
+/// An object in Iota is a package (set of Move bytecode modules) or object (typed data structure
 /// with fields) with additional metadata detailing its id, version, transaction digest, owner
 /// field indicating how this object can be accessed.
 #[Object]
 impl Object {
-    pub(crate) async fn address(&self) -> SuiAddress {
+    pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(self).address().await
     }
 
@@ -342,7 +343,7 @@ impl Object {
     }
 
     /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -367,7 +368,7 @@ impl Object {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -382,41 +383,41 @@ impl Object {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this object.
-    pub(crate) async fn staked_suis(
+    /// The `0x3::staking_pool::StakedIota` objects owned by this object.
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<Cursor>,
         last: Option<u64>,
         before: Option<Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(self)
-            .staked_suis(ctx, first, after, last, before)
+            .staked_iotas(ctx, first, after, last, before)
             .await
     }
 
     /// The domain explicitly configured as the default domain pointing to this object.
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
     ) -> Result<Option<String>> {
-        OwnerImpl::from(self).default_suins_name(ctx, format).await
+        OwnerImpl::from(self).default_iotans_name(ctx, format).await
     }
 
-    /// The SuinsRegistration NFTs owned by this object. These grant the owner the capability to
+    /// The IotaNSRegistration NFTs owned by this object. These grant the owner the capability to
     /// manage the associated domain.
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<Cursor>,
         last: Option<u64>,
         before: Option<Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         OwnerImpl::from(self)
-            .suins_registrations(ctx, first, after, last, before)
+            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -454,7 +455,7 @@ impl Object {
         ObjectImpl(self).previous_transaction_block(ctx).await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
+    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
     /// recalculated based on the present storage gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(self).storage_rebate().await
@@ -590,7 +591,7 @@ impl ObjectImpl<'_> {
 
         match &native.owner {
             O::AddressOwner(address) => {
-                let address = SuiAddress::from(*address);
+                let address = IotaAddress::from(*address);
                 Some(ObjectOwner::Address(AddressOwner {
                     owner: Some(Owner {
                         address,
@@ -601,7 +602,7 @@ impl ObjectImpl<'_> {
             }
             O::Immutable => Some(ObjectOwner::Immutable(Immutable { dummy: None })),
             O::ObjectOwner(address) => {
-                let address = SuiAddress::from(*address);
+                let address = IotaAddress::from(*address);
                 Some(ObjectOwner::Parent(Parent {
                     parent: Some(Owner {
                         address,
@@ -730,7 +731,7 @@ impl Object {
     /// we use [`version_for_dynamic_fields`] to infer a root version to then propagate from this
     /// object down to its dynamic fields.
     pub(crate) fn from_native(
-        address: SuiAddress,
+        address: IotaAddress,
         native: NativeObject,
         checkpoint_viewed_at: u64,
         root_version: Option<u64>,
@@ -751,7 +752,7 @@ impl Object {
     /// The `checkpoint_viewed_at` is the checkpoint sequence number at which this object was viewed.
     /// The `root_version` is the root parent object version for dynamic fields.
     pub(crate) fn new_serialized(
-        object_id: SuiAddress,
+        object_id: IotaAddress,
         version: u64,
         serialized: Option<Vec<u8>>,
         checkpoint_viewed_at: u64,
@@ -887,7 +888,7 @@ impl Object {
 
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        id: SuiAddress,
+        id: IotaAddress,
         key: ObjectLookup,
     ) -> Result<Option<Self>, Error> {
         let DataLoader(loader) = &ctx.data_unchecked();
@@ -1084,7 +1085,7 @@ impl ObjectFilter {
     /// Extract the Object ID and Key filters into one combined map from Object IDs in this filter,
     /// to the versions they should have (or None if the filter mentions the ID but no version for
     /// it).
-    fn keys(&self) -> Option<BTreeMap<SuiAddress, Option<u64>>> {
+    fn keys(&self) -> Option<BTreeMap<IotaAddress, Option<u64>>> {
         if self.object_keys.is_none() && self.object_ids.is_none() {
             return None;
         }
@@ -1697,12 +1698,12 @@ mod tests {
     #[test]
     fn test_owner_filter_intersection() {
         let f0 = ObjectFilter {
-            owner: Some(SuiAddress::from_str("0x1").unwrap()),
+            owner: Some(IotaAddress::from_str("0x1").unwrap()),
             ..Default::default()
         };
 
         let f1 = ObjectFilter {
-            owner: Some(SuiAddress::from_str("0x2").unwrap()),
+            owner: Some(IotaAddress::from_str("0x2").unwrap()),
             ..Default::default()
         };
 
@@ -1712,10 +1713,10 @@ mod tests {
 
     #[test]
     fn test_key_filter_intersection() {
-        let i1 = SuiAddress::from_str("0x1").unwrap();
-        let i2 = SuiAddress::from_str("0x2").unwrap();
-        let i3 = SuiAddress::from_str("0x3").unwrap();
-        let i4 = SuiAddress::from_str("0x4").unwrap();
+        let i1 = IotaAddress::from_str("0x1").unwrap();
+        let i2 = IotaAddress::from_str("0x2").unwrap();
+        let i3 = IotaAddress::from_str("0x3").unwrap();
+        let i4 = IotaAddress::from_str("0x4").unwrap();
 
         let f0 = ObjectFilter {
             object_ids: Some(vec![i1, i3]),

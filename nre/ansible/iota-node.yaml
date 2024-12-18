@@ -2,9 +2,9 @@
 - hosts: "{{ host }}"
   become: yes
   roles:
-    - sui-node
+    - iota-node
   vars:
     skip_iptables: false
     skip_monitoring: false
     reset_db: false
-    start_sui: true
+    start_iota: true

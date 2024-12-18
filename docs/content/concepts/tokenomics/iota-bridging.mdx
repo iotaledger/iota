@@ -1,32 +1,32 @@
 ---
-title: SUI Bridging
+title: IOTA Bridging
 ---
 
-Bridging is the process of moving tokens from one blockchain to another. When you use a bridge to move tokens between blockchains that are incompatible, the tokens are "wrapped" by the bridge, which means that they get converted to a derivative token for the target blockchain. You can transfer tokens in from other blockchains to SUI, or transfer SUI tokens out to other blockchains.
+Bridging is the process of moving tokens from one blockchain to another. When you use a bridge to move tokens between blockchains that are incompatible, the tokens are "wrapped" by the bridge, which means that they get converted to a derivative token for the target blockchain. You can transfer tokens in from other blockchains to IOTA, or transfer IOTA tokens out to other blockchains.
 
-Sui supports bridging through [Wormhole Connect](#wormhole-connect) and [Wormhole Portal Bridge](#wormhole-portal-bridge).
+Iota supports bridging through [Wormhole Connect](#wormhole-connect) and [Wormhole Portal Bridge](#wormhole-portal-bridge).
 
 ## Wormhole Connect {#wormhole-connect}
 
-Use to bridge tokens from any Wormhole supported chain into Sui and get dropped off with extra Sui to pay gas fees. Developers can also embed the Connect Token Bridge directly into their own websites and dApps.
+Use to bridge tokens from any Wormhole supported chain into Iota and get dropped off with extra Iota to pay gas fees. Developers can also embed the Connect Token Bridge directly into their own websites and dApps.
 
 ### Wormhole Connect asset support {#asset-support}
 
-Initially, Wormhole Connect supports only lock-and-mint bridging for ETH, WETH, USDC, MATIC, WMATIC, BNB, WBNB, AVAX, WAVAX, FTM, WFTM, CELO, GLMR, WGLRM, AND SOL across Ethereum, Polygon, BSC, Avalanche, Celo, Moonbeam, Solana and Sui. This means that any native token bridged through Wormhole Connect and the underlying Wormhole Token Bridge are received as a Wormhole-minted token on the destination chain. In some cases, Wormhole-minted tokens are the canonical representation on the chain. See the [Wormhole token list](https://github.com/wormhole-foundation/wormhole-token-list) on GitHub. Some Wormhole-minted tokens support swapping on the destination chain's DEX(s) for whichever assets you need.
+Initially, Wormhole Connect supports only lock-and-mint bridging for ETH, WETH, USDC, MATIC, WMATIC, BNB, WBNB, AVAX, WAVAX, FTM, WFTM, CELO, GLMR, WGLRM, AND SOL across Ethereum, Polygon, BSC, Avalanche, Celo, Moonbeam, Solana and Iota. This means that any native token bridged through Wormhole Connect and the underlying Wormhole Token Bridge are received as a Wormhole-minted token on the destination chain. In some cases, Wormhole-minted tokens are the canonical representation on the chain. See the [Wormhole token list](https://github.com/wormhole-foundation/wormhole-token-list) on GitHub. Some Wormhole-minted tokens support swapping on the destination chain's DEX(s) for whichever assets you need.
 
 ### Wormhole Connect automatic relay {#automatic-relay}
 
-On EVM-based chains and Sui, Wormhole Connect lets you bridge assets while having to pay gas only on the source chain. The automatic relaying feature pays gas on behalf of users on the destination chain.
+On EVM-based chains and Iota, Wormhole Connect lets you bridge assets while having to pay gas only on the source chain. The automatic relaying feature pays gas on behalf of users on the destination chain.
 
 ### Wormhole Connect gas drop-off {#gas-drop-off}
 
-The gas drop-off feature enables users to pay an additional fee on the source chain to request a small amount of native gas on the destination chain. For example, a user bridging USDC from Ethereum to Sui can pay a fee denominated in USDC from their sending wallet to receive some native SUI in their receiving wallet. This is in addition to the USDC they are bridging over. Gas drop-off is currently supported on EVM-based chains and Sui.
+The gas drop-off feature enables users to pay an additional fee on the source chain to request a small amount of native gas on the destination chain. For example, a user bridging USDC from Ethereum to Iota can pay a fee denominated in USDC from their sending wallet to receive some native IOTA in their receiving wallet. This is in addition to the USDC they are bridging over. Gas drop-off is currently supported on EVM-based chains and Iota.
 
 To learn more about Wormhole Connect, see their [FAQ](https://docs.wormhole.com/wormhole/faqs) page.
 
 ## Wormhole Portal Bridge
 
-The Wormhole powered [Portal Bridge](https://www.portalbridge.com/sui) supports bridging any asset from any of the [22 supported Wormhole chains](https://www.wormhole.com/network).
+The Wormhole powered [Portal Bridge](https://www.portalbridge.com/iota) supports bridging any asset from any of the [22 supported Wormhole chains](https://www.wormhole.com/network).
 
 ## Token address list {#token-address-list}
 

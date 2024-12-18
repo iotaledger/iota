@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::http::{self, header, HeaderMap};
@@ -6,7 +7,7 @@ use mime::Mime;
 
 // TODO look into utilizing the following way to signal the expected types since bcs doesn't
 // include type information
-// "application/x.sui.<type>+bcs"
+// "application/x.iota.<type>+bcs"
 pub const APPLICATION_BCS: &str = "application/bcs";
 
 /// `Accept` header, defined in [RFC7231](http://tools.ietf.org/html/rfc7231#section-5.3.2)

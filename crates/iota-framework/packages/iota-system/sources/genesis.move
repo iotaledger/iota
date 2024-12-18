@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::genesis {
+module iota_system::genesis {
 
-    use sui::balance::{Self, Balance};
-    use sui::sui::{Self, SUI};
-    use sui_system::sui_system;
-    use sui_system::validator::{Self, Validator};
-    use sui_system::validator_set;
-    use sui_system::sui_system_state_inner;
-    use sui_system::stake_subsidy;
+    use iota::balance::{Self, Balance};
+    use iota::iota::{Self, IOTA};
+    use iota_system::iota_system;
+    use iota_system::validator::{Self, Validator};
+    use iota_system::validator_set;
+    use iota_system::iota_system_state_inner;
+    use iota_system::stake_subsidy;
 
     public struct GenesisValidatorMetadata has drop, copy {
         name: vector<u8>,
@@ -17,7 +18,7 @@ module sui_system::genesis {
         image_url: vector<u8>,
         project_url: vector<u8>,
 
-        sui_address: address,
+        iota_address: address,
 
         gas_price: u64,
         commission_rate: u64,
@@ -54,13 +55,13 @@ module sui_system::genesis {
     }
 
     public struct TokenDistributionSchedule {
-        stake_subsidy_fund_mist: u64,
+        stake_subsidy_fund_nanos: u64,
         allocations: vector<TokenAllocation>,
     }
 
     public struct TokenAllocation {
         recipient_address: address,
-        amount_mist: u64,
+        amount_nanos: u64,
 
         /// Indicates if this allocation should be staked at genesis and with which validator
         staked_with_validator: Option<address>,
@@ -74,11 +75,11 @@ module sui_system::genesis {
 
     #[allow(unused_function)]
     /// This function will be explicitly called once at genesis.
-    /// It will create a singleton SuiSystemState object, which contains
+    /// It will create a singleton IotaSystemState object, which contains
     /// all the information we need in the system.
     fun create(
-        sui_system_state_id: UID,
-        mut sui_supply: Balance<SUI>,
+        iota_system_state_id: UID,
+        mut iota_supply: Balance<IOTA>,
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         token_distribution_schedule: TokenDistributionSchedule,
@@ -88,11 +89,11 @@ module sui_system::genesis {
         assert!(ctx.epoch() == 0, ENotCalledAtGenesis);
 
         let TokenDistributionSchedule {
-            stake_subsidy_fund_mist,
+            stake_subsidy_fund_nanos,
             allocations,
         } = token_distribution_schedule;
 
-        let subsidy_fund = sui_supply.split(stake_subsidy_fund_mist);
+        let subsidy_fund = iota_supply.split(stake_subsidy_fund_nanos);
         let storage_fund = balance::zero();
 
         // Create all the `Validator` structs
@@ -105,7 +106,7 @@ module sui_system::genesis {
                 description,
                 image_url,
                 project_url,
-                sui_address,
+                iota_address,
                 gas_price,
                 commission_rate,
                 protocol_public_key,
@@ -119,7 +120,7 @@ module sui_system::genesis {
             } = genesis_validators[i];
 
             let validator = validator::new(
-                sui_address,
+                iota_address,
                 protocol_public_key,
                 network_public_key,
                 worker_public_key,
@@ -150,7 +151,7 @@ module sui_system::genesis {
 
         // Allocate tokens and staking operations
         allocate_tokens(
-            sui_supply,
+            iota_supply,
             allocations,
             &mut validators,
             ctx
@@ -159,7 +160,7 @@ module sui_system::genesis {
         // Activate all validators
         activate_validators(&mut validators);
 
-        let system_parameters = sui_system_state_inner::create_system_parameters(
+        let system_parameters = iota_system_state_inner::create_system_parameters(
             genesis_chain_parameters.epoch_duration_ms,
             genesis_chain_parameters.stake_subsidy_start_epoch,
 
@@ -181,8 +182,8 @@ module sui_system::genesis {
             ctx,
         );
 
-        sui_system::create(
-            sui_system_state_id,
+        iota_system::create(
+            iota_system_state_id,
             validators,
             storage_fund,
             genesis_chain_parameters.protocol_version,
@@ -194,7 +195,7 @@ module sui_system::genesis {
     }
 
     fun allocate_tokens(
-        mut sui_supply: Balance<SUI>,
+        mut iota_supply: Balance<IOTA>,
         mut allocations: vector<TokenAllocation>,
         validators: &mut vector<Validator>,
         ctx: &mut TxContext,
@@ -203,11 +204,11 @@ module sui_system::genesis {
         while (!allocations.is_empty()) {
             let TokenAllocation {
                 recipient_address,
-                amount_mist,
+                amount_nanos,
                 staked_with_validator,
             } = allocations.pop_back();
 
-            let allocation_balance = sui_supply.split(amount_mist);
+            let allocation_balance = iota_supply.split(amount_nanos);
 
             if (staked_with_validator.is_some()) {
                 let validator_address = staked_with_validator.destroy_some();
@@ -218,7 +219,7 @@ module sui_system::genesis {
                     ctx
                 );
             } else {
-                sui::transfer(
+                iota::transfer(
                     allocation_balance.into_coin(ctx),
                     recipient_address,
                 );
@@ -226,9 +227,9 @@ module sui_system::genesis {
         };
         allocations.destroy_empty();
 
-        // Provided allocations must fully allocate the sui_supply and there
+        // Provided allocations must fully allocate the iota_supply and there
         // should be none left at this point.
-        sui_supply.destroy_zero();
+        iota_supply.destroy_zero();
     }
 
     fun activate_validators(validators: &mut vector<Validator>) {

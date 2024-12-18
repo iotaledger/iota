@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { DEFAULT_API_ENV } from '_app/ApiProvider';
@@ -11,12 +12,12 @@ class NetworkEnv {
 	#events = mitt<{ changed: NetworkEnvType }>();
 
 	async getActiveNetwork(): Promise<NetworkEnvType> {
-		const { sui_Env, sui_Env_RPC } = await Browser.storage.local.get({
-			sui_Env: DEFAULT_API_ENV,
-			sui_Env_RPC: null,
+		const { iota_Env, iota_Env_RPC } = await Browser.storage.local.get({
+			iota_Env: DEFAULT_API_ENV,
+			iota_Env_RPC: null,
 		});
-		const adjCustomUrl = sui_Env === API_ENV.customRPC ? sui_Env_RPC : null;
-		return { env: sui_Env, customRpcUrl: adjCustomUrl };
+		const adjCustomUrl = iota_Env === API_ENV.customRPC ? iota_Env_RPC : null;
+		return { env: iota_Env, customRpcUrl: adjCustomUrl };
 	}
 
 	async setActiveNetwork(network: NetworkEnvType) {
@@ -25,8 +26,8 @@ class NetworkEnv {
 			throw new Error(`Invalid custom RPC url ${customRpcUrl}`);
 		}
 		await Browser.storage.local.set({
-			sui_Env: env,
-			sui_Env_RPC: customRpcUrl,
+			iota_Env: env,
+			iota_Env_RPC: customRpcUrl,
 		});
 		this.#events.emit('changed', network);
 	}

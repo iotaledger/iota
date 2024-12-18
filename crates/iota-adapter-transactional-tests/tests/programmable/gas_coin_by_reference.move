@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests valid gas coin usage by reference
@@ -23,22 +24,22 @@ module test::m1 {
 
 // can pass to Move function by ref
 //# programmable --sender A
-//> test::m1::t1<sui::coin::Coin<sui::sui::SUI>>(Gas)
+//> test::m1::t1<iota::coin::Coin<iota::iota::IOTA>>(Gas)
 
 //# programmable --sender A
-//> test::m1::t2<sui::coin::Coin<sui::sui::SUI>>(Gas)
+//> test::m1::t2<iota::coin::Coin<iota::iota::IOTA>>(Gas)
 
 //# programmable --sender A
-//> test::m1::t2<sui::coin::Coin<sui::sui::SUI>>(Gas)
+//> test::m1::t2<iota::coin::Coin<iota::iota::IOTA>>(Gas)
 
 //# programmable --sender A
-//> test::m1::t4<sui::coin::Coin<sui::sui::SUI>>(Gas)
+//> test::m1::t4<iota::coin::Coin<iota::iota::IOTA>>(Gas)
 
 //# programmable --sender A
-//> test::m1::t5<sui::coin::Coin<sui::sui::SUI>>(Gas)
+//> test::m1::t5<iota::coin::Coin<iota::iota::IOTA>>(Gas)
 
 //# programmable --sender A
-//> test::m1::t6<sui::coin::Coin<sui::sui::SUI>>(Gas)
+//> test::m1::t6<iota::coin::Coin<iota::iota::IOTA>>(Gas)
 
 // can pass to merge and split
 //# programmable --sender A --inputs 10  --gas-budget 10000000000

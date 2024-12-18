@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
@@ -18,22 +19,22 @@ use crate::workloads::workload::{
 };
 use crate::workloads::{Gas, GasCoinConfig, WorkloadBuilderInfo, WorkloadParams};
 use crate::{ExecutionEffects, ValidatorProxy};
-use sui_core::test_utils::make_transfer_object_transaction;
-use sui_types::{
-    base_types::{ObjectRef, SuiAddress},
+use iota_core::test_utils::make_transfer_object_transaction;
+use iota_types::{
+    base_types::{ObjectRef, IotaAddress},
     crypto::{get_key_pair, AccountKeyPair},
     transaction::Transaction,
 };
 
 /// TODO: This should be the amount that is being transferred instead of MAX_GAS.
-/// Number of mist sent to each address on each batch transfer
+/// Number of nanos sent to each address on each batch transfer
 const _TRANSFER_AMOUNT: u64 = 1;
 
 #[derive(Debug)]
 pub struct TransferObjectTestPayload {
     transfer_object: ObjectRef,
-    transfer_from: SuiAddress,
-    transfer_to: SuiAddress,
+    transfer_from: IotaAddress,
+    transfer_to: IotaAddress,
     gas: Vec<Gas>,
     system_state_observer: Arc<SystemStateObserver>,
 }
@@ -212,7 +213,7 @@ impl Workload<dyn Payload> for TransferObjectWorkload {
         system_state_observer: Arc<SystemStateObserver>,
     ) -> Vec<Box<dyn Payload>> {
         let (transfer_tokens, payload_gas) = self.payload_gas.split_at(self.num_tokens as usize);
-        let mut gas_by_address: HashMap<SuiAddress, Vec<Gas>> = HashMap::new();
+        let mut gas_by_address: HashMap<IotaAddress, Vec<Gas>> = HashMap::new();
         for gas in payload_gas.iter() {
             gas_by_address
                 .entry(gas.1)
@@ -220,7 +221,7 @@ impl Workload<dyn Payload> for TransferObjectWorkload {
                 .push(gas.clone());
         }
 
-        let addresses: Vec<SuiAddress> = gas_by_address.keys().cloned().collect();
+        let addresses: Vec<IotaAddress> = gas_by_address.keys().cloned().collect();
         let mut transfer_gas: Vec<Vec<Gas>> = vec![];
         for i in 0..self.num_tokens {
             let mut account_transfer_gas = vec![];

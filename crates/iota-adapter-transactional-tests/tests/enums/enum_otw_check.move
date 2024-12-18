@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses Test=0x0
@@ -10,7 +11,7 @@ module Test::f {
     }
 
     public fun test() {
-        assert!(!sui::types::is_one_time_witness(&F::V));
+        assert!(!iota::types::is_one_time_witness(&F::V));
     }
 }
 

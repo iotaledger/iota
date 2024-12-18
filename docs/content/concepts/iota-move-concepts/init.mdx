@@ -23,9 +23,9 @@ The following example demonstrates a valid `init` function in a module:
 
 ```move
 module examples::one_timer {
-    use sui::transfer;
-    use sui::object::{Self, UID};
-    use sui::tx_context::{Self, TxContext};
+    use iota::transfer;
+    use iota::object::{Self, UID};
+    use iota::tx_context::{Self, TxContext};
 
     /// The one of a kind - created in the module initializer.
     struct CreatorCapability has key {

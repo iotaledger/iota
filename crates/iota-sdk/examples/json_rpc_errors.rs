@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod utils;
 use anyhow::bail;
-use sui_sdk::error::{Error, JsonRpcError};
+use iota_sdk::error::{Error, JsonRpcError};
 use utils::setup_for_read;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let (sui, active_address) = setup_for_read().await?;
+    let (iota, active_address) = setup_for_read().await?;
     let coin_type = Some("0x42".to_string());
-    let coins = sui
+    let coins = iota
         .coin_read_api()
         .get_coins(active_address, coin_type.clone(), None, Some(5))
         .await;

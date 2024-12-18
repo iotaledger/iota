@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SuiWallet } from '_src/dapp-interface/WalletStandardInterface';
-import { Transaction } from '@mysten/sui/transactions';
-import { getWallets, ReadonlyWalletAccount, type Wallet } from '@mysten/wallet-standard';
+import { type IotaWallet } from '_src/dapp-interface/WalletStandardInterface';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { getWallets, ReadonlyWalletAccount, type Wallet } from '@iota/wallet-standard';
 import { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 
@@ -29,25 +30,25 @@ function getAccount(account: ReadonlyWalletAccount, useWrongAccount: boolean) {
 	return account;
 }
 
-function findSuiWallet(wallets: readonly Wallet[]) {
-	return (wallets.find((aWallet) => aWallet.name.includes('Sui Wallet')) ||
-		null) as SuiWallet | null;
+function findIotaWallet(wallets: readonly Wallet[]) {
+	return (wallets.find((aWallet) => aWallet.name.includes('Iota Wallet')) ||
+		null) as IotaWallet | null;
 }
 
 function App() {
-	const [suiWallet, setSuiWallet] = useState<SuiWallet | null>(() =>
-		findSuiWallet(getWallets().get()),
+	const [iotaWallet, setIotaWallet] = useState<IotaWallet | null>(() =>
+		findIotaWallet(getWallets().get()),
 	);
 	const [error, setError] = useState<string | null>(null);
 	const [accounts, setAccounts] = useState<ReadonlyWalletAccount[]>(
-		() => suiWallet?.accounts || [],
+		() => iotaWallet?.accounts || [],
 	);
 	const [useWrongAccounts, setUseWrongAccounts] = useState(false);
 
 	useEffect(() => {
 		const walletsApi = getWallets();
 		function updateWallets() {
-			setSuiWallet(findSuiWallet(walletsApi.get()));
+			setIotaWallet(findIotaWallet(walletsApi.get()));
 		}
 		const unregister1 = walletsApi.on('register', updateWallets);
 		const unregister2 = walletsApi.on('unregister', updateWallets);
@@ -57,20 +58,20 @@ function App() {
 		};
 	}, []);
 	useEffect(() => {
-		if (suiWallet) {
-			return suiWallet.features['standard:events'].on('change', ({ accounts }) => {
+		if (iotaWallet) {
+			return iotaWallet.features['standard:events'].on('change', ({ accounts }) => {
 				if (accounts) {
-					setAccounts(suiWallet.accounts);
+					setAccounts(iotaWallet.accounts);
 				}
 			});
 		}
-	}, [suiWallet]);
-	if (!suiWallet) {
-		return <h1>Sui Wallet not found</h1>;
+	}, [iotaWallet]);
+	if (!iotaWallet) {
+		return <h1>Iota Wallet not found</h1>;
 	}
 	return (
 		<>
-			<h1>Sui Wallet is installed. ({suiWallet.name})</h1>
+			<h1>Iota Wallet is installed. ({iotaWallet.name})</h1>
 			{accounts.length ? (
 				<ul data-testid="accounts-list">
 					{accounts.map((anAccount) => (
@@ -78,7 +79,7 @@ function App() {
 					))}
 				</ul>
 			) : (
-				<button onClick={async () => suiWallet.features['standard:connect'].connect()}>
+				<button onClick={async () => iotaWallet.features['standard:connect'].connect()}>
 					Connect
 				</button>
 			)}
@@ -95,12 +96,12 @@ function App() {
 					setError(null);
 					const txb = getDemoTransaction(accounts[0]?.address || '0x01');
 					try {
-						await suiWallet.features[
-							'sui:signAndExecuteTransactionBlock'
+						await iotaWallet.features[
+							'iota:signAndExecuteTransactionBlock'
 						]!.signAndExecuteTransactionBlock({
 							transactionBlock: txb,
 							account: getAccount(accounts[0], useWrongAccounts),
-							chain: 'sui:unknown',
+							chain: 'iota:unknown',
 						});
 					} catch (e) {
 						setError((e as Error).message);
@@ -114,10 +115,10 @@ function App() {
 					setError(null);
 					const txb = getDemoTransaction(accounts[0]?.address || '0x01');
 					try {
-						await suiWallet.features['sui:signTransactionBlock']!.signTransactionBlock({
+						await iotaWallet.features['iota:signTransactionBlock']!.signTransactionBlock({
 							transactionBlock: txb,
 							account: getAccount(accounts[0], useWrongAccounts),
-							chain: 'sui:unknown',
+							chain: 'iota:unknown',
 						});
 					} catch (e) {
 						setError((e as Error).message);
@@ -130,7 +131,7 @@ function App() {
 				onClick={async () => {
 					setError(null);
 					try {
-						await suiWallet.features['sui:signMessage']?.signMessage({
+						await iotaWallet.features['iota:signMessage']?.signMessage({
 							account: getAccount(accounts[0], useWrongAccounts),
 							message: new TextEncoder().encode('Test message'),
 						});

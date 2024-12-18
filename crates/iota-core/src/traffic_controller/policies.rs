@@ -1,11 +1,12 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
 use count_min_sketch::CountMinSketch32;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use parking_lot::RwLock;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
@@ -13,7 +14,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::time::Duration;
 use std::time::{Instant, SystemTime};
-use sui_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType, Weight};
+use iota_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType, Weight};
 use tracing::{info, trace};
 
 const HIGHEST_RATES_CAPACITY: usize = 20;
@@ -323,7 +324,7 @@ pub struct FreqThresholdPolicy {
     proxied_client_threshold: u64,
     /// Unique salt to be added to all keys in the sketch. This
     /// ensures that false positives are not correlated across
-    /// all nodes at the same time. For Sui validators for example,
+    /// all nodes at the same time. For Iota validators for example,
     /// this means that false positives should not prevent the network
     /// from achieving quorum.
     salt: u64,
@@ -515,8 +516,8 @@ impl TestPanicOnInvocationPolicy {
 mod tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr};
-    use sui_macros::sim_test;
-    use sui_types::traffic_control::{
+    use iota_macros::sim_test;
+    use iota_types::traffic_control::{
         DEFAULT_SKETCH_CAPACITY, DEFAULT_SKETCH_PROBABILITY, DEFAULT_SKETCH_TOLERANCE,
     };
 

@@ -1,13 +1,13 @@
 # Genesis Ceremony
 
-This document lays out the step-by-step process for orchestrating a Sui Genesis Ceremony.
+This document lays out the step-by-step process for orchestrating a Iota Genesis Ceremony.
 
 ## Prerequisites 
 
 Each validator participating in the ceremony will need the following:
 
 - Ed25519 Public key
-- Sui network address // WAN
+- Iota network address // WAN
 - Narwhal_primary_to_primary network address // WAN
 - Narwhal_worker_to_primary network address // LAN
 - Narwhal_primary_to_worker network address // LAN
@@ -17,7 +17,7 @@ Each validator participating in the ceremony will need the following:
 Note:
 - Network addresses should be Multiaddrs in the form of `/dns/{dns name}/tcp/{port}/http` and
 only the addresses marked WAN need to be publicly accessible by the wider internet.
-- An Ed25519 key can be created using `sui keytool generate`
+- An Ed25519 key can be created using `iota keytool generate`
 
 ## Ceremony
 
@@ -31,7 +31,7 @@ The MC (Master of Ceremony) will create a new git repository and initialize the 
 
 ```
 $ git init genesis && cd genesis
-$ sui genesis-ceremony 
+$ iota genesis-ceremony 
 $ git add .
 $ git commit -m "init genesis"
 $ git push
@@ -43,7 +43,7 @@ Once the shared workspace has been initialized, each validator can contribute th
 
 ```
 $ git clone <url to genesis repo> && cd genesis
-$ sui genesis-ceremony add-validator \
+$ iota genesis-ceremony add-validator \
     --name <human-readable validator name> \
     --key-file <path to key file> \
     --network-address <multiaddr> \
@@ -63,10 +63,10 @@ $ git push # either to the shared workspace or another branch followed by a PR
 Add configuration for any initial gas objects that should be created at genesis.
 
 ```
-$ sui genesis-ceremony add-gas-object \
-    --address <SuiAddress> \
+$ iota genesis-ceremony add-gas-object \
+    --address <IotaAddress> \
     --object-id <ObjectId> \
-    --valud <# of sui coins>
+    --valud <# of iota coins>
 $ git add .
 $ git commit -m "add gas object"
 $ git push
@@ -77,7 +77,7 @@ $ git push
 Once all validators and gas objects have been added, the MC can build the genesis object:
 
 ```
-$ sui genesis-ceremony build
+$ iota genesis-ceremony build
 $ git add .
 $ git commit -m "build genesis"
 $ git push
@@ -88,7 +88,7 @@ $ git push
 Once genesis is built each validator will need to verify and sign genesis:
 
 ```
-$ sui genesis-ceremony verify-and-sign \
+$ iota genesis-ceremony verify-and-sign \
     --key-file <path to key file>
 $ git add .
 $ git commit -m "sign genesis"
@@ -101,5 +101,5 @@ Once all validators have successfully verified and signed genesis, the MC can fi
 and then the genesis state can be distributed:
 
 ```
-$ sui genesis-ceremony finalize
+$ iota genesis-ceremony finalize
 ```

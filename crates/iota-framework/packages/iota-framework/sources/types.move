@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Sui types helpers and utilities
-module sui::types;
+/// Iota types helpers and utilities
+module iota::types;
 
 // === one-time witness ===
 

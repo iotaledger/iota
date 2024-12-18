@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use sui_package_resolver::FunctionDef;
+use iota_package_resolver::FunctionDef;
 
 use crate::error::Error;
 
 use super::{
     move_module::MoveModule,
     open_move_type::{abilities, MoveAbility, MoveVisibility, OpenMoveType},
-    sui_address::SuiAddress,
+    iota_address::IotaAddress,
 };
 
 pub(crate) struct MoveFunction {
-    package: SuiAddress,
+    package: IotaAddress,
     module: String,
     name: String,
     visibility: MoveVisibility,
@@ -88,7 +89,7 @@ impl MoveFunction {
 
 impl MoveFunction {
     pub(crate) fn new(
-        package: SuiAddress,
+        package: IotaAddress,
         module: String,
         name: String,
         def: FunctionDef,
@@ -120,7 +121,7 @@ impl MoveFunction {
 
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
         module: &str,
         function: &str,
         checkpoint_viewed_at: u64,

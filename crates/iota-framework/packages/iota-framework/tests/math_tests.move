@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only, allow(deprecated_usage)]
-module sui::math_tests {
-    use sui::math;
+module iota::math_tests {
+    use iota::math;
 
     #[test]
     fun test_max() {

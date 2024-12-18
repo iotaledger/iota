@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export const ALL_PERMISSION_TYPES = ['viewAccount', 'suggestTransactions'] as const;

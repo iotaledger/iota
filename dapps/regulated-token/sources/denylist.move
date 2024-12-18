@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// An implementation of a simple `Denylist` for the Closed Loop system. For
@@ -16,9 +17,9 @@
 module regulated_token::denylist_rule {
     use std::option;
     use std::vector;
-    use sui::bag::{Self, Bag};
-    use sui::tx_context::TxContext;
-    use sui::token::{Self, TokenPolicy, TokenPolicyCap, ActionRequest};
+    use iota::bag::{Self, Bag};
+    use iota::tx_context::TxContext;
+    use iota::token::{Self, TokenPolicy, TokenPolicyCap, ActionRequest};
 
     /// Trying to `verify` but the sender or the recipient is on the denylist.
     const EUserBlocked: u64 = 0;

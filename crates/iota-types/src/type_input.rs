@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt::{Display, Formatter};
@@ -10,7 +11,7 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
-use sui_macros::EnumVariantOrder;
+use iota_macros::EnumVariantOrder;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Hash, Eq, Clone, PartialOrd, Ord)]
 pub struct StructInput {
@@ -356,7 +357,7 @@ impl Display for TypeInput {
 #[cfg(test)]
 mod test {
     use super::TypeInput;
-    use sui_enum_compat_util::*;
+    use iota_enum_compat_util::*;
 
     #[test]
     fn enforce_order_test() {

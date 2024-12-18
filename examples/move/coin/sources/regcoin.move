@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //docs::#regulate
 module examples::regcoin;
 
-use sui::{coin::{Self, DenyCapV2}, deny_list::DenyList};
+use iota::{coin::{Self, DenyCapV2}, deny_list::DenyList};
 
 public struct REGCOIN has drop {}
 

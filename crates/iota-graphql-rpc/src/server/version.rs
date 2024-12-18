@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
@@ -11,7 +12,7 @@ use axum::{
 
 use crate::config::Version;
 
-pub(crate) static VERSION_HEADER: HeaderName = HeaderName::from_static("x-sui-rpc-version");
+pub(crate) static VERSION_HEADER: HeaderName = HeaderName::from_static("x-iota-rpc-version");
 
 /// Mark every outgoing response with a header indicating the precise version of the RPC that was
 /// used (including the patch version and sha).
@@ -41,13 +42,13 @@ mod tests {
     };
     use axum::{body::Body, middleware, routing::get, Router};
     use http::StatusCode;
-    use mysten_metrics;
+    use iota_metrics;
     use tokio_util::sync::CancellationToken;
     use tower::ServiceExt;
 
     fn metrics() -> Metrics {
         let binding_address: SocketAddr = "0.0.0.0:9185".parse().unwrap();
-        let registry = mysten_metrics::start_prometheus_server(binding_address).default_registry();
+        let registry = iota_metrics::start_prometheus_server(binding_address).default_registry();
         Metrics::new(&registry)
     }
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
@@ -88,7 +89,7 @@ impl ConsensusMetrics {
             committed_certificates: register_histogram_with_registry!(
                 "committed_certificates",
                 "The number of certificates committed on a commit round",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry
             ).unwrap(),
             certificate_commit_latency: register_histogram_with_registry!(

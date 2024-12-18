@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
 
-import { normalizeStructTag, parseStructTag } from '../../../src/utils/sui-types.js';
+import { normalizeStructTag, parseStructTag } from '../../../src/utils/iota-types.js';
 
 describe('parseStructTag', () => {
 	it('parses struct tags correctly', () => {

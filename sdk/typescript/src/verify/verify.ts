@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromBase64 } from '@mysten/bcs';
+import { fromBase64 } from '@iota/bcs';
 
 import type { PublicKey, SignatureFlag, SignatureScheme } from '../cryptography/index.js';
 import { parseSerializedSignature, SIGNATURE_FLAG_TO_SCHEME } from '../cryptography/index.js';
-import type { SuiGraphQLClient } from '../graphql/client.js';
+import type { IotaGraphQLClient } from '../graphql/client.js';
 import { Ed25519PublicKey } from '../keypairs/ed25519/publickey.js';
 import { Secp256k1PublicKey } from '../keypairs/secp256k1/publickey.js';
 import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
@@ -26,7 +27,7 @@ export async function verifySignature(bytes: Uint8Array, signature: string): Pro
 export async function verifyPersonalMessageSignature(
 	message: Uint8Array,
 	signature: string,
-	options: { client?: SuiGraphQLClient } = {},
+	options: { client?: IotaGraphQLClient } = {},
 ): Promise<PublicKey> {
 	const parsedSignature = parseSignature(signature, options);
 
@@ -45,7 +46,7 @@ export async function verifyPersonalMessageSignature(
 export async function verifyTransactionSignature(
 	transaction: Uint8Array,
 	signature: string,
-	options: { client?: SuiGraphQLClient } = {},
+	options: { client?: IotaGraphQLClient } = {},
 ): Promise<PublicKey> {
 	const parsedSignature = parseSignature(signature, options);
 
@@ -61,7 +62,7 @@ export async function verifyTransactionSignature(
 	return parsedSignature.publicKey;
 }
 
-function parseSignature(signature: string, options: { client?: SuiGraphQLClient } = {}) {
+function parseSignature(signature: string, options: { client?: IotaGraphQLClient } = {}) {
 	const parsedSignature = parseSerializedSignature(signature);
 
 	if (parsedSignature.signatureScheme === 'MultiSig') {
@@ -85,7 +86,7 @@ function parseSignature(signature: string, options: { client?: SuiGraphQLClient 
 export function publicKeyFromRawBytes(
 	signatureScheme: SignatureScheme,
 	bytes: Uint8Array,
-	options: { client?: SuiGraphQLClient } = {},
+	options: { client?: IotaGraphQLClient } = {},
 ): PublicKey {
 	switch (signatureScheme) {
 		case 'ED25519':
@@ -103,9 +104,9 @@ export function publicKeyFromRawBytes(
 	}
 }
 
-export function publicKeyFromSuiBytes(
+export function publicKeyFromIotaBytes(
 	publicKey: string | Uint8Array,
-	options: { client?: SuiGraphQLClient } = {},
+	options: { client?: IotaGraphQLClient } = {},
 ) {
 	const bytes = typeof publicKey === 'string' ? fromBase64(publicKey) : publicKey;
 

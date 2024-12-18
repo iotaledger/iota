@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::Node;
@@ -13,23 +14,23 @@ use std::{
     ops,
     path::{Path, PathBuf},
 };
-use sui_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
+use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig};
 
-use sui_config::node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange};
-use sui_config::{ExecutionCacheConfig, NodeConfig};
-use sui_macros::nondeterministic;
-use sui_node::SuiNodeHandle;
-use sui_protocol_config::ProtocolVersion;
-use sui_swarm_config::genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig};
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_swarm_config::network_config_builder::{
+use iota_config::node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange};
+use iota_config::{ExecutionCacheConfig, NodeConfig};
+use iota_macros::nondeterministic;
+use iota_node::IotaNodeHandle;
+use iota_protocol_config::ProtocolVersion;
+use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig, ValidatorGenesisConfig};
+use iota_swarm_config::network_config::NetworkConfig;
+use iota_swarm_config::network_config_builder::{
     CommitteeConfig, ConfigBuilder, ProtocolVersionsConfig, StateAccumulatorV2EnabledConfig,
     SupportedProtocolVersionsCallback,
 };
-use sui_swarm_config::node_config_builder::FullnodeConfigBuilder;
-use sui_types::base_types::AuthorityName;
-use sui_types::object::Object;
-use sui_types::supported_protocol_versions::SupportedProtocolVersions;
+use iota_swarm_config::node_config_builder::FullnodeConfigBuilder;
+use iota_types::base_types::AuthorityName;
+use iota_types::object::Object;
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use tempfile::TempDir;
 use tracing::info;
 
@@ -441,7 +442,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     }
 }
 
-/// A handle to an in-memory Sui Network.
+/// A handle to an in-memory Iota Network.
 #[derive(Debug)]
 pub struct Swarm {
     dir: SwarmDirectory,
@@ -511,7 +512,7 @@ impl Swarm {
             .filter(|node| node.config().consensus_config.is_some())
     }
 
-    pub fn validator_node_handles(&self) -> Vec<SuiNodeHandle> {
+    pub fn validator_node_handles(&self) -> Vec<IotaNodeHandle> {
         self.validator_nodes()
             .map(|node| node.get_node_handle().unwrap())
             .collect()
@@ -534,7 +535,7 @@ impl Swarm {
             .filter(|node| node.config().consensus_config.is_none())
     }
 
-    pub async fn spawn_new_node(&mut self, config: NodeConfig) -> SuiNodeHandle {
+    pub async fn spawn_new_node(&mut self, config: NodeConfig) -> IotaNodeHandle {
         let name = config.protocol_public_key();
         let node = Node::new(config);
         node.start().await.unwrap();

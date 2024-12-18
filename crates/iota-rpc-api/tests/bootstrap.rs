@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fs;
@@ -42,7 +43,7 @@ fn bootstrap() {
         .out_dir(&out_dir)
         .compile_protos(&proto_files[..], &[proto_dir])
     {
-        panic!("failed to compile `sui` protos: {}", error);
+        panic!("failed to compile `iota` protos: {}", error);
     }
 
     let status = std::process::Command::new("git")

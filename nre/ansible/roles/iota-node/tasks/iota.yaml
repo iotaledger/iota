@@ -1,99 +1,99 @@
 ---
-- name: Add a sui user
+- name: Add a iota user
   ansible.builtin.user:
-    name: sui
+    name: iota
     shell: /bin/bash
 
-- name: Create sui directories
+- name: Create iota directories
   file:
     path: "{{ item }}"
     state: directory
-    owner: "sui"
-    group: "sui"
+    owner: "iota"
+    group: "iota"
     mode: 0755
   loop:
-    - /opt/sui/bin
-    - /opt/sui/config
-    - /opt/sui/db
-    - /opt/sui/key-pairs
+    - /opt/iota/bin
+    - /opt/iota/config
+    - /opt/iota/db
+    - /opt/iota/key-pairs
 
 - name: Copy validator configuration file
   copy:
     src: "{{ node_config }}"
-    dest: /opt/sui/config/validator.yaml
-    owner: "sui"
-    group: "sui"
+    dest: /opt/iota/config/validator.yaml
+    owner: "iota"
+    group: "iota"
     mode: 0644
 
 - name: Copy genesis.blob
   copy:
     src: "{{ genesis_blob }}"
-    dest: /opt/sui/config/genesis.blob
-    owner: "sui"
-    group: "sui"
+    dest: /opt/iota/config/genesis.blob
+    owner: "iota"
+    group: "iota"
     mode: 0644
 
 - name: Copy protocol.key
   copy:
     src: "{{ keypair_path }}protocol.key"
-    dest: /opt/sui/key-pairs/protocol.key
-    owner: "sui"
-    group: "sui"
+    dest: /opt/iota/key-pairs/protocol.key
+    owner: "iota"
+    group: "iota"
     mode: 0600
 
 - name: Copy network.key
   copy:
     src: "{{ keypair_path }}network.key"
-    dest: /opt/sui/key-pairs/network.key
-    owner: "sui"
-    group: "sui"
+    dest: /opt/iota/key-pairs/network.key
+    owner: "iota"
+    group: "iota"
     mode: 0600
 
 - name: Copy worker.key
   copy:
     src: "{{ keypair_path }}worker.key"
-    dest: /opt/sui/key-pairs/worker.key
-    owner: "sui"
-    group: "sui"
+    dest: /opt/iota/key-pairs/worker.key
+    owner: "iota"
+    group: "iota"
     mode: 0600
 
-- name: Stop sui-node
+- name: Stop iota-node
   systemd:
-    name: sui-node
+    name: iota-node
     state: stopped
   ignore_errors: yes
 
 - name: Remove authorities directory
   file:
     state: absent
-    path: "/opt/sui/db/authorities_db"
+    path: "/opt/iota/db/authorities_db"
   when: reset_db == true
 
 - name: Remove consensus directory
   file:
     state: absent
-    path: "/opt/sui/db/consensus_db"
+    path: "/opt/iota/db/consensus_db"
   when: reset_db == true
 
 - name: Place binary
   ansible.builtin.get_url:
-    url: "https://releases.sui.io/{{ sui_release }}/sui-node"
-    dest: /opt/sui/bin/sui-node
+    url: "https://releases.iota.io/{{ iota_release }}/iota-node"
+    dest: /opt/iota/bin/iota-node
     force: true
     mode: "0755"
 
-- name: Copy sui-node systemd service file
+- name: Copy iota-node systemd service file
   copy:
-    src: "../files/sui-node.service"
-    dest: /etc/systemd/system/sui-node.service
+    src: "../files/iota-node.service"
+    dest: /etc/systemd/system/iota-node.service
 
-- name: Reload sui-node systemd service file
+- name: Reload iota-node systemd service file
   ansible.builtin.systemd:
-    name: sui-node
+    name: iota-node
     state: reloaded
 
-- name: Start sui-node service
+- name: Start iota-node service
   systemd:
-    name: sui-node
+    name: iota-node
     state: started
-  when: start_sui == true
+  when: start_iota == true

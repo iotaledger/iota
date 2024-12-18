@@ -1,4 +1,5 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
@@ -418,7 +419,7 @@ class Plotter:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog='Sui Plotter',
+        prog='Iota Plotter',
         description='Simple script to plot measurement data'
     )
     parser.add_argument(

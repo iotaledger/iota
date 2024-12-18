@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use sui_types::Identifier;
+use iota_types::Identifier;
 
-use sui_types::event::EventID;
+use iota_types::event::EventID;
 use typed_store::rocks::{DBMap, MetricConf};
 use typed_store::traits::TableSummary;
 use typed_store::traits::TypedStoreDebug;
@@ -21,7 +22,7 @@ pub struct BridgeOrchestratorTables {
     /// pending BridgeActions that orchestrator received but not yet executed
     pub(crate) pending_actions: DBMap<BridgeActionDigest, BridgeAction>,
     /// module identifier to the last processed EventID
-    pub(crate) sui_syncer_cursors: DBMap<Identifier, EventID>,
+    pub(crate) iota_syncer_cursors: DBMap<Identifier, EventID>,
     /// contract address to the last processed block
     pub(crate) eth_syncer_cursors: DBMap<ethers::types::Address, u64>,
 }
@@ -66,18 +67,18 @@ impl BridgeOrchestratorTables {
             .map_err(|e| BridgeError::StorageError(format!("Couldn't write batch: {:?}", e)))
     }
 
-    pub(crate) fn update_sui_event_cursor(
+    pub(crate) fn update_iota_event_cursor(
         &self,
         module: Identifier,
         cursor: EventID,
     ) -> BridgeResult<()> {
-        let mut batch = self.sui_syncer_cursors.batch();
+        let mut batch = self.iota_syncer_cursors.batch();
 
         batch
-            .insert_batch(&self.sui_syncer_cursors, [(module, cursor)])
+            .insert_batch(&self.iota_syncer_cursors, [(module, cursor)])
             .map_err(|e| {
                 BridgeError::StorageError(format!(
-                    "Coudln't insert into sui_syncer_cursors: {:?}",
+                    "Coudln't insert into iota_syncer_cursors: {:?}",
                     e
                 ))
             })?;
@@ -110,12 +111,12 @@ impl BridgeOrchestratorTables {
         self.pending_actions.unbounded_iter().collect()
     }
 
-    pub fn get_sui_event_cursors(
+    pub fn get_iota_event_cursors(
         &self,
         identifiers: &[Identifier],
     ) -> BridgeResult<Vec<Option<EventID>>> {
-        self.sui_syncer_cursors.multi_get(identifiers).map_err(|e| {
-            BridgeError::StorageError(format!("Couldn't get sui_syncer_cursors: {:?}", e))
+        self.iota_syncer_cursors.multi_get(identifiers).map_err(|e| {
+            BridgeError::StorageError(format!("Couldn't get iota_syncer_cursors: {:?}", e))
         })
     }
 
@@ -126,7 +127,7 @@ impl BridgeOrchestratorTables {
         self.eth_syncer_cursors
             .multi_get(contract_addresses)
             .map_err(|e| {
-                BridgeError::StorageError(format!("Couldn't get sui_syncer_cursors: {:?}", e))
+                BridgeError::StorageError(format!("Couldn't get iota_syncer_cursors: {:?}", e))
             })
     }
 }
@@ -135,9 +136,9 @@ impl BridgeOrchestratorTables {
 mod tests {
     use std::str::FromStr;
 
-    use sui_types::digests::TransactionDigest;
+    use iota_types::digests::TransactionDigest;
 
-    use crate::test_utils::get_test_sui_to_eth_bridge_action;
+    use crate::test_utils::get_test_iota_to_eth_bridge_action;
 
     use super::*;
 
@@ -147,7 +148,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let store = BridgeOrchestratorTables::new(temp_dir.path());
 
-        let action1 = get_test_sui_to_eth_bridge_action(
+        let action1 = get_test_iota_to_eth_bridge_action(
             None,
             Some(0),
             Some(99),
@@ -157,7 +158,7 @@ mod tests {
             None,
         );
 
-        let action2 = get_test_sui_to_eth_bridge_action(
+        let action2 = get_test_iota_to_eth_bridge_action(
             None,
             Some(2),
             Some(100),
@@ -229,19 +230,19 @@ mod tests {
             eth_block_num
         );
 
-        // update sui event cursor
-        let sui_module = Identifier::from_str("test").unwrap();
-        let sui_cursor = EventID {
+        // update iota event cursor
+        let iota_module = Identifier::from_str("test").unwrap();
+        let iota_cursor = EventID {
             tx_digest: TransactionDigest::random(),
             event_seq: 1,
         };
-        assert!(store.get_sui_event_cursors(&[sui_module.clone()]).unwrap()[0].is_none());
+        assert!(store.get_iota_event_cursors(&[iota_module.clone()]).unwrap()[0].is_none());
         store
-            .update_sui_event_cursor(sui_module.clone(), sui_cursor)
+            .update_iota_event_cursor(iota_module.clone(), iota_cursor)
             .unwrap();
         assert_eq!(
-            store.get_sui_event_cursors(&[sui_module.clone()]).unwrap()[0].unwrap(),
-            sui_cursor
+            store.get_iota_event_cursors(&[iota_module.clone()]).unwrap()[0].unwrap(),
+            iota_cursor
         );
     }
 }

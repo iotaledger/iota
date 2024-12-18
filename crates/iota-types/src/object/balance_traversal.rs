@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -62,7 +63,7 @@ impl<'b, 'l> Traversal<'b, 'l> for Accumulator {
     }
 }
 
-/// Returns `Some(T)` if the struct is a `sui::balance::Balance<T>`, and `None` otherwise.
+/// Returns `Some(T)` if the struct is a `iota::balance::Balance<T>`, and `None` otherwise.
 fn is_balance(s: &StructTag) -> Option<TypeTag> {
     (Balance::is_balance(s) && s.type_params.len() == 1).then(|| s.type_params[0].clone())
 }

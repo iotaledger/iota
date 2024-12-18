@@ -1,6 +1,6 @@
 ---
 title: Conventions
-description: Recommended Move 2024 best practices for the Sui blockchain.
+description: Recommended Move 2024 best practices for the Iota blockchain.
 ---
 
 The following recommendations are based on 2024 Move.
@@ -129,8 +129,8 @@ Name the functions that create objects as `new`.
 ```move
 module conventions::object {
 
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
+    use iota::object::{Self, UID};
+    use iota::tx_context::TxContext;
 
     struct Object has key, store {
         id: UID
@@ -151,9 +151,9 @@ Library modules that share objects should provide two functions: one to create t
 ```move
 module conventions::profile {
 
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
-    use sui::transfer::share_object;
+    use iota::object::{Self, UID};
+    use iota::tx_context::TxContext;
+    use iota::transfer::share_object;
 
     struct Profile has key {
         id: UID
@@ -180,7 +180,7 @@ module conventions::profile {
 
     use std::string::String;
 
-    use sui::object::UID;
+    use iota::object::UID;
 
     struct Profile has key {
         id: UID,
@@ -207,7 +207,7 @@ Design your modules around one object or data structure. A variant structure sho
 ```move
 module conventions::wallet {
 
-    use sui::object::UID;
+    use iota::object::UID;
 
     struct Wallet has key, store {
         id: UID,
@@ -217,7 +217,7 @@ module conventions::wallet {
 
 module conventions::claw_back_wallet {
 
-    use sui::object::UID;
+    use iota::object::UID;
 
     struct Wallet has key {
         id: UID,
@@ -249,7 +249,7 @@ module conventions::profile {
 
     use std::string::String;
 
-    use sui::object::UID;
+    use iota::object::UID;
 
     struct Profile has key, store {
         id: UID,
@@ -268,9 +268,9 @@ Provide functions to delete objects. Destroy empty objects with the function `de
 ```move
 module conventions::wallet {
 
-    use sui::object::{Self, UID};
-    use sui::balance::{Self, Balance};
-    use sui::sui::SUI;
+    use iota::object::{Self, UID};
+    use iota::balance::{Self, Balance};
+    use iota::iota::IOTA;
 
     struct Wallet<Value> has key, store {
         id: UID,
@@ -285,7 +285,7 @@ module conventions::wallet {
 
     // Value doesn't have drop
     // Throws if the `wallet.value` is not empty.
-    public fun destroy_empty(self: Wallet<Balance<SUI>>) {
+    public fun destroy_empty(self: Wallet<Balance<IOTA>>) {
         let Wallet { id, value } = self;
         object::delete(id);
         balance::destroy_zero(value);
@@ -300,10 +300,10 @@ Keep your functions pure to maintain composability. Do not use `transfer::transf
 ```move
 module conventions::amm {
 
-    use sui::transfer;
-    use sui::coin::Coin;
-    use sui::object::UID;
-    use sui::tx_context::{Self, TxContext};
+    use iota::transfer;
+    use iota::coin::Coin;
+    use iota::object::UID;
+    use iota::tx_context::{Self, TxContext};
 
     struct Pool has key {
         id: UID
@@ -342,8 +342,8 @@ Pass the `Coin` object by value with the right amount directly because it's bett
 ```move
 module conventions::amm {
 
-    use sui::coin::Coin;
-    use sui::object::UID;
+    use iota::coin::Coin;
+    use iota::object::UID;
 
     struct Pool has key {
         id: UID
@@ -370,12 +370,12 @@ To maintain composability, use capabilities instead of addresses for access cont
 ```move
 module conventions::access_control {
 
-    use sui::sui::SUI;
-    use sui::object::UID;
-    use sui::balance::Balance;
-    use sui::coin::{Self, Coin};
-    use sui::table::{Self, Table};
-    use sui::tx_context::{Self, TxContext};
+    use iota::iota::IOTA;
+    use iota::object::UID;
+    use iota::balance::Balance;
+    use iota::coin::{Self, Coin};
+    use iota::table::{Self, Table};
+    use iota::tx_context::{Self, TxContext};
 
     struct Account has key, store {
         id: UID,
@@ -385,12 +385,12 @@ module conventions::access_control {
     struct State has key {
         id: UID,
         accounts: Table<address, u64>,
-        balance: Balance<SUI>
+        balance: Balance<IOTA>
     }
 
     // ✅ Right
     // With this function, another protocol can hold the `Account` on behalf of a user.
-    public fun withdraw(state: &mut State, account: &mut Account, ctx: &mut TxContext): Coin<SUI> {
+    public fun withdraw(state: &mut State, account: &mut Account, ctx: &mut TxContext): Coin<IOTA> {
         let authorized_balance = account.balance;
 
         account.balance = 0;
@@ -400,7 +400,7 @@ module conventions::access_control {
 
     // ❌ Wrong
     // This is less composable.
-    public fun wrong_withdraw(state: &mut State, ctx: &mut TxContext): Coin<SUI> {
+    public fun wrong_withdraw(state: &mut State, ctx: &mut TxContext): Coin<IOTA> {
         let sender = tx_context::sender(ctx);
 
         let authorized_balance = table::borrow_mut(&mut state.accounts, sender);
@@ -418,21 +418,21 @@ If your dApp data has a one to one relationship, it's best to use owned objects.
 ```move
 module conventions::vesting_wallet {
 
-    use sui::sui::SUI;
-    use sui::coin::Coin;
-    use sui::object::UID;
-    use sui::table::Table;
-    use sui::balance::Balance;
-    use sui::tx_context::TxContext;
+    use iota::iota::IOTA;
+    use iota::coin::Coin;
+    use iota::object::UID;
+    use iota::table::Table;
+    use iota::balance::Balance;
+    use iota::tx_context::TxContext;
 
     struct OwnedWallet has key {
         id: UID,
-        balance: Balance<SUI>
+        balance: Balance<IOTA>
     }
 
     struct SharedWallet has key {
         id: UID,
-        balance: Balance<SUI>,
+        balance: Balance<IOTA>,
         accounts: Table<address, u64>
     }
 
@@ -440,7 +440,7 @@ module conventions::vesting_wallet {
     * A vesting wallet releases a certain amount of coin over a period of time.
     * If the entire balance belongs to one user and the wallet has no additional functionalities, it is best to store it in an owned object.
     */
-    public fun new(deposit: Coin<SUI>, ctx: &mut TxContext): OwnedWallet {
+    public fun new(deposit: Coin<IOTA>, ctx: &mut TxContext): OwnedWallet {
         // Implementation omitted.
         abort(0)
     }
@@ -449,7 +449,7 @@ module conventions::vesting_wallet {
     * If you wish to add extra functionality to a vesting wallet, it is best to share the object.
     * For example, if you wish the issuer of the wallet to be able to cancel the contract in the future.
     */
-    public fun new_shared(deposit: Coin<SUI>, ctx: &mut TxContext) {
+    public fun new_shared(deposit: Coin<IOTA>, ctx: &mut TxContext) {
         // Implementation omitted.
         // It shares the `SharedWallet`.
         abort(0)
@@ -466,7 +466,7 @@ module conventions::social_network {
 
     use std::string::String;
 
-    use sui::object::UID;
+    use iota::object::UID;
 
     struct Account has key {
         id: UID,

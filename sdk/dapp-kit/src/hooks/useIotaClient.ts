@@ -1,23 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient } from '@mysten/sui/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 import { useContext } from 'react';
 
-import { SuiClientContext } from '../components/SuiClientProvider.js';
+import { IotaClientContext } from '../components/IotaClientProvider.js';
 
-export function useSuiClientContext() {
-	const suiClient = useContext(SuiClientContext);
+export function useIotaClientContext() {
+	const iotaClient = useContext(IotaClientContext);
 
-	if (!suiClient) {
+	if (!iotaClient) {
 		throw new Error(
-			'Could not find SuiClientContext. Ensure that you have set up the SuiClientProvider',
+			'Could not find IotaClientContext. Ensure that you have set up the IotaClientProvider',
 		);
 	}
 
-	return suiClient;
+	return iotaClient;
 }
 
-export function useSuiClient(): SuiClient {
-	return useSuiClientContext().client;
+export function useIotaClient(): IotaClient {
+	return useIotaClientContext().client;
 }

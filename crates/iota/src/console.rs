@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::io::{stderr, Write};
@@ -10,15 +11,15 @@ use clap::CommandFactory;
 use clap::FromArgMatches;
 use clap::Parser;
 use colored::Colorize;
-use sui_sdk::wallet_context::WalletContext;
+use iota_sdk::wallet_context::WalletContext;
 
 use crate::client_commands::SwitchResponse;
-use crate::client_commands::{SuiClientCommandResult, SuiClientCommands};
+use crate::client_commands::{IotaClientCommandResult, IotaClientCommands};
 use crate::shell::{
     install_shell_plugins, AsyncHandler, CacheKey, CommandStructure, CompletionCache, Shell,
 };
 
-const SUI: &str = "   _____       _    ______                       __
+const IOTA: &str = "   _____       _    ______                       __
   / ___/__  __(_)  / ____/___  ____  _________  / /__
   \\__ \\/ / / / /  / /   / __ \\/ __ \\/ ___/ __ \\/ / _ \\
  ___/ / /_/ / /  / /___/ /_/ / / / (__  ) /_/ / /  __/
@@ -28,7 +29,7 @@ const SUI: &str = "   _____       _    ______                       __
 #[clap(name = "", rename_all = "kebab-case", no_binary_name = true)]
 pub struct ConsoleOpts {
     #[clap(subcommand)]
-    pub command: SuiClientCommands,
+    pub command: IotaClientCommands,
     /// Returns command outputs in JSON format.
     #[clap(long, global = true)]
     pub json: bool,
@@ -39,21 +40,21 @@ pub async fn start_console(
     out: &mut (dyn Write + Send),
     err: &mut (dyn Write + Send),
 ) -> Result<(), anyhow::Error> {
-    let app: Command = SuiClientCommands::command();
-    writeln!(out, "{}", SUI.cyan().bold())?;
+    let app: Command = IotaClientCommands::command();
+    writeln!(out, "{}", IOTA.cyan().bold())?;
     let mut version = env!("CARGO_PKG_VERSION").to_owned();
     if let Some(git_rev) = std::option_env!("GIT_REVISION") {
         version.push('-');
         version.push_str(git_rev);
     }
-    writeln!(out, "--- Sui Console {version} ---")?;
+    writeln!(out, "--- Iota Console {version} ---")?;
     writeln!(out)?;
     writeln!(out, "{}", context.config.deref())?;
 
     let client = context.get_client().await?;
     writeln!(
         out,
-        "Connecting to Sui full node. API version {}",
+        "Connecting to Iota full node. API version {}",
         client.api_version()
     )?;
 
@@ -75,11 +76,11 @@ pub async fn start_console(
     }
 
     writeln!(out)?;
-    writeln!(out, "Welcome to the Sui interactive console.")?;
+    writeln!(out, "Welcome to the Iota interactive console.")?;
     writeln!(out)?;
 
     let mut shell = Shell::new(
-        "sui>-$ ",
+        "iota>-$ ",
         context,
         ClientCommandHandler,
         CommandStructure::from_clap(&install_shell_plugins(app)),
@@ -127,7 +128,7 @@ async fn handle_command(
     // TODO: Completion data are keyed by strings, are there ways to make it more error proof?
     if let Ok(mut cache) = completion_cache.write() {
         match result {
-            SuiClientCommandResult::Addresses(ref addresses) => {
+            IotaClientCommandResult::Addresses(ref addresses) => {
                 let addresses = addresses
                     .addresses
                     .iter()
@@ -136,7 +137,7 @@ async fn handle_command(
                 cache.insert(CacheKey::flag("--address"), addresses.clone());
                 cache.insert(CacheKey::flag("--to"), addresses);
             }
-            SuiClientCommandResult::Objects(ref objects) => {
+            IotaClientCommandResult::Objects(ref objects) => {
                 let objects = objects
                     .iter()
                     .map(|oref| format!("{}", oref.clone().into_object().unwrap().object_id))
@@ -153,9 +154,9 @@ async fn handle_command(
     // Quit shell after RPC switch
     if matches!(
         result,
-        SuiClientCommandResult::Switch(SwitchResponse { env: Some(_), .. })
+        IotaClientCommandResult::Switch(SwitchResponse { env: Some(_), .. })
     ) {
-        println!("Sui environment switch completed, please restart Sui console.");
+        println!("Iota environment switch completed, please restart Iota console.");
         return Ok(true);
     }
     Ok(false)

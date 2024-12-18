@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Heading } from '_app/shared/heading';
@@ -12,8 +13,8 @@ import { useEffect, useMemo } from 'react';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { permissionsSelectors } from '../../redux/slices/permissions';
 import Loading from '../loading';
-import { SuiApp, type DAppEntry } from './SuiApp';
-import { SuiAppEmpty } from './SuiAppEmpty';
+import { IotaApp, type DAppEntry } from './IotaApp';
+import { IotaAppEmpty } from './IotaAppEmpty';
 
 const emptyArray: DAppEntry[] = [];
 
@@ -68,17 +69,17 @@ function ConnectedDapps() {
 			</div>
 			<div className="my-4">
 				<Text variant="pBodySmall" color="gray-80" weight="normal">
-					Apps you have connected to through the Sui Wallet in this browser.
+					Apps you have connected to through the Iota Wallet in this browser.
 				</Text>
 			</div>
 
 			<div className="grid gap-3.75 grid-cols-2">
 				{connectedApps.length ? (
-					connectedApps.map((app) => <SuiApp key={app.permissionID} {...app} displayType="card" />)
+					connectedApps.map((app) => <IotaApp key={app.permissionID} {...app} displayType="card" />)
 				) : (
 					<>
-						<SuiAppEmpty displayType="card" />
-						<SuiAppEmpty displayType="card" />
+						<IotaAppEmpty displayType="card" />
+						<IotaAppEmpty displayType="card" />
 					</>
 				)}
 			</div>

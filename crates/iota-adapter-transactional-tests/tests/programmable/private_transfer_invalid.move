@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests calling public transfer functions
@@ -18,42 +19,42 @@ module test::m1 {
 
 //# programmable --sender A --inputs @A
 //> 0: test::m1::pub();
-//> sui::transfer::transfer<test::m1::Pub>(Result(0), Input(0));
+//> iota::transfer::transfer<test::m1::Pub>(Result(0), Input(0));
 
 //# programmable
 //> 0: test::m1::pub();
-//> sui::transfer::share_object<test::m1::Pub>(Result(0));
+//> iota::transfer::share_object<test::m1::Pub>(Result(0));
 
 //# programmable
 //> 0: test::m1::pub();
-//> sui::transfer::freeze_object<test::m1::Pub>(Result(0));
+//> iota::transfer::freeze_object<test::m1::Pub>(Result(0));
 
 
 // Does not have store, cannot be used with internal variants
 
 //# programmable --sender A --inputs @A
 //> 0: test::m1::priv();
-//> sui::transfer::transfer<test::m1::Priv>(Result(0), Input(0));
+//> iota::transfer::transfer<test::m1::Priv>(Result(0), Input(0));
 
 //# programmable
 //> 0: test::m1::priv();
-//> sui::transfer::share_object<test::m1::Priv>(Result(0));
+//> iota::transfer::share_object<test::m1::Priv>(Result(0));
 
 //# programmable
 //> 0: test::m1::priv();
-//> sui::transfer::freeze_object<test::m1::Priv>(Result(0));
+//> iota::transfer::freeze_object<test::m1::Priv>(Result(0));
 
 
 // Does not have store, cannot be used with public variants
 
 //# programmable --sender A --inputs @A
 //> 0: test::m1::priv();
-//> sui::transfer::public_transfer<test::m1::Priv>(Result(0), Input(0));
+//> iota::transfer::public_transfer<test::m1::Priv>(Result(0), Input(0));
 
 //# programmable
 //> 0: test::m1::priv();
-//> sui::transfer::public_share_object<test::m1::Priv>(Result(0));
+//> iota::transfer::public_share_object<test::m1::Priv>(Result(0));
 
 //# programmable
 //> 0: test::m1::priv();
-//> sui::transfer::public_freeze_object<test::m1::Priv>(Result(0));
+//> iota::transfer::public_freeze_object<test::m1::Priv>(Result(0));

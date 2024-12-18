@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -22,7 +23,7 @@ use fastcrypto::{hash::Keccak256, traits::KeyPair};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::fmt::{Display, Formatter};
-use sui_types::{base_types::ConciseableName, message_envelope::VerifiedEnvelope};
+use iota_types::{base_types::ConciseableName, message_envelope::VerifiedEnvelope};
 use tap::TapFallible;
 pub type BridgeAuthorityKeyPair = Secp256k1KeyPair;
 pub type BridgeAuthorityPublicKey = Secp256k1PublicKey;
@@ -179,19 +180,19 @@ pub fn verify_signed_bridge_action(
 
 #[cfg(test)]
 mod tests {
-    use crate::events::EmittedSuiToEthTokenBridgeV1;
-    use crate::test_utils::{get_test_authority_and_key, get_test_sui_to_eth_bridge_action};
+    use crate::events::EmittedIotaToEthTokenBridgeV1;
+    use crate::test_utils::{get_test_authority_and_key, get_test_iota_to_eth_bridge_action};
     use crate::types::SignedBridgeAction;
-    use crate::types::{BridgeAction, BridgeAuthority, SuiToEthBridgeAction};
+    use crate::types::{BridgeAction, BridgeAuthority, IotaToEthBridgeAction};
     use ethers::types::Address as EthAddress;
     use fastcrypto::traits::{KeyPair, ToFromBytes};
     use prometheus::Registry;
     use std::str::FromStr;
     use std::sync::Arc;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::bridge::{BridgeChainId, TOKEN_ID_ETH};
-    use sui_types::crypto::get_key_pair;
-    use sui_types::digests::TransactionDigest;
+    use iota_types::base_types::IotaAddress;
+    use iota_types::bridge::{BridgeChainId, TOKEN_ID_ETH};
+    use iota_types::crypto::get_key_pair;
+    use iota_types::digests::TransactionDigest;
 
     use super::*;
 
@@ -199,7 +200,7 @@ mod tests {
     fn test_sign_and_verify_bridge_event_basic() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let (mut authority1, pubkey, secret) = get_test_authority_and_key(5000, 9999);
         let pubkey_bytes = BridgeAuthorityPublicKeyBytes::from(&pubkey);
@@ -210,7 +211,7 @@ mod tests {
         let committee = BridgeCommittee::new(vec![authority1.clone(), authority2.clone()]).unwrap();
 
         let action: BridgeAction =
-            get_test_sui_to_eth_bridge_action(None, Some(1), Some(1), Some(100), None, None, None);
+            get_test_iota_to_eth_bridge_action(None, Some(1), Some(1), Some(100), None, None, None);
 
         let sig = BridgeAuthoritySignInfo::new(&action, &secret);
 
@@ -229,7 +230,7 @@ mod tests {
         ));
 
         let mismatched_action: BridgeAction =
-            get_test_sui_to_eth_bridge_action(None, Some(2), Some(3), Some(4), None, None, None);
+            get_test_iota_to_eth_bridge_action(None, Some(2), Some(3), Some(4), None, None, None);
         // Verification should fail - mismatched action
         assert!(matches!(
             verify_signed_bridge_action(
@@ -244,7 +245,7 @@ mod tests {
 
         // Signature is invalid (signed over different message), verification should fail
         let action2: BridgeAction =
-            get_test_sui_to_eth_bridge_action(None, Some(3), Some(5), Some(77), None, None, None);
+            get_test_iota_to_eth_bridge_action(None, Some(3), Some(5), Some(77), None, None, None);
 
         let invalid_sig = BridgeAuthoritySignInfo::new(&action2, &secret);
         let signed_action = SignedBridgeAction::new_from_data_and_sig(action.clone(), invalid_sig);
@@ -274,14 +275,14 @@ mod tests {
     fn test_bridge_sig_verification_regression_test() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let public_key_bytes =
             Hex::decode("02321ede33d2c2d7a8a152f275a1484edef2098f034121a602cb7d767d38680aa4")
                 .unwrap();
         let pubkey1 = BridgeAuthorityPublicKey::from_bytes(&public_key_bytes).unwrap();
         let authority1 = BridgeAuthority {
-            sui_address: SuiAddress::random_for_testing_only(),
+            iota_address: IotaAddress::random_for_testing_only(),
             pubkey: pubkey1.clone(),
             voting_power: 2500,
             is_blocklisted: false,
@@ -293,7 +294,7 @@ mod tests {
                 .unwrap();
         let pubkey2 = BridgeAuthorityPublicKey::from_bytes(&public_key_bytes).unwrap();
         let authority2 = BridgeAuthority {
-            sui_address: SuiAddress::random_for_testing_only(),
+            iota_address: IotaAddress::random_for_testing_only(),
             pubkey: pubkey2.clone(),
             voting_power: 2500,
             is_blocklisted: false,
@@ -305,7 +306,7 @@ mod tests {
                 .unwrap();
         let pubkey3 = BridgeAuthorityPublicKey::from_bytes(&public_key_bytes).unwrap();
         let authority3 = BridgeAuthority {
-            sui_address: SuiAddress::random_for_testing_only(),
+            iota_address: IotaAddress::random_for_testing_only(),
             pubkey: pubkey3.clone(),
             voting_power: 2500,
             is_blocklisted: false,
@@ -317,7 +318,7 @@ mod tests {
                 .unwrap();
         let pubkey4 = BridgeAuthorityPublicKey::from_bytes(&public_key_bytes).unwrap();
         let authority4 = BridgeAuthority {
-            sui_address: SuiAddress::random_for_testing_only(),
+            iota_address: IotaAddress::random_for_testing_only(),
             pubkey: pubkey4.clone(),
             voting_power: 2500,
             is_blocklisted: false,
@@ -332,13 +333,13 @@ mod tests {
         ])
         .unwrap();
 
-        let action = BridgeAction::SuiToEthBridgeAction(SuiToEthBridgeAction {
-            sui_tx_digest: TransactionDigest::random(),
-            sui_tx_event_index: 0,
-            sui_bridge_event: EmittedSuiToEthTokenBridgeV1 {
+        let action = BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
+            iota_tx_digest: TransactionDigest::random(),
+            iota_tx_event_index: 0,
+            iota_bridge_event: EmittedIotaToEthTokenBridgeV1 {
                 nonce: 1,
-                sui_chain_id: BridgeChainId::SuiTestnet,
-                sui_address: SuiAddress::from_str(
+                iota_chain_id: BridgeChainId::IotaTestnet,
+                iota_address: IotaAddress::from_str(
                     "0x80ab1ee086210a3a37355300ca24672e81062fcdb5ced6618dab203f6a3b291c",
                 )
                 .unwrap(),
@@ -346,7 +347,7 @@ mod tests {
                 eth_address: EthAddress::from_str("0xb18f79Fe671db47393315fFDB377Da4Ea1B7AF96")
                     .unwrap(),
                 token_id: TOKEN_ID_ETH,
-                amount_sui_adjusted: 100000u64,
+                amount_iota_adjusted: 100000u64,
             },
         });
         let sig = BridgeAuthoritySignInfo {

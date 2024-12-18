@@ -3,7 +3,7 @@ name = "move_registry"
 edition = "2024.beta"
 
 [dependencies]
-Sui = { local = "../../../../sui-framework/packages/sui-framework" }
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
 move_registry = "0x0"

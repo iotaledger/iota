@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) mod address;
@@ -45,8 +46,8 @@ pub(crate) mod stake;
 pub(crate) mod stake_subsidy;
 pub(crate) mod storage_fund;
 pub(crate) mod string_input;
-pub(crate) mod sui_address;
-pub(crate) mod suins_registration;
+pub(crate) mod iota_address;
+pub(crate) mod iotans_registration;
 pub(crate) mod system_parameters;
 pub(crate) mod system_state_summary;
 pub(crate) mod transaction_block;

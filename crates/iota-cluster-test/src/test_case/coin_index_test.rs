@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{TestCaseImpl, TestContext};
@@ -7,16 +8,16 @@ use jsonrpsee::rpc_params;
 use move_core_types::language_storage::StructTag;
 use serde_json::json;
 use std::collections::HashMap;
-use sui_core::test_utils::compile_managed_coin_package;
-use sui_json::SuiJsonValue;
-use sui_json_rpc_types::ObjectChange;
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::{Balance, SuiTransactionBlockResponseOptions};
-use sui_test_transaction_builder::make_staking_transaction;
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::gas_coin::GAS;
-use sui_types::object::Owner;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_core::test_utils::compile_managed_coin_package;
+use iota_json::IotaJsonValue;
+use iota_json_rpc_types::ObjectChange;
+use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_json_rpc_types::{Balance, IotaTransactionBlockResponseOptions};
+use iota_test_transaction_builder::make_staking_transaction;
+use iota_types::base_types::{ObjectID, ObjectRef};
+use iota_types::gas_coin::GAS;
+use iota_types::object::Owner;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use tracing::info;
 
 pub struct CoinIndexTest;
@@ -37,7 +38,7 @@ impl TestCaseImpl for CoinIndexTest {
         let rgp = ctx.get_reference_gas_price().await;
 
         // 0. Get some coins first
-        ctx.get_sui_from_faucet(None).await;
+        ctx.get_iota_from_faucet(None).await;
 
         // Record initial balances
         let Balance {
@@ -52,7 +53,7 @@ impl TestCaseImpl for CoinIndexTest {
             .quorum_driver_api()
             .execute_transaction_block(
                 txn,
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_effects()
                     .with_balance_changes(),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
@@ -98,19 +99,19 @@ impl TestCaseImpl for CoinIndexTest {
 
         // 2. Test Staking
         let validator_addr = ctx
-            .get_latest_sui_system_state()
+            .get_latest_iota_system_state()
             .await
             .active_validators
             .first()
             .unwrap()
-            .sui_address;
+            .iota_address;
         let txn = make_staking_transaction(ctx.get_wallet(), validator_addr).await;
 
         let response = client
             .quorum_driver_api()
             .execute_transaction_block(
                 txn,
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_effects()
                     .with_balance_changes(),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
@@ -129,7 +130,7 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(
             total_balance,
             (old_total_balance as i128 + balance_change.amount) as u128,
-            "total_balance: {}, old_total_balance: {}, sui_balance_change.amount: {}",
+            "total_balance: {}, old_total_balance: {}, iota_balance_change.amount: {}",
             total_balance,
             old_total_balance,
             balance_change.amount
@@ -146,15 +147,15 @@ impl TestCaseImpl for CoinIndexTest {
             "token package published, package: {:?}, cap: {:?}",
             package, cap
         );
-        let sui_type_str = "0x2::sui::SUI";
+        let iota_type_str = "0x2::iota::IOTA";
         let coin_type_str = format!("{}::managed::MANAGED", package.0);
         info!("coin type: {}", coin_type_str);
 
         // 4. Mint 1 MANAGED coin to account, balance 10000
         let args = vec![
-            SuiJsonValue::from_object_id(cap.0),
-            SuiJsonValue::new(json!("10000"))?,
-            SuiJsonValue::new(json!(account))?,
+            IotaJsonValue::from_object_id(cap.0),
+            IotaJsonValue::new(json!("10000"))?,
+            IotaJsonValue::new(json!(account))?,
         ];
         let txn = client
             .transaction_builder()
@@ -174,16 +175,16 @@ impl TestCaseImpl for CoinIndexTest {
         let response = ctx.sign_and_execute(txn, "mint managed coin to self").await;
 
         let balance_changes = &response.balance_changes.unwrap();
-        let sui_balance_change = balance_changes
+        let iota_balance_change = balance_changes
             .iter()
-            .find(|b| b.coin_type.to_string().contains("SUI"))
+            .find(|b| b.coin_type.to_string().contains("IOTA"))
             .unwrap();
         let managed_balance_change = balance_changes
             .iter()
             .find(|b| b.coin_type.to_string().contains("MANAGED"))
             .unwrap();
 
-        assert_eq!(sui_balance_change.owner, Owner::AddressOwner(account));
+        assert_eq!(iota_balance_change.owner, Owner::AddressOwner(account));
         assert_eq!(managed_balance_change.owner, Owner::AddressOwner(account));
 
         let Balance { total_balance, .. } =
@@ -191,11 +192,11 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(coin_object_count, old_coin_object_count);
         assert_eq!(
             total_balance,
-            (old_total_balance as i128 + sui_balance_change.amount) as u128,
-            "total_balance: {}, old_total_balance: {}, sui_balance_change.amount: {}",
+            (old_total_balance as i128 + iota_balance_change.amount) as u128,
+            "total_balance: {}, old_total_balance: {}, iota_balance_change.amount: {}",
             total_balance,
             old_total_balance,
-            sui_balance_change.amount
+            iota_balance_change.amount
         );
         old_coin_object_count = coin_object_count;
 
@@ -218,7 +219,7 @@ impl TestCaseImpl for CoinIndexTest {
         let mut balances = client.coin_read_api().get_all_balances(account).await?;
         let mut expected_balances = vec![
             Balance {
-                coin_type: sui_type_str.into(),
+                coin_type: iota_type_str.into(),
                 coin_object_count: old_coin_object_count,
                 total_balance,
                 locked_balance: HashMap::new(),
@@ -246,9 +247,9 @@ impl TestCaseImpl for CoinIndexTest {
                 "mint",
                 vec![],
                 vec![
-                    SuiJsonValue::from_object_id(cap.0),
-                    SuiJsonValue::new(json!("10"))?,
-                    SuiJsonValue::new(json!(account))?,
+                    IotaJsonValue::from_object_id(cap.0),
+                    IotaJsonValue::new(json!("10"))?,
+                    IotaJsonValue::new(json!(account))?,
                 ],
                 None,
                 rgp * 2_000_000,
@@ -306,7 +307,7 @@ impl TestCaseImpl for CoinIndexTest {
         let managed_old_total_count = managed_balance.coin_object_count;
 
         // 7. take back the balance 10 MANAGED coin
-        let args = vec![SuiJsonValue::from_object_id(envelope.0)];
+        let args = vec![IotaJsonValue::from_object_id(envelope.0)];
         let txn = client
             .transaction_builder()
             .move_call(
@@ -353,8 +354,8 @@ impl TestCaseImpl for CoinIndexTest {
                 "take_from_envelope_and_burn",
                 vec![],
                 vec![
-                    SuiJsonValue::from_object_id(cap.0),
-                    SuiJsonValue::from_object_id(envelope.0),
+                    IotaJsonValue::from_object_id(cap.0),
+                    IotaJsonValue::from_object_id(envelope.0),
                 ],
                 None,
                 rgp * 2_000_000,
@@ -385,8 +386,8 @@ impl TestCaseImpl for CoinIndexTest {
                 "burn",
                 vec![],
                 vec![
-                    SuiJsonValue::from_object_id(cap.0),
-                    SuiJsonValue::from_object_id(managed_coin_id_10k),
+                    IotaJsonValue::from_object_id(cap.0),
+                    IotaJsonValue::from_object_id(managed_coin_id_10k),
                 ],
                 None,
                 rgp * 2_000_000,
@@ -406,15 +407,15 @@ impl TestCaseImpl for CoinIndexTest {
 
         // =========================== Test Get Coins Starts ===========================
 
-        let sui_coins = client
+        let iota_coins = client
             .coin_read_api()
-            .get_coins(account, Some(sui_type_str.into()), None, None)
+            .get_coins(account, Some(iota_type_str.into()), None, None)
             .await
             .unwrap()
             .data;
 
         assert_eq!(
-            sui_coins,
+            iota_coins,
             client
                 .coin_read_api()
                 .get_coins(account, None, None, None)
@@ -423,8 +424,8 @@ impl TestCaseImpl for CoinIndexTest {
                 .data,
         );
         assert_eq!(
-            // this is only SUI coins at the moment
-            sui_coins,
+            // this is only IOTA coins at the moment
+            iota_coins,
             client
                 .coin_read_api()
                 .get_all_coins(account, None, None)
@@ -433,14 +434,14 @@ impl TestCaseImpl for CoinIndexTest {
                 .data,
         );
 
-        let sui_balance = client
+        let iota_balance = client
             .coin_read_api()
             .get_balance(account, None)
             .await
             .unwrap();
         assert_eq!(
-            sui_balance.total_balance,
-            sui_coins.iter().map(|c| c.balance as u128).sum::<u128>()
+            iota_balance.total_balance,
+            iota_coins.iter().map(|c| c.balance as u128).sum::<u128>()
         );
 
         // 11. Mint 40 MANAGED coins with balance 5
@@ -453,10 +454,10 @@ impl TestCaseImpl for CoinIndexTest {
                 "mint_multi",
                 vec![],
                 vec![
-                    SuiJsonValue::from_object_id(cap.0),
-                    SuiJsonValue::new(json!("5"))?,  // balance = 5
-                    SuiJsonValue::new(json!("40"))?, // num = 40
-                    SuiJsonValue::new(json!(account))?,
+                    IotaJsonValue::from_object_id(cap.0),
+                    IotaJsonValue::new(json!("5"))?,  // balance = 5
+                    IotaJsonValue::new(json!("40"))?, // num = 40
+                    IotaJsonValue::new(json!(account))?,
                 ],
                 None,
                 rgp * 2_000_000,
@@ -467,19 +468,19 @@ impl TestCaseImpl for CoinIndexTest {
         let response = ctx.sign_and_execute(txn, "multi mint").await;
         assert!(response.status_ok().unwrap());
 
-        let sui_coins = client
+        let iota_coins = client
             .coin_read_api()
-            .get_coins(account, Some(sui_type_str.into()), None, None)
+            .get_coins(account, Some(iota_type_str.into()), None, None)
             .await
             .unwrap()
             .data;
 
         // No more even if ask for more
         assert_eq!(
-            sui_coins,
+            iota_coins,
             client
                 .coin_read_api()
-                .get_coins(account, None, None, Some(sui_coins.len() + 1))
+                .get_coins(account, None, None, Some(iota_coins.len() + 1))
                 .await
                 .unwrap()
                 .data,
@@ -512,23 +513,23 @@ impl TestCaseImpl for CoinIndexTest {
             }
         }
 
-        assert_eq!(sui_coins.len() + managed_coins.len(), total_coins,);
+        assert_eq!(iota_coins.len() + managed_coins.len(), total_coins,);
 
-        let sui_coins_with_managed_coin_1 = client
+        let iota_coins_with_managed_coin_1 = client
             .coin_read_api()
-            .get_all_coins(account, None, Some(sui_coins.len() + 1))
+            .get_all_coins(account, None, Some(iota_coins.len() + 1))
             .await
             .unwrap();
         assert_eq!(
-            sui_coins_with_managed_coin_1.data.len(),
-            sui_coins.len() + 1
+            iota_coins_with_managed_coin_1.data.len(),
+            iota_coins.len() + 1
         );
         assert_eq!(
-            sui_coins_with_managed_coin_1.next_cursor,
+            iota_coins_with_managed_coin_1.next_cursor,
             Some(first_managed_coin)
         );
-        assert!(sui_coins_with_managed_coin_1.has_next_page);
-        let cursor = sui_coins_with_managed_coin_1.next_cursor;
+        assert!(iota_coins_with_managed_coin_1.has_next_page);
+        let cursor = iota_coins_with_managed_coin_1.next_cursor;
 
         let managed_coins_2_11 = client
             .coin_read_api()
@@ -689,7 +690,7 @@ async fn add_to_envelope(
     pkg_id: ObjectID,
     envelope: ObjectID,
     coin: ObjectID,
-) -> SuiTransactionBlockResponse {
+) -> IotaTransactionBlockResponse {
     let account = ctx.get_wallet_address();
     let client = ctx.clone_fullnode_client();
     let rgp = ctx.get_reference_gas_price().await;
@@ -702,8 +703,8 @@ async fn add_to_envelope(
             "add_to_envelope",
             vec![],
             vec![
-                SuiJsonValue::from_object_id(envelope),
-                SuiJsonValue::from_object_id(coin),
+                IotaJsonValue::from_object_id(envelope),
+                IotaJsonValue::from_object_id(coin),
             ],
             None,
             rgp * 2_000_000,

@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useFeatureIsOn } from '@growthbook/growthbook-react';
-import { normalizeSuiNSName } from '@mysten/sui/utils';
+import { normalizeIotaNSName } from '@iota/iota-sdk/utils';
 
-import { useResolveSuiNSName as useResolveSuiNSNameCore } from '../../../../../core';
+import { useResolveIotaNSName as useResolveIotaNSNameCore } from '../../../../../core';
 
-export function useResolveSuiNSName(address?: string) {
-	const enableNewSuinsFormat = useFeatureIsOn('wallet-enable-new-suins-name-format');
-	const { data } = useResolveSuiNSNameCore(address);
-	return data ? normalizeSuiNSName(data, enableNewSuinsFormat ? 'at' : 'dot') : undefined;
+export function useResolveIotaNSName(address?: string) {
+	const enableNewIotaNSFormat = useFeatureIsOn('wallet-enable-new-iotans-name-format');
+	const { data } = useResolveIotaNSNameCore(address);
+	return data ? normalizeIotaNSName(data, enableNewIotaNSFormat ? 'at' : 'dot') : undefined;
 }

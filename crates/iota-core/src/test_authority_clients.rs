@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -11,26 +12,26 @@ use std::{
 use crate::authority::test_authority_builder::TestAuthorityBuilder;
 use crate::{authority::AuthorityState, authority_client::AuthorityAPI};
 use async_trait::async_trait;
-use mysten_metrics::spawn_monitored_task;
-use sui_config::genesis::Genesis;
-use sui_types::messages_grpc::{
+use iota_metrics::spawn_monitored_task;
+use iota_config::genesis::Genesis;
+use iota_types::messages_grpc::{
     HandleCertificateResponseV2, HandleSoftBundleCertificatesRequestV3,
     HandleSoftBundleCertificatesResponseV3, HandleTransactionResponse, ObjectInfoRequest,
     ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
 };
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::{
+use iota_types::iota_system_state::IotaSystemState;
+use iota_types::{
     crypto::AuthorityKeyPair,
-    error::SuiError,
+    error::IotaError,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     transaction::{CertifiedTransaction, Transaction, VerifiedTransaction},
 };
-use sui_types::{
+use iota_types::{
     effects::TransactionEffectsAPI,
     messages_checkpoint::{CheckpointRequestV2, CheckpointResponseV2},
 };
-use sui_types::{
-    error::SuiResult,
+use iota_types::{
+    error::IotaResult,
     messages_grpc::{HandleCertificateRequestV3, HandleCertificateResponseV3},
 };
 
@@ -61,9 +62,9 @@ impl AuthorityAPI for LocalAuthorityClient {
         &self,
         transaction: Transaction,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleTransactionResponse, SuiError> {
+    ) -> Result<HandleTransactionResponse, IotaError> {
         if self.fault_config.fail_before_handle_transaction {
-            return Err(SuiError::from("Mock error before handle_transaction"));
+            return Err(IotaError::from("Mock error before handle_transaction"));
         }
         let state = self.state.clone();
         let epoch_store = self.state.load_epoch_store_one_call_per_task();
@@ -73,12 +74,12 @@ impl AuthorityAPI for LocalAuthorityClient {
             .map(|_| VerifiedTransaction::new_from_verified(transaction))?;
         let result = state.handle_transaction(&epoch_store, transaction).await;
         if self.fault_config.fail_after_handle_transaction {
-            return Err(SuiError::GenericAuthorityError {
+            return Err(IotaError::GenericAuthorityError {
                 error: "Mock error after handle_transaction".to_owned(),
             });
         }
         if let Some(duration) = self.fault_config.overload_retry_after_handle_transaction {
-            return Err(SuiError::ValidatorOverloadedRetryAfter {
+            return Err(IotaError::ValidatorOverloadedRetryAfter {
                 retry_after_secs: duration.as_secs(),
             });
         }
@@ -89,7 +90,7 @@ impl AuthorityAPI for LocalAuthorityClient {
         &self,
         certificate: CertifiedTransaction,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, SuiError> {
+    ) -> Result<HandleCertificateResponseV2, IotaError> {
         let state = self.state.clone();
         let fault_config = self.fault_config;
         let request = HandleCertificateRequestV3 {
@@ -113,7 +114,7 @@ impl AuthorityAPI for LocalAuthorityClient {
         &self,
         request: HandleCertificateRequestV3,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, SuiError> {
+    ) -> Result<HandleCertificateResponseV3, IotaError> {
         let state = self.state.clone();
         let fault_config = self.fault_config;
         spawn_monitored_task!(Self::handle_certificate(state, request, fault_config))
@@ -125,14 +126,14 @@ impl AuthorityAPI for LocalAuthorityClient {
         &self,
         _request: HandleSoftBundleCertificatesRequestV3,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, SuiError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
         unimplemented!()
     }
 
     async fn handle_object_info_request(
         &self,
         request: ObjectInfoRequest,
-    ) -> Result<ObjectInfoResponse, SuiError> {
+    ) -> Result<ObjectInfoResponse, IotaError> {
         let state = self.state.clone();
         state.handle_object_info_request(request).await
     }
@@ -141,7 +142,7 @@ impl AuthorityAPI for LocalAuthorityClient {
     async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
-    ) -> Result<TransactionInfoResponse, SuiError> {
+    ) -> Result<TransactionInfoResponse, IotaError> {
         let state = self.state.clone();
         state.handle_transaction_info_request(request).await
     }
@@ -149,7 +150,7 @@ impl AuthorityAPI for LocalAuthorityClient {
     async fn handle_checkpoint(
         &self,
         request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, SuiError> {
+    ) -> Result<CheckpointResponse, IotaError> {
         let state = self.state.clone();
 
         state.handle_checkpoint_request(&request)
@@ -158,7 +159,7 @@ impl AuthorityAPI for LocalAuthorityClient {
     async fn handle_checkpoint_v2(
         &self,
         request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, SuiError> {
+    ) -> Result<CheckpointResponseV2, IotaError> {
         let state = self.state.clone();
 
         state.handle_checkpoint_request_v2(&request)
@@ -167,8 +168,8 @@ impl AuthorityAPI for LocalAuthorityClient {
     async fn handle_system_state_object(
         &self,
         _request: SystemStateRequest,
-    ) -> Result<SuiSystemState, SuiError> {
-        self.state.get_sui_system_state_object_for_testing()
+    ) -> Result<IotaSystemState, IotaError> {
+        self.state.get_iota_system_state_object_for_testing()
     }
 }
 
@@ -198,9 +199,9 @@ impl LocalAuthorityClient {
         state: Arc<AuthorityState>,
         request: HandleCertificateRequestV3,
         fault_config: LocalAuthorityClientFaultConfig,
-    ) -> Result<HandleCertificateResponseV3, SuiError> {
+    ) -> Result<HandleCertificateResponseV3, IotaError> {
         if fault_config.fail_before_handle_confirmation {
-            return Err(SuiError::GenericAuthorityError {
+            return Err(IotaError::GenericAuthorityError {
                 error: "Mock error before handle_confirmation_transaction".to_owned(),
             });
         }
@@ -236,7 +237,7 @@ impl LocalAuthorityClient {
         };
 
         if fault_config.fail_after_handle_confirmation {
-            return Err(SuiError::GenericAuthorityError {
+            return Err(IotaError::GenericAuthorityError {
                 error: "Mock error after handle_confirmation_transaction".to_owned(),
             });
         }
@@ -265,7 +266,7 @@ impl LocalAuthorityClient {
 pub struct MockAuthorityApi {
     delay: Duration,
     count: Arc<Mutex<u32>>,
-    handle_object_info_request_result: Option<SuiResult<ObjectInfoResponse>>,
+    handle_object_info_request_result: Option<IotaResult<ObjectInfoResponse>>,
 }
 
 impl MockAuthorityApi {
@@ -277,19 +278,19 @@ impl MockAuthorityApi {
         }
     }
 
-    pub fn set_handle_object_info_request(&mut self, result: SuiResult<ObjectInfoResponse>) {
+    pub fn set_handle_object_info_request(&mut self, result: IotaResult<ObjectInfoResponse>) {
         self.handle_object_info_request_result = Some(result);
     }
 }
 
 #[async_trait]
 impl AuthorityAPI for MockAuthorityApi {
-    /// Initiate a new transaction to a Sui or Primary account.
+    /// Initiate a new transaction to a Iota or Primary account.
     async fn handle_transaction(
         &self,
         _transaction: Transaction,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleTransactionResponse, SuiError> {
+    ) -> Result<HandleTransactionResponse, IotaError> {
         unimplemented!();
     }
 
@@ -298,7 +299,7 @@ impl AuthorityAPI for MockAuthorityApi {
         &self,
         _certificate: CertifiedTransaction,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, SuiError> {
+    ) -> Result<HandleCertificateResponseV2, IotaError> {
         unimplemented!()
     }
 
@@ -306,7 +307,7 @@ impl AuthorityAPI for MockAuthorityApi {
         &self,
         _request: HandleCertificateRequestV3,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, SuiError> {
+    ) -> Result<HandleCertificateResponseV3, IotaError> {
         unimplemented!()
     }
 
@@ -314,7 +315,7 @@ impl AuthorityAPI for MockAuthorityApi {
         &self,
         _request: HandleSoftBundleCertificatesRequestV3,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, SuiError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
         unimplemented!()
     }
 
@@ -322,7 +323,7 @@ impl AuthorityAPI for MockAuthorityApi {
     async fn handle_object_info_request(
         &self,
         _request: ObjectInfoRequest,
-    ) -> Result<ObjectInfoResponse, SuiError> {
+    ) -> Result<ObjectInfoResponse, IotaError> {
         self.handle_object_info_request_result.clone().unwrap()
     }
 
@@ -330,7 +331,7 @@ impl AuthorityAPI for MockAuthorityApi {
     async fn handle_transaction_info_request(
         &self,
         request: TransactionInfoRequest,
-    ) -> Result<TransactionInfoResponse, SuiError> {
+    ) -> Result<TransactionInfoResponse, IotaError> {
         let count = {
             let mut count = self.count.lock().unwrap();
             *count += 1;
@@ -342,7 +343,7 @@ impl AuthorityAPI for MockAuthorityApi {
             tokio::time::sleep(self.delay).await;
         }
 
-        Err(SuiError::TransactionNotFound {
+        Err(IotaError::TransactionNotFound {
             digest: request.transaction_digest,
         })
     }
@@ -350,29 +351,29 @@ impl AuthorityAPI for MockAuthorityApi {
     async fn handle_checkpoint(
         &self,
         _request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, SuiError> {
+    ) -> Result<CheckpointResponse, IotaError> {
         unimplemented!();
     }
 
     async fn handle_checkpoint_v2(
         &self,
         _request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, SuiError> {
+    ) -> Result<CheckpointResponseV2, IotaError> {
         unimplemented!();
     }
 
     async fn handle_system_state_object(
         &self,
         _request: SystemStateRequest,
-    ) -> Result<SuiSystemState, SuiError> {
+    ) -> Result<IotaSystemState, IotaError> {
         unimplemented!();
     }
 }
 
 #[derive(Clone)]
 pub struct HandleTransactionTestAuthorityClient {
-    pub tx_info_resp_to_return: SuiResult<HandleTransactionResponse>,
-    pub cert_resp_to_return: SuiResult<HandleCertificateResponseV2>,
+    pub tx_info_resp_to_return: IotaResult<HandleTransactionResponse>,
+    pub cert_resp_to_return: IotaResult<HandleCertificateResponseV2>,
     // If set, sleep for this duration before responding to a request.
     // This is useful in testing a timeout scenario.
     pub sleep_duration_before_responding: Option<Duration>,
@@ -384,7 +385,7 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         &self,
         _transaction: Transaction,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleTransactionResponse, SuiError> {
+    ) -> Result<HandleTransactionResponse, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {
             tokio::time::sleep(duration).await;
         }
@@ -395,7 +396,7 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         &self,
         _certificate: CertifiedTransaction,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, SuiError> {
+    ) -> Result<HandleCertificateResponseV2, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {
             tokio::time::sleep(duration).await;
         }
@@ -406,7 +407,7 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         &self,
         _request: HandleCertificateRequestV3,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, SuiError> {
+    ) -> Result<HandleCertificateResponseV3, IotaError> {
         unimplemented!()
     }
 
@@ -414,42 +415,42 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         &self,
         _request: HandleSoftBundleCertificatesRequestV3,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, SuiError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
         unimplemented!()
     }
 
     async fn handle_object_info_request(
         &self,
         _request: ObjectInfoRequest,
-    ) -> Result<ObjectInfoResponse, SuiError> {
+    ) -> Result<ObjectInfoResponse, IotaError> {
         unimplemented!()
     }
 
     async fn handle_transaction_info_request(
         &self,
         _request: TransactionInfoRequest,
-    ) -> Result<TransactionInfoResponse, SuiError> {
+    ) -> Result<TransactionInfoResponse, IotaError> {
         unimplemented!()
     }
 
     async fn handle_checkpoint(
         &self,
         _request: CheckpointRequest,
-    ) -> Result<CheckpointResponse, SuiError> {
+    ) -> Result<CheckpointResponse, IotaError> {
         unimplemented!()
     }
 
     async fn handle_checkpoint_v2(
         &self,
         _request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, SuiError> {
+    ) -> Result<CheckpointResponseV2, IotaError> {
         unimplemented!()
     }
 
     async fn handle_system_state_object(
         &self,
         _request: SystemStateRequest,
-    ) -> Result<SuiSystemState, SuiError> {
+    ) -> Result<IotaSystemState, IotaError> {
         unimplemented!()
     }
 }
@@ -457,8 +458,8 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
 impl HandleTransactionTestAuthorityClient {
     pub fn new() -> Self {
         Self {
-            tx_info_resp_to_return: Err(SuiError::Unknown("".to_string())),
-            cert_resp_to_return: Err(SuiError::Unknown("".to_string())),
+            tx_info_resp_to_return: Err(IotaError::Unknown("".to_string())),
+            cert_resp_to_return: Err(IotaError::Unknown("".to_string())),
             sleep_duration_before_responding: None,
         }
     }
@@ -467,24 +468,24 @@ impl HandleTransactionTestAuthorityClient {
         self.tx_info_resp_to_return = Ok(resp);
     }
 
-    pub fn set_tx_info_response_error(&mut self, error: SuiError) {
+    pub fn set_tx_info_response_error(&mut self, error: IotaError) {
         self.tx_info_resp_to_return = Err(error);
     }
 
     pub fn reset_tx_info_response(&mut self) {
-        self.tx_info_resp_to_return = Err(SuiError::Unknown("".to_string()));
+        self.tx_info_resp_to_return = Err(IotaError::Unknown("".to_string()));
     }
 
     pub fn set_cert_resp_to_return(&mut self, resp: HandleCertificateResponseV2) {
         self.cert_resp_to_return = Ok(resp);
     }
 
-    pub fn set_cert_resp_to_return_error(&mut self, error: SuiError) {
+    pub fn set_cert_resp_to_return_error(&mut self, error: IotaError) {
         self.cert_resp_to_return = Err(error);
     }
 
     pub fn reset_cert_response(&mut self) {
-        self.cert_resp_to_return = Err(SuiError::Unknown("".to_string()));
+        self.cert_resp_to_return = Err(IotaError::Unknown("".to_string()));
     }
 
     pub fn set_sleep_duration_before_responding(&mut self, duration: Duration) {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable @typescript-eslint/ban-types */
 /* eslint-disable no-restricted-globals */
@@ -45,7 +46,7 @@ async function main() {
 
 				name: 'dAppName',
 				message: 'What is the name of your dApp? (this will be used as the directory name)',
-				initial: 'my-first-sui-dapp',
+				initial: 'my-first-iota-dapp',
 			},
 		].filter((question) => !args[question.name as 'template']),
 	);
@@ -96,8 +97,8 @@ async function collectFiles(template: string, dAppName: string) {
 				if (entry === 'package.json') {
 					const json = JSON.parse(content.toString());
 					json.name = dAppName;
-					json.dependencies['@mysten/sui'] = dependencies['@mysten/sui'];
-					json.dependencies['@mysten/dapp-kit'] = dependencies['@mysten/dapp-kit'];
+					json.dependencies['@iota/iota-sdk'] = dependencies['@iota/iota-sdk'];
+					json.dependencies['@iota/dapp-kit'] = dependencies['@iota/dapp-kit'];
 
 					content = Buffer.from(JSON.stringify(json, null, 2));
 				}

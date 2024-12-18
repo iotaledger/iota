@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { GAS_SYMBOL, GAS_TYPE_ARG } from '_redux/slices/sui-objects/Coin';
+import { GAS_SYMBOL, GAS_TYPE_ARG } from '_redux/slices/iota-objects/Coin';
 import { Text } from '_src/ui/app/shared/text';
-import { useFormatCoin } from '@mysten/core';
+import { useFormatCoin } from '@iota/core';
 
 import { TxnAddressLink } from './TxnAddressLink';
 

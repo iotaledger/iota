@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(dead_code)]
@@ -9,17 +10,17 @@ mod test_coin_utils;
 use serde_json::json;
 use std::num::NonZeroUsize;
 use std::path::Path;
-use sui_json_rpc_types::{
-    SuiExecutionStatus, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
 };
-use sui_rosetta::operations::Operations;
-use sui_rosetta::types::{
+use iota_rosetta::operations::Operations;
+use iota_rosetta::types::{
     AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, Currency, CurrencyMetadata,
-    NetworkIdentifier, SuiEnv,
+    NetworkIdentifier, IotaEnv,
 };
-use sui_rosetta::types::{Currencies, OperationType};
-use sui_rosetta::CoinMetadataCache;
-use sui_rosetta::SUI;
+use iota_rosetta::types::{Currencies, OperationType};
+use iota_rosetta::CoinMetadataCache;
+use iota_rosetta::IOTA;
 use test_cluster::TestClusterBuilder;
 use test_coin_utils::{init_package, mint};
 
@@ -28,7 +29,7 @@ use crate::rosetta_client::{start_rosetta_test_server, RosettaEndpoint};
 #[tokio::test]
 async fn test_custom_coin_balance() {
     // mint coins to `test_culset.get_address_1()` and `test_culset.get_address_2()`
-    const SUI_BALANCE: u64 = 150_000_000_000_000_000;
+    const IOTA_BALANCE: u64 = 150_000_000_000_000_000;
     const COIN1_BALANCE: u64 = 100_000_000;
     const COIN2_BALANCE: u64 = 200_000_000;
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -58,11 +59,11 @@ async fn test_custom_coin_balance() {
 
     // setup AccountBalanceRequest
     let network_identifier = NetworkIdentifier {
-        blockchain: "sui".to_string(),
-        network: SuiEnv::LocalNet,
+        blockchain: "iota".to_string(),
+        network: IotaEnv::LocalNet,
     };
 
-    let sui_currency = SUI.clone();
+    let iota_currency = IOTA.clone();
     let test_coin_currency = Currency {
         symbol: "TEST_COIN".to_string(),
         decimals: 6,
@@ -79,7 +80,7 @@ async fn test_custom_coin_balance() {
             sub_account: None,
         },
         block_identifier: Default::default(),
-        currencies: Currencies(vec![sui_currency, test_coin_currency]),
+        currencies: Currencies(vec![iota_currency, test_coin_currency]),
     };
 
     println!(
@@ -94,10 +95,10 @@ async fn test_custom_coin_balance() {
         serde_json::to_string_pretty(&response).unwrap()
     );
     assert_eq!(response.balances.len(), 2);
-    assert_eq!(response.balances[0].value, SUI_BALANCE as i128);
+    assert_eq!(response.balances[0].value, IOTA_BALANCE as i128);
     assert_eq!(
         response.balances[0].currency.clone().metadata.coin_type,
-        "0x2::sui::SUI"
+        "0x2::iota::IOTA"
     );
     assert_eq!(response.balances[1].value, COIN1_BALANCE as i128);
     assert_eq!(
@@ -109,7 +110,7 @@ async fn test_custom_coin_balance() {
 #[tokio::test]
 async fn test_default_balance() {
     // mint coins to `test_culset.get_address_1()` and `test_culset.get_address_2()`
-    const SUI_BALANCE: u64 = 150_000_000_000_000_000;
+    const IOTA_BALANCE: u64 = 150_000_000_000_000_000;
     let test_cluster = TestClusterBuilder::new().build().await;
     let client = test_cluster.wallet.get_client().await.unwrap();
 
@@ -118,7 +119,7 @@ async fn test_default_balance() {
     let request: AccountBalanceRequest = serde_json::from_value(json!(
         {
             "network_identifier": {
-                "blockchain": "sui",
+                "blockchain": "iota",
                 "network": "localnet"
             },
             "account_identifier": {
@@ -135,7 +136,7 @@ async fn test_default_balance() {
         serde_json::to_string_pretty(&response).unwrap()
     );
     assert_eq!(response.balances.len(), 1);
-    assert_eq!(response.balances[0].value, SUI_BALANCE as i128);
+    assert_eq!(response.balances[0].value, IOTA_BALANCE as i128);
 
     // Keep server running for testing with bash/curl
     // To test with curl,
@@ -144,7 +145,7 @@ async fn test_default_balance() {
     // 3. run curl 'localhost:<port>/account/balance' --header 'Content-Type: application/json' \
     // --data-raw '{
     //     "network_identifier": {
-    //         "blockchain": "sui",
+    //         "blockchain": "iota",
     //         "network": "localnet"
     //     },
     //     "account_identifier": {
@@ -224,7 +225,7 @@ async fn test_custom_coin_transfer() {
         .read_api()
         .get_transaction_with_options(
             response.transaction_identifier.hash,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
                 .with_balance_changes()
@@ -234,10 +235,10 @@ async fn test_custom_coin_transfer() {
         .unwrap();
 
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
-    println!("Sui TX: {tx:?}");
+    println!("Iota TX: {tx:?}");
     let coin_cache = CoinMetadataCache::new(client, NonZeroUsize::new(2).unwrap());
     let ops2 = Operations::try_from_response(tx, &coin_cache)
         .await
@@ -277,7 +278,7 @@ async fn test_custom_coin_without_symbol() {
         .read_api()
         .get_transaction_with_options(
             mint_res.digest,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects()
                 .with_balance_changes()
@@ -287,7 +288,7 @@ async fn test_custom_coin_without_symbol() {
         .unwrap();
 
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         tx.effects.as_ref().unwrap().status()
     );
     let coin_cache = CoinMetadataCache::new(client, NonZeroUsize::new(2).unwrap());
@@ -296,7 +297,7 @@ async fn test_custom_coin_without_symbol() {
         .unwrap();
 
     for op in ops {
-        if op.type_ == OperationType::SuiBalanceChange {
+        if op.type_ == OperationType::IotaBalanceChange {
             assert!(!op.amount.unwrap().currency.symbol.is_empty())
         }
     }

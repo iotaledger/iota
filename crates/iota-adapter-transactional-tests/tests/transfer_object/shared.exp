@@ -26,8 +26,8 @@ task 4, line 31:
 Owner: Shared( 3 )
 Version: 3
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -38,8 +38,8 @@ task 5, line 33:
 Owner: Shared( 4 )
 Version: 4
 Contents: test::m::S2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
@@ -60,8 +60,8 @@ task 8, line 39:
 Owner: Shared( 3 )
 Version: 4
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -72,8 +72,8 @@ task 9, line 41:
 Owner: Shared( 4 )
 Version: 5
 Contents: test::m::S2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },

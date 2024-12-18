@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui::config;
+module iota::config;
 
-use sui::dynamic_field as field;
+use iota::dynamic_field as field;
 
 // #[error]
 // const EAlreadySetForEpoch: vector<u8> =
@@ -252,7 +253,7 @@ public(package) fun read_setting<Name: copy + drop + store, Value: copy + drop +
     name: Name,
     ctx: &TxContext,
 ): Option<Value> {
-    use sui::dynamic_field::Field;
+    use iota::dynamic_field::Field;
     let config_id = config.to_address();
     let setting_df = field::hash_type_and_key(config_id, name);
     read_setting_impl<Field<Name, Setting<Value>>, Setting<Value>, SettingData<Value>, Value>(

@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use sui_package_resolver::{DataDef, MoveData};
+use iota_package_resolver::{DataDef, MoveData};
 
 use crate::error::Error;
 
 use super::{
     move_module::MoveModule,
     open_move_type::{abilities, MoveAbility, OpenMoveType},
-    sui_address::SuiAddress,
+    iota_address::IotaAddress,
 };
 
 pub(crate) struct MoveStruct {
-    defining_id: SuiAddress,
+    defining_id: IotaAddress,
     module: String,
     name: String,
     abilities: Vec<MoveAbility>,
@@ -126,7 +127,7 @@ impl MoveStruct {
             .collect();
 
         Ok(MoveStruct {
-            defining_id: SuiAddress::from(def.defining_id),
+            defining_id: IotaAddress::from(def.defining_id),
             module,
             name,
             abilities: abilities(def.abilities),

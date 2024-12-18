@@ -548,7 +548,7 @@
         "internalType": "uint8"
       },
       {
-        "name": "suiAdjustedAmount",
+        "name": "iotaAdjustedAmount",
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"

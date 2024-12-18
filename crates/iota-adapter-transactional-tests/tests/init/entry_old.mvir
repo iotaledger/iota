@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // init with entry used to be allowed
@@ -31,7 +32,7 @@ module 0x0.m {
 
 // //# upgrade --package test  --sender A --upgrade-capability 1,1
 // module v2::m {
-//     use sui::tx_context::TxContext;
+//     use iota::tx_context::TxContext;
 //     fun init(_: &mut TxContext) {
 //     }
 

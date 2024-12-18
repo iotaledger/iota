@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::GetTransactionOptions;
 use crate::types::TransactionResponse;
 use crate::Result;
 use crate::RpcService;
-use sui_sdk_types::types::TransactionDigest;
+use iota_sdk_types::types::TransactionDigest;
 use tap::Pipe;
 
 mod execution;

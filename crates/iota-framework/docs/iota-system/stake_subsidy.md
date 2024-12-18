@@ -13,10 +13,10 @@ title: Module `0x3::stake_subsidy`
 
 
 <pre><code><b>use</b> <a href="../move-stdlib/u64.md#0x1_u64">0x1::u64</a>;
-<b>use</b> <a href="../sui-framework/bag.md#0x2_bag">0x2::bag</a>;
-<b>use</b> <a href="../sui-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../sui-framework/sui.md#0x2_sui">0x2::sui</a>;
-<b>use</b> <a href="../sui-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
+<b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
+<b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
+<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
+<b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
 </code></pre>
 
 
@@ -38,10 +38,10 @@ title: Module `0x3::stake_subsidy`
 
 <dl>
 <dt>
-<code><a href="../sui-framework/balance.md#0x2_balance">balance</a>: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;</code>
+<code><a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;</code>
 </dt>
 <dd>
- Balance of SUI set aside for stake subsidies that will be drawn down over time.
+ Balance of IOTA set aside for stake subsidies that will be drawn down over time.
 </dd>
 <dt>
 <code>distribution_counter: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
@@ -70,7 +70,7 @@ title: Module `0x3::stake_subsidy`
  period. Expressed in basis points.
 </dd>
 <dt>
-<code>extra_fields: <a href="../sui-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
+<code>extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -109,7 +109,7 @@ title: Module `0x3::stake_subsidy`
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_create">create</a>(<a href="../sui-framework/balance.md#0x2_balance">balance</a>: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;, initial_distribution_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, stake_subsidy_period_length: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, stake_subsidy_decrease_rate: u16, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_create">create</a>(<a href="../iota-framework/balance.md#0x2_balance">balance</a>: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, initial_distribution_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, stake_subsidy_period_length: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, stake_subsidy_decrease_rate: u16, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>
 </code></pre>
 
 
@@ -119,7 +119,7 @@ title: Module `0x3::stake_subsidy`
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_create">create</a>(
-    <a href="../sui-framework/balance.md#0x2_balance">balance</a>: Balance&lt;SUI&gt;,
+    <a href="../iota-framework/balance.md#0x2_balance">balance</a>: Balance&lt;IOTA&gt;,
     initial_distribution_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     stake_subsidy_period_length: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     stake_subsidy_decrease_rate: u16,
@@ -132,12 +132,12 @@ title: Module `0x3::stake_subsidy`
     );
 
     <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a> {
-        <a href="../sui-framework/balance.md#0x2_balance">balance</a>,
+        <a href="../iota-framework/balance.md#0x2_balance">balance</a>,
         distribution_counter: 0,
         current_distribution_amount: initial_distribution_amount,
         stake_subsidy_period_length,
         stake_subsidy_decrease_rate,
-        extra_fields: <a href="../sui-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
+        extra_fields: <a href="../iota-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
     }
 }
 </code></pre>
@@ -153,7 +153,7 @@ title: Module `0x3::stake_subsidy`
 Advance the epoch counter and draw down the subsidy for the epoch.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>): <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">stake_subsidy::StakeSubsidy</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -162,14 +162,14 @@ Advance the epoch counter and draw down the subsidy for the epoch.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a>): Balance&lt;SUI&gt; {
-    // Take the minimum of the reward amount and the remaining <a href="../sui-framework/balance.md#0x2_balance">balance</a> in
+<pre><code><b>public</b>(package) <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_advance_epoch">advance_epoch</a>(self: &<b>mut</b> <a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a>): Balance&lt;IOTA&gt; {
+    // Take the minimum of the reward amount and the remaining <a href="../iota-framework/balance.md#0x2_balance">balance</a> in
     // order <b>to</b> ensure we don't overdraft the remaining stake subsidy
-    // <a href="../sui-framework/balance.md#0x2_balance">balance</a>
-    <b>let</b> to_withdraw = self.current_distribution_amount.<b>min</b>(self.<a href="../sui-framework/balance.md#0x2_balance">balance</a>.value());
+    // <a href="../iota-framework/balance.md#0x2_balance">balance</a>
+    <b>let</b> to_withdraw = self.current_distribution_amount.<b>min</b>(self.<a href="../iota-framework/balance.md#0x2_balance">balance</a>.value());
 
     // Drawn down the subsidy for this epoch.
-    <b>let</b> <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a> = self.<a href="../sui-framework/balance.md#0x2_balance">balance</a>.split(to_withdraw);
+    <b>let</b> <a href="stake_subsidy.md#0x3_stake_subsidy">stake_subsidy</a> = self.<a href="../iota-framework/balance.md#0x2_balance">balance</a>.split(to_withdraw);
     self.distribution_counter = self.distribution_counter + 1;
 
     // Decrease the subsidy amount only when the current period ends.
@@ -204,7 +204,7 @@ Returns the amount of stake subsidy to be added at the end of the current epoch.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="stake_subsidy.md#0x3_stake_subsidy_current_epoch_subsidy_amount">current_epoch_subsidy_amount</a>(self: &<a href="stake_subsidy.md#0x3_stake_subsidy_StakeSubsidy">StakeSubsidy</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
-    self.current_distribution_amount.<b>min</b>(self.<a href="../sui-framework/balance.md#0x2_balance">balance</a>.value())
+    self.current_distribution_amount.<b>min</b>(self.<a href="../iota-framework/balance.md#0x2_balance">balance</a>.value())
 }
 </code></pre>
 

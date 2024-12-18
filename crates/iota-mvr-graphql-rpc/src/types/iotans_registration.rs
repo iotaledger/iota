@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
@@ -17,9 +18,9 @@ use super::{
     move_value::MoveValue,
     object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
     owner::OwnerImpl,
-    stake::StakedSui,
+    stake::StakedIota,
     string_input::impl_string_input,
-    sui_address::SuiAddress,
+    iota_address::IotaAddress,
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     type_filter::ExactTypeFilter,
     uint53::UInt53,
@@ -34,32 +35,32 @@ use async_graphql::{connection::Connection, *};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
-use sui_indexer::models::objects::StoredHistoryObject;
-use sui_json_rpc::name_service::{
+use iota_indexer::models::objects::StoredHistoryObject;
+use iota_json_rpc::name_service::{
     Domain as NativeDomain, NameRecord, NameServiceConfig, NameServiceError,
 };
-use sui_types::{base_types::SuiAddress as NativeSuiAddress, dynamic_field::Field, id::UID};
+use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
 
-const MOD_REGISTRATION: &IdentStr = ident_str!("suins_registration");
-const TYP_REGISTRATION: &IdentStr = ident_str!("SuinsRegistration");
+const MOD_REGISTRATION: &IdentStr = ident_str!("iotans_registration");
+const TYP_REGISTRATION: &IdentStr = ident_str!("IotaNSRegistration");
 
 /// Represents the "core" of the name service (e.g. the on-chain registry and reverse registry). It
 /// doesn't contain any fields because we look them up based on the `NameServiceConfig`.
 pub(crate) struct NameService;
 
-/// Wrap SuiNS Domain type to expose as a string scalar in GraphQL.
+/// Wrap IotaNS Domain type to expose as a string scalar in GraphQL.
 #[derive(Debug)]
 pub(crate) struct Domain(NativeDomain);
 
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
-#[graphql(remote = "sui_json_rpc::name_service::DomainFormat")]
+#[graphql(remote = "iota_json_rpc::name_service::DomainFormat")]
 pub enum DomainFormat {
     At,
     Dot,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) struct NativeSuinsRegistration {
+pub(crate) struct NativeIotaNSRegistration {
     pub id: UID,
     pub domain: NativeDomain,
     pub domain_name: String,
@@ -68,12 +69,12 @@ pub(crate) struct NativeSuinsRegistration {
 }
 
 #[derive(Clone)]
-pub(crate) struct SuinsRegistration {
-    /// Representation of this SuinsRegistration as a generic Move object.
+pub(crate) struct IotaNSRegistration {
+    /// Representation of this IotaNSRegistration as a generic Move object.
     pub super_: MoveObject,
 
     /// The deserialized representation of the Move object's contents.
-    pub native: NativeSuinsRegistration,
+    pub native: NativeIotaNSRegistration,
 }
 
 /// Represents the results of a query for a domain's `NameRecord` and its parent's `NameRecord`. The
@@ -89,14 +90,14 @@ pub(crate) struct DomainExpiration {
     pub checkpoint_timestamp_ms: u64,
 }
 
-pub(crate) enum SuinsRegistrationDowncastError {
-    NotASuinsRegistration,
+pub(crate) enum IotaNSRegistrationDowncastError {
+    NotAnIotaNSRegistration,
     Bcs(bcs::Error),
 }
 
 #[Object]
-impl SuinsRegistration {
-    pub(crate) async fn address(&self) -> SuiAddress {
+impl IotaNSRegistration {
+    pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(&self.super_.super_).address().await
     }
 
@@ -116,7 +117,7 @@ impl SuinsRegistration {
     }
 
     /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -143,7 +144,7 @@ impl SuinsRegistration {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -158,43 +159,43 @@ impl SuinsRegistration {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this object.
-    pub(crate) async fn staked_suis(
+    /// The `0x3::staking_pool::StakedIota` objects owned by this object.
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_.super_)
-            .staked_suis(ctx, first, after, last, before)
+            .staked_iotas(ctx, first, after, last, before)
             .await
     }
 
     /// The domain explicitly configured as the default domain pointing to this object.
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_.super_)
-            .default_suins_name(ctx, format)
+            .default_iotans_name(ctx, format)
             .await
     }
 
-    /// The SuinsRegistration NFTs owned by this object. These grant the owner the capability to
+    /// The IotaNSRegistration NFTs owned by this object. These grant the owner the capability to
     /// manage the associated domain.
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         OwnerImpl::from(&self.super_.super_)
-            .suins_registrations(ctx, first, after, last, before)
+            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -233,7 +234,7 @@ impl SuinsRegistration {
             .await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
+    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
     /// recalculated based on the present storage gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_.super_).storage_rebate().await
@@ -287,7 +288,7 @@ impl SuinsRegistration {
     }
 
     /// Determines whether a transaction can transfer this object, using the TransferObjects
-    /// transaction command or `sui::transfer::public_transfer`, both of which require the object to
+    /// transaction command or `iota::transfer::public_transfer`, both of which require the object to
     /// have the `key` and `store` abilities.
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         MoveObjectImpl(&self.super_).has_public_transfer(ctx).await
@@ -357,14 +358,14 @@ impl SuinsRegistration {
             .await
     }
 
-    /// Domain name of the SuinsRegistration object
+    /// Domain name of the IotaNSRegistration object
     async fn domain(&self) -> &str {
         &self.native.domain_name
     }
 }
 
 impl NameService {
-    /// Lookup the SuiNS NameRecord for the given `domain` name. `config` specifies where to find
+    /// Lookup the IotaNS NameRecord for the given `domain` name. `config` specifies where to find
     /// the domain name registry, and its type.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this was queried
@@ -419,14 +420,14 @@ impl NameService {
         }
     }
 
-    /// Lookup the SuiNS Domain for the given `address`. `config` specifies where to find the domain
+    /// Lookup the IotaNS Domain for the given `address`. `config` specifies where to find the domain
     /// name registry, and its type.
     ///
     /// `checkpoint_viewed_at` represents the checkpoint sequence number at which this was queried
     /// for.
     pub(crate) async fn reverse_resolve_to_name(
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Option<NativeDomain>, Error> {
         let config: &NameServiceConfig = ctx.data_unchecked();
@@ -443,10 +444,10 @@ impl NameService {
             return Ok(None);
         };
 
-        let field: Field<NativeSuiAddress, NativeDomain> = object
+        let field: Field<NativeIotaAddress, NativeDomain> = object
             .native
             .to_rust()
-            .ok_or_else(|| Error::Internal("Malformed Suins Domain".to_string()))?;
+            .ok_or_else(|| Error::Internal("Malformed IotaNS Domain".to_string()))?;
 
         let domain = Domain(field.value);
 
@@ -471,9 +472,9 @@ impl NameService {
         // Construct the list of `object_id`s to look up. The first element is the domain's
         // `NameRecord`. If the domain is a subdomain, there will be a second element for the
         // parent's `NameRecord`.
-        let mut object_ids = vec![SuiAddress::from(config.record_field_id(&domain.0))];
+        let mut object_ids = vec![IotaAddress::from(config.record_field_id(&domain.0))];
         if domain.0.is_subdomain() {
-            object_ids.push(SuiAddress::from(config.record_field_id(&domain.0.parent())));
+            object_ids.push(IotaAddress::from(config.record_field_id(&domain.0.parent())));
         }
 
         // Create a page with a bound of `object_ids` length to fetch the relevant `NameRecord`s.
@@ -559,8 +560,8 @@ impl NameService {
     }
 }
 
-impl SuinsRegistration {
-    /// Query the database for a `page` of SuiNS registrations. The page uses the same cursor type
+impl IotaNSRegistration {
+    /// Query the database for a `page` of IotaNS registrations. The page uses the same cursor type
     /// as is used for `Object`, and is further filtered to a particular `owner`. `config` specifies
     /// where to find the domain name registry and its type.
     ///
@@ -571,10 +572,10 @@ impl SuinsRegistration {
         db: &Db,
         config: &NameServiceConfig,
         page: Page<object::Cursor>,
-        owner: SuiAddress,
+        owner: IotaAddress,
         checkpoint_viewed_at: u64,
-    ) -> Result<Connection<String, SuinsRegistration>, Error> {
-        let type_ = SuinsRegistration::type_(config.package_address.into());
+    ) -> Result<Connection<String, IotaNSRegistration>, Error> {
+        let type_ = IotaNSRegistration::type_(config.package_address.into());
 
         let filter = ObjectFilter {
             type_: Some(type_.clone().into()),
@@ -586,22 +587,22 @@ impl SuinsRegistration {
             let address = object.address;
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
-                    "Expected {address} to be a SuinsRegistration, but it's not a Move Object.",
+                    "Expected {address} to be a IotaNSRegistration, but it's not a Move Object.",
                 ))
             })?;
 
-            SuinsRegistration::try_from(&move_object, &type_).map_err(|_| {
+            IotaNSRegistration::try_from(&move_object, &type_).map_err(|_| {
                 Error::Internal(format!(
-                    "Expected {address} to be a SuinsRegistration, but it is not."
+                    "Expected {address} to be a IotaNSRegistration, but it is not."
                 ))
             })
         })
         .await
     }
 
-    /// Return the type representing a `SuinsRegistration` on chain. This can change from chain to
+    /// Return the type representing a `IotaNSRegistration` on chain. This can change from chain to
     /// chain (mainnet, testnet, devnet etc).
-    pub(crate) fn type_(package: SuiAddress) -> StructTag {
+    pub(crate) fn type_(package: IotaAddress) -> StructTag {
         StructTag {
             address: package.into(),
             module: MOD_REGISTRATION.to_owned(),
@@ -610,20 +611,20 @@ impl SuinsRegistration {
         }
     }
 
-    // Because the type of the SuinsRegistration object is not constant,
+    // Because the type of the IotaNSRegistration object is not constant,
     // we need to take it in as a param.
     pub(crate) fn try_from(
         move_object: &MoveObject,
         tag: &StructTag,
-    ) -> Result<Self, SuinsRegistrationDowncastError> {
+    ) -> Result<Self, IotaNSRegistrationDowncastError> {
         if !move_object.native.is_type(tag) {
-            return Err(SuinsRegistrationDowncastError::NotASuinsRegistration);
+            return Err(IotaNSRegistrationDowncastError::NotAnIotaNSRegistration);
         }
 
         Ok(Self {
             super_: move_object.clone(),
             native: bcs::from_bytes(move_object.native.contents())
-                .map_err(SuinsRegistrationDowncastError::Bcs)?,
+                .map_err(IotaNSRegistrationDowncastError::Bcs)?,
         })
     }
 }

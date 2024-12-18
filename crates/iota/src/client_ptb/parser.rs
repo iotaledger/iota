@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::iter::Peekable;
@@ -8,7 +9,7 @@ use move_core_types::parsing::{
     parser::{parse_u128, parse_u16, parse_u256, parse_u32, parse_u64, parse_u8},
     types::{ParsedFqName, ParsedModuleId, ParsedStructType, ParsedType},
 };
-use sui_types::{base_types::ObjectID, Identifier};
+use iota_types::{base_types::ObjectID, Identifier};
 
 use crate::{
     client_ptb::{
@@ -870,12 +871,12 @@ mod tests {
             "address",
             "vector<u8>",
             // Structs
-            "sui::object::ID",
+            "iota::object::ID",
             "0x2::object::UID",
-            "3::staking_pool::StakedSui",
+            "3::staking_pool::StakedIota",
             // Generic types
-            "0x2::coin::Coin<2::sui::SUI>",
-            "sui::table::Table<sui::object::ID, vector<0x1::option::Option<u32>>>",
+            "0x2::coin::Coin<2::iota::IOTA>",
+            "iota::table::Table<iota::object::ID, vector<0x1::option::Option<u32>>>",
         ];
         let mut parsed = Vec::new();
         for input in inputs {
@@ -934,7 +935,7 @@ mod tests {
             "--make-move-vec <u64> []",
             "--make-move-vec <u8> [1u8, 2u8]",
             // Move Call
-            "--move-call 0x3::sui_system::request_add_stake system coins.0 validator",
+            "--move-call 0x3::iota_system::request_add_stake system coins.0 validator",
             "--move-call std::option::is_none <u64> p",
             "--move-call std::option::is_some<u32> q",
             // Assign

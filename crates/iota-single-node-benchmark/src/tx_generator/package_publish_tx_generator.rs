@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::benchmark_context::BenchmarkContext;
@@ -10,10 +11,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
-use sui_move_build::{BuildConfig, CompiledPackage};
-use sui_test_transaction_builder::{PublishData, TestTransactionBuilder};
-use sui_types::base_types::ObjectID;
-use sui_types::transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
+use iota_move_build::{BuildConfig, CompiledPackage};
+use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
+use iota_types::base_types::ObjectID;
+use iota_types::transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
 use tracing::info;
 
 pub struct PackagePublishTxGenerator {

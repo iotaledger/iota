@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiMoveObject, SuiObjectData, SuiObjectResponse } from '@mysten/sui/client';
-import { normalizeSuiAddress } from '@mysten/sui/utils';
+import type { IotaMoveObject, IotaObjectData, IotaObjectResponse } from '@iota/iota-sdk/client';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 export const camelCase = (string: string) => string.replace(/(_\w)/g, (g) => g[1].toUpperCase());
 
-export const parseObjectDataResponse = (response: SuiObjectResponse | undefined) =>
-	((response?.data as SuiObjectData)?.content as SuiMoveObject)?.fields as Record<string, any>;
+export const parseObjectDataResponse = (response: IotaObjectResponse | undefined) =>
+	((response?.data as IotaObjectData)?.content as IotaMoveObject)?.fields as Record<string, any>;
 
-export const parseRegistryResponse = (response: SuiObjectResponse | undefined): any => {
+export const parseRegistryResponse = (response: IotaObjectResponse | undefined): any => {
 	const fields = parseObjectDataResponse(response)?.value?.fields || {};
 
 	const object = Object.fromEntries(
@@ -30,7 +31,7 @@ export const parseRegistryResponse = (response: SuiObjectResponse | undefined): 
 			return {
 				...acc,
 				[camelCase(key)]:
-					c.type.includes('Address') || key === 'addr' ? normalizeSuiAddress(value) : value,
+					c.type.includes('Address') || key === 'addr' ? normalizeIotaAddress(value) : value,
 			};
 		},
 		{},

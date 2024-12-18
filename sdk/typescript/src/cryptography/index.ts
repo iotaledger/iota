@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export {
@@ -24,13 +25,13 @@ export type { IntentScope } from './intent.js';
 export {
 	PRIVATE_KEY_SIZE,
 	LEGACY_PRIVATE_KEY_SIZE,
-	SUI_PRIVATE_KEY_PREFIX,
+	IOTA_PRIVATE_KEY_PREFIX,
 	type ParsedKeypair,
 	type SignatureWithBytes,
 	Signer,
 	Keypair,
-	decodeSuiPrivateKey,
-	encodeSuiPrivateKey,
+	decodeIotaPrivateKey,
+	encodeIotaPrivateKey,
 } from './keypair.js';
 
 export { PublicKey } from './publickey.js';

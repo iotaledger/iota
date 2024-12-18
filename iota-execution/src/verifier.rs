@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::CompiledModule;
 use move_bytecode_verifier_meter::Meter;
 use move_vm_config::verifier::MeterConfig;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::error::SuiResult;
-use sui_types::execution_config_utils::to_binary_config;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::error::IotaResult;
+use iota_types::execution_config_utils::to_binary_config;
 
 pub trait Verifier {
     /// Create a new bytecode verifier meter.
@@ -22,14 +23,14 @@ pub trait Verifier {
         protocol_config: &ProtocolConfig,
         modules: &[CompiledModule],
         meter: &mut dyn Meter,
-    ) -> SuiResult<()>;
+    ) -> IotaResult<()>;
 
     fn meter_module_bytes(
         &mut self,
         protocol_config: &ProtocolConfig,
         module_bytes: &[Vec<u8>],
         meter: &mut dyn Meter,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         let binary_config = to_binary_config(protocol_config);
         let Ok(modules) = module_bytes
             .iter()

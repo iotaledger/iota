@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
@@ -17,14 +18,14 @@ use serde_json::Value;
 use serde_with::serde_as;
 use serde_with::Bytes;
 
-use crate::base_types::{ObjectID, SuiAddress, TransactionDigest};
-use crate::error::{SuiError, SuiResult};
+use crate::base_types::{ObjectID, IotaAddress, TransactionDigest};
+use crate::error::{IotaError, IotaResult};
 use crate::object::bounded_visitor::BoundedVisitor;
-use crate::sui_serde::BigInt;
-use crate::sui_serde::Readable;
-use crate::SUI_SYSTEM_ADDRESS;
+use crate::iota_serde::BigInt;
+use crate::iota_serde::Readable;
+use crate::IOTA_SYSTEM_ADDRESS;
 
-/// A universal Sui event type encapsulating different types of events
+/// A universal Iota event type encapsulating different types of events
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventEnvelope {
     /// UTC timestamp in milliseconds since epoch (1/1/1970)
@@ -38,7 +39,7 @@ pub struct EventEnvelope {
     /// Move event's json value
     pub parsed_json: Value,
 }
-/// Unique ID of a Sui Event, the ID is a combination of transaction digest and event seq number.
+/// Unique ID of a Iota Event, the ID is a combination of transaction digest and event seq number.
 #[serde_as]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Hash)]
 #[serde(rename_all = "camelCase")]
@@ -102,7 +103,7 @@ impl EventEnvelope {
 pub struct Event {
     pub package_id: ObjectID,
     pub transaction_module: Identifier,
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub type_: StructTag,
     #[serde_as(as = "Bytes")]
     pub contents: Vec<u8>,
@@ -112,7 +113,7 @@ impl Event {
     pub fn new(
         package_id: &AccountAddress,
         module: &IdentStr,
-        sender: SuiAddress,
+        sender: IotaAddress,
         type_: StructTag,
         contents: Vec<u8>,
     ) -> Self {
@@ -127,17 +128,17 @@ impl Event {
     pub fn move_event_to_move_value(
         contents: &[u8],
         layout: MoveDatatypeLayout,
-    ) -> SuiResult<MoveValue> {
+    ) -> IotaResult<MoveValue> {
         BoundedVisitor::deserialize_value(contents, &layout.into_layout()).map_err(|e| {
-            SuiError::ObjectSerializationError {
+            IotaError::ObjectSerializationError {
                 error: e.to_string(),
             }
         })
     }
 
     pub fn is_system_epoch_info_event(&self) -> bool {
-        self.type_.address == SUI_SYSTEM_ADDRESS
-            && self.type_.module.as_ident_str() == ident_str!("sui_system_state_inner")
+        self.type_.address == IOTA_SYSTEM_ADDRESS
+            && self.type_.module.as_ident_str() == ident_str!("iota_system_state_inner")
             && self.type_.name.as_ident_str() == ident_str!("SystemEpochInfoEvent")
     }
 }

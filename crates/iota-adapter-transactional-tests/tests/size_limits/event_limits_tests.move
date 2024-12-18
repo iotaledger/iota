@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Test limits on number and sizes of emitted events
@@ -9,8 +10,8 @@
 
 /// Test event limits enforced
 module Test::M1 {
-    use sui::event;
-    use sui::bcs;
+    use iota::event;
+    use iota::bcs;
 
     public struct NewValueEvent has copy, drop {
         contents: vector<u8>

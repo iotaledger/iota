@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --accounts A B --addresses test=0x0
 
 //# publish --sender A
 module test::random {
-    use sui::clock::Clock;
-    use sui::random::Random;
+    use iota::clock::Clock;
+    use iota::random::Random;
 
     public struct Obj has key, store {
         id: object::UID,

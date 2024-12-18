@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable @tanstack/query/exhaustive-deps */
 
-import { useSuiClient } from '@mysten/dapp-kit';
-import { PaginatedObjectsResponse } from '@mysten/sui/client';
+import { useIotaClient } from '@iota/dapp-kit';
+import { PaginatedObjectsResponse } from '@iota/iota-sdk/client';
 import { useQuery } from '@tanstack/react-query';
 
 import { TANSTACK_OWNED_OBJECTS_KEY } from '../utils/constants';
@@ -18,7 +19,7 @@ export function useOwnedObjects({
 	cursor?: string;
 	limit?: number;
 }) {
-	const provider = useSuiClient();
+	const provider = useIotaClient();
 
 	return useQuery({
 		queryKey: [TANSTACK_OWNED_OBJECTS_KEY, address],

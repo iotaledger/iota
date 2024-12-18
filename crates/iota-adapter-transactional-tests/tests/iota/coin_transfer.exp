@@ -15,19 +15,19 @@ task 2, line 12:
 //# view-object 1,0
 Owner: Account Address ( B )
 Version: 2
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(1,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 10u64,
     },
 }
 
 task 3, line 14:
-//# run sui::pay::split_and_transfer --type-args sui::sui::SUI --args object(1,0) 10 @A --sender B
+//# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(1,0) 10 @A --sender B
 created: object(3,0)
 mutated: object(0,1), object(1,0)
 gas summary: computation_cost: 1000000, storage_cost: 2964000,  storage_rebate: 1956240, non_refundable_storage_fee: 19760
@@ -36,13 +36,13 @@ task 4, line 16:
 //# view-object 1,0
 Owner: Account Address ( B )
 Version: 3
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(1,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 0u64,
     },
 }
@@ -51,32 +51,32 @@ task 5, line 18:
 //# view-object 3,0
 Owner: Account Address ( A )
 Version: 3
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 10u64,
     },
 }
 
 task 6, line 20:
-//# run sui::pay::split_and_transfer --type-args sui::sui::SUI --args object(1,0) 0 @C --sender A
+//# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(1,0) 0 @C --sender A
 Error: Error checking transaction input objects: IncorrectUserSignature { error: "Object object(1,0) is owned by account address @B, but given owner/signer address is @A" }
 
 task 7, line 22:
 //# view-object 1,0
 Owner: Account Address ( B )
 Version: 3
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(1,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 0u64,
     },
 }

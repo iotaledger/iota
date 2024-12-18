@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Detects meaningless math operations like `x * 0`, `x << 0`, `x >> 0`, `x * 1`, `x + 0`, `x - 0`

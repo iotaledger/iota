@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::test_authority_builder::TestAuthorityBuilder;
@@ -11,14 +12,14 @@ use rand::{rngs::StdRng, SeedableRng};
 use shared_crypto::intent::{Intent, IntentMessage};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::ops::Deref;
-use sui_types::crypto::{PublicKey, SuiSignature, ToFromBytes, ZkLoginPublicIdentifier};
-use sui_types::messages_grpc::HandleSoftBundleCertificatesRequestV3;
-use sui_types::utils::get_one_zklogin_inputs;
-use sui_types::{
+use iota_types::crypto::{PublicKey, IotaSignature, ToFromBytes, ZkLoginPublicIdentifier};
+use iota_types::messages_grpc::HandleSoftBundleCertificatesRequestV3;
+use iota_types::utils::get_one_zklogin_inputs;
+use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::dbg_addr,
-    crypto::{get_key_pair, AccountKeyPair, Signature, SuiKeyPair},
-    error::{SuiError, UserInputError},
+    crypto::{get_key_pair, AccountKeyPair, Signature, IotaKeyPair},
+    error::{IotaError, UserInputError},
     messages_consensus::ConsensusDeterminedVersionAssignments,
     multisig::{MultiSig, MultiSigPublicKey},
     signature::GenericSignature,
@@ -33,11 +34,11 @@ use sui_types::{
 use crate::authority::authority_test_utils::send_batch_consensus_no_execution;
 use crate::authority::authority_tests::{call_move_, create_gas_objects, publish_object_basics};
 use crate::consensus_adapter::consensus_tests::make_consensus_adapter_for_test;
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use sui_types::sui_system_state::SUI_SYSTEM_MODULE_NAME;
-use sui_types::SUI_SYSTEM_PACKAGE_ID;
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_types::iota_system_state::IOTA_SYSTEM_MODULE_NAME;
+use iota_types::IOTA_SYSTEM_PACKAGE_ID;
 
-use sui_macros::sim_test;
+use iota_macros::sim_test;
 macro_rules! assert_matches {
     ($expression:expr, $pattern:pat $(if $guard: expr)?) => {
         match $expression {
@@ -60,11 +61,11 @@ use crate::{
 
 use super::*;
 use fastcrypto::traits::AggregateAuthenticator;
-use sui_types::digests::ConsensusCommitDigest;
-use sui_types::messages_consensus::{
+use iota_types::digests::ConsensusCommitDigest;
+use iota_types::messages_consensus::{
     ConsensusCommitPrologue, ConsensusCommitPrologueV2, ConsensusCommitPrologueV3,
 };
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 
 pub use crate::authority::authority_test_utils::init_state_with_ids;
 
@@ -80,7 +81,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
                 vec![Signature::new_secure(data.intent_message(), &unknown_key).into()];
         },
         |err| {
-            assert_matches!(err, SuiError::SignerSignatureAbsent { .. });
+            assert_matches!(err, IotaError::SignerSignatureAbsent { .. });
         },
     )
     .await;
@@ -97,7 +98,7 @@ async fn test_handle_transfer_transaction_no_signature() {
         |err| {
             assert_matches!(
                 err,
-                SuiError::SignerSignatureNumberMismatch {
+                IotaError::SignerSignatureNumberMismatch {
                     expected: 1,
                     actual: 0
                 }
@@ -119,7 +120,7 @@ async fn test_handle_transfer_transaction_extra_signature() {
         |err| {
             assert_matches!(
                 err,
-                SuiError::SignerSignatureNumberMismatch {
+                IotaError::SignerSignatureNumberMismatch {
                     expected: 1,
                     actual: 2
                 }
@@ -140,7 +141,7 @@ async fn test_empty_gas_data() {
         |err| {
             assert_matches!(
                 err,
-                SuiError::UserInputError {
+                IotaError::UserInputError {
                     error: UserInputError::MissingGasPayment
                 }
             );
@@ -162,7 +163,7 @@ async fn test_duplicate_gas_data() {
         |err| {
             assert_matches!(
                 err,
-                SuiError::UserInputError {
+                IotaError::UserInputError {
                     error: UserInputError::MutableObjectUsedMoreThanOnce { .. }
                 }
             );
@@ -183,7 +184,7 @@ async fn test_gas_wrong_owner_matches_sender() {
         },
         |_| {},
         |err| {
-            assert_matches!(err, SuiError::SignerSignatureAbsent { .. });
+            assert_matches!(err, IotaError::SignerSignatureAbsent { .. });
         },
     )
     .await;
@@ -202,7 +203,7 @@ async fn test_gas_wrong_owner() {
         |err| {
             assert_matches!(
                 err,
-                SuiError::SignerSignatureNumberMismatch {
+                IotaError::SignerSignatureNumberMismatch {
                     expected: 2,
                     actual: 1
                 }
@@ -291,7 +292,7 @@ async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKi
         |err| {
             assert_matches!(
                 err,
-                SuiError::UserInputError {
+                IotaError::UserInputError {
                     error: UserInputError::Unsupported { .. }
                 }
             );
@@ -302,9 +303,9 @@ async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKi
 
 pub fn init_transfer_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    sender: SuiAddress,
+    sender: IotaAddress,
     secret: &AccountKeyPair,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
     object_ref: ObjectRef,
     gas_object_ref: ObjectRef,
     gas_budget: u64,
@@ -324,7 +325,7 @@ pub fn init_transfer_transaction(
 
 pub fn init_move_call_transaction(
     pre_sign_mutations: impl Fn(&mut TransactionData),
-    sender: SuiAddress,
+    sender: IotaAddress,
     secret: &AccountKeyPair,
     gas_object_ref: ObjectRef,
     gas_budget: u64,
@@ -332,12 +333,12 @@ pub fn init_move_call_transaction(
 ) -> Transaction {
     let mut data = TransactionData::new_move_call(
         sender,
-        SUI_SYSTEM_PACKAGE_ID,
-        SUI_SYSTEM_MODULE_NAME.into(),
+        IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_SYSTEM_MODULE_NAME.into(),
         ident_str!("request_add_validator").to_owned(),
         vec![],
         gas_object_ref,
-        vec![CallArg::SUI_SYSTEM_MUT],
+        vec![CallArg::IOTA_SYSTEM_MUT],
         gas_budget,
         gas_price,
     )
@@ -350,7 +351,7 @@ async fn do_transaction_test_skip_cert_checks(
     expected_sig_errors: u64,
     pre_sign_mutations: impl Fn(&mut TransactionData),
     post_sign_mutations: impl Fn(&mut Transaction),
-    err_check: impl Fn(&SuiError),
+    err_check: impl Fn(&IotaError),
 ) {
     do_transaction_test_impl(
         expected_sig_errors,
@@ -366,7 +367,7 @@ async fn do_transaction_test(
     expected_sig_errors: u64,
     pre_sign_mutations: impl Fn(&mut TransactionData),
     post_sign_mutations: impl Fn(&mut Transaction),
-    err_check: impl Fn(&SuiError),
+    err_check: impl Fn(&IotaError),
 ) {
     do_transaction_test_impl(
         expected_sig_errors,
@@ -383,7 +384,7 @@ async fn do_transaction_test_impl(
     check_forged_cert: bool,
     pre_sign_mutations: impl Fn(&mut TransactionData),
     post_sign_mutations: impl Fn(&mut Transaction),
-    err_check: impl Fn(&SuiError),
+    err_check: impl Fn(&IotaError),
 ) {
     telemetry_subscribers::init_for_testing();
     let (sender1, sender_key1): (_, AccountKeyPair) = get_key_pair();
@@ -556,7 +557,7 @@ async fn test_zklogin_transfer_with_large_address_seed() {
     let large_address_seed =
         num_bigint::BigInt::from_bytes_be(num_bigint::Sign::Plus, &[1; 33]).to_string();
     let zklogin = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"7351610957585487046328875967050889651854514987235893782501043846344306437586\",\"15901581830174345085102528605366245320934422564305327249129736514949843983391\",\"1\"],\"b\":[[\"8511334686125322419369086121569737536249817670014553268281989325333085952301\",\"4879445774811020644521006463993914729416121646921376735430388611804034116132\"],[\"17435652898871739253945717312312680537810513841582909477368887889905134847157\",\"14885460127400879557124294989610467103783286587437961743305395373299049315863\"],[\"1\",\"0\"]],\"c\":[\"18935582624804960299209074901817240117999581542763303721451852621662183299378\",\"5367019427921492326304024952457820199970536888356564030410757345854117465786\",\"1\"]},\"issBase64Details\":{\"value\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"indexMod4\":2},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}", &large_address_seed).unwrap();
-    let sender = SuiAddress::generate(StdRng::from_seed([3; 32]));
+    let sender = IotaAddress::generate(StdRng::from_seed([3; 32]));
     let recipient = dbg_addr(2);
 
     let tx = init_zklogin_transfer(
@@ -609,10 +610,10 @@ async fn zklogin_test_caching_scenarios() {
         1
     );
 
-    let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../sui-types/src/unit_tests/zklogin_test_vectors.json")[1];
-    let ephemeral_key = match skp {
-        SuiKeyPair::Ed25519(kp) => kp,
+    let (ikp, _eph_pk, zklogin) =
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+    let ephemeral_key = match ikp {
+        IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
     let sender = senders[0];
@@ -648,7 +649,7 @@ async fn zklogin_test_caching_scenarios() {
             .handle_transaction(txn.clone(), Some(socket_addr))
             .await
             .unwrap_err(),
-        SuiError::InvalidSignature { .. }
+        IotaError::InvalidSignature { .. }
     ));
     assert_eq!(metrics.signature_errors.get(), 1);
 
@@ -750,7 +751,7 @@ async fn zklogin_test_caching_scenarios() {
             .handle_transaction(txn.clone(), Some(socket_addr))
             .await
             .unwrap_err(),
-        SuiError::InvalidSignature { .. }
+        IotaError::InvalidSignature { .. }
     ));
     assert_eq!(metrics.signature_errors.get(), 2);
 
@@ -800,7 +801,7 @@ async fn zklogin_test_caching_scenarios() {
             .handle_transaction(transfer_transaction3.clone(), Some(socket_addr))
             .await
             .unwrap_err(),
-        SuiError::InvalidSignature { .. }
+        IotaError::InvalidSignature { .. }
     ));
     assert_eq!(metrics.signature_errors.get(), 3);
 
@@ -833,7 +834,7 @@ async fn zklogin_test_caching_scenarios() {
             .handle_transaction(multisig_txn.clone(), Some(socket_addr))
             .await
             .unwrap_err(),
-        SuiError::InvalidSignature { .. }
+        IotaError::InvalidSignature { .. }
     ));
 
     assert_eq!(
@@ -848,9 +849,9 @@ async fn zklogin_test_caching_scenarios() {
     // case 8: use the same proof and modify zklogin_inputs.address_seed, cache misses and txn fails.
     // use test_vectors[1] but with modified address_seed to create a bad zklogin inputs, and derive sender.
     let zklogin_json_string =
-        &get_one_zklogin_inputs("../sui-types/src/unit_tests/zklogin_test_vectors.json");
+        &get_one_zklogin_inputs("../iota-types/src/unit_tests/zklogin_test_vectors.json");
     let bad_zklogin_inputs = ZkLoginInputs::from_json(zklogin_json_string, "111").unwrap();
-    let sender = SuiAddress::try_from_unpadded(&bad_zklogin_inputs).unwrap();
+    let sender = IotaAddress::try_from_unpadded(&bad_zklogin_inputs).unwrap();
 
     let mut txn4 = init_zklogin_transfer(
         &authority_state,
@@ -875,7 +876,7 @@ async fn zklogin_test_caching_scenarios() {
             .handle_transaction(txn4.clone(), Some(socket_addr))
             .await
             .unwrap_err(),
-        SuiError::InvalidSignature { .. }
+        IotaError::InvalidSignature { .. }
     ));
     assert_eq!(metrics.signature_errors.get(), 5);
 
@@ -949,30 +950,30 @@ async fn setup_zklogin_network(
     Vec<ObjectID>, // gas objects
     Arc<AuthorityState>,
     Guard<Arc<AuthorityPerEpochStore>>,
-    sui_types::message_envelope::Envelope<SenderSignedData, sui_types::crypto::EmptySignInfo>,
+    iota_types::message_envelope::Envelope<SenderSignedData, iota_types::crypto::EmptySignInfo>,
     Arc<crate::authority_server::ValidatorServiceMetrics>,
     AuthorityServerHandle,
     NetworkAuthorityClient,
-    Vec<SuiAddress>,
+    Vec<IotaAddress>,
     MultiSigPublicKey,
 ) {
-    let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../sui-types/src/unit_tests/zklogin_test_vectors.json")[1];
-    let ephemeral_key = match skp {
-        SuiKeyPair::Ed25519(kp) => kp,
+    let (ikp, _eph_pk, zklogin) =
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+    let ephemeral_key = match ikp {
+        IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
 
     // a single zklogin address.
-    let sender = SuiAddress::try_from_unpadded(zklogin).unwrap();
+    let sender = IotaAddress::try_from_unpadded(zklogin).unwrap();
 
     // a 1-out-2 multisig address.
     let zklogin_pk = PublicKey::ZkLogin(
         ZkLoginPublicIdentifier::new(zklogin.get_iss(), zklogin.get_address_seed()).unwrap(),
     );
-    let regular_pk = skp.public();
+    let regular_pk = ikp.public();
     let multisig_pk = MultiSigPublicKey::new(vec![zklogin_pk, regular_pk], vec![1, 1], 1).unwrap();
-    let sender_2 = SuiAddress::from(&multisig_pk);
+    let sender_2 = IotaAddress::from(&multisig_pk);
 
     let recipient = dbg_addr(2);
     let objects: Vec<_> = (0..20)
@@ -1058,12 +1059,12 @@ async fn init_zklogin_transfer(
     authority_state: &Arc<AuthorityState>,
     object_id: ObjectID,
     gas_object_id: ObjectID,
-    recipient: SuiAddress,
-    sender: SuiAddress,
+    recipient: IotaAddress,
+    sender: IotaAddress,
     pre_sign_mutations: impl FnOnce(&mut TransactionData),
     ephemeral_key: &Ed25519KeyPair,
     zklogin: &ZkLoginInputs,
-) -> sui_types::message_envelope::Envelope<SenderSignedData, sui_types::crypto::EmptySignInfo> {
+) -> iota_types::message_envelope::Envelope<SenderSignedData, iota_types::crypto::EmptySignInfo> {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let object = authority_state.get_object(&object_id).await.unwrap();
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
@@ -1098,14 +1099,14 @@ async fn sign_with_zklogin_inside_multisig(
     authority_state: &Arc<AuthorityState>,
     object_id: ObjectID,
     gas_object_id: ObjectID,
-    recipient: SuiAddress,
-    sender: SuiAddress,
+    recipient: IotaAddress,
+    sender: IotaAddress,
     pre_sign_mutations: impl FnOnce(&mut TransactionData),
     ephemeral_key: &Ed25519KeyPair,
     zklogin: &ZkLoginInputs,
     max_epoch: u64,
     multisig_pk: MultiSigPublicKey,
-) -> sui_types::message_envelope::Envelope<SenderSignedData, sui_types::crypto::EmptySignInfo> {
+) -> iota_types::message_envelope::Envelope<SenderSignedData, iota_types::crypto::EmptySignInfo> {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let object = authority_state.get_object(&object_id).await.unwrap();
     let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
@@ -1148,13 +1149,13 @@ async fn zklogin_txn_fail_if_missing_jwk() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize an authorty state with some objects under a zklogin address.
-    let (skp, _eph_pk, zklogin) =
-        &load_test_vectors("../sui-types/src/unit_tests/zklogin_test_vectors.json")[1];
-    let ephemeral_key = match skp {
-        SuiKeyPair::Ed25519(kp) => kp,
+    let (ikp, _eph_pk, zklogin) =
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
+    let ephemeral_key = match ikp {
+        IotaKeyPair::Ed25519(kp) => kp,
         _ => panic!(),
     };
-    let sender = SuiAddress::try_from_unpadded(zklogin).unwrap();
+    let sender = IotaAddress::try_from_unpadded(zklogin).unwrap();
     let recipient = dbg_addr(2);
     let objects: Vec<_> = (0..10).map(|_| (sender, ObjectID::random())).collect();
     let gas_objects: Vec<_> = (0..10).map(|_| (sender, ObjectID::random())).collect();
@@ -1220,7 +1221,7 @@ async fn zk_multisig_test() {
     telemetry_subscribers::init_for_testing();
 
     // User generate a multisig account with no zklogin signer.
-    let keys = sui_types::utils::keys();
+    let keys = iota_types::utils::keys();
     let pk1 = keys[0].public();
     let pk2 = keys[1].public();
     let pk3 = keys[2].public();
@@ -1230,7 +1231,7 @@ async fn zk_multisig_test() {
         2,
     )
     .unwrap();
-    let victim_addr = SuiAddress::from(&multisig_pk);
+    let victim_addr = IotaAddress::from(&multisig_pk);
 
     let recipient = dbg_addr(2);
     let object_id = ObjectID::random();
@@ -1269,10 +1270,10 @@ async fn zk_multisig_test() {
 
     // Step 1. construct 2 zklogin signatures
     let test_vectors =
-        &load_test_vectors("../sui-types/src/unit_tests/zklogin_test_vectors.json")[1..];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1..];
     let mut zklogin_sigs = vec![];
     for (kp, _pk_zklogin, inputs) in test_vectors {
-        let intent_message = IntentMessage::new(Intent::sui_transaction(), data.clone());
+        let intent_message = IntentMessage::new(Intent::iota_transaction(), data.clone());
         let eph_sig = Signature::new_secure(&intent_message, kp);
         let zklogin_sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
             inputs.clone(),
@@ -1446,16 +1447,16 @@ async fn test_very_large_certificate() {
     signers_map.insert_range(0..52108864);
     let sigs: Vec<AuthoritySignature> = signatures.into_values().collect();
 
-    let quorum_signature = sui_types::crypto::AuthorityQuorumSignInfo {
+    let quorum_signature = iota_types::crypto::AuthorityQuorumSignInfo {
         epoch: 0,
-        signature: sui_types::crypto::AggregateAuthoritySignature::aggregate(&sigs)
-            .map_err(|e| SuiError::InvalidSignature {
+        signature: iota_types::crypto::AggregateAuthoritySignature::aggregate(&sigs)
+            .map_err(|e| IotaError::InvalidSignature {
                 error: e.to_string(),
             })
             .expect("Validator returned invalid signature"),
         signers_map,
     };
-    let cert = sui_types::message_envelope::Envelope::new_from_data_and_sig(
+    let cert = iota_types::message_envelope::Envelope::new_from_data_and_sig(
         transfer_transaction.into_data(),
         quorum_signature,
     );
@@ -1465,7 +1466,7 @@ async fn test_very_large_certificate() {
     let err = res.err().unwrap();
     // The resulting error should be a RpcError with a message length too large.
     assert!(
-        matches!(err, SuiError::RpcError(..))
+        matches!(err, IotaError::RpcError(..))
             && err.to_string().contains("message length too large")
     );
 }
@@ -1537,7 +1538,7 @@ async fn test_handle_certificate_errors() {
         .unwrap_err();
     assert_matches!(
         err,
-        SuiError::WrongEpoch {
+        IotaError::WrongEpoch {
             expected_epoch: 0,
             actual_epoch: 1
         }
@@ -1568,7 +1569,7 @@ async fn test_handle_certificate_errors() {
 
     assert_matches!(
         err,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::Unsupported(message)
         } if message == "SenderSignedData must not contain system transaction"
     );
@@ -1589,7 +1590,7 @@ async fn test_handle_certificate_errors() {
 
     assert_matches!(
         err,
-        SuiError::SignerSignatureNumberMismatch {
+        IotaError::SignerSignatureNumberMismatch {
             expected: 1,
             actual: 0
         }
@@ -1612,7 +1613,7 @@ async fn test_handle_certificate_errors() {
         .await
         .unwrap_err();
 
-    assert_matches!(err, SuiError::SignerSignatureAbsent { .. });
+    assert_matches!(err, IotaError::SignerSignatureAbsent { .. });
 }
 
 #[sim_test]
@@ -1882,7 +1883,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            SuiError::NoCertificateProvidedError { .. }
+            IotaError::NoCertificateProvidedError { .. }
         );
     }
 
@@ -1929,7 +1930,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            SuiError::UserInputError {
+            IotaError::UserInputError {
                 error: UserInputError::TooManyTransactionsInSoftBundle { .. },
             }
         );
@@ -1974,7 +1975,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            SuiError::UserInputError {
+            IotaError::UserInputError {
                 error: UserInputError::NoSharedObjectError { .. },
             }
         );
@@ -2058,7 +2059,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            SuiError::UserInputError {
+            IotaError::UserInputError {
                 error: UserInputError::GasPriceMismatchError { .. },
             }
         );
@@ -2144,7 +2145,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            SuiError::UserInputError {
+            IotaError::UserInputError {
                 error: UserInputError::CertificateAlreadyProcessed { .. },
             }
         );
@@ -2210,7 +2211,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         assert!(response.is_err());
         assert_matches!(
             response.unwrap_err(),
-            SuiError::UserInputError {
+            IotaError::UserInputError {
                 error: UserInputError::SoftBundleTooLarge {
                     size: 25116,
                     limit: 5000
@@ -2224,9 +2225,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
 fn sender_signed_data_serialized_intent() {
     let mut txn = SenderSignedData::new(
         TransactionData::new_transfer(
-            SuiAddress::default(),
+            IotaAddress::default(),
             random_object_ref(),
-            SuiAddress::default(),
+            IotaAddress::default(),
             random_object_ref(),
             0,
             0,
@@ -2234,7 +2235,7 @@ fn sender_signed_data_serialized_intent() {
         vec![],
     );
 
-    assert_eq!(txn.intent_message().intent, Intent::sui_transaction());
+    assert_eq!(txn.intent_message().intent, Intent::iota_transaction());
 
     // deser fails when intent is wrong
     let mut bytes = bcs::to_bytes(txn.inner()).unwrap();

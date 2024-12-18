@@ -1,7 +1,7 @@
 [package]
-name = "sui-bridge-indexer"
+name = "iota-bridge-indexer"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -20,32 +20,32 @@ async-trait.workspace = true
 bcs.workspace = true
 bin-version.workspace = true
 clap.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 prometheus.workspace = true
 serde_yaml.workspace = true
 serde_json.workspace = true
 strum_macros.workspace = true
-sui-bridge.workspace = true
-sui-sdk.workspace = true
-sui-json-rpc-types.workspace = true
-sui-data-ingestion-core.workspace = true
-sui-pg-temp-db.workspace = true
-sui-types.workspace = true
+iota-bridge.workspace = true
+iota-sdk.workspace = true
+iota-json-rpc-types.workspace = true
+iota-data-ingestion-core.workspace = true
+iota-pg-temp-db.workspace = true
+iota-types.workspace = true
 telemetry-subscribers.workspace = true
 tracing.workspace = true
 backoff.workspace = true
-sui-config.workspace = true
+iota-config.workspace = true
 tempfile.workspace = true
-sui-indexer-builder.workspace = true
+iota-indexer-builder.workspace = true
 
 [dev-dependencies]
-sui-test-transaction-builder.workspace = true
+iota-test-transaction-builder.workspace = true
 test-cluster.workspace = true
 hex-literal = "0.3.4"
-sui-indexer.workspace = true
+iota-indexer.workspace = true
 diesel_migrations = "2.2.0"
-sui-indexer-builder = { workspace = true, features = ["test-utils"] }
-sui-bridge = { workspace = true, features = ["test-utils"] }
+iota-indexer-builder = { workspace = true, features = ["test-utils"] }
+iota-bridge = { workspace = true, features = ["test-utils"] }
 
 [[bin]]
 name = "bridge-indexer"

@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::chain_ids {
 
     // Chain IDs
-    const SuiMainnet: u8 = 0;
-    const SuiTestnet: u8 = 1;
-    const SuiCustom: u8 = 2;
+    const IotaMainnet: u8 = 0;
+    const IotaTestnet: u8 = 1;
+    const IotaCustom: u8 = 2;
 
     const EthMainnet: u8 = 10;
     const EthSepolia: u8 = 11;
@@ -27,9 +28,9 @@ module bridge::chain_ids {
     // Public functions
     //
 
-    public fun sui_mainnet(): u8 { SuiMainnet }
-    public fun sui_testnet(): u8 { SuiTestnet }
-    public fun sui_custom(): u8 { SuiCustom }
+    public fun iota_mainnet(): u8 { IotaMainnet }
+    public fun iota_testnet(): u8 { IotaTestnet }
+    public fun iota_custom(): u8 { IotaCustom }
 
     public fun eth_mainnet(): u8 { EthMainnet }
     public fun eth_sepolia(): u8 { EthSepolia }
@@ -47,9 +48,9 @@ module bridge::chain_ids {
 
     public fun assert_valid_chain_id(id: u8) {
         assert!(
-            id == SuiMainnet ||
-            id == SuiTestnet ||
-            id == SuiCustom ||
+            id == IotaMainnet ||
+            id == IotaTestnet ||
+            id == IotaCustom ||
             id == EthMainnet ||
             id == EthSepolia ||
             id == EthCustom,
@@ -59,17 +60,17 @@ module bridge::chain_ids {
 
     public fun valid_routes(): vector<BridgeRoute> {
         vector[
-            BridgeRoute { source: SuiMainnet, destination: EthMainnet },
-            BridgeRoute { source: EthMainnet, destination: SuiMainnet },
+            BridgeRoute { source: IotaMainnet, destination: EthMainnet },
+            BridgeRoute { source: EthMainnet, destination: IotaMainnet },
 
-            BridgeRoute { source: SuiTestnet, destination: EthSepolia },
-            BridgeRoute { source: SuiTestnet, destination: EthCustom },
-            BridgeRoute { source: SuiCustom, destination: EthCustom },
-            BridgeRoute { source: SuiCustom, destination: EthSepolia },
-            BridgeRoute { source: EthSepolia, destination: SuiTestnet },
-            BridgeRoute { source: EthSepolia, destination: SuiCustom },
-            BridgeRoute { source: EthCustom, destination: SuiTestnet },
-            BridgeRoute { source: EthCustom, destination: SuiCustom }
+            BridgeRoute { source: IotaTestnet, destination: EthSepolia },
+            BridgeRoute { source: IotaTestnet, destination: EthCustom },
+            BridgeRoute { source: IotaCustom, destination: EthCustom },
+            BridgeRoute { source: IotaCustom, destination: EthSepolia },
+            BridgeRoute { source: EthSepolia, destination: IotaTestnet },
+            BridgeRoute { source: EthSepolia, destination: IotaCustom },
+            BridgeRoute { source: EthCustom, destination: IotaTestnet },
+            BridgeRoute { source: EthCustom, destination: IotaCustom }
         ]
     }
 
@@ -91,9 +92,9 @@ module bridge::chain_ids {
 
     #[test]
     fun test_chains_ok() {
-        assert_valid_chain_id(SuiMainnet);
-        assert_valid_chain_id(SuiTestnet);
-        assert_valid_chain_id(SuiCustom);
+        assert_valid_chain_id(IotaMainnet);
+        assert_valid_chain_id(IotaTestnet);
+        assert_valid_chain_id(IotaCustom);
         assert_valid_chain_id(EthMainnet);
         assert_valid_chain_id(EthSepolia);
         assert_valid_chain_id(EthCustom);
@@ -107,8 +108,8 @@ module bridge::chain_ids {
 
     #[test]
     #[expected_failure(abort_code = EInvalidBridgeRoute)]
-    fun test_sui_chains_error() {
-        // this will break if we add one more sui chain id and should be corrected
+    fun test_iota_chains_error() {
+        // this will break if we add one more iota chain id and should be corrected
         assert_valid_chain_id(4);
     }
 
@@ -122,17 +123,17 @@ module bridge::chain_ids {
     #[test]
     fun test_routes() {
         let valid_routes = vector[
-            BridgeRoute { source: SuiMainnet, destination: EthMainnet },
-            BridgeRoute { source: EthMainnet, destination: SuiMainnet },
+            BridgeRoute { source: IotaMainnet, destination: EthMainnet },
+            BridgeRoute { source: EthMainnet, destination: IotaMainnet },
 
-            BridgeRoute { source: SuiTestnet, destination: EthSepolia },
-            BridgeRoute { source: SuiTestnet, destination: EthCustom },
-            BridgeRoute { source: SuiCustom, destination: EthCustom },
-            BridgeRoute { source: SuiCustom, destination: EthSepolia },
-            BridgeRoute { source: EthSepolia, destination: SuiTestnet },
-            BridgeRoute { source: EthSepolia, destination: SuiCustom },
-            BridgeRoute { source: EthCustom, destination: SuiTestnet },
-            BridgeRoute { source: EthCustom, destination: SuiCustom }
+            BridgeRoute { source: IotaTestnet, destination: EthSepolia },
+            BridgeRoute { source: IotaTestnet, destination: EthCustom },
+            BridgeRoute { source: IotaCustom, destination: EthCustom },
+            BridgeRoute { source: IotaCustom, destination: EthSepolia },
+            BridgeRoute { source: EthSepolia, destination: IotaTestnet },
+            BridgeRoute { source: EthSepolia, destination: IotaCustom },
+            BridgeRoute { source: EthCustom, destination: IotaTestnet },
+            BridgeRoute { source: EthCustom, destination: IotaCustom }
         ];
         let mut size = valid_routes.length();
         while (size > 0) {
@@ -144,26 +145,26 @@ module bridge::chain_ids {
 
     #[test]
     #[expected_failure(abort_code = EInvalidBridgeRoute)]
-    fun test_routes_err_sui_1() {
-        get_route(SuiMainnet, SuiMainnet);
+    fun test_routes_err_iota_1() {
+        get_route(IotaMainnet, IotaMainnet);
     }
 
     #[test]
     #[expected_failure(abort_code = EInvalidBridgeRoute)]
-    fun test_routes_err_sui_2() {
-        get_route(SuiMainnet, SuiTestnet);
+    fun test_routes_err_iota_2() {
+        get_route(IotaMainnet, IotaTestnet);
     }
 
     #[test]
     #[expected_failure(abort_code = EInvalidBridgeRoute)]
-    fun test_routes_err_sui_3() {
-        get_route(SuiMainnet, EthSepolia);
+    fun test_routes_err_iota_3() {
+        get_route(IotaMainnet, EthSepolia);
     }
 
     #[test]
     #[expected_failure(abort_code = EInvalidBridgeRoute)]
-    fun test_routes_err_sui_4() {
-        get_route(SuiMainnet, EthCustom);
+    fun test_routes_err_iota_4() {
+        get_route(IotaMainnet, EthCustom);
     }
 
     #[test]
@@ -181,12 +182,12 @@ module bridge::chain_ids {
     #[test]
     #[expected_failure(abort_code = EInvalidBridgeRoute)]
     fun test_routes_err_eth_3() {
-        get_route(EthMainnet, SuiCustom);
+        get_route(EthMainnet, IotaCustom);
     }
 
     #[test]
     #[expected_failure(abort_code = EInvalidBridgeRoute)]
     fun test_routes_err_eth_4() {
-        get_route(EthMainnet, SuiTestnet);
+        get_route(EthMainnet, IotaTestnet);
     }
 }

@@ -23,8 +23,8 @@ task 4, line 103:
 Owner: Shared( 3 )
 Version: 3
 Contents: t2::o2::Obj2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -35,8 +35,8 @@ task 5, lines 105-107:
 Owner: Shared( 4 )
 Version: 4
 Contents: t2::o2::Obj2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
@@ -128,13 +128,13 @@ task 16, lines 159-162:
 //# view-object 15,0
 Owner: Shared( 14 )
 Version: 14
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(15,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 0u64,
     },
 }
@@ -155,7 +155,7 @@ task 18, lines 170-178:
 //> 1: t2::o2::pop_coin(Result(0));
 //> 2: SplitCoins(Result(1), [Input(0)]);
 //> 3: TransferObjects([Result(2)], Input(2));
-//> 4: sui::transfer::public_share_object(Input(1));
+//> 4: iota::transfer::public_share_object(Input(1));
 // Try to reshare the shared object -- this should fail since the input was
 // used for the `MakeMoveVec` call
 Error: Transaction Effects Status: Move Bytecode Verification Error. Please run the Bytecode Verifier for more information.

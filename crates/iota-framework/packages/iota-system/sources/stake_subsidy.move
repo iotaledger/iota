@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::stake_subsidy {
-    use sui::balance::Balance;
-    use sui::sui::SUI;
-    use sui::bag::Bag;
-    use sui::bag;
+module iota_system::stake_subsidy {
+    use iota::balance::Balance;
+    use iota::iota::IOTA;
+    use iota::bag::Bag;
+    use iota::bag;
 
     public struct StakeSubsidy has store {
-        /// Balance of SUI set aside for stake subsidies that will be drawn down over time.
-        balance: Balance<SUI>,
+        /// Balance of IOTA set aside for stake subsidies that will be drawn down over time.
+        balance: Balance<IOTA>,
 
         /// Count of the number of times stake subsidies have been distributed.
         distribution_counter: u64,
@@ -34,7 +35,7 @@ module sui_system::stake_subsidy {
     const ESubsidyDecreaseRateTooLarge: u64 = 0;
 
     public(package) fun create(
-        balance: Balance<SUI>,
+        balance: Balance<IOTA>,
         initial_distribution_amount: u64,
         stake_subsidy_period_length: u64,
         stake_subsidy_decrease_rate: u16,
@@ -57,7 +58,7 @@ module sui_system::stake_subsidy {
     }
 
     /// Advance the epoch counter and draw down the subsidy for the epoch.
-    public(package) fun advance_epoch(self: &mut StakeSubsidy): Balance<SUI> {
+    public(package) fun advance_epoch(self: &mut StakeSubsidy): Balance<IOTA> {
         // Take the minimum of the reward amount and the remaining balance in
         // order to ensure we don't overdraft the remaining stake subsidy
         // balance

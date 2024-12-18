@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use serde::{Deserialize, Serialize};
-use sui_types::base_types::{ObjectID, SuiAddress};
+use iota_types::base_types::{ObjectID, IotaAddress};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct MoveOrderFilledEvent {
@@ -30,7 +31,7 @@ pub struct MoveOrderCanceledEvent {
     pub pool_id: ObjectID,
     pub order_id: u128,
     pub client_order_id: u64,
-    pub trader: SuiAddress,
+    pub trader: IotaAddress,
     pub price: u64,
     pub is_bid: bool,
     pub original_quantity: u64,
@@ -44,7 +45,7 @@ pub struct MoveOrderExpiredEvent {
     pub pool_id: ObjectID,
     pub order_id: u128,
     pub client_order_id: u64,
-    pub trader: SuiAddress,
+    pub trader: IotaAddress,
     pub price: u64,
     pub is_bid: bool,
     pub original_quantity: u64,
@@ -58,7 +59,7 @@ pub struct MoveOrderModifiedEvent {
     pub pool_id: ObjectID,
     pub order_id: u128,
     pub client_order_id: u64,
-    pub trader: SuiAddress,
+    pub trader: IotaAddress,
     pub price: u64,
     pub is_bid: bool,
     pub previous_quantity: u64,
@@ -73,7 +74,7 @@ pub struct MoveOrderPlacedEvent {
     pub pool_id: ObjectID,
     pub order_id: u128,
     pub client_order_id: u64,
-    pub trader: SuiAddress,
+    pub trader: IotaAddress,
     pub price: u64,
     pub is_bid: bool,
     pub placed_quantity: u64,

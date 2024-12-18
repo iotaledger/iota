@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -11,7 +12,7 @@ use crate::effects::{
     CertifiedTransactionEffects, TransactionEffects, TransactionEvents,
     VerifiedCertifiedTransactionEffects,
 };
-use crate::error::SuiError;
+use crate::error::IotaError;
 use crate::messages_checkpoint::CheckpointSequenceNumber;
 use crate::object::Object;
 use crate::transaction::{Transaction, VerifiedTransaction};
@@ -32,9 +33,9 @@ pub const NON_RECOVERABLE_ERROR_MSG: &str =
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr)]
 pub enum QuorumDriverError {
     #[error("QuorumDriver internal error: {0}.")]
-    QuorumDriverInternalError(SuiError),
+    QuorumDriverInternalError(IotaError),
     #[error("Invalid user signature: {0}.")]
-    InvalidUserSignature(SuiError),
+    InvalidUserSignature(IotaError),
     #[error(
         "Failed to sign transaction by a quorum of validators because of locked objects: {:?}, retried a conflicting transaction {:?}, success: {:?}",
         conflicting_txes,
@@ -66,7 +67,7 @@ pub enum QuorumDriverError {
     },
 }
 
-pub type GroupedErrors = Vec<(SuiError, StakeUnit, Vec<ConciseAuthorityPublicKeyBytes>)>;
+pub type GroupedErrors = Vec<(IotaError, StakeUnit, Vec<ConciseAuthorityPublicKeyBytes>)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug, schemars::JsonSchema)]
 pub enum ExecuteTransactionRequestType {

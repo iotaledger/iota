@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
@@ -16,23 +17,23 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{fs, io};
-use sui_config::{genesis::Genesis, NodeConfig};
-use sui_core::authority_client::{AuthorityAPI, NetworkAuthorityClient};
-use sui_core::execution_cache::build_execution_cache_from_env;
-use sui_network::default_mysten_network_config;
-use sui_protocol_config::Chain;
-use sui_sdk::SuiClient;
-use sui_sdk::SuiClientBuilder;
-use sui_storage::object_store::http::HttpDownloaderBuilder;
-use sui_storage::object_store::util::Manifest;
-use sui_storage::object_store::util::PerEpochManifest;
-use sui_storage::object_store::util::MANIFEST_FILENAME;
-use sui_types::accumulator::Accumulator;
-use sui_types::committee::QUORUM_THRESHOLD;
-use sui_types::crypto::AuthorityPublicKeyBytes;
-use sui_types::messages_grpc::LayoutGenerationOption;
-use sui_types::multiaddr::Multiaddr;
-use sui_types::{base_types::*, object::Owner};
+use iota_config::{genesis::Genesis, NodeConfig};
+use iota_core::authority_client::{AuthorityAPI, NetworkAuthorityClient};
+use iota_core::execution_cache::build_execution_cache_from_env;
+use iota_network::default_iota_network_config;
+use iota_protocol_config::Chain;
+use iota_sdk::IotaClient;
+use iota_sdk::IotaClientBuilder;
+use iota_storage::object_store::http::HttpDownloaderBuilder;
+use iota_storage::object_store::util::Manifest;
+use iota_storage::object_store::util::PerEpochManifest;
+use iota_storage::object_store::util::MANIFEST_FILENAME;
+use iota_types::accumulator::Accumulator;
+use iota_types::committee::QUORUM_THRESHOLD;
+use iota_types::crypto::AuthorityPublicKeyBytes;
+use iota_types::messages_grpc::LayoutGenerationOption;
+use iota_types::multiaddr::Multiaddr;
+use iota_types::{base_types::*, object::Owner};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -45,27 +46,27 @@ use futures::{StreamExt, TryStreamExt};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
-use sui_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
-use sui_archival::{verify_archive_with_checksums, verify_archive_with_genesis_config};
-use sui_config::node::ArchiveReaderConfig;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::authority::AuthorityStore;
-use sui_core::checkpoints::CheckpointStore;
-use sui_core::epoch::committee_store::CommitteeStore;
-use sui_core::storage::RocksDbStore;
-use sui_snapshot::reader::StateSnapshotReaderV1;
-use sui_snapshot::setup_db_state;
-use sui_storage::object_store::util::{copy_file, exists, get_path};
-use sui_storage::object_store::ObjectStoreGetExt;
-use sui_storage::verify_checkpoint_range;
-use sui_types::messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest};
-use sui_types::messages_grpc::{
+use iota_archival::reader::{ArchiveReader, ArchiveReaderMetrics};
+use iota_archival::{verify_archive_with_checksums, verify_archive_with_genesis_config};
+use iota_config::node::ArchiveReaderConfig;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+use iota_core::authority::AuthorityStore;
+use iota_core::checkpoints::CheckpointStore;
+use iota_core::epoch::committee_store::CommitteeStore;
+use iota_core::storage::RocksDbStore;
+use iota_snapshot::reader::StateSnapshotReaderV1;
+use iota_snapshot::setup_db_state;
+use iota_storage::object_store::util::{copy_file, exists, get_path};
+use iota_storage::object_store::ObjectStoreGetExt;
+use iota_storage::verify_checkpoint_range;
+use iota_types::messages_checkpoint::{CheckpointCommitment, ECMHLiveObjectSetDigest};
+use iota_types::messages_grpc::{
     ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse, TransactionInfoRequest,
     TransactionStatus,
 };
 
-use sui_types::storage::{ReadStore, SharedInMemoryStore};
+use iota_types::storage::{ReadStore, SharedInMemoryStore};
 use tracing::info;
 use typed_store::rocks::MetricConf;
 
@@ -92,24 +93,24 @@ pub enum SnapshotVerifyMode {
 
 // This functions requires at least one of genesis or fullnode_rpc to be `Some`.
 async fn make_clients(
-    sui_client: &Arc<SuiClient>,
+    iota_client: &Arc<IotaClient>,
 ) -> Result<BTreeMap<AuthorityName, (Multiaddr, NetworkAuthorityClient)>> {
-    let mut net_config = default_mysten_network_config();
+    let mut net_config = default_iota_network_config();
     net_config.connect_timeout = Some(Duration::from_secs(5));
     let mut authority_clients = BTreeMap::new();
 
-    let active_validators = sui_client
+    let active_validators = iota_client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await?
         .active_validators;
 
     for validator in active_validators {
         let net_addr = Multiaddr::try_from(validator.net_address).unwrap();
         // TODO: Enable TLS on this interface with below config, once support is rolled out to validators.
-        // let tls_config = sui_tls::create_rustls_client_config(
-        //     sui_types::crypto::NetworkPublicKey::from_bytes(&validator.network_pubkey_bytes)?,
-        //     sui_tls::SUI_VALIDATOR_SERVER_NAME.to_string(),
+        // let tls_config = iota_tls::create_rustls_client_config(
+        //     iota_types::crypto::NetworkPublicKey::from_bytes(&validator.network_pubkey_bytes)?,
+        //     iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
         //     None,
         // );
         let channel = net_config
@@ -375,8 +376,8 @@ pub async fn get_transaction_block(
     show_input_tx: bool,
     fullnode_rpc: String,
 ) -> Result<String> {
-    let sui_client = Arc::new(SuiClientBuilder::default().build(fullnode_rpc).await?);
-    let clients = make_clients(&sui_client).await?;
+    let iota_client = Arc::new(IotaClientBuilder::default().build(fullnode_rpc).await?);
+    let clients = make_clients(&iota_client).await?;
     let timer = Instant::now();
     let responses = join_all(clients.iter().map(|(name, (address, client))| async {
         let result = client
@@ -495,12 +496,12 @@ async fn get_object_impl(
 }
 
 pub(crate) fn make_anemo_config() -> anemo_cli::Config {
-    use sui_network::discovery::*;
-    use sui_network::state_sync::*;
+    use iota_network::discovery::*;
+    use iota_network::state_sync::*;
 
     // TODO: implement `ServiceInfo` generation in anemo-build and use here.
     anemo_cli::Config::new()
-        // Sui discovery
+        // Iota discovery
         .add_service(
             "Discovery",
             anemo_cli::ServiceInfo::new().add_method(
@@ -508,7 +509,7 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
                 anemo_cli::ron_method!(DiscoveryClient, get_known_peers_v2, ()),
             ),
         )
-        // Sui state sync
+        // Iota state sync
         .add_service(
             "StateSync",
             anemo_cli::ServiceInfo::new()
@@ -517,7 +518,7 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
                     anemo_cli::ron_method!(
                         StateSyncClient,
                         push_checkpoint_summary,
-                        sui_types::messages_checkpoint::CertifiedCheckpointSummary
+                        iota_types::messages_checkpoint::CertifiedCheckpointSummary
                     ),
                 )
                 .add_method(
@@ -533,7 +534,7 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
                     anemo_cli::ron_method!(
                         StateSyncClient,
                         get_checkpoint_contents,
-                        sui_types::messages_checkpoint::CheckpointContentsDigest
+                        iota_types::messages_checkpoint::CheckpointContentsDigest
                     ),
                 )
                 .add_method(

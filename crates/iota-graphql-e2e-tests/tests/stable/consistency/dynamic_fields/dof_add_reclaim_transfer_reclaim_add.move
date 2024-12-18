@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Test that we do not return the child object when it is not owned by the parent or when it is
@@ -17,7 +18,7 @@
 
 //# publish
 module Test::M1 {
-    use sui::dynamic_object_field as ofield;
+    use iota::dynamic_object_field as ofield;
 
     public struct Parent has key, store {
         id: UID,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Peer-to-peer data synchronization of checkpoints.
@@ -56,8 +57,8 @@ use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
-use sui_config::p2p::StateSyncConfig;
-use sui_types::{
+use iota_config::p2p::StateSyncConfig;
+use iota_types::{
     committee::Committee,
     digests::CheckpointDigest,
     messages_checkpoint::{
@@ -75,7 +76,7 @@ use tokio::{
 use tracing::{debug, info, instrument, trace, warn};
 
 mod generated {
-    include!(concat!(env!("OUT_DIR"), "/sui.StateSync.rs"));
+    include!(concat!(env!("OUT_DIR"), "/iota.StateSync.rs"));
 }
 mod builder;
 mod metrics;
@@ -90,8 +91,8 @@ pub use generated::{
 };
 pub use server::GetCheckpointAvailabilityResponse;
 pub use server::GetCheckpointSummaryRequest;
-use sui_archival::reader::ArchiveReaderBalancer;
-use sui_storage::verify_checkpoint;
+use iota_archival::reader::ArchiveReaderBalancer;
+use iota_storage::verify_checkpoint;
 
 use self::{metrics::Metrics, server::CheckpointContentsDownloadLimitLayer};
 

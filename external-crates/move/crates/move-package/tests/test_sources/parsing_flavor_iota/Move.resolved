@@ -1,6 +1,6 @@
 ResolvedGraph {
     graph: DependencyGraph {
-        root_path: "tests/test_sources/parsing_flavor_sui",
+        root_path: "tests/test_sources/parsing_flavor_iota",
         root_package_id: "name",
         root_package_name: "name",
         package_graph: {
@@ -51,7 +51,7 @@ ResolvedGraph {
                     ),
                     edition: None,
                     flavor: Some(
-                        Sui,
+                        Iota,
                     ),
                     custom_properties: {},
                 },

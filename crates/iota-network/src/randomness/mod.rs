@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use self::{auth::AllowedPeersUpdatable, metrics::Metrics};
@@ -11,8 +12,8 @@ use fastcrypto_tbls::{
     tbls::ThresholdBls,
     types::{ShareIndex, ThresholdBls12381MinSig},
 };
-use mysten_metrics::spawn_monitored_task;
-use mysten_network::anemo_ext::NetworkExt;
+use iota_metrics::spawn_monitored_task;
+use iota_network_stack::anemo_ext::NetworkExt;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{btree_map::BTreeMap, HashMap, HashSet},
@@ -20,9 +21,9 @@ use std::{
     sync::Arc,
     time::{self, Duration},
 };
-use sui_config::p2p::RandomnessConfig;
-use sui_macros::fail_point_if;
-use sui_types::{
+use iota_config::p2p::RandomnessConfig;
+use iota_macros::fail_point_if;
+use iota_types::{
     base_types::AuthorityName,
     committee::EpochId,
     crypto::{RandomnessPartialSignature, RandomnessRound, RandomnessSignature},
@@ -35,7 +36,7 @@ use tracing::{debug, error, info, instrument, warn};
 mod auth;
 mod builder;
 mod generated {
-    include!(concat!(env!("OUT_DIR"), "/sui.Randomness.rs"));
+    include!(concat!(env!("OUT_DIR"), "/iota.Randomness.rs"));
 }
 mod metrics;
 mod server;

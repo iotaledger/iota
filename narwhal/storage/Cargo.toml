@@ -3,7 +3,7 @@ name = "narwhal-storage"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 publish = false
 
 
@@ -11,14 +11,14 @@ publish = false
 tempfile.workspace = true
 fastcrypto.workspace = true
 fastcrypto-tbls.workspace = true
-mysten-common.workspace = true
-mysten-metrics.workspace = true
+iota-common.workspace = true
+iota-metrics.workspace = true
 futures.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tracing.workspace = true
 types = { path = "../types", package = "narwhal-types" }
 store = { path = "../../crates/typed-store", package = "typed-store" }
-sui-macros.workspace = true
+iota-macros.workspace = true
 config = { path = "../config", package = "narwhal-config" }
 prometheus.workspace = true
 lru.workspace = true

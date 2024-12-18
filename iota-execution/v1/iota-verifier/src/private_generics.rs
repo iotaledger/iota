@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{
@@ -10,7 +11,7 @@ use move_binary_format::{
 };
 use move_bytecode_utils::format_signature_token;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
-use sui_types::{error::ExecutionError, SUI_FRAMEWORK_ADDRESS};
+use iota_types::{error::ExecutionError, IOTA_FRAMEWORK_ADDRESS};
 
 use crate::{verification_failure, TEST_SCENARIO_MODULE_NAME};
 
@@ -35,7 +36,7 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
     ident_str!("receive_impl"),
 ];
 
-/// All transfer functions (the functions in `sui::transfer`) are "private" in that they are
+/// All transfer functions (the functions in `iota::transfer`) are "private" in that they are
 /// restricted to the module.
 /// For example, with `transfer::transfer<T>(...)`, either:
 /// - `T` must be a type declared in the current module or
@@ -46,14 +47,14 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
-    if *module.address() == SUI_FRAMEWORK_ADDRESS
+    if *module.address() == IOTA_FRAMEWORK_ADDRESS
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
-        // exclude test_module which is a test-only module in the Sui framework which "emulates"
+        // exclude test_module which is a test-only module in the Iota framework which "emulates"
         // transactional execution and needs to allow test code to bypass private generics
         return Ok(());
     }
-    // do not need to check the sui::transfer module itself
+    // do not need to check the iota::transfer module itself
     for func_def in &module.function_defs {
         verify_function(module, func_def).map_err(|error| {
             verification_failure(format!(
@@ -84,9 +85,9 @@ fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(
 
             let type_arguments = &view.signature_at(*type_parameters).0;
             let ident = addr_module(view, mhandle);
-            if ident == (SUI_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
+            if ident == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
                 verify_private_transfer(view, fhandle, type_arguments)?
-            } else if ident == (SUI_FRAMEWORK_ADDRESS, EVENT_MODULE) {
+            } else if ident == (IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
             }
         }
@@ -100,7 +101,7 @@ fn verify_private_transfer(
     type_arguments: &[SignatureToken],
 ) -> Result<(), String> {
     let self_handle = view.module_handle_at(view.self_handle_idx());
-    if addr_module(view, self_handle) == (SUI_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
+    if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
@@ -122,11 +123,11 @@ fn verify_private_transfer(
     let type_arg = &type_arguments[0];
     if !is_defined_in_current_module(view, type_arg) {
         return Err(format!(
-            "Invalid call to '{sui}::transfer::{f}' on an object of type '{t}'. \
+            "Invalid call to '{iota}::transfer::{f}' on an object of type '{t}'. \
             The transferred object's type must be defined in the current module. \
             If the object has the 'store' type ability, you can use the non-internal variant \
-            instead, i.e. '{sui}::transfer::public_{f}'",
-            sui = SUI_FRAMEWORK_ADDRESS,
+            instead, i.e. '{iota}::transfer::public_{f}'",
+            iota = IOTA_FRAMEWORK_ADDRESS,
             f = fident,
             t = format_signature_token(view, type_arg),
         ));
@@ -156,7 +157,7 @@ fn verify_private_event_emit(
         return Err(format!(
             "Invalid call to '{}::event::{}' with an event type '{}'. \
                 The event's type must be defined in the current module",
-            SUI_FRAMEWORK_ADDRESS,
+            IOTA_FRAMEWORK_ADDRESS,
             fident,
             format_signature_token(view, type_arg),
         ));

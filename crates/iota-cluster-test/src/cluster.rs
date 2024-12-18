@@ -1,43 +1,44 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::config::{ClusterTestOpt, Env};
 use async_trait::async_trait;
 use std::net::SocketAddr;
 use std::path::Path;
-use sui_config::local_ip_utils::get_available_port;
-use sui_config::Config;
-use sui_config::{PersistedConfig, SUI_KEYSTORE_FILENAME, SUI_NETWORK_CONFIG};
-use sui_graphql_rpc::config::{ConnectionConfig, ServiceConfig};
-use sui_graphql_rpc::test_infra::cluster::start_graphql_server_with_fn_rpc;
-use sui_indexer::test_utils::{
+use iota_config::local_ip_utils::get_available_port;
+use iota_config::Config;
+use iota_config::{PersistedConfig, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG};
+use iota_graphql_rpc::config::{ConnectionConfig, ServiceConfig};
+use iota_graphql_rpc::test_infra::cluster::start_graphql_server_with_fn_rpc;
+use iota_indexer::test_utils::{
     start_indexer_jsonrpc_for_testing, start_indexer_writer_for_testing,
 };
-use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use sui_pg_temp_db::TempDb;
-use sui_sdk::sui_client_config::{SuiClientConfig, SuiEnv};
-use sui_sdk::wallet_context::WalletContext;
-use sui_swarm::memory::Swarm;
-use sui_swarm_config::genesis_config::GenesisConfig;
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::KeypairTraits;
-use sui_types::crypto::SuiKeyPair;
-use sui_types::crypto::{get_key_pair, AccountKeyPair};
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+use iota_pg_temp_db::TempDb;
+use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
+use iota_sdk::wallet_context::WalletContext;
+use iota_swarm::memory::Swarm;
+use iota_swarm_config::genesis_config::GenesisConfig;
+use iota_swarm_config::network_config::NetworkConfig;
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::KeypairTraits;
+use iota_types::crypto::IotaKeyPair;
+use iota_types::crypto::{get_key_pair, AccountKeyPair};
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
 
-const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.sui.io:443";
-const STAGING_FAUCET_ADDR: &str = "https://faucet.staging.sui.io:443";
-const CONTINUOUS_FAUCET_ADDR: &str = "https://faucet.ci.sui.io:443";
-const CONTINUOUS_NOMAD_FAUCET_ADDR: &str = "https://faucet.nomad.ci.sui.io:443";
-const TESTNET_FAUCET_ADDR: &str = "https://faucet.testnet.sui.io:443";
-const DEVNET_FULLNODE_ADDR: &str = "https://rpc.devnet.sui.io:443";
-const STAGING_FULLNODE_ADDR: &str = "https://fullnode.staging.sui.io:443";
-const CONTINUOUS_FULLNODE_ADDR: &str = "https://fullnode.ci.sui.io:443";
-const CONTINUOUS_NOMAD_FULLNODE_ADDR: &str = "https://fullnode.nomad.ci.sui.io:443";
-const TESTNET_FULLNODE_ADDR: &str = "https://fullnode.testnet.sui.io:443";
+const DEVNET_FAUCET_ADDR: &str = "https://faucet.devnet.iota.io:443";
+const STAGING_FAUCET_ADDR: &str = "https://faucet.staging.iota.io:443";
+const CONTINUOUS_FAUCET_ADDR: &str = "https://faucet.ci.iota.io:443";
+const CONTINUOUS_NOMAD_FAUCET_ADDR: &str = "https://faucet.nomad.ci.iota.io:443";
+const TESTNET_FAUCET_ADDR: &str = "https://faucet.testnet.iota.io:443";
+const DEVNET_FULLNODE_ADDR: &str = "https://rpc.devnet.iota.io:443";
+const STAGING_FULLNODE_ADDR: &str = "https://fullnode.staging.iota.io:443";
+const CONTINUOUS_FULLNODE_ADDR: &str = "https://fullnode.ci.iota.io:443";
+const CONTINUOUS_NOMAD_FULLNODE_ADDR: &str = "https://fullnode.nomad.ci.iota.io:443";
+const TESTNET_FULLNODE_ADDR: &str = "https://fullnode.testnet.iota.io:443";
 
 pub struct ClusterFactory;
 
@@ -190,12 +191,12 @@ impl Cluster for LocalNewCluster {
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {
             assert!(options.epoch_duration_ms.is_none());
-            // Load the config of the Sui authority.
-            let network_config_path = config_dir.join(SUI_NETWORK_CONFIG);
+            // Load the config of the Iota authority.
+            let network_config_path = config_dir.join(IOTA_NETWORK_CONFIG);
             let network_config: NetworkConfig = PersistedConfig::read(&network_config_path)
                 .map_err(|err| {
                     err.context(format!(
-                        "Cannot open Sui network config file at {:?}",
+                        "Cannot open Iota network config file at {:?}",
                         network_config_path
                     ))
                 })?;
@@ -217,7 +218,7 @@ impl Cluster for LocalNewCluster {
 
         // Use the wealthy account for faucet
         let faucet_key = test_cluster.swarm.config_mut().account_keys.swap_remove(0);
-        let faucet_address = SuiAddress::from(faucet_key.public());
+        let faucet_address = IotaAddress::from(faucet_key.public());
         info!(?faucet_address, "faucet_address");
 
         // This cluster has fullnode handle, safe to unwrap
@@ -362,15 +363,15 @@ pub fn new_wallet_context_from_cluster(
     let wallet_config_path = config_dir.join("client.yaml");
     let fullnode_url = cluster.fullnode_url();
     info!("Use RPC: {}", &fullnode_url);
-    let keystore_path = config_dir.join(SUI_KEYSTORE_FILENAME);
+    let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let address: SuiAddress = key_pair.public().into();
+    let address: IotaAddress = key_pair.public().into();
     keystore
-        .add_key(None, SuiKeyPair::Ed25519(key_pair))
+        .add_key(None, IotaKeyPair::Ed25519(key_pair))
         .unwrap();
-    SuiClientConfig {
+    IotaClientConfig {
         keystore,
-        envs: vec![SuiEnv {
+        envs: vec![IotaEnv {
             alias: "localnet".to_string(),
             rpc: fullnode_url.into(),
             ws: None,

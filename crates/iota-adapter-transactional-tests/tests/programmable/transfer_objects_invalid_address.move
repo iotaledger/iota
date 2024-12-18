@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests various invalid operations involving TransferObjects to invalid address
@@ -21,7 +22,7 @@ module test::m1 {
     }
 
     public fun vec(): vector<u8> {
-        sui::address::to_bytes(@0)
+        iota::address::to_bytes(@0)
     }
 }
 

@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use jsonrpsee::types::{error::UNKNOWN_ERROR_CODE, ErrorObjectOwned};
-pub use sui_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
+pub use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
 use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
 pub struct Error {
     pub code: i32,
     pub message: String,
-    // TODO: as this SDK is specialized for the Sui JSON RPC implementation, we should define structured representation for the data field if applicable
+    // TODO: as this SDK is specialized for the Iota JSON RPC implementation, we should define structured representation for the data field if applicable
     pub data: Option<serde_json::Value>,
 }
 

@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module move_building_blocks::objects {
-    use sui::object::UID;
+    use iota::object::UID;
     use std::option::Option;
-    use sui::table::Table;
-    use sui::tx_context::TxContext;
-    use sui::object;
+    use iota::table::Table;
+    use iota::tx_context::TxContext;
+    use iota::object;
     use std::option;
-    use sui::table;
-    use sui::transfer;
-    use sui::tx_context;
+    use iota::table;
+    use iota::transfer;
+    use iota::tx_context;
 
     public struct Object has key, store {
         id: UID,

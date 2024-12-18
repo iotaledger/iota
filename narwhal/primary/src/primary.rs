@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -35,9 +36,9 @@ use fastcrypto::{
     signature_service::SignatureService,
     traits::{KeyPair as _, ToFromBytes},
 };
-use mysten_metrics::metered_channel::{channel_with_total, Receiver, Sender};
-use mysten_metrics::monitored_scope;
-use mysten_network::{multiaddr::Protocol, Multiaddr};
+use iota_metrics::metered_channel::{channel_with_total, Receiver, Sender};
+use iota_metrics::monitored_scope;
+use iota_network_stack::{multiaddr::Protocol, Multiaddr};
 use network::{
     client::NetworkClient,
     epoch_filter::{AllowedEpoch, EPOCH_HEADER_KEY},
@@ -55,7 +56,7 @@ use std::{
     time::Duration,
 };
 use storage::{CertificateStore, PayloadStore, ProposerStore, VoteDigestStore};
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::{sync::oneshot, time::Instant};
 use tokio::{sync::watch, task::JoinHandle};
 use tower::ServiceBuilder;

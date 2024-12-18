@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -15,9 +16,9 @@ const appEmptyStyle = cva(['flex gap-3 p-3.75 h-28'], {
 	},
 });
 
-export interface SuiAppEmptyProps extends VariantProps<typeof appEmptyStyle> {}
+export interface IotaAppEmptyProps extends VariantProps<typeof appEmptyStyle> {}
 
-export function SuiAppEmpty({ ...styleProps }: SuiAppEmptyProps) {
+export function IotaAppEmpty({ ...styleProps }: IotaAppEmptyProps) {
 	return (
 		<div className={appEmptyStyle(styleProps)}>
 			<div className="bg-gray-40 w-10 h-10 rounded-full"></div>

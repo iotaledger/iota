@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
@@ -11,11 +12,11 @@ use move_unit_test::{extensions::set_extension_hook, UnitTestingConfig};
 use move_vm_runtime::native_extensions::NativeContextExtensions;
 use once_cell::sync::Lazy;
 use std::{cell::RefCell, collections::BTreeMap, path::Path, sync::Arc};
-use sui_move_build::decorate_warnings;
-use sui_move_natives::test_scenario::InMemoryTestStore;
-use sui_move_natives::{object_runtime::ObjectRuntime, NativesCostTable};
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{
+use iota_move_build::decorate_warnings;
+use iota_move_natives::test_scenario::InMemoryTestStore;
+use iota_move_natives::{object_runtime::ObjectRuntime, NativesCostTable};
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
     gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
     metrics::LimitsMetrics,
 };
@@ -24,7 +25,7 @@ use sui_types::{
 const MAX_UNIT_TEST_INSTRUCTIONS: u64 = 1_000_000;
 
 #[derive(Parser)]
-#[group(id = "sui-move-test")]
+#[group(id = "iota-move-test")]
 pub struct Test {
     #[clap(flatten)]
     pub test: test::Test,
@@ -39,7 +40,7 @@ impl Test {
         let compute_coverage = self.test.compute_coverage;
         if !cfg!(debug_assertions) && compute_coverage {
             return Err(anyhow::anyhow!(
-                "The --coverage flag is currently supported only in debug builds. Please build the Sui CLI from source in debug mode."
+                "The --coverage flag is currently supported only in debug builds. Please build the Iota CLI from source in debug mode."
             ));
         }
         // find manifest file directory from a given path or (if missing) from current dir
@@ -85,7 +86,7 @@ pub fn run_move_unit_tests(
             report_stacktrace_on_abort: true,
             ..config
         },
-        sui_move_natives::all_natives(
+        iota_move_natives::all_natives(
             /* silent */ false,
             &ProtocolConfig::get_for_max_version_UNSAFE(),
         ),

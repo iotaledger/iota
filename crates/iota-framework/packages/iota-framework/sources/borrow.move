@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// A simple library that enables hot-potato-locked borrow mechanics.
@@ -6,7 +7,7 @@
 /// With Programmable transactions, it is possible to borrow a value within
 /// a transaction, use it and put back in the end. Hot-potato `Borrow` makes
 /// sure the object is returned and was not swapped for another one.
-module sui::borrow;
+module iota::borrow;
 
 /// The `Borrow` does not match the `Referent`.
 const EWrongBorrow: u64 = 0;
@@ -67,7 +68,7 @@ public struct Test has key, store {
 
 #[test]
 fun test_borrow() {
-    let ctx = &mut sui::tx_context::dummy();
+    let ctx = &mut iota::tx_context::dummy();
     let mut ref = new(Test { id: object::new(ctx) }, ctx);
 
     let (value, borrow) = borrow(&mut ref);
@@ -81,7 +82,7 @@ fun test_borrow() {
 #[expected_failure(abort_code = EWrongValue)]
 /// The `value` is swapped with another instance of the type `T`.
 fun test_object_swap() {
-    let ctx = &mut sui::tx_context::dummy();
+    let ctx = &mut iota::tx_context::dummy();
     let mut ref_1 = new(Test { id: object::new(ctx) }, ctx);
     let mut ref_2 = new(Test { id: object::new(ctx) }, ctx);
 
@@ -102,7 +103,7 @@ fun test_object_swap() {
 #[expected_failure(abort_code = EWrongBorrow)]
 /// The both `borrow` and `value` are swapped with another `Referent`.
 fun test_borrow_fail() {
-    let ctx = &mut sui::tx_context::dummy();
+    let ctx = &mut iota::tx_context::dummy();
     let mut ref_1 = new(Test { id: object::new(ctx) }, ctx);
     let mut ref_2 = new(Test { id: object::new(ctx) }, ctx);
 

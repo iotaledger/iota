@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_bytecode_verifier_meter::Scope;
@@ -8,19 +9,19 @@ use std::{
     sync::Arc,
     time::Instant,
 };
-use sui_adapter::adapter::run_metered_move_bytecode_verifier;
-use sui_config::verifier_signing_config::VerifierSigningConfig;
-use sui_framework::BuiltInFramework;
-use sui_move_build::{CompiledPackage, SuiPackageHooks};
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{
-    error::{SuiError, SuiResult},
+use iota_adapter::adapter::run_metered_move_bytecode_verifier;
+use iota_config::verifier_signing_config::VerifierSigningConfig;
+use iota_framework::BuiltInFramework;
+use iota_move_build::{CompiledPackage, IotaPackageHooks};
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{
+    error::{IotaError, IotaResult},
     metrics::BytecodeVerifierMetrics,
 };
-use sui_verifier::meter::SuiVerifierMeter;
+use iota_verifier::meter::IotaVerifierMeter;
 
-fn build(path: &Path) -> SuiResult<CompiledPackage> {
-    let mut config = sui_move_build::BuildConfig::new_for_testing();
+fn build(path: &Path) -> IotaResult<CompiledPackage> {
+    let mut config = iota_move_build::BuildConfig::new_for_testing();
     config.config.warnings_are_errors = true;
     config.build(path)
 }
@@ -28,9 +29,9 @@ fn build(path: &Path) -> SuiResult<CompiledPackage> {
 #[test]
 #[cfg_attr(msim, ignore)]
 fn test_metered_move_bytecode_verifier() {
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../sui-framework/packages/sui-framework");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../iota-framework/packages/iota-framework");
     let compiled_package = build(&path).unwrap();
     let compiled_modules: Vec<_> = compiled_package.get_modules().cloned().collect();
 
@@ -41,7 +42,7 @@ fn test_metered_move_bytecode_verifier() {
     let mut meter_config = signing_config.meter_config_for_signing();
     let registry = &Registry::new();
     let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
-    let mut meter = SuiVerifierMeter::new(meter_config.clone());
+    let mut meter = IotaVerifierMeter::new(meter_config.clone());
     let timer_start = Instant::now();
     // Default case should pass
     let r = run_metered_move_bytecode_verifier(
@@ -121,7 +122,7 @@ fn test_metered_move_bytecode_verifier() {
     meter_config.max_per_mod_meter_units = Some(10_000);
     meter_config.max_per_fun_meter_units = Some(10_000);
 
-    let mut meter = SuiVerifierMeter::new(meter_config);
+    let mut meter = IotaVerifierMeter::new(meter_config);
     let timer_start = Instant::now();
     let r = run_metered_move_bytecode_verifier(
         &compiled_modules,
@@ -133,7 +134,7 @@ fn test_metered_move_bytecode_verifier() {
 
     assert!(matches!(
         r.unwrap_err(),
-        SuiError::ModuleVerificationFailure { .. }
+        IotaError::ModuleVerificationFailure { .. }
     ));
 
     // Some new modules might have passed
@@ -210,7 +211,7 @@ fn test_metered_move_bytecode_verifier() {
     let meter_config = signing_config.meter_config_for_signing();
 
     // Check if the same meter is indeed used multiple invocations of the verifier
-    let mut meter = SuiVerifierMeter::new(meter_config);
+    let mut meter = IotaVerifierMeter::new(meter_config);
     for modules in &packages {
         let prev_meter = meter.get_usage(Scope::Package);
 
@@ -230,7 +231,7 @@ fn test_metered_move_bytecode_verifier() {
 #[test]
 #[cfg_attr(msim, ignore)]
 fn test_meter_system_packages() {
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
 
     let signing_config = VerifierSigningConfig::default();
     let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -239,7 +240,7 @@ fn test_meter_system_packages() {
     let meter_config = signing_config.meter_config_for_signing();
     let registry = &Registry::new();
     let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
-    let mut meter = SuiVerifierMeter::new(meter_config);
+    let mut meter = IotaVerifierMeter::new(meter_config);
     for system_package in BuiltInFramework::iter_system_packages() {
         run_metered_move_bytecode_verifier(
             &system_package.modules(),
@@ -286,7 +287,7 @@ fn test_meter_system_packages() {
 #[test]
 #[cfg_attr(msim, ignore)]
 fn test_build_and_verify_programmability_examples() {
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
 
     let signing_config = VerifierSigningConfig::default();
     let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -312,7 +313,7 @@ fn test_build_and_verify_programmability_examples() {
 
         let modules = build(&path).unwrap().into_modules();
 
-        let mut meter = SuiVerifierMeter::new(meter_config.clone());
+        let mut meter = IotaVerifierMeter::new(meter_config.clone());
         run_metered_move_bytecode_verifier(
             &modules,
             &verifier_config,

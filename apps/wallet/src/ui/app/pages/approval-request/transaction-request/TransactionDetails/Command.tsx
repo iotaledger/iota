@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_src/ui/app/shared/text';
-import { ChevronDown12, ChevronRight12 } from '@mysten/icons';
-import { type Argument, type Commands, type TransactionData } from '@mysten/sui/transactions';
-import { toBase64 } from '@mysten/sui/utils';
+import { ChevronDown12, ChevronRight12 } from '@iota/icons';
+import { type Argument, type Commands, type TransactionData } from '@iota/iota-sdk/transactions';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 type TransactionType = TransactionData['commands'][0];

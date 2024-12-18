@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -7,14 +8,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use serde_with::DisplayFromStr;
-use sui_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
-use sui_types::sui_serde::Readable;
-use sui_types::sui_serde::{AsProtocolVersion, BigInt};
+use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
+use iota_types::iota_serde::Readable;
+use iota_types::iota_serde::{AsProtocolVersion, BigInt};
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase", rename = "ProtocolConfigValue")]
-pub enum SuiProtocolConfigValue {
+pub enum IotaProtocolConfigValue {
     U16(
         #[schemars(with = "BigInt<u16>")]
         #[serde_as(as = "BigInt<u16>")]
@@ -42,13 +43,13 @@ pub enum SuiProtocolConfigValue {
     ),
 }
 
-impl From<ProtocolConfigValue> for SuiProtocolConfigValue {
+impl From<ProtocolConfigValue> for IotaProtocolConfigValue {
     fn from(value: ProtocolConfigValue) -> Self {
         match value {
-            ProtocolConfigValue::u16(y) => SuiProtocolConfigValue::U16(y),
-            ProtocolConfigValue::u32(y) => SuiProtocolConfigValue::U32(y),
-            ProtocolConfigValue::u64(x) => SuiProtocolConfigValue::U64(x),
-            ProtocolConfigValue::bool(z) => SuiProtocolConfigValue::Bool(z),
+            ProtocolConfigValue::u16(y) => IotaProtocolConfigValue::U16(y),
+            ProtocolConfigValue::u32(y) => IotaProtocolConfigValue::U32(y),
+            ProtocolConfigValue::u64(x) => IotaProtocolConfigValue::U64(x),
+            ProtocolConfigValue::bool(z) => IotaProtocolConfigValue::Bool(z),
         }
     }
 }
@@ -67,7 +68,7 @@ pub struct ProtocolConfigResponse {
     #[serde_as(as = "Readable<AsProtocolVersion, _>")]
     pub protocol_version: ProtocolVersion,
     pub feature_flags: BTreeMap<String, bool>,
-    pub attributes: BTreeMap<String, Option<SuiProtocolConfigValue>>,
+    pub attributes: BTreeMap<String, Option<IotaProtocolConfigValue>>,
 }
 
 impl From<ProtocolConfig> for ProtocolConfigResponse {
@@ -77,7 +78,7 @@ impl From<ProtocolConfig> for ProtocolConfigResponse {
             attributes: config
                 .attr_map()
                 .into_iter()
-                .map(|(k, v)| (k, v.map(SuiProtocolConfigValue::from)))
+                .map(|(k, v)| (k, v.map(IotaProtocolConfigValue::from)))
                 .collect(),
             min_supported_protocol_version: ProtocolVersion::MIN,
             max_supported_protocol_version: ProtocolVersion::MAX,

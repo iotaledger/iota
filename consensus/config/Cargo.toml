@@ -2,7 +2,7 @@
 name = "consensus-config"
 version = "0.1.0"
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 publish = false
 
@@ -11,7 +11,7 @@ workspace = true
 
 [dependencies]
 fastcrypto.workspace = true
-mysten-network.workspace = true
+iota-network-stack.workspace = true
 rand.workspace = true
 serde.workspace = true
 shared-crypto.workspace = true

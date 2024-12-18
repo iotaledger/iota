@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This test verifies the correct deletion of the Config's setting object after the epoch it was
@@ -8,8 +9,8 @@
 
 //# publish --sender A
 module test::regulated_coin {
-    use sui::coin;
-    use sui::deny_list::DenyList;
+    use iota::coin;
+    use iota::deny_list::DenyList;
 
     public struct REGULATED_COIN has drop {}
 
@@ -51,10 +52,10 @@ module test::regulated_coin {
 }
 
 // Deny account B.
-//# run sui::coin::deny_list_v2_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Enable global pause.
-//# run sui::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // View the setting objects
 //# view-object 2,1
@@ -64,10 +65,10 @@ module test::regulated_coin {
 //# advance-epoch
 
 // Deny account B.
-//# run sui::coin::deny_list_v2_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_add --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Enable global pause.
-//# run sui::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_enable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // View the setting objects
 //# view-object 2,1
@@ -77,10 +78,10 @@ module test::regulated_coin {
 //# advance-epoch
 
 // Undeny account B.
-//# run sui::coin::deny_list_v2_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Disable global pause.
-//# run sui::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Verify the setting objects are still present
 //# view-object 2,1
@@ -90,10 +91,10 @@ module test::regulated_coin {
 //# advance-epoch
 
 // Undeny account B.
-//# run sui::coin::deny_list_v2_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_remove --args object(0x403) object(1,3) @B --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Disable global pause.
-//# run sui::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
+//# run iota::coin::deny_list_v2_disable_global_pause --args object(0x403) object(1,3) --type-args test::regulated_coin::REGULATED_COIN --sender A
 
 // Verify the setting objects are deleted
 //# view-object 2,1

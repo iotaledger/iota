@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use chrono::{DateTime, Utc};
 use config::{DownloadFeedConfigs, UploadFeedConfig, UploadParameters};
 use metrics::OracleMetrics;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use once_cell::sync::OnceCell;
 use prometheus::Registry;
 use std::ops::Add;
@@ -12,30 +13,30 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use std::{collections::HashMap, time::Instant};
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::{
-    SuiObjectDataOptions, SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_json_rpc_types::{
+    IotaObjectDataOptions, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponseOptions,
 };
-use sui_sdk::apis::ReadApi;
-use sui_sdk::rpc_types::SuiObjectResponse;
-use sui_sdk::SuiClient;
-use sui_types::error::UserInputError;
-use sui_types::object::{Object, Owner};
-use sui_types::parse_sui_type_tag;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::NON_RECOVERABLE_ERROR_MSG;
-use sui_types::transaction::{Argument, Transaction};
-use sui_types::transaction::{Command, ObjectArg};
-use sui_types::Identifier;
-use sui_types::{
-    base_types::SuiAddress,
+use iota_sdk::apis::ReadApi;
+use iota_sdk::rpc_types::IotaObjectResponse;
+use iota_sdk::IotaClient;
+use iota_types::error::UserInputError;
+use iota_types::object::{Object, Owner};
+use iota_types::parse_iota_type_tag;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::quorum_driver_types::NON_RECOVERABLE_ERROR_MSG;
+use iota_types::transaction::{Argument, Transaction};
+use iota_types::transaction::{Command, ObjectArg};
+use iota_types::Identifier;
+use iota_types::{
+    base_types::IotaAddress,
     transaction::{CallArg, TransactionData},
 };
 use tap::tap::TapFallible;
 
-use sui_sdk::wallet_context::WalletContext;
-use sui_types::base_types::{random_object_ref, ObjectID, ObjectRef};
+use iota_sdk::wallet_context::WalletContext;
+use iota_types::base_types::{random_object_ref, ObjectID, ObjectRef};
 use tracing::{debug, error, info, warn};
 pub mod config;
 mod metrics;
@@ -126,8 +127,8 @@ impl DataProviderRunner {
         upload_feeds: HashMap<String, HashMap<String, UploadFeedConfig>>,
         gas_coin_id: ObjectID,
         wallet_ctx: Arc<WalletContext>,
-        client: Arc<SuiClient>,
-        signer_address: SuiAddress,
+        client: Arc<IotaClient>,
+        signer_address: IotaAddress,
         metrics: Arc<OracleMetrics>,
     ) -> Self {
         let mut providers = vec![];
@@ -196,11 +197,11 @@ impl DataProviderRunner {
 async fn get_gas_obj_ref(
     read_api: &ReadApi,
     gas_obj_id: ObjectID,
-    owner_address: SuiAddress,
+    owner_address: IotaAddress,
 ) -> ObjectRef {
     loop {
         match read_api
-            .get_object_with_options(gas_obj_id, SuiObjectDataOptions::default().with_owner())
+            .get_object_with_options(gas_obj_id, IotaObjectDataOptions::default().with_owner())
             .await
             .map(|resp| resp.data)
         {
@@ -340,9 +341,9 @@ fn make_onchain_feed_name(feed_name: &str, source_name: &str) -> String {
 
 struct OnChainDataUploader {
     wallet_ctx: Arc<WalletContext>,
-    client: Arc<SuiClient>,
+    client: Arc<IotaClient>,
     receiver: tokio::sync::mpsc::Receiver<DataPoint>,
-    signer_address: SuiAddress,
+    signer_address: IotaAddress,
     gas_obj_ref: ObjectRef,
     staleness_tolerance: HashMap<String, Duration>,
     oracle_object_args: HashMap<ObjectID, ObjectArg>,
@@ -421,7 +422,7 @@ impl OnChainDataUploader {
     async fn upload(
         &mut self,
         data_points: Vec<DataPoint>,
-    ) -> anyhow::Result<SuiTransactionBlockEffects> {
+    ) -> anyhow::Result<IotaTransactionBlockEffects> {
         let _scope = monitored_scope("Oracle::OnChainDataUploader::upload");
         // TODO add more error handling & polling perhaps
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -477,7 +478,7 @@ impl OnChainDataUploader {
                 Identifier::new(data_point.upload_parameters.write_function_name.clone()).unwrap(),
                 // TODO: allow more generic data types
                 vec![
-                    parse_sui_type_tag(&format!("{package_id}::decimal_value::DecimalValue"))
+                    parse_iota_type_tag(&format!("{package_id}::decimal_value::DecimalValue"))
                         .unwrap(),
                 ],
                 arguments,
@@ -568,7 +569,7 @@ impl OnChainDataUploader {
         }
     }
 
-    async fn execute(&mut self, tx: Transaction) -> anyhow::Result<SuiTransactionBlockResponse> {
+    async fn execute(&mut self, tx: Transaction) -> anyhow::Result<IotaTransactionBlockResponse> {
         let tx_digest = tx.digest();
         let mut retry_attempts = 3;
         loop {
@@ -577,15 +578,15 @@ impl OnChainDataUploader {
                 .quorum_driver_api()
                 .execute_transaction_block(
                     tx.clone(),
-                    SuiTransactionBlockResponseOptions::new().with_effects(),
+                    IotaTransactionBlockResponseOptions::new().with_effects(),
                     // TODO: after 1.4.0, we can simply use `WaitForEffectsCert` which is faster.
-                    // Some(sui_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForEffectsCert),
-                    Some(sui_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
+                    // Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForEffectsCert),
+                    Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await {
                 Ok(response) => return Ok(response),
-                Err(sui_sdk::error::Error::RpcError(err)) => {
-                    // jsonrpsee translate every SuiError into jsonrpsee::core::Error, so we need to further distinguish 
+                Err(iota_sdk::error::Error::RpcError(err)) => {
+                    // jsonrpsee translate every IotaError into jsonrpsee::core::Error, so we need to further distinguish 
                     if err.to_string().contains(NON_RECOVERABLE_ERROR_MSG) {
                         let stale_obj_error = STALE_OBJ_ERROR
                             .get_or_init(||
@@ -629,7 +630,7 @@ struct DataPoint {
 }
 
 struct OnChainDataReader {
-    pub client: Arc<SuiClient>,
+    pub client: Arc<IotaClient>,
     // For now we share one read interval for all reads
     pub read_interval: Duration,
     pub read_configs: HashMap<String, ObjectID>,
@@ -650,10 +651,10 @@ impl OnChainDataReader {
                 match self
                     .client
                     .read_api()
-                    .get_object_with_options(*object_id, SuiObjectDataOptions::default())
+                    .get_object_with_options(*object_id, IotaObjectDataOptions::default())
                     .await
                 {
-                    Ok(SuiObjectResponse {
+                    Ok(IotaObjectResponse {
                         data: Some(_data), ..
                     }) => {
                         // TODO parse value based on returned BCS
@@ -692,7 +693,7 @@ async fn get_object_arg(
     is_mutable_ref: bool,
 ) -> anyhow::Result<ObjectArg> {
     let response = read_api
-        .get_object_with_options(id, SuiObjectDataOptions::bcs_lossless())
+        .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
         .await?;
 
     let obj: Object = response.into_object()?.try_into()?;

@@ -1,6 +1,7 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
-INSTANCE_ID=${1:-sui}
+INSTANCE_ID=${1:-iota}
 command=(
   cbt
   -instance
@@ -14,7 +15,7 @@ for table in objects transactions checkpoints checkpoints_by_digest; do
   (
     set -x
     "${command[@]}" createtable $table
-    "${command[@]}" createfamily $table sui
-    "${command[@]}" setgcpolicy $table sui maxversions=1
+    "${command[@]}" createfamily $table iota
+    "${command[@]}" setgcpolicy $table iota maxversions=1
   )
 done

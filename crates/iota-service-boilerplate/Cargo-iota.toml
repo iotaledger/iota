@@ -1,6 +1,6 @@
 [package]
 name = "service-boilerplate"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 version = "0.0.1"
 edition = "2021"
 publish = false
@@ -8,7 +8,7 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
-mysten-service.workspace = true
+iota-service.workspace = true
 prometheus.workspace = true
 tracing.workspace = true
 serde = { workspace = true, features = ["derive"] }

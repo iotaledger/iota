@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
 use serde::{Deserialize, Serialize};
-use sui_types::{
+use iota_types::{
     messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
     multiaddr::Multiaddr,
 };

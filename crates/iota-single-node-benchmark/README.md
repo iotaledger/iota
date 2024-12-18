@@ -1,6 +1,6 @@
-# Sui Single Node Benchmark
+# Iota Single Node Benchmark
 
-This crate contains a binary for performance benchmarking a single Sui node.
+This crate contains a binary for performance benchmarking a single Iota node.
 Upon running the binary, the node will instantiate a standalone `AuthorityState`, and submit
 executable transactions to it in parallel. We then measure the time it takes for it to finish
 executing all the transactions.
@@ -8,7 +8,7 @@ executing all the transactions.
 ## Usage
 To run the benchmark, you can simply run the following command:
 ```
-cargo run --release --bin sui-single-node-benchmark -- ptb
+cargo run --release --bin iota-single-node-benchmark -- ptb
 ```
 By default, it generates 50,0000 transactions, which can be changed using `--tx-count`. Each transaction will contain an empty PTB without any command (i.e. essentially a nop transaction).
 
@@ -27,7 +27,7 @@ WIP (please refer to smoke_tests to see how its setup)
 By default, the benchmark will use the `AuthorityState::try_execute_immediately` entry function,
 which includes the execution layer as well as the interaction with the DB. This is equivalent to running:
 ```
-cargo run --release --bin sui-single-node-benchmark -- --component baseline ptb
+cargo run --release --bin iota-single-node-benchmark -- --component baseline ptb
 ```
 The benchmark supports various component:
 - `baseline`: this is the default component, which includes the execution layer as well as the interaction with the DB.
@@ -40,4 +40,4 @@ The benchmark supports various component:
 
 
 ### Profiling
-If you are interested in profiling Sui, you can start the benchmark, wait for it to print out "Started execution...", and then attach a profiler to the process.
+If you are interested in profiling Iota, you can start the benchmark, wait for it to print out "Started execution...", and then attach a profiler to the process.

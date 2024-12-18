@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests that shared objects can have dynamic fields added
@@ -8,7 +9,7 @@
 
 //# publish
 module a::m {
-    use sui::dynamic_field::{add, remove};
+    use iota::dynamic_field::{add, remove};
 
     public struct Obj has key, store {
         id: object::UID,

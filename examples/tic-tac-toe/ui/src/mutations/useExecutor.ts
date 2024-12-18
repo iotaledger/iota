@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSignAndExecuteTransaction, useSuiClient } from '@mysten/dapp-kit';
-import { SuiClient, SuiTransactionBlockResponse } from '@mysten/sui/client';
-import { Transaction } from '@mysten/sui/transactions';
+import { useSignAndExecuteTransaction, useIotaClient } from '@iota/dapp-kit';
+import { IotaClient, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
-type Options = Omit<Parameters<SuiClient['getTransactionBlock']>[0], 'digest'> & {
+type Options = Omit<Parameters<IotaClient['getTransactionBlock']>[0], 'digest'> & {
 	tx: Transaction;
 };
 
@@ -19,7 +20,7 @@ type ExecuteCallback = ({
 	signature: string;
 }) => Promise<ExecuteResponse>;
 
-type ResponseCallback = (tx: SuiTransactionBlockResponse) => void | Promise<void>;
+type ResponseCallback = (tx: IotaTransactionBlockResponse) => void | Promise<void>;
 type Executor = (options: Options, then: ResponseCallback) => void;
 
 type ExecutorResult = {
@@ -37,7 +38,7 @@ type ExecutorResult = {
  * and then doing something with them.
  */
 export function useExecutor({ execute }: { execute?: ExecuteCallback } = {}): ExecutorResult {
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const {
 		mutate: signAndExecute,
 		status,

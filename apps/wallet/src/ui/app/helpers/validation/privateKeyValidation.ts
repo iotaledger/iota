@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { decodeSuiPrivateKey } from '@mysten/sui/cryptography/keypair';
+import { decodeIotaPrivateKey } from '@iota/iota-sdk/cryptography/keypair';
 import { z } from 'zod';
 
 export const privateKeyValidation = z
@@ -10,7 +11,7 @@ export const privateKeyValidation = z
 	.nonempty('Private Key is required.')
 	.transform((privateKey, context) => {
 		try {
-			decodeSuiPrivateKey(privateKey);
+			decodeIotaPrivateKey(privateKey);
 		} catch (error) {
 			context.addIssue({
 				code: 'custom',

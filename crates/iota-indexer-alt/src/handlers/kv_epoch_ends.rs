@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use diesel_async::RunQueryDsl;
-use sui_indexer_alt_framework::{
+use iota_indexer_alt_framework::{
     db,
     pipeline::{concurrent::Handler, Processor},
 };
-use sui_types::{
+use iota_types::{
     event::SystemEpochInfoEvent,
     full_checkpoint_content::CheckpointData,
     transaction::{TransactionDataAPI, TransactionKind},

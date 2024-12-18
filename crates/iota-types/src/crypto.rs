@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::base_types::{AuthorityName, ConciseableName, SuiAddress};
+use crate::base_types::{AuthorityName, ConciseableName, IotaAddress};
 use crate::committee::CommitteeTrait;
 use crate::committee::{Committee, EpochId, StakeUnit};
-use crate::error::{SuiError, SuiResult};
+use crate::error::{IotaError, IotaResult};
 use crate::signature::GenericSignature;
-use crate::sui_serde::{Readable, SuiBitmap};
+use crate::iota_serde::{Readable, IotaBitmap};
 use anyhow::{anyhow, Error};
 use derive_more::{AsMut, AsRef, From};
 pub use enum_dispatch::enum_dispatch;
@@ -81,7 +82,7 @@ pub type NetworkPrivateKey = Ed25519PrivateKey;
 pub type DefaultHash = Blake2b256;
 
 pub const DEFAULT_EPOCH_ID: EpochId = 0;
-pub const SUI_PRIV_KEY_PREFIX: &str = "suiprivkey";
+pub const IOTA_PRIV_KEY_PREFIX: &str = "iotaprivkey";
 
 /// Creates a proof of that the authority account address is owned by the
 /// holder of authority protocol key, and also ensures that the authority
@@ -91,13 +92,13 @@ pub const SUI_PRIV_KEY_PREFIX: &str = "suiprivkey";
 /// constructed as `authority_pubkey_bytes || authority_account_address`.
 pub fn generate_proof_of_possession(
     keypair: &AuthorityKeyPair,
-    address: SuiAddress,
+    address: IotaAddress,
 ) -> AuthoritySignature {
     let mut msg: Vec<u8> = Vec::new();
     msg.extend_from_slice(keypair.public().as_bytes());
     msg.extend_from_slice(address.as_ref());
     AuthoritySignature::new_secure(
-        &IntentMessage::new(Intent::sui_app(IntentScope::ProofOfPossession), msg),
+        &IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg),
         &DEFAULT_EPOCH_ID,
         keypair,
     )
@@ -108,17 +109,17 @@ pub fn generate_proof_of_possession(
 pub fn verify_proof_of_possession(
     pop: &AuthoritySignature,
     protocol_pubkey: &AuthorityPublicKey,
-    sui_address: SuiAddress,
-) -> Result<(), SuiError> {
+    iota_address: IotaAddress,
+) -> Result<(), IotaError> {
     protocol_pubkey
         .validate()
-        .map_err(|_| SuiError::InvalidSignature {
+        .map_err(|_| IotaError::InvalidSignature {
             error: "Fail to validate pubkey".to_string(),
         })?;
     let mut msg = protocol_pubkey.as_bytes().to_vec();
-    msg.extend_from_slice(sui_address.as_ref());
+    msg.extend_from_slice(iota_address.as_ref());
     pop.verify_secure(
-        &IntentMessage::new(Intent::sui_app(IntentScope::ProofOfPossession), msg),
+        &IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg),
         DEFAULT_EPOCH_ID,
         protocol_pubkey.into(),
     )
@@ -127,47 +128,47 @@ pub fn verify_proof_of_possession(
 /// Account Keys
 ///
 /// * The following section defines the keypairs that are used by
-/// * accounts to interact with Sui.
-/// * Currently we support eddsa and ecdsa on Sui.
+/// * accounts to interact with Iota.
+/// * Currently we support eddsa and ecdsa on Iota.
 ///
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, From, PartialEq, Eq)]
-pub enum SuiKeyPair {
+pub enum IotaKeyPair {
     Ed25519(Ed25519KeyPair),
     Secp256k1(Secp256k1KeyPair),
     Secp256r1(Secp256r1KeyPair),
 }
 
-impl SuiKeyPair {
+impl IotaKeyPair {
     pub fn public(&self) -> PublicKey {
         match self {
-            SuiKeyPair::Ed25519(kp) => PublicKey::Ed25519(kp.public().into()),
-            SuiKeyPair::Secp256k1(kp) => PublicKey::Secp256k1(kp.public().into()),
-            SuiKeyPair::Secp256r1(kp) => PublicKey::Secp256r1(kp.public().into()),
+            IotaKeyPair::Ed25519(kp) => PublicKey::Ed25519(kp.public().into()),
+            IotaKeyPair::Secp256k1(kp) => PublicKey::Secp256k1(kp.public().into()),
+            IotaKeyPair::Secp256r1(kp) => PublicKey::Secp256r1(kp.public().into()),
         }
     }
 
     pub fn copy(&self) -> Self {
         match self {
-            SuiKeyPair::Ed25519(kp) => kp.copy().into(),
-            SuiKeyPair::Secp256k1(kp) => kp.copy().into(),
-            SuiKeyPair::Secp256r1(kp) => kp.copy().into(),
+            IotaKeyPair::Ed25519(kp) => kp.copy().into(),
+            IotaKeyPair::Secp256k1(kp) => kp.copy().into(),
+            IotaKeyPair::Secp256r1(kp) => kp.copy().into(),
         }
     }
 }
 
-impl Signer<Signature> for SuiKeyPair {
+impl Signer<Signature> for IotaKeyPair {
     fn sign(&self, msg: &[u8]) -> Signature {
         match self {
-            SuiKeyPair::Ed25519(kp) => kp.sign(msg),
-            SuiKeyPair::Secp256k1(kp) => kp.sign(msg),
-            SuiKeyPair::Secp256r1(kp) => kp.sign(msg),
+            IotaKeyPair::Ed25519(kp) => kp.sign(msg),
+            IotaKeyPair::Secp256k1(kp) => kp.sign(msg),
+            IotaKeyPair::Secp256r1(kp) => kp.sign(msg),
         }
     }
 }
 
-impl EncodeDecodeBase64 for SuiKeyPair {
+impl EncodeDecodeBase64 for IotaKeyPair {
     fn encode_base64(&self) -> String {
         Base64::encode(self.to_bytes())
     }
@@ -177,19 +178,19 @@ impl EncodeDecodeBase64 for SuiKeyPair {
         Self::from_bytes(&bytes).map_err(|_| FastCryptoError::InvalidInput)
     }
 }
-impl SuiKeyPair {
+impl IotaKeyPair {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.push(self.public().flag());
 
         match self {
-            SuiKeyPair::Ed25519(kp) => {
+            IotaKeyPair::Ed25519(kp) => {
                 bytes.extend_from_slice(kp.as_bytes());
             }
-            SuiKeyPair::Secp256k1(kp) => {
+            IotaKeyPair::Secp256k1(kp) => {
                 bytes.extend_from_slice(kp.as_bytes());
             }
-            SuiKeyPair::Secp256r1(kp) => {
+            IotaKeyPair::Secp256r1(kp) => {
                 bytes.extend_from_slice(kp.as_bytes());
             }
         }
@@ -200,16 +201,16 @@ impl SuiKeyPair {
         match SignatureScheme::from_flag_byte(bytes.first().ok_or_else(|| eyre!("Invalid length"))?)
         {
             Ok(x) => match x {
-                SignatureScheme::ED25519 => Ok(SuiKeyPair::Ed25519(Ed25519KeyPair::from_bytes(
+                SignatureScheme::ED25519 => Ok(IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(
                     bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
                 )?)),
                 SignatureScheme::Secp256k1 => {
-                    Ok(SuiKeyPair::Secp256k1(Secp256k1KeyPair::from_bytes(
+                    Ok(IotaKeyPair::Secp256k1(Secp256k1KeyPair::from_bytes(
                         bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
                     )?))
                 }
                 SignatureScheme::Secp256r1 => {
-                    Ok(SuiKeyPair::Secp256r1(Secp256r1KeyPair::from_bytes(
+                    Ok(IotaKeyPair::Secp256r1(Secp256r1KeyPair::from_bytes(
                         bytes.get(1..).ok_or_else(|| eyre!("Invalid length"))?,
                     )?))
                 }
@@ -221,25 +222,25 @@ impl SuiKeyPair {
 
     pub fn to_bytes_no_flag(&self) -> Vec<u8> {
         match self {
-            SuiKeyPair::Ed25519(kp) => kp.as_bytes().to_vec(),
-            SuiKeyPair::Secp256k1(kp) => kp.as_bytes().to_vec(),
-            SuiKeyPair::Secp256r1(kp) => kp.as_bytes().to_vec(),
+            IotaKeyPair::Ed25519(kp) => kp.as_bytes().to_vec(),
+            IotaKeyPair::Secp256k1(kp) => kp.as_bytes().to_vec(),
+            IotaKeyPair::Secp256r1(kp) => kp.as_bytes().to_vec(),
         }
     }
 
-    /// Encode a SuiKeyPair as `flag || privkey` in Bech32 starting with "suiprivkey" to a string. Note that the pubkey is not encoded.
+    /// Encode a IotaKeyPair as `flag || privkey` in Bech32 starting with "iotaprivkey" to a string. Note that the pubkey is not encoded.
     pub fn encode(&self) -> Result<String, eyre::Report> {
-        Bech32::encode(self.to_bytes(), SUI_PRIV_KEY_PREFIX).map_err(|e| eyre!(e))
+        Bech32::encode(self.to_bytes(), IOTA_PRIV_KEY_PREFIX).map_err(|e| eyre!(e))
     }
 
-    /// Decode a SuiKeyPair from `flag || privkey` in Bech32 starting with "suiprivkey" to SuiKeyPair. The public key is computed directly from the private key bytes.
+    /// Decode a IotaKeyPair from `flag || privkey` in Bech32 starting with "iotaprivkey" to IotaKeyPair. The public key is computed directly from the private key bytes.
     pub fn decode(value: &str) -> Result<Self, eyre::Report> {
-        let bytes = Bech32::decode(value, SUI_PRIV_KEY_PREFIX)?;
+        let bytes = Bech32::decode(value, IOTA_PRIV_KEY_PREFIX)?;
         Self::from_bytes(&bytes)
     }
 }
 
-impl Serialize for SuiKeyPair {
+impl Serialize for IotaKeyPair {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -249,14 +250,14 @@ impl Serialize for SuiKeyPair {
     }
 }
 
-impl<'de> Deserialize<'de> for SuiKeyPair {
+impl<'de> Deserialize<'de> for IotaKeyPair {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         use serde::de::Error;
         let s = String::deserialize(deserializer)?;
-        SuiKeyPair::decode_base64(&s).map_err(|e| Error::custom(e.to_string()))
+        IotaKeyPair::decode_base64(&s).map_err(|e| Error::custom(e.to_string()))
     }
 }
 
@@ -276,7 +277,7 @@ pub struct ZkLoginPublicIdentifier(#[schemars(with = "Base64")] pub Vec<u8>);
 
 impl ZkLoginPublicIdentifier {
     /// Consists of iss_bytes_len || iss_bytes || padded_32_byte_address_seed.
-    pub fn new(iss: &str, address_seed: &Bn254FrElement) -> SuiResult<Self> {
+    pub fn new(iss: &str, address_seed: &Bn254FrElement) -> IotaResult<Self> {
         let mut bytes = Vec::new();
         let iss_bytes = iss.as_bytes();
         bytes.extend([iss_bytes.len() as u8]);
@@ -368,15 +369,15 @@ impl PublicKey {
 
     pub fn scheme(&self) -> SignatureScheme {
         match self {
-            PublicKey::Ed25519(_) => Ed25519SuiSignature::SCHEME,
-            PublicKey::Secp256k1(_) => Secp256k1SuiSignature::SCHEME,
-            PublicKey::Secp256r1(_) => Secp256r1SuiSignature::SCHEME,
+            PublicKey::Ed25519(_) => Ed25519IotaSignature::SCHEME,
+            PublicKey::Secp256k1(_) => Secp256k1IotaSignature::SCHEME,
+            PublicKey::Secp256r1(_) => Secp256r1IotaSignature::SCHEME,
             PublicKey::ZkLogin(_) => SignatureScheme::ZkLoginAuthenticator,
             PublicKey::Passkey(_) => SignatureScheme::PasskeyAuthenticator,
         }
     }
 
-    pub fn from_zklogin_inputs(inputs: &ZkLoginInputs) -> SuiResult<Self> {
+    pub fn from_zklogin_inputs(inputs: &ZkLoginInputs) -> IotaResult<Self> {
         Ok(PublicKey::ZkLogin(ZkLoginPublicIdentifier::new(
             inputs.get_iss(),
             inputs.get_address_seed(),
@@ -385,7 +386,7 @@ impl PublicKey {
 }
 
 /// Defines the compressed version of the public key that we pass around
-/// in Sui
+/// in Iota
 #[serde_as]
 #[derive(
     Copy,
@@ -529,13 +530,13 @@ impl Default for AuthorityPublicKeyBytes {
 // Add helper calls for Authority Signature
 //
 
-pub trait SuiAuthoritySignature {
+pub trait IotaAuthoritySignature {
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,
         epoch_id: EpochId,
         author: AuthorityPublicKeyBytes,
-    ) -> Result<(), SuiError>
+    ) -> Result<(), IotaError>
     where
         T: Serialize;
 
@@ -548,7 +549,7 @@ pub trait SuiAuthoritySignature {
         T: Serialize;
 }
 
-impl SuiAuthoritySignature for AuthoritySignature {
+impl IotaAuthoritySignature for AuthoritySignature {
     #[instrument(level = "trace", skip_all)]
     fn new_secure<T>(value: &IntentMessage<T>, epoch: &EpochId, secret: &dyn Signer<Self>) -> Self
     where
@@ -566,7 +567,7 @@ impl SuiAuthoritySignature for AuthoritySignature {
         value: &IntentMessage<T>,
         epoch: EpochId,
         author: AuthorityPublicKeyBytes,
-    ) -> Result<(), SuiError>
+    ) -> Result<(), IotaError>
     where
         T: Serialize,
     {
@@ -574,13 +575,13 @@ impl SuiAuthoritySignature for AuthoritySignature {
         epoch.write(&mut message);
 
         let public_key = AuthorityPublicKey::try_from(author).map_err(|_| {
-            SuiError::KeyConversionError(
+            IotaError::KeyConversionError(
                 "Failed to serialize public key bytes to valid public key".to_string(),
             )
         })?;
         public_key
             .verify(&message[..], self)
-            .map_err(|e| SuiError::InvalidSignature {
+            .map_err(|e| IotaError::InvalidSignature {
                 error: format!(
                     "Fail to verify auth sig {} epoch: {} author: {}",
                     e,
@@ -593,9 +594,9 @@ impl SuiAuthoritySignature for AuthoritySignature {
 
 // TODO: get_key_pair() and get_key_pair_from_bytes() should return KeyPair only.
 // TODO: rename to random_key_pair
-pub fn get_key_pair<KP: KeypairTraits>() -> (SuiAddress, KP)
+pub fn get_key_pair<KP: KeypairTraits>() -> (IotaAddress, KP)
 where
-    <KP as KeypairTraits>::PubKey: SuiPublicKey,
+    <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
     get_key_pair_from_rng(&mut OsRng)
 }
@@ -606,7 +607,7 @@ pub fn random_committee_key_pairs_of_size(size: usize) -> Vec<AuthorityKeyPair> 
     (0..size)
         .map(|_| {
             // TODO: We are generating the keys 4 times to match exactly as how we generate
-            // keys in ConfigBuilder::build (sui-config/src/network_config_builder). This is because
+            // keys in ConfigBuilder::build (iota-config/src/network_config_builder). This is because
             // we are using these key generation functions as fixtures and we call them
             // independently in different paths and exact the results to be the same.
             // We should eliminate them.
@@ -619,38 +620,38 @@ pub fn random_committee_key_pairs_of_size(size: usize) -> Vec<AuthorityKeyPair> 
         .collect()
 }
 
-pub fn deterministic_random_account_key() -> (SuiAddress, AccountKeyPair) {
+pub fn deterministic_random_account_key() -> (IotaAddress, AccountKeyPair) {
     let mut rng = StdRng::from_seed([0; 32]);
     get_key_pair_from_rng(&mut rng)
 }
 
-pub fn get_account_key_pair() -> (SuiAddress, AccountKeyPair) {
+pub fn get_account_key_pair() -> (IotaAddress, AccountKeyPair) {
     get_key_pair()
 }
 
-pub fn get_authority_key_pair() -> (SuiAddress, AuthorityKeyPair) {
+pub fn get_authority_key_pair() -> (IotaAddress, AuthorityKeyPair) {
     get_key_pair()
 }
 
 /// Generate a keypair from the specified RNG (useful for testing with seedable rngs).
-pub fn get_key_pair_from_rng<KP: KeypairTraits, R>(csprng: &mut R) -> (SuiAddress, KP)
+pub fn get_key_pair_from_rng<KP: KeypairTraits, R>(csprng: &mut R) -> (IotaAddress, KP)
 where
     R: rand::CryptoRng + rand::RngCore,
-    <KP as KeypairTraits>::PubKey: SuiPublicKey,
+    <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
     let kp = KP::generate(&mut StdRng::from_rng(csprng).unwrap());
     (kp.public().into(), kp)
 }
 
 // TODO: C-GETTER
-pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> SuiResult<(SuiAddress, KP)>
+pub fn get_key_pair_from_bytes<KP: KeypairTraits>(bytes: &[u8]) -> IotaResult<(IotaAddress, KP)>
 where
-    <KP as KeypairTraits>::PubKey: SuiPublicKey,
+    <KP as KeypairTraits>::PubKey: IotaPublicKey,
 {
     let priv_length = <KP as KeypairTraits>::PrivKey::LENGTH;
     let pub_key_length = <KP as KeypairTraits>::PubKey::LENGTH;
     if bytes.len() != priv_length + pub_key_length {
-        return Err(SuiError::KeyConversionError(format!(
+        return Err(IotaError::KeyConversionError(format!(
             "Invalid input byte length, expected {}: {}",
             priv_length,
             bytes.len()
@@ -659,9 +660,9 @@ where
     let sk = <KP as KeypairTraits>::PrivKey::from_bytes(
         bytes
             .get(..priv_length)
-            .ok_or(SuiError::InvalidPrivateKey)?,
+            .ok_or(IotaError::InvalidPrivateKey)?,
     )
-    .map_err(|_| SuiError::InvalidPrivateKey)?;
+    .map_err(|_| IotaError::InvalidPrivateKey)?;
     let kp: KP = sk.into();
     Ok((kp.public().into(), kp))
 }
@@ -674,9 +675,9 @@ where
 #[enum_dispatch]
 #[derive(Clone, JsonSchema, Debug, PartialEq, Eq, Hash)]
 pub enum Signature {
-    Ed25519SuiSignature,
-    Secp256k1SuiSignature,
-    Secp256r1SuiSignature,
+    Ed25519IotaSignature,
+    Secp256k1IotaSignature,
+    Secp256r1IotaSignature,
 }
 
 impl Serialize for Signature {
@@ -738,18 +739,18 @@ impl Signature {
 impl AsRef<[u8]> for Signature {
     fn as_ref(&self) -> &[u8] {
         match self {
-            Signature::Ed25519SuiSignature(sig) => sig.as_ref(),
-            Signature::Secp256k1SuiSignature(sig) => sig.as_ref(),
-            Signature::Secp256r1SuiSignature(sig) => sig.as_ref(),
+            Signature::Ed25519IotaSignature(sig) => sig.as_ref(),
+            Signature::Secp256k1IotaSignature(sig) => sig.as_ref(),
+            Signature::Secp256r1IotaSignature(sig) => sig.as_ref(),
         }
     }
 }
 impl AsMut<[u8]> for Signature {
     fn as_mut(&mut self) -> &mut [u8] {
         match self {
-            Signature::Ed25519SuiSignature(sig) => sig.as_mut(),
-            Signature::Secp256k1SuiSignature(sig) => sig.as_mut(),
-            Signature::Secp256r1SuiSignature(sig) => sig.as_mut(),
+            Signature::Ed25519IotaSignature(sig) => sig.as_mut(),
+            Signature::Secp256k1IotaSignature(sig) => sig.as_mut(),
+            Signature::Secp256r1IotaSignature(sig) => sig.as_mut(),
         }
     }
 }
@@ -758,12 +759,12 @@ impl ToFromBytes for Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match bytes.first() {
             Some(x) => {
-                if x == &Ed25519SuiSignature::SCHEME.flag() {
-                    Ok(<Ed25519SuiSignature as ToFromBytes>::from_bytes(bytes)?.into())
-                } else if x == &Secp256k1SuiSignature::SCHEME.flag() {
-                    Ok(<Secp256k1SuiSignature as ToFromBytes>::from_bytes(bytes)?.into())
-                } else if x == &Secp256r1SuiSignature::SCHEME.flag() {
-                    Ok(<Secp256r1SuiSignature as ToFromBytes>::from_bytes(bytes)?.into())
+                if x == &Ed25519IotaSignature::SCHEME.flag() {
+                    Ok(<Ed25519IotaSignature as ToFromBytes>::from_bytes(bytes)?.into())
+                } else if x == &Secp256k1IotaSignature::SCHEME.flag() {
+                    Ok(<Secp256k1IotaSignature as ToFromBytes>::from_bytes(bytes)?.into())
+                } else if x == &Secp256r1IotaSignature::SCHEME.flag() {
+                    Ok(<Secp256r1IotaSignature as ToFromBytes>::from_bytes(bytes)?.into())
                 } else {
                     Err(FastCryptoError::InvalidInput)
                 }
@@ -777,43 +778,43 @@ impl ToFromBytes for Signature {
 // BLS Port
 //
 
-impl SuiPublicKey for BLS12381PublicKey {
+impl IotaPublicKey for BLS12381PublicKey {
     const SIGNATURE_SCHEME: SignatureScheme = SignatureScheme::BLS12381;
 }
 
 //
-// Ed25519 Sui Signature port
+// Ed25519 Iota Signature port
 //
 
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
-pub struct Ed25519SuiSignature(
+pub struct Ed25519IotaSignature(
     #[schemars(with = "Base64")]
     #[serde_as(as = "Readable<Base64, Bytes>")]
     [u8; Ed25519PublicKey::LENGTH + Ed25519Signature::LENGTH + 1],
 );
 
 // Implementation useful for simplify testing when mock signature is needed
-impl Default for Ed25519SuiSignature {
+impl Default for Ed25519IotaSignature {
     fn default() -> Self {
         Self([0; Ed25519PublicKey::LENGTH + Ed25519Signature::LENGTH + 1])
     }
 }
 
-impl SuiSignatureInner for Ed25519SuiSignature {
+impl IotaSignatureInner for Ed25519IotaSignature {
     type Sig = Ed25519Signature;
     type PubKey = Ed25519PublicKey;
     type KeyPair = Ed25519KeyPair;
     const LENGTH: usize = Ed25519PublicKey::LENGTH + Ed25519Signature::LENGTH + 1;
 }
 
-impl SuiPublicKey for Ed25519PublicKey {
+impl IotaPublicKey for Ed25519PublicKey {
     const SIGNATURE_SCHEME: SignatureScheme = SignatureScheme::ED25519;
 }
 
-impl ToFromBytes for Ed25519SuiSignature {
+impl ToFromBytes for Ed25519IotaSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != Self::LENGTH {
             return Err(FastCryptoError::InputLengthWrong(Self::LENGTH));
@@ -826,35 +827,35 @@ impl ToFromBytes for Ed25519SuiSignature {
 
 impl Signer<Signature> for Ed25519KeyPair {
     fn sign(&self, msg: &[u8]) -> Signature {
-        Ed25519SuiSignature::new(self, msg).into()
+        Ed25519IotaSignature::new(self, msg).into()
     }
 }
 
 //
-// Secp256k1 Sui Signature port
+// Secp256k1 Iota Signature port
 //
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
-pub struct Secp256k1SuiSignature(
+pub struct Secp256k1IotaSignature(
     #[schemars(with = "Base64")]
     #[serde_as(as = "Readable<Base64, Bytes>")]
     [u8; Secp256k1PublicKey::LENGTH + Secp256k1Signature::LENGTH + 1],
 );
 
-impl SuiSignatureInner for Secp256k1SuiSignature {
+impl IotaSignatureInner for Secp256k1IotaSignature {
     type Sig = Secp256k1Signature;
     type PubKey = Secp256k1PublicKey;
     type KeyPair = Secp256k1KeyPair;
     const LENGTH: usize = Secp256k1PublicKey::LENGTH + Secp256k1Signature::LENGTH + 1;
 }
 
-impl SuiPublicKey for Secp256k1PublicKey {
+impl IotaPublicKey for Secp256k1PublicKey {
     const SIGNATURE_SCHEME: SignatureScheme = SignatureScheme::Secp256k1;
 }
 
-impl ToFromBytes for Secp256k1SuiSignature {
+impl ToFromBytes for Secp256k1IotaSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != Self::LENGTH {
             return Err(FastCryptoError::InputLengthWrong(Self::LENGTH));
@@ -867,35 +868,35 @@ impl ToFromBytes for Secp256k1SuiSignature {
 
 impl Signer<Signature> for Secp256k1KeyPair {
     fn sign(&self, msg: &[u8]) -> Signature {
-        Secp256k1SuiSignature::new(self, msg).into()
+        Secp256k1IotaSignature::new(self, msg).into()
     }
 }
 
 //
-// Secp256r1 Sui Signature port
+// Secp256r1 Iota Signature port
 //
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash, AsRef, AsMut)]
 #[as_ref(forward)]
 #[as_mut(forward)]
-pub struct Secp256r1SuiSignature(
+pub struct Secp256r1IotaSignature(
     #[schemars(with = "Base64")]
     #[serde_as(as = "Readable<Base64, Bytes>")]
     [u8; Secp256r1PublicKey::LENGTH + Secp256r1Signature::LENGTH + 1],
 );
 
-impl SuiSignatureInner for Secp256r1SuiSignature {
+impl IotaSignatureInner for Secp256r1IotaSignature {
     type Sig = Secp256r1Signature;
     type PubKey = Secp256r1PublicKey;
     type KeyPair = Secp256r1KeyPair;
     const LENGTH: usize = Secp256r1PublicKey::LENGTH + Secp256r1Signature::LENGTH + 1;
 }
 
-impl SuiPublicKey for Secp256r1PublicKey {
+impl IotaPublicKey for Secp256r1PublicKey {
     const SIGNATURE_SCHEME: SignatureScheme = SignatureScheme::Secp256r1;
 }
 
-impl ToFromBytes for Secp256r1SuiSignature {
+impl ToFromBytes for Secp256r1IotaSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != Self::LENGTH {
             return Err(FastCryptoError::InputLengthWrong(Self::LENGTH));
@@ -908,29 +909,29 @@ impl ToFromBytes for Secp256r1SuiSignature {
 
 impl Signer<Signature> for Secp256r1KeyPair {
     fn sign(&self, msg: &[u8]) -> Signature {
-        Secp256r1SuiSignature::new(self, msg).into()
+        Secp256r1IotaSignature::new(self, msg).into()
     }
 }
 
 //
 // This struct exists due to the limitations of the `enum_dispatch` library.
 //
-pub trait SuiSignatureInner: Sized + ToFromBytes + PartialEq + Eq + Hash {
+pub trait IotaSignatureInner: Sized + ToFromBytes + PartialEq + Eq + Hash {
     type Sig: Authenticator<PubKey = Self::PubKey>;
-    type PubKey: VerifyingKey<Sig = Self::Sig> + SuiPublicKey;
+    type PubKey: VerifyingKey<Sig = Self::Sig> + IotaPublicKey;
     type KeyPair: KeypairTraits<PubKey = Self::PubKey, Sig = Self::Sig>;
 
     const LENGTH: usize = Self::Sig::LENGTH + Self::PubKey::LENGTH + 1;
     const SCHEME: SignatureScheme = Self::PubKey::SIGNATURE_SCHEME;
 
     /// Returns the deserialized signature and deserialized pubkey.
-    fn get_verification_inputs(&self) -> SuiResult<(Self::Sig, Self::PubKey)> {
+    fn get_verification_inputs(&self) -> IotaResult<(Self::Sig, Self::PubKey)> {
         let pk = Self::PubKey::from_bytes(self.public_key_bytes())
-            .map_err(|_| SuiError::KeyConversionError("Invalid public key".to_string()))?;
+            .map_err(|_| IotaError::KeyConversionError("Invalid public key".to_string()))?;
 
         // deserialize the signature
         let signature = Self::Sig::from_bytes(self.signature_bytes()).map_err(|_| {
-            SuiError::InvalidSignature {
+            IotaError::InvalidSignature {
                 error: "Fail to get pubkey and sig".to_string(),
             }
         })?;
@@ -943,7 +944,7 @@ pub trait SuiSignatureInner: Sized + ToFromBytes + PartialEq + Eq + Hash {
 
         let mut signature_bytes: Vec<u8> = Vec::new();
         signature_bytes
-            .extend_from_slice(&[<Self::PubKey as SuiPublicKey>::SIGNATURE_SCHEME.flag()]);
+            .extend_from_slice(&[<Self::PubKey as IotaPublicKey>::SIGNATURE_SCHEME.flag()]);
         signature_bytes.extend_from_slice(sig.as_ref());
         signature_bytes.extend_from_slice(kp.public().as_ref());
         Self::from_bytes(&signature_bytes[..])
@@ -951,12 +952,12 @@ pub trait SuiSignatureInner: Sized + ToFromBytes + PartialEq + Eq + Hash {
     }
 }
 
-pub trait SuiPublicKey: VerifyingKey {
+pub trait IotaPublicKey: VerifyingKey {
     const SIGNATURE_SCHEME: SignatureScheme;
 }
 
 #[enum_dispatch(Signature)]
-pub trait SuiSignature: Sized + ToFromBytes {
+pub trait IotaSignature: Sized + ToFromBytes {
     fn signature_bytes(&self) -> &[u8];
     fn public_key_bytes(&self) -> &[u8];
     fn scheme(&self) -> SignatureScheme;
@@ -964,14 +965,14 @@ pub trait SuiSignature: Sized + ToFromBytes {
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,
-        author: SuiAddress,
+        author: IotaAddress,
         scheme: SignatureScheme,
-    ) -> SuiResult<()>
+    ) -> IotaResult<()>
     where
         T: Serialize;
 }
 
-impl<S: SuiSignatureInner + Sized> SuiSignature for S {
+impl<S: IotaSignatureInner + Sized> IotaSignature for S {
     fn signature_bytes(&self) -> &[u8] {
         // Access array slice is safe because the array bytes is initialized as
         // flag || signature || pubkey with its defined length.
@@ -991,9 +992,9 @@ impl<S: SuiSignatureInner + Sized> SuiSignature for S {
     fn verify_secure<T>(
         &self,
         value: &IntentMessage<T>,
-        author: SuiAddress,
+        author: IotaAddress,
         scheme: SignatureScheme,
-    ) -> Result<(), SuiError>
+    ) -> Result<(), IotaError>
     where
         T: Serialize,
     {
@@ -1005,9 +1006,9 @@ impl<S: SuiSignatureInner + Sized> SuiSignature for S {
         match scheme {
             SignatureScheme::ZkLoginAuthenticator => {} // Pass this check because zk login does not derive address from pubkey.
             _ => {
-                let address = SuiAddress::from(pk);
+                let address = IotaAddress::from(pk);
                 if author != address {
-                    return Err(SuiError::IncorrectSigner {
+                    return Err(IotaError::IncorrectSigner {
                         error: format!(
                             "Incorrect signer, expected {:?}, got {:?}",
                             author, address
@@ -1018,7 +1019,7 @@ impl<S: SuiSignatureInner + Sized> SuiSignature for S {
         }
 
         pk.verify(&digest, sig)
-            .map_err(|e| SuiError::InvalidSignature {
+            .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Fail to verify user sig {}", e),
             })
     }
@@ -1035,14 +1036,14 @@ pub trait AuthoritySignInfoTrait: private::SealedAuthoritySignInfoTrait {
         data: &T,
         intent: Intent,
         committee: &Committee,
-    ) -> SuiResult;
+    ) -> IotaResult;
 
     fn add_to_verification_obligation<'a>(
         &self,
         committee: &'a Committee,
         obligation: &mut VerificationObligation<'a>,
         message_index: usize,
-    ) -> SuiResult<()>;
+    ) -> IotaResult<()>;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -1053,7 +1054,7 @@ impl AuthoritySignInfoTrait for EmptySignInfo {
         _data: &T,
         _intent: Intent,
         _committee: &Committee,
-    ) -> SuiResult {
+    ) -> IotaResult {
         Ok(())
     }
 
@@ -1062,7 +1063,7 @@ impl AuthoritySignInfoTrait for EmptySignInfo {
         _committee: &'a Committee,
         _obligation: &mut VerificationObligation<'a>,
         _message_index: usize,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         Ok(())
     }
 }
@@ -1080,7 +1081,7 @@ impl AuthoritySignInfoTrait for AuthoritySignInfo {
         data: &T,
         intent: Intent,
         committee: &Committee,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         let mut obligation = VerificationObligation::default();
         let idx = obligation.add_message(data, self.epoch, intent);
         self.add_to_verification_obligation(committee, &mut obligation, idx)?;
@@ -1093,10 +1094,10 @@ impl AuthoritySignInfoTrait for AuthoritySignInfo {
         committee: &'a Committee,
         obligation: &mut VerificationObligation<'a>,
         message_index: usize,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         fp_ensure!(
             self.epoch == committee.epoch(),
-            SuiError::WrongEpoch {
+            IotaError::WrongEpoch {
                 expected_epoch: committee.epoch(),
                 actual_epoch: self.epoch,
             }
@@ -1104,7 +1105,7 @@ impl AuthoritySignInfoTrait for AuthoritySignInfo {
         let weight = committee.weight(&self.authority);
         fp_ensure!(
             weight > 0,
-            SuiError::UnknownSigner {
+            IotaError::UnknownSigner {
                 signer: Some(self.authority.concise().to_string()),
                 index: None,
                 committee: Box::new(committee.clone())
@@ -1114,14 +1115,14 @@ impl AuthoritySignInfoTrait for AuthoritySignInfo {
         obligation
             .public_keys
             .get_mut(message_index)
-            .ok_or(SuiError::InvalidAddress)?
+            .ok_or(IotaError::InvalidAddress)?
             .push(committee.public_key(&self.authority)?);
         obligation
             .signatures
             .get_mut(message_index)
-            .ok_or(SuiError::InvalidAddress)?
+            .ok_or(IotaError::InvalidAddress)?
             .add_signature(self.signature.clone())
-            .map_err(|_| SuiError::InvalidSignature {
+            .map_err(|_| IotaError::InvalidSignature {
                 error: "Fail to aggregator auth sig".to_string(),
             })?;
         Ok(())
@@ -1189,7 +1190,7 @@ pub struct AuthorityQuorumSignInfo<const STRONG_THRESHOLD: bool> {
     #[schemars(with = "Base64")]
     pub signature: AggregateAuthoritySignature,
     #[schemars(with = "Base64")]
-    #[serde_as(as = "SuiBitmap")]
+    #[serde_as(as = "IotaBitmap")]
     pub signers_map: RoaringBitmap,
 }
 
@@ -1199,15 +1200,15 @@ pub type AuthorityStrongQuorumSignInfo = AuthorityQuorumSignInfo<true>;
 // external APIs.
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct SuiAuthorityStrongQuorumSignInfo {
+pub struct IotaAuthorityStrongQuorumSignInfo {
     pub epoch: EpochId,
     pub signature: AggregateAuthoritySignatureAsBytes,
     #[schemars(with = "Base64")]
-    #[serde_as(as = "SuiBitmap")]
+    #[serde_as(as = "IotaBitmap")]
     pub signers_map: RoaringBitmap,
 }
 
-impl From<&AuthorityStrongQuorumSignInfo> for SuiAuthorityStrongQuorumSignInfo {
+impl From<&AuthorityStrongQuorumSignInfo> for IotaAuthorityStrongQuorumSignInfo {
     fn from(info: &AuthorityStrongQuorumSignInfo) -> Self {
         Self {
             epoch: info.epoch,
@@ -1217,10 +1218,10 @@ impl From<&AuthorityStrongQuorumSignInfo> for SuiAuthorityStrongQuorumSignInfo {
     }
 }
 
-impl TryFrom<&SuiAuthorityStrongQuorumSignInfo> for AuthorityStrongQuorumSignInfo {
+impl TryFrom<&IotaAuthorityStrongQuorumSignInfo> for AuthorityStrongQuorumSignInfo {
     type Error = FastCryptoError;
 
-    fn try_from(info: &SuiAuthorityStrongQuorumSignInfo) -> Result<Self, Self::Error> {
+    fn try_from(info: &IotaAuthorityStrongQuorumSignInfo) -> Result<Self, Self::Error> {
         Ok(Self {
             epoch: info.epoch,
             signature: (&info.signature).try_into()?,
@@ -1238,7 +1239,7 @@ impl TryFrom<&SuiAuthorityStrongQuorumSignInfo> for AuthorityStrongQuorumSignInf
 // maintain the invariant that valid certificates with distinct signatures are equivalent, but yet-unchecked
 // certificates that differ on signers aren't.
 //
-// see also https://github.com/MystenLabs/sui/issues/266
+// see also https://github.com/iotaledger/iota/issues/266
 static_assertions::assert_not_impl_any!(AuthorityStrongQuorumSignInfo: Hash, Eq, PartialEq);
 
 impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
@@ -1249,7 +1250,7 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
         data: &T,
         intent: Intent,
         committee: &Committee,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let mut obligation = VerificationObligation::default();
         let idx = obligation.add_message(data, self.epoch, intent);
         self.add_to_verification_obligation(committee, &mut obligation, idx)?;
@@ -1262,11 +1263,11 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
         committee: &'a Committee,
         obligation: &mut VerificationObligation<'a>,
         message_index: usize,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         // Check epoch
         fp_ensure!(
             self.epoch == committee.epoch(),
-            SuiError::WrongEpoch {
+            IotaError::WrongEpoch {
                 expected_epoch: committee.epoch(),
                 actual_epoch: self.epoch,
             }
@@ -1278,21 +1279,21 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
         obligation
             .signatures
             .get_mut(message_index)
-            .ok_or(SuiError::InvalidAuthenticator)?
+            .ok_or(IotaError::InvalidAuthenticator)?
             .add_aggregate(self.signature.clone())
-            .map_err(|_| SuiError::InvalidSignature {
+            .map_err(|_| IotaError::InvalidSignature {
                 error: "Signature Aggregation failed".to_string(),
             })?;
 
         let selected_public_keys = obligation
             .public_keys
             .get_mut(message_index)
-            .ok_or(SuiError::InvalidAuthenticator)?;
+            .ok_or(IotaError::InvalidAuthenticator)?;
 
         for authority_index in self.signers_map.iter() {
             let authority = committee
                 .authority_by_index(authority_index)
-                .ok_or_else(|| SuiError::UnknownSigner {
+                .ok_or_else(|| IotaError::UnknownSigner {
                     signer: None,
                     index: Some(authority_index),
                     committee: Box::new(committee.clone()),
@@ -1302,7 +1303,7 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
             let voting_rights = committee.weight(authority);
             fp_ensure!(
                 voting_rights > 0,
-                SuiError::UnknownSigner {
+                IotaError::UnknownSigner {
                     signer: Some(authority.concise().to_string()),
                     index: Some(authority_index),
                     committee: Box::new(committee.clone()),
@@ -1315,7 +1316,7 @@ impl<const STRONG_THRESHOLD: bool> AuthoritySignInfoTrait
 
         fp_ensure!(
             weight >= Self::quorum_threshold(committee),
-            SuiError::CertificateRequiresQuorum
+            IotaError::CertificateRequiresQuorum
         );
 
         Ok(())
@@ -1326,10 +1327,10 @@ impl<const STRONG_THRESHOLD: bool> AuthorityQuorumSignInfo<STRONG_THRESHOLD> {
     pub fn new_from_auth_sign_infos(
         auth_sign_infos: Vec<AuthoritySignInfo>,
         committee: &Committee,
-    ) -> SuiResult<Self> {
+    ) -> IotaResult<Self> {
         fp_ensure!(
             auth_sign_infos.iter().all(|a| a.epoch == committee.epoch),
-            SuiError::InvalidSignature {
+            IotaError::InvalidSignature {
                 error: "All signatures must be from the same epoch as the committee".to_string()
             }
         );
@@ -1339,7 +1340,7 @@ impl<const STRONG_THRESHOLD: bool> AuthorityQuorumSignInfo<STRONG_THRESHOLD> {
             .sum();
         fp_ensure!(
             total_stake >= Self::quorum_threshold(committee),
-            SuiError::InvalidSignature {
+            IotaError::InvalidSignature {
                 error: "Signatures don't have enough stake to form a quorum".to_string()
             }
         );
@@ -1353,7 +1354,7 @@ impl<const STRONG_THRESHOLD: bool> AuthorityQuorumSignInfo<STRONG_THRESHOLD> {
             map.insert(
                 committee
                     .authority_index(pk)
-                    .ok_or_else(|| SuiError::UnknownSigner {
+                    .ok_or_else(|| IotaError::UnknownSigner {
                         signer: Some(pk.concise().to_string()),
                         index: None,
                         committee: Box::new(committee.clone()),
@@ -1365,7 +1366,7 @@ impl<const STRONG_THRESHOLD: bool> AuthorityQuorumSignInfo<STRONG_THRESHOLD> {
         Ok(AuthorityQuorumSignInfo {
             epoch: committee.epoch,
             signature: AggregateAuthoritySignature::aggregate(&sigs).map_err(|e| {
-                SuiError::InvalidSignature {
+                IotaError::InvalidSignature {
                     error: e.to_string(),
                 }
             })?,
@@ -1376,11 +1377,11 @@ impl<const STRONG_THRESHOLD: bool> AuthorityQuorumSignInfo<STRONG_THRESHOLD> {
     pub fn authorities<'a>(
         &'a self,
         committee: &'a Committee,
-    ) -> impl Iterator<Item = SuiResult<&AuthorityName>> {
+    ) -> impl Iterator<Item = IotaResult<&AuthorityName>> {
         self.signers_map.iter().map(|i| {
             committee
                 .authority_by_index(i)
-                .ok_or(SuiError::InvalidAuthenticator)
+                .ok_or(IotaError::InvalidAuthenticator)
         })
     }
 
@@ -1546,22 +1547,22 @@ impl<'a> VerificationObligation<'a> {
         signature: &AuthoritySignature,
         public_key: &'a AuthorityPublicKey,
         idx: usize,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         self.public_keys
             .get_mut(idx)
-            .ok_or(SuiError::InvalidAuthenticator)?
+            .ok_or(IotaError::InvalidAuthenticator)?
             .push(public_key);
         self.signatures
             .get_mut(idx)
-            .ok_or(SuiError::InvalidAuthenticator)?
+            .ok_or(IotaError::InvalidAuthenticator)?
             .add_signature(signature.clone())
-            .map_err(|_| SuiError::InvalidSignature {
+            .map_err(|_| IotaError::InvalidSignature {
                 error: "Failed to add signature to obligation".to_string(),
             })?;
         Ok(())
     }
 
-    pub fn verify_all(self) -> SuiResult<()> {
+    pub fn verify_all(self) -> IotaResult<()> {
         let mut pks = Vec::with_capacity(self.public_keys.len());
         for pk in self.public_keys.clone() {
             pks.push(pk.into_iter());
@@ -1604,7 +1605,7 @@ impl<'a> VerificationObligation<'a> {
                 );
             }
 
-            SuiError::InvalidSignature {
+            IotaError::InvalidSignature {
                 error: format!("Failed to batch verify aggregated auth sig: {}", e),
             }
         })?;
@@ -1637,7 +1638,7 @@ pub mod bcs_signable_test {
         let idx = obligation.add_message(
             value,
             0,
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
         );
         (obligation, idx)
     }
@@ -1660,7 +1661,7 @@ pub enum SignatureScheme {
     ED25519,
     Secp256k1,
     Secp256r1,
-    BLS12381, // This is currently not supported for user Sui Address.
+    BLS12381, // This is currently not supported for user Iota Address.
     MultiSig,
     ZkLoginAuthenticator,
     PasskeyAuthenticator,
@@ -1673,20 +1674,20 @@ impl SignatureScheme {
             SignatureScheme::Secp256k1 => 0x01,
             SignatureScheme::Secp256r1 => 0x02,
             SignatureScheme::MultiSig => 0x03,
-            SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Sui Address.
+            SignatureScheme::BLS12381 => 0x04, // This is currently not supported for user Iota Address.
             SignatureScheme::ZkLoginAuthenticator => 0x05,
             SignatureScheme::PasskeyAuthenticator => 0x06,
         }
     }
 
-    pub fn from_flag(flag: &str) -> Result<SignatureScheme, SuiError> {
+    pub fn from_flag(flag: &str) -> Result<SignatureScheme, IotaError> {
         let byte_int = flag
             .parse::<u8>()
-            .map_err(|_| SuiError::KeyConversionError("Invalid key scheme".to_string()))?;
+            .map_err(|_| IotaError::KeyConversionError("Invalid key scheme".to_string()))?;
         Self::from_flag_byte(&byte_int)
     }
 
-    pub fn from_flag_byte(byte_int: &u8) -> Result<SignatureScheme, SuiError> {
+    pub fn from_flag_byte(byte_int: &u8) -> Result<SignatureScheme, IotaError> {
         match byte_int {
             0x00 => Ok(SignatureScheme::ED25519),
             0x01 => Ok(SignatureScheme::Secp256k1),
@@ -1695,7 +1696,7 @@ impl SignatureScheme {
             0x04 => Ok(SignatureScheme::BLS12381),
             0x05 => Ok(SignatureScheme::ZkLoginAuthenticator),
             0x06 => Ok(SignatureScheme::PasskeyAuthenticator),
-            _ => Err(SuiError::KeyConversionError(
+            _ => Err(IotaError::KeyConversionError(
                 "Invalid key scheme".to_string(),
             )),
         }

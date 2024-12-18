@@ -1,13 +1,13 @@
 ---
 title: Life of a Transaction
-description: The life of a transaction on the Sui network has some differences compared to those from other blockchains. 
+description: The life of a transaction on the Iota network has some differences compared to those from other blockchains. 
 ---
 
-A transaction on the Sui network goes through many different steps during its life cycle.
+A transaction on the Iota network goes through many different steps during its life cycle.
 
 ## Life cycle overview
 
-At a high level, the following figure outlines the life cycle of a transaction on the Sui blockchain.
+At a high level, the following figure outlines the life cycle of a transaction on the Iota blockchain.
 
 ![Transaction life cycle](./images/txn-lifecycle.png)
 
@@ -15,25 +15,25 @@ The following steps align with those in the preceding image.
 
 1. The first step of the process is the creation of a transaction. A user with a private key creates and signs a user transaction to either mutate objects they own, or a mix of objects they own and [shared objects](../object-ownership/shared.mdx).
 
-1. Sui sends the transaction to each validator (often through a Full node). Validators perform a series of validity and safety checks, sign it, and return the signed transaction to the client. 
+1. Iota sends the transaction to each validator (often through a Full node). Validators perform a series of validity and safety checks, sign it, and return the signed transaction to the client. 
 
-1. The client then collects the responses from a set of validators that account for at least 2/3 stake on Sui (a supermajority) to form a transaction certificate. As a result, unlike consensus-based blockchains, Sui validators do not need to propagate signatures on a best-effort basis (gossip signatures) or aggregate certificates. This effort is now the responsibility of the client or gateway.
+1. The client then collects the responses from a set of validators that account for at least 2/3 stake on Iota (a supermajority) to form a transaction certificate. As a result, unlike consensus-based blockchains, Iota validators do not need to propagate signatures on a best-effort basis (gossip signatures) or aggregate certificates. This effort is now the responsibility of the client or gateway.
 
-1. After assembling the certificate, the client sends it back to all validators, who check its validity and acknowledge its receipt to the client. If the transaction involves owned objects exclusively, Sui can process the transaction certificate immediately and execute it without waiting for the [consensus engine](./consensus.mdx) (**direct fast path**). All certificates are forwarded to the Sui DAG-based consensus protocol (also operated by the Sui validators). 
+1. After assembling the certificate, the client sends it back to all validators, who check its validity and acknowledge its receipt to the client. If the transaction involves owned objects exclusively, Iota can process the transaction certificate immediately and execute it without waiting for the [consensus engine](./consensus.mdx) (**direct fast path**). All certificates are forwarded to the Iota DAG-based consensus protocol (also operated by the Iota validators). 
 
 1. Consensus eventually outputs a total order of certificates; the validators check and execute those that contain shared objects. 
 
 1. Clients can collect a supermajority of validator responses, assemble them into an effect certificate, and use it as proof of the settlement of the transaction. 
 
-1. Subsequently, Sui forms checkpoints for every consensus commit, which it also uses to drive the reconfiguration protocol.
+1. Subsequently, Iota forms checkpoints for every consensus commit, which it also uses to drive the reconfiguration protocol.
 
-The complete [Sui Lutris](https://docs.sui.io/paper/sui-lutris.pdf) paper provides additional detail on how the safety and liveness protocols operate, as well as proofs of security for them in the standard distributed systems model with Byzantine participants in partial synchrony. The following sections provide more detail on the various stages in the life of a transaction.
+The complete [Iota Lutris](https://docs.iota.org/paper/iota-lutris.pdf) paper provides additional detail on how the safety and liveness protocols operate, as well as proofs of security for them in the standard distributed systems model with Byzantine participants in partial synchrony. The following sections provide more detail on the various stages in the life of a transaction.
 
 ## Submission
 
-All transactions on Sui begin when they are submitted to the network. For example, imagine you want to transfer an NFT that you own in your wallet to your friend. First, you would create a transaction using a wallet or some other app. The transaction includes your gas payment object and a command to transfer the NFT object to your friend's address. Before the wallet or app submits the transaction to the network, it must also sign it.
+All transactions on Iota begin when they are submitted to the network. For example, imagine you want to transfer an NFT that you own in your wallet to your friend. First, you would create a transaction using a wallet or some other app. The transaction includes your gas payment object and a command to transfer the NFT object to your friend's address. Before the wallet or app submits the transaction to the network, it must also sign it.
 
-After the transaction is signed, the wallet or app submits the transaction to a Sui Full node on behalf of the user.
+After the transaction is signed, the wallet or app submits the transaction to a Iota Full node on behalf of the user.
 
 ## Certification
 
@@ -42,9 +42,9 @@ Certification happens after a transaction gets submitted to a Full node. Upon su
    - The transaction has a valid user signature.
    - The initiator of the transaction must have access to all the owned input objects the transaction uses. In the previous NFT example, the validity check makes sure you own the NFT you're trying to send to a friend.
    - All the shared input objects used by the transaction exist.
-   - The gas coin is a `Coin<SUI>` object, and it contains at least as much gas as specified in the transaction's gas budget.
+   - The gas coin is a `Coin<IOTA>` object, and it contains at least as much gas as specified in the transaction's gas budget.
 
-If all the validity checks pass, the validator then attempts to lock all the owned input objects to the given transaction digest. This ensures each owned input object can only be used by one transaction at a time and is the way that Sui prevents double-spending. In other words, this makes sure that you send your NFT to only one friend instead of trying to send the same NFT to all your friends.
+If all the validity checks pass, the validator then attempts to lock all the owned input objects to the given transaction digest. This ensures each owned input object can only be used by one transaction at a time and is the way that Iota prevents double-spending. In other words, this makes sure that you send your NFT to only one friend instead of trying to send the same NFT to all your friends.
 
 If the locking succeeds, the validator signs the transaction using its BLS private key and returns the signature to the Full node. A single validator signature is not enough, though. The Full node must collect signatures from enough validators to form a supermajority.
 
@@ -67,7 +67,7 @@ If the certificate signatures are valid, then the validator can be sure that the
 
 Then, each validator does the following, based on whether the transaction:
 - Does not access any shared input objects, in which case it executes it immediately.
-- Does access shared input objects, in which case it submits the object to Sui's consensus layer, which orders the transaction with respect to other transactions using the same shared objects and then executes it.
+- Does access shared input objects, in which case it submits the object to Iota's consensus layer, which orders the transaction with respect to other transactions using the same shared objects and then executes it.
 
 ## Certified Effects
 
@@ -101,7 +101,7 @@ The validators take chunks of ordered transactions from the consensus layer and 
 
 Then the validator constructs a checkpoint, which (among other data) contains a list of transaction digests as well as the digests of the transaction effects of each transaction. Because checkpoints must be complete, the network sometimes has to wait for the availability of all transactions to form the checkpoints, which may take a couple of commits to process. This process typically completes in the order of a few seconds.
 
-At this point, the transaction has reached the end of its life cycle and is included in the permanent record of transaction activity on the Sui network.
+At this point, the transaction has reached the end of its life cycle and is included in the permanent record of transaction activity on the Iota network.
 
 ## Transaction finality
 
@@ -119,11 +119,11 @@ For transactions that involve owned objects only, this happens before consensus 
 
 ## An example path to an effects certificate
 
-As a real-world example, suppose you want to pay the local coffee shop 10 SUI for your morning coffee. How can the coffee shop be sure that the payment is complete and allow you to take your coffee?
+As a real-world example, suppose you want to pay the local coffee shop 10 IOTA for your morning coffee. How can the coffee shop be sure that the payment is complete and allow you to take your coffee?
 
 Step 1: Transaction creation
 
-You open the wallet app on your phone, scan the coffee shop's QR code that contains the recipient on-chain address. The wallet app constructs a transaction that transfers 10 Sui from your Sui address to the coffee shop's address. You review the transaction details and approve it. The wallet app then signs the transaction with your private key. Now you have a signed transaction.
+You open the wallet app on your phone, scan the coffee shop's QR code that contains the recipient on-chain address. The wallet app constructs a transaction that transfers 10 Iota from your Iota address to the coffee shop's address. You review the transaction details and approve it. The wallet app then signs the transaction with your private key. Now you have a signed transaction.
 
 Step 2: Transaction broadcast
 
@@ -167,7 +167,7 @@ Using `WaitForLocalExecution` is not always the best choice, however. For exampl
 
 ### Epoch change
 
-Periodically (~24 hours), the Sui network enters the process of epoch change. During epoch change, the network calculates and distributes staking rewards, validators metadata take effect, and other network processes are performed. All user transactions are delayed until the new epoch begins.
+Periodically (~24 hours), the Iota network enters the process of epoch change. During epoch change, the network calculates and distributes staking rewards, validators metadata take effect, and other network processes are performed. All user transactions are delayed until the new epoch begins.
 
 If your transaction is submitted at epoch boundary, in rare perfect timing, it is possible that a quorum of validators already decided to not accept any new transaction certificates in the current epoch. Of course, this means your coffee purchase is not be checkpointed either. For any transactions that are certified but not finalized, they are reverted if executed, or its owned objects are unlocked and not yet executed. In this case, the transaction certificate does not guarantee finality. In the new epoch, this transaction certificate will become void because validator signatures are signed over epoch ID. To continue this transaction, a new transaction certificate is necessary with the new epoch ID. The standard Full node implementation handles this automatically.
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod abi;
@@ -19,10 +20,10 @@ pub mod node;
 pub mod orchestrator;
 pub mod server;
 pub mod storage;
-pub mod sui_bridge_watchdog;
-pub mod sui_client;
-pub mod sui_syncer;
-pub mod sui_transaction_builder;
+pub mod iota_bridge_watchdog;
+pub mod iota_client;
+pub mod iota_syncer;
+pub mod iota_transaction_builder;
 pub mod types;
 pub mod utils;
 
@@ -30,7 +31,7 @@ pub mod utils;
 pub(crate) mod eth_mock_provider;
 
 #[cfg(test)]
-pub(crate) mod sui_mock_client;
+pub(crate) mod iota_mock_client;
 
 #[cfg(any(feature = "test-utils", test))]
 pub mod test_utils;

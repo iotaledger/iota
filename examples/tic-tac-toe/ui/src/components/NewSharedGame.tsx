@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCurrentAccount } from '@mysten/dapp-kit';
-import { isValidSuiAddress, normalizeSuiAddress } from '@mysten/sui/utils';
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { isValidIotaAddress, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
 import { Box, Button, Em, Flex, Separator, Spinner, Text, TextField } from '@radix-ui/themes';
 import { useTransactions } from 'hooks/useTransactions';
@@ -114,6 +115,6 @@ function normalizedAddress(address?: string): string | null {
 		return null;
 	}
 
-	address = normalizeSuiAddress(address);
-	return isValidSuiAddress(address) ? address : null;
+	address = normalizeIotaAddress(address);
+	return isValidIotaAddress(address) ? address : null;
 }

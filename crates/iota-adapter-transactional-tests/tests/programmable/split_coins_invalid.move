@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests various invalid operations involving SplitCoins
@@ -8,13 +9,13 @@
 
 //# publish
 module test::m1 {
-    use sui::coin;
+    use iota::coin;
 
     public fun ret_one_amount(): address {
         @42
     }
 
-    public fun transfer_(mut v: vector<coin::Coin<sui::sui::SUI>>, r: address) {
+    public fun transfer_(mut v: vector<coin::Coin<iota::iota::IOTA>>, r: address) {
         while (!vector::is_empty(&v)) {
             let c = vector::pop_back(&mut v);
             transfer::public_transfer(c, r);
@@ -28,7 +29,7 @@ module test::m1 {
 //> TransferObjects([Result(0)], Input(1))
 
 // let's get ourselves a coin worth 1000
-//# run sui::pay::split_and_transfer --type-args sui::sui::SUI --args object(2,0) 1000 @A --sender A
+//# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(2,0) 1000 @A --sender A
 
 //# view-object 3,0
 

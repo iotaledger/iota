@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use sui_framework::{BuiltInFramework, SystemPackage};
-use sui_framework_snapshot::update_bytecode_snapshot_manifest;
-use sui_protocol_config::ProtocolVersion;
+use iota_framework::{BuiltInFramework, SystemPackage};
+use iota_framework_snapshot::update_bytecode_snapshot_manifest;
+use iota_protocol_config::ProtocolVersion;
 
 // Define the `GIT_REVISION` const
 bin_version::git_revision!();

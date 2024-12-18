@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_sdk_types::types::CheckpointDigest;
+use iota_sdk_types::types::CheckpointDigest;
 
-/// Extension trait used to facilitate retrieval of Sui specific data from responses
+/// Extension trait used to facilitate retrieval of Iota specific data from responses
 pub trait ResponseExt {
     fn chain_id(&self) -> Option<CheckpointDigest>;
     fn chain(&self) -> Option<&str>;
@@ -16,42 +17,42 @@ pub trait ResponseExt {
 
 impl ResponseExt for tonic::metadata::MetadataMap {
     fn chain_id(&self) -> Option<CheckpointDigest> {
-        self.get(crate::types::X_SUI_CHAIN_ID)
+        self.get(crate::types::X_IOTA_CHAIN_ID)
             .map(tonic::metadata::MetadataValue::as_bytes)
             .and_then(|s| CheckpointDigest::from_base58(s).ok())
     }
 
     fn chain(&self) -> Option<&str> {
-        self.get(crate::types::X_SUI_CHAIN)
+        self.get(crate::types::X_IOTA_CHAIN)
             .and_then(|h| h.to_str().ok())
     }
 
     fn epoch(&self) -> Option<u64> {
-        self.get(crate::types::X_SUI_EPOCH)
+        self.get(crate::types::X_IOTA_EPOCH)
             .and_then(|h| h.to_str().ok())
             .and_then(|s| s.parse().ok())
     }
 
     fn checkpoint_height(&self) -> Option<u64> {
-        self.get(crate::types::X_SUI_CHECKPOINT_HEIGHT)
+        self.get(crate::types::X_IOTA_CHECKPOINT_HEIGHT)
             .and_then(|h| h.to_str().ok())
             .and_then(|s| s.parse().ok())
     }
 
     fn timestamp_ms(&self) -> Option<u64> {
-        self.get(crate::types::X_SUI_TIMESTAMP_MS)
+        self.get(crate::types::X_IOTA_TIMESTAMP_MS)
             .and_then(|h| h.to_str().ok())
             .and_then(|s| s.parse().ok())
     }
 
     fn lowest_available_checkpoint(&self) -> Option<u64> {
-        self.get(crate::types::X_SUI_LOWEST_AVAILABLE_CHECKPOINT)
+        self.get(crate::types::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT)
             .and_then(|h| h.to_str().ok())
             .and_then(|s| s.parse().ok())
     }
 
     fn lowest_available_checkpoint_objects(&self) -> Option<u64> {
-        self.get(crate::types::X_SUI_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS)
+        self.get(crate::types::X_IOTA_LOWEST_AVAILABLE_CHECKPOINT_OBJECTS)
             .and_then(|h| h.to_str().ok())
             .and_then(|s| s.parse().ok())
     }

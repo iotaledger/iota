@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from '_src/ui/app/shared/ButtonUI';
@@ -8,7 +9,7 @@ import {
 	Spinner16 as SpinnerIcon,
 	ThumbUpStroke32 as ThumbUpIcon,
 	LockUnlocked16 as UnlockedLockIcon,
-} from '@mysten/icons';
+} from '@iota/icons';
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -23,7 +24,7 @@ import {
 	type DerivedLedgerAccount,
 } from '../../components/ledger/useDeriveLedgerAccounts';
 import Overlay from '../../components/overlay';
-import { getSuiApplicationErrorMessage } from '../../helpers/errorMessages';
+import { getIotaApplicationErrorMessage } from '../../helpers/errorMessages';
 import { useAccounts } from '../../hooks/useAccounts';
 
 const numLedgerAccountsToDeriveByDefault = 10;
@@ -50,7 +51,7 @@ export function ImportLedgerAccountsPage() {
 
 	useEffect(() => {
 		if (ledgerError) {
-			toast.error(getSuiApplicationErrorMessage(ledgerError) || 'Something went wrong.');
+			toast.error(getIotaApplicationErrorMessage(ledgerError) || 'Something went wrong.');
 			navigate(-1);
 		}
 	}, [ledgerError, navigate]);

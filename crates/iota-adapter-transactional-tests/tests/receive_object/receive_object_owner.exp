@@ -19,16 +19,16 @@ task 3, line 32:
 //# view-object 2,0
 Owner: Object ID: ( fake(2,2) )
 Version: 2
-Contents: sui::dynamic_field::Field<sui::dynamic_object_field::Wrapper<u64>, sui::object::ID> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
-    name: sui::dynamic_object_field::Wrapper<u64> {
+    name: iota::dynamic_object_field::Wrapper<u64> {
         name: 0u64,
     },
-    value: sui::object::ID {
+    value: iota::object::ID {
         bytes: fake(2,1),
     },
 }
@@ -38,8 +38,8 @@ task 4, line 34:
 Owner: Object ID: ( fake(2,0) )
 Version: 2
 Contents: tto::M1::A {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,1),
         },
     },
@@ -51,8 +51,8 @@ task 5, lines 36-38:
 Owner: Account Address ( A )
 Version: 2
 Contents: tto::M1::A {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,2),
         },
     },

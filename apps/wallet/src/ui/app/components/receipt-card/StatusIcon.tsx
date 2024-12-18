@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ThumbUpFill32 } from '@mysten/icons';
+import { ThumbUpFill32 } from '@iota/icons';
 import cl from 'clsx';
 
 export function StatusIcon({ status }: { status: boolean }) {

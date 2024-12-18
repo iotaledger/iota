@@ -1,27 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::balance::Balance;
-use crate::base_types::SuiAddress;
+use crate::base_types::IotaAddress;
 use crate::collection_types::{Bag, Table};
 use crate::committee::{CommitteeWithNetworkMetadata, NetworkMetadata};
 use crate::crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes, NetworkPublicKey};
-use crate::error::SuiError;
+use crate::error::IotaError;
 use crate::storage::ObjectStore;
-use crate::sui_system_state::epoch_start_sui_system_state::{
+use crate::iota_system_state::epoch_start_iota_system_state::{
     EpochStartSystemState, EpochStartValidatorInfoV1,
 };
-use crate::sui_system_state::sui_system_state_summary::{
-    SuiSystemStateSummary, SuiValidatorSummary,
+use crate::iota_system_state::iota_system_state_summary::{
+    IotaSystemStateSummary, IotaValidatorSummary,
 };
-use crate::sui_system_state::{AdvanceEpochParams, SuiSystemStateTrait};
+use crate::iota_system_state::{AdvanceEpochParams, IotaSystemStateTrait};
 use fastcrypto::traits::ToFromBytes;
-use mysten_network::Multiaddr;
+use iota_network_stack::Multiaddr;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SimTestSuiSystemStateInnerV1 {
+pub struct SimTestIotaSystemStateInnerV1 {
     pub epoch: u64,
     pub protocol_version: u64,
     pub system_state_version: u64,
@@ -63,14 +64,14 @@ impl SimTestValidatorV1 {
             .get_or_init(|| self.metadata.verify())
     }
 
-    pub fn into_sui_validator_summary(self) -> SuiValidatorSummary {
-        SuiValidatorSummary::default()
+    pub fn into_iota_validator_summary(self) -> IotaValidatorSummary {
+        IotaValidatorSummary::default()
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct SimTestValidatorMetadataV1 {
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
     pub protocol_pubkey_bytes: Vec<u8>,
     pub network_pubkey_bytes: Vec<u8>,
     pub worker_pubkey_bytes: Vec<u8>,
@@ -83,7 +84,7 @@ pub struct SimTestValidatorMetadataV1 {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct VerifiedSimTestValidatorMetadataV1 {
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
     pub protocol_pubkey: AuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub worker_pubkey: NetworkPublicKey,
@@ -106,7 +107,7 @@ impl SimTestValidatorMetadataV1 {
         let primary_address = Multiaddr::try_from(self.primary_address.clone()).unwrap();
         let worker_address = Multiaddr::try_from(self.worker_address.clone()).unwrap();
         VerifiedSimTestValidatorMetadataV1 {
-            sui_address: self.sui_address,
+            iota_address: self.iota_address,
             protocol_pubkey,
             network_pubkey,
             worker_pubkey,
@@ -119,12 +120,12 @@ impl SimTestValidatorMetadataV1 {
 }
 
 impl VerifiedSimTestValidatorMetadataV1 {
-    pub fn sui_pubkey_bytes(&self) -> AuthorityPublicKeyBytes {
+    pub fn iota_pubkey_bytes(&self) -> AuthorityPublicKeyBytes {
         (&self.protocol_pubkey).into()
     }
 }
 
-impl SuiSystemStateTrait for SimTestSuiSystemStateInnerV1 {
+impl IotaSystemStateTrait for SimTestIotaSystemStateInnerV1 {
     fn epoch(&self) -> u64 {
         self.epoch
     }
@@ -167,7 +168,7 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerV1 {
             .iter()
             .map(|validator| {
                 let verified_metadata = validator.verified_metadata();
-                let name = verified_metadata.sui_pubkey_bytes();
+                let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
                     (
@@ -187,7 +188,7 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerV1 {
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
         &self,
         _object_store: &S,
-    ) -> Result<Vec<SuiValidatorSummary>, SuiError> {
+    ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
         Ok(vec![])
     }
 
@@ -205,11 +206,11 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerV1 {
                 .map(|validator| {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
-                        sui_address: metadata.sui_address,
+                        iota_address: metadata.iota_address,
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
                         narwhal_network_pubkey: metadata.network_pubkey.clone(),
                         narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
-                        sui_net_address: metadata.net_address.clone(),
+                        iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         narwhal_primary_address: metadata.primary_address.clone(),
                         narwhal_worker_address: metadata.worker_address.clone(),
@@ -221,13 +222,13 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerV1 {
         )
     }
 
-    fn into_sui_system_state_summary(self) -> SuiSystemStateSummary {
-        SuiSystemStateSummary::default()
+    fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
+        IotaSystemStateSummary::default()
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SimTestSuiSystemStateInnerShallowV2 {
+pub struct SimTestIotaSystemStateInnerShallowV2 {
     pub new_dummy_field: u64,
     pub epoch: u64,
     pub protocol_version: u64,
@@ -241,7 +242,7 @@ pub struct SimTestSuiSystemStateInnerShallowV2 {
     pub extra_fields: Bag,
 }
 
-impl SuiSystemStateTrait for SimTestSuiSystemStateInnerShallowV2 {
+impl IotaSystemStateTrait for SimTestIotaSystemStateInnerShallowV2 {
     fn epoch(&self) -> u64 {
         self.epoch
     }
@@ -284,7 +285,7 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerShallowV2 {
             .iter()
             .map(|validator| {
                 let verified_metadata = validator.verified_metadata();
-                let name = verified_metadata.sui_pubkey_bytes();
+                let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
                     (
@@ -304,7 +305,7 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerShallowV2 {
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
         &self,
         _object_store: &S,
-    ) -> Result<Vec<SuiValidatorSummary>, SuiError> {
+    ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
         Ok(vec![])
     }
 
@@ -322,11 +323,11 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerShallowV2 {
                 .map(|validator| {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
-                        sui_address: metadata.sui_address,
+                        iota_address: metadata.iota_address,
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
                         narwhal_network_pubkey: metadata.network_pubkey.clone(),
                         narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
-                        sui_net_address: metadata.net_address.clone(),
+                        iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         narwhal_primary_address: metadata.primary_address.clone(),
                         narwhal_worker_address: metadata.worker_address.clone(),
@@ -338,8 +339,8 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerShallowV2 {
         )
     }
 
-    fn into_sui_system_state_summary(self) -> SuiSystemStateSummary {
-        SuiSystemStateSummary::default()
+    fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
+        IotaSystemStateSummary::default()
     }
 }
 
@@ -367,13 +368,13 @@ impl SimTestValidatorDeepV2 {
             .get_or_init(|| self.metadata.verify())
     }
 
-    pub fn into_sui_validator_summary(self) -> SuiValidatorSummary {
-        SuiValidatorSummary::default()
+    pub fn into_iota_validator_summary(self) -> IotaValidatorSummary {
+        IotaValidatorSummary::default()
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
-pub struct SimTestSuiSystemStateInnerDeepV2 {
+pub struct SimTestIotaSystemStateInnerDeepV2 {
     pub new_dummy_field: u64,
     pub epoch: u64,
     pub protocol_version: u64,
@@ -387,7 +388,7 @@ pub struct SimTestSuiSystemStateInnerDeepV2 {
     pub extra_fields: Bag,
 }
 
-impl SuiSystemStateTrait for SimTestSuiSystemStateInnerDeepV2 {
+impl IotaSystemStateTrait for SimTestIotaSystemStateInnerDeepV2 {
     fn epoch(&self) -> u64 {
         self.epoch
     }
@@ -430,7 +431,7 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerDeepV2 {
             .iter()
             .map(|validator| {
                 let verified_metadata = validator.verified_metadata();
-                let name = verified_metadata.sui_pubkey_bytes();
+                let name = verified_metadata.iota_pubkey_bytes();
                 (
                     name,
                     (
@@ -450,7 +451,7 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerDeepV2 {
     fn get_pending_active_validators<S: ObjectStore + ?Sized>(
         &self,
         _object_store: &S,
-    ) -> Result<Vec<SuiValidatorSummary>, SuiError> {
+    ) -> Result<Vec<IotaValidatorSummary>, IotaError> {
         Ok(vec![])
     }
 
@@ -468,11 +469,11 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerDeepV2 {
                 .map(|validator| {
                     let metadata = validator.verified_metadata();
                     EpochStartValidatorInfoV1 {
-                        sui_address: metadata.sui_address,
+                        iota_address: metadata.iota_address,
                         protocol_pubkey: metadata.protocol_pubkey.clone(),
                         narwhal_network_pubkey: metadata.network_pubkey.clone(),
                         narwhal_worker_pubkey: metadata.worker_pubkey.clone(),
-                        sui_net_address: metadata.net_address.clone(),
+                        iota_net_address: metadata.net_address.clone(),
                         p2p_address: metadata.p2p_address.clone(),
                         narwhal_primary_address: metadata.primary_address.clone(),
                         narwhal_worker_address: metadata.worker_address.clone(),
@@ -484,7 +485,7 @@ impl SuiSystemStateTrait for SimTestSuiSystemStateInnerDeepV2 {
         )
     }
 
-    fn into_sui_system_state_summary(self) -> SuiSystemStateSummary {
-        SuiSystemStateSummary::default()
+    fn into_iota_system_state_summary(self) -> IotaSystemStateSummary {
+        IotaSystemStateSummary::default()
     }
 }

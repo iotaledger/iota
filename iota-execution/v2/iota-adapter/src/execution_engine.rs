@@ -1,67 +1,68 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 mod checked {
 
     use crate::execution_mode::{self, ExecutionMode};
     use move_binary_format::CompiledModule;
     use move_vm_runtime::move_vm::MoveVM;
     use std::{collections::HashSet, sync::Arc};
-    use sui_types::balance::{
+    use iota_types::balance::{
         BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME,
         BALANCE_MODULE_NAME,
     };
-    use sui_types::base_types::SequenceNumber;
-    use sui_types::gas_coin::GAS;
-    use sui_types::messages_checkpoint::CheckpointTimestamp;
-    use sui_types::metrics::LimitsMetrics;
-    use sui_types::object::OBJECT_START_VERSION;
-    use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-    use sui_types::randomness_state::{
+    use iota_types::base_types::SequenceNumber;
+    use iota_types::gas_coin::GAS;
+    use iota_types::messages_checkpoint::CheckpointTimestamp;
+    use iota_types::metrics::LimitsMetrics;
+    use iota_types::object::OBJECT_START_VERSION;
+    use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+    use iota_types::randomness_state::{
         RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
         RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
     };
-    use sui_types::SUI_RANDOMNESS_STATE_OBJECT_ID;
+    use iota_types::IOTA_RANDOMNESS_STATE_OBJECT_ID;
     use tracing::{info, instrument, trace, warn};
 
     use crate::programmable_transactions;
     use crate::type_layout_resolver::TypeLayoutResolver;
     use crate::{gas_charger::GasCharger, temporary_store::TemporaryStore};
-    use sui_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
-    use sui_types::authenticator_state::{
+    use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
+    use iota_types::authenticator_state::{
         AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME, AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME,
         AUTHENTICATOR_STATE_MODULE_NAME, AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME,
     };
-    use sui_types::clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME};
-    use sui_types::committee::EpochId;
-    use sui_types::deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE};
-    use sui_types::effects::TransactionEffects;
-    use sui_types::error::{ExecutionError, ExecutionErrorKind};
-    use sui_types::execution::is_certificate_denied;
-    use sui_types::execution_config_utils::to_binary_config;
-    use sui_types::execution_status::{CongestedObjects, ExecutionStatus};
-    use sui_types::gas::GasCostSummary;
-    use sui_types::gas::SuiGasStatus;
-    use sui_types::inner_temporary_store::InnerTemporaryStore;
-    use sui_types::storage::BackingStore;
+    use iota_types::clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME};
+    use iota_types::committee::EpochId;
+    use iota_types::deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE};
+    use iota_types::effects::TransactionEffects;
+    use iota_types::error::{ExecutionError, ExecutionErrorKind};
+    use iota_types::execution::is_certificate_denied;
+    use iota_types::execution_config_utils::to_binary_config;
+    use iota_types::execution_status::{CongestedObjects, ExecutionStatus};
+    use iota_types::gas::GasCostSummary;
+    use iota_types::gas::IotaGasStatus;
+    use iota_types::inner_temporary_store::InnerTemporaryStore;
+    use iota_types::storage::BackingStore;
     #[cfg(msim)]
-    use sui_types::sui_system_state::advance_epoch_result_injection::maybe_modify_result;
-    use sui_types::sui_system_state::{AdvanceEpochParams, ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME};
-    use sui_types::transaction::{
+    use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
+    use iota_types::iota_system_state::{AdvanceEpochParams, ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME};
+    use iota_types::transaction::{
         Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
         Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg, ProgrammableTransaction,
         TransactionKind,
     };
-    use sui_types::transaction::{CheckedInputObjects, RandomnessStateUpdate};
-    use sui_types::{
-        base_types::{ObjectID, ObjectRef, SuiAddress, TransactionDigest, TxContext},
+    use iota_types::transaction::{CheckedInputObjects, RandomnessStateUpdate};
+    use iota_types::{
+        base_types::{ObjectID, ObjectRef, IotaAddress, TransactionDigest, TxContext},
         object::{Object, ObjectInner},
-        sui_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, SUI_SYSTEM_MODULE_NAME},
-        SUI_AUTHENTICATOR_STATE_OBJECT_ID, SUI_FRAMEWORK_ADDRESS, SUI_FRAMEWORK_PACKAGE_ID,
-        SUI_SYSTEM_PACKAGE_ID,
+        iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, IOTA_SYSTEM_MODULE_NAME},
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_SYSTEM_PACKAGE_ID,
     };
 
     #[instrument(name = "tx_execute_to_effects", level = "debug", skip_all)]
@@ -69,9 +70,9 @@ mod checked {
         store: &dyn BackingStore,
         input_objects: CheckedInputObjects,
         gas_coins: Vec<ObjectRef>,
-        gas_status: SuiGasStatus,
+        gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: SuiAddress,
+        transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
@@ -82,7 +83,7 @@ mod checked {
         certificate_deny_set: &HashSet<TransactionDigest>,
     ) -> (
         InnerTemporaryStore,
-        SuiGasStatus,
+        IotaGasStatus,
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
@@ -147,7 +148,7 @@ mod checked {
                     );
                 }
 
-                K::SuiMoveVerificationError | K::VMVerificationOrDeserializationError => {
+                K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
                     #[skip_checked_arithmetic]
                     tracing::debug!(
                         kind = ?error.kind(),
@@ -346,7 +347,7 @@ mod checked {
 
         let cost_summary = gas_charger.charge_gas(temporary_store, &mut result);
         // For advance epoch transaction, we need to provide epoch rewards and rebates as extra
-        // information provided to check_sui_conserved, because we mint rewards, and burn
+        // information provided to check_iota_conserved, because we mint rewards, and burn
         // the rebates. We also need to pass in the unmetered_storage_rebate because storage
         // rebate is not reflected in the storage_rebate of gas summary. This is a bit confusing.
         // We could probably clean up the code a bit.
@@ -384,18 +385,18 @@ mod checked {
         is_genesis_tx: bool,
         advance_epoch_gas_summary: Option<(u64, u64)>,
     ) -> Result<(), ExecutionError> {
-        let mut result: std::result::Result<(), sui_types::error::ExecutionError> = Ok(());
+        let mut result: std::result::Result<(), iota_types::error::ExecutionError> = Ok(());
         if !is_genesis_tx && !Mode::skip_conservation_checks() {
-            // ensure that this transaction did not create or destroy SUI, try to recover if the check fails
+            // ensure that this transaction did not create or destroy IOTA, try to recover if the check fails
             let conservation_result = {
                 temporary_store
-                    .check_sui_conserved(simple_conservation_checks, cost_summary)
+                    .check_iota_conserved(simple_conservation_checks, cost_summary)
                     .and_then(|()| {
                         if enable_expensive_checks {
-                            // ensure that this transaction did not create or destroy SUI, try to recover if the check fails
+                            // ensure that this transaction did not create or destroy IOTA, try to recover if the check fails
                             let mut layout_resolver =
                                 TypeLayoutResolver::new(move_vm, Box::new(&*temporary_store));
-                            temporary_store.check_sui_conserved_expensive(
+                            temporary_store.check_iota_conserved_expensive(
                                 cost_summary,
                                 advance_epoch_gas_summary,
                                 &mut layout_resolver,
@@ -414,13 +415,13 @@ mod checked {
                 // check conservation once more more
                 if let Err(recovery_err) = {
                     temporary_store
-                        .check_sui_conserved(simple_conservation_checks, cost_summary)
+                        .check_iota_conserved(simple_conservation_checks, cost_summary)
                         .and_then(|()| {
                             if enable_expensive_checks {
-                                // ensure that this transaction did not create or destroy SUI, try to recover if the check fails
+                                // ensure that this transaction did not create or destroy IOTA, try to recover if the check fails
                                 let mut layout_resolver =
                                     TypeLayoutResolver::new(move_vm, Box::new(&*temporary_store));
-                                temporary_store.check_sui_conserved_expensive(
+                                temporary_store.check_iota_conserved_expensive(
                                     cost_summary,
                                     advance_epoch_gas_summary,
                                     &mut layout_resolver,
@@ -432,16 +433,16 @@ mod checked {
                 } {
                     // if we still fail, it's a problem with gas
                     // charging that happens even in the "aborted" case--no other option but panic.
-                    // we will create or destroy SUI otherwise
+                    // we will create or destroy IOTA otherwise
                     panic!(
-                        "SUI conservation fail in tx block {}: {}\nGas status is {}\nTx was ",
+                        "IOTA conservation fail in tx block {}: {}\nGas status is {}\nTx was ",
                         tx_ctx.digest(),
                         recovery_err,
                         gas_charger.summary()
                     )
                 }
             }
-        } // else, we're in the genesis transaction which mints the SUI supply, and hence does not satisfy SUI conservation, or
+        } // else, we're in the genesis transaction which mints the IOTA supply, and hence does not satisfy IOTA conservation, or
           // we're in the non-production dev inspect mode which allows us to violate conservation
         result
     }
@@ -559,7 +560,7 @@ mod checked {
 
                 for genesis_object in objects {
                     match genesis_object {
-                        sui_types::transaction::GenesisObject::RawObject { data, owner } => {
+                        iota_types::transaction::GenesisObject::RawObject { data, owner } => {
                             let object = ObjectInner {
                                 data,
                                 owner,
@@ -712,7 +713,7 @@ mod checked {
             ))
             .unwrap();
         let storage_rewards = builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             BALANCE_MODULE_NAME.to_owned(),
             BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
             vec![GAS::type_tag()],
@@ -726,7 +727,7 @@ mod checked {
             ))
             .unwrap();
         let computation_rewards = builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             BALANCE_MODULE_NAME.to_owned(),
             BALANCE_CREATE_REWARDS_FUNCTION_NAME.to_owned(),
             vec![GAS::type_tag()],
@@ -745,7 +746,7 @@ mod checked {
         // Step 2: Advance the epoch.
         let mut arguments = vec![storage_rewards, computation_rewards];
         let call_arg_arguments = vec![
-            CallArg::SUI_SYSTEM_MUT,
+            CallArg::IOTA_SYSTEM_MUT,
             CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()),
@@ -768,8 +769,8 @@ mod checked {
         info!("Call arguments to advance_epoch transaction: {:?}", params);
 
         let storage_rebates = builder.programmable_move_call(
-            SUI_SYSTEM_PACKAGE_ID,
-            SUI_SYSTEM_MODULE_NAME.to_owned(),
+            IOTA_SYSTEM_PACKAGE_ID,
+            IOTA_SYSTEM_MODULE_NAME.to_owned(),
             ADVANCE_EPOCH_FUNCTION_NAME.to_owned(),
             vec![],
             arguments,
@@ -777,7 +778,7 @@ mod checked {
 
         // Step 3: Destroy the storage rebates.
         builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             BALANCE_MODULE_NAME.to_owned(),
             BALANCE_DESTROY_REBATES_FUNCTION_NAME.to_owned(),
             vec![GAS::type_tag()],
@@ -798,7 +799,7 @@ mod checked {
         let mut arguments = vec![storage_rewards, computation_rewards];
 
         let mut args = vec![
-            CallArg::SUI_SYSTEM_MUT,
+            CallArg::IOTA_SYSTEM_MUT,
             CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
             CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()),
@@ -826,8 +827,8 @@ mod checked {
         info!("Call arguments to advance_epoch transaction: {:?}", params);
 
         builder.programmable_move_call(
-            SUI_SYSTEM_PACKAGE_ID,
-            SUI_SYSTEM_MODULE_NAME.to_owned(),
+            IOTA_SYSTEM_PACKAGE_ID,
+            IOTA_SYSTEM_MODULE_NAME.to_owned(),
             ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME.to_owned(),
             vec![],
             arguments,
@@ -972,7 +973,7 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                SUI_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_ADDRESS.into(),
                 CLOCK_MODULE_NAME.to_owned(),
                 CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1003,7 +1004,7 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                SUI_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_ADDRESS.into(),
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1018,7 +1019,7 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                SUI_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_ADDRESS.into(),
                 RANDOMNESS_MODULE_NAME.to_owned(),
                 RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
                 vec![],
@@ -1040,13 +1041,13 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                SUI_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_ADDRESS.into(),
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_UPDATE_FUNCTION_NAME.to_owned(),
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: SUI_AUTHENTICATOR_STATE_OBJECT_ID,
+                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                         initial_shared_version: update.authenticator_obj_initial_shared_version,
                         mutable: true,
                     }),
@@ -1076,13 +1077,13 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                SUI_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_ADDRESS.into(),
                 AUTHENTICATOR_STATE_MODULE_NAME.to_owned(),
                 AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME.to_owned(),
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: SUI_AUTHENTICATOR_STATE_OBJECT_ID,
+                        id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
                         initial_shared_version: expire.authenticator_obj_initial_shared_version,
                         mutable: true,
                     }),
@@ -1105,13 +1106,13 @@ mod checked {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let res = builder.move_call(
-                SUI_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_ADDRESS.into(),
                 RANDOMNESS_MODULE_NAME.to_owned(),
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME.to_owned(),
                 vec![],
                 vec![
                     CallArg::Object(ObjectArg::SharedObject {
-                        id: SUI_RANDOMNESS_STATE_OBJECT_ID,
+                        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
                         initial_shared_version: update.randomness_obj_initial_shared_version,
                         mutable: true,
                     }),
@@ -1141,7 +1142,7 @@ mod checked {
     ) -> ProgrammableTransactionBuilder {
         builder
             .move_call(
-                SUI_FRAMEWORK_ADDRESS.into(),
+                IOTA_FRAMEWORK_ADDRESS.into(),
                 DENY_LIST_MODULE.to_owned(),
                 DENY_LIST_CREATE_FUNC.to_owned(),
                 vec![],

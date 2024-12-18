@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::config::ConnectionConfig;
@@ -13,15 +14,15 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_graphql_rpc_client::simple_client::SimpleClient;
-pub use sui_indexer::config::RetentionConfig;
-pub use sui_indexer::config::SnapshotLagConfig;
-use sui_indexer::errors::IndexerError;
-use sui_indexer::store::PgIndexerStore;
-use sui_indexer::test_utils::start_indexer_writer_for_testing;
-use sui_pg_temp_db::{get_available_port, TempDb};
-use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use sui_types::storage::RpcStateReader;
+use iota_graphql_rpc_client::simple_client::SimpleClient;
+pub use iota_indexer::config::RetentionConfig;
+pub use iota_indexer::config::SnapshotLagConfig;
+use iota_indexer::errors::IndexerError;
+use iota_indexer::store::PgIndexerStore;
+use iota_indexer::test_utils::start_indexer_writer_for_testing;
+use iota_pg_temp_db::{get_available_port, TempDb};
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
+use iota_types::storage::RpcStateReader;
 use tempfile::tempdir;
 use tempfile::TempDir;
 use test_cluster::TestCluster;
@@ -147,7 +148,7 @@ pub async fn start_network_cluster() -> NetworkCluster {
     }
 }
 
-/// Takes in a simulated instantiation of a Sui blockchain and builds a cluster around it. This
+/// Takes in a simulated instantiation of a Iota blockchain and builds a cluster around it. This
 /// cluster is typically used in e2e tests to emulate and test behaviors.
 pub async fn serve_executor(
     executor: Arc<dyn RpcStateReader + Send + Sync>,
@@ -175,7 +176,7 @@ pub async fn serve_executor(
         .unwrap();
 
     let executor_server_handle = tokio::spawn(async move {
-        sui_rpc_api::RpcService::new_without_version(executor)
+        iota_rpc_api::RpcService::new_without_version(executor)
             .start_service(executor_server_url)
             .await;
     });

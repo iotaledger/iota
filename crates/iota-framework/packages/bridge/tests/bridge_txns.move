@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
@@ -24,26 +25,26 @@ use std::type_name;
 
 #[test]
 fun test_limits() {
-    let mut env = create_env(chain_ids::sui_custom());
+    let mut env = create_env(chain_ids::iota_custom());
     env.create_bridge_default();
 
     let source_chain = chain_ids::eth_custom();
-    let sui_address = @0xABCDEF;
+    let iota_address = @0xABCDEF;
     let eth_address = x"0000000000000000000000000000000000001234";
 
     // lower limits
     let chain_id = env.chain_id();
     env.update_bridge_limit(@0x0, chain_id, source_chain, 3000);
-    let transfer_id1 = env.bridge_to_sui<ETH>(
+    let transfer_id1 = env.bridge_to_iota<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         4000000000,
     );
-    let transfer_id2 = env.bridge_to_sui<ETH>(
+    let transfer_id2 = env.bridge_to_iota<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         1000,
     );
     assert!(
@@ -72,30 +73,30 @@ fun test_limits() {
 
 #[test]
 fun test_bridge_and_claim() {
-    let mut env = create_env(chain_ids::sui_custom());
+    let mut env = create_env(chain_ids::iota_custom());
     env.create_bridge_default();
 
     let source_chain = chain_ids::eth_custom();
-    let sui_address = @0xABCDEF;
+    let iota_address = @0xABCDEF;
     let eth_address = x"0000000000000000000000000000000000001234";
     let amount = 1000;
 
     //
-    // move from eth and transfer to sui account
-    let transfer_id1 = env.bridge_to_sui<ETH>(
+    // move from eth and transfer to iota account
+    let transfer_id1 = env.bridge_to_iota<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     assert!(
         env.claim_and_transfer_token<ETH>(source_chain, transfer_id1) ==
         claimed(),
     );
-    let transfer_id2 = env.bridge_to_sui<ETH>(
+    let transfer_id2 = env.bridge_to_iota<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     assert!(
@@ -110,16 +111,16 @@ fun test_bridge_and_claim() {
 
     //
     // change order
-    let transfer_id1 = env.bridge_to_sui<ETH>(
+    let transfer_id1 = env.bridge_to_iota<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
-    let transfer_id2 = env.bridge_to_sui<ETH>(
+    let transfer_id2 = env.bridge_to_iota<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     assert!(
@@ -133,15 +134,15 @@ fun test_bridge_and_claim() {
 
     //
     // move from eth and send it back
-    let transfer_id = env.bridge_to_sui<ETH>(
+    let transfer_id = env.bridge_to_iota<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
-    let token = env.claim_token<ETH>(sui_address, source_chain, transfer_id);
+    let token = env.claim_token<ETH>(iota_address, source_chain, transfer_id);
     env.send_token<ETH>(
-        sui_address,
+        iota_address,
         source_chain,
         eth_address,
         token,
@@ -152,7 +153,7 @@ fun test_bridge_and_claim() {
     let message = env.bridge_in_message<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     let signatures = env.sign_message_with(message, vector[0, 2]);
@@ -168,7 +169,7 @@ fun test_bridge_and_claim() {
     let message = env.bridge_in_message<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     let signatures = env.sign_message_with(message, vector[0, 2]);
@@ -180,9 +181,9 @@ fun test_bridge_and_claim() {
     assert!(
         env.approve_token_transfer(message, signatures) == already_approved(),
     );
-    let token = env.claim_token<ETH>(sui_address, source_chain, transfer_id);
+    let token = env.claim_token<ETH>(iota_address, source_chain, transfer_id);
     let send_token_id = env.send_token<ETH>(
-        sui_address,
+        iota_address,
         source_chain,
         eth_address,
         token,
@@ -190,7 +191,7 @@ fun test_bridge_and_claim() {
     let message = env.bridge_out_message<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
         send_token_id,
     );
@@ -206,7 +207,7 @@ fun test_bridge_and_claim() {
     let message = env.bridge_in_message<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     let transfer_id = message.seq_num();
@@ -220,9 +221,9 @@ fun test_bridge_and_claim() {
     assert!(
         env.approve_token_transfer(message, signatures) == already_approved(),
     );
-    let token = env.claim_token<ETH>(sui_address, source_chain, transfer_id);
+    let token = env.claim_token<ETH>(iota_address, source_chain, transfer_id);
     env.send_token<ETH>(
-        sui_address,
+        iota_address,
         source_chain,
         eth_address,
         token,
@@ -234,7 +235,7 @@ fun test_bridge_and_claim() {
 #[test]
 #[expected_failure(abort_code = bridge::committee::ESignatureBelowThreshold)]
 fun test_blocklist() {
-    let mut env = create_env(chain_ids::sui_custom());
+    let mut env = create_env(chain_ids::iota_custom());
     let validators = vector[
         create_validator(@0xAAAA, 100, &b"1234567890_1234567890_1234567890"),
         create_validator(@0xBBBB, 100, &b"234567890_1234567890_1234567890_"),
@@ -250,7 +251,7 @@ fun test_blocklist() {
     env.setup_treasury(sender);
 
     let source_chain = chain_ids::eth_custom();
-    let sui_address = @0xABCDEF;
+    let iota_address = @0xABCDEF;
     let eth_address = x"0000000000000000000000000000000000001234";
     let amount = 1000;
 
@@ -258,7 +259,7 @@ fun test_blocklist() {
     let message = env.bridge_in_message<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     let signatures = env.sign_message_with(message, vector[0, 2]);
@@ -280,7 +281,7 @@ fun test_blocklist() {
     let message = env.bridge_in_message<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     let signatures = env.sign_message_with(message, vector[1, 2]);
@@ -293,7 +294,7 @@ fun test_blocklist() {
     let message = env.bridge_in_message<ETH>(
         source_chain,
         eth_address,
-        sui_address,
+        iota_address,
         amount,
     );
     let signatures = env.sign_message_with(message, vector[0, 2]);
@@ -305,7 +306,7 @@ fun test_blocklist() {
 #[test]
 fun test_system_messages() {
     let addr = @0xABCDEF0123; // random address
-    let mut env = create_env(chain_ids::sui_custom());
+    let mut env = create_env(chain_ids::iota_custom());
     env.create_bridge_default();
 
     env.update_asset_price(addr, eth_id(), 735);

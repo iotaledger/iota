@@ -1,8 +1,8 @@
 {
-	"name": "@mysten/build-scripts",
+	"name": "@iota/build-scripts",
 	"private": true,
-	"author": "Mysten Labs <build@mystenlabs.com>",
-	"description": "Build scripts for @mysten packages",
+	"author": "IOTA Foundation <info@iota.org>",
+	"description": "Build scripts for @iota packages",
 	"version": "0.0.0",
 	"license": "Apache-2.0",
 	"engines": {

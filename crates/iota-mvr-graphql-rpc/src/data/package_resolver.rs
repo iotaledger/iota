@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeSet, HashMap};
@@ -9,10 +10,10 @@ use async_trait::async_trait;
 use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use move_core_types::account_address::AccountAddress;
-use sui_indexer::models::packages::StoredPackage;
-use sui_indexer::schema::packages;
-use sui_package_resolver::Resolver;
-use sui_package_resolver::{
+use iota_indexer::models::packages::StoredPackage;
+use iota_indexer::schema::packages;
+use iota_package_resolver::Resolver;
+use iota_package_resolver::{
     error::Error as PackageResolverError, Package, PackageStore, PackageStoreWithLruCache, Result,
 };
 

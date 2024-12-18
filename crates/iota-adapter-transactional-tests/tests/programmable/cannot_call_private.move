@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests cannot call private with programmable transactions
@@ -7,7 +8,7 @@
 
 //# publish
 module test::m1 {
-    fun priv(_: &mut sui::tx_context::TxContext) {}
+    fun priv(_: &mut iota::tx_context::TxContext) {}
 }
 
 //# programmable

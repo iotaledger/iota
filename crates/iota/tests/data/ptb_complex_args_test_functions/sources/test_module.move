@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module test_functions::test_module {
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
-    use sui::transfer;
+    use iota::object::{Self, UID};
+    use iota::tx_context::TxContext;
+    use iota::transfer;
     use std::ascii::String as AS;
     use std::string::String as US;
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, Error};
@@ -9,18 +10,18 @@ use diesel::{OptionalExtension, QueryDsl, SelectableHelper};
 use diesel_async::scoped_futures::ScopedFutureExt;
 use diesel_async::AsyncConnection;
 use diesel_async::RunQueryDsl;
-use sui_indexer_builder::progress::ProgressSavingPolicy;
-use sui_types::base_types::ObjectID;
-use sui_types::transaction::{Command, TransactionDataAPI};
+use iota_indexer_builder::progress::ProgressSavingPolicy;
+use iota_types::base_types::ObjectID;
+use iota_types::transaction::{Command, TransactionDataAPI};
 use tracing::info;
 
-use sui_indexer_builder::indexer_builder::{DataMapper, IndexerProgressStore, Persistent};
-use sui_indexer_builder::sui_datasource::CheckpointTxnData;
-use sui_indexer_builder::{Task, Tasks, LIVE_TASK_TARGET_CHECKPOINT};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::event::Event;
-use sui_types::execution_status::ExecutionStatus;
-use sui_types::full_checkpoint_content::CheckpointTransaction;
+use iota_indexer_builder::indexer_builder::{DataMapper, IndexerProgressStore, Persistent};
+use iota_indexer_builder::iota_datasource::CheckpointTxnData;
+use iota_indexer_builder::{Task, Tasks, LIVE_TASK_TARGET_CHECKPOINT};
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::event::Event;
+use iota_types::execution_status::ExecutionStatus;
+use iota_types::full_checkpoint_content::CheckpointTransaction;
 
 use crate::events::{
     MoveBalanceEvent, MoveFlashLoanBorrowedEvent, MoveOrderCanceledEvent, MoveOrderExpiredEvent,
@@ -32,11 +33,11 @@ use crate::postgres_manager::PgPool;
 use crate::schema::progress_store::{columns, dsl};
 use crate::schema::{
     balances, flashloans, order_fills, order_updates, pool_prices, proposals, rebates, stakes,
-    sui_error_transactions, trade_params_update, votes,
+    iota_error_transactions, trade_params_update, votes,
 };
 use crate::types::{
     Balances, Flashloan, OrderFill, OrderUpdate, OrderUpdateStatus, PoolPrice, ProcessedTxnData,
-    Proposals, Rebates, Stakes, SuiTxnError, TradeParamsUpdate, Votes,
+    Proposals, Rebates, Stakes, IotaTxnError, TradeParamsUpdate, Votes,
 };
 use crate::{models, schema};
 
@@ -200,7 +201,7 @@ impl Persistent<ProcessedTxnData> for PgDeepbookPersistent {
                     }
                     if !error_transactions_batch.is_empty() {
                         tasks.push(
-                            diesel::insert_into(sui_error_transactions::table)
+                            diesel::insert_into(iota_error_transactions::table)
                                 .values(&error_transactions_batch)
                                 .on_conflict_do_nothing()
                                 .execute(conn),
@@ -360,12 +361,12 @@ impl IndexerProgressStore for PgDeepbookPersistent {
 
 /// Data mapper impl
 #[derive(Clone)]
-pub struct SuiDeepBookDataMapper {
+pub struct IotaDeepBookDataMapper {
     pub metrics: DeepBookIndexerMetrics,
     pub package_id: ObjectID,
 }
 
-impl DataMapper<CheckpointTxnData, ProcessedTxnData> for SuiDeepBookDataMapper {
+impl DataMapper<CheckpointTxnData, ProcessedTxnData> for IotaDeepBookDataMapper {
     fn map(
         &self,
         (data, checkpoint_num, timestamp_ms): CheckpointTxnData,
@@ -383,13 +384,13 @@ impl DataMapper<CheckpointTxnData, ProcessedTxnData> for SuiDeepBookDataMapper {
 
         match &data.events {
             Some(events) => {
-                let processed_sui_events =
+                let processed_iota_events =
                     events
                         .data
                         .iter()
                         .enumerate()
                         .try_fold(vec![], |mut result, (i, ev)| {
-                            if let Some(data) = process_sui_event(
+                            if let Some(data) = process_iota_event(
                                 ev,
                                 i,
                                 &data,
@@ -401,14 +402,14 @@ impl DataMapper<CheckpointTxnData, ProcessedTxnData> for SuiDeepBookDataMapper {
                             }
                             Ok::<_, anyhow::Error>(result)
                         })?;
-                if !processed_sui_events.is_empty() {
+                if !processed_iota_events.is_empty() {
                     info!(
-                        "SUI: Extracted {} deepbook data entries for tx {}.",
-                        processed_sui_events.len(),
+                        "IOTA: Extracted {} deepbook data entries for tx {}.",
+                        processed_iota_events.len(),
                         data.transaction.digest()
                     );
                 }
-                Ok(processed_sui_events)
+                Ok(processed_iota_events)
             }
             None => {
                 if let ExecutionStatus::Failure { error, command } = data.effects.status() {
@@ -419,7 +420,7 @@ impl DataMapper<CheckpointTxnData, ProcessedTxnData> for SuiDeepBookDataMapper {
                     } else {
                         "".to_string()
                     };
-                    Ok(vec![ProcessedTxnData::Error(SuiTxnError {
+                    Ok(vec![ProcessedTxnData::Error(IotaTxnError {
                         tx_digest: *data.transaction.digest(),
                         sender: data.transaction.sender_address(),
                         timestamp_ms,
@@ -435,7 +436,7 @@ impl DataMapper<CheckpointTxnData, ProcessedTxnData> for SuiDeepBookDataMapper {
     }
 }
 
-fn process_sui_event(
+fn process_iota_event(
     ev: &Event,
     event_index: usize,
     tx: &CheckpointTransaction,
@@ -859,7 +860,7 @@ fn process_sui_event(
                 txn_data
             }
             _ => {
-                // todo: metrics.total_sui_bridge_txn_other.inc();
+                // todo: metrics.total_iota_bridge_txn_other.inc();
                 None
             }
         }

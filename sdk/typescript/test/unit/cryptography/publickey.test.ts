@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toBase64 } from '@mysten/bcs';
+import { toBase64 } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
 import { bytesToHex } from '@noble/hashes/utils';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -11,7 +12,7 @@ import { bytesEqual, PublicKey } from '../../../src/cryptography/publickey';
 import { Ed25519Keypair, Ed25519PublicKey } from '../../../src/keypairs/ed25519';
 import { Secp256k1Keypair } from '../../../src/keypairs/secp256k1';
 import { Secp256r1Keypair } from '../../../src/keypairs/secp256r1';
-import { normalizeSuiAddress, SUI_ADDRESS_LENGTH } from '../../../src/utils/sui-types.js';
+import { normalizeIotaAddress, IOTA_ADDRESS_LENGTH } from '../../../src/utils/iota-types.js';
 
 describe('Publickey', () => {
 	let k1: Ed25519Keypair,
@@ -60,9 +61,9 @@ describe('Publickey', () => {
 		expect(pk2.toBase64()).toEqual('Ah0VIwfGtysO0EGLDnDNgOf1KVuNhvVyLT9SE/vSOU82');
 	});
 
-	it('`toSuiPublicKey()` should return a valid sui representation', async () => {
-		expect(pk2.toSuiPublicKey()).toEqual(toBase64(pk2.toSuiBytes()));
-		expect(pk2.toSuiPublicKey()).toEqual('AQIdFSMHxrcrDtBBiw5wzYDn9SlbjYb1ci0/UhP70jlPNg==');
+	it('`toIotaPublicKey()` should return a valid iota representation', async () => {
+		expect(pk2.toIotaPublicKey()).toEqual(toBase64(pk2.toIotaBytes()));
+		expect(pk2.toIotaPublicKey()).toEqual('AQIdFSMHxrcrDtBBiw5wzYDn9SlbjYb1ci0/UhP70jlPNg==');
 	});
 
 	it('`verifyWithIntent()` should correctly verify a signed message', async () => {
@@ -103,37 +104,37 @@ describe('Publickey', () => {
 		expect(await pk2.verifyTransaction(data, sig2.signature)).toEqual(true);
 	});
 
-	it('`toSuiBytes()` should return the correct byte representation of the public key with the signature scheme flag', async () => {
-		const pk1SuiBytes = new Uint8Array(pk1.toRawBytes().length + 1);
-		pk1SuiBytes.set([0x00]);
-		pk1SuiBytes.set(pk1.toRawBytes(), 1);
+	it('`toIotaBytes()` should return the correct byte representation of the public key with the signature scheme flag', async () => {
+		const pk1IotaBytes = new Uint8Array(pk1.toRawBytes().length + 1);
+		pk1IotaBytes.set([0x00]);
+		pk1IotaBytes.set(pk1.toRawBytes(), 1);
 
-		expect(pk1.toSuiBytes()).toEqual(pk1SuiBytes);
-		expect(pk1.toSuiBytes()).toEqual(
+		expect(pk1.toIotaBytes()).toEqual(pk1IotaBytes);
+		expect(pk1.toIotaBytes()).toEqual(
 			new Uint8Array([
 				0, 90, 226, 32, 180, 178, 246, 94, 151, 124, 18, 237, 230, 21, 121, 255, 81, 112, 182, 194,
 				44, 0, 97, 104, 195, 123, 94, 124, 97, 175, 1, 128, 131,
 			]),
 		);
 
-		const pk2SuiBytes = new Uint8Array(pk2.toRawBytes().length + 1);
-		pk2SuiBytes.set([0x01]);
-		pk2SuiBytes.set(pk2.toRawBytes(), 1);
+		const pk2IotaBytes = new Uint8Array(pk2.toRawBytes().length + 1);
+		pk2IotaBytes.set([0x01]);
+		pk2IotaBytes.set(pk2.toRawBytes(), 1);
 
-		expect(pk2.toSuiBytes()).toEqual(pk2SuiBytes);
-		expect(pk2.toSuiBytes()).toEqual(
+		expect(pk2.toIotaBytes()).toEqual(pk2IotaBytes);
+		expect(pk2.toIotaBytes()).toEqual(
 			new Uint8Array([
 				1, 2, 29, 21, 35, 7, 198, 183, 43, 14, 208, 65, 139, 14, 112, 205, 128, 231, 245, 41, 91,
 				141, 134, 245, 114, 45, 63, 82, 19, 251, 210, 57, 79, 54,
 			]),
 		);
 
-		const pk3SuiBytes = new Uint8Array(pk3.toRawBytes().length + 1);
-		pk3SuiBytes.set([0x02]);
-		pk3SuiBytes.set(pk3.toRawBytes(), 1);
+		const pk3IotaBytes = new Uint8Array(pk3.toRawBytes().length + 1);
+		pk3IotaBytes.set([0x02]);
+		pk3IotaBytes.set(pk3.toRawBytes(), 1);
 
-		expect(pk3.toSuiBytes()).toEqual(pk3SuiBytes);
-		expect(pk3.toSuiBytes()).toEqual(
+		expect(pk3.toIotaBytes()).toEqual(pk3IotaBytes);
+		expect(pk3.toIotaBytes()).toEqual(
 			new Uint8Array([
 				2, 2, 39, 50, 43, 58, 137, 26, 10, 40, 13, 107, 193, 251, 44, 187, 35, 210, 143, 84, 144,
 				111, 214, 64, 127, 95, 116, 31, 109, 239, 87, 98, 96, 154,
@@ -141,28 +142,28 @@ describe('Publickey', () => {
 		);
 	});
 
-	it('`toSuiAddress()` should correctly return sui address associated with Ed25519 publickey', async () => {
-		const pk1SuiAddress = normalizeSuiAddress(
-			bytesToHex(blake2b(pk1.toSuiBytes(), { dkLen: 32 })).slice(0, SUI_ADDRESS_LENGTH * 2),
+	it('`toIotaAddress()` should correctly return iota address associated with Ed25519 publickey', async () => {
+		const pk1IotaAddress = normalizeIotaAddress(
+			bytesToHex(blake2b(pk1.toIotaBytes(), { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
 		);
-		const pk2SuiAddress = normalizeSuiAddress(
-			bytesToHex(blake2b(pk2.toSuiBytes(), { dkLen: 32 })).slice(0, SUI_ADDRESS_LENGTH * 2),
+		const pk2IotaAddress = normalizeIotaAddress(
+			bytesToHex(blake2b(pk2.toIotaBytes(), { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
 		);
-		const pk3SuiAddress = normalizeSuiAddress(
-			bytesToHex(blake2b(pk3.toSuiBytes(), { dkLen: 32 })).slice(0, SUI_ADDRESS_LENGTH * 2),
+		const pk3IotaAddress = normalizeIotaAddress(
+			bytesToHex(blake2b(pk3.toIotaBytes(), { dkLen: 32 })).slice(0, IOTA_ADDRESS_LENGTH * 2),
 		);
-		expect(k1.toSuiAddress()).toEqual(pk1SuiAddress);
-		expect(k1.toSuiAddress()).toEqual(
+		expect(k1.toIotaAddress()).toEqual(pk1IotaAddress);
+		expect(k1.toIotaAddress()).toEqual(
 			'0xafedf3bc60bd296aa6830d7c48ca44e0f7a32478ae4bd7b9a6ac1dc81ff7b29b',
 		);
 
-		expect(k2.toSuiAddress()).toEqual(pk2SuiAddress);
-		expect(k2.toSuiAddress()).toEqual(
+		expect(k2.toIotaAddress()).toEqual(pk2IotaAddress);
+		expect(k2.toIotaAddress()).toEqual(
 			'0x7e4f9a35bf3b5383802d990956d6f3c93e6184ebbbcf0820c124ab3a59ef77ac',
 		);
 
-		expect(k3.toSuiAddress()).toEqual(pk3SuiAddress);
-		expect(k3.toSuiAddress()).toEqual(
+		expect(k3.toIotaAddress()).toEqual(pk3IotaAddress);
+		expect(k3.toIotaAddress()).toEqual(
 			'0x318f591092f10b67a81963954fb9539ea3919444417726be4e1b95ce44fe2fc0',
 		);
 	});

@@ -1,3 +1,4 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -6,8 +7,8 @@ import "./utils/CommitteeUpgradeable.sol";
 import "./interfaces/IBridgeConfig.sol";
 
 /// @title BridgeConfig
-/// @notice This contract manages a registry of supported tokens and supported chain IDs for the SuiBridge.
-/// It also provides functions to convert token amounts to Sui decimal adjusted amounts and vice versa.
+/// @notice This contract manages a registry of supported tokens and supported chain IDs for the IotaBridge.
+/// It also provides functions to convert token amounts to Iota decimal adjusted amounts and vice versa.
 contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
     /* ========== STATE VARIABLES ========== */
 
@@ -32,7 +33,7 @@ contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
         address[] memory _supportedTokens,
         uint64[] memory _tokenPrices,
         uint8[] memory _tokenIds,
-        uint8[] memory _suiDecimals,
+        uint8[] memory _iotaDecimals,
         uint8[] memory _supportedChains
     ) external initializer {
         __CommitteeUpgradeable_init(_committee);
@@ -43,13 +44,13 @@ contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
             _supportedTokens.length == _tokenIds.length, "BridgeConfig: Invalid token IDs"
         );
         require(
-            _supportedTokens.length == _suiDecimals.length, "BridgeConfig: Invalid Sui decimals"
+            _supportedTokens.length == _iotaDecimals.length, "BridgeConfig: Invalid Iota decimals"
         );
 
         for (uint8 i; i < _tokenIds.length; i++) {
             // `is_native` is hardcoded to `true` because we only support Eth native tokens
             // at the moment. This needs to change when we support tokens native on other chains.
-            supportedTokens[_tokenIds[i]] = Token(_supportedTokens[i], _suiDecimals[i], true);
+            supportedTokens[_tokenIds[i]] = Token(_supportedTokens[i], _iotaDecimals[i], true);
         }
 
         for (uint8 i; i < _supportedChains.length; i++) {
@@ -73,11 +74,11 @@ contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
         return supportedTokens[tokenID].tokenAddress;
     }
 
-    /// @notice Returns the sui decimal places of the token with the given ID.
+    /// @notice Returns the iota decimal places of the token with the given ID.
     /// @param tokenID The ID of the token.
-    /// @return amount of sui decimal places of the provided token.
-    function tokenSuiDecimalOf(uint8 tokenID) public view override returns (uint8) {
-        return supportedTokens[tokenID].suiDecimal;
+    /// @return amount of iota decimal places of the provided token.
+    function tokenIotaDecimalOf(uint8 tokenID) public view override returns (uint8) {
+        return supportedTokens[tokenID].iotaDecimal;
     }
 
     /// @notice Returns the price of the token with the given ID.
@@ -87,14 +88,14 @@ contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
         return tokenPrices[tokenID];
     }
 
-    /// @notice Returns whether a token is supported in SuiBridge with the given ID.
+    /// @notice Returns whether a token is supported in IotaBridge with the given ID.
     /// @param tokenID The ID of the token.
     /// @return true if the token is supported, false otherwise.
     function isTokenSupported(uint8 tokenID) public view override returns (bool) {
         return supportedTokens[tokenID].tokenAddress != address(0);
     }
 
-    /// @notice Returns whether a chain is supported in SuiBridge with the given ID.
+    /// @notice Returns whether a chain is supported in IotaBridge with the given ID.
     /// @param chainId The ID of the chain.
     /// @return true if the chain is supported, false otherwise.
     function isChainSupported(uint8 chainId) public view override returns (bool) {
@@ -132,16 +133,16 @@ contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
             bool native,
             uint8[] memory tokenIDs,
             address[] memory tokenAddresses,
-            uint8[] memory suiDecimals,
+            uint8[] memory iotaDecimals,
             uint64[] memory _tokenPrices
         ) = BridgeUtils.decodeAddTokensPayload(message.payload);
 
         // update the token
         for (uint8 i; i < tokenIDs.length; i++) {
-            _addToken(tokenIDs[i], tokenAddresses[i], suiDecimals[i], _tokenPrices[i], native);
+            _addToken(tokenIDs[i], tokenAddresses[i], iotaDecimals[i], _tokenPrices[i], native);
         }
 
-        emit TokensAddedV2(message.nonce, tokenIDs, tokenAddresses, suiDecimals, _tokenPrices);
+        emit TokensAddedV2(message.nonce, tokenIDs, tokenAddresses, iotaDecimals, _tokenPrices);
     }
 
     /* ========== PRIVATE FUNCTIONS ========== */
@@ -159,24 +160,24 @@ contract BridgeConfig is IBridgeConfig, CommitteeUpgradeable {
     /// @notice Updates the token with the provided ID.
     /// @param tokenID The ID of the token to update.
     /// @param tokenAddress The address of the token.
-    /// @param suiDecimal The decimal places of the token.
+    /// @param iotaDecimal The decimal places of the token.
     /// @param tokenPrice The price of the token.
     /// @param native Whether the token is native to the chain.
     function _addToken(
         uint8 tokenID,
         address tokenAddress,
-        uint8 suiDecimal,
+        uint8 iotaDecimal,
         uint64 tokenPrice,
         bool native
     ) private {
         require(tokenAddress != address(0), "BridgeConfig: Invalid token address");
-        require(suiDecimal > 0, "BridgeConfig: Invalid Sui decimal");
+        require(iotaDecimal > 0, "BridgeConfig: Invalid Iota decimal");
         require(tokenPrice > 0, "BridgeConfig: Invalid token price");
 
         uint8 erc20Decimals = IERC20Metadata(tokenAddress).decimals();
-        require(erc20Decimals >= suiDecimal, "BridgeConfig: Invalid Sui decimal");
+        require(erc20Decimals >= iotaDecimal, "BridgeConfig: Invalid Iota decimal");
 
-        supportedTokens[tokenID] = Token(tokenAddress, suiDecimal, native);
+        supportedTokens[tokenID] = Token(tokenAddress, iotaDecimal, native);
         tokenPrices[tokenID] = tokenPrice;
     }
 

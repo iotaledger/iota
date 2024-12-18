@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{
     binary_config::{BinaryConfig, TableConfig},
     file_format_common::VERSION_1,
 };
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 
 /// Build a `BinaryConfig` from a `ProtocolConfig`
 pub fn to_binary_config(protocol_config: &ProtocolConfig) -> BinaryConfig {

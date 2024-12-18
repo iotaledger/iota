@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::ops::RangeInclusive;
@@ -6,11 +7,11 @@ use std::ops::RangeInclusive;
 use crate::{crypto::DefaultHash, digests::Digest};
 use fastcrypto::hash::HashFunction;
 use serde::{Deserialize, Serialize};
-pub use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+pub use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 
 /// Models the set of protocol versions supported by a validator.
-/// The `sui-node` binary will always use the SYSTEM_DEFAULT constant, but for testing we need
-/// to be able to inject arbitrary versions into SuiNode.
+/// The `iota-node` binary will always use the SYSTEM_DEFAULT constant, but for testing we need
+/// to be able to inject arbitrary versions into IotaNode.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct SupportedProtocolVersions {
     pub min: ProtocolVersion,
@@ -52,8 +53,8 @@ impl SupportedProtocolVersions {
 }
 
 /// Models the set of protocol versions supported by a validator.
-/// The `sui-node` binary will always use the SYSTEM_DEFAULT constant, but for testing we need
-/// to be able to inject arbitrary versions into SuiNode.
+/// The `iota-node` binary will always use the SYSTEM_DEFAULT constant, but for testing we need
+/// to be able to inject arbitrary versions into IotaNode.
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct SupportedProtocolVersionsWithHashes {
     pub versions: Vec<(ProtocolVersion, Digest)>,
@@ -67,7 +68,7 @@ impl SupportedProtocolVersionsWithHashes {
             .map(|(_, digest)| *digest)
     }
 
-    // Ideally this would be in sui-protocol-config, but sui-types depends on sui-protocol-config,
+    // Ideally this would be in iota-protocol-config, but iota-types depends on iota-protocol-config,
     // so it would introduce a circular dependency.
     fn protocol_config_digest(config: &ProtocolConfig) -> Digest {
         let mut digest = DefaultHash::default();

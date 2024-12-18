@@ -1,6 +1,6 @@
 ---
-source: crates/sui-config/tests/snapshot_tests.rs
-expression: genesis.sui_system_object()
+source: crates/iota-config/tests/snapshot_tests.rs
+expression: genesis.iota_system_object()
 ---
 info:
   id: "0x0000000000000000000000000000000000000005"
@@ -11,7 +11,7 @@ validators:
   quorum_stake_threshold: 1
   active_validators:
     - metadata:
-        sui_address: "0x21b60aa9a8cb189ccbe20461dbfad2202fdef55b"
+        iota_address: "0x21b60aa9a8cb189ccbe20461dbfad2202fdef55b"
         pubkey_bytes:
           - 153
           - 242
@@ -217,7 +217,7 @@ validators:
       delegation_staking_pool:
         validator_address: "0x21b60aa9a8cb189ccbe20461dbfad2202fdef55b"
         starting_epoch: 1
-        sui_balance: 0
+        iota_balance: 0
         rewards_pool:
           value: 0
         delegation_token_supply:
@@ -228,7 +228,7 @@ validators:
   pending_validators: []
   pending_removals: []
   next_epoch_validators:
-    - sui_address: "0x21b60aa9a8cb189ccbe20461dbfad2202fdef55b"
+    - iota_address: "0x21b60aa9a8cb189ccbe20461dbfad2202fdef55b"
       pubkey_bytes:
         - 153
         - 242

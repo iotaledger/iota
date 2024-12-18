@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::Path;
@@ -8,24 +9,24 @@ use anyhow::{anyhow, Result};
 
 use move_cli::base;
 use shared_crypto::intent::Intent;
-use sui_json_rpc_types::{
-    ObjectChange, SuiObjectDataFilter, SuiObjectDataOptions, SuiObjectResponseQuery, SuiRawData,
-    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    ObjectChange, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery, IotaRawData,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use sui_keys::keystore::{AccountKeystore, Keystore};
-use sui_move_build::BuildConfig as MoveBuildConfig;
+use iota_keys::keystore::{AccountKeystore, Keystore};
+use iota_move_build::BuildConfig as MoveBuildConfig;
 
-use sui_sdk::SuiClient;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::coin::COIN_MODULE_NAME;
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::Owner;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::{
+use iota_sdk::IotaClient;
+use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
+use iota_types::coin::COIN_MODULE_NAME;
+use iota_types::gas_coin::GasCoin;
+use iota_types::object::Owner;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::transaction::{
     Command, ObjectArg, Transaction, TransactionData, TransactionDataAPI,
 };
-use sui_types::{Identifier, TypeTag, SUI_FRAMEWORK_PACKAGE_ID};
+use iota_types::{Identifier, TypeTag, IOTA_FRAMEWORK_PACKAGE_ID};
 use test_cluster::TestClusterBuilder;
 
 use tracing::debug;
@@ -39,8 +40,8 @@ pub struct GasRet {
 }
 
 pub async fn select_gas(
-    client: &SuiClient,
-    signer_addr: SuiAddress,
+    client: &IotaClient,
+    signer_addr: IotaAddress,
     input_gas: Option<ObjectID>,
     budget: Option<u64>,
     exclude_objects: Vec<ObjectID>,
@@ -68,7 +69,7 @@ pub async fn select_gas(
     if let Some(gas) = input_gas {
         let read_api = client.read_api();
         let object = read_api
-            .get_object_with_options(gas, SuiObjectDataOptions::new())
+            .get_object_with_options(gas, IotaObjectDataOptions::new())
             .await?
             .object_ref_if_exists()
             .ok_or(anyhow!("No object-ref"))?;
@@ -83,9 +84,9 @@ pub async fn select_gas(
     let gas_objs = read_api
         .get_owned_objects(
             signer_addr,
-            Some(SuiObjectResponseQuery {
-                filter: Some(SuiObjectDataFilter::StructType(GasCoin::type_())),
-                options: Some(SuiObjectDataOptions::new().with_bcs()),
+            Some(IotaObjectResponseQuery {
+                filter: Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                options: Some(IotaObjectDataOptions::new().with_bcs()),
             }),
             None,
             None,
@@ -94,7 +95,7 @@ pub async fn select_gas(
         .data;
 
     for obj in gas_objs {
-        let SuiRawData::MoveObject(raw_obj) = &obj
+        let IotaRawData::MoveObject(raw_obj) = &obj
             .data
             .as_ref()
             .ok_or_else(|| anyhow!("data field is unexpectedly empty"))?
@@ -123,14 +124,14 @@ pub async fn select_gas(
 
 #[derive(Debug)]
 pub struct InitRet {
-    pub owner: SuiAddress,
+    pub owner: IotaAddress,
     pub treasury_cap: ObjectRef,
     pub coin_tag: TypeTag,
 }
 pub async fn init_package(
-    client: &SuiClient,
+    client: &IotaClient,
     keystore: &Keystore,
-    sender: SuiAddress,
+    sender: IotaAddress,
     path: &Path,
 ) -> Result<InitRet> {
     let path_buf = base::reroot_path(Some(path))?;
@@ -164,13 +165,13 @@ pub async fn init_package(
         )
         .await?;
 
-    let sig = keystore.sign_secure(&tx_data.sender(), &tx_data, Intent::sui_transaction())?;
+    let sig = keystore.sign_secure(&tx_data.sender(), &tx_data, Intent::iota_transaction())?;
 
     let res = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![sig]),
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_effects()
                 .with_object_changes()
                 .with_input(),
@@ -207,11 +208,11 @@ pub async fn init_package(
 }
 
 pub async fn mint(
-    client: &SuiClient,
+    client: &IotaClient,
     keystore: &Keystore,
     init_ret: InitRet,
-    balances_to: Vec<(u64, SuiAddress)>,
-) -> Result<SuiTransactionBlockResponse> {
+    balances_to: Vec<(u64, IotaAddress)>,
+) -> Result<IotaTransactionBlockResponse> {
     let treasury_cap_owner = init_ret.owner;
     let gas_data = select_gas(client, treasury_cap_owner, None, None, vec![], None).await?;
 
@@ -221,7 +222,7 @@ pub async fn mint(
     for (balance, to) in balances_to {
         let balance = ptb.pure(balance)?;
         let coin = ptb.command(Command::move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             Identifier::from(COIN_MODULE_NAME),
             Identifier::from_str("mint")?,
             vec![init_ret.coin_tag.clone()],
@@ -240,13 +241,13 @@ pub async fn mint(
         gas_data.price,
     );
 
-    let sig = keystore.sign_secure(&tx_data.sender(), &tx_data, Intent::sui_transaction())?;
+    let sig = keystore.sign_secure(&tx_data.sender(), &tx_data, Intent::iota_transaction())?;
 
     let res = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(tx_data, vec![sig]),
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_effects()
                 .with_object_changes()
                 .with_input(),

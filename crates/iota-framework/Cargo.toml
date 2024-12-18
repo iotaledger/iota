@@ -1,9 +1,9 @@
 [package]
-name = "sui-framework"
+name = "iota-framework"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
-description = "Move framework for sui platform"
+authors = ["IOTA Foundation <info@iota.org>"]
+description = "Move framework for iota platform"
 license = "Apache-2.0"
 publish = false
 
@@ -13,7 +13,7 @@ serde.workspace = true
 once_cell.workspace = true
 tracing.workspace = true
 
-sui-types.workspace = true
+iota-types.workspace = true
 
 move-binary-format.workspace = true
 move-core-types.workspace = true
@@ -27,5 +27,5 @@ tempfile.workspace = true
 move-binary-format.workspace = true
 move-compiler.workspace = true
 move-package.workspace = true
-sui-move-build.workspace = true
-sui-config.workspace = true
+iota-move-build.workspace = true
+iota-config.workspace = true

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::cli::notion::ids::DatabaseId;
@@ -173,7 +174,7 @@ impl Notion {
         Ok(())
     }
 
-    /// Insert a suiop incident into the incident selection database
+    /// Insert a iotaop incident into the incident selection database
     pub async fn insert_incident(&self, incident: Incident) -> Result<()> {
         let url = "https://api.notion.com/v1/pages";
         let body = json!({

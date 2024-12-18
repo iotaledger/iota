@@ -1,6 +1,6 @@
 // allowed, no object is being made with the UID
 module a::m {
-    use sui::object::UID;
+    use iota::object::UID;
 
     struct Foo has key {
         id: UID,
@@ -12,7 +12,7 @@ module a::m {
     }
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }

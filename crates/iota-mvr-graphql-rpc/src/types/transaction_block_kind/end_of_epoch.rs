@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::connection::{Connection, CursorType, Edge};
 use async_graphql::*;
 use move_binary_format::errors::PartialVMResult;
 use move_binary_format::CompiledModule;
-use sui_types::base_types::SequenceNumber;
-use sui_types::digests::ChainIdentifier as SuiChainIdentifier;
-use sui_types::{
+use iota_types::base_types::SequenceNumber;
+use iota_types::digests::ChainIdentifier as IotaChainIdentifier;
+use iota_types::{
     digests::TransactionDigest,
     object::Object as NativeObject,
     transaction::{
@@ -19,7 +20,7 @@ use sui_types::{
 
 use crate::consistency::ConsistentIndexCursor;
 use crate::types::cursor::{JsonCursor, Page};
-use crate::types::sui_address::SuiAddress;
+use crate::types::iota_address::IotaAddress;
 use crate::types::uint53::UInt53;
 use crate::{
     error::Error,
@@ -85,7 +86,7 @@ pub(crate) struct CoinDenyListStateCreateTransaction {
 
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct BridgeStateCreateTransaction {
-    pub native: SuiChainIdentifier,
+    pub native: IotaChainIdentifier,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }
@@ -154,23 +155,23 @@ impl ChangeEpochTransaction {
         self.native.protocol_version.as_u64().into()
     }
 
-    /// The total amount of gas charged for storage during the previous epoch (in MIST).
+    /// The total amount of gas charged for storage during the previous epoch (in NANOS).
     async fn storage_charge(&self) -> BigInt {
         BigInt::from(self.native.storage_charge)
     }
 
-    /// The total amount of gas charged for computation during the previous epoch (in MIST).
+    /// The total amount of gas charged for computation during the previous epoch (in NANOS).
     async fn computation_charge(&self) -> BigInt {
         BigInt::from(self.native.computation_charge)
     }
 
-    /// The SUI returned to transaction senders for cleaning up objects (in MIST).
+    /// The IOTA returned to transaction senders for cleaning up objects (in NANOS).
     async fn storage_rebate(&self) -> BigInt {
         BigInt::from(self.native.storage_rebate)
     }
 
     /// The total gas retained from storage fees, that will not be returned by storage rebates when
-    /// the relevant objects are cleaned up (in MIST).
+    /// the relevant objects are cleaned up (in NANOS).
     async fn non_refundable_storage_fee(&self) -> BigInt {
         BigInt::from(self.native.non_refundable_storage_fee)
     }
@@ -222,7 +223,7 @@ impl ChangeEpochTransaction {
             );
 
             let runtime_id = native.id();
-            let object = Object::from_native(SuiAddress::from(runtime_id), native, c.c, None);
+            let object = Object::from_native(IotaAddress::from(runtime_id), native, c.c, None);
             let package = MovePackage::try_from(&object)
                 .map_err(|_| Error::Internal("Failed to create system package".to_string()))
                 .extend()?;

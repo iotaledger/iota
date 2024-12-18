@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
@@ -8,7 +9,7 @@ import { TypeTagSerializer } from '../../../../src/bcs/type-tag-serializer.js';
 describe('parseFromStr', () => {
 	it('parses nested struct type from a string', () => {
 		const typeStr =
-			'0x2::balance::Supply<0x72de5feb63c0ab6ed1cda7e5b367f3d0a999add7::amm::LP<0x2::sui::SUI, 0xfee024a3c0c03ada5cdbda7d0e8b68802e6dec80::example_coin::EXAMPLE_COIN>>';
+			'0x2::balance::Supply<0x72de5feb63c0ab6ed1cda7e5b367f3d0a999add7::amm::LP<0x2::iota::IOTA, 0xfee024a3c0c03ada5cdbda7d0e8b68802e6dec80::example_coin::EXAMPLE_COIN>>';
 		const act = TypeTagSerializer.parseFromStr(typeStr);
 		const exp = {
 			struct: {
@@ -25,8 +26,8 @@ describe('parseFromStr', () => {
 								{
 									struct: {
 										address: '0x2',
-										module: 'sui',
-										name: 'SUI',
+										module: 'iota',
+										name: 'IOTA',
 										typeParams: [],
 									},
 								},
@@ -79,8 +80,8 @@ describe('tagToString', () => {
 								{
 									struct: {
 										address: '0x2',
-										module: 'sui',
-										name: 'SUI',
+										module: 'iota',
+										name: 'IOTA',
 										typeParams: [],
 									},
 								},
@@ -100,7 +101,7 @@ describe('tagToString', () => {
 		};
 		const act = TypeTagSerializer.tagToString(type);
 		const exp =
-			'0x2::balance::Supply<0x72de5feb63c0ab6ed1cda7e5b367f3d0a999add7::amm::LP<0x2::sui::SUI, 0xfee024a3c0c03ada5cdbda7d0e8b68802e6dec80::example_coin::EXAMPLE_COIN>>';
+			'0x2::balance::Supply<0x72de5feb63c0ab6ed1cda7e5b367f3d0a999add7::amm::LP<0x2::iota::IOTA, 0xfee024a3c0c03ada5cdbda7d0e8b68802e6dec80::example_coin::EXAMPLE_COIN>>';
 		expect(act).toEqual(exp);
 	});
 });

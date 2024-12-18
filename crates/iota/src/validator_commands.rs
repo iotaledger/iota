@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail, Result};
@@ -10,20 +11,20 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
-use sui_genesis_builder::validator_info::GenesisValidatorInfo;
+use iota_genesis_builder::validator_info::GenesisValidatorInfo;
 use url::{ParseError, Url};
 
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, IotaAddress},
     crypto::{AuthorityPublicKey, NetworkPublicKey, Signable, DEFAULT_EPOCH_ID},
     dynamic_field::Field,
     multiaddr::Multiaddr,
     object::Owner,
-    sui_system_state::{
-        sui_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
-        sui_system_state_summary::{SuiSystemStateSummary, SuiValidatorSummary},
+    iota_system_state::{
+        iota_system_state_inner_v1::{UnverifiedValidatorOperationCapV1, ValidatorV1},
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    SUI_SYSTEM_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID,
 };
 use tap::tap::TapOptional;
 
@@ -37,39 +38,39 @@ use fastcrypto::{
 };
 use serde::Serialize;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use sui_bridge::metrics::BridgeMetrics;
-use sui_bridge::sui_client::SuiClient as SuiBridgeClient;
-use sui_bridge::sui_transaction_builder::{
+use iota_bridge::metrics::BridgeMetrics;
+use iota_bridge::iota_client::IotaClient as IotaBridgeClient;
+use iota_bridge::iota_transaction_builder::{
     build_committee_register_transaction, build_committee_update_url_transaction,
 };
-use sui_json_rpc_types::{
-    SuiObjectDataOptions, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    IotaObjectDataOptions, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use sui_keys::{
+use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
         read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
         write_authority_keypair_to_file, write_keypair_to_file,
     },
 };
-use sui_keys::{keypair_file::read_key, keystore::AccountKeystore};
-use sui_sdk::wallet_context::WalletContext;
-use sui_sdk::SuiClient;
-use sui_types::crypto::{
+use iota_keys::{keypair_file::read_key, keystore::AccountKeystore};
+use iota_sdk::wallet_context::WalletContext;
+use iota_sdk::IotaClient;
+use iota_types::crypto::{
     generate_proof_of_possession, get_authority_key_pair, AuthorityPublicKeyBytes,
 };
-use sui_types::crypto::{AuthorityKeyPair, NetworkKeyPair, SignatureScheme, SuiKeyPair};
-use sui_types::transaction::{CallArg, ObjectArg, Transaction, TransactionData};
+use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, SignatureScheme, IotaKeyPair};
+use iota_types::transaction::{CallArg, ObjectArg, Transaction, TransactionData};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
 mod validator_tests;
 
-const DEFAULT_GAS_BUDGET: u64 = 200_000_000; // 0.2 SUI
+const DEFAULT_GAS_BUDGET: u64 = 200_000_000; // 0.2 IOTA
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]
-pub enum SuiValidatorCommand {
+pub enum IotaValidatorCommand {
     #[clap(name = "make-validator-info")]
     MakeValidatorInfo {
         name: String,
@@ -101,7 +102,7 @@ pub enum SuiValidatorCommand {
     #[clap(name = "display-metadata")]
     DisplayMetadata {
         #[clap(name = "validator-address")]
-        validator_address: Option<SuiAddress>,
+        validator_address: Option<IotaAddress>,
         #[clap(name = "json", long)]
         json: Option<bool>,
     },
@@ -135,9 +136,9 @@ pub enum SuiValidatorCommand {
         /// Validator's OperationCap ID can be found by using the `display-metadata` subcommand.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: Option<ObjectID>,
-        /// The Sui Address of the validator is being reported or un-reported
+        /// The Iota Address of the validator is being reported or un-reported
         #[clap(name = "reportee-address")]
-        reportee_address: SuiAddress,
+        reportee_address: IotaAddress,
         /// If true, undo an existing report.
         #[clap(name = "undo-report", long)]
         undo_report: Option<bool>,
@@ -151,7 +152,7 @@ pub enum SuiValidatorCommand {
     SerializePayloadForPoP {
         /// Authority account address encoded in hex with 0x prefix.
         #[clap(name = "account-address", long)]
-        account_address: SuiAddress,
+        account_address: IotaAddress,
         /// Authority protocol public key encoded in hex.
         #[clap(name = "protocol-public-key", long)]
         protocol_public_key: AuthorityPublicKeyBytes,
@@ -160,7 +161,7 @@ pub enum SuiValidatorCommand {
     DisplayGasPriceUpdateRawTxn {
         /// Address of the transaction sender.
         #[clap(name = "sender-address", long)]
-        sender_address: SuiAddress,
+        sender_address: IotaAddress,
         /// Object ID of a validator's OperationCap, used for setting gas price and reportng validators.
         #[clap(name = "operation-cap-id", long)]
         operation_cap_id: ObjectID,
@@ -171,7 +172,7 @@ pub enum SuiValidatorCommand {
         #[clap(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
-    /// Sui native bridge committee member registration
+    /// Iota native bridge committee member registration
     #[clap(name = "register-bridge-committee")]
     RegisterBridgeCommittee {
         /// Path to Bridge Authority Key file.
@@ -186,12 +187,12 @@ pub enum SuiValidatorCommand {
         print_unsigned_transaction_only: bool,
         /// Must present if `print_unsigned_transaction_only` is true.
         #[clap(long)]
-        validator_address: Option<SuiAddress>,
+        validator_address: Option<IotaAddress>,
         /// Gas budget for this transaction.
         #[clap(name = "gas-budget", long)]
         gas_budget: Option<u64>,
     },
-    /// Update sui native bridge committee node url
+    /// Update iota native bridge committee node url
     UpdateBridgeCommitteeNodeUrl {
         /// New node url to be registered in the on chain bridge object.
         #[clap(long)]
@@ -202,7 +203,7 @@ pub enum SuiValidatorCommand {
         print_unsigned_transaction_only: bool,
         /// Must be present if `print_unsigned_transaction_only` is true.
         #[clap(long)]
-        validator_address: Option<SuiAddress>,
+        validator_address: Option<IotaAddress>,
         /// Gas budget for this transaction.
         #[clap(name = "gas-budget", long)]
         gas_budget: Option<u64>,
@@ -211,26 +212,26 @@ pub enum SuiValidatorCommand {
 
 #[derive(Serialize)]
 #[serde(untagged)]
-pub enum SuiValidatorCommandResponse {
+pub enum IotaValidatorCommandResponse {
     MakeValidatorInfo,
     DisplayMetadata,
-    BecomeCandidate(SuiTransactionBlockResponse),
-    JoinCommittee(SuiTransactionBlockResponse),
-    LeaveCommittee(SuiTransactionBlockResponse),
-    UpdateMetadata(SuiTransactionBlockResponse),
-    UpdateGasPrice(SuiTransactionBlockResponse),
-    ReportValidator(SuiTransactionBlockResponse),
+    BecomeCandidate(IotaTransactionBlockResponse),
+    JoinCommittee(IotaTransactionBlockResponse),
+    LeaveCommittee(IotaTransactionBlockResponse),
+    UpdateMetadata(IotaTransactionBlockResponse),
+    UpdateGasPrice(IotaTransactionBlockResponse),
+    ReportValidator(IotaTransactionBlockResponse),
     SerializedPayload(String),
     DisplayGasPriceUpdateRawTxn {
         data: TransactionData,
         serialized_data: String,
     },
     RegisterBridgeCommittee {
-        execution_response: Option<SuiTransactionBlockResponse>,
+        execution_response: Option<IotaTransactionBlockResponse>,
         serialized_unsigned_transaction: Option<String>,
     },
     UpdateBridgeCommitteeURL {
-        execution_response: Option<SuiTransactionBlockResponse>,
+        execution_response: Option<IotaTransactionBlockResponse>,
         serialized_unsigned_transaction: Option<String>,
     },
 }
@@ -238,7 +239,7 @@ pub enum SuiValidatorCommandResponse {
 fn make_key_files(
     file_name: PathBuf,
     is_protocol_key: bool,
-    key: Option<SuiKeyPair>,
+    key: Option<IotaKeyPair>,
 ) -> Result<()> {
     if file_name.exists() {
         println!("Use existing {:?} key file.", file_name);
@@ -251,7 +252,7 @@ fn make_key_files(
         let kp = match key {
             Some(key) => {
                 println!(
-                    "Generated new key file {:?} based on sui.keystore file.",
+                    "Generated new key file {:?} based on iota.keystore file.",
                     file_name
                 );
                 key
@@ -267,15 +268,15 @@ fn make_key_files(
     Ok(())
 }
 
-impl SuiValidatorCommand {
+impl IotaValidatorCommand {
     pub async fn execute(
         self,
         context: &mut WalletContext,
-    ) -> Result<SuiValidatorCommandResponse, anyhow::Error> {
-        let sui_address = context.active_address()?;
+    ) -> Result<IotaValidatorCommandResponse, anyhow::Error> {
+        let iota_address = context.active_address()?;
 
         let ret = Ok(match self {
-            SuiValidatorCommand::MakeValidatorInfo {
+            IotaValidatorCommand::MakeValidatorInfo {
                 name,
                 description,
                 image_url,
@@ -285,8 +286,8 @@ impl SuiValidatorCommand {
             } => {
                 let dir = std::env::current_dir()?;
                 let protocol_key_file_name = dir.join("protocol.key");
-                let account_key = match context.config.keystore.get_key(&sui_address)? {
-                    SuiKeyPair::Ed25519(account_key) => SuiKeyPair::Ed25519(account_key.copy()),
+                let account_key = match context.config.keystore.get_key(&iota_address)? {
+                    IotaKeyPair::Ed25519(account_key) => IotaKeyPair::Ed25519(account_key.copy()),
                     _ => panic!(
                         "Other account key types supported yet, please use Ed25519 keys for now."
                     ),
@@ -301,7 +302,7 @@ impl SuiValidatorCommand {
 
                 let keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(protocol_key_file_name)?;
-                let account_keypair: SuiKeyPair = read_keypair_from_file(account_key_file_name)?;
+                let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file_name)?;
                 let worker_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(worker_key_file_name)?;
                 let network_keypair: NetworkKeyPair =
@@ -309,14 +310,14 @@ impl SuiValidatorCommand {
                 let pop =
                     generate_proof_of_possession(&keypair, (&account_keypair.public()).into());
                 let validator_info = GenesisValidatorInfo {
-                    info: sui_genesis_builder::validator_info::ValidatorInfo {
+                    info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
                         protocol_key: keypair.public().into(),
                         worker_key: worker_keypair.public().clone(),
-                        account_address: SuiAddress::from(&account_keypair.public()),
+                        account_address: IotaAddress::from(&account_keypair.public()),
                         network_key: network_keypair.public().clone(),
                         gas_price,
-                        commission_rate: sui_config::node::DEFAULT_COMMISSION_RATE,
+                        commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(
                             "/dns/{}/tcp/8080/http",
                             host_name
@@ -344,9 +345,9 @@ impl SuiValidatorCommand {
                     "Generated validator info file: {:?}.",
                     validator_info_file_name
                 );
-                SuiValidatorCommandResponse::MakeValidatorInfo
+                IotaValidatorCommandResponse::MakeValidatorInfo
             }
-            SuiValidatorCommand::BecomeCandidate { file, gas_budget } => {
+            IotaValidatorCommand::BecomeCandidate { file, gas_budget } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let validator_info_bytes = fs::read(file)?;
                 // Note: we should probably rename the struct or evolve it accordingly.
@@ -392,47 +393,47 @@ impl SuiValidatorCommand {
                 ];
                 let response =
                     call_0x5(context, "request_add_validator_candidate", args, gas_budget).await?;
-                SuiValidatorCommandResponse::BecomeCandidate(response)
+                IotaValidatorCommandResponse::BecomeCandidate(response)
             }
 
-            SuiValidatorCommand::JoinCommittee { gas_budget } => {
+            IotaValidatorCommand::JoinCommittee { gas_budget } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let response =
                     call_0x5(context, "request_add_validator", vec![], gas_budget).await?;
-                SuiValidatorCommandResponse::JoinCommittee(response)
+                IotaValidatorCommandResponse::JoinCommittee(response)
             }
 
-            SuiValidatorCommand::LeaveCommittee { gas_budget } => {
+            IotaValidatorCommand::LeaveCommittee { gas_budget } => {
                 // Only an active validator can leave committee.
                 let _status =
                     check_status(context, HashSet::from([ValidatorStatus::Active])).await?;
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let response =
                     call_0x5(context, "request_remove_validator", vec![], gas_budget).await?;
-                SuiValidatorCommandResponse::LeaveCommittee(response)
+                IotaValidatorCommandResponse::LeaveCommittee(response)
             }
 
-            SuiValidatorCommand::DisplayMetadata {
+            IotaValidatorCommand::DisplayMetadata {
                 validator_address,
                 json,
             } => {
                 let validator_address = validator_address.unwrap_or(context.active_address()?);
                 // Default display with json serialization for better UX.
-                let sui_client = context.get_client().await?;
-                display_metadata(&sui_client, validator_address, json.unwrap_or(true)).await?;
-                SuiValidatorCommandResponse::DisplayMetadata
+                let iota_client = context.get_client().await?;
+                display_metadata(&iota_client, validator_address, json.unwrap_or(true)).await?;
+                IotaValidatorCommandResponse::DisplayMetadata
             }
 
-            SuiValidatorCommand::UpdateMetadata {
+            IotaValidatorCommand::UpdateMetadata {
                 metadata,
                 gas_budget,
             } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let resp = update_metadata(context, metadata, gas_budget).await?;
-                SuiValidatorCommandResponse::UpdateMetadata(resp)
+                IotaValidatorCommandResponse::UpdateMetadata(resp)
             }
 
-            SuiValidatorCommand::UpdateGasPrice {
+            IotaValidatorCommand::UpdateGasPrice {
                 operation_cap_id,
                 gas_price,
                 gas_budget,
@@ -440,10 +441,10 @@ impl SuiValidatorCommand {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let resp =
                     update_gas_price(context, operation_cap_id, gas_price, gas_budget).await?;
-                SuiValidatorCommandResponse::UpdateGasPrice(resp)
+                IotaValidatorCommandResponse::UpdateGasPrice(resp)
             }
 
-            SuiValidatorCommand::ReportValidator {
+            IotaValidatorCommand::ReportValidator {
                 operation_cap_id,
                 reportee_address,
                 undo_report,
@@ -459,10 +460,10 @@ impl SuiValidatorCommand {
                     gas_budget,
                 )
                 .await?;
-                SuiValidatorCommandResponse::ReportValidator(resp)
+                IotaValidatorCommandResponse::ReportValidator(resp)
             }
 
-            SuiValidatorCommand::SerializePayloadForPoP {
+            IotaValidatorCommand::SerializePayloadForPoP {
                 account_address,
                 protocol_public_key,
             } => {
@@ -470,15 +471,15 @@ impl SuiValidatorCommand {
                 msg.extend_from_slice(protocol_public_key.as_bytes());
                 msg.extend_from_slice(account_address.as_ref());
                 let mut intent_msg_bytes = bcs::to_bytes(&IntentMessage::new(
-                    Intent::sui_app(IntentScope::ProofOfPossession),
+                    Intent::iota_app(IntentScope::ProofOfPossession),
                     msg,
                 ))
                 .expect("Message serialization should not fail");
                 DEFAULT_EPOCH_ID.write(&mut intent_msg_bytes);
-                SuiValidatorCommandResponse::SerializedPayload(Base64::encode(&intent_msg_bytes))
+                IotaValidatorCommandResponse::SerializedPayload(Base64::encode(&intent_msg_bytes))
             }
 
-            SuiValidatorCommand::DisplayGasPriceUpdateRawTxn {
+            IotaValidatorCommand::DisplayGasPriceUpdateRawTxn {
                 sender_address,
                 operation_cap_id,
                 new_gas_price,
@@ -501,12 +502,12 @@ impl SuiValidatorCommand {
                 )
                 .await?;
                 let serialized_data = Base64::encode(bcs::to_bytes(&data)?);
-                SuiValidatorCommandResponse::DisplayGasPriceUpdateRawTxn {
+                IotaValidatorCommandResponse::DisplayGasPriceUpdateRawTxn {
                     data,
                     serialized_data,
                 }
             }
-            SuiValidatorCommand::RegisterBridgeCommittee {
+            IotaValidatorCommand::RegisterBridgeCommittee {
                 bridge_authority_key_path,
                 bridge_authority_url,
                 print_unsigned_transaction_only,
@@ -523,7 +524,7 @@ impl SuiValidatorCommand {
                 }
                 // Read bridge keypair
                 let ecdsa_keypair = match read_key(&bridge_authority_key_path, true)? {
-                    SuiKeyPair::Secp256k1(key) => key,
+                    IotaKeyPair::Secp256k1(key) => key,
                     _ => unreachable!("we required secp256k1 key in `read_key`"),
                 };
                 let address = check_address(
@@ -532,22 +533,22 @@ impl SuiValidatorCommand {
                     print_unsigned_transaction_only,
                 )?;
                 // Make sure the address is a validator
-                let sui_client = context.get_client().await?;
-                let active_validators = sui_client
+                let iota_client = context.get_client().await?;
+                let active_validators = iota_client
                     .governance_api()
-                    .get_latest_sui_system_state()
+                    .get_latest_iota_system_state()
                     .await?
                     .active_validators;
                 if !active_validators
                     .into_iter()
-                    .any(|s| s.sui_address == address)
+                    .any(|s| s.iota_address == address)
                 {
                     bail!("Address {} is not in the committee", address);
                 }
-                println!("Starting bridge committee registration for Sui validator: {address}, with bridge public key: {} and url: {}", ecdsa_keypair.public, bridge_authority_url);
-                let sui_rpc_url = &context.config.get_active_env().unwrap().rpc;
+                println!("Starting bridge committee registration for Iota validator: {address}, with bridge public key: {} and url: {}", ecdsa_keypair.public, bridge_authority_url);
+                let iota_rpc_url = &context.config.get_active_env().unwrap().rpc;
                 let bridge_metrics = Arc::new(BridgeMetrics::new_for_testing());
-                let bridge_client = SuiBridgeClient::new(sui_rpc_url, bridge_metrics).await?;
+                let bridge_client = IotaBridgeClient::new(iota_rpc_url, bridge_metrics).await?;
                 let bridge = bridge_client
                     .get_mutable_bridge_object_arg_must_succeed()
                     .await;
@@ -570,7 +571,7 @@ impl SuiValidatorCommand {
                 .map_err(|e| anyhow!("{e:?}"))?;
                 if print_unsigned_transaction_only {
                     let serialized_data = Base64::encode(bcs::to_bytes(&tx_data)?);
-                    SuiValidatorCommandResponse::RegisterBridgeCommittee {
+                    IotaValidatorCommandResponse::RegisterBridgeCommittee {
                         execution_response: None,
                         serialized_unsigned_transaction: Some(serialized_data),
                     }
@@ -581,13 +582,13 @@ impl SuiValidatorCommand {
                         "Committee registration successful. Transaction digest: {}",
                         response.digest
                     );
-                    SuiValidatorCommandResponse::RegisterBridgeCommittee {
+                    IotaValidatorCommandResponse::RegisterBridgeCommittee {
                         execution_response: Some(response),
                         serialized_unsigned_transaction: None,
                     }
                 }
             }
-            SuiValidatorCommand::UpdateBridgeCommitteeNodeUrl {
+            IotaValidatorCommand::UpdateBridgeCommitteeNodeUrl {
                 bridge_authority_url,
                 print_unsigned_transaction_only,
                 validator_address,
@@ -607,9 +608,9 @@ impl SuiValidatorCommand {
                     validator_address,
                     print_unsigned_transaction_only,
                 )?;
-                let sui_rpc_url = &context.config.get_active_env().unwrap().rpc;
+                let iota_rpc_url = &context.config.get_active_env().unwrap().rpc;
                 let bridge_metrics = Arc::new(BridgeMetrics::new_for_testing());
-                let bridge_client = SuiBridgeClient::new(sui_rpc_url, bridge_metrics).await?;
+                let bridge_client = IotaBridgeClient::new(iota_rpc_url, bridge_metrics).await?;
                 let committee_members = bridge_client
                     .get_bridge_summary()
                     .await
@@ -618,12 +619,12 @@ impl SuiValidatorCommand {
                     .members;
                 if !committee_members
                     .into_iter()
-                    .any(|(_, m)| m.sui_address == address)
+                    .any(|(_, m)| m.iota_address == address)
                 {
                     bail!("Address {} is not in the committee", address);
                 }
                 println!(
-                    "Updating bridge committee node URL for Sui validator: {address}, url: {}",
+                    "Updating bridge committee node URL for Iota validator: {address}, url: {}",
                     bridge_authority_url
                 );
 
@@ -648,7 +649,7 @@ impl SuiValidatorCommand {
                 .map_err(|e| anyhow!("{e:?}"))?;
                 if print_unsigned_transaction_only {
                     let serialized_data = Base64::encode(bcs::to_bytes(&tx_data)?);
-                    SuiValidatorCommandResponse::UpdateBridgeCommitteeURL {
+                    IotaValidatorCommandResponse::UpdateBridgeCommitteeURL {
                         execution_response: None,
                         serialized_unsigned_transaction: Some(serialized_data),
                     }
@@ -659,7 +660,7 @@ impl SuiValidatorCommand {
                         "Update Bridge validator node URL successful. Transaction digest: {}",
                         response.digest
                     );
-                    SuiValidatorCommandResponse::UpdateBridgeCommitteeURL {
+                    IotaValidatorCommandResponse::UpdateBridgeCommitteeURL {
                         execution_response: Some(response),
                         serialized_unsigned_transaction: None,
                     }
@@ -671,10 +672,10 @@ impl SuiValidatorCommand {
 }
 
 fn check_address(
-    active_address: SuiAddress,
-    validator_address: Option<SuiAddress>,
+    active_address: IotaAddress,
+    validator_address: Option<IotaAddress>,
     print_unsigned_transaction_only: bool,
-) -> Result<SuiAddress, anyhow::Error> {
+) -> Result<IotaAddress, anyhow::Error> {
     if !print_unsigned_transaction_only {
         if let Some(validator_address) = validator_address {
             if validator_address != active_address {
@@ -694,21 +695,21 @@ fn check_address(
 async fn get_cap_object_ref(
     context: &mut WalletContext,
     operation_cap_id: Option<ObjectID>,
-) -> Result<(ValidatorStatus, SuiValidatorSummary, ObjectRef)> {
-    let sui_client = context.get_client().await?;
+) -> Result<(ValidatorStatus, IotaValidatorSummary, ObjectRef)> {
+    let iota_client = context.get_client().await?;
     if let Some(operation_cap_id) = operation_cap_id {
         let (status, summary) =
-            get_validator_summary_from_cap_id(&sui_client, operation_cap_id).await?;
-        let cap_obj_ref = sui_client
+            get_validator_summary_from_cap_id(&iota_client, operation_cap_id).await?;
+        let cap_obj_ref = iota_client
             .read_api()
             .get_object_with_options(
                 summary.operation_cap_id,
-                SuiObjectDataOptions::default().with_owner(),
+                IotaObjectDataOptions::default().with_owner(),
             )
             .await?
             .object_ref_if_exists()
             .ok_or_else(|| anyhow!("OperationCap {} does not exist", operation_cap_id))?;
-        Ok::<(ValidatorStatus, SuiValidatorSummary, ObjectRef), anyhow::Error>((
+        Ok::<(ValidatorStatus, IotaValidatorSummary, ObjectRef), anyhow::Error>((
             status,
             summary,
             cap_obj_ref,
@@ -716,15 +717,15 @@ async fn get_cap_object_ref(
     } else {
         // Sender is Reporter Validator itself.
         let validator_address = context.active_address()?;
-        let (status, summary) = get_validator_summary(&sui_client, validator_address)
+        let (status, summary) = get_validator_summary(&iota_client, validator_address)
             .await?
             .ok_or_else(|| anyhow::anyhow!("{} is not a validator.", validator_address))?;
         // TODO we should allow validator to perform this operation even though the Cap is not at hand.
         // But for now we need to make sure the cap is owned by the sender.
         let cap_object_id = summary.operation_cap_id;
-        let resp = sui_client
+        let resp = iota_client
             .read_api()
-            .get_object_with_options(cap_object_id, SuiObjectDataOptions::default().with_owner())
+            .get_object_with_options(cap_object_id, IotaObjectDataOptions::default().with_owner())
             .await
             .map_err(|e| anyhow!(e))?;
         // Safe to unwrap as we ask with `with_owner`.
@@ -749,7 +750,7 @@ async fn update_gas_price(
     operation_cap_id: Option<ObjectID>,
     gas_price: u64,
     gas_budget: u64,
-) -> Result<SuiTransactionBlockResponse> {
+) -> Result<IotaTransactionBlockResponse> {
     let (_status, _summary, cap_obj_ref) = get_cap_object_ref(context, operation_cap_id).await?;
 
     // TODO: Only active/pending validators can set gas price.
@@ -763,14 +764,14 @@ async fn update_gas_price(
 
 async fn report_validator(
     context: &mut WalletContext,
-    reportee_address: SuiAddress,
+    reportee_address: IotaAddress,
     operation_cap_id: Option<ObjectID>,
     undo_report: bool,
     gas_budget: u64,
-) -> Result<SuiTransactionBlockResponse> {
+) -> Result<IotaTransactionBlockResponse> {
     let (status, summary, cap_obj_ref) = get_cap_object_ref(context, operation_cap_id).await?;
 
-    let validator_address = summary.sui_address;
+    let validator_address = summary.iota_address;
     // Only active validators can report/un-report.
     if !matches!(status, ValidatorStatus::Active) {
         anyhow::bail!(
@@ -792,12 +793,12 @@ async fn report_validator(
 }
 
 async fn get_validator_summary_from_cap_id(
-    client: &SuiClient,
+    client: &IotaClient,
     operation_cap_id: ObjectID,
-) -> anyhow::Result<(ValidatorStatus, SuiValidatorSummary)> {
+) -> anyhow::Result<(ValidatorStatus, IotaValidatorSummary)> {
     let resp = client
         .read_api()
-        .get_object_with_options(operation_cap_id, SuiObjectDataOptions::default().with_bcs())
+        .get_object_with_options(operation_cap_id, IotaObjectDataOptions::default().with_bcs())
         .await?;
     let bcs = resp.move_object_bcs().ok_or_else(|| {
         anyhow::anyhow!(
@@ -828,24 +829,24 @@ async fn get_validator_summary_from_cap_id(
 
 async fn construct_unsigned_0x5_txn(
     context: &mut WalletContext,
-    sender: SuiAddress,
+    sender: IotaAddress,
     function: &'static str,
     call_args: Vec<CallArg>,
     gas_budget: u64,
 ) -> anyhow::Result<TransactionData> {
-    let sui_client = context.get_client().await?;
-    let mut args = vec![CallArg::SUI_SYSTEM_MUT];
+    let iota_client = context.get_client().await?;
+    let mut args = vec![CallArg::IOTA_SYSTEM_MUT];
     args.extend(call_args);
-    let rgp = sui_client
+    let rgp = iota_client
         .governance_api()
         .get_reference_gas_price()
         .await?;
 
-    let gas_obj_ref = get_gas_obj_ref(sender, &sui_client, gas_budget).await?;
+    let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
     TransactionData::new_move_call(
         sender,
-        SUI_SYSTEM_PACKAGE_ID,
-        ident_str!("sui_system").to_owned(),
+        IOTA_SYSTEM_PACKAGE_ID,
+        ident_str!("iota_system").to_owned(),
         ident_str!(function).to_owned(),
         vec![],
         gas_obj_ref,
@@ -860,7 +861,7 @@ async fn call_0x5(
     function: &'static str,
     call_args: Vec<CallArg>,
     gas_budget: u64,
-) -> anyhow::Result<SuiTransactionBlockResponse> {
+) -> anyhow::Result<IotaTransactionBlockResponse> {
     let sender = context.active_address()?;
     let tx_data =
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
@@ -868,50 +869,50 @@ async fn call_0x5(
         context
             .config
             .keystore
-            .sign_secure(&sender, &tx_data, Intent::sui_transaction())?;
+            .sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
     let transaction = Transaction::from_data(tx_data, vec![signature]);
-    let sui_client = context.get_client().await?;
-    sui_client
+    let iota_client = context.get_client().await?;
+    iota_client
         .quorum_driver_api()
         .execute_transaction_block(
             transaction,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_input()
                 .with_effects(),
-            Some(sui_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
+            Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
         .map_err(|err| anyhow::anyhow!(err.to_string()))
 }
 
-impl Display for SuiValidatorCommandResponse {
+impl Display for IotaValidatorCommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match self {
-            SuiValidatorCommandResponse::MakeValidatorInfo => {}
-            SuiValidatorCommandResponse::DisplayMetadata => {}
-            SuiValidatorCommandResponse::BecomeCandidate(response) => {
+            IotaValidatorCommandResponse::MakeValidatorInfo => {}
+            IotaValidatorCommandResponse::DisplayMetadata => {}
+            IotaValidatorCommandResponse::BecomeCandidate(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
-            SuiValidatorCommandResponse::JoinCommittee(response) => {
+            IotaValidatorCommandResponse::JoinCommittee(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
-            SuiValidatorCommandResponse::LeaveCommittee(response) => {
+            IotaValidatorCommandResponse::LeaveCommittee(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
-            SuiValidatorCommandResponse::UpdateMetadata(response) => {
+            IotaValidatorCommandResponse::UpdateMetadata(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
-            SuiValidatorCommandResponse::UpdateGasPrice(response) => {
+            IotaValidatorCommandResponse::UpdateGasPrice(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
-            SuiValidatorCommandResponse::ReportValidator(response) => {
+            IotaValidatorCommandResponse::ReportValidator(response) => {
                 write!(writer, "{}", write_transaction_response(response)?)?;
             }
-            SuiValidatorCommandResponse::SerializedPayload(response) => {
+            IotaValidatorCommandResponse::SerializedPayload(response) => {
                 write!(writer, "Serialized payload: {}", response)?;
             }
-            SuiValidatorCommandResponse::DisplayGasPriceUpdateRawTxn {
+            IotaValidatorCommandResponse::DisplayGasPriceUpdateRawTxn {
                 data,
                 serialized_data,
             } => {
@@ -921,11 +922,11 @@ impl Display for SuiValidatorCommandResponse {
                     data, serialized_data
                 )?;
             }
-            SuiValidatorCommandResponse::RegisterBridgeCommittee {
+            IotaValidatorCommandResponse::RegisterBridgeCommittee {
                 execution_response,
                 serialized_unsigned_transaction,
             }
-            | SuiValidatorCommandResponse::UpdateBridgeCommitteeURL {
+            | IotaValidatorCommandResponse::UpdateBridgeCommitteeURL {
                 execution_response,
                 serialized_unsigned_transaction,
             } => {
@@ -945,7 +946,7 @@ impl Display for SuiValidatorCommandResponse {
 }
 
 pub fn write_transaction_response(
-    response: &SuiTransactionBlockResponse,
+    response: &IotaTransactionBlockResponse,
 ) -> Result<String, fmt::Error> {
     // we requested with for full_content, so the following content should be available.
     let success = response.status_ok().unwrap();
@@ -965,7 +966,7 @@ pub fn write_transaction_response(
     Ok(writer)
 }
 
-impl Debug for SuiValidatorCommandResponse {
+impl Debug for IotaValidatorCommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let string = serde_json::to_string_pretty(self);
         let s = match string {
@@ -976,12 +977,12 @@ impl Debug for SuiValidatorCommandResponse {
     }
 }
 
-impl SuiValidatorCommandResponse {
+impl IotaValidatorCommandResponse {
     pub fn print(&self, pretty: bool) {
         match self {
             // Don't print empty responses
-            SuiValidatorCommandResponse::MakeValidatorInfo
-            | SuiValidatorCommandResponse::DisplayMetadata => {}
+            IotaValidatorCommandResponse::MakeValidatorInfo
+            | IotaValidatorCommandResponse::DisplayMetadata => {}
             other => {
                 let line = if pretty {
                     format!("{other}")
@@ -1004,21 +1005,21 @@ pub enum ValidatorStatus {
 }
 
 pub async fn get_validator_summary(
-    client: &SuiClient,
-    validator_address: SuiAddress,
-) -> anyhow::Result<Option<(ValidatorStatus, SuiValidatorSummary)>> {
-    let SuiSystemStateSummary {
+    client: &IotaClient,
+    validator_address: IotaAddress,
+) -> anyhow::Result<Option<(ValidatorStatus, IotaValidatorSummary)>> {
+    let IotaSystemStateSummary {
         active_validators,
         pending_active_validators_id,
         ..
     } = client
         .governance_api()
-        .get_latest_sui_system_state()
+        .get_latest_iota_system_state()
         .await?;
     let mut status = None;
     let mut active_validators = active_validators
         .into_iter()
-        .map(|s| (s.sui_address, s))
+        .map(|s| (s.iota_address, s))
         .collect::<BTreeMap<_, _>>();
     let validator_info = if active_validators.contains_key(&validator_address) {
         status = Some(ValidatorStatus::Active);
@@ -1027,7 +1028,7 @@ pub async fn get_validator_summary(
         // Check panding validators
         get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
             .await?
-            .map(|v| v.into_sui_validator_summary())
+            .map(|v| v.into_iota_validator_summary())
             .tap_some(|_s| status = Some(ValidatorStatus::Pending))
 
         // TODO also check candidate and inactive valdiators
@@ -1041,8 +1042,8 @@ pub async fn get_validator_summary(
 }
 
 async fn display_metadata(
-    client: &SuiClient,
-    validator_address: SuiAddress,
+    client: &IotaClient,
+    validator_address: IotaAddress,
     json: bool,
 ) -> anyhow::Result<()> {
     match get_validator_summary(client, validator_address).await? {
@@ -1063,11 +1064,11 @@ async fn display_metadata(
 }
 
 async fn get_pending_candidate_summary(
-    validator_address: SuiAddress,
-    sui_client: &SuiClient,
+    validator_address: IotaAddress,
+    iota_client: &IotaClient,
     pending_active_validators_id: ObjectID,
 ) -> anyhow::Result<Option<ValidatorV1>> {
-    let pending_validators = sui_client
+    let pending_validators = iota_client
         .read_api()
         .get_dynamic_fields(pending_active_validators_id, None, None)
         .await?
@@ -1075,11 +1076,11 @@ async fn get_pending_candidate_summary(
         .into_iter()
         .map(|dyi| dyi.object_id)
         .collect::<Vec<_>>();
-    let resps = sui_client
+    let resps = iota_client
         .read_api()
         .multi_get_object_with_options(
             pending_validators,
-            SuiObjectDataOptions::default().with_bcs(),
+            IotaObjectDataOptions::default().with_bcs(),
         )
         .await?;
     for resp in resps {
@@ -1098,7 +1099,7 @@ async fn get_pending_candidate_summary(
                 e,
             )
         })?;
-        if field.value.verified_metadata().sui_address == validator_address {
+        if field.value.verified_metadata().iota_address == validator_address {
             return Ok(Some(field.value));
         }
     }
@@ -1145,7 +1146,7 @@ async fn update_metadata(
     context: &mut WalletContext,
     metadata: MetadataUpdate,
     gas_budget: u64,
-) -> anyhow::Result<SuiTransactionBlockResponse> {
+) -> anyhow::Result<IotaTransactionBlockResponse> {
     use ValidatorStatus::*;
     match metadata {
         MetadataUpdate::Name { name } => {
@@ -1260,10 +1261,10 @@ async fn update_metadata(
         }
         MetadataUpdate::ProtocolPubKey { file } => {
             let _status = check_status(context, HashSet::from([Pending, Active])).await?;
-            let sui_address = context.active_address()?;
+            let iota_address = context.active_address()?;
             let protocol_key_pair: AuthorityKeyPair = read_authority_keypair_from_file(file)?;
             let protocol_pub_key: AuthorityPublicKey = protocol_key_pair.public().clone();
-            let pop = generate_proof_of_possession(&protocol_key_pair, sui_address);
+            let pop = generate_proof_of_possession(&protocol_key_pair, iota_address);
             let args = vec![
                 CallArg::Pure(
                     bcs::to_bytes(&AuthorityPublicKeyBytes::from_bytes(
@@ -1288,9 +1289,9 @@ async fn check_status(
     context: &mut WalletContext,
     allowed_status: HashSet<ValidatorStatus>,
 ) -> Result<ValidatorStatus> {
-    let sui_client = context.get_client().await?;
+    let iota_client = context.get_client().await?;
     let validator_address = context.active_address()?;
-    let summary = get_validator_summary(&sui_client, validator_address).await?;
+    let summary = get_validator_summary(&iota_client, validator_address).await?;
     if summary.is_none() {
         bail!("{validator_address} is not a Validator.");
     }

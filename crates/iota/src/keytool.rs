@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::key_identity::{get_identity_address_from_keystore, KeyIdentity};
 use crate::zklogin_commands_util::{perform_zk_login_test_tx, read_cli_line};
@@ -33,26 +34,26 @@ use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use sui_keys::key_derive::generate_new_key;
-use sui_keys::keypair_file::{
+use iota_keys::key_derive::generate_new_key;
+use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, write_authority_keypair_to_file,
     write_keypair_to_file,
 };
-use sui_keys::keystore::{AccountKeystore, Keystore};
-use sui_types::base_types::SuiAddress;
-use sui_types::committee::EpochId;
-use sui_types::crypto::{
-    get_authority_key_pair, EncodeDecodeBase64, Signature, SignatureScheme, SuiKeyPair,
+use iota_keys::keystore::{AccountKeystore, Keystore};
+use iota_types::base_types::IotaAddress;
+use iota_types::committee::EpochId;
+use iota_types::crypto::{
+    get_authority_key_pair, EncodeDecodeBase64, Signature, SignatureScheme, IotaKeyPair,
     ZkLoginPublicIdentifier,
 };
-use sui_types::crypto::{DefaultHash, PublicKey};
-use sui_types::error::SuiResult;
-use sui_types::multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit};
-use sui_types::multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy};
-use sui_types::signature::{GenericSignature, VerifyParams};
-use sui_types::signature_verification::VerifiedDigestCache;
-use sui_types::transaction::{TransactionData, TransactionDataAPI};
-use sui_types::zk_login_authenticator::ZkLoginAuthenticator;
+use iota_types::crypto::{DefaultHash, PublicKey};
+use iota_types::error::IotaResult;
+use iota_types::multisig::{MultiSig, MultiSigPublicKey, ThresholdUnit, WeightUnit};
+use iota_types::multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy};
+use iota_types::signature::{GenericSignature, VerifyParams};
+use iota_types::signature_verification::VerifiedDigestCache;
+use iota_types::transaction::{TransactionData, TransactionDataAPI};
+use iota_types::zk_login_authenticator::ZkLoginAuthenticator;
 use tabled::builder::Builder;
 use tabled::settings::Rotate;
 use tabled::settings::{object::Rows, Modify, Width};
@@ -74,10 +75,10 @@ pub enum KeyToolCommand {
         new_alias: Option<String>,
     },
     /// Convert private key in Hex or Base64 to new format (Bech32
-    /// encoded 33 byte flag || private key starting with "suiprivkey").
+    /// encoded 33 byte flag || private key starting with "iotaprivkey").
     /// Hex private key format import and export are both deprecated in
-    /// Sui Wallet and Sui CLI Keystore. Use `sui keytool import` if you
-    /// wish to import a key to Sui Keystore.
+    /// Iota Wallet and Iota CLI Keystore. Use `iota keytool import` if you
+    /// wish to import a key to Iota Keystore.
     Convert { value: String },
     /// Given a Base64 encoded transaction bytes, decode its components. If a signature is provided,
     /// verify the signature against the transaction and output the result.
@@ -108,15 +109,15 @@ pub enum KeyToolCommand {
     /// The keypair file is output to the current directory. The content of the file is
     /// a Base64 encoded string of 33-byte `flag || privkey`.
     ///
-    /// Use `sui client new-address` if you want to generate and save the key into sui.keystore.
+    /// Use `iota client new-address` if you want to generate and save the key into iota.keystore.
     Generate {
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
         word_length: Option<String>,
     },
 
-    /// Add a new key to Sui CLI Keystore using either the input mnemonic phrase or a Bech32 encoded 33-byte
-    /// `flag || privkey` starting with "suiprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
+    /// Add a new key to Iota CLI Keystore using either the input mnemonic phrase or a Bech32 encoded 33-byte
+    /// `flag || privkey` starting with "iotaprivkey", the key scheme flag {ed25519 | secp256k1 | secp256r1}
     /// and an optional derivation path, default to m/44'/784'/0'/0'/0' for ed25519 or m/54'/784'/0'/0/0
     /// for secp256k1 or m/74'/784'/0'/0/0 for secp256r1. Supports mnemonic phrase of word length 12, 15,
     /// 18, 21, 24. Set an alias for the key with the --alias flag. If no alias is provided, the tool will
@@ -129,25 +130,25 @@ pub enum KeyToolCommand {
         key_scheme: SignatureScheme,
         derivation_path: Option<DerivationPath>,
     },
-    /// Output the private key of the given key identity in Sui CLI Keystore as Bech32
-    /// encoded string starting with `suiprivkey`.
+    /// Output the private key of the given key identity in Iota CLI Keystore as Bech32
+    /// encoded string starting with `iotaprivkey`.
     Export {
         #[clap(long)]
         key_identity: KeyIdentity,
     },
-    /// List all keys by its Sui address, Base64 encoded public key, key scheme name in
-    /// sui.keystore.
+    /// List all keys by its Iota address, Base64 encoded public key, key scheme name in
+    /// iota.keystore.
     List {
         /// Sort by alias
         #[clap(long, short = 's')]
         sort_by_alias: bool,
     },
     /// This reads the content at the provided file path. The accepted format can be
-    /// [enum SuiKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type AuthorityKeyPair`
+    /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type AuthorityKeyPair`
     /// (Base64 encoded `privkey`). This prints out the account keypair as Base64 encoded `flag || privkey`,
     /// the network keypair, worker keypair, protocol keypair as Base64 encoded `privkey`.
     LoadKeypair { file: PathBuf },
-    /// To MultiSig Sui Address. Pass in a list of all public keys `flag || pk` in Base64.
+    /// To MultiSig Iota Address. Pass in a list of all public keys `flag || pk` in Base64.
     /// See `keytool list` for example public keys.
     MultiSigAddress {
         #[clap(long)]
@@ -160,7 +161,7 @@ pub enum KeyToolCommand {
     /// Provides a list of participating signatures (`flag || sig || pk` encoded in Base64),
     /// threshold, a list of all public keys and a list of their weights that define the
     /// MultiSig address. Returns a valid MultiSig signature and its sender address. The
-    /// result can be used as signature field for `sui client execute-signed-tx`. The sum
+    /// result can be used as signature field for `iota client execute-signed-tx`. The sum
     /// of weights of all signatures must be >= the threshold.
     ///
     /// The order of `sigs` must be the same as the order of `pks`.
@@ -188,10 +189,10 @@ pub enum KeyToolCommand {
     },
 
     /// Read the content at the provided file path. The accepted format can be
-    /// [enum SuiKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type AuthorityKeyPair`
+    /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or `type AuthorityKeyPair`
     /// (Base64 encoded `privkey`). It prints its Base64 encoded public key and the key scheme flag.
     Show { file: PathBuf },
-    /// Create signature using the private key for for the given address (or its alias) in sui keystore.
+    /// Create signature using the private key for for the given address (or its alias) in iota keystore.
     /// Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded
     /// of the BCS serialized transaction bytes itself and its intent. If intent is absent,
     /// default will be used.
@@ -205,7 +206,7 @@ pub enum KeyToolCommand {
     },
     /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage Amazon
     /// KMS to sign a message and the base64 pubkey.
-    /// Generate PubKey from pem using MystenLabs/base64pemkey
+    /// Generate PubKey from pem using iotaledger/base64pemkey
     /// Any signature commits to a [struct IntentMessage] consisting of the Base64 encoded
     /// of the BCS serialized transaction bytes itself and its intent. If intent is absent,
     /// default will be used.
@@ -219,9 +220,9 @@ pub enum KeyToolCommand {
         #[clap(long)]
         base64pk: String,
     },
-    /// This takes [enum SuiKeyPair] of Base64 encoded of 33-byte `flag || privkey`). It
+    /// This takes [enum IotaKeyPair] of Base64 encoded of 33-byte `flag || privkey`). It
     /// outputs the keypair into a file at the current directory where the address is the filename,
-    /// and prints out its Sui address, Base64 encoded public key, the key scheme, and the key scheme flag.
+    /// and prints out its Iota address, Base64 encoded public key, the key scheme, and the key scheme flag.
     Unpack { keypair: String },
 
     /// Given the max_epoch, generate an OAuth url, ask user to paste the redirect with id_token, call salt server, then call the prover server,
@@ -250,7 +251,7 @@ pub enum KeyToolCommand {
         #[clap(long)]
         kp_bigint: String,
         #[clap(long)]
-        ephemeral_key_identifier: SuiAddress,
+        ephemeral_key_identifier: IotaAddress,
         #[clap(long, default_value = "devnet")]
         network: String,
         #[clap(long, default_value = "false")]
@@ -262,7 +263,7 @@ pub enum KeyToolCommand {
     /// Given a zkLogin signature, parse it if valid. If `bytes` provided,
     /// parse it as either as TransactionData or PersonalMessage based on `intent_scope`.
     /// It verifies the zkLogin signature based its latest JWK fetched.
-    /// Example request: sui keytool zk-login-sig-verify --sig $SERIALIZED_ZKLOGIN_SIG --bytes $BYTES --intent-scope 0 --network devnet --curr-epoch 10
+    /// Example request: iota keytool zk-login-sig-verify --sig $SERIALIZED_ZKLOGIN_SIG --bytes $BYTES --intent-scope 0 --network devnet --curr-epoch 10
     ZkLoginSigVerify {
         /// The Base64 of the serialized zkLogin signature.
         #[clap(long)]
@@ -282,7 +283,7 @@ pub enum KeyToolCommand {
     },
 
     /// TESTING ONLY: Generate a fixed ephemeral key and its JWT token with test issuer. Produce a zklogin signature for the given data and max epoch.
-    /// e.g. sui keytool zk-login-insecure-sign-personal-message --data "hello" --max-epoch 5
+    /// e.g. iota keytool zk-login-insecure-sign-personal-message --data "hello" --max-epoch 5
     ZkLoginInsecureSignPersonalMessage {
         /// The base64 encoded string of the message to sign, without the intent message wrapping.
         #[clap(long)]
@@ -312,7 +313,7 @@ pub struct DecodedMultiSig {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DecodedMultiSigOutput {
-    multisig_address: SuiAddress,
+    multisig_address: IotaAddress,
     participating_keys_signatures: Vec<DecodedMultiSig>,
     pub_keys: Vec<MultiSigOutput>,
     threshold: usize,
@@ -323,14 +324,14 @@ pub struct DecodedMultiSigOutput {
 #[serde(rename_all = "camelCase")]
 pub struct DecodeOrVerifyTxOutput {
     tx: TransactionData,
-    result: Option<SuiResult>,
+    result: Option<IotaResult>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Key {
     alias: Option<String>,
-    sui_address: SuiAddress,
+    iota_address: IotaAddress,
     public_base64_key: String,
     key_scheme: String,
     flag: u8,
@@ -365,7 +366,7 @@ pub struct MultiSigAddress {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigCombinePartialSig {
-    multisig_address: SuiAddress,
+    multisig_address: IotaAddress,
     multisig_parsed: GenericSignature,
     multisig_serialized: String,
 }
@@ -373,7 +374,7 @@ pub struct MultiSigCombinePartialSig {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigCombinePartialSigLegacyOutput {
-    multisig_address: SuiAddress,
+    multisig_address: IotaAddress,
     multisig_legacy_parsed: GenericSignature,
     multisig_legacy_serialized: String,
 }
@@ -381,7 +382,7 @@ pub struct MultiSigCombinePartialSigLegacyOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigOutput {
-    address: SuiAddress,
+    address: IotaAddress,
     public_base64_key: String,
     weight: u8,
 }
@@ -389,9 +390,9 @@ pub struct MultiSigOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertOutput {
-    bech32_with_flag: String, // latest Sui Keystore and Sui Wallet import/export format
-    base64_with_flag: String, // Sui Keystore storage format
-    hex_without_flag: String, // Legacy Sui Wallet format
+    bech32_with_flag: String, // latest Iota Keystore and Iota Wallet import/export format
+    base64_with_flag: String, // Iota Keystore storage format
+    hex_without_flag: String, // Legacy Iota Wallet format
     scheme: String,
 }
 
@@ -410,7 +411,7 @@ pub struct SerializedSig {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignData {
-    sui_address: SuiAddress,
+    iota_address: IotaAddress,
     // Base64 encoded string of serialized transaction data.
     raw_tx_data: String,
     // Intent struct used, see [struct Intent] for field definitions.
@@ -421,8 +422,8 @@ pub struct SignData {
     // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
     digest: String,
     // Base64 encoded `flag || signature || pubkey` for a complete
-    // serialized Sui signature to be send for executing the transaction.
-    sui_signature: String,
+    // serialized Iota signature to be send for executing the transaction.
+    iota_signature: String,
 }
 
 #[derive(Serialize)]
@@ -440,7 +441,7 @@ pub struct ZkLoginSigVerifyResponse {
     kid: String,
     parsed: String,
     jwks: Option<String>,
-    res: Option<SuiResult>,
+    res: Option<IotaResult>,
 }
 
 #[derive(Serialize)]
@@ -502,7 +503,7 @@ impl KeyToolCommand {
                 let pks = multisig.get_pk().pubkeys();
                 let sigs = multisig.get_sigs();
                 let bitmap = multisig.get_indices()?;
-                let address = SuiAddress::from(multisig.get_pk());
+                let address = IotaAddress::from(multisig.get_pk());
 
                 let pub_keys = pks
                     .iter()
@@ -540,7 +541,7 @@ impl KeyToolCommand {
                     let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
                     let s = GenericSignature::MultiSig(multisig);
                     let res = s.verify_authenticator(
-                        &IntentMessage::new(Intent::sui_transaction(), tx_data),
+                        &IntentMessage::new(Intent::iota_transaction(), tx_data),
                         address,
                         cur_epoch,
                         &VerifyParams::default(),
@@ -571,7 +572,7 @@ impl KeyToolCommand {
                     }),
                     Some(s) => {
                         let res = s.verify_authenticator(
-                            &IntentMessage::new(Intent::sui_transaction(), tx_data.clone()),
+                            &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
                             tx_data.sender(),
                             cur_epoch,
                             &VerifyParams::default(),
@@ -590,12 +591,12 @@ impl KeyToolCommand {
                 word_length,
             } => match key_scheme {
                 SignatureScheme::BLS12381 => {
-                    let (sui_address, kp) = get_authority_key_pair();
-                    let file_name = format!("bls-{sui_address}.key");
+                    let (iota_address, kp) = get_authority_key_pair();
+                    let file_name = format!("bls-{iota_address}.key");
                     write_authority_keypair_to_file(&kp, file_name)?;
                     CommandOutput::Generate(Key {
                         alias: None,
-                        sui_address,
+                        iota_address,
                         public_base64_key: kp.public().encode_base64(),
                         key_scheme: key_scheme.to_string(),
                         flag: SignatureScheme::BLS12381.flag(),
@@ -604,11 +605,11 @@ impl KeyToolCommand {
                     })
                 }
                 _ => {
-                    let (sui_address, skp, _scheme, phrase) =
+                    let (iota_address, ikp, _scheme, phrase) =
                         generate_new_key(key_scheme, derivation_path, word_length)?;
-                    let file = format!("{sui_address}.key");
-                    write_keypair_to_file(&skp, file)?;
-                    let mut key = Key::from(&skp);
+                    let file = format!("{iota_address}.key");
+                    write_keypair_to_file(&ikp, file)?;
+                    let mut key = Key::from(&ikp);
                     key.mnemonic = Some(phrase);
                     CommandOutput::Generate(key)
                 }
@@ -622,22 +623,22 @@ impl KeyToolCommand {
             } => {
                 if Hex::decode(&input_string).is_ok() {
                     return Err(anyhow!(
-                        "Sui Keystore and Sui Wallet no longer support importing 
+                        "Iota Keystore and Iota Wallet no longer support importing 
                     private key as Hex, if you are sure your private key is encoded in Hex, use 
-                    `sui keytool convert $HEX` to convert first then import the Bech32 encoded 
-                    private key starting with `suiprivkey`."
+                    `iota keytool convert $HEX` to convert first then import the Bech32 encoded 
+                    private key starting with `iotaprivkey`."
                     ));
                 }
 
-                match SuiKeyPair::decode(&input_string) {
-                    Ok(skp) => {
+                match IotaKeyPair::decode(&input_string) {
+                    Ok(ikp) => {
                         info!("Importing Bech32 encoded private key to keystore");
-                        let mut key = Key::from(&skp);
-                        keystore.add_key(alias.clone(), skp)?;
+                        let mut key = Key::from(&ikp);
+                        keystore.add_key(alias.clone(), ikp)?;
 
                         let alias = match alias {
                             Some(x) => x,
-                            None => keystore.get_alias_by_address(&key.sui_address)?,
+                            None => keystore.get_alias_by_address(&key.iota_address)?,
                         };
 
                         key.alias = Some(alias);
@@ -645,18 +646,18 @@ impl KeyToolCommand {
                     }
                     Err(_) => {
                         info!("Importing mneomonics to keystore");
-                        let sui_address = keystore.import_from_mnemonic(
+                        let iota_address = keystore.import_from_mnemonic(
                             &input_string,
                             key_scheme,
                             derivation_path,
                             alias.clone(),
                         )?;
-                        let skp = keystore.get_key(&sui_address)?;
-                        let mut key = Key::from(skp);
+                        let ikp = keystore.get_key(&iota_address)?;
+                        let mut key = Key::from(ikp);
 
                         let alias = match alias {
                             Some(x) => x,
-                            None => keystore.get_alias_by_address(&key.sui_address)?,
+                            None => keystore.get_alias_by_address(&key.iota_address)?,
                         };
 
                         key.alias = Some(alias);
@@ -666,12 +667,12 @@ impl KeyToolCommand {
             }
             KeyToolCommand::Export { key_identity } => {
                 let address = get_identity_address_from_keystore(key_identity, keystore)?;
-                let skp = keystore.get_key(&address)?;
+                let ikp = keystore.get_key(&address)?;
                 let key = ExportedKey {
-                    exported_private_key: skp
+                    exported_private_key: ikp
                         .encode()
                         .map_err(|_| anyhow!("Cannot decode keypair"))?,
-                    key: Key::from(skp),
+                    key: Key::from(ikp),
                 };
                 CommandOutput::Export(key)
             }
@@ -681,7 +682,7 @@ impl KeyToolCommand {
                     .into_iter()
                     .map(|pk| {
                         let mut key = Key::from(pk);
-                        key.alias = keystore.get_alias_by_address(&key.sui_address).ok();
+                        key.alias = keystore.get_alias_by_address(&key.iota_address).ok();
                         key
                     })
                     .collect::<Vec<Key>>();
@@ -697,9 +698,9 @@ impl KeyToolCommand {
                         // Account keypair is encoded with the key scheme flag {},
                         // and network and worker keypair are not.
                         let network_worker_keypair = match &keypair {
-                            SuiKeyPair::Ed25519(kp) => kp.encode_base64(),
-                            SuiKeyPair::Secp256k1(kp) => kp.encode_base64(),
-                            SuiKeyPair::Secp256r1(kp) => kp.encode_base64(),
+                            IotaKeyPair::Ed25519(kp) => kp.encode_base64(),
+                            IotaKeyPair::Secp256k1(kp) => kp.encode_base64(),
+                            IotaKeyPair::Secp256r1(kp) => kp.encode_base64(),
                         };
                         KeypairData {
                             account_keypair: keypair.encode_base64(),
@@ -735,7 +736,7 @@ impl KeyToolCommand {
                 weights,
             } => {
                 let multisig_pk = MultiSigPublicKey::new(pks.clone(), weights.clone(), threshold)?;
-                let address: SuiAddress = (&multisig_pk).into();
+                let address: IotaAddress = (&multisig_pk).into();
                 let mut output = MultiSigAddress {
                     multisig_address: address.to_string(),
                     multisig: vec![],
@@ -743,7 +744,7 @@ impl KeyToolCommand {
 
                 for (pk, w) in pks.into_iter().zip(weights.into_iter()) {
                     output.multisig.push(MultiSigOutput {
-                        address: Into::<SuiAddress>::into(&pk),
+                        address: Into::<IotaAddress>::into(&pk),
                         public_base64_key: pk.encode_base64(),
                         weight: w,
                     });
@@ -758,7 +759,7 @@ impl KeyToolCommand {
                 threshold,
             } => {
                 let multisig_pk = MultiSigPublicKey::new(pks, weights, threshold)?;
-                let address: SuiAddress = (&multisig_pk).into();
+                let address: IotaAddress = (&multisig_pk).into();
                 let multisig = MultiSig::combine(sigs, multisig_pk)?;
                 let generic_sig: GenericSignature = multisig.into();
                 let multisig_serialized = generic_sig.encode_base64();
@@ -778,7 +779,7 @@ impl KeyToolCommand {
                 let multisig_pk_legacy =
                     MultiSigPublicKeyLegacy::new(pks.clone(), weights.clone(), threshold)?;
                 let multisig_pk = MultiSigPublicKey::new(pks, weights, threshold)?;
-                let address: SuiAddress = (&multisig_pk).into();
+                let address: IotaAddress = (&multisig_pk).into();
                 let multisig = MultiSigLegacy::combine(sigs, multisig_pk_legacy)?;
                 let generic_sig: GenericSignature = multisig.into();
                 let multisig_legacy_serialized = generic_sig.encode_base64();
@@ -795,8 +796,8 @@ impl KeyToolCommand {
             KeyToolCommand::Show { file } => {
                 let res = read_keypair_from_file(&file);
                 match res {
-                    Ok(skp) => {
-                        let key = Key::from(&skp);
+                    Ok(ikp) => {
+                        let key = Key::from(&ikp);
                         CommandOutput::Show(key)
                     }
                     Err(_) => match read_authority_keypair_from_file(&file) {
@@ -804,7 +805,7 @@ impl KeyToolCommand {
                             let public_base64_key = keypair.public().encode_base64();
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
-                                sui_address: (keypair.public()).into(),
+                                iota_address: (keypair.public()).into(),
                                 public_base64_key,
                                 key_scheme: SignatureScheme::BLS12381.to_string(),
                                 flag: SignatureScheme::BLS12381.flag(),
@@ -826,7 +827,7 @@ impl KeyToolCommand {
                 intent,
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
-                let intent = intent.unwrap_or_else(Intent::sui_transaction);
+                let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 let intent_clone = intent.clone();
                 let msg: TransactionData =
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
@@ -837,15 +838,15 @@ impl KeyToolCommand {
                 let mut hasher = DefaultHash::default();
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
-                let sui_signature =
+                let iota_signature =
                     keystore.sign_secure(&address, &intent_msg.value, intent_msg.intent)?;
                 CommandOutput::Sign(SignData {
-                    sui_address: address,
+                    iota_address: address,
                     raw_tx_data: data,
                     intent: intent_clone,
                     raw_intent_msg,
                     digest: Base64::encode(digest),
-                    sui_signature: sui_signature.encode_base64(),
+                    iota_signature: iota_signature.encode_base64(),
                 })
             }
 
@@ -858,10 +859,10 @@ impl KeyToolCommand {
                 // Currently only supports secp256k1 keys
                 let pk_owner = PublicKey::decode_base64(&base64pk)
                     .map_err(|e| anyhow!("Invalid base64 key: {:?}", e))?;
-                let address_owner = SuiAddress::from(&pk_owner);
+                let address_owner = IotaAddress::from(&pk_owner);
                 info!("Address For Corresponding KMS Key: {}", address_owner);
                 info!("Raw tx_bytes to execute: {}", data);
-                let intent = intent.unwrap_or_else(Intent::sui_transaction);
+                let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 info!("Intent: {:?}", intent);
                 let msg: TransactionData =
                     bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
@@ -912,15 +913,15 @@ impl KeyToolCommand {
             }
 
             KeyToolCommand::Unpack { keypair } => {
-                let keypair = SuiKeyPair::decode_base64(&keypair)
+                let keypair = IotaKeyPair::decode_base64(&keypair)
                     .map_err(|_| anyhow!("Invalid Base64 encode keypair"))?;
 
                 let key = Key::from(&keypair);
-                let path_str = format!("{}.key", key.sui_address).to_lowercase();
+                let path_str = format!("{}.key", key.iota_address).to_lowercase();
                 let path = Path::new(&path_str);
                 let out_str = format!(
                     "address: {}\nkeypair: {}\nflag: {}",
-                    key.sui_address,
+                    key.iota_address,
                     keypair.encode_base64(),
                     key.flag
                 );
@@ -937,11 +938,11 @@ impl KeyToolCommand {
                 let intent_msg = IntentMessage::new(Intent::personal_message(), msg.clone());
 
                 // set up keypair, nonce with max_epoch
-                let skp =
-                    SuiKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
+                let ikp =
+                    IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])));
                 let jwt_randomness = BigUint::from_bytes_be(&[0; 32]).to_string();
                 let mut eph_pk_bytes = vec![0x00];
-                eph_pk_bytes.extend(skp.public().as_ref());
+                eph_pk_bytes.extend(ikp.public().as_ref());
                 let kp_bigint = BigUint::from_bytes_be(&eph_pk_bytes).to_string();
                 let nonce = get_nonce(&eph_pk_bytes, max_epoch, &jwt_randomness).unwrap();
 
@@ -964,7 +965,7 @@ impl KeyToolCommand {
                     &jwt_randomness,
                     &kp_bigint,
                     user_salt,
-                    "https://prover-dev.mystenlabs.com/v1",
+                    "https://prover-dev.iota.org/v1",
                 )
                 .await
                 .unwrap();
@@ -979,9 +980,9 @@ impl KeyToolCommand {
                     )
                     .unwrap(),
                 );
-                let address = SuiAddress::from(&pk);
+                let address = IotaAddress::from(&pk);
                 // sign with ephemeral key and combine with zklogin inputs to generic signature
-                let s = Signature::new_secure(&intent_msg, &skp);
+                let s = Signature::new_secure(&intent_msg, &ikp);
                 let sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
                     zk_login_inputs,
                     max_epoch,
@@ -1002,16 +1003,16 @@ impl KeyToolCommand {
                 test_multisig,
                 sign_with_sk,
             } => {
-                let skp = if fixed {
-                    SuiKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])))
+                let ikp = if fixed {
+                    IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32])))
                 } else {
-                    SuiKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rand::thread_rng()))
+                    IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rand::thread_rng()))
                 };
-                println!("Ephemeral keypair: {:?}", skp.encode());
-                let pk = skp.public();
-                let ephemeral_key_identifier: SuiAddress = (&skp.public()).into();
+                println!("Ephemeral keypair: {:?}", ikp.encode());
+                let pk = ikp.public();
+                let ephemeral_key_identifier: IotaAddress = (&ikp.public()).into();
                 println!("Ephemeral key identifier: {ephemeral_key_identifier}");
-                keystore.add_key(None, skp)?;
+                keystore.add_key(None, ikp)?;
 
                 let mut eph_pk_bytes = vec![pk.flag()];
                 eph_pk_bytes.extend(pk.as_ref());
@@ -1031,7 +1032,7 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "25769832374-famecqrhe2gkebt5fvqms2263046lj96.apps.googleusercontent.com",
-                    "https://sui.io/",
+                    "https://iota.org/",
                     &jwt_randomness,
                 )?;
                 let url_2 = get_oidc_url(
@@ -1039,7 +1040,7 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "rs1bh065i9ya4ydvifixl4kss0uhpt",
-                    "https://sui.io/",
+                    "https://iota.org/",
                     &jwt_randomness,
                 )?;
                 let url_3 = get_oidc_url(
@@ -1047,7 +1048,7 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "233307156352917",
-                    "https://sui.io/",
+                    "https://iota.org/",
                     &jwt_randomness,
                 )?;
                 let url_4 = get_oidc_url(
@@ -1055,13 +1056,13 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "aa6bddf393b54d4e0d42ae0014edfd2f",
-                    "https://sui.io/",
+                    "https://iota.org/",
                     &jwt_randomness,
                 )?;
                 let url_5 = get_token_exchange_url(
                     OIDCProvider::Kakao,
                     "aa6bddf393b54d4e0d42ae0014edfd2f",
-                    "https://sui.io/",
+                    "https://iota.org/",
                     "$YOUR_AUTH_CODE",
                     "", // not needed
                 )?;
@@ -1070,7 +1071,7 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "nl.digkas.wallet.client",
-                    "https://sui.io/",
+                    "https://iota.org/",
                     &jwt_randomness,
                 )?;
                 let url_7 = get_oidc_url(
@@ -1078,13 +1079,13 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "2426087588661.5742457039348",
-                    "https://sui.io/",
+                    "https://iota.org/",
                     &jwt_randomness,
                 )?;
                 let url_8 = get_token_exchange_url(
                     OIDCProvider::Slack,
                     "2426087588661.5742457039348",
-                    "https://sui.io/",
+                    "https://iota.org/",
                     "$YOUR_AUTH_CODE",
                     "39b955a118f2f21110939bf3dff1de90",
                 )?;
@@ -1096,7 +1097,7 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "6c56t7re6ekgmv23o7to8r0sic",
-                    "https://www.sui.io/",
+                    "https://www.iota.io/",
                     &jwt_randomness,
                 )?;
                 let url_10 = get_oidc_url(
@@ -1104,7 +1105,7 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "2e3e87cb-bf24-4399-ab98-48343d457124",
-                    "https://www.sui.io",
+                    "https://www.iota.io",
                     &jwt_randomness,
                 )?;
                 let url_11 = get_oidc_url(
@@ -1112,7 +1113,7 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "kns-dev",
-                    "https://sui.io/", // placeholder
+                    "https://iota.org/", // placeholder
                     &jwt_randomness,
                 )?;
                 let url_12 = get_oidc_url(
@@ -1136,7 +1137,7 @@ impl KeyToolCommand {
                     &eph_pk_bytes,
                     max_epoch,
                     "2e3i87cb-bf24-4399-ab98-48343d457124",
-                    "https://www.sui.io",
+                    "https://www.iota.io",
                     &jwt_randomness,
                 )?;
                 let url_15 = get_oidc_url(
@@ -1165,7 +1166,7 @@ impl KeyToolCommand {
                 println!("Visit URL (Arden): {url_14}");
                 println!("Visit URL (AWS - Trace): {url_15}");
 
-                println!("Finish login and paste the entire URL here (e.g. https://sui.io/#id_token=...):");
+                println!("Finish login and paste the entire URL here (e.g. https://iota.org/#id_token=...):");
 
                 let parsed_token = read_cli_line()?;
                 let tx_digest = perform_zk_login_test_tx(
@@ -1254,7 +1255,7 @@ impl KeyToolCommand {
 
                                 let sig = GenericSignature::ZkLoginAuthenticator(zk.clone());
                                 let res = sig.verify_authenticator(
-                                    &IntentMessage::new(Intent::sui_transaction(), tx_data.clone()),
+                                    &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
                                     tx_data.execution_parts().1,
                                     cur_epoch.unwrap(),
                                     &verify_params,
@@ -1300,9 +1301,9 @@ impl KeyToolCommand {
     }
 }
 
-impl From<&SuiKeyPair> for Key {
-    fn from(skp: &SuiKeyPair) -> Self {
-        Key::from(skp.public())
+impl From<&IotaKeyPair> for Key {
+    fn from(ikp: &IotaKeyPair) -> Self {
+        Key::from(ikp.public())
     }
 }
 
@@ -1310,7 +1311,7 @@ impl From<PublicKey> for Key {
     fn from(pk: PublicKey) -> Self {
         Key {
             alias: None, // this is retrieved later
-            sui_address: SuiAddress::from(&pk),
+            iota_address: IotaAddress::from(&pk),
             public_base64_key: pk.encode_base64(),
             key_scheme: pk.scheme().to_string(),
             mnemonic: None,
@@ -1341,20 +1342,20 @@ impl Display for CommandOutput {
                 let mut builder = Builder::default();
                 builder
                     .set_header([
-                        "suiSignature",
+                        "iotaSignature",
                         "digest",
                         "rawIntentMsg",
                         "intent",
                         "rawTxData",
-                        "suiAddress",
+                        "iotaAddress",
                     ])
                     .push_record([
-                        &data.sui_signature,
+                        &data.iota_signature,
                         &data.digest,
                         &data.raw_intent_msg,
                         &intent_table,
                         &data.raw_tx_data,
-                        &data.sui_address.to_string(),
+                        &data.iota_address.to_string(),
                     ]);
                 let mut table = builder.build();
                 table.with(Rotate::Left);
@@ -1407,7 +1408,7 @@ impl Debug for CommandOutput {
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.
 fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow::Error> {
-    let skp = match SuiKeyPair::decode(&value) {
+    let ikp = match IotaKeyPair::decode(&value) {
         Ok(s) => s,
         Err(_) => match Hex::decode(&value) {
             Ok(decoded) => {
@@ -1417,12 +1418,12 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                         decoded.len()
                     )));
                 }
-                SuiKeyPair::Ed25519(Ed25519KeyPair::from_bytes(&decoded)?)
+                IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(&decoded)?)
             }
-            Err(_) => match SuiKeyPair::decode_base64(&value) {
-                Ok(skp) => skp,
+            Err(_) => match IotaKeyPair::decode_base64(&value) {
+                Ok(ikp) => ikp,
                 Err(_) => match Ed25519KeyPair::decode_base64(&value) {
-                    Ok(kp) => SuiKeyPair::Ed25519(kp),
+                    Ok(kp) => IotaKeyPair::Ed25519(kp),
                     Err(_) => return Err(anyhow!("Invalid private key encoding")),
                 },
             },
@@ -1430,10 +1431,10 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
     };
 
     Ok(ConvertOutput {
-        bech32_with_flag: skp.encode().map_err(|_| anyhow!("Cannot encode keypair"))?,
-        base64_with_flag: skp.encode_base64(),
-        hex_without_flag: Hex::encode(&skp.to_bytes()[1..]),
-        scheme: skp.public().scheme().to_string(),
+        bech32_with_flag: ikp.encode().map_err(|_| anyhow!("Cannot encode keypair"))?,
+        base64_with_flag: ikp.encode_base64(),
+        hex_without_flag: Hex::encode(&ikp.to_bytes()[1..]),
+        scheme: ikp.public().scheme().to_string(),
     })
 }
 

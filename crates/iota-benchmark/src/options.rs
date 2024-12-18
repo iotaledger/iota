@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
@@ -11,7 +12,7 @@ use std::str::FromStr;
 #[derive(Parser)]
 #[clap(name = "Stress Testing Framework")]
 pub struct Opts {
-    /// Size of the Sui committee.
+    /// Size of the Iota committee.
     #[clap(long, default_value = "4", global = true)]
     pub committee_size: u64,
     /// Num of accounts to use for transfer objects
@@ -32,7 +33,7 @@ pub struct Opts {
     pub genesis_blob_path: String,
     /// [Required for remote benchmark]
     /// Path where keypair for primary gas account is stored. The format of
-    /// this file is same as what `sui keytool generate` outputs
+    /// this file is same as what `iota keytool generate` outputs
     #[clap(long, default_value = "", global = true)]
     pub keystore_path: String,
     /// [Required for remote benchmark]

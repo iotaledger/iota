@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -23,15 +24,15 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
-use sui_config::object_storage_config::ObjectStoreConfig;
-use sui_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
-use sui_core::authority::AuthorityStore;
-use sui_storage::blob::{Blob, BlobEncoding};
-use sui_storage::object_store::http::HttpDownloaderBuilder;
-use sui_storage::object_store::util::{copy_file, copy_files, path_to_filesystem};
-use sui_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber};
+use iota_config::object_storage_config::ObjectStoreConfig;
+use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
+use iota_core::authority::AuthorityStore;
+use iota_storage::blob::{Blob, BlobEncoding};
+use iota_storage::object_store::http::HttpDownloaderBuilder;
+use iota_storage::object_store::util::{copy_file, copy_files, path_to_filesystem};
+use iota_storage::object_store::{ObjectStoreGetExt, ObjectStorePutExt};
+use iota_types::accumulator::Accumulator;
+use iota_types::base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::Duration;

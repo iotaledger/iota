@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -9,7 +10,7 @@ use std::{
 };
 
 use itertools::Itertools as _;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use parking_lot::RwLock;
 use tracing::{debug, trace, warn};
 

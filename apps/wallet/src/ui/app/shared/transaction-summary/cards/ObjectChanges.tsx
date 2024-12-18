@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import ExplorerLink from '_src/ui/app/components/explorer-link';
 import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
@@ -8,11 +9,11 @@ import {
 	getObjectChangeLabel,
 	type ObjectChangesByOwner,
 	type ObjectChangeSummary,
-	type SuiObjectChangeTypes,
-	type SuiObjectChangeWithDisplay,
-} from '@mysten/core';
-import { ChevronDown12, ChevronRight12 } from '@mysten/icons';
-import { formatAddress } from '@mysten/sui/utils';
+	type IotaObjectChangeTypes,
+	type IotaObjectChangeWithDisplay,
+} from '@iota/core';
+import { ChevronDown12, ChevronRight12 } from '@iota/icons';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
 
 import { ExpandableList } from '../../ExpandableList';
@@ -32,7 +33,7 @@ export function ObjectDetail({
 	change,
 	display,
 }: {
-	change: SuiObjectChangeWithDisplay;
+	change: IotaObjectChangeWithDisplay;
 	ownerKey: string;
 	display?: boolean;
 }) {
@@ -132,7 +133,7 @@ export function ObjectDetail({
 }
 
 interface ObjectChangeEntryProps {
-	type: SuiObjectChangeTypes;
+	type: IotaObjectChangeTypes;
 	changes: ObjectChangesByOwner;
 }
 

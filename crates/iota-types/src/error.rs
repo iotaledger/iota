@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -172,7 +173,7 @@ pub enum UserInputError {
         gas_price: u64,
         reference_gas_price: u64,
     },
-    #[error("Gas price cannot exceed {:?} mist", max_gas_price)]
+    #[error("Gas price cannot exceed {:?} nanos", max_gas_price)]
     GasPriceTooHigh { max_gas_price: u64 },
     #[error("Object {object_id} is not a gas object")]
     InvalidGasObject { object_id: ObjectID },
@@ -194,7 +195,7 @@ pub enum UserInputError {
     #[error("Empty input coins for Pay related transaction")]
     EmptyInputCoins,
 
-    #[error("SUI payment transactions use first input coin for gas payment, but found a different gas object")]
+    #[error("IOTA payment transactions use first input coin for gas payment, but found a different gas object")]
     UnexpectedGasPaymentObject,
 
     #[error("Wrong initial version given for shared object")]
@@ -254,7 +255,7 @@ pub enum UserInputError {
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
     AddressDeniedForCoin {
-        address: SuiAddress,
+        address: IotaAddress,
         coin_type: String,
     },
 
@@ -314,7 +315,7 @@ pub enum UserInputError {
     Error,
 )]
 #[serde(tag = "code", rename = "ObjectResponseError", rename_all = "camelCase")]
-pub enum SuiObjectResponseError {
+pub enum IotaObjectResponseError {
     #[error("Object {:?} does not exist", object_id)]
     NotExists { object_id: ObjectID },
     #[error("Cannot find dynamic field for parent object {:?}", parent_object_id)]
@@ -336,19 +337,19 @@ pub enum SuiObjectResponseError {
     Unknown,
     #[error("Display Error: {:?}", error)]
     DisplayError { error: String },
-    // TODO: also integrate SuiPastObjectResponse (VersionNotFound,  VersionTooHigh)
+    // TODO: also integrate IotaPastObjectResponse (VersionNotFound,  VersionTooHigh)
 }
 
-/// Custom error type for Sui.
+/// Custom error type for Iota.
 #[derive(
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
-pub enum SuiError {
+pub enum IotaError {
     #[error("Error checking transaction input objects: {:?}", error)]
     UserInputError { error: UserInputError },
 
     #[error("Error checking transaction object: {:?}", error)]
-    SuiObjectResponseError { error: SuiObjectResponseError },
+    IotaObjectResponseError { error: IotaObjectResponseError },
 
     #[error("Expecting a single owner, shared ownership found")]
     UnexpectedOwnerType,
@@ -573,7 +574,7 @@ pub enum SuiError {
     // Client side error
     #[error("Too many authority errors were detected for {}: {:?}", action, errors)]
     TooManyIncorrectAuthorities {
-        errors: Vec<(AuthorityName, SuiError)>,
+        errors: Vec<(AuthorityName, IotaError)>,
         action: String,
     },
     #[error("Invalid transaction range query to the fullnode: {:?}", error)]
@@ -584,7 +585,7 @@ pub enum SuiError {
     FailedToSubmitToConsensus(String),
     #[error("Failed to connect with consensus node: {0}")]
     ConsensusConnectionBroken(String),
-    #[error("Failed to execute handle_consensus_transaction on Sui: {0}")]
+    #[error("Failed to execute handle_consensus_transaction on Iota: {0}")]
     HandleConsensusTransactionFailure(String),
 
     // Cryptography errors.
@@ -644,10 +645,10 @@ pub enum SuiError {
     DynamicFieldReadError(String),
 
     #[error("Failed to read or deserialize system state related data structures on-chain: {0}")]
-    SuiSystemStateReadError(String),
+    IotaSystemStateReadError(String),
 
     #[error("Failed to read or deserialize bridge related data structures on-chain: {0}")]
-    SuiBridgeReadError(String),
+    IotaBridgeReadError(String),
 
     #[error("Unexpected version error: {0}")]
     UnexpectedVersion(String),
@@ -702,30 +703,30 @@ pub enum VMMemoryLimitExceededSubStatusCode {
     TOTAL_EVENT_SIZE_LIMIT_EXCEEDED = 7,
 }
 
-pub type SuiResult<T = ()> = Result<T, SuiError>;
+pub type IotaResult<T = ()> = Result<T, IotaError>;
 pub type UserInputResult<T = ()> = Result<T, UserInputError>;
 
-impl From<sui_protocol_config::Error> for SuiError {
-    fn from(error: sui_protocol_config::Error) -> Self {
-        SuiError::WrongMessageVersion { error: error.0 }
+impl From<iota_protocol_config::Error> for IotaError {
+    fn from(error: iota_protocol_config::Error) -> Self {
+        IotaError::WrongMessageVersion { error: error.0 }
     }
 }
 
-impl From<ExecutionError> for SuiError {
+impl From<ExecutionError> for IotaError {
     fn from(error: ExecutionError) -> Self {
-        SuiError::ExecutionError(error.to_string())
+        IotaError::ExecutionError(error.to_string())
     }
 }
 
-impl From<Status> for SuiError {
+impl From<Status> for IotaError {
     fn from(status: Status) -> Self {
         if status.message() == "Too many requests" {
             return Self::TooManyRequests;
         }
 
-        let result = bcs::from_bytes::<SuiError>(status.details());
-        if let Ok(sui_error) = result {
-            sui_error
+        let result = bcs::from_bytes::<IotaError>(status.details());
+        if let Ok(iota_error) = result {
+            iota_error
         } else {
             Self::RpcError(
                 status.message().to_owned(),
@@ -735,73 +736,73 @@ impl From<Status> for SuiError {
     }
 }
 
-impl From<TypedStoreError> for SuiError {
+impl From<TypedStoreError> for IotaError {
     fn from(e: TypedStoreError) -> Self {
         Self::Storage(e.to_string())
     }
 }
 
-impl From<crate::storage::error::Error> for SuiError {
+impl From<crate::storage::error::Error> for IotaError {
     fn from(e: crate::storage::error::Error) -> Self {
         Self::Storage(e.to_string())
     }
 }
 
-impl From<SuiError> for Status {
-    fn from(error: SuiError) -> Self {
+impl From<IotaError> for Status {
+    fn from(error: IotaError) -> Self {
         let bytes = bcs::to_bytes(&error).unwrap();
         Status::with_details(tonic::Code::Internal, error.to_string(), bytes.into())
     }
 }
 
-impl From<ExecutionErrorKind> for SuiError {
+impl From<ExecutionErrorKind> for IotaError {
     fn from(kind: ExecutionErrorKind) -> Self {
         ExecutionError::from_kind(kind).into()
     }
 }
 
-impl From<&str> for SuiError {
+impl From<&str> for IotaError {
     fn from(error: &str) -> Self {
-        SuiError::GenericAuthorityError {
+        IotaError::GenericAuthorityError {
             error: error.to_string(),
         }
     }
 }
 
-impl From<String> for SuiError {
+impl From<String> for IotaError {
     fn from(error: String) -> Self {
-        SuiError::GenericAuthorityError { error }
+        IotaError::GenericAuthorityError { error }
     }
 }
 
-impl TryFrom<SuiError> for UserInputError {
+impl TryFrom<IotaError> for UserInputError {
     type Error = anyhow::Error;
 
-    fn try_from(err: SuiError) -> Result<Self, Self::Error> {
+    fn try_from(err: IotaError) -> Result<Self, Self::Error> {
         match err {
-            SuiError::UserInputError { error } => Ok(error),
+            IotaError::UserInputError { error } => Ok(error),
             other => anyhow::bail!("error {:?} is not UserInputError", other),
         }
     }
 }
 
-impl From<UserInputError> for SuiError {
+impl From<UserInputError> for IotaError {
     fn from(error: UserInputError) -> Self {
-        SuiError::UserInputError { error }
+        IotaError::UserInputError { error }
     }
 }
 
-impl From<SuiObjectResponseError> for SuiError {
-    fn from(error: SuiObjectResponseError) -> Self {
-        SuiError::SuiObjectResponseError { error }
+impl From<IotaObjectResponseError> for IotaError {
+    fn from(error: IotaObjectResponseError) -> Self {
+        IotaError::IotaObjectResponseError { error }
     }
 }
 
-impl SuiError {
+impl IotaError {
     pub fn individual_error_indicates_epoch_change(&self) -> bool {
         matches!(
             self,
-            SuiError::ValidatorHaltedAtEpochEnd | SuiError::MissingCommitteeAtEpoch(_)
+            IotaError::ValidatorHaltedAtEpochEnd | IotaError::MissingCommitteeAtEpoch(_)
         )
     }
 
@@ -812,15 +813,15 @@ impl SuiError {
     pub fn is_retryable(&self) -> (bool, bool) {
         let retryable = match self {
             // Network error
-            SuiError::RpcError { .. } => true,
+            IotaError::RpcError { .. } => true,
 
             // Reconfig error
-            SuiError::ValidatorHaltedAtEpochEnd => true,
-            SuiError::MissingCommitteeAtEpoch(..) => true,
-            SuiError::WrongEpoch { .. } => true,
-            SuiError::EpochEnded(..) => true,
+            IotaError::ValidatorHaltedAtEpochEnd => true,
+            IotaError::MissingCommitteeAtEpoch(..) => true,
+            IotaError::WrongEpoch { .. } => true,
+            IotaError::EpochEnded(..) => true,
 
-            SuiError::UserInputError { error } => {
+            IotaError::UserInputError { error } => {
                 match error {
                     // Only ObjectNotFound and DependentPackageNotFound is potentially retryable
                     UserInputError::ObjectNotFound { .. } => true,
@@ -829,27 +830,27 @@ impl SuiError {
                 }
             }
 
-            SuiError::PotentiallyTemporarilyInvalidSignature { .. } => true,
+            IotaError::PotentiallyTemporarilyInvalidSignature { .. } => true,
 
             // Overload errors
-            SuiError::TooManyTransactionsPendingExecution { .. } => true,
-            SuiError::TooManyTransactionsPendingOnObject { .. } => true,
-            SuiError::TooOldTransactionPendingOnObject { .. } => true,
-            SuiError::TooManyTransactionsPendingConsensus => true,
-            SuiError::ValidatorOverloadedRetryAfter { .. } => true,
+            IotaError::TooManyTransactionsPendingExecution { .. } => true,
+            IotaError::TooManyTransactionsPendingOnObject { .. } => true,
+            IotaError::TooOldTransactionPendingOnObject { .. } => true,
+            IotaError::TooManyTransactionsPendingConsensus => true,
+            IotaError::ValidatorOverloadedRetryAfter { .. } => true,
 
             // Non retryable error
-            SuiError::ExecutionError(..) => false,
-            SuiError::ByzantineAuthoritySuspicion { .. } => false,
-            SuiError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction { .. } => false,
-            SuiError::TxAlreadyFinalizedWithDifferentUserSigs => false,
-            SuiError::FailedToVerifyTxCertWithExecutedEffects { .. } => false,
-            SuiError::ObjectLockConflict { .. } => false,
+            IotaError::ExecutionError(..) => false,
+            IotaError::ByzantineAuthoritySuspicion { .. } => false,
+            IotaError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction { .. } => false,
+            IotaError::TxAlreadyFinalizedWithDifferentUserSigs => false,
+            IotaError::FailedToVerifyTxCertWithExecutedEffects { .. } => false,
+            IotaError::ObjectLockConflict { .. } => false,
 
             // NB: This is not an internal overload, but instead an imposed rate
             // limit / blocking of a client. It must be non-retryable otherwise
             // we will make the threat worse through automatic retries.
-            SuiError::TooManyRequests => false,
+            IotaError::TooManyRequests => false,
 
             // For all un-categorized errors, return here with categorized = false.
             _ => return (false, false),
@@ -860,7 +861,7 @@ impl SuiError {
 
     pub fn is_object_or_package_not_found(&self) -> bool {
         match self {
-            SuiError::UserInputError { error } => {
+            IotaError::UserInputError { error } => {
                 matches!(
                     error,
                     UserInputError::ObjectNotFound { .. }
@@ -874,32 +875,32 @@ impl SuiError {
     pub fn is_overload(&self) -> bool {
         matches!(
             self,
-            SuiError::TooManyTransactionsPendingExecution { .. }
-                | SuiError::TooManyTransactionsPendingOnObject { .. }
-                | SuiError::TooOldTransactionPendingOnObject { .. }
-                | SuiError::TooManyTransactionsPendingConsensus
+            IotaError::TooManyTransactionsPendingExecution { .. }
+                | IotaError::TooManyTransactionsPendingOnObject { .. }
+                | IotaError::TooOldTransactionPendingOnObject { .. }
+                | IotaError::TooManyTransactionsPendingConsensus
         )
     }
 
     pub fn is_retryable_overload(&self) -> bool {
-        matches!(self, SuiError::ValidatorOverloadedRetryAfter { .. })
+        matches!(self, IotaError::ValidatorOverloadedRetryAfter { .. })
     }
 
     pub fn retry_after_secs(&self) -> u64 {
         match self {
-            SuiError::ValidatorOverloadedRetryAfter { retry_after_secs } => *retry_after_secs,
+            IotaError::ValidatorOverloadedRetryAfter { retry_after_secs } => *retry_after_secs,
             _ => 0,
         }
     }
 }
 
-impl Ord for SuiError {
+impl Ord for IotaError {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         Ord::cmp(self.as_ref(), other.as_ref())
     }
 }
 
-impl PartialOrd for SuiError {
+impl PartialOrd for IotaError {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }

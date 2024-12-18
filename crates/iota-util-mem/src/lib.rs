@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright 2020 Parity Technologies
@@ -44,7 +45,7 @@ pub mod external_impls;
 pub use allocators::MallocSizeOfExt;
 pub use malloc_size::{MallocShallowSizeOf, MallocSizeOf, MallocSizeOfOps};
 
-pub use mysten_util_mem_derive::*;
+pub use iota_util_mem_derive::*;
 
 /// Heap size of structure.
 ///

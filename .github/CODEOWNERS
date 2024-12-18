@@ -1,22 +1,22 @@
-/crates/sui-types/src/crypto.rs @joyqvq @kchalkias @benr-ml
-/crates/sui-types/src/base_types.rs @joyqvq
-/crates/sui-keys/ @joyqvq @patrickkuo
-/crates/sui-protocol-config @mystenmark
+/crates/iota-types/src/crypto.rs @joyqvq @kchalkias @benr-ml
+/crates/iota-types/src/base_types.rs @joyqvq
+/crates/iota-keys/ @joyqvq @patrickkuo
+/crates/iota-protocol-config @iotamark
 
-*.md @randall-Mysten @ronny-mysten
+*.md @randall-Iota @ronny-iota
 # Omit auto-generated changelogs and changesets from docs review:
 /.changeset/*.md
 CHANGELOG.md
 
 # When snapshot changes, most likely we will need to recreate the genesis blob.
-/crates/sui-config/tests/snapshot_tests.rs @tharbert
+/crates/iota-config/tests/snapshot_tests.rs @tharbert
 
 # When native functions change, so we can evaluate cost impact
-/crates/sui-framework/src/natives/ @oxade
+/crates/iota-framework/src/natives/ @oxade
 
 # GraphQL RPC working group
-/crates/sui-graphql-rpc/ @oxade @amnn @wlmyng @stefan-mysten @emmazzz @suiwombat
-/crates/sui-graphql-e2e-tests/ @oxade @amnn @wlmyng @stefan-mysten @emmazzz @suiwombat
+/crates/iota-graphql-rpc/ @oxade @amnn @wlmyng @stefan-iota @emmazzz @suiwombat
+/crates/iota-graphql-e2e-tests/ @oxade @amnn @wlmyng @stefan-iota @emmazzz @suiwombat
 
 
 # Notify Narwhal changes to interested folks.
@@ -25,9 +25,9 @@ CHANGELOG.md
 /narwhal/network/ @bmwill
 /narwhal/storage/ @akichidis
 
-/crates/sui-core/src/consensus_adapter.rs @laura-makdah
+/crates/iota-core/src/consensus_adapter.rs @laura-makdah
 
-apps/ @MystenLabs/fe-and-apps
-sdk/ @MystenLabs/sdk-reviewers
-sdk/kiosk @MystenLabs/kiosk-sdk-reviewers
-sdk/wallet-standard @MystenLabs/wallet-kit-reviewers
+apps/ @IF/fe-and-apps
+sdk/ @IF/sdk-reviewers
+sdk/kiosk @IF/kiosk-sdk-reviewers
+sdk/wallet-standard @IF/wallet-kit-reviewers

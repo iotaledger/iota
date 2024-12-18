@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGenerateDemoData } from "@/mutations/demo";
-import { ConnectButton } from "@mysten/dapp-kit";
+import { ConnectButton } from "@iota/dapp-kit";
 import { SizeIcon } from "@radix-ui/react-icons";
 import { Box, Button, Container, Flex, Heading } from "@radix-ui/themes";
 import { NavLink } from "react-router-dom";

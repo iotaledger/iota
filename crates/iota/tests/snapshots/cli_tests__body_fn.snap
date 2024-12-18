@@ -1,5 +1,5 @@
 ---
-source: crates/sui/tests/cli_tests.rs
+source: crates/iota/tests/cli_tests.rs
 expression: error_string
 ---
 Non-clever-abort

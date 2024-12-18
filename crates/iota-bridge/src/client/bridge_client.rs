@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! `BridgeClient` talks to BridgeNode.
@@ -52,12 +53,12 @@ impl BridgeClient {
     // Important: the paths need to match the ones in server/mod.rs
     fn bridge_action_to_path(event: &BridgeAction) -> String {
         match event {
-            BridgeAction::SuiToEthBridgeAction(e) => format!(
-                "sign/bridge_tx/sui/eth/{}/{}",
-                e.sui_tx_digest, e.sui_tx_event_index
+            BridgeAction::IotaToEthBridgeAction(e) => format!(
+                "sign/bridge_tx/iota/eth/{}/{}",
+                e.iota_tx_digest, e.iota_tx_event_index
             ),
-            BridgeAction::EthToSuiBridgeAction(e) => format!(
-                "sign/bridge_tx/eth/sui/{}/{}",
+            BridgeAction::EthToIotaBridgeAction(e) => format!(
+                "sign/bridge_tx/eth/iota/{}/{}",
                 Hex::encode(e.eth_tx_hash.0),
                 e.eth_event_index
             ),
@@ -108,7 +109,7 @@ impl BridgeClient {
                     format!("{}/{}", path, call_data)
                 }
             }
-            BridgeAction::AddTokensOnSuiAction(a) => {
+            BridgeAction::AddTokensOnIotaAction(a) => {
                 let chain_id = (a.chain_id as u8).to_string();
                 let nonce = a.nonce.to_string();
                 let native = if a.native { "1" } else { "0" };
@@ -131,7 +132,7 @@ impl BridgeClient {
                     .collect::<Vec<_>>()
                     .join(",");
                 format!(
-                    "sign/add_tokens_on_sui/{chain_id}/{nonce}/{native}/{token_ids}/{token_type_names}/{token_prices}"
+                    "sign/add_tokens_on_iota/{chain_id}/{nonce}/{native}/{token_ids}/{token_type_names}/{token_prices}"
                 )
             }
             BridgeAction::AddTokensOnEvmAction(a) => {
@@ -150,8 +151,8 @@ impl BridgeClient {
                     .map(|name| format!("{:?}", name))
                     .collect::<Vec<_>>()
                     .join(",");
-                let token_sui_decimals = a
-                    .token_sui_decimals
+                let token_iota_decimals = a
+                    .token_iota_decimals
                     .iter()
                     .map(|id| id.to_string())
                     .collect::<Vec<_>>()
@@ -163,7 +164,7 @@ impl BridgeClient {
                     .collect::<Vec<_>>()
                     .join(",");
                 format!(
-                    "sign/add_tokens_on_evm/{chain_id}/{nonce}/{native}/{token_ids}/{token_addresses}/{token_sui_decimals}/{token_prices}"
+                    "sign/add_tokens_on_evm/{chain_id}/{nonce}/{native}/{token_ids}/{token_addresses}/{token_iota_decimals}/{token_prices}"
                 )
             }
         }
@@ -233,11 +234,11 @@ mod tests {
     use super::*;
     use crate::test_utils::run_mock_bridge_server;
     use crate::{
-        abi::EthToSuiTokenBridgeV1,
+        abi::EthToIotaTokenBridgeV1,
         crypto::BridgeAuthoritySignInfo,
-        events::EmittedSuiToEthTokenBridgeV1,
+        events::EmittedIotaToEthTokenBridgeV1,
         server::mock_handler::BridgeRequestMockHandler,
-        test_utils::{get_test_authority_and_key, get_test_sui_to_eth_bridge_action},
+        test_utils::{get_test_authority_and_key, get_test_iota_to_eth_bridge_action},
         types::SignedBridgeAction,
     };
     use ethers::types::Address as EthAddress;
@@ -245,9 +246,9 @@ mod tests {
     use fastcrypto::hash::{HashFunction, Keccak256};
     use fastcrypto::traits::KeyPair;
     use prometheus::Registry;
-    use sui_types::bridge::{BridgeChainId, TOKEN_ID_BTC, TOKEN_ID_USDT};
-    use sui_types::TypeTag;
-    use sui_types::{base_types::SuiAddress, crypto::get_key_pair, digests::TransactionDigest};
+    use iota_types::bridge::{BridgeChainId, TOKEN_ID_BTC, TOKEN_ID_USDT};
+    use iota_types::TypeTag;
+    use iota_types::{base_types::IotaAddress, crypto::get_key_pair, digests::TransactionDigest};
 
     #[tokio::test]
     async fn test_bridge_client() {
@@ -258,14 +259,14 @@ mod tests {
         let pubkey_bytes = BridgeAuthorityPublicKeyBytes::from(&pubkey);
         let committee = Arc::new(BridgeCommittee::new(vec![authority.clone()]).unwrap());
         let action =
-            get_test_sui_to_eth_bridge_action(None, Some(1), Some(1), Some(100), None, None, None);
+            get_test_iota_to_eth_bridge_action(None, Some(1), Some(1), Some(100), None, None, None);
 
         // Ok
         let client = BridgeClient::new(pubkey_bytes.clone(), committee).unwrap();
         assert!(client.base_url.is_some());
 
         // Ok
-        authority.base_url = "https://foo.suibridge.io".to_string();
+        authority.base_url = "https://foo.iotabridge.io".to_string();
         let committee = Arc::new(BridgeCommittee::new(vec![authority.clone()]).unwrap());
         let client = BridgeClient::new(pubkey_bytes.clone(), committee.clone()).unwrap();
         assert!(client.base_url.is_some());
@@ -315,7 +316,7 @@ mod tests {
     async fn test_bridge_client_request_sign_action() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let mock_handler = BridgeRequestMockHandler::new();
 
@@ -335,7 +336,7 @@ mod tests {
         let tx_digest = TransactionDigest::random();
         let event_idx = 4;
 
-        let action = get_test_sui_to_eth_bridge_action(
+        let action = get_test_iota_to_eth_bridge_action(
             Some(tx_digest),
             Some(event_idx),
             Some(1),
@@ -346,7 +347,7 @@ mod tests {
         );
         let sig = BridgeAuthoritySignInfo::new(&action, &secret);
         let signed_event = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig.clone());
-        mock_handler.add_sui_event_response(tx_digest, event_idx, Ok(signed_event.clone()), None);
+        mock_handler.add_iota_event_response(tx_digest, event_idx, Ok(signed_event.clone()), None);
 
         // success
         client
@@ -355,7 +356,7 @@ mod tests {
             .unwrap();
 
         // mismatched action would fail, this could happen when the authority fetched the wrong event
-        let action2 = get_test_sui_to_eth_bridge_action(
+        let action2 = get_test_iota_to_eth_bridge_action(
             Some(tx_digest),
             Some(event_idx),
             Some(2),
@@ -367,7 +368,7 @@ mod tests {
         let wrong_sig = BridgeAuthoritySignInfo::new(&action2, &secret);
         let wrong_signed_action =
             SignedBridgeAction::new_from_data_and_sig(action2.clone(), wrong_sig.clone());
-        mock_handler.add_sui_event_response(tx_digest, event_idx, Ok(wrong_signed_action), None);
+        mock_handler.add_iota_event_response(tx_digest, event_idx, Ok(wrong_signed_action), None);
         let err = client
             .request_sign_bridge_action(action.clone())
             .await
@@ -377,7 +378,7 @@ mod tests {
         // The action matches but the signature is wrong, fail
         let wrong_signed_action =
             SignedBridgeAction::new_from_data_and_sig(action.clone(), wrong_sig);
-        mock_handler.add_sui_event_response(tx_digest, event_idx, Ok(wrong_signed_action), None);
+        mock_handler.add_iota_event_response(tx_digest, event_idx, Ok(wrong_signed_action), None);
         let err = client
             .request_sign_bridge_action(action.clone())
             .await
@@ -394,7 +395,7 @@ mod tests {
             BridgeCommittee::new(vec![authority_blocklisted.clone(), authority2.clone()]).unwrap(),
         );
         client.update_committee(committee2);
-        mock_handler.add_sui_event_response(tx_digest, event_idx, Ok(signed_event), None);
+        mock_handler.add_iota_event_response(tx_digest, event_idx, Ok(signed_event), None);
 
         let err = client
             .request_sign_bridge_action(action.clone())
@@ -409,7 +410,7 @@ mod tests {
         // signed by a different authority in committee would fail
         let sig2 = BridgeAuthoritySignInfo::new(&action, &secret2);
         let signed_event2 = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig2.clone());
-        mock_handler.add_sui_event_response(tx_digest, event_idx, Ok(signed_event2), None);
+        mock_handler.add_iota_event_response(tx_digest, event_idx, Ok(signed_event2), None);
         let err = client
             .request_sign_bridge_action(action.clone())
             .await
@@ -421,7 +422,7 @@ mod tests {
         let secret3 = Arc::pin(kp3);
         let sig3 = BridgeAuthoritySignInfo::new(&action, &secret3);
         let signed_event3 = SignedBridgeAction::new_from_data_and_sig(action.clone(), sig3);
-        mock_handler.add_sui_event_response(tx_digest, event_idx, Ok(signed_event3), None);
+        mock_handler.add_iota_event_response(tx_digest, event_idx, Ok(signed_event3), None);
         let err = client
             .request_sign_bridge_action(action.clone())
             .await
@@ -431,49 +432,49 @@ mod tests {
 
     #[test]
     fn test_bridge_action_path_regression_tests() {
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_tx_event_index = 5;
-        let action = BridgeAction::SuiToEthBridgeAction(crate::types::SuiToEthBridgeAction {
-            sui_tx_digest,
-            sui_tx_event_index,
-            sui_bridge_event: EmittedSuiToEthTokenBridgeV1 {
-                sui_chain_id: BridgeChainId::SuiCustom,
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_tx_event_index = 5;
+        let action = BridgeAction::IotaToEthBridgeAction(crate::types::IotaToEthBridgeAction {
+            iota_tx_digest,
+            iota_tx_event_index,
+            iota_bridge_event: EmittedIotaToEthTokenBridgeV1 {
+                iota_chain_id: BridgeChainId::IotaCustom,
                 nonce: 1,
-                sui_address: SuiAddress::random_for_testing_only(),
+                iota_address: IotaAddress::random_for_testing_only(),
                 eth_chain_id: BridgeChainId::EthSepolia,
                 eth_address: EthAddress::random(),
                 token_id: TOKEN_ID_USDT,
-                amount_sui_adjusted: 1,
+                amount_iota_adjusted: 1,
             },
         });
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
             format!(
-                "sign/bridge_tx/sui/eth/{}/{}",
-                sui_tx_digest, sui_tx_event_index
+                "sign/bridge_tx/iota/eth/{}/{}",
+                iota_tx_digest, iota_tx_event_index
             )
         );
 
         let eth_tx_hash = TxHash::random();
         let eth_event_index = 6;
-        let action = BridgeAction::EthToSuiBridgeAction(crate::types::EthToSuiBridgeAction {
+        let action = BridgeAction::EthToIotaBridgeAction(crate::types::EthToIotaBridgeAction {
             eth_tx_hash,
             eth_event_index,
-            eth_bridge_event: EthToSuiTokenBridgeV1 {
+            eth_bridge_event: EthToIotaTokenBridgeV1 {
                 eth_chain_id: BridgeChainId::EthSepolia,
                 nonce: 1,
                 eth_address: EthAddress::random(),
-                sui_chain_id: BridgeChainId::SuiCustom,
-                sui_address: SuiAddress::random_for_testing_only(),
+                iota_chain_id: BridgeChainId::IotaCustom,
+                iota_address: IotaAddress::random_for_testing_only(),
                 token_id: TOKEN_ID_USDT,
-                sui_adjusted_amount: 1,
+                iota_adjusted_amount: 1,
             },
         });
 
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
             format!(
-                "sign/bridge_tx/eth/sui/{}/{}",
+                "sign/bridge_tx/eth/iota/{}/{}",
                 Hex::encode(eth_tx_hash.0),
                 eth_event_index
             )
@@ -514,7 +515,7 @@ mod tests {
         );
 
         let action = BridgeAction::EmergencyAction(crate::types::EmergencyAction {
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             nonce: 5,
             action_type: crate::types::EmergencyActionType::Pause,
         });
@@ -524,7 +525,7 @@ mod tests {
         );
 
         let action = BridgeAction::LimitUpdateAction(crate::types::LimitUpdateAction {
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             nonce: 10,
             sending_chain_id: BridgeChainId::EthCustom,
             new_usd_limit: 100,
@@ -535,7 +536,7 @@ mod tests {
         );
 
         let action = BridgeAction::AssetPriceUpdateAction(crate::types::AssetPriceUpdateAction {
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             nonce: 8,
             token_id: TOKEN_ID_BTC,
             new_usd_price: 100_000_000,
@@ -588,9 +589,9 @@ mod tests {
             "sign/upgrade_evm_contract/12/123/0606060606060606060606060606060606060606/0909090909090909090909090909090909090909/5cd8a76b000000000000000000000000000000000000000000000000000000000000002a",
         );
 
-        let action = BridgeAction::AddTokensOnSuiAction(crate::types::AddTokensOnSuiAction {
+        let action = BridgeAction::AddTokensOnIotaAction(crate::types::AddTokensOnIotaAction {
             nonce: 3,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             native: false,
             token_ids: vec![99, 100, 101],
             token_type_names: vec![
@@ -602,7 +603,7 @@ mod tests {
         });
         assert_eq!(
             BridgeClient::bridge_action_to_path(&action),
-            "sign/add_tokens_on_sui/2/3/0/99,100,101/0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin1,0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin2,0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin3/1000000000,2000000000,3000000000",
+            "sign/add_tokens_on_iota/2/3/0/99,100,101/0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin1,0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin2,0x0000000000000000000000000000000000000000000000000000000000000abc::my_coin::MyCoin3/1000000000,2000000000,3000000000",
         );
 
         let action = BridgeAction::AddTokensOnEvmAction(crate::types::AddTokensOnEvmAction {
@@ -615,7 +616,7 @@ mod tests {
                 EthAddress::repeat_byte(2),
                 EthAddress::repeat_byte(3),
             ],
-            token_sui_decimals: vec![5, 6, 7],
+            token_iota_decimals: vec![5, 6, 7],
             token_prices: vec![1_000_000_000, 2_000_000_000, 3_000_000_000],
         });
         assert_eq!(

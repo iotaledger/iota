@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     error::{DagError, DagResult},
@@ -19,7 +20,7 @@ use fastcrypto::{
     traits::{AggregateAuthenticator, Signer, VerifyingKey},
 };
 use indexmap::IndexMap;
-use mysten_util_mem::MallocSizeOf;
+use iota_util_mem::MallocSizeOf;
 use once_cell::sync::OnceCell;
 use proptest_derive::Arbitrary;
 use roaring::RoaringBitmap;
@@ -33,7 +34,7 @@ use std::{
     collections::{HashMap, HashSet},
     time::{Duration, SystemTime},
 };
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tracing::warn;
 
 /// The round number.
@@ -481,7 +482,7 @@ pub trait HeaderAPI {
 #[builder(pattern = "owned", build_fn(skip))]
 pub struct HeaderV1 {
     // Primary that created the header. Must be the same primary that broadcasted the header.
-    // Validation is at: https://github.com/MystenLabs/sui/blob/f0b80d9eeef44edd9fbe606cee16717622b68651/narwhal/primary/src/primary.rs#L713-L719
+    // Validation is at: https://github.com/iotaledger/iota/blob/f0b80d9eeef44edd9fbe606cee16717622b68651/narwhal/primary/src/primary.rs#L713-L719
     pub author: AuthorityIdentifier,
     pub round: Round,
     pub epoch: Epoch,

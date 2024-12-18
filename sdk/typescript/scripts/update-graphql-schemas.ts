@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { execSync } from 'child_process';
@@ -6,13 +7,13 @@ import { readFile } from 'fs/promises';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const result = execSync(`git branch --remote --list "origin/releases/sui-graphql-rpc-v*"`)
+const result = execSync(`git branch --remote --list "origin/releases/iota-graphql-rpc-v*"`)
 	.toString()
 	.trim()
 	.split('\n')
 	.map((ref) => {
 		const branch = ref.trim().replace('origin/', '');
-		const match = branch.match(/^releases\/sui-graphql-rpc-v([\d.]+)-release$/);
+		const match = branch.match(/^releases\/iota-graphql-rpc-v([\d.]+)-release$/);
 
 		if (!match) {
 			return null;
@@ -29,7 +30,7 @@ const result = execSync(`git branch --remote --list "origin/releases/sui-graphql
 					minor,
 					patch,
 					branch,
-					schema: `https://raw.githubusercontent.com/MystenLabs/sui/${branch}/crates/sui-graphql-rpc/schema/current_progress_schema.graphql`,
+					schema: `https://raw.githubusercontent.com/iotaledger/iota/${branch}/crates/iota-graphql-rpc/schema/current_progress_schema.graphql`,
 				}
 			: null;
 	})
@@ -86,6 +87,7 @@ for (const { minorVersion, schema } of releasesByVersion.values()) {
 		resolve(filePath, `../../../schemas/${minorVersion}/index.ts`),
 		`
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { initGraphQLTada } from 'gql.tada';

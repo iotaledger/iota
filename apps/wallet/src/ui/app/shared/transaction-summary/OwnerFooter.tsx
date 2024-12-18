@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import ExplorerLink from '_src/ui/app/components/explorer-link';
 import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
 import { useActiveAddress } from '_src/ui/app/hooks';
-import { formatAddress, isValidSuiAddress } from '@mysten/sui/utils';
+import { formatAddress, isValidIotaAddress } from '@iota/iota-sdk/utils';
 
 import { Text } from '../text';
 import { SummaryCardFooter } from './Card';
@@ -17,7 +18,7 @@ export function OwnerFooter({ owner, ownerType }: { owner?: string; ownerType?: 
 	const display =
 		ownerType === 'Shared'
 			? 'Shared'
-			: isValidSuiAddress(owner)
+			: isValidIotaAddress(owner)
 				? isOwner
 					? 'You'
 					: formatAddress(owner)

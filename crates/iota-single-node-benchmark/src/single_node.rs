@@ -1,32 +1,33 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::command::Component;
 use crate::mock_storage::InMemoryObjectStore;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
-use sui_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use sui_core::authority::authority_store_tables::LiveObject;
-use sui_core::authority::test_authority_builder::TestAuthorityBuilder;
-use sui_core::authority::AuthorityState;
-use sui_core::authority_server::{ValidatorService, ValidatorServiceMetrics};
-use sui_core::checkpoints::checkpoint_executor::CheckpointExecutor;
-use sui_core::consensus_adapter::{
+use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
+use iota_core::authority::authority_store_tables::LiveObject;
+use iota_core::authority::test_authority_builder::TestAuthorityBuilder;
+use iota_core::authority::AuthorityState;
+use iota_core::authority_server::{ValidatorService, ValidatorServiceMetrics};
+use iota_core::checkpoints::checkpoint_executor::CheckpointExecutor;
+use iota_core::consensus_adapter::{
     ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
 };
-use sui_core::mock_consensus::{ConsensusMode, MockConsensusClient};
-use sui_core::state_accumulator::StateAccumulator;
-use sui_test_transaction_builder::{PublishData, TestTransactionBuilder};
-use sui_types::base_types::{AuthorityName, ObjectRef, SuiAddress, TransactionDigest};
-use sui_types::committee::Committee;
-use sui_types::crypto::{AccountKeyPair, AuthoritySignature, Signer};
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
-use sui_types::messages_grpc::HandleTransactionResponse;
-use sui_types::mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider};
-use sui_types::object::Object;
-use sui_types::transaction::{
+use iota_core::mock_consensus::{ConsensusMode, MockConsensusClient};
+use iota_core::state_accumulator::StateAccumulator;
+use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
+use iota_types::base_types::{AuthorityName, ObjectRef, IotaAddress, TransactionDigest};
+use iota_types::committee::Committee;
+use iota_types::crypto::{AccountKeyPair, AuthoritySignature, Signer};
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::executable_transaction::VerifiedExecutableTransaction;
+use iota_types::messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents};
+use iota_types::messages_grpc::HandleTransactionResponse;
+use iota_types::mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider};
+use iota_types::object::Object;
+use iota_types::transaction::{
     CertifiedTransaction, Transaction, TransactionDataAPI, VerifiedCertificate,
     VerifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE,
 };
@@ -92,7 +93,7 @@ impl SingleValidator {
     pub async fn publish_package(
         &self,
         publish_data: PublishData,
-        sender: SuiAddress,
+        sender: IotaAddress,
         keypair: &AccountKeyPair,
         gas: ObjectRef,
     ) -> (ObjectRef, ObjectRef) {
@@ -198,7 +199,7 @@ impl SingleValidator {
         let executable = VerifiedExecutableTransaction::new_from_certificate(
             VerifiedCertificate::new_unchecked(transaction),
         );
-        let (gas_status, input_objects) = sui_transaction_checks::check_certificate_input(
+        let (gas_status, input_objects) = iota_transaction_checks::check_certificate_input(
             &executable,
             objects,
             self.epoch_store.protocol_config(),

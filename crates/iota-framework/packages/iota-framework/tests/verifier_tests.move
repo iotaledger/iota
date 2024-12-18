@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-/// Tests if normally illegal (in terms of Sui bytecode verification) code is allowed in tests.
-module sui::verifier_tests {
+/// Tests if normally illegal (in terms of Iota bytecode verification) code is allowed in tests.
+module iota::verifier_tests {
     public struct VERIFIER_TESTS has drop {}
 
-    fun init(otw: VERIFIER_TESTS, _: &mut sui::tx_context::TxContext) {
-        assert!(sui::types::is_one_time_witness(&otw));
+    fun init(otw: VERIFIER_TESTS, _: &mut iota::tx_context::TxContext) {
+        assert!(iota::types::is_one_time_witness(&otw));
     }
 
     #[test]
     fun test_init() {
-        use sui::test_scenario;
+        use iota::test_scenario;
         let admin = @0xBABE;
 
         let mut scenario = test_scenario::begin(admin);
@@ -22,7 +23,7 @@ module sui::verifier_tests {
     }
 
     fun is_otw(witness: VERIFIER_TESTS): bool {
-        sui::types::is_one_time_witness(&witness)
+        iota::types::is_one_time_witness(&witness)
     }
 
     #[test]

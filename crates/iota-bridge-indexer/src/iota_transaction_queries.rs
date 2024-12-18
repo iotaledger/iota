@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::time::Duration;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_json_rpc_types::SuiTransactionBlockResponseQuery;
-use sui_json_rpc_types::TransactionFilter;
-use sui_sdk::SuiClient;
-use sui_types::digests::TransactionDigest;
-use sui_types::SUI_BRIDGE_OBJECT_ID;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_json_rpc_types::IotaTransactionBlockResponseQuery;
+use iota_json_rpc_types::TransactionFilter;
+use iota_sdk::IotaClient;
+use iota_types::digests::TransactionDigest;
+use iota_types::IOTA_BRIDGE_OBJECT_ID;
 
-use sui_bridge::retry_with_max_elapsed_time;
+use iota_bridge::retry_with_max_elapsed_time;
 use tracing::{error, info};
 
 use crate::types::RetrievedTransaction;
@@ -17,21 +18,21 @@ use crate::types::RetrievedTransaction;
 const QUERY_DURATION: Duration = Duration::from_secs(1);
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
-pub async fn start_sui_tx_polling_task(
-    sui_client: SuiClient,
+pub async fn start_iota_tx_polling_task(
+    iota_client: IotaClient,
     mut cursor: Option<TransactionDigest>,
-    tx: mysten_metrics::metered_channel::Sender<(
+    tx: iota_metrics::metered_channel::Sender<(
         Vec<RetrievedTransaction>,
         Option<TransactionDigest>,
     )>,
 ) {
-    info!("Starting SUI transaction polling task from {:?}", cursor);
+    info!("Starting IOTA transaction polling task from {:?}", cursor);
     loop {
         let Ok(Ok(results)) = retry_with_max_elapsed_time!(
-            sui_client.read_api().query_transaction_blocks(
-                SuiTransactionBlockResponseQuery {
-                    filter: Some(TransactionFilter::InputObject(SUI_BRIDGE_OBJECT_ID)),
-                    options: Some(SuiTransactionBlockResponseOptions::full_content()),
+            iota_client.read_api().query_transaction_blocks(
+                IotaTransactionBlockResponseQuery {
+                    filter: Some(TransactionFilter::InputObject(IOTA_BRIDGE_OBJECT_ID)),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
                 cursor,
                 None,

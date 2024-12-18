@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
@@ -6,13 +7,13 @@ use move_cli::base::new;
 use move_package::source_package::layout::SourcePackageLayout;
 use std::{fs::create_dir_all, io::Write, path::Path};
 
-const SUI_PKG_NAME: &str = "Sui";
+const IOTA_PKG_NAME: &str = "Iota";
 
 // Use testnet by default. Probably want to add options to make this configurable later
-const SUI_PKG_PATH: &str = "{ git = \"https://github.com/MystenLabs/sui.git\", subdir = \"crates/sui-framework/packages/sui-framework\", rev = \"framework/testnet\" }";
+const IOTA_PKG_PATH: &str = "{ git = \"https://github.com/iotaledger/iota.git\", subdir = \"crates/iota-framework/packages/iota-framework\", rev = \"framework/testnet\" }";
 
 #[derive(Parser)]
-#[group(id = "sui-move-new")]
+#[group(id = "iota-move-new")]
 pub struct New {
     #[clap(flatten)]
     pub new: new::New,
@@ -23,7 +24,7 @@ impl New {
         let name = &self.new.name.to_lowercase();
 
         self.new
-            .execute(path, [(SUI_PKG_NAME, SUI_PKG_PATH)], [(name, "0x0")], "")?;
+            .execute(path, [(IOTA_PKG_NAME, IOTA_PKG_PATH)], [(name, "0x0")], "")?;
         let p = path.unwrap_or_else(|| Path::new(&name));
         let mut w = std::fs::File::create(
             p.join(SourcePackageLayout::Sources.path())
@@ -37,7 +38,7 @@ module {name}::{name};
 */
 
 // For Move coding conventions, see
-// https://docs.sui.io/concepts/sui-move-concepts/conventions
+// https://docs.iota.org/concepts/iota-move-concepts/conventions
 
 "#,
             name = name

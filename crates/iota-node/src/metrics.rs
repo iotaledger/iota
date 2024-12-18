@@ -1,22 +1,23 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use mysten_common::metrics::{push_metrics, MetricsPushClient};
-use mysten_network::metrics::MetricsCallbackProvider;
+use iota_common::metrics::{push_metrics, MetricsPushClient};
+use iota_network_stack::metrics::MetricsCallbackProvider;
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 
 use std::time::Duration;
-use sui_network::tonic::Code;
+use iota_network::tonic::Code;
 
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 
 /// Starts a task to periodically push metrics to a configured endpoint if a metrics push endpoint
 /// is configured.
-pub fn start_metrics_push_task(config: &sui_config::NodeConfig, registry: RegistryService) {
+pub fn start_metrics_push_task(config: &iota_config::NodeConfig, registry: RegistryService) {
     use fastcrypto::traits::KeyPair;
-    use sui_config::node::MetricsConfig;
+    use iota_config::node::MetricsConfig;
 
     const DEFAULT_METRICS_PUSH_INTERVAL: Duration = Duration::from_secs(60);
 
@@ -65,7 +66,7 @@ pub fn start_metrics_push_task(config: &sui_config::NodeConfig, registry: Regist
     });
 }
 
-pub struct SuiNodeMetrics {
+pub struct IotaNodeMetrics {
     pub jwk_requests: IntCounterVec,
     pub jwk_request_errors: IntCounterVec,
 
@@ -74,7 +75,7 @@ pub struct SuiNodeMetrics {
     pub unique_jwks: IntCounterVec,
 }
 
-impl SuiNodeMetrics {
+impl IotaNodeMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
             jwk_requests: register_int_counter_vec_with_registry!(
@@ -179,7 +180,7 @@ impl MetricsCallbackProvider for GrpcMetrics {
 
 #[cfg(test)]
 mod tests {
-    use mysten_metrics::start_prometheus_server;
+    use iota_metrics::start_prometheus_server;
     use prometheus::{IntCounter, Registry};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -197,7 +198,7 @@ mod tests {
         let counter_1 = IntCounter::new("counter_1", "a sample counter 1").unwrap();
         registry_1.register(Box::new(counter_1)).unwrap();
 
-        let registry_2 = Registry::new_custom(Some("sui".to_string()), None).unwrap();
+        let registry_2 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
         let counter_2 = IntCounter::new("counter_2", "a sample counter 2").unwrap();
         registry_2.register(Box::new(counter_2.clone())).unwrap();
 
@@ -208,9 +209,9 @@ mod tests {
         let result = get_metrics(port).await;
 
         assert!(result.contains(
-            "# HELP sui_counter_2 a sample counter 2
-# TYPE sui_counter_2 counter
-sui_counter_2 0"
+            "# HELP iota_counter_2 a sample counter 2
+# TYPE iota_counter_2 counter
+iota_counter_2 0"
         ));
 
         assert!(result.contains(
@@ -238,9 +239,9 @@ narwhal_counter_1 0"
 
         // Registry 2 metric should have increased by 1
         assert!(result.contains(
-            "# HELP sui_counter_2 a sample counter 2
-# TYPE sui_counter_2 counter
-sui_counter_2 1"
+            "# HELP iota_counter_2 a sample counter 2
+# TYPE iota_counter_2 counter
+iota_counter_2 1"
         ));
     }
 

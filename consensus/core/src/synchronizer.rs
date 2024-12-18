@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -10,14 +11,14 @@ use bytes::Bytes;
 use consensus_config::AuthorityIndex;
 use futures::{stream::FuturesUnordered, StreamExt as _};
 use itertools::Itertools as _;
-use mysten_metrics::{
+use iota_metrics::{
     monitored_future,
     monitored_mpsc::{channel, Receiver, Sender},
     monitored_scope,
 };
 use parking_lot::{Mutex, RwLock};
 use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
-use sui_macros::fail_point_async;
+use iota_macros::fail_point_async;
 use tap::TapFallible;
 use tokio::{
     sync::{mpsc::error::TrySendError, oneshot},

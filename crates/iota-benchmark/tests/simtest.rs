@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(msim)]
@@ -11,43 +12,43 @@ mod test {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
-    use sui_benchmark::bank::BenchmarkBank;
-    use sui_benchmark::system_state_observer::SystemStateObserver;
-    use sui_benchmark::workloads::adversarial::AdversarialPayloadCfg;
-    use sui_benchmark::workloads::expected_failure::ExpectedFailurePayloadCfg;
-    use sui_benchmark::workloads::workload::ExpectedFailureType;
-    use sui_benchmark::workloads::workload_configuration::{
+    use iota_benchmark::bank::BenchmarkBank;
+    use iota_benchmark::system_state_observer::SystemStateObserver;
+    use iota_benchmark::workloads::adversarial::AdversarialPayloadCfg;
+    use iota_benchmark::workloads::expected_failure::ExpectedFailurePayloadCfg;
+    use iota_benchmark::workloads::workload::ExpectedFailureType;
+    use iota_benchmark::workloads::workload_configuration::{
         WorkloadConfig, WorkloadConfiguration, WorkloadWeights,
     };
-    use sui_benchmark::{
+    use iota_benchmark::{
         drivers::{bench_driver::BenchDriver, driver::Driver, Interval},
         util::get_ed25519_keypair_from_keystore,
         LocalValidatorAggregatorProxy, ValidatorProxy,
     };
-    use sui_config::node::AuthorityOverloadConfig;
-    use sui_config::{AUTHORITIES_DB_NAME, SUI_KEYSTORE_FILENAME};
-    use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-    use sui_core::authority::framework_injection;
-    use sui_core::authority::AuthorityState;
-    use sui_core::checkpoints::{CheckpointStore, CheckpointWatermark};
-    use sui_framework::BuiltInFramework;
-    use sui_macros::{
+    use iota_config::node::AuthorityOverloadConfig;
+    use iota_config::{AUTHORITIES_DB_NAME, IOTA_KEYSTORE_FILENAME};
+    use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+    use iota_core::authority::framework_injection;
+    use iota_core::authority::AuthorityState;
+    use iota_core::checkpoints::{CheckpointStore, CheckpointWatermark};
+    use iota_framework::BuiltInFramework;
+    use iota_macros::{
         clear_fail_point, nondeterministic, register_fail_point_arg, register_fail_point_async,
         register_fail_point_if, register_fail_points, sim_test,
     };
-    use sui_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
-    use sui_simulator::tempfile::TempDir;
-    use sui_simulator::{configs::*, SimConfig};
-    use sui_storage::blob::Blob;
-    use sui_surfer::surf_strategy::SurfStrategy;
-    use sui_swarm_config::network_config_builder::ConfigBuilder;
-    use sui_types::base_types::{ConciseableName, ObjectID, SequenceNumber};
-    use sui_types::digests::TransactionDigest;
-    use sui_types::full_checkpoint_content::CheckpointData;
-    use sui_types::messages_checkpoint::VerifiedCheckpoint;
-    use sui_types::supported_protocol_versions::SupportedProtocolVersions;
-    use sui_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType};
-    use sui_types::transaction::{
+    use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
+    use iota_simulator::tempfile::TempDir;
+    use iota_simulator::{configs::*, SimConfig};
+    use iota_storage::blob::Blob;
+    use iota_surfer::surf_strategy::SurfStrategy;
+    use iota_swarm_config::network_config_builder::ConfigBuilder;
+    use iota_types::base_types::{ConciseableName, ObjectID, SequenceNumber};
+    use iota_types::digests::TransactionDigest;
+    use iota_types::full_checkpoint_content::CheckpointData;
+    use iota_types::messages_checkpoint::VerifiedCheckpoint;
+    use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+    use iota_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType};
+    use iota_types::transaction::{
         DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
     };
     use test_cluster::{TestCluster, TestClusterBuilder};
@@ -55,7 +56,7 @@ mod test {
     use typed_store::traits::Map;
 
     struct DeadValidator {
-        node_id: sui_simulator::task::NodeId,
+        node_id: iota_simulator::task::NodeId,
         dead_until: std::time::Instant,
     }
 
@@ -91,7 +92,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_with_reconfig() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(4, 1000, 1).await;
         test_simulated_load(test_cluster, 60).await;
     }
@@ -101,7 +102,7 @@ mod test {
     // fork).
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_with_accumulator_v2_partial_upgrade() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = init_test_cluster_builder(4, 1000)
             .with_authority_overload_config(AuthorityOverloadConfig {
                 // Disable system overload checks for the test - during tests with crashes,
@@ -121,7 +122,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_with_reconfig_and_correlated_crashes() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
 
         register_fail_point_if("correlated-crash-after-consensus-commit-boundary", || true);
         // TODO: enable this - right now it causes rocksdb errors when re-opening DBs
@@ -133,14 +134,14 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_basic() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(7, 0, 1).await;
         test_simulated_load(test_cluster, 15).await;
     }
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_restarts() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(4, 0, 1).await;
         let node_restarter = test_cluster
             .random_node_restarter()
@@ -152,7 +153,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_rolling_restarts_all_validators() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(4, 330_000, 1).await;
 
         let validators = test_cluster.get_validator_pubkeys();
@@ -175,7 +176,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_restarts() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(4, 5_000, 1).await;
         let node_restarter = test_cluster
             .random_node_restarter()
@@ -187,7 +188,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_small_committee_reconfig() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(1, 5_000, 0).await;
         test_simulated_load(test_cluster, 120).await;
     }
@@ -195,7 +196,7 @@ mod test {
     /// Get a list of nodes that we don't want to kill in the crash recovery tests.
     /// This includes the client node which is the node that is running the test, as well as
     /// rpc fullnode which are needed to run the benchmark.
-    fn get_keep_alive_nodes(cluster: &TestCluster) -> HashSet<sui_simulator::task::NodeId> {
+    fn get_keep_alive_nodes(cluster: &TestCluster) -> HashSet<iota_simulator::task::NodeId> {
         let mut keep_alive_nodes = HashSet::new();
         // The first fullnode in the swarm ins the rpc fullnode.
         keep_alive_nodes.insert(
@@ -208,19 +209,19 @@ mod test {
                 .unwrap()
                 .with(|n| n.get_sim_node_id()),
         );
-        keep_alive_nodes.insert(sui_simulator::current_simnode_id());
+        keep_alive_nodes.insert(iota_simulator::current_simnode_id());
         keep_alive_nodes
     }
 
     fn handle_failpoint(
         dead_validator: Arc<Mutex<Option<DeadValidator>>>,
-        keep_alive_nodes: HashSet<sui_simulator::task::NodeId>,
+        keep_alive_nodes: HashSet<iota_simulator::task::NodeId>,
         grace_period: Arc<Mutex<Option<Instant>>>,
         probability: f64,
     ) {
         let mut dead_validator = dead_validator.lock().unwrap();
         let mut grace_period = grace_period.lock().unwrap();
-        let cur_node = sui_simulator::current_simnode_id();
+        let cur_node = iota_simulator::current_simnode_id();
 
         if keep_alive_nodes.contains(&cur_node) {
             return;
@@ -268,7 +269,7 @@ mod test {
             drop(grace_period);
             drop(dead_validator);
 
-            sui_simulator::task::kill_current_node(Some(restart_after));
+            iota_simulator::task::kill_current_node(Some(restart_after));
         }
     }
 
@@ -307,10 +308,10 @@ mod test {
     // Tests load with aggressive pruning and compaction.
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_with_prune_and_compact() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(4, 1000, 0).await;
 
-        let node_state = test_cluster.fullnode_handle.sui_node.clone().state();
+        let node_state = test_cluster.fullnode_handle.iota_node.clone().state();
         register_fail_point_async("prune-and-compact", move || {
             handle_failpoint_prune_and_compact(node_state.clone(), 0.5)
         });
@@ -322,7 +323,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_with_crashes_and_delays() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
 
         register_fail_point_if("select-random-cache", || true);
 
@@ -429,7 +430,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_simulated_load_reconfig_crashes_during_epoch_change() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(4, 10000, 1).await;
 
         let dead_validator: Arc<Mutex<Option<DeadValidator>>> = Default::default();
@@ -754,14 +755,14 @@ mod test {
 
     async fn test_protocol_upgrade_compatibility_impl() {
         let max_ver = ProtocolVersion::MAX.as_u64();
-        let manifest = sui_framework_snapshot::load_bytecode_snapshot_manifest();
+        let manifest = iota_framework_snapshot::load_bytecode_snapshot_manifest();
 
         let Some((&starting_version, _)) = manifest.range(..max_ver).last() else {
             panic!("Couldn't find previously supported version");
         };
 
         let init_framework =
-            sui_framework_snapshot::load_bytecode_snapshot(starting_version).unwrap();
+            iota_framework_snapshot::load_bytecode_snapshot(starting_version).unwrap();
         let test_cluster = Arc::new(
             init_test_cluster_builder(4, 15000)
                 .with_protocol_version(ProtocolVersion::new(starting_version))
@@ -793,7 +794,7 @@ mod test {
                     break;
                 }
                 let next_version = version + 1;
-                let new_framework = sui_framework_snapshot::load_bytecode_snapshot(next_version);
+                let new_framework = iota_framework_snapshot::load_bytecode_snapshot(next_version);
                 let new_framework_ref = match &new_framework {
                     Ok(f) => Some(f.iter().collect::<Vec<_>>()),
                     Err(_) => {
@@ -838,7 +839,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_randomness_partial_sig_failures() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(6, 20_000, 1).await;
 
         // Network should continue as long as f+1 nodes (in this case 3/6) are sending partial signatures.
@@ -858,7 +859,7 @@ mod test {
 
     #[sim_test(config = "test_config()")]
     async fn test_randomness_dkg_failures() {
-        sui_protocol_config::ProtocolConfig::poison_get_for_min_version();
+        iota_protocol_config::ProtocolConfig::poison_get_for_min_version();
         let test_cluster = build_test_cluster(6, 20_000, 1).await;
 
         // Network should continue as long as nodes are participating in DKG representing
@@ -880,10 +881,10 @@ mod test {
     }
 
     fn handle_bool_failpoint(
-        eligible_nodes: &HashSet<sui_simulator::task::NodeId>, // only given eligible nodes may fail
+        eligible_nodes: &HashSet<iota_simulator::task::NodeId>, // only given eligible nodes may fail
         probability: f64,
     ) -> bool {
-        if !eligible_nodes.contains(&sui_simulator::current_simnode_id()) {
+        if !eligible_nodes.contains(&iota_simulator::current_simnode_id()) {
             return false; // don't fail ineligible nodes
         }
         let mut rng = thread_rng();
@@ -995,7 +996,7 @@ mod test {
         num_workers: Option<u64>,
     ) {
         let sender = test_cluster.get_address_0();
-        let keystore_path = test_cluster.swarm.dir().join(SUI_KEYSTORE_FILENAME);
+        let keystore_path = test_cluster.swarm.dir().join(IOTA_KEYSTORE_FILENAME);
         let genesis = test_cluster.swarm.config().genesis.clone();
         let primary_gas = test_cluster
             .wallet
@@ -1118,9 +1119,9 @@ mod test {
         });
 
         let surfer_task = tokio::spawn(async move {
-            // now do a sui-surfer test
+            // now do a iota-surfer test
             let mut test_packages_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            test_packages_dir.extend(["..", "..", "crates", "sui-surfer", "tests"]);
+            test_packages_dir.extend(["..", "..", "crates", "iota-surfer", "tests"]);
             let test_package_paths: Vec<PathBuf> = std::fs::read_dir(test_packages_dir)
                 .unwrap()
                 .flat_map(|entry| {
@@ -1128,10 +1129,10 @@ mod test {
                     entry.metadata().unwrap().is_dir().then_some(entry.path())
                 })
                 .collect();
-            info!("using sui_surfer test packages: {test_package_paths:?}");
+            info!("using iota_surfer test packages: {test_package_paths:?}");
 
             let surf_strategy = SurfStrategy::new(Duration::from_millis(400));
-            let results = sui_surfer::run_with_test_cluster_and_strategy(
+            let results = iota_surfer::run_with_test_cluster_and_strategy(
                 surf_strategy,
                 test_duration,
                 test_package_paths,
@@ -1139,7 +1140,7 @@ mod test {
                 1, // skip first account for use by bench_task
             )
             .await;
-            info!("sui_surfer test complete with results: {results:?}");
+            info!("iota_surfer test complete with results: {results:?}");
             assert!(results.num_successful_transactions > 0);
             assert!(!results.unique_move_functions_called.is_empty());
         });

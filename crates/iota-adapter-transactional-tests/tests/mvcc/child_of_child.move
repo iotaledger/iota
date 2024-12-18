@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests accessing the versions of a child of a child
@@ -8,7 +9,7 @@
 //# publish
 
 module test::m {
-    use sui::dynamic_object_field as ofield;
+    use iota::dynamic_object_field as ofield;
 
     public struct Obj has key, store {
         id: UID,

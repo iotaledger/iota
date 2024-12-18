@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Test basic coin transfer
@@ -11,12 +12,12 @@
 
 //# view-object 1,0
 
-//# run sui::pay::split_and_transfer --type-args sui::sui::SUI --args object(1,0) 10 @A --sender B
+//# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(1,0) 10 @A --sender B
 
 //# view-object 1,0
 
 //# view-object 3,0
 
-//# run sui::pay::split_and_transfer --type-args sui::sui::SUI --args object(1,0) 0 @C --sender A
+//# run iota::pay::split_and_transfer --type-args iota::iota::IOTA --args object(1,0) 0 @C --sender A
 
 //# view-object 1,0

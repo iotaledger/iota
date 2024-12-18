@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React from "react";
@@ -10,7 +11,7 @@ import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 export default function JsonRpc() {
   const { siteConfig } = useDocusaurusContext();
   return (
-    <Layout title={`Sui API Reference | ${siteConfig.title}`}>
+    <Layout title={`Iota API Reference | ${siteConfig.title}`}>
       <API />
     </Layout>
   );

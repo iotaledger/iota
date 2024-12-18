@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useBlockedObjectList } from '_app/hooks/useBlockedObjectList';
@@ -10,10 +11,10 @@ import { NFTDisplayCard } from '_components/nft-display';
 import { ampli } from '_src/shared/analytics/ampli';
 import { Button } from '_src/ui/app/shared/ButtonUI';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken, useMultiGetObjects } from '@mysten/core';
-import { useKioskClient } from '@mysten/core/src/hooks/useKioskClient';
-import { EyeClose16 } from '@mysten/icons';
-import { normalizeStructTag } from '@mysten/sui/utils';
+import { getKioskIdFromOwnerCap, isKioskOwnerToken, useMultiGetObjects } from '@iota/core';
+import { useKioskClient } from '@iota/core/src/hooks/useKioskClient';
+import { EyeClose16 } from '@iota/icons';
+import { normalizeStructTag } from '@iota/iota-sdk/utils';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -115,7 +116,7 @@ function HiddenNftsPage() {
 									</Link>
 									<div className="h-8 w-8">
 										<Button
-											variant="secondarySui"
+											variant="secondaryIota"
 											size="icon"
 											onClick={() => {
 												showAsset(objectId);

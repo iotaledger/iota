@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use proptest::prelude::*;
-use sui_types::utils::to_sender_signed_transaction;
+use iota_types::utils::to_sender_signed_transaction;
 
 use proptest::strategy::ValueTree;
 use transaction_fuzzer::account_universe::AccountCurrent;

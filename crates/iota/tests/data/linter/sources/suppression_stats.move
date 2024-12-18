@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This file is used to test linter suppression stats output (the test itself is part of CLI tests
-// in the sui crate)
+// in the iota crate)
 
 #[allow(lint(custom_state_change))]
 module linter::suppression_stats {
-    use sui::object::UID;
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::object::UID;
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
 
     #[allow(unused_field)]
     public struct S1 has key, store {

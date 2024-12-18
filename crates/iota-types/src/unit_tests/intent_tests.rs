@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
@@ -8,7 +9,7 @@ use crate::{
     committee::EpochId,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, Signature, SignatureScheme,
-        SuiAuthoritySignature, SuiSignature,
+        IotaAuthoritySignature, IotaSignature,
     },
     object::Object,
     transaction::{Transaction, TransactionData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER},
@@ -28,7 +29,7 @@ fn test_personal_message_intent() {
     let p_message_2 = p_message.clone();
     let p_message_bcs = bcs::to_bytes(&p_message).unwrap();
 
-    let intent = Intent::sui_app(IntentScope::PersonalMessage);
+    let intent = Intent::iota_app(IntentScope::PersonalMessage);
     let intent1 = intent.clone();
     let intent2 = intent.clone();
     let intent_bcs = bcs::to_bytes(&IntentMessage::new(intent, &p_message)).unwrap();
@@ -40,7 +41,7 @@ fn test_personal_message_intent() {
         vec![
             IntentScope::PersonalMessage as u8,
             IntentVersion::V0 as u8,
-            AppId::Sui as u8,
+            AppId::Iota as u8,
         ]
     );
 
@@ -68,7 +69,7 @@ fn test_authority_signature_intent() {
     let object_id = ObjectID::random();
     let object = Object::immutable_with_id_for_testing(object_id);
     let gas_price = 1000;
-    let data = TransactionData::new_transfer_sui(
+    let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -77,7 +78,7 @@ fn test_authority_signature_intent() {
         gas_price,
     );
     let signature = Signature::new_secure(
-        &IntentMessage::new(Intent::sui_transaction(), data.clone()),
+        &IntentMessage::new(Intent::iota_transaction(), data.clone()),
         &sender_key,
     );
     let tx = Transaction::from_data(data, vec![signature]);
@@ -95,7 +96,7 @@ fn test_authority_signature_intent() {
         vec![
             IntentScope::TransactionData as u8,
             IntentVersion::V0 as u8,
-            AppId::Sui as u8,
+            AppId::Iota as u8,
         ]
     );
 

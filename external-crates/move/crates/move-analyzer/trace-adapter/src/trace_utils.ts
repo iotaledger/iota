@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import * as fs from 'fs';
@@ -811,7 +812,7 @@ function processJSONLocalLocation(
         // a native function that would return a mutable reference, we should
         // consider how to handle value changes via such reference, but it's unlikely
         // that such a function would ever be added to either Move stdlib or
-        // the Sui framework.
+        // the Iota framework.
         return undefined;
     }
 }

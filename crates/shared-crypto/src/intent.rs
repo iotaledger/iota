@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::eyre;
@@ -27,13 +28,13 @@ impl TryFrom<u8> for IntentVersion {
 }
 
 /// This enums specifies the application ID. Two intents in two different applications
-/// (i.e., Narwhal, Sui, Ethereum etc) should never collide, so that even when a signing
+/// (i.e., Narwhal, Iota, Ethereum etc) should never collide, so that even when a signing
 /// key is reused, nobody can take a signature designated for app_1 and present it as a
 /// valid signature for an (any) intent in app_2.
 #[derive(Serialize_repr, Deserialize_repr, Copy, Clone, PartialEq, Eq, Debug, Hash)]
 #[repr(u8)]
 pub enum AppId {
-    Sui = 0,
+    Iota = 0,
     Narwhal = 1,
     Consensus = 2,
 }
@@ -48,7 +49,7 @@ impl TryFrom<u8> for AppId {
 
 impl Default for AppId {
     fn default() -> Self {
-        Self::Sui
+        Self::Iota
     }
 }
 
@@ -115,19 +116,19 @@ impl FromStr for Intent {
 }
 
 impl Intent {
-    pub fn sui_app(scope: IntentScope) -> Self {
+    pub fn iota_app(scope: IntentScope) -> Self {
         Self {
             version: IntentVersion::V0,
             scope,
-            app_id: AppId::Sui,
+            app_id: AppId::Iota,
         }
     }
 
-    pub fn sui_transaction() -> Self {
+    pub fn iota_transaction() -> Self {
         Self {
             scope: IntentScope::TransactionData,
             version: IntentVersion::V0,
-            app_id: AppId::Sui,
+            app_id: AppId::Iota,
         }
     }
 
@@ -135,7 +136,7 @@ impl Intent {
         Self {
             scope: IntentScope::PersonalMessage,
             version: IntentVersion::V0,
-            app_id: AppId::Sui,
+            app_id: AppId::Iota,
         }
     }
 
@@ -157,7 +158,7 @@ impl Intent {
 }
 
 /// Intent Message is a wrapper around a message with its intent. The message can
-/// be any type that implements [trait Serialize]. *ALL* signatures in Sui must commits
+/// be any type that implements [trait Serialize]. *ALL* signatures in Iota must commits
 /// to the intent message, not the message itself. This guarantees any intent
 /// message signed in the system cannot collide with another since they are domain
 /// separated by intent.
@@ -191,9 +192,9 @@ pub(crate) mod private {
     impl<T> SealedIntent for IntentMessage<T> {}
 }
 
-/// A 1-byte domain separator for hashing Object ID in Sui. It is starting from 0xf0
-/// to ensure no hashing collision for any ObjectID vs SuiAddress which is derived
-/// as the hash of `flag || pubkey`. See `sui_types::crypto::SignatureScheme::flag()`.
+/// A 1-byte domain separator for hashing Object ID in Iota. It is starting from 0xf0
+/// to ensure no hashing collision for any ObjectID vs IotaAddress which is derived
+/// as the hash of `flag || pubkey`. See `iota_types::crypto::SignatureScheme::flag()`.
 #[derive(Serialize_repr, Deserialize_repr, Copy, Clone, PartialEq, Eq, Debug, Hash)]
 #[repr(u8)]
 pub enum HashingIntentScope {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect } from 'react';
@@ -78,7 +79,7 @@ async function loadCookieConsentBanner<T>(
 						{
 							title: 'Cookie usage',
 							description:
-								'We use cookies to ensure the basic functionalities of the website and to enhance your online experience. For more details relative to cookies and other sensitive data, please read the full <a aria-label="Choose cookies" class="cc-link" href="https://mystenlabs.com/legal?content=privacy" target="_blank">privacy policy</a>.',
+								'We use cookies to ensure the basic functionalities of the website and to enhance your online experience. For more details relative to cookies and other sensitive data, please read the full <a aria-label="Choose cookies" class="cc-link" href="https://iota.org/cookie-policy" target="_blank">privacy policy</a>.',
 						},
 						{
 							title: 'Strictly necessary cookies',

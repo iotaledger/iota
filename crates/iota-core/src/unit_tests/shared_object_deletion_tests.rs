@@ -1,11 +1,12 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
     crypto::{get_key_pair, AccountKeyPair},
     effects::TransactionEffects,
     execution_status::{CommandArgumentError, ExecutionFailureStatus},
@@ -28,18 +29,18 @@ use crate::{
     move_call,
 };
 use move_core_types::ident_str;
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use sui_types::base_types::TransactionDigest;
-use sui_types::committee::EpochId;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::{ExecutionError, SuiError};
-use sui_types::execution_status::ExecutionFailureStatus::{
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_types::base_types::TransactionDigest;
+use iota_types::committee::EpochId;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::error::{ExecutionError, IotaError};
+use iota_types::execution_status::ExecutionFailureStatus::{
     InputObjectDeleted, SharedObjectOperationNotAllowed,
 };
-use sui_types::transaction::{ObjectArg, VerifiedCertificate};
+use iota_types::transaction::{ObjectArg, VerifiedCertificate};
 
 pub struct TestRunner {
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub sender_key: AccountKeyPair,
     pub gas_object_ids: Vec<ObjectID>,
     pub authority_state: Arc<AuthorityState>,
@@ -533,21 +534,21 @@ impl TestRunner {
     pub async fn certify_shared_obj_transaction(
         &mut self,
         tx: Transaction,
-    ) -> Result<VerifiedCertificate, SuiError> {
+    ) -> Result<VerifiedCertificate, IotaError> {
         certify_shared_obj_transaction_no_execution(&self.authority_state, tx).await
     }
 
     pub async fn enqueue_all_and_execute_all(
         &mut self,
         certificates: Vec<VerifiedCertificate>,
-    ) -> Result<Vec<TransactionEffects>, SuiError> {
+    ) -> Result<Vec<TransactionEffects>, IotaError> {
         enqueue_all_and_execute_all(&self.authority_state, certificates).await
     }
 
     pub async fn execute_sequenced_certificate_to_effects(
         &mut self,
         certificate: VerifiedCertificate,
-    ) -> Result<(TransactionEffects, Option<ExecutionError>), SuiError> {
+    ) -> Result<(TransactionEffects, Option<ExecutionError>), IotaError> {
         execute_sequenced_certificate_to_effects(&self.authority_state, certificate).await
     }
 
@@ -1817,7 +1818,7 @@ async fn test_object_lock_conflict() {
 
     assert!(matches!(
         mutate_cert_res.err(),
-        Some(SuiError::ObjectLockConflict { .. })
+        Some(IotaError::ObjectLockConflict { .. })
     ));
 }
 

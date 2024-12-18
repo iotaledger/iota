@@ -1,14 +1,14 @@
 [package]
-name = "sui-security-watchdog"
+name = "iota-security-watchdog"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
 
 [dependencies]
 arrow-array.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

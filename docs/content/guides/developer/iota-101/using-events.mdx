@@ -3,20 +3,20 @@ title: Using Events
 description: Use events to notify on-chain assets of activity your smart contracts initiate and query events from other packages to trigger logic based on emitted events.
 ---
 
-The Sui network stores countless objects on chain where Move code can perform actions using those objects. Tracking this activity is often desired, for example, to discover how many times a module mints an NFT or to tally the amount of SUI in transactions that a smart contract generates.
+The Iota network stores countless objects on chain where Move code can perform actions using those objects. Tracking this activity is often desired, for example, to discover how many times a module mints an NFT or to tally the amount of IOTA in transactions that a smart contract generates.
 
-To support activity monitoring, Move provides a structure to emit events on the Sui network. You can then leverage a custom indexer to process checkpoint data that includes events that have been emitted. See the [custom indexer](../advanced/custom-indexer.mdx) topic in the Advanced section to learn how to stream checkpoints and filter events continuously. 
+To support activity monitoring, Move provides a structure to emit events on the Iota network. You can then leverage a custom indexer to process checkpoint data that includes events that have been emitted. See the [custom indexer](../advanced/custom-indexer.mdx) topic in the Advanced section to learn how to stream checkpoints and filter events continuously. 
 
-If you don't want to run a custom indexer, you can poll the Sui network to query for emitted events instead. This approach typically includes a database to store the data retrieved from these calls. The [Poll events](#poll-events) section provides an example of using this method.
+If you don't want to run a custom indexer, you can poll the Iota network to query for emitted events instead. This approach typically includes a database to store the data retrieved from these calls. The [Poll events](#poll-events) section provides an example of using this method.
 
 ## Move event structure
 
-An event object in Sui consists of the following attributes:
+An event object in Iota consists of the following attributes:
 
 - `id`: JSON object containing the transaction digest ID and event sequence.
 - `packageId`: The object ID of the package that emits the event.
 - `transactionModule`: The module that performs the transaction.
-- `sender`: The Sui network address that triggered the event.
+- `sender`: The Iota network address that triggered the event.
 - `type`: The type of event being emitted.
 - `parsedJson`: JSON object describing the event.
 - `bcs`: Binary canonical serialization value.
@@ -24,10 +24,10 @@ An event object in Sui consists of the following attributes:
 
 ## Emit events in Move
 
-To create an event in your Move modules, add the `sui::event` dependency.
+To create an event in your Move modules, add the `iota::event` dependency.
 
 ```move
-use sui::event;
+use iota::event;
 ```
 
 With the dependency added, you can use the `emit` function to trigger an event whenever the action you want to monitor fires. For example, the following code is part of an example application that enables the locking of objects. The `lock` function handles the locking of objects and emits an event whenever the function is called.
@@ -36,15 +36,15 @@ With the dependency added, you can use the `emit` function to trigger an event w
 
 ### Query events with RPC
 
-The Sui RPC provides a [queryEvents](/sui-api-ref#suix_queryEvents) method to query on-chain packages and return available events. As an example, the following `curl` command queries the Deepbook package on Mainnet for a specific type of event:
+The Iota RPC provides a [queryEvents](/iota-api-ref#iotax_queryEvents) method to query on-chain packages and return available events. As an example, the following `curl` command queries the Deepbook package on Mainnet for a specific type of event:
 
 ```sh
-curl -X POST https://fullnode.mainnet.sui.io:443 \
+curl -X POST https://fullnode.mainnet.iota.io:443 \
 -H "Content-Type: application/json" \
 -d '{
   "jsonrpc": "2.0",
   "id": 1,
-  "method": "suix_queryEvents",
+  "method": "iotax_queryEvents",
   "params": [
     {
       "MoveModule": {
@@ -94,7 +94,7 @@ A successful `curl` return
 				"packageId": "0x158f2027f60c89bb91526d9bf08831d27f5a0fcb0f74e6698b9f0e1fb2be5d05",
 				"transactionModule": "deepbook_utils",
 				"sender": "0x8b35e67a519fffa11a9c74f169228ff1aa085f3a3d57710af08baab8c02211b9",
-				"type": "0xdee9::clob_v2::OrderFilled<0x2::sui::SUI, 0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN>",
+				"type": "0xdee9::clob_v2::OrderFilled<0x2::iota::IOTA, 0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN>",
 				"parsedJson": {
 					"base_asset_quantity_filled": "0",
 					"base_asset_quantity_remaining": "1532800000000",
@@ -121,7 +121,7 @@ A successful `curl` return
 				"packageId": "0x158f2027f60c89bb91526d9bf08831d27f5a0fcb0f74e6698b9f0e1fb2be5d05",
 				"transactionModule": "deepbook_utils",
 				"sender": "0x8b35e67a519fffa11a9c74f169228ff1aa085f3a3d57710af08baab8c02211b9",
-				"type": "0xdee9::clob_v2::OrderFilled<0x2::sui::SUI, 0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN>",
+				"type": "0xdee9::clob_v2::OrderFilled<0x2::iota::IOTA, 0x5d4b302506645c37ff133b98c4b50a5ae14841659738d6d733d59d0d217a93bf::coin::COIN>",
 				"parsedJson": {
 					"base_asset_quantity_filled": "700000000",
 					"base_asset_quantity_remaining": "0",
@@ -152,7 +152,7 @@ A successful `curl` return
 ```
 </details>
 
-The TypeScript SDK provides a wrapper for the `suix_queryEvents` method: [`client.queryEvents`](https://sdk.mystenlabs.com/typedoc/classes/_mysten_sui.client.SuiClient.html#queryEvents).
+The TypeScript SDK provides a wrapper for the `iotax_queryEvents` method: [`client.queryEvents`](https://docs.iota.org/references/ts-sdk/typedoc/classes/_iota_iota.client.IotaClient.html#queryEvents).
 
 #### Filtering event queries
 
@@ -173,20 +173,20 @@ To filter the events returned from your queries, use the following data structur
 
 ### Query events in Rust
 
-The [Sui by Example](https://github.com/gdanezis/sui-by-example/blob/main/src/05_reading_events/bin/main.rs) repo on GitHub contains a code sample that demonstrates how to query events using the `query_events` function. The package that `PACKAGE_ID_CONST` points to exists on Mainnet, so you can test this code using Cargo. To do so, clone the `sui-by-example` repo locally and follow the [Example 05 directions](https://github.com/gdanezis/sui-by-example/tree/main/src/05_reading_events). 
+The [Iota by Example](https://github.com/gdanezis/iota-by-example/blob/main/src/05_reading_events/bin/main.rs) repo on GitHub contains a code sample that demonstrates how to query events using the `query_events` function. The package that `PACKAGE_ID_CONST` points to exists on Mainnet, so you can test this code using Cargo. To do so, clone the `iota-by-example` repo locally and follow the [Example 05 directions](https://github.com/gdanezis/iota-by-example/tree/main/src/05_reading_events). 
 
 ```rust
-use sui_sdk::{rpc_types::EventFilter, types::Identifier, SuiClientBuilder};
+use iota_sdk::{rpc_types::EventFilter, types::Identifier, IotaClientBuilder};
 
 const PACKAGE_ID_CONST: &str = "0x279525274aa623ef31a25ad90e3b99f27c8dbbad636a6454918855c81d625abc";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let sui_mainnet = SuiClientBuilder::default()
-        .build("https://fullnode.mainnet.sui.io:443")
+    let iota_mainnet = IotaClientBuilder::default()
+        .build("https://fullnode.mainnet.iota.io:443")
         .await?;
 
-    let events = sui_mainnet
+    let events = iota_mainnet
         .event_api()
         .query_events(
             EventFilter::MoveModule {
@@ -211,42 +211,42 @@ async fn main() -> Result<(), anyhow::Error> {
 
 <BetaTag beta="true" slim="true"/>
 
-You can use GraphQL to query events instead of JSON RPC. The following example queries are in the [`sui-graphql-rpc` crate](https://github.com/MystenLabs/sui/tree/main/crates/sui-graphql-rpc/examples/event_connection) in the Sui repo. 
+You can use GraphQL to query events instead of JSON RPC. The following example queries are in the [`iota-graphql-rpc` crate](https://github.com/iotaledger/iota/tree/main/crates/iota-graphql-rpc/examples/event_connection) in the Iota repo. 
 
 <details>
 <summary>
 Event connection
 </summary>
-{@inject: crates/sui-graphql-rpc/examples/event_connection/event_connection.graphql}
+{@inject: crates/iota-graphql-rpc/examples/event_connection/event_connection.graphql}
 </details>
 
 <details>
 <summary>
 Filter events by sender
 </summary>
-{@inject: crates/sui-graphql-rpc/examples/event_connection/filter_by_sender.graphql}
+{@inject: crates/iota-graphql-rpc/examples/event_connection/filter_by_sender.graphql}
 </details>
 
 <details>
 <summary>
 Filter events by emitting package and type
 </summary>
-{@inject: crates/sui-graphql-rpc/examples/event_connection/filter_by_emitting_package_module_and_event_type.graphql}
+{@inject: crates/iota-graphql-rpc/examples/event_connection/filter_by_emitting_package_module_and_event_type.graphql}
 </details>
 
-The [TypeScript SDK](https://sdk.mystenlabs.com/typedoc/modules/_mysten_sui.graphql.html) provides functionality to interact with the Sui GraphQL service.
+The [TypeScript SDK](https://docs.iota.org/references/ts-sdk/typedoc/modules/_iota_iota.graphql.html) provides functionality to interact with the Iota GraphQL service.
 
 ## Monitoring events
 
 Firing events is not very useful in a vacuum. You also need the ability to respond to those events. There are two methods from which to choose when you need to monitor on-chain events:
-- Incorporate a [custom indexer](../advanced/custom-indexer.mdx) to take advantage of Sui's micro-data ingestion framework.
-- Poll the Sui network on a schedule to query events.
+- Incorporate a [custom indexer](../advanced/custom-indexer.mdx) to take advantage of Iota's micro-data ingestion framework.
+- Poll the Iota network on a schedule to query events.
 
 Using a custom indexer provides a near-real time monitoring of events, so is most useful when your project requires immediate reaction to the firing of events. Polling the network is most useful when the events you're monitoring don't fire often or the need to act on those events are not immediate. The following section provides a polling example.
 
 ### Poll events {#poll-events}
 
-To monitor events, you need a database to store checkpoint data. The [Trustless Swap](../app-examples/trustless-swap.mdx) example uses a Prisma database to store checkpoint data from the Sui network. The database is populated from polling the network to retrieve emitted events. 
+To monitor events, you need a database to store checkpoint data. The [Trustless Swap](../app-examples/trustless-swap.mdx) example uses a Prisma database to store checkpoint data from the Iota network. The database is populated from polling the network to retrieve emitted events. 
 
 <details>
 <summary>

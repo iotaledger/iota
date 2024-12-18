@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
@@ -9,8 +10,8 @@ use diesel::{
 };
 use itertools::Itertools;
 use std::sync::Arc;
-use sui_types::dynamic_field::visitor as DFV;
-use sui_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::dynamic_field::visitor as DFV;
+use iota_types::object::bounded_visitor::BoundedVisitor;
 use tap::{Pipe, TapFallible};
 use tracing::{debug, error, warn};
 
@@ -18,26 +19,26 @@ use fastcrypto::encoding::Encoding;
 use fastcrypto::encoding::Hex;
 use move_core_types::annotated_value::MoveStructLayout;
 use move_core_types::language_storage::{StructTag, TypeTag};
-use sui_json_rpc_types::DisplayFieldsResponse;
-use sui_json_rpc_types::{Balance, Coin as SuiCoin, SuiCoinMetadata, SuiMoveValue};
-use sui_json_rpc_types::{
-    CheckpointId, EpochInfo, EventFilter, SuiEvent, SuiObjectDataFilter,
-    SuiTransactionBlockResponse, TransactionFilter,
+use iota_json_rpc_types::DisplayFieldsResponse;
+use iota_json_rpc_types::{Balance, Coin as IotaCoin, IotaCoinMetadata, IotaMoveValue};
+use iota_json_rpc_types::{
+    CheckpointId, EpochInfo, EventFilter, IotaEvent, IotaObjectDataFilter,
+    IotaTransactionBlockResponse, TransactionFilter,
 };
-use sui_package_resolver::Package;
-use sui_package_resolver::PackageStore;
-use sui_package_resolver::{PackageStoreWithLruCache, Resolver};
-use sui_types::effects::TransactionEvents;
-use sui_types::{balance::Supply, coin::TreasuryCap, dynamic_field::DynamicFieldName};
-use sui_types::{
-    base_types::{ObjectID, SuiAddress, VersionNumber},
+use iota_package_resolver::Package;
+use iota_package_resolver::PackageStore;
+use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
+use iota_types::effects::TransactionEvents;
+use iota_types::{balance::Supply, coin::TreasuryCap, dynamic_field::DynamicFieldName};
+use iota_types::{
+    base_types::{ObjectID, IotaAddress, VersionNumber},
     committee::EpochId,
     digests::TransactionDigest,
     dynamic_field::DynamicFieldInfo,
     object::{Object, ObjectRead},
-    sui_system_state::{sui_system_state_summary::SuiSystemStateSummary, SuiSystemStateTrait},
+    iota_system_state::{iota_system_state_summary::IotaSystemStateSummary, IotaSystemStateTrait},
 };
-use sui_types::{coin::CoinMetadata, event::EventID};
+use iota_types::{coin::CoinMetadata, event::EventID};
 
 use crate::database::ConnectionPool;
 use crate::db::ConnectionPoolConfig;
@@ -52,7 +53,7 @@ use crate::{
         epoch::StoredEpochInfo,
         events::StoredEvent,
         objects::{CoinBalance, StoredObject},
-        transactions::{tx_events_to_sui_tx_events, StoredTransaction},
+        transactions::{tx_events_to_iota_tx_events, StoredTransaction},
         tx_indices::TxSequenceNumber,
     },
     schema::{checkpoints, display, epochs, events, objects, transactions},
@@ -279,17 +280,17 @@ impl IndexerReader {
             .map_err(Into::into)
     }
 
-    pub async fn get_latest_sui_system_state(&self) -> Result<SuiSystemStateSummary, IndexerError> {
+    pub async fn get_latest_iota_system_state(&self) -> Result<IotaSystemStateSummary, IndexerError> {
         let object_store = ConnectionAsObjectStore::from_pool(&self.pool)
             .await
             .map_err(|e| IndexerError::PgPoolConnectionError(e.to_string()))?;
 
         let system_state = tokio::task::spawn_blocking(move || {
-            sui_types::sui_system_state::get_sui_system_state(&object_store)
+            iota_types::iota_system_state::get_iota_system_state(&object_store)
         })
         .await
         .unwrap()?
-        .into_sui_system_state_summary();
+        .into_iota_system_state_summary();
 
         Ok(system_state)
     }
@@ -297,9 +298,9 @@ impl IndexerReader {
     pub async fn get_validator_from_table(
         &self,
         table_id: ObjectID,
-        pool_id: sui_types::id::ID,
+        pool_id: iota_types::id::ID,
     ) -> Result<
-        sui_types::sui_system_state::sui_system_state_summary::SuiValidatorSummary,
+        iota_types::iota_system_state::iota_system_state_summary::IotaValidatorSummary,
         IndexerError,
     > {
         let object_store = ConnectionAsObjectStore::from_pool(&self.pool)
@@ -307,7 +308,7 @@ impl IndexerReader {
             .map_err(|e| IndexerError::PgPoolConnectionError(e.to_string()))?;
 
         let validator = tokio::task::spawn_blocking(move || {
-            sui_types::sui_system_state::get_validator_from_table(&object_store, table_id, &pool_id)
+            iota_types::iota_system_state::get_validator_from_table(&object_store, table_id, &pool_id)
         })
         .await
         .unwrap()?;
@@ -318,11 +319,11 @@ impl IndexerReader {
     /// it will retrieve the latest epoch's data and return the system state.
     /// System state of the an epoch is written at the end of the epoch, so system state
     /// of the current epoch is empty until the epoch ends. You can call
-    /// `get_latest_sui_system_state` for current epoch instead.
-    pub async fn get_epoch_sui_system_state(
+    /// `get_latest_iota_system_state` for current epoch instead.
+    pub async fn get_epoch_iota_system_state(
         &self,
         epoch: Option<EpochId>,
-    ) -> Result<SuiSystemStateSummary, IndexerError> {
+    ) -> Result<IotaSystemStateSummary, IndexerError> {
         let stored_epoch = self.get_epoch_info_from_db(epoch).await?;
         let stored_epoch = match stored_epoch {
             Some(stored_epoch) => stored_epoch,
@@ -370,22 +371,22 @@ impl IndexerReader {
     pub async fn get_checkpoint(
         &self,
         checkpoint_id: CheckpointId,
-    ) -> Result<Option<sui_json_rpc_types::Checkpoint>, IndexerError> {
+    ) -> Result<Option<iota_json_rpc_types::Checkpoint>, IndexerError> {
         let stored_checkpoint = match self.get_checkpoint_from_db(checkpoint_id).await? {
             Some(stored_checkpoint) => stored_checkpoint,
             None => return Ok(None),
         };
 
-        let checkpoint = sui_json_rpc_types::Checkpoint::try_from(stored_checkpoint)?;
+        let checkpoint = iota_json_rpc_types::Checkpoint::try_from(stored_checkpoint)?;
         Ok(Some(checkpoint))
     }
 
     pub async fn get_latest_checkpoint(
         &self,
-    ) -> Result<sui_json_rpc_types::Checkpoint, IndexerError> {
+    ) -> Result<iota_json_rpc_types::Checkpoint, IndexerError> {
         let stored_checkpoint = self.get_latest_checkpoint_from_db().await?;
 
-        sui_json_rpc_types::Checkpoint::try_from(stored_checkpoint)
+        iota_json_rpc_types::Checkpoint::try_from(stored_checkpoint)
     }
 
     async fn get_checkpoints_from_db(
@@ -424,11 +425,11 @@ impl IndexerReader {
         cursor: Option<u64>,
         limit: usize,
         descending_order: bool,
-    ) -> Result<Vec<sui_json_rpc_types::Checkpoint>, IndexerError> {
+    ) -> Result<Vec<iota_json_rpc_types::Checkpoint>, IndexerError> {
         self.get_checkpoints_from_db(cursor, limit, descending_order)
             .await?
             .into_iter()
-            .map(sui_json_rpc_types::Checkpoint::try_from)
+            .map(iota_json_rpc_types::Checkpoint::try_from)
             .collect()
     }
 
@@ -460,15 +461,15 @@ impl IndexerReader {
     async fn stored_transaction_to_transaction_block(
         &self,
         stored_txes: Vec<StoredTransaction>,
-        options: sui_json_rpc_types::SuiTransactionBlockResponseOptions,
-    ) -> IndexerResult<Vec<SuiTransactionBlockResponse>> {
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
         let mut tx_block_responses_futures = vec![];
         for stored_tx in stored_txes {
             let package_resolver_clone = self.package_resolver();
             let options_clone = options.clone();
             tx_block_responses_futures.push(tokio::task::spawn(
                 stored_tx
-                    .try_into_sui_transaction_block_response(options_clone, package_resolver_clone),
+                    .try_into_iota_transaction_block_response(options_clone, package_resolver_clone),
             ));
         }
 
@@ -514,8 +515,8 @@ impl IndexerReader {
 
     pub async fn get_owned_objects(
         &self,
-        address: SuiAddress,
-        filter: Option<SuiObjectDataFilter>,
+        address: IotaAddress,
+        filter: Option<IotaObjectDataFilter>,
         cursor: Option<ObjectID>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
@@ -531,14 +532,14 @@ impl IndexerReader {
             .into_boxed();
         if let Some(filter) = filter {
             match filter {
-                SuiObjectDataFilter::StructType(struct_tag) => {
+                IotaObjectDataFilter::StructType(struct_tag) => {
                     let object_type = struct_tag.to_canonical_string(/* with_prefix */ true);
                     query = query.filter(objects::object_type.like(format!("{}%", object_type)));
                 }
-                SuiObjectDataFilter::MatchAny(filters) => {
+                IotaObjectDataFilter::MatchAny(filters) => {
                     let mut condition = "(".to_string();
                     for (i, filter) in filters.iter().enumerate() {
-                        if let SuiObjectDataFilter::StructType(struct_tag) = filter {
+                        if let IotaObjectDataFilter::StructType(struct_tag) = filter {
                             let object_type =
                                 struct_tag.to_canonical_string(/* with_prefix */ true);
                             if i == 0 {
@@ -558,9 +559,9 @@ impl IndexerReader {
                     condition += ")";
                     query = query.filter(sql::<Bool>(&condition));
                 }
-                SuiObjectDataFilter::MatchNone(filters) => {
+                IotaObjectDataFilter::MatchNone(filters) => {
                     for filter in filters {
-                        if let SuiObjectDataFilter::StructType(struct_tag) = filter {
+                        if let IotaObjectDataFilter::StructType(struct_tag) = filter {
                             let object_type =
                                 struct_tag.to_canonical_string(/* with_prefix */ true);
                             query = query
@@ -609,11 +610,11 @@ impl IndexerReader {
     async fn query_transaction_blocks_by_checkpoint(
         &self,
         checkpoint_seq: u64,
-        options: sui_json_rpc_types::SuiTransactionBlockResponseOptions,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
         cursor_tx_seq: Option<i64>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<Vec<SuiTransactionBlockResponse>> {
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
         use diesel_async::RunQueryDsl;
 
         let mut connection = self.pool.get().await?;
@@ -654,11 +655,11 @@ impl IndexerReader {
     pub async fn query_transaction_blocks(
         &self,
         filter: Option<TransactionFilter>,
-        options: sui_json_rpc_types::SuiTransactionBlockResponseOptions,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
         cursor: Option<TransactionDigest>,
         limit: usize,
         is_descending: bool,
-    ) -> IndexerResult<Vec<SuiTransactionBlockResponse>> {
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
         use diesel_async::RunQueryDsl;
 
         let mut connection = self.pool.get().await?;
@@ -806,8 +807,8 @@ impl IndexerReader {
     async fn multi_get_transaction_block_response_in_blocking_task_impl(
         &self,
         digests: &[TransactionDigest],
-        options: sui_json_rpc_types::SuiTransactionBlockResponseOptions,
-    ) -> Result<Vec<sui_json_rpc_types::SuiTransactionBlockResponse>, IndexerError> {
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         let stored_txes = self.multi_get_transactions(digests).await?;
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
@@ -816,10 +817,10 @@ impl IndexerReader {
     async fn multi_get_transaction_block_response_by_sequence_numbers(
         &self,
         tx_sequence_numbers: Vec<i64>,
-        options: sui_json_rpc_types::SuiTransactionBlockResponseOptions,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
         // Some(true) for desc, Some(false) for asc, None for undefined order
         is_descending: Option<bool>,
-    ) -> Result<Vec<sui_json_rpc_types::SuiTransactionBlockResponse>, IndexerError> {
+    ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         let stored_txes: Vec<StoredTransaction> = self
             .multi_get_transactions_with_sequence_numbers(tx_sequence_numbers, is_descending)
             .await?;
@@ -830,8 +831,8 @@ impl IndexerReader {
     pub async fn multi_get_transaction_block_response_in_blocking_task(
         &self,
         digests: Vec<TransactionDigest>,
-        options: sui_json_rpc_types::SuiTransactionBlockResponseOptions,
-    ) -> Result<Vec<sui_json_rpc_types::SuiTransactionBlockResponse>, IndexerError> {
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
         self.multi_get_transaction_block_response_in_blocking_task_impl(&digests, options)
             .await
     }
@@ -839,7 +840,7 @@ impl IndexerReader {
     pub async fn get_transaction_events(
         &self,
         digest: TransactionDigest,
-    ) -> Result<Vec<sui_json_rpc_types::SuiEvent>, IndexerError> {
+    ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
         use diesel_async::RunQueryDsl;
 
         let mut connection = self.pool.get().await?;
@@ -862,14 +863,14 @@ impl IndexerReader {
         let events = stored_events_to_events(serialized_events)?;
         let tx_events = TransactionEvents { data: events };
 
-        let sui_tx_events = tx_events_to_sui_tx_events(
+        let iota_tx_events = tx_events_to_iota_tx_events(
             tx_events,
             self.package_resolver(),
             digest,
             timestamp_ms as u64,
         )
         .await?;
-        Ok(sui_tx_events.map_or(vec![], |ste| ste.data))
+        Ok(iota_tx_events.map_or(vec![], |ste| ste.data))
     }
 
     async fn query_events_by_tx_digest(
@@ -879,7 +880,7 @@ impl IndexerReader {
         cursor_tx_seq: i64,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<Vec<SuiEvent>> {
+    ) -> IndexerResult<Vec<IotaEvent>> {
         use diesel_async::RunQueryDsl;
 
         let mut connection = self.pool.get().await?;
@@ -928,22 +929,22 @@ impl IndexerReader {
             .load::<StoredEvent>(&mut connection)
             .await?;
 
-        let mut sui_event_futures = vec![];
+        let mut iota_event_futures = vec![];
         for stored_event in stored_events {
-            sui_event_futures.push(tokio::task::spawn(
-                stored_event.try_into_sui_event(self.package_resolver.clone()),
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
             ));
         }
 
-        let sui_events = futures::future::join_all(sui_event_futures)
+        let iota_events = futures::future::join_all(iota_event_futures)
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| error!("Failed to join sui event futures: {}", e))?
+            .tap_err(|e| error!("Failed to join iota event futures: {}", e))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| error!("Failed to collect sui event futures: {}", e))?;
-        Ok(sui_events)
+            .tap_err(|e| error!("Failed to collect iota event futures: {}", e))?;
+        Ok(iota_events)
     }
 
     pub async fn query_events(
@@ -952,7 +953,7 @@ impl IndexerReader {
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<Vec<SuiEvent>> {
+    ) -> IndexerResult<Vec<IotaEvent>> {
         use diesel_async::RunQueryDsl;
 
         let mut connection = self.pool.get().await?;
@@ -1073,22 +1074,22 @@ impl IndexerReader {
             .load::<StoredEvent>(&mut connection)
             .await?;
 
-        let mut sui_event_futures = vec![];
+        let mut iota_event_futures = vec![];
         for stored_event in stored_events {
-            sui_event_futures.push(tokio::task::spawn(
-                stored_event.try_into_sui_event(self.package_resolver.clone()),
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
             ));
         }
 
-        let sui_events = futures::future::join_all(sui_event_futures)
+        let iota_events = futures::future::join_all(iota_event_futures)
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| error!("Failed to join sui event futures: {}", e))?
+            .tap_err(|e| error!("Failed to join iota event futures: {}", e))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| error!("Failed to collect sui event futures: {}", e))?;
-        Ok(sui_events)
+            .tap_err(|e| error!("Failed to collect iota event futures: {}", e))?;
+        Ok(iota_events)
     }
 
     pub async fn get_dynamic_fields(
@@ -1192,7 +1193,7 @@ impl IndexerReader {
 
         let name = DynamicFieldName {
             type_: name_type,
-            value: SuiMoveValue::from(name_value).to_json_value(),
+            value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
         let value_metadata = field.value_metadata().map_err(|e| {
@@ -1247,15 +1248,15 @@ impl IndexerReader {
                     name.type_, e
                 ))
             })?;
-        let sui_json_value = sui_json::SuiJsonValue::new(name.value.clone())?;
-        let name_bcs_value = sui_json_value.to_bcs_bytes(&move_type_layout)?;
+        let iota_json_value = iota_json::IotaJsonValue::new(name.value.clone())?;
+        let name_bcs_value = iota_json_value.to_bcs_bytes(&move_type_layout)?;
         Ok(name_bcs_value)
     }
 
     async fn get_display_object_by_type(
         &self,
         object_type: &move_core_types::language_storage::StructTag,
-    ) -> Result<Option<sui_types::display::DisplayVersionUpdatedEvent>, IndexerError> {
+    ) -> Result<Option<iota_types::display::DisplayVersionUpdatedEvent>, IndexerError> {
         use diesel_async::RunQueryDsl;
 
         let mut connection = self.pool.get().await?;
@@ -1279,12 +1280,12 @@ impl IndexerReader {
 
     pub async fn get_owned_coins(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
         cursor: ObjectID,
         limit: usize,
-    ) -> Result<Vec<SuiCoin>, IndexerError> {
+    ) -> Result<Vec<IotaCoin>, IndexerError> {
         use diesel_async::RunQueryDsl;
 
         let mut connection = self.pool.get().await?;
@@ -1311,7 +1312,7 @@ impl IndexerReader {
 
     pub async fn get_coin_balances(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         // If coin_type is None, look for all coins.
         coin_type: Option<String>,
     ) -> Result<Vec<Balance>, IndexerError> {
@@ -1353,11 +1354,11 @@ impl IndexerReader {
 
     pub(crate) async fn get_display_fields(
         &self,
-        original_object: &sui_types::object::Object,
+        original_object: &iota_types::object::Object,
         original_layout: &Option<MoveStructLayout>,
     ) -> Result<DisplayFieldsResponse, IndexerError> {
         let (object_type, layout) = if let Some((object_type, layout)) =
-            sui_json_rpc::read_api::get_object_type_and_struct(original_object, original_layout)
+            iota_json_rpc::read_api::get_object_type_and_struct(original_object, original_layout)
                 .map_err(|e| IndexerError::GenericError(e.to_string()))?
         {
             (object_type, layout)
@@ -1369,7 +1370,7 @@ impl IndexerReader {
         };
 
         if let Some(display_object) = self.get_display_object_by_type(&object_type).await? {
-            return sui_json_rpc::read_api::get_rendered_fields(display_object.fields, &layout)
+            return iota_json_rpc::read_api::get_rendered_fields(display_object.fields, &layout)
                 .map_err(|e| IndexerError::GenericError(e.to_string()));
         }
         Ok(DisplayFieldsResponse {
@@ -1403,12 +1404,12 @@ impl IndexerReader {
     pub async fn get_coin_metadata(
         &self,
         coin_struct: StructTag,
-    ) -> Result<Option<SuiCoinMetadata>, IndexerError> {
+    ) -> Result<Option<IotaCoinMetadata>, IndexerError> {
         let coin_metadata_type = CoinMetadata::type_(coin_struct);
 
         self.get_singleton_object(&coin_metadata_type)
             .await?
-            .and_then(|o| SuiCoinMetadata::try_from(o).ok())
+            .and_then(|o| IotaCoinMetadata::try_from(o).ok())
             .pipe(Ok)
     }
 
@@ -1491,8 +1492,8 @@ impl ConnectionAsObjectStore {
     }
 }
 
-impl sui_types::storage::ObjectStore for ConnectionAsObjectStore {
-    fn get_object(&self, object_id: &ObjectID) -> Option<sui_types::object::Object> {
+impl iota_types::storage::ObjectStore for ConnectionAsObjectStore {
+    fn get_object(&self, object_id: &ObjectID) -> Option<iota_types::object::Object> {
         self.get_object(object_id, None)
             .expect("Error getting object")
     }
@@ -1500,8 +1501,8 @@ impl sui_types::storage::ObjectStore for ConnectionAsObjectStore {
     fn get_object_by_key(
         &self,
         object_id: &ObjectID,
-        version: sui_types::base_types::VersionNumber,
-    ) -> Option<sui_types::object::Object> {
+        version: iota_types::base_types::VersionNumber,
+    ) -> Option<iota_types::object::Object> {
         self.get_object(object_id, Some(version))
             .expect("Error getting object by key")
     }

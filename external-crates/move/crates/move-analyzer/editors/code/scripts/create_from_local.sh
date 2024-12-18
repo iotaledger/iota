@@ -1,18 +1,19 @@
 #!/bin/zsh
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # This script is meant to be executed on MacOS (hence zsh use - to get associative arrays otherwise
 # unavailable in the bundled bash version).
 #
-# Before running the script, you need to download Sui binaries to a freshly created directory
-# (make sure that there are no other files in this directory). Sui binary must be a compressed
+# Before running the script, you need to download Iota binaries to a freshly created directory
+# (make sure that there are no other files in this directory). Iota binary must be a compressed
 # tarball (with tgz extension) and its name has to have the following format:
-#   sui-VERSION-SHA-PLATFORM.tgz
+#   iota-VERSION-SHA-PLATFORM.tgz
 #
 # where:
-# - VERSION    is the Sui binary version (e.g., "v.1.37.0)
-# - SHA        is first 10 characgers of commit sha for the version of Sui repo's main branch
+# - VERSION    is the Iota binary version (e.g., "v.1.37.0)
+# - SHA        is first 10 characgers of commit sha for the version of Iota repo's main branch
 #              that this binary was build from
 # - PLATFORM   is on of the supported platforms (macos-arm64, macos-x86_64, ubuntu-x86_64, windows-x86_64)
 set -e
@@ -25,7 +26,7 @@ usage() {
     >&2 echo " -pub          Publish extensions for all targets"
     >&2 echo " -pkg          Package extensions for all targets"
     >&2 echo " -h            Print this message"
-    >&2 echo " BINDIR        Directory containing pre-built Sui binaries"
+    >&2 echo " BINDIR        Directory containing pre-built Iota binaries"
 }
 
 clean_tmp_dir() {
@@ -53,7 +54,7 @@ do
         BIN_DIR=$cmd
 
         if [[ ! -d "$BIN_DIR" ]]; then
-            echo Sui binary directory $BIN_DIR does not exist
+            echo Iota binary directory $BIN_DIR does not exist
             usage $0
             exit 1
         fi
@@ -61,12 +62,12 @@ do
 done
 
 if [[ $BIN_DIR == "" ]]; then
-    # directory storing Sui binaries have not been defined
+    # directory storing Iota binaries have not been defined
     usage $0
     exit 1
 fi
 
-# a map from os version identifiers in Sui's binary distribution to os version identifiers
+# a map from os version identifiers in Iota's binary distribution to os version identifiers
 # representing VSCode's target platforms used for creating platform-specific plugin distributions
 declare -A SUPPORTED_OS
 SUPPORTED_OS[macos-arm64]=darwin-arm64
@@ -80,14 +81,14 @@ trap "clean_tmp_dir $TMP_DIR" EXIT
 BIN_FILES=($BIN_DIR/*.tgz(.))
 
 if (( ${#BIN_FILES[@]} != 4 )); then
-    echo "Sui binary directory $BIN_DIR should only contain binaries for the four supported platforms"
+    echo "Iota binary directory $BIN_DIR should only contain binaries for the four supported platforms"
     exit 1
 fi
 
 
-for SUI_ARCHIVE_PATH in "${BIN_FILES[@]}"; do
+for IOTA_ARCHIVE_PATH in "${BIN_FILES[@]}"; do
     # Extract just the file name
-    FILE_NAME=${SUI_ARCHIVE_PATH##*/}
+    FILE_NAME=${IOTA_ARCHIVE_PATH##*/}
     # Remove the .tgz extension
     BASE_NAME=${FILE_NAME%.tgz}
     # Extract everything untl last `-`
@@ -100,7 +101,7 @@ for SUI_ARCHIVE_PATH in "${BIN_FILES[@]}"; do
     DIST_OS=$OS_NAME-$OS_VARIANT
 
     if [[ ! -v SUPPORTED_OS[$DIST_OS] ]]; then
-        echo "Found Sui binary archive for a platform that is not supported:  $SUI_ARCHIVE_PATH"
+        echo "Found Iota binary archive for a platform that is not supported:  $IOTA_ARCHIVE_PATH"
         echo "Supported platforms:"
         for PLATFORM in ${(k)SUPPORTED_OS}; do
             echo "\t$PLATFORM"
@@ -110,7 +111,7 @@ for SUI_ARCHIVE_PATH in "${BIN_FILES[@]}"; do
 
     rm -rf $TMP_DIR/$DIST_OS
     mkdir $TMP_DIR/$DIST_OS
-    tar -xf $SUI_ARCHIVE_PATH --directory $TMP_DIR/$DIST_OS
+    tar -xf $IOTA_ARCHIVE_PATH --directory $TMP_DIR/$DIST_OS
 
     # name of the move-analyzer binary
     SERVER_BIN="move-analyzer"

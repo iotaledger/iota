@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::{date_time::DateTime, epoch::Epoch, uint53::UInt53};
 use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
-use sui_types::{
+use iota_types::{
     digests::ConsensusCommitDigest,
     messages_checkpoint::CheckpointTimestamp,
     messages_consensus::{

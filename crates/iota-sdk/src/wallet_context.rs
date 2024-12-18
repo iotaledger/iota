@@ -1,29 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::sui_client_config::SuiClientConfig;
-use crate::SuiClient;
+use crate::iota_client_config::IotaClientConfig;
+use crate::IotaClient;
 use anyhow::anyhow;
 use shared_crypto::intent::Intent;
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Arc;
-use sui_config::{Config, PersistedConfig};
-use sui_json_rpc_types::{
-    SuiObjectData, SuiObjectDataFilter, SuiObjectDataOptions, SuiObjectResponse,
-    SuiObjectResponseQuery, SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+use iota_config::{Config, PersistedConfig};
+use iota_json_rpc_types::{
+    IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use sui_keys::keystore::AccountKeystore;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::crypto::SuiKeyPair;
-use sui_types::gas_coin::GasCoin;
-use sui_types::transaction::{Transaction, TransactionData, TransactionDataAPI};
+use iota_keys::keystore::AccountKeystore;
+use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
+use iota_types::crypto::IotaKeyPair;
+use iota_types::gas_coin::GasCoin;
+use iota_types::transaction::{Transaction, TransactionData, TransactionDataAPI};
 use tokio::sync::RwLock;
 
 pub struct WalletContext {
-    pub config: PersistedConfig<SuiClientConfig>,
+    pub config: PersistedConfig<IotaClientConfig>,
     request_timeout: Option<std::time::Duration>,
-    client: Arc<RwLock<Option<SuiClient>>>,
+    client: Arc<RwLock<Option<IotaClient>>>,
     max_concurrent_requests: Option<u64>,
 }
 
@@ -33,7 +34,7 @@ impl WalletContext {
         request_timeout: Option<std::time::Duration>,
         max_concurrent_requests: Option<u64>,
     ) -> Result<Self, anyhow::Error> {
-        let config: SuiClientConfig = PersistedConfig::read(config_path).map_err(|err| {
+        let config: IotaClientConfig = PersistedConfig::read(config_path).map_err(|err| {
             anyhow!(
                 "Cannot open wallet config file at {:?}. Err: {err}",
                 config_path
@@ -50,11 +51,11 @@ impl WalletContext {
         Ok(context)
     }
 
-    pub fn get_addresses(&self) -> Vec<SuiAddress> {
+    pub fn get_addresses(&self) -> Vec<IotaAddress> {
         self.config.keystore.addresses()
     }
 
-    pub async fn get_client(&self) -> Result<SuiClient, anyhow::Error> {
+    pub async fn get_client(&self) -> Result<IotaClient, anyhow::Error> {
         let read = self.client.read().await;
 
         Ok(if let Some(client) = read.as_ref() {
@@ -71,7 +72,7 @@ impl WalletContext {
     }
 
     // TODO: Ger rid of mut
-    pub fn active_address(&mut self) -> Result<SuiAddress, anyhow::Error> {
+    pub fn active_address(&mut self) -> Result<IotaAddress, anyhow::Error> {
         if self.config.keystore.addresses().is_empty() {
             return Err(anyhow!(
                 "No managed addresses. Create new address with `new-address` command."
@@ -94,7 +95,7 @@ impl WalletContext {
         let client = self.get_client().await?;
         Ok(client
             .read_api()
-            .get_object_with_options(object_id, SuiObjectDataOptions::new())
+            .get_object_with_options(object_id, IotaObjectDataOptions::new())
             .await?
             .into_object()?
             .object_ref())
@@ -103,20 +104,20 @@ impl WalletContext {
     /// Get all the gas objects (and conveniently, gas amounts) for the address
     pub async fn gas_objects(
         &self,
-        address: SuiAddress,
-    ) -> Result<Vec<(u64, SuiObjectData)>, anyhow::Error> {
+        address: IotaAddress,
+    ) -> Result<Vec<(u64, IotaObjectData)>, anyhow::Error> {
         let client = self.get_client().await?;
 
-        let mut objects: Vec<SuiObjectResponse> = Vec::new();
+        let mut objects: Vec<IotaObjectResponse> = Vec::new();
         let mut cursor = None;
         loop {
             let response = client
                 .read_api()
                 .get_owned_objects(
                     address,
-                    Some(SuiObjectResponseQuery::new(
-                        Some(SuiObjectDataFilter::StructType(GasCoin::type_())),
-                        Some(SuiObjectDataOptions::full_content()),
+                    Some(IotaObjectResponseQuery::new(
+                        Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                        Some(IotaObjectDataOptions::full_content()),
                     )),
                     cursor,
                     None,
@@ -146,11 +147,11 @@ impl WalletContext {
         Ok(values_objects)
     }
 
-    pub async fn get_object_owner(&self, id: &ObjectID) -> Result<SuiAddress, anyhow::Error> {
+    pub async fn get_object_owner(&self, id: &ObjectID) -> Result<IotaAddress, anyhow::Error> {
         let client = self.get_client().await?;
         let object = client
             .read_api()
-            .get_object_with_options(*id, SuiObjectDataOptions::new().with_owner())
+            .get_object_with_options(*id, IotaObjectDataOptions::new().with_owner())
             .await?
             .into_object()?;
         Ok(object
@@ -162,7 +163,7 @@ impl WalletContext {
     pub async fn try_get_object_owner(
         &self,
         id: &Option<ObjectID>,
-    ) -> Result<Option<SuiAddress>, anyhow::Error> {
+    ) -> Result<Option<IotaAddress>, anyhow::Error> {
         if let Some(id) = id {
             Ok(Some(self.get_object_owner(id).await?))
         } else {
@@ -173,30 +174,30 @@ impl WalletContext {
     /// Find a gas object which fits the budget
     pub async fn gas_for_owner_budget(
         &self,
-        address: SuiAddress,
+        address: IotaAddress,
         budget: u64,
         forbidden_gas_objects: BTreeSet<ObjectID>,
-    ) -> Result<(u64, SuiObjectData), anyhow::Error> {
+    ) -> Result<(u64, IotaObjectData), anyhow::Error> {
         for o in self.gas_objects(address).await? {
             if o.0 >= budget && !forbidden_gas_objects.contains(&o.1.object_id) {
                 return Ok((o.0, o.1));
             }
         }
         Err(anyhow!(
-            "No non-argument gas objects found for this address with value >= budget {budget}. Run sui client gas to check for gas objects."
+            "No non-argument gas objects found for this address with value >= budget {budget}. Run iota client gas to check for gas objects."
         ))
     }
 
     pub async fn get_all_gas_objects_owned_by_address(
         &self,
-        address: SuiAddress,
+        address: IotaAddress,
     ) -> anyhow::Result<Vec<ObjectRef>> {
         self.get_gas_objects_owned_by_address(address, None).await
     }
 
     pub async fn get_gas_objects_owned_by_address(
         &self,
-        address: SuiAddress,
+        address: IotaAddress,
         limit: Option<usize>,
     ) -> anyhow::Result<Vec<ObjectRef>> {
         let client = self.get_client().await?;
@@ -204,9 +205,9 @@ impl WalletContext {
             .read_api()
             .get_owned_objects(
                 address,
-                Some(SuiObjectResponseQuery::new(
-                    Some(SuiObjectDataFilter::StructType(GasCoin::type_())),
-                    Some(SuiObjectDataOptions::full_content()),
+                Some(IotaObjectResponseQuery::new(
+                    Some(IotaObjectDataFilter::StructType(GasCoin::type_())),
+                    Some(IotaObjectDataOptions::full_content()),
                 )),
                 None,
                 limit,
@@ -223,7 +224,7 @@ impl WalletContext {
     /// The actual implementation just returns the first one returned by the read api.
     pub async fn get_one_gas_object_owned_by_address(
         &self,
-        address: SuiAddress,
+        address: IotaAddress,
     ) -> anyhow::Result<Option<ObjectRef>> {
         Ok(self
             .get_gas_objects_owned_by_address(address, Some(1))
@@ -232,7 +233,7 @@ impl WalletContext {
     }
 
     /// Returns one address and all gas objects owned by that address.
-    pub async fn get_one_account(&self) -> anyhow::Result<(SuiAddress, Vec<ObjectRef>)> {
+    pub async fn get_one_account(&self) -> anyhow::Result<(IotaAddress, Vec<ObjectRef>)> {
         let address = self.get_addresses().pop().unwrap();
         Ok((
             address,
@@ -241,7 +242,7 @@ impl WalletContext {
     }
 
     /// Return a gas object owned by an arbitrary address managed by the wallet.
-    pub async fn get_one_gas_object(&self) -> anyhow::Result<Option<(SuiAddress, ObjectRef)>> {
+    pub async fn get_one_gas_object(&self) -> anyhow::Result<Option<(IotaAddress, ObjectRef)>> {
         for address in self.get_addresses() {
             if let Some(gas_object) = self.get_one_gas_object_owned_by_address(address).await? {
                 return Ok(Some((address, gas_object)));
@@ -253,7 +254,7 @@ impl WalletContext {
     /// Returns all the account addresses managed by the wallet and their owned gas objects.
     pub async fn get_all_accounts_and_gas_objects(
         &self,
-    ) -> anyhow::Result<Vec<(SuiAddress, Vec<ObjectRef>)>> {
+    ) -> anyhow::Result<Vec<(IotaAddress, Vec<ObjectRef>)>> {
         let mut result = vec![];
         for address in self.get_addresses() {
             let objects = self
@@ -274,7 +275,7 @@ impl WalletContext {
     }
 
     /// Add an account
-    pub fn add_account(&mut self, alias: Option<String>, keypair: SuiKeyPair) {
+    pub fn add_account(&mut self, alias: Option<String>, keypair: IotaKeyPair) {
         self.config.keystore.add_key(alias, keypair).unwrap();
     }
 
@@ -283,7 +284,7 @@ impl WalletContext {
         let sig = self
             .config
             .keystore
-            .sign_secure(&data.sender(), data, Intent::sui_transaction())
+            .sign_secure(&data.sender(), data, Intent::iota_transaction())
             .unwrap();
         // TODO: To support sponsored transaction, we should also look at the gas owner.
         Transaction::from_data(data.clone(), vec![sig])
@@ -294,7 +295,7 @@ impl WalletContext {
     pub async fn execute_transaction_must_succeed(
         &self,
         tx: Transaction,
-    ) -> SuiTransactionBlockResponse {
+    ) -> IotaTransactionBlockResponse {
         tracing::debug!("Executing transaction: {:?}", tx);
         let response = self.execute_transaction_may_fail(tx).await.unwrap();
         assert!(
@@ -311,19 +312,19 @@ impl WalletContext {
     pub async fn execute_transaction_may_fail(
         &self,
         tx: Transaction,
-    ) -> anyhow::Result<SuiTransactionBlockResponse> {
+    ) -> anyhow::Result<IotaTransactionBlockResponse> {
         let client = self.get_client().await?;
         Ok(client
             .quorum_driver_api()
             .execute_transaction_block(
                 tx,
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_effects()
                     .with_input()
                     .with_events()
                     .with_object_changes()
                     .with_balance_changes(),
-                Some(sui_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
             )
             .await?)
     }

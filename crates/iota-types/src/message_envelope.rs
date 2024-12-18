@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::AuthorityName;
@@ -7,7 +8,7 @@ use crate::crypto::{
     AuthorityKeyPair, AuthorityQuorumSignInfo, AuthoritySignInfo, AuthoritySignInfoTrait,
     AuthoritySignature, AuthorityStrongQuorumSignInfo, EmptySignInfo, Signer,
 };
-use crate::error::SuiResult;
+use crate::error::IotaResult;
 use crate::executable_transaction::CertificateProof;
 use crate::messages_checkpoint::CheckpointSequenceNumber;
 use crate::transaction::SenderSignedData;
@@ -164,7 +165,7 @@ where
         secret: &dyn Signer<AuthoritySignature>,
         authority: AuthorityName,
     ) -> AuthoritySignInfo {
-        AuthoritySignInfo::new(epoch, &data, Intent::sui_app(T::SCOPE), authority, secret)
+        AuthoritySignInfo::new(epoch, &data, Intent::iota_app(T::SCOPE), authority, secret)
     }
 
     pub fn epoch(&self) -> EpochId {
@@ -173,10 +174,10 @@ where
 }
 
 impl Envelope<SenderSignedData, AuthoritySignInfo> {
-    pub fn verify_committee_sigs_only(&self, committee: &Committee) -> SuiResult {
+    pub fn verify_committee_sigs_only(&self, committee: &Committee) -> IotaResult {
         self.auth_signature.verify_secure(
             self.data(),
-            Intent::sui_app(IntentScope::SenderSignedTransaction),
+            Intent::iota_app(IntentScope::SenderSignedTransaction),
             committee,
         )
     }
@@ -190,7 +191,7 @@ where
         data: T,
         signatures: Vec<AuthoritySignInfo>,
         committee: &Committee,
-    ) -> SuiResult<Self> {
+    ) -> IotaResult<Self> {
         let cert = Self {
             digest: OnceCell::new(),
             data,
@@ -213,7 +214,7 @@ where
                 AuthoritySignInfo::new(
                     committee.epoch(),
                     &data,
-                    Intent::sui_app(T::SCOPE),
+                    Intent::iota_app(T::SCOPE),
                     keypair.public().into(),
                     keypair,
                 )

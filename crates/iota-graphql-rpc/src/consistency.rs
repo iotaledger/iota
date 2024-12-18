@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::connection::CursorType;
 use serde::{Deserialize, Serialize};
-use sui_indexer::models::objects::StoredHistoryObject;
+use iota_indexer::models::objects::StoredHistoryObject;
 
 use crate::raw_query::RawQuery;
 use crate::types::available_range::AvailableRange;

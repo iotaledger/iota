@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -8,7 +9,7 @@ use crate::{
     types::{
         cursor::Page,
         digest::Digest,
-        sui_address::SuiAddress,
+        iota_address::IotaAddress,
         type_filter::{ModuleFilter, TypeFilter},
     },
 };
@@ -17,7 +18,7 @@ use std::fmt::Write;
 
 use super::Cursor;
 
-fn select_ev(sender: Option<SuiAddress>, from: &str) -> RawQuery {
+fn select_ev(sender: Option<IotaAddress>, from: &str) -> RawQuery {
     let query = query!(format!(
         "SELECT tx_sequence_number, event_sequence_number FROM {}",
         from
@@ -30,11 +31,11 @@ fn select_ev(sender: Option<SuiAddress>, from: &str) -> RawQuery {
     query
 }
 
-pub(crate) fn select_sender(sender: SuiAddress) -> RawQuery {
+pub(crate) fn select_sender(sender: IotaAddress) -> RawQuery {
     select_ev(Some(sender), "event_senders")
 }
 
-pub(crate) fn select_event_type(event_type: &TypeFilter, sender: Option<SuiAddress>) -> RawQuery {
+pub(crate) fn select_event_type(event_type: &TypeFilter, sender: Option<IotaAddress>) -> RawQuery {
     match event_type {
         TypeFilter::ByModule(ModuleFilter::ByPackage(p)) => {
             filter!(
@@ -91,7 +92,7 @@ pub(crate) fn select_event_type(event_type: &TypeFilter, sender: Option<SuiAddre
 
 pub(crate) fn select_emit_module(
     emit_module: &ModuleFilter,
-    sender: Option<SuiAddress>,
+    sender: Option<IotaAddress>,
 ) -> RawQuery {
     match emit_module {
         ModuleFilter::ByPackage(p) => {

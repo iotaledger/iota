@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
@@ -7,18 +8,18 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::http_client::HttpClient;
 use jsonrpsee::RpcModule;
 
-use sui_json_rpc::SuiRpcModule;
-use sui_json_rpc_api::{WriteApiClient, WriteApiServer};
-use sui_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions,
+use iota_json_rpc::IotaRpcModule;
+use iota_json_rpc_api::{WriteApiClient, WriteApiServer};
+use iota_json_rpc_types::{
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions,
 };
-use sui_open_rpc::Module;
-use sui_types::base_types::SuiAddress;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::sui_serde::BigInt;
+use iota_open_rpc::Module;
+use iota_types::base_types::IotaAddress;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::iota_serde::BigInt;
 
-use crate::types::SuiTransactionBlockResponseWithOptions;
+use crate::types::IotaTransactionBlockResponseWithOptions;
 
 pub(crate) struct WriteApi {
     fullnode: HttpClient,
@@ -38,15 +39,15 @@ impl WriteApiServer for WriteApi {
         &self,
         tx_bytes: Base64,
         signatures: Vec<Base64>,
-        options: Option<SuiTransactionBlockResponseOptions>,
+        options: Option<IotaTransactionBlockResponseOptions>,
         request_type: Option<ExecuteTransactionRequestType>,
-    ) -> RpcResult<SuiTransactionBlockResponse> {
-        let sui_transaction_response = self
+    ) -> RpcResult<IotaTransactionBlockResponse> {
+        let iota_transaction_response = self
             .fullnode
             .execute_transaction_block(tx_bytes, signatures, options.clone(), request_type)
             .await?;
-        Ok(SuiTransactionBlockResponseWithOptions {
-            response: sui_transaction_response,
+        Ok(IotaTransactionBlockResponseWithOptions {
+            response: iota_transaction_response,
             options: options.unwrap_or_default(),
         }
         .into())
@@ -54,7 +55,7 @@ impl WriteApiServer for WriteApi {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender_address: SuiAddress,
+        sender_address: IotaAddress,
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         epoch: Option<BigInt<u64>>,
@@ -79,12 +80,12 @@ impl WriteApiServer for WriteApi {
     }
 }
 
-impl SuiRpcModule for WriteApi {
+impl IotaRpcModule for WriteApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }
 
     fn rpc_doc_module() -> Module {
-        sui_json_rpc_api::WriteApiOpenRpc::module_doc()
+        iota_json_rpc_api::WriteApiOpenRpc::module_doc()
     }
 }

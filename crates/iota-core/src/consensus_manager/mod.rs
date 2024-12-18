@@ -1,25 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
 use crate::consensus_adapter::{BlockStatusReceiver, ConsensusClient};
 use crate::consensus_handler::ConsensusHandlerInitializer;
 use crate::consensus_manager::mysticeti_manager::MysticetiManager;
-use crate::consensus_validator::SuiTxValidator;
+use crate::consensus_validator::IotaTxValidator;
 use crate::mysticeti_adapter::LazyMysticetiClient;
 use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::traits::KeyPair as _;
-use mysten_metrics::RegistryService;
+use iota_metrics::RegistryService;
 use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use sui_config::{ConsensusConfig, NodeConfig};
-use sui_protocol_config::ProtocolVersion;
-use sui_types::committee::EpochId;
-use sui_types::error::SuiResult;
-use sui_types::messages_consensus::ConsensusTransaction;
+use iota_config::{ConsensusConfig, NodeConfig};
+use iota_protocol_config::ProtocolVersion;
+use iota_types::committee::EpochId;
+use iota_types::error::IotaResult;
+use iota_types::messages_consensus::ConsensusTransaction;
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::time::{sleep, timeout};
 use tracing::info;
@@ -40,7 +41,7 @@ pub trait ConsensusManagerTrait {
         node_config: &NodeConfig,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_handler_initializer: ConsensusHandlerInitializer,
-        tx_validator: SuiTxValidator,
+        tx_validator: IotaTxValidator,
     );
 
     async fn shutdown(&self);
@@ -75,7 +76,7 @@ impl ProtocolManager {
     }
 }
 
-/// Used by Sui validator to start consensus protocol for each epoch.
+/// Used by Iota validator to start consensus protocol for each epoch.
 pub struct ConsensusManager {
     consensus_config: ConsensusConfig,
     mysticeti_manager: ProtocolManager,
@@ -123,7 +124,7 @@ impl ConsensusManagerTrait for ConsensusManager {
         node_config: &NodeConfig,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_handler_initializer: ConsensusHandlerInitializer,
-        tx_validator: SuiTxValidator,
+        tx_validator: IotaTxValidator,
     ) {
         let protocol_manager = {
             let mut active = self.active.lock();
@@ -215,7 +216,7 @@ impl ConsensusClient for UpdatableConsensusClient {
         &self,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> SuiResult<BlockStatusReceiver> {
+    ) -> IotaResult<BlockStatusReceiver> {
         let client = self.get().await;
         client.submit(transactions, epoch_store).await
     }

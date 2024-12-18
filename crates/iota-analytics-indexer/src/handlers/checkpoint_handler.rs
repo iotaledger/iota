@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use fastcrypto::traits::EncodeDecodeBase64;
 use tokio::sync::Mutex;
 
-use sui_data_ingestion_core::Worker;
-use sui_rpc_api::{CheckpointData, CheckpointTransaction};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary};
-use sui_types::transaction::TransactionDataAPI;
+use iota_data_ingestion_core::Worker;
+use iota_rpc_api::{CheckpointData, CheckpointTransaction};
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary};
+use iota_types::transaction::TransactionDataAPI;
 
 use crate::handlers::AnalyticsHandler;
 use crate::tables::CheckpointEntry;

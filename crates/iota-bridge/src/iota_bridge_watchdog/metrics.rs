@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use prometheus::{
@@ -12,7 +13,7 @@ pub struct WatchdogMetrics {
     pub usdt_vault_balance: IntGauge,
     pub total_supplies: IntGaugeVec,
     pub eth_bridge_paused: IntGauge,
-    pub sui_bridge_paused: IntGauge,
+    pub iota_bridge_paused: IntGauge,
 }
 
 impl WatchdogMetrics {
@@ -32,7 +33,7 @@ impl WatchdogMetrics {
             .unwrap(),
             total_supplies: register_int_gauge_vec_with_registry!(
                 "bridge_total_supplies",
-                "Current total supplies of coins on Sui based on Treasury Cap",
+                "Current total supplies of coins on Iota based on Treasury Cap",
                 &["token_name"],
                 registry,
             )
@@ -43,9 +44,9 @@ impl WatchdogMetrics {
                 registry,
             )
             .unwrap(),
-            sui_bridge_paused: register_int_gauge_with_registry!(
-                "bridge_sui_bridge_paused",
-                "Whether the sui bridge is paused",
+            iota_bridge_paused: register_int_gauge_with_registry!(
+                "bridge_iota_bridge_paused",
+                "Whether the iota bridge is paused",
                 registry,
             )
             .unwrap(),

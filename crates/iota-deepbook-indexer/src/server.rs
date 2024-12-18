@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
     error::DeepBookError,
     models::{BalancesSummary, OrderFillSummary, Pools},
     schema::{self},
-    sui_deepbook_indexer::PgDeepbookPersistent,
+    iota_deepbook_indexer::PgDeepbookPersistent,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -24,17 +25,17 @@ use std::{collections::HashMap, net::SocketAddr};
 use tokio::{net::TcpListener, task::JoinHandle};
 
 use std::str::FromStr;
-use sui_json_rpc_types::{SuiObjectData, SuiObjectDataOptions, SuiObjectResponse};
-use sui_sdk::SuiClientBuilder;
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
+use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse};
+use iota_sdk::IotaClientBuilder;
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, IotaAddress},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, TransactionKind},
     type_input::TypeInput,
     TypeTag,
 };
 
-pub const SUI_MAINNET_URL: &str = "https://fullnode.mainnet.sui.io:443";
+pub const IOTA_MAINNET_URL: &str = "https://fullnode.mainnet.iota.io:443";
 pub const GET_POOLS_PATH: &str = "/get_pools";
 pub const GET_HISTORICAL_VOLUME_BY_BALANCE_MANAGER_ID_WITH_INTERVAL: &str =
     "/get_historical_volume_by_balance_manager_id_with_interval/:pool_ids/:balance_manager_id";
@@ -443,14 +444,14 @@ async fn orderbook(
 
     let pool_address = ObjectID::from_hex_literal(&pool_id)?;
 
-    let sui_client = SuiClientBuilder::default().build(SUI_MAINNET_URL).await?;
+    let iota_client = IotaClientBuilder::default().build(IOTA_MAINNET_URL).await?;
     let mut ptb = ProgrammableTransactionBuilder::new();
 
-    let pool_object: SuiObjectResponse = sui_client
+    let pool_object: IotaObjectResponse = iota_client
         .read_api()
-        .get_object_with_options(pool_address, SuiObjectDataOptions::full_content())
+        .get_object_with_options(pool_address, IotaObjectDataOptions::full_content())
         .await?;
-    let pool_data: &SuiObjectData =
+    let pool_data: &IotaObjectData =
         pool_object
             .data
             .as_ref()
@@ -468,25 +469,25 @@ async fn orderbook(
     })?);
     ptb.input(input_argument)?;
 
-    let sui_clock_object_id = ObjectID::from_hex_literal(
+    let iota_clock_object_id = ObjectID::from_hex_literal(
         "0x0000000000000000000000000000000000000000000000000000000000000006",
     )?;
-    let sui_clock_object: SuiObjectResponse = sui_client
+    let iota_clock_object: IotaObjectResponse = iota_client
         .read_api()
-        .get_object_with_options(sui_clock_object_id, SuiObjectDataOptions::full_content())
+        .get_object_with_options(iota_clock_object_id, IotaObjectDataOptions::full_content())
         .await?;
-    let clock_data: &SuiObjectData =
-        sui_clock_object
+    let clock_data: &IotaObjectData =
+        iota_clock_object
             .data
             .as_ref()
             .ok_or(DeepBookError::InternalError(
                 "Missing data in clock object response".to_string(),
             ))?;
 
-    let sui_clock_object_ref: ObjectRef =
+    let iota_clock_object_ref: ObjectRef =
         (clock_data.object_id, clock_data.version, clock_data.digest);
 
-    let clock_input = CallArg::Object(ObjectArg::ImmOrOwnedObject(sui_clock_object_ref));
+    let clock_input = CallArg::Object(ObjectArg::ImmOrOwnedObject(iota_clock_object_ref));
     ptb.input(clock_input)?;
 
     let base_coin_type = parse_type_input(&base_asset_id)?;
@@ -508,9 +509,9 @@ async fn orderbook(
     let builder = ptb.finish();
     let tx = TransactionKind::ProgrammableTransaction(builder);
 
-    let result = sui_client
+    let result = iota_client
         .read_api()
-        .dev_inspect_transaction_block(SuiAddress::default(), tx, None, None, None)
+        .dev_inspect_transaction_block(IotaAddress::default(), tx, None, None, None)
         .await?;
 
     let mut binding = result.results.ok_or(DeepBookError::InternalError(

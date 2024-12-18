@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import {
 	ConnectButton,
-	SuiClientProvider,
+	IotaClientProvider,
 	useAccounts,
 	useAutoConnectWallet,
 	useConnectWallet,
@@ -16,14 +17,14 @@ import {
 	useSwitchAccount,
 	useWallets,
 	WalletProvider,
-} from '@mysten/dapp-kit';
-import { getFullnodeUrl } from '@mysten/sui/client';
-import { Transaction } from '@mysten/sui/transactions';
+} from '@iota/dapp-kit';
+import { getFullnodeUrl } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ComponentProps } from 'react';
 import { useEffect, useState } from 'react';
 
-import '@mysten/dapp-kit/dist/index.css';
+import '@iota/dapp-kit/dist/index.css';
 
 export const UseWalletsExample = withProviders(() => {
 	const wallets = useWallets();
@@ -242,7 +243,7 @@ export const UseSignTransactionExample = withProviders(() => {
 								signTransaction(
 									{
 										transaction: new Transaction(),
-										chain: 'sui:devnet',
+										chain: 'iota:devnet',
 									},
 									{
 										onSuccess: (result) => {
@@ -279,7 +280,7 @@ export const UseSignAndExecuteTransactionExample = withProviders(() => {
 								signAndExecuteTransaction(
 									{
 										transaction: new Transaction(),
-										chain: 'sui:devnet',
+										chain: 'iota:devnet',
 									},
 									{
 										onSuccess: (result) => {
@@ -322,11 +323,11 @@ function withProviders(
 
 		return (
 			<QueryClientProvider client={queryClient}>
-				<SuiClientProvider networks={networks}>
+				<IotaClientProvider networks={networks}>
 					<WalletProvider {...walletProviderProps}>
 						<Component />
 					</WalletProvider>
-				</SuiClientProvider>
+				</IotaClientProvider>
 			</QueryClientProvider>
 		);
 	};

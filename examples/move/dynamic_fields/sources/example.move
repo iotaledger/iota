@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module dynamic_fields::example;
 
-use sui::dynamic_object_field as ofield;
+use iota::dynamic_object_field as ofield;
 
 public struct Parent has key {
     id: UID,
@@ -48,7 +49,7 @@ public fun delete_child(parent: &mut Parent) {
 
 // === Tests ===
 #[test_only]
-use sui::test_scenario;
+use iota::test_scenario;
 
 #[test]
 fun test_add_delete() {

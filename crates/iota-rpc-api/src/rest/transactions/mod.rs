@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod execution;
@@ -15,8 +16,8 @@ pub use resolve::ResolveTransactionResponse;
 
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use sui_sdk_types::types::CheckpointSequenceNumber;
-use sui_sdk_types::types::TransactionDigest;
+use iota_sdk_types::types::CheckpointSequenceNumber;
+use iota_sdk_types::types::TransactionDigest;
 use tap::Pipe;
 
 use crate::rest::openapi::ApiEndpoint;
@@ -117,7 +118,7 @@ impl ApiEndpoint<RpcService> for ListTransactions {
                 200,
                 ResponseBuilder::new()
                     .json_content::<Vec<TransactionResponse>>(generator)
-                    .header::<String>(crate::types::X_SUI_CURSOR, generator)
+                    .header::<String>(crate::types::X_IOTA_CURSOR, generator)
                     .build(),
             )
             .response(410, ResponseBuilder::new().build())

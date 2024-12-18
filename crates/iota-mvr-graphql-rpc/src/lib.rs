@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-pub use sui_graphql_rpc_client as client;
+pub use iota_graphql_rpc_client as client;
 pub mod commands;
 pub mod config;
 pub(crate) mod connection;

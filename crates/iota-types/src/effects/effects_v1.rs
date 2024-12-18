@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::{
-    random_object_ref, EpochId, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest,
+    random_object_ref, EpochId, ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest,
 };
 use crate::digests::{ObjectDigest, TransactionEventsDigest};
 use crate::effects::{InputSharedObject, TransactionEffectsAPI, UnchangedSharedKind};
@@ -400,7 +401,7 @@ impl Default for TransactionEffectsV1 {
             wrapped: Vec::new(),
             gas_object: (
                 random_object_ref(),
-                Owner::AddressOwner(SuiAddress::default()),
+                Owner::AddressOwner(IotaAddress::default()),
             ),
             events_digest: None,
             dependencies: Vec::new(),

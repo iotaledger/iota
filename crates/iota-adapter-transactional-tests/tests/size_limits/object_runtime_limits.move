@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 
@@ -7,7 +8,7 @@
 //# publish
 module a::m {
 
-    use sui::dynamic_field::add;
+    use iota::dynamic_field::add;
 
     public struct Obj has key {
         id: object::UID,
@@ -18,7 +19,7 @@ module a::m {
         while (i < n) {
             let mut id = object::new(ctx);
             add<u64, u64>(&mut id, i, i);
-            sui::transfer::transfer(Obj { id }, ctx.sender());
+            iota::transfer::transfer(Obj { id }, ctx.sender());
 
             i = i + 1;
         };

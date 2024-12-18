@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright 2020 Parity Technologies
@@ -12,7 +13,7 @@
 //! A crate for deriving the MallocSizeOf trait.
 //!
 //! This is a copy of Servo malloc_size_of_derive code, modified to work with
-//! our `mysten_util_mem` library
+//! our `iota_util_mem` library
 
 #![allow(clippy::all)]
 
@@ -51,12 +52,12 @@ fn malloc_size_of_derive(s: synstructure::Structure) -> proc_macro2::TokenStream
         } else if let syn::Type::Array(..) = binding.ast().ty {
             Some(quote! {
                 for item in #binding.iter() {
-                    sum += mysten_util_mem::MallocSizeOf::size_of(item, ops);
+                    sum += iota_util_mem::MallocSizeOf::size_of(item, ops);
                 }
             })
         } else {
             Some(quote! {
-                sum += mysten_util_mem::MallocSizeOf::size_of(#binding, ops);
+                sum += iota_util_mem::MallocSizeOf::size_of(#binding, ops);
             })
         }
     });
@@ -69,14 +70,14 @@ fn malloc_size_of_derive(s: synstructure::Structure) -> proc_macro2::TokenStream
         let ident = &param.ident;
         where_clause
             .predicates
-            .push(parse_quote!(#ident: mysten_util_mem::MallocSizeOf));
+            .push(parse_quote!(#ident: iota_util_mem::MallocSizeOf));
     }
 
     let tokens = quote! {
-        impl #impl_generics mysten_util_mem::MallocSizeOf for #name #ty_generics #where_clause {
+        impl #impl_generics iota_util_mem::MallocSizeOf for #name #ty_generics #where_clause {
             #[inline]
             #[allow(unused_variables, unused_mut, unreachable_code)]
-            fn size_of(&self, ops: &mut mysten_util_mem::MallocSizeOfOps) -> usize {
+            fn size_of(&self, ops: &mut iota_util_mem::MallocSizeOfOps) -> usize {
                 let mut sum = 0;
                 match *self {
                     #match_body

@@ -1,5 +1,5 @@
 module 0x42::suppress_cases {
-    use sui::tx_context::TxContext;
+    use iota::tx_context::TxContext;
 
     #[allow(lint(prefer_mut_tx_context))]
     public fun suppressed_function(_ctx: &TxContext) {
@@ -14,7 +14,7 @@ module 0x42::suppress_cases {
     }
 }
 
-// Mocking the sui::tx_context module
-module sui::tx_context {
+// Mocking the iota::tx_context module
+module iota::tx_context {
     struct TxContext has drop {}
 }

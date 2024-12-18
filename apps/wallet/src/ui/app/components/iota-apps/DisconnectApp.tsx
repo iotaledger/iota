@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import Overlay from '_components/overlay';
 import { useAppSelector } from '_hooks';
 import { permissionsSelectors } from '_redux/slices/permissions';
 import { ampli } from '_src/shared/analytics/ampli';
-import { formatAddress } from '@mysten/sui/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -17,7 +18,7 @@ import { DAppInfoCard } from '../DAppInfoCard';
 import { DAppPermissionsList } from '../DAppPermissionsList';
 import { SummaryCard } from '../SummaryCard';
 import { WalletListSelect } from '../WalletListSelect';
-import { type DAppEntry } from './SuiApp';
+import { type DAppEntry } from './IotaApp';
 
 export interface DisconnectAppProps extends Omit<DAppEntry, 'description' | 'tags'> {
 	permissionID: string;

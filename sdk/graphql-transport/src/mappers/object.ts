@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiObjectResponse } from '@mysten/sui/client';
+import type { IotaObjectResponse } from '@iota/iota-sdk/client';
 
 import type {
 	MoveValue,
@@ -16,7 +17,7 @@ import { toShortTypeString } from './util.js';
 export function mapGraphQLObjectToRpcObject(
 	object: Rpc_Object_FieldsFragment,
 	options: { showBcs?: boolean | null } = {},
-): NonNullable<SuiObjectResponse['data']> {
+): NonNullable<IotaObjectResponse['data']> {
 	return {
 		bcs: options?.showBcs
 			? {
@@ -54,7 +55,7 @@ export function mapGraphQLObjectToRpcObject(
 export function mapGraphQLMoveObjectToRpcObject(
 	object: Rpc_Move_Object_FieldsFragment,
 	options: { showBcs?: boolean | null } = {},
-): NonNullable<SuiObjectResponse['data']> {
+): NonNullable<IotaObjectResponse['data']> {
 	return {
 		bcs: options?.showBcs
 			? {

@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
-import { useSuiClientInfiniteQuery } from '../../src/hooks/useSuiClientInfiniteQuery.js';
+import { useIotaClientInfiniteQuery } from '../../src/hooks/useIotaClientInfiniteQuery.js';
 import { createWalletProviderContextWrapper } from '../test-utils.js';
 
-describe('useSuiClientInfiniteQuery', () => {
+describe('useIotaClientInfiniteQuery', () => {
 	it('should fetch data', async () => {
-		const suiClient = new SuiClient({ url: getFullnodeUrl('mainnet') });
-		const wrapper = createWalletProviderContextWrapper({}, suiClient);
+		const iotaClient = new IotaClient({ url: getFullnodeUrl('mainnet') });
+		const wrapper = createWalletProviderContextWrapper({}, iotaClient);
 
-		const queryTransactionBlocks = vi.spyOn(suiClient, 'queryTransactionBlocks');
+		const queryTransactionBlocks = vi.spyOn(iotaClient, 'queryTransactionBlocks');
 
 		const pages = [
 			{
@@ -30,7 +31,7 @@ describe('useSuiClientInfiniteQuery', () => {
 
 		const { result } = renderHook(
 			() =>
-				useSuiClientInfiniteQuery('queryTransactionBlocks', {
+				useIotaClientInfiniteQuery('queryTransactionBlocks', {
 					filter: {
 						FromAddress: '0x123',
 					},

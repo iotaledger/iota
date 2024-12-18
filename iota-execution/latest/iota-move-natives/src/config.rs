@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{object_runtime::ObjectRuntime, NativesCostTable};
@@ -17,7 +18,7 @@ use move_vm_types::{
 };
 use smallvec::smallvec;
 use std::collections::VecDeque;
-use sui_types::{base_types::MoveObjectType, TypeTag};
+use iota_types::{base_types::MoveObjectType, TypeTag};
 use tracing::{error, instrument};
 
 const E_BCS_SERIALIZATION_FAILURE: u64 = 2;
@@ -73,7 +74,7 @@ pub fn read_setting_impl(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Sui verifier guarantees this is a struct".to_string()),
+                    .with_message("Iota verifier guarantees this is a struct".to_string()),
             )
         }
     };

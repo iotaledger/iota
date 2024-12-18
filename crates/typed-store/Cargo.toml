@@ -2,7 +2,7 @@
 name = "typed-store"
 version = "0.4.0"
 license = "Apache-2.0"
-authors = ["Francois Garillot <francois@mystenlabs.com>"]
+authors = ["Francois Garillot <francois@iota.org>"]
 description = "a typed database interface"
 repository = "https://github.com/mystenlabs/mysten-infra"
 edition = "2021"
@@ -26,7 +26,7 @@ tracing.workspace = true
 typed-store-error.workspace = true
 typed-store-derive = { path = "../typed-store-derive" }
 typed-store-workspace-hack = { path = "../typed-store-workspace-hack" }
-sui-macros.workspace = true
+iota-macros.workspace = true
 ouroboros.workspace = true
 rand.workspace = true
 async-trait.workspace = true
@@ -42,7 +42,7 @@ rand.workspace = true
 syn.workspace = true
 uint.workspace = true
 
-# Most packages should depend on sui-simulator instead of directly on msim, but for typed-store
+# Most packages should depend on iota-simulator instead of directly on msim, but for typed-store
 # that creates a circular dependency.
 [target.'cfg(msim)'.dependencies]
 msim.workspace = true

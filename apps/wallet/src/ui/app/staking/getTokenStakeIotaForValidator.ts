@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type DelegatedStake } from '@mysten/sui/client';
+import { type DelegatedStake } from '@iota/iota-sdk/client';
 
-// Get total Stake SUI for a specific validator address
-export const getTokenStakeSuiForValidator = (
+// Get total Stake IOTA for a specific validator address
+export const getTokenStakeIotaForValidator = (
 	allDelegation: DelegatedStake[],
 	validatorAddress?: string | null,
 ) => {

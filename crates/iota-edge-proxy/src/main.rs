@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{routing::any, Router};
 use clap::Parser;
-use mysten_metrics::start_prometheus_server;
+use iota_metrics::start_prometheus_server;
 use reqwest::Client;
-use sui_edge_proxy::config::{load, ProxyConfig};
-use sui_edge_proxy::handlers::{proxy_handler, AppState};
-use sui_edge_proxy::metrics::AppMetrics;
+use iota_edge_proxy::config::{load, ProxyConfig};
+use iota_edge_proxy::handlers::{proxy_handler, AppState};
+use iota_edge_proxy::metrics::AppMetrics;
 use tracing::info;
 
 #[derive(Parser, Debug)]
@@ -16,7 +17,7 @@ struct Args {
     #[clap(
         long,
         short,
-        default_value = "./sui-edge-proxy.yaml",
+        default_value = "./iota-edge-proxy.yaml",
         help = "Specify the config file path to use"
     )]
     config: String,
@@ -31,7 +32,7 @@ async fn main() {
 
     let registry_service = start_prometheus_server(config.metrics_address);
     let prometheus_registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&prometheus_registry);
+    iota_metrics::init_metrics(&prometheus_registry);
 
     let (_guard, _filter_handle) = telemetry_subscribers::TelemetryConfig::new()
         .with_env()

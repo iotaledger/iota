@@ -1,42 +1,43 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import '@mysten/sui/zklogin';
+import '@iota/iota-sdk/zklogin';
 
-import type { ComputeZkLoginAddressOptions } from '@mysten/sui/zklogin';
+import type { ComputeZkLoginAddressOptions } from '@iota/iota-sdk/zklogin';
 import {
-	computeZkLoginAddress as suiComputeZkLoginAddress,
-	jwtToAddress as suiJwtToAddress,
-} from '@mysten/sui/zklogin';
+	computeZkLoginAddress as iotaComputeZkLoginAddress,
+	jwtToAddress as iotaJwtToAddress,
+} from '@iota/iota-sdk/zklogin';
 
-export type { ComputeZkLoginAddressOptions } from '@mysten/sui/zklogin';
+export type { ComputeZkLoginAddressOptions } from '@iota/iota-sdk/zklogin';
 
 export {
-	/** @deprecated, use `import { genAddressSeed } from '@mysten/sui/zklogin';` instead */
+	/** @deprecated, use `import { genAddressSeed } from '@iota/iota-sdk/zklogin';` instead */
 	genAddressSeed,
-	/** @deprecated, use `import { generateNonce } from '@mysten/sui/zklogin';` instead */
+	/** @deprecated, use `import { generateNonce } from '@iota/iota-sdk/zklogin';` instead */
 	generateNonce,
-	/** @deprecated, use `import { generateRandomness } from '@mysten/sui/zklogin';` instead */
+	/** @deprecated, use `import { generateRandomness } from '@iota/iota-sdk/zklogin';` instead */
 	generateRandomness,
-	/** @deprecated, use `import { getExtendedEphemeralPublicKey } from '@mysten/sui/zklogin';` instead */
+	/** @deprecated, use `import { getExtendedEphemeralPublicKey } from '@iota/iota-sdk/zklogin';` instead */
 	getExtendedEphemeralPublicKey,
-	/** @deprecated, use `import { getZkLoginSignature } from '@mysten/sui/zklogin';` instead */
+	/** @deprecated, use `import { getZkLoginSignature } from '@iota/iota-sdk/zklogin';` instead */
 	getZkLoginSignature,
-	/** @deprecated, use `import { hashASCIIStrToField } from '@mysten/sui/zklogin';` instead */
+	/** @deprecated, use `import { hashASCIIStrToField } from '@iota/iota-sdk/zklogin';` instead */
 	hashASCIIStrToField,
-	/** @deprecated, use `import { poseidonHash } from '@mysten/sui/zklogin';` instead */
+	/** @deprecated, use `import { poseidonHash } from '@iota/iota-sdk/zklogin';` instead */
 	poseidonHash,
-} from '@mysten/sui/zklogin';
+} from '@iota/iota-sdk/zklogin';
 
-/** @deprecated, use `import { parseZkLoginSignature } from '@mysten/sui/zklogin';` instead */
+/** @deprecated, use `import { parseZkLoginSignature } from '@iota/iota-sdk/zklogin';` instead */
 export function computeZkLoginAddress(options: ComputeZkLoginAddressOptions) {
-	return suiComputeZkLoginAddress({
+	return iotaComputeZkLoginAddress({
 		...options,
 		legacyAddress: true,
 	});
 }
 
-/** @deprecated, use `import { jwtToAddress } from '@mysten/sui/zklogin';` instead */
+/** @deprecated, use `import { jwtToAddress } from '@iota/iota-sdk/zklogin';` instead */
 export function jwtToAddress(jwt: string, userSalt: string | bigint, legacyAddress = true) {
-	return suiJwtToAddress(jwt, userSalt, legacyAddress);
+	return iotaJwtToAddress(jwt, userSalt, legacyAddress);
 }

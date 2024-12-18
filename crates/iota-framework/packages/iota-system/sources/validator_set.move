@@ -1,24 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::validator_set {
+module iota_system::validator_set {
 
-    use sui::balance::Balance;
-    use sui::sui::SUI;
-    use sui_system::validator::{Validator, staking_pool_id, sui_address};
-    use sui_system::validator_cap::{Self, UnverifiedValidatorOperationCap, ValidatorOperationCap};
-    use sui_system::staking_pool::{PoolTokenExchangeRate, StakedSui, pool_id, FungibleStakedSui, fungible_staked_sui_pool_id};
-    use sui::priority_queue as pq;
-    use sui::vec_map::{Self, VecMap};
-    use sui::vec_set::VecSet;
-    use sui::table::{Self, Table};
-    use sui::event;
-    use sui::table_vec::{Self, TableVec};
-    use sui_system::voting_power;
-    use sui_system::validator_wrapper::ValidatorWrapper;
-    use sui_system::validator_wrapper;
-    use sui::bag::Bag;
-    use sui::bag;
+    use iota::balance::Balance;
+    use iota::iota::IOTA;
+    use iota_system::validator::{Validator, staking_pool_id, iota_address};
+    use iota_system::validator_cap::{Self, UnverifiedValidatorOperationCap, ValidatorOperationCap};
+    use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota, pool_id, FungibleStakedIota, fungible_staked_iota_pool_id};
+    use iota::priority_queue as pq;
+    use iota::vec_map::{Self, VecMap};
+    use iota::vec_set::VecSet;
+    use iota::table::{Self, Table};
+    use iota::event;
+    use iota::table_vec::{Self, TableVec};
+    use iota_system::voting_power;
+    use iota_system::validator_wrapper::ValidatorWrapper;
+    use iota_system::validator_wrapper;
+    use iota::bag::Bag;
+    use iota::bag;
 
     public struct ValidatorSet has store {
         /// Total amount of stake from all active validators at the beginning of the epoch.
@@ -35,7 +36,7 @@ module sui_system::validator_set {
         /// pointing to `active_validators`.
         pending_removals: vector<u64>,
 
-        /// Mappings from staking pool's ID to the sui address of a validator.
+        /// Mappings from staking pool's ID to the iota address of a validator.
         staking_pool_mappings: Table<ID, address>,
 
         /// Mapping from a staking pool ID to the inactive validator that has that pool as its staking pool.
@@ -105,13 +106,13 @@ module sui_system::validator_set {
         is_voluntary: bool,
     }
 
-    // same as in sui_system
+    // same as in iota_system
     const ACTIVE_VALIDATOR_ONLY: u8 = 1;
     const ACTIVE_OR_PENDING_VALIDATOR: u8 = 2;
     const ANY_VALIDATOR: u8 = 3;
 
     const BASIS_POINT_DENOMINATOR: u128 = 10000;
-    const MIN_STAKING_THRESHOLD: u64 = 1_000_000_000; // 1 SUI
+    const MIN_STAKING_THRESHOLD: u64 = 1_000_000_000; // 1 IOTA
 
     // Errors
     const ENonValidatorInReportRecords: u64 = 0;
@@ -142,7 +143,7 @@ module sui_system::validator_set {
         let mut i = 0;
         while (i < num_validators) {
             let validator = &init_active_validators[i];
-            staking_pool_mappings.add(staking_pool_id(validator), sui_address(validator));
+            staking_pool_mappings.add(staking_pool_id(validator), iota_address(validator));
             i = i + 1;
         };
         let mut validators = ValidatorSet {
@@ -163,7 +164,7 @@ module sui_system::validator_set {
 
     // ==== functions to add or remove validators ====
 
-    /// Called by `sui_system` to add a new validator candidate.
+    /// Called by `iota_system` to add a new validator candidate.
     public(package) fun request_add_validator_candidate(
         self: &mut ValidatorSet,
         validator: Validator,
@@ -175,7 +176,7 @@ module sui_system::validator_set {
                 && !is_duplicate_with_pending_validator(self, &validator),
             EDuplicateValidator
         );
-        let validator_address = sui_address(&validator);
+        let validator_address = iota_address(&validator);
         assert!(
             !self.validator_candidates.contains(validator_address),
             EAlreadyValidatorCandidate
@@ -186,12 +187,12 @@ module sui_system::validator_set {
         // staking with this candidate.
         self.staking_pool_mappings.add(staking_pool_id(&validator), validator_address);
         self.validator_candidates.add(
-            sui_address(&validator),
+            iota_address(&validator),
             validator_wrapper::create_v1(validator, ctx),
         );
     }
 
-    /// Called by `sui_system` to remove a validator candidate, and move them to `inactive_validators`.
+    /// Called by `iota_system` to remove a validator candidate, and move them to `inactive_validators`.
     public(package) fun request_remove_validator_candidate(self: &mut ValidatorSet, ctx: &mut TxContext) {
         let validator_address = ctx.sender();
          assert!(
@@ -217,7 +218,7 @@ module sui_system::validator_set {
         );
     }
 
-    /// Called by `sui_system` to add a new validator to `pending_active_validators`, which will be
+    /// Called by `iota_system` to add a new validator to `pending_active_validators`, which will be
     /// processed at the end of epoch.
     public(package) fun request_add_validator(self: &mut ValidatorSet, min_joining_stake_amount: u64, ctx: &TxContext) {
         let validator_address = ctx.sender();
@@ -247,7 +248,7 @@ module sui_system::validator_set {
         );
     }
 
-    /// Called by `sui_system`, to remove a validator.
+    /// Called by `iota_system`, to remove a validator.
     /// The index of the validator is added to `pending_removals` and
     /// will be processed at the end of epoch.
     /// Only an active validator can request to be removed.
@@ -269,52 +270,52 @@ module sui_system::validator_set {
 
     // ==== staking related functions ====
 
-    /// Called by `sui_system`, to add a new stake to the validator.
+    /// Called by `iota_system`, to add a new stake to the validator.
     /// This request is added to the validator's staking pool's pending stake entries, processed at the end
     /// of the epoch.
     /// Aborts in case the staking amount is smaller than MIN_STAKING_THRESHOLD
     public(package) fun request_add_stake(
         self: &mut ValidatorSet,
         validator_address: address,
-        stake: Balance<SUI>,
+        stake: Balance<IOTA>,
         ctx: &mut TxContext,
-    ) : StakedSui {
-        let sui_amount = stake.value();
-        assert!(sui_amount >= MIN_STAKING_THRESHOLD, EStakingBelowThreshold);
+    ) : StakedIota {
+        let iota_amount = stake.value();
+        assert!(iota_amount >= MIN_STAKING_THRESHOLD, EStakingBelowThreshold);
         let validator = get_candidate_or_active_validator_mut(self, validator_address);
         validator.request_add_stake(stake, ctx.sender(), ctx)
     }
 
-    /// Called by `sui_system`, to withdraw some share of a stake from the validator. The share to withdraw
+    /// Called by `iota_system`, to withdraw some share of a stake from the validator. The share to withdraw
     /// is denoted by `principal_withdraw_amount`. One of two things occurs in this function:
-    /// 1. If the `staked_sui` is staked with an active validator, the request is added to the validator's
+    /// 1. If the `staked_iota` is staked with an active validator, the request is added to the validator's
     ///    staking pool's pending stake withdraw entries, processed at the end of the epoch.
-    /// 2. If the `staked_sui` was staked with a validator that is no longer active,
+    /// 2. If the `staked_iota` was staked with a validator that is no longer active,
     ///    the stake and any rewards corresponding to it will be immediately processed.
     public(package) fun request_withdraw_stake(
         self: &mut ValidatorSet,
-        staked_sui: StakedSui,
+        staked_iota: StakedIota,
         ctx: &TxContext,
-    ) : Balance<SUI> {
-        let staking_pool_id = pool_id(&staked_sui);
+    ) : Balance<IOTA> {
+        let staking_pool_id = pool_id(&staked_iota);
         let validator =
             if (self.staking_pool_mappings.contains(staking_pool_id)) { // This is an active validator.
-                let validator_address = self.staking_pool_mappings[pool_id(&staked_sui)];
+                let validator_address = self.staking_pool_mappings[pool_id(&staked_iota)];
                 get_candidate_or_active_validator_mut(self, validator_address)
             } else { // This is an inactive pool.
                 assert!(self.inactive_validators.contains(staking_pool_id), ENoPoolFound);
                 let wrapper = &mut self.inactive_validators[staking_pool_id];
                 wrapper.load_validator_maybe_upgrade()
             };
-        validator.request_withdraw_stake(staked_sui, ctx)
+        validator.request_withdraw_stake(staked_iota, ctx)
     }
 
-    public(package) fun convert_to_fungible_staked_sui(
+    public(package) fun convert_to_fungible_staked_iota(
         self: &mut ValidatorSet,
-        staked_sui: StakedSui,
+        staked_iota: StakedIota,
         ctx: &mut TxContext,
-    ) : FungibleStakedSui {
-        let staking_pool_id = pool_id(&staked_sui);
+    ) : FungibleStakedIota {
+        let staking_pool_id = pool_id(&staked_iota);
         let validator =
             if (self.staking_pool_mappings.contains(staking_pool_id)) { // This is an active validator.
                 let validator_address = self.staking_pool_mappings[staking_pool_id];
@@ -325,15 +326,15 @@ module sui_system::validator_set {
                 wrapper.load_validator_maybe_upgrade()
             };
 
-        validator.convert_to_fungible_staked_sui(staked_sui, ctx)
+        validator.convert_to_fungible_staked_iota(staked_iota, ctx)
     }
 
-    public(package) fun redeem_fungible_staked_sui(
+    public(package) fun redeem_fungible_staked_iota(
         self: &mut ValidatorSet,
-        fungible_staked_sui: FungibleStakedSui,
+        fungible_staked_iota: FungibleStakedIota,
         ctx: &TxContext,
-    ) : Balance<SUI> {
-        let staking_pool_id = fungible_staked_sui_pool_id(&fungible_staked_sui);
+    ) : Balance<IOTA> {
+        let staking_pool_id = fungible_staked_iota_pool_id(&fungible_staked_iota);
 
         let validator =
             if (self.staking_pool_mappings.contains(staking_pool_id)) { // This is an active validator.
@@ -345,7 +346,7 @@ module sui_system::validator_set {
                 wrapper.load_validator_maybe_upgrade()
             };
 
-        validator.redeem_fungible_staked_sui(fungible_staked_sui, ctx)
+        validator.redeem_fungible_staked_iota(fungible_staked_iota, ctx)
     }
 
     // ==== validator config setting functions ====
@@ -372,8 +373,8 @@ module sui_system::validator_set {
     ///   5. At the end, we calculate the total stake for the new epoch.
     public(package) fun advance_epoch(
         self: &mut ValidatorSet,
-        computation_reward: &mut Balance<SUI>,
-        storage_fund_reward: &mut Balance<SUI>,
+        computation_reward: &mut Balance<IOTA>,
+        storage_fund_reward: &mut Balance<IOTA>,
         validator_report_records: &mut VecMap<address, VecSet<address>>,
         reward_slashing_rate: u64,
         low_stake_threshold: u64,
@@ -482,7 +483,7 @@ module sui_system::validator_set {
         while (i > 0) {
             i = i - 1;
             let validator_ref = &self.active_validators[i];
-            let validator_address = validator_ref.sui_address();
+            let validator_address = validator_ref.iota_address();
             let stake = validator_ref.total_stake_amount();
             if (stake >= low_stake_threshold) {
                 // The validator is safe. We remove their entry from the at_risk map if there exists one.
@@ -527,7 +528,7 @@ module sui_system::validator_set {
         }
     }
 
-    /// Called by `sui_system` to derive reference gas price for the new epoch.
+    /// Called by `iota_system` to derive reference gas price for the new epoch.
     /// Derive the reference gas price based on the gas price quote submitted by each validator.
     /// The returned gas price should be greater than or equal to 2/3 of the validators submitted
     /// gas price, weighted by stake.
@@ -593,7 +594,7 @@ module sui_system::validator_set {
         } else { // otherwise it's inactive
             let wrapper = &mut self.inactive_validators[*pool_id];
             let validator = wrapper.load_validator_maybe_upgrade();
-            validator.sui_address()
+            validator.iota_address()
         }
     }
 
@@ -618,7 +619,7 @@ module sui_system::validator_set {
     }
 
     /// Returns true iff the address exists in active validators.
-    public(package) fun is_active_validator_by_sui_address(
+    public(package) fun is_active_validator_by_iota_address(
         self: &ValidatorSet,
         validator_address: address,
     ): bool {
@@ -628,8 +629,8 @@ module sui_system::validator_set {
     // ==== private helpers ====
 
     /// Checks whether `new_validator` is duplicate with any currently active validators.
-    /// It differs from `is_active_validator_by_sui_address` in that the former checks
-    /// only the sui address but this function looks at more metadata.
+    /// It differs from `is_active_validator_by_iota_address` in that the former checks
+    /// only the iota address but this function looks at more metadata.
     fun is_duplicate_with_active_validator(self: &ValidatorSet, new_validator: &Validator): bool {
         is_duplicate_validator(&self.active_validators, new_validator)
     }
@@ -688,7 +689,7 @@ module sui_system::validator_set {
         let mut i = 0;
         while (i < length) {
             let v = &validators[i];
-            if (v.sui_address() == validator_address) {
+            if (v.iota_address() == validator_address) {
                 return option::some(i)
             };
             i = i + 1;
@@ -704,7 +705,7 @@ module sui_system::validator_set {
         let mut i = 0;
         while (i < length) {
             let v = &validators[i];
-            if (v.sui_address() == validator_address) {
+            if (v.iota_address() == validator_address) {
                 return option::some(i)
             };
             i = i + 1;
@@ -885,7 +886,7 @@ module sui_system::validator_set {
         ctx: &mut TxContext,
     ) {
         let new_epoch = ctx.epoch() + 1;
-        let validator_address = validator.sui_address();
+        let validator_address = validator.iota_address();
         let validator_pool_id = staking_pool_id(&validator);
 
         // Remove the validator from our tables.
@@ -951,7 +952,7 @@ module sui_system::validator_set {
             event::emit(
                 ValidatorJoinEvent {
                     epoch: new_epoch,
-                    validator_address: validator.sui_address(),
+                    validator_address: validator.iota_address(),
                     staking_pool_id: staking_pool_id(&validator),
                 }
             );
@@ -1071,7 +1072,7 @@ module sui_system::validator_set {
         while (!validator_report_records.is_empty()) {
             let (validator_address, reporters) = validator_report_records.pop();
             assert!(
-                is_active_validator_by_sui_address(self, validator_address),
+                is_active_validator_by_iota_address(self, validator_address),
                 ENonValidatorInReportRecords,
             );
             // Sum up the voting power of validators that have reported this validator and check if it has
@@ -1183,8 +1184,8 @@ module sui_system::validator_set {
         validators: &mut vector<Validator>,
         adjusted_staking_reward_amounts: &vector<u64>,
         adjusted_storage_fund_reward_amounts: &vector<u64>,
-        staking_rewards: &mut Balance<SUI>,
-        storage_fund_reward: &mut Balance<SUI>,
+        staking_rewards: &mut Balance<IOTA>,
+        storage_fund_reward: &mut Balance<IOTA>,
         ctx: &mut TxContext
     ) {
         let length = validators.length();
@@ -1208,7 +1209,7 @@ module sui_system::validator_set {
 
             // Add rewards to the validator. Don't try and distribute rewards though if the payout is zero.
             if (validator_reward.value() > 0) {
-                let validator_address = validator.sui_address();
+                let validator_address = validator.iota_address();
                 let rewards_stake = validator.request_add_stake(validator_reward, validator_address, ctx);
                 transfer::public_transfer(rewards_stake, validator_address);
             } else {
@@ -1235,7 +1236,7 @@ module sui_system::validator_set {
         let mut i = 0;
         while (i < num_validators) {
             let v = &vs[i];
-            let validator_address = v.sui_address();
+            let validator_address = v.iota_address();
             let tallying_rule_reporters =
                 if (report_records.contains(&validator_address)) {
                     report_records[&validator_address].into_keys()
@@ -1298,7 +1299,7 @@ module sui_system::validator_set {
         let mut i = 0;
         let length = vs.length();
         while (i < length) {
-            let validator_address = vs[i].sui_address();
+            let validator_address = vs[i].iota_address();
             res.push_back(validator_address);
             i = i + 1;
         };

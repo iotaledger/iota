@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// A Policy that makes sure an item is placed into the `Kiosk` after `purchase`.
 /// `Kiosk` can be any.
-module sui::item_locked_policy {
-    use sui::kiosk::{Self, Kiosk};
-    use sui::transfer_policy::{
+module iota::item_locked_policy {
+    use iota::kiosk::{Self, Kiosk};
+    use iota::transfer_policy::{
         Self as policy,
         TransferPolicy,
         TransferPolicyCap,

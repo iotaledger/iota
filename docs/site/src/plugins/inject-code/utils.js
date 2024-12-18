@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Fix the spurious whitespace when copying code
@@ -89,13 +90,13 @@ exports.processOptions = (text, options) => {
   // Replace all the //docs:: lines in code and license header
   let processed = text
     .replace(
-      /^\/\/\s*Copyright.*Mysten Labs.*\n\/\/\s*SPDX-License.*?\n?$/gim,
+      /^\/\/\s*Copyright.*IOTA Foundation.*\n\/\/\s*SPDX-License.*?\n?$/gim,
       "",
     )
     .replace(/^\s*\/\/\s*docs::\/?.*\r?$\n?/gm, "")
     .replace(
-      /sui\s?=\s?{\s?local\s?=.*sui-framework.*/i,
-      'Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }',
+      /iota\s?=\s?{\s?local\s?=.*iota-framework.*/i,
+      'Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/testnet" }',
     );
   processed = removeComments(processed, options);
   processed = removeTests(processed, options);

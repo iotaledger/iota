@@ -23,11 +23,11 @@ spec:
     spec:
       containers:
       - command:
-        - /usr/local/bin/sui-indexer
+        - /usr/local/bin/iota-indexer
         - --db-url
         - postgres://x:x@x:5432/defaultdb
         - --rpc-client-url
-        - http://sui-node.rpc-mainnet.svc.cluster.local:9000
+        - http://iota-node.rpc-mainnet.svc.cluster.local:9000
         - --rpc-server-worker
         env:
         - name: RUST_BACKTRACE
@@ -42,7 +42,7 @@ spec:
           value: "3600"
         image: x
         imagePullPolicy: Always
-        name: sui-indexer
+        name: iota-indexer
         ports:
         - containerPort: 9000
           protocol: TCP

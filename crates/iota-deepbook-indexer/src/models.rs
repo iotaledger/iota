@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::data_types::PgTimestamp;
 use diesel::{Identifiable, Insertable, Queryable, QueryableByName, Selectable};
 
 use serde::Serialize;
-use sui_indexer_builder::{Task, LIVE_TASK_TARGET_CHECKPOINT};
+use iota_indexer_builder::{Task, LIVE_TASK_TARGET_CHECKPOINT};
 
 use crate::schema::{
     balances, balances_summary, flashloans, order_fills, order_updates, pool_prices, pools,
-    progress_store, proposals, rebates, stakes, sui_error_transactions, trade_params_update, votes,
+    progress_store, proposals, rebates, stakes, iota_error_transactions, trade_params_update, votes,
 };
 
 #[derive(Queryable, Selectable, Insertable, Identifiable, Debug)]
@@ -221,8 +222,8 @@ pub struct Pools {
 }
 
 #[derive(Queryable, Selectable, Insertable, Identifiable, Debug)]
-#[diesel(table_name = sui_error_transactions, primary_key(txn_digest))]
-pub struct SuiErrorTransactions {
+#[diesel(table_name = iota_error_transactions, primary_key(txn_digest))]
+pub struct IotaErrorTransactions {
     pub txn_digest: String,
     pub sender_address: String,
     pub timestamp_ms: i64,

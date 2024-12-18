@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// This example demonstrates emitting a random u128 (e.g., for an offchain lottery)
 module basics::random;
 
-use sui::{event, random::Random};
+use iota::{event, random::Random};
 
 public struct RandomU128Event has copy, drop {
     value: u128,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -41,14 +42,14 @@ use tracing::{debug, info};
 pub(crate) const CURRENT_COMPILER_VERSION: &str = env!("CARGO_PKG_VERSION");
 const LEGACY_COMPILER_VERSION: &str = CURRENT_COMPILER_VERSION; // TODO: update this when Move 2024 is released
 const PRE_TOOLCHAIN_MOVE_LOCK_VERSION: u16 = 0; // Used to detect lockfiles pre-toolchain versioning support
-const CANONICAL_UNIX_BINARY_NAME: &str = "sui";
-const CANONICAL_WIN_BINARY_NAME: &str = "sui.exe";
+const CANONICAL_UNIX_BINARY_NAME: &str = "iota";
+const CANONICAL_WIN_BINARY_NAME: &str = "iota.exe";
 
 pub(crate) fn current_toolchain() -> ToolchainVersion {
     ToolchainVersion {
         compiler_version: CURRENT_COMPILER_VERSION.into(),
         edition: Edition::LEGACY, /* does not matter, unused for current_toolchain */
-        flavor: Flavor::Sui,      /* does not matter, unused for current_toolchain */
+        flavor: Flavor::Iota,      /* does not matter, unused for current_toolchain */
     }
 }
 
@@ -56,7 +57,7 @@ pub(crate) fn legacy_toolchain() -> ToolchainVersion {
     ToolchainVersion {
         compiler_version: LEGACY_COMPILER_VERSION.into(),
         edition: Edition::LEGACY,
-        flavor: Flavor::Sui,
+        flavor: Flavor::Iota,
     }
 }
 
@@ -67,7 +68,7 @@ pub(crate) fn legacy_toolchain() -> ToolchainVersion {
 pub(crate) fn units_for_toolchain(
     compiled_units: &Vec<(PackageName, CompiledUnitWithSource)>,
 ) -> anyhow::Result<Vec<(PackageName, CompiledUnitWithSource)>> {
-    if std::env::var("SUI_RUN_TOOLCHAIN_BUILD").is_err() {
+    if std::env::var("IOTA_RUN_TOOLCHAIN_BUILD").is_err() {
         return Ok(compiled_units.clone());
     }
     let mut package_version_map: HashMap<Symbol, (ToolchainVersion, Vec<CompiledUnitWithSource>)> =
@@ -80,7 +81,7 @@ pub(crate) fn units_for_toolchain(
             continue;
         }
 
-        if sui_types::is_system_package(local_unit.unit.address.into_inner()) {
+        if iota_types::is_system_package(local_unit.unit.address.into_inner()) {
             // System packages are always compiled with the current compiler.
             package_version_map.insert(*package, (current_toolchain(), vec![local_unit.clone()]));
             continue;
@@ -201,7 +202,7 @@ fn download_and_compile(
         // Check the platform and proceed if we can download a binary. If not, the user should follow error instructions to sideload the binary.
         // Download if binary does not exist.
         let mainnet_url = format!(
-            "https://github.com/MystenLabs/sui/releases/download/mainnet-v{compiler_version}/sui-mainnet-v{compiler_version}-{platform}.tgz",
+            "https://github.com/iotaledger/iota/releases/download/mainnet-v{compiler_version}/iota-mainnet-v{compiler_version}-{platform}.tgz",
         );
 
         println!(
@@ -214,7 +215,7 @@ fn download_and_compile(
             Ok(response) => response,
             Err(ureq::Error::Status(404, _)) => {
                 println!(
-                    "{} sui mainnet compiler {} not available, attempting to download testnet compiler release...",
+                    "{} iota mainnet compiler {} not available, attempting to download testnet compiler release...",
                     "WARNING".bold().yellow(),
                     compiler_version.yellow()
                 );
@@ -223,7 +224,7 @@ fn download_and_compile(
                     "DOWNLOADING".bold().green(),
                     compiler_version.yellow()
                 );
-                let testnet_url = format!("https://github.com/MystenLabs/sui/releases/download/testnet-v{compiler_version}/sui-testnet-v{compiler_version}-{platform}.tgz");
+                let testnet_url = format!("https://github.com/iotaledger/iota/releases/download/testnet-v{compiler_version}/iota-testnet-v{compiler_version}-{platform}.tgz");
                 ureq::get(&testnet_url).call()?
             }
             Err(e) => return Err(e.into()),
@@ -249,9 +250,9 @@ fn download_and_compile(
         let mut dest_binary = dest_version.clone();
         dest_binary.extend(["target", "release"]);
         if platform == "windows-x86_64" {
-            dest_binary.push(format!("sui-{platform}.exe"));
+            dest_binary.push(format!("iota-{platform}.exe"));
         } else {
-            dest_binary.push(format!("sui-{platform}"));
+            dest_binary.push(format!("iota-{platform}"));
         }
         let dest_binary_os = OsStr::new(dest_binary.as_path());
         set_executable_permission(dest_binary_os)?;
@@ -308,7 +309,7 @@ fn detect_platform(
                 binary_name = CANONICAL_WIN_BINARY_NAME;
             };
             bail!(
-                "The package {} needs to be built with sui compiler version {compiler_version} but there \
+                "The package {} needs to be built with iota compiler version {compiler_version} but there \
                  is no binary release available to download for your platform:\n\
                  Operating System: {os}\n\
                  Architecture: {arch}\n\

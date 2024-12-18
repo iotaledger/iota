@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -11,8 +12,8 @@ use diesel::ExpressionMethods;
 use diesel::QueryDsl;
 use diesel_async::RunQueryDsl;
 use move_core_types::account_address::AccountAddress;
-use sui_package_resolver::{error::Error as PackageResolverError, Package, PackageStore};
-use sui_types::object::Object;
+use iota_package_resolver::{error::Error as PackageResolverError, Package, PackageStore};
+use iota_types::object::Object;
 
 /// A package resolver that reads packages from the database.
 #[derive(Clone)]

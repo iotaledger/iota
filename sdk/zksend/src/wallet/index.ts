@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Transaction } from '@mysten/sui/transactions';
-import { toBase64 } from '@mysten/sui/utils';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import type {
 	StandardConnectFeature,
 	StandardConnectMethod,
@@ -11,15 +12,15 @@ import type {
 	StandardEventsFeature,
 	StandardEventsListeners,
 	StandardEventsOnMethod,
-	SuiSignPersonalMessageFeature,
-	SuiSignPersonalMessageMethod,
-	SuiSignTransactionBlockFeature,
-	SuiSignTransactionBlockMethod,
-	SuiSignTransactionFeature,
-	SuiSignTransactionMethod,
+	IotaSignPersonalMessageFeature,
+	IotaSignPersonalMessageMethod,
+	IotaSignTransactionBlockFeature,
+	IotaSignTransactionBlockMethod,
+	IotaSignTransactionFeature,
+	IotaSignTransactionMethod,
 	Wallet,
-} from '@mysten/wallet-standard';
-import { getWallets, ReadonlyWalletAccount, SUI_MAINNET_CHAIN } from '@mysten/wallet-standard';
+} from '@iota/wallet-standard';
+import { getWallets, ReadonlyWalletAccount, IOTA_MAINNET_CHAIN } from '@iota/wallet-standard';
 import type { Emitter } from 'mitt';
 import mitt from 'mitt';
 
@@ -54,7 +55,7 @@ export class StashedWallet implements Wallet {
 	}
 
 	get chains() {
-		return [SUI_MAINNET_CHAIN] as const;
+		return [IOTA_MAINNET_CHAIN] as const;
 	}
 
 	get accounts() {
@@ -64,9 +65,9 @@ export class StashedWallet implements Wallet {
 	get features(): StandardConnectFeature &
 		StandardDisconnectFeature &
 		StandardEventsFeature &
-		SuiSignTransactionBlockFeature &
-		SuiSignTransactionFeature &
-		SuiSignPersonalMessageFeature {
+		IotaSignTransactionBlockFeature &
+		IotaSignTransactionFeature &
+		IotaSignPersonalMessageFeature {
 		return {
 			'standard:connect': {
 				version: '1.0.0',
@@ -80,15 +81,15 @@ export class StashedWallet implements Wallet {
 				version: '1.0.0',
 				on: this.#on,
 			},
-			'sui:signTransactionBlock': {
+			'iota:signTransactionBlock': {
 				version: '1.0.0',
 				signTransactionBlock: this.#signTransactionBlock,
 			},
-			'sui:signTransaction': {
+			'iota:signTransaction': {
 				version: '2.0.0',
 				signTransaction: this.#signTransaction,
 			},
-			'sui:signPersonalMessage': {
+			'iota:signPersonalMessage': {
 				version: '1.0.0',
 				signPersonalMessage: this.#signPersonalMessage,
 			},
@@ -117,7 +118,7 @@ export class StashedWallet implements Wallet {
 		}
 	}
 
-	#signTransactionBlock: SuiSignTransactionBlockMethod = async ({ transactionBlock, account }) => {
+	#signTransactionBlock: IotaSignTransactionBlockMethod = async ({ transactionBlock, account }) => {
 		transactionBlock.setSenderIfNotSet(account.address);
 
 		const data = transactionBlock.serialize();
@@ -140,7 +141,7 @@ export class StashedWallet implements Wallet {
 		};
 	};
 
-	#signTransaction: SuiSignTransactionMethod = async ({ transaction, account }) => {
+	#signTransaction: IotaSignTransactionMethod = async ({ transaction, account }) => {
 		const popup = new StashedPopup({
 			name: this.#name,
 			origin: this.#origin,
@@ -164,7 +165,7 @@ export class StashedWallet implements Wallet {
 		};
 	};
 
-	#signPersonalMessage: SuiSignPersonalMessageMethod = async ({ message, account }) => {
+	#signPersonalMessage: IotaSignPersonalMessageMethod = async ({ message, account }) => {
 		const popup = new StashedPopup({
 			name: this.#name,
 			origin: this.#origin,
@@ -194,8 +195,8 @@ export class StashedWallet implements Wallet {
 			this.#accounts = [
 				new ReadonlyWalletAccount({
 					address,
-					chains: [SUI_MAINNET_CHAIN],
-					features: ['sui:signTransactionBlock', 'sui:signPersonalMessage'],
+					chains: [IOTA_MAINNET_CHAIN],
+					features: ['iota:signTransactionBlock', 'iota:signPersonalMessage'],
 					// NOTE: Stashed doesn't support getting public keys, and zkLogin accounts don't have meaningful public keys anyway
 					publicKey: new Uint8Array(),
 				}),

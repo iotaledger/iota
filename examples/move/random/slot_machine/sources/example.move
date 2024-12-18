@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// A betting game that depends on Sui randomness.
+/// A betting game that depends on Iota randomness.
 ///
-/// Anyone can create a new game for the current epoch by depositing SUI as the initial balance. The creator can
+/// Anyone can create a new game for the current epoch by depositing IOTA as the initial balance. The creator can
 /// withdraw the remaining balance after the epoch is over.
 ///
-/// Anyone can play the game by betting on X SUI. They win X with probability 49% and lose the X SUI otherwise.
+/// Anyone can play the game by betting on X IOTA. They win X with probability 49% and lose the X IOTA otherwise.
 ///
 module slot_machine::example;
 
-use sui::{balance::Balance, coin::{Self, Coin}, random::{Random, new_generator}, sui::SUI};
+use iota::{balance::Balance, coin::{Self, Coin}, random::{Random, new_generator}, iota::IOTA};
 
 /// Error codes
 const EInvalidAmount: u64 = 0;
@@ -22,11 +23,11 @@ public struct Game has key {
     id: UID,
     creator: address,
     epoch: u64,
-    balance: Balance<SUI>,
+    balance: Balance<IOTA>,
 }
 
 /// Create a new game with a given initial reward for the current epoch.
-public fun create(reward: Coin<SUI>, ctx: &mut TxContext) {
+public fun create(reward: Coin<IOTA>, ctx: &mut TxContext) {
     let amount = reward.value();
     assert!(amount > 0, EInvalidAmount);
     transfer::share_object(Game {
@@ -38,7 +39,7 @@ public fun create(reward: Coin<SUI>, ctx: &mut TxContext) {
 }
 
 /// Creator can withdraw remaining balance if the game is over.
-public fun close(game: Game, ctx: &mut TxContext): Coin<SUI> {
+public fun close(game: Game, ctx: &mut TxContext): Coin<IOTA> {
     assert!(ctx.epoch() > game.epoch, EInvalidEpoch);
     assert!(ctx.sender() == game.creator, EInvalidSender);
     let Game { id, creator: _, epoch: _, balance } = game;
@@ -49,7 +50,7 @@ public fun close(game: Game, ctx: &mut TxContext): Coin<SUI> {
 /// Play one turn of the game.
 ///
 /// The function consumes the same amount of gas independently of the random outcome.
-entry fun play(game: &mut Game, r: &Random, coin: &mut Coin<SUI>, ctx: &mut TxContext) {
+entry fun play(game: &mut Game, r: &Random, coin: &mut Coin<IOTA>, ctx: &mut TxContext) {
     assert!(ctx.epoch() == game.epoch, EInvalidEpoch);
     assert!(coin.value() > 0, EInvalidAmount);
 

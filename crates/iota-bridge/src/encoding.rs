@@ -1,20 +1,21 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::AddTokensOnEvmAction;
-use crate::types::AddTokensOnSuiAction;
+use crate::types::AddTokensOnIotaAction;
 use crate::types::AssetPriceUpdateAction;
 use crate::types::BlocklistCommitteeAction;
 use crate::types::BridgeAction;
 use crate::types::BridgeActionType;
 use crate::types::EmergencyAction;
-use crate::types::EthToSuiBridgeAction;
+use crate::types::EthToIotaBridgeAction;
 use crate::types::EvmContractUpgradeAction;
 use crate::types::LimitUpdateAction;
-use crate::types::SuiToEthBridgeAction;
+use crate::types::IotaToEthBridgeAction;
 use enum_dispatch::enum_dispatch;
 use ethers::types::Address as EthAddress;
-use sui_types::base_types::SUI_ADDRESS_LENGTH;
+use iota_types::base_types::IOTA_ADDRESS_LENGTH;
 
 pub const TOKEN_TRANSFER_MESSAGE_VERSION: u8 = 1;
 pub const COMMITTEE_BLOCKLIST_MESSAGE_VERSION: u8 = 1;
@@ -22,10 +23,10 @@ pub const EMERGENCY_BUTTON_MESSAGE_VERSION: u8 = 1;
 pub const LIMIT_UPDATE_MESSAGE_VERSION: u8 = 1;
 pub const ASSET_PRICE_UPDATE_MESSAGE_VERSION: u8 = 1;
 pub const EVM_CONTRACT_UPGRADE_MESSAGE_VERSION: u8 = 1;
-pub const ADD_TOKENS_ON_SUI_MESSAGE_VERSION: u8 = 1;
+pub const ADD_TOKENS_ON_IOTA_MESSAGE_VERSION: u8 = 1;
 pub const ADD_TOKENS_ON_EVM_MESSAGE_VERSION: u8 = 1;
 
-pub const BRIDGE_MESSAGE_PREFIX: &[u8] = b"SUI_BRIDGE_MESSAGE";
+pub const BRIDGE_MESSAGE_PREFIX: &[u8] = b"IOTA_BRIDGE_MESSAGE";
 
 /// Encoded bridge message consists of the following fields:
 /// 1. Message type (1 byte)
@@ -41,10 +42,10 @@ pub trait BridgeMessageEncoding {
     fn as_payload_bytes(&self) -> Vec<u8>;
 }
 
-impl BridgeMessageEncoding for SuiToEthBridgeAction {
+impl BridgeMessageEncoding for IotaToEthBridgeAction {
     fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        let e = &self.sui_bridge_event;
+        let e = &self.iota_bridge_event;
         // Add message type
         bytes.push(BridgeActionType::TokenTransfer as u8);
         // Add message version
@@ -52,7 +53,7 @@ impl BridgeMessageEncoding for SuiToEthBridgeAction {
         // Add nonce
         bytes.extend_from_slice(&e.nonce.to_be_bytes());
         // Add source chain id
-        bytes.push(e.sui_chain_id as u8);
+        bytes.push(e.iota_chain_id as u8);
 
         // Add payload bytes
         bytes.extend_from_slice(&self.as_payload_bytes());
@@ -62,12 +63,12 @@ impl BridgeMessageEncoding for SuiToEthBridgeAction {
 
     fn as_payload_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        let e = &self.sui_bridge_event;
+        let e = &self.iota_bridge_event;
 
         // Add source address length
-        bytes.push(SUI_ADDRESS_LENGTH as u8);
+        bytes.push(IOTA_ADDRESS_LENGTH as u8);
         // Add source address
-        bytes.extend_from_slice(&e.sui_address.to_vec());
+        bytes.extend_from_slice(&e.iota_address.to_vec());
         // Add dest chain id
         bytes.push(e.eth_chain_id as u8);
         // Add dest address length
@@ -79,13 +80,13 @@ impl BridgeMessageEncoding for SuiToEthBridgeAction {
         bytes.push(e.token_id);
 
         // Add token amount
-        bytes.extend_from_slice(&e.amount_sui_adjusted.to_be_bytes());
+        bytes.extend_from_slice(&e.amount_iota_adjusted.to_be_bytes());
 
         bytes
     }
 }
 
-impl BridgeMessageEncoding for EthToSuiBridgeAction {
+impl BridgeMessageEncoding for EthToIotaBridgeAction {
     fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         let e = &self.eth_bridge_event;
@@ -113,17 +114,17 @@ impl BridgeMessageEncoding for EthToSuiBridgeAction {
         // Add source address
         bytes.extend_from_slice(e.eth_address.as_bytes());
         // Add dest chain id
-        bytes.push(e.sui_chain_id as u8);
+        bytes.push(e.iota_chain_id as u8);
         // Add dest address length
-        bytes.push(SUI_ADDRESS_LENGTH as u8);
+        bytes.push(IOTA_ADDRESS_LENGTH as u8);
         // Add dest address
-        bytes.extend_from_slice(&e.sui_address.to_vec());
+        bytes.extend_from_slice(&e.iota_address.to_vec());
 
         // Add token id
         bytes.push(e.token_id);
 
         // Add token amount
-        bytes.extend_from_slice(&e.sui_adjusted_amount.to_be_bytes());
+        bytes.extend_from_slice(&e.iota_adjusted_amount.to_be_bytes());
 
         bytes
     }
@@ -277,13 +278,13 @@ impl BridgeMessageEncoding for EvmContractUpgradeAction {
     }
 }
 
-impl BridgeMessageEncoding for AddTokensOnSuiAction {
+impl BridgeMessageEncoding for AddTokensOnIotaAction {
     fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         // Add message type
-        bytes.push(BridgeActionType::AddTokensOnSui as u8);
+        bytes.push(BridgeActionType::AddTokensOnIota as u8);
         // Add message version
-        bytes.push(ADD_TOKENS_ON_SUI_MESSAGE_VERSION);
+        bytes.push(ADD_TOKENS_ON_IOTA_MESSAGE_VERSION);
         // Add nonce
         bytes.extend_from_slice(&self.nonce.to_be_bytes());
         // Add chain id
@@ -360,11 +361,11 @@ impl BridgeMessageEncoding for AddTokensOnEvmAction {
             bytes.extend_from_slice(&token_address.to_fixed_bytes());
         }
 
-        // Add token sui decimals
+        // Add token iota decimals
         // Unwrap: bcs serialization should not fail
-        bytes.push(u8::try_from(self.token_sui_decimals.len()).unwrap());
-        for token_sui_decimal in &self.token_sui_decimals {
-            bytes.push(*token_sui_decimal);
+        bytes.push(u8::try_from(self.token_iota_decimals.len()).unwrap());
+        for token_iota_decimal in &self.token_iota_decimals {
+            bytes.push(*token_iota_decimal);
         }
 
         // Add token prices
@@ -391,11 +392,11 @@ impl BridgeAction {
 
 #[cfg(test)]
 mod tests {
-    use crate::abi::EthToSuiTokenBridgeV1;
+    use crate::abi::EthToIotaTokenBridgeV1;
     use crate::crypto::BridgeAuthorityKeyPair;
     use crate::crypto::BridgeAuthorityPublicKeyBytes;
     use crate::crypto::BridgeAuthoritySignInfo;
-    use crate::events::EmittedSuiToEthTokenBridgeV1;
+    use crate::events::EmittedIotaToEthTokenBridgeV1;
     use crate::types::BlocklistType;
     use crate::types::EmergencyActionType;
     use crate::types::USD_MULTIPLIER;
@@ -408,11 +409,11 @@ mod tests {
     use fastcrypto::traits::ToFromBytes;
     use prometheus::Registry;
     use std::str::FromStr;
-    use sui_types::base_types::{SuiAddress, TransactionDigest};
-    use sui_types::bridge::BridgeChainId;
-    use sui_types::bridge::TOKEN_ID_BTC;
-    use sui_types::bridge::TOKEN_ID_USDC;
-    use sui_types::TypeTag;
+    use iota_types::base_types::{IotaAddress, TransactionDigest};
+    use iota_types::bridge::BridgeChainId;
+    use iota_types::bridge::TOKEN_ID_BTC;
+    use iota_types::bridge::TOKEN_ID_USDC;
+    use iota_types::TypeTag;
 
     use super::*;
 
@@ -420,31 +421,31 @@ mod tests {
     fn test_bridge_message_encoding() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         let nonce = 54321u64;
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_chain_id = BridgeChainId::SuiTestnet;
-        let sui_tx_event_index = 1u16;
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_chain_id = BridgeChainId::IotaTestnet;
+        let iota_tx_event_index = 1u16;
         let eth_chain_id = BridgeChainId::EthSepolia;
-        let sui_address = SuiAddress::random_for_testing_only();
+        let iota_address = IotaAddress::random_for_testing_only();
         let eth_address = EthAddress::random();
         let token_id = TOKEN_ID_USDC;
-        let amount_sui_adjusted = 1_000_000;
+        let amount_iota_adjusted = 1_000_000;
 
-        let sui_bridge_event = EmittedSuiToEthTokenBridgeV1 {
+        let iota_bridge_event = EmittedIotaToEthTokenBridgeV1 {
             nonce,
-            sui_chain_id,
+            iota_chain_id,
             eth_chain_id,
-            sui_address,
+            iota_address,
             eth_address,
             token_id,
-            amount_sui_adjusted,
+            amount_iota_adjusted,
         };
 
-        let encoded_bytes = BridgeAction::SuiToEthBridgeAction(SuiToEthBridgeAction {
-            sui_tx_digest,
-            sui_tx_event_index,
-            sui_bridge_event,
+        let encoded_bytes = BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
+            iota_tx_digest,
+            iota_tx_event_index,
+            iota_bridge_event,
         })
         .to_bytes();
 
@@ -453,16 +454,16 @@ mod tests {
         let message_type = vec![BridgeActionType::TokenTransfer as u8]; // len: 1
         let message_version = vec![TOKEN_TRANSFER_MESSAGE_VERSION]; // len: 1
         let nonce_bytes = nonce.to_be_bytes().to_vec(); // len: 8
-        let source_chain_id_bytes = vec![sui_chain_id as u8]; // len: 1
+        let source_chain_id_bytes = vec![iota_chain_id as u8]; // len: 1
 
-        let sui_address_length_bytes = vec![SUI_ADDRESS_LENGTH as u8]; // len: 1
-        let sui_address_bytes = sui_address.to_vec(); // len: 32
+        let iota_address_length_bytes = vec![IOTA_ADDRESS_LENGTH as u8]; // len: 1
+        let iota_address_bytes = iota_address.to_vec(); // len: 32
         let dest_chain_id_bytes = vec![eth_chain_id as u8]; // len: 1
         let eth_address_length_bytes = vec![EthAddress::len_bytes() as u8]; // len: 1
         let eth_address_bytes = eth_address.as_bytes().to_vec(); // len: 20
 
         let token_id_bytes = vec![token_id]; // len: 1
-        let token_amount_bytes = amount_sui_adjusted.to_be_bytes().to_vec(); // len: 8
+        let token_amount_bytes = amount_iota_adjusted.to_be_bytes().to_vec(); // len: 8
 
         let mut combined_bytes = Vec::new();
         combined_bytes.extend_from_slice(&prefix_bytes);
@@ -470,8 +471,8 @@ mod tests {
         combined_bytes.extend_from_slice(&message_version);
         combined_bytes.extend_from_slice(&nonce_bytes);
         combined_bytes.extend_from_slice(&source_chain_id_bytes);
-        combined_bytes.extend_from_slice(&sui_address_length_bytes);
-        combined_bytes.extend_from_slice(&sui_address_bytes);
+        combined_bytes.extend_from_slice(&iota_address_length_bytes);
+        combined_bytes.extend_from_slice(&iota_address_bytes);
         combined_bytes.extend_from_slice(&dest_chain_id_bytes);
         combined_bytes.extend_from_slice(&eth_address_length_bytes);
         combined_bytes.extend_from_slice(&eth_address_bytes);
@@ -490,39 +491,39 @@ mod tests {
     }
 
     #[test]
-    fn test_bridge_message_encoding_regression_emitted_sui_to_eth_token_bridge_v1(
+    fn test_bridge_message_encoding_regression_emitted_iota_to_eth_token_bridge_v1(
     ) -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
-        let sui_tx_digest = TransactionDigest::random();
-        let sui_tx_event_index = 1u16;
+        iota_metrics::init_metrics(&registry);
+        let iota_tx_digest = TransactionDigest::random();
+        let iota_tx_event_index = 1u16;
 
         let nonce = 10u64;
-        let sui_chain_id = BridgeChainId::SuiTestnet;
+        let iota_chain_id = BridgeChainId::IotaTestnet;
         let eth_chain_id = BridgeChainId::EthSepolia;
-        let sui_address = SuiAddress::from_str(
+        let iota_address = IotaAddress::from_str(
             "0x0000000000000000000000000000000000000000000000000000000000000064",
         )
         .unwrap();
         let eth_address =
             EthAddress::from_str("0x00000000000000000000000000000000000000c8").unwrap();
         let token_id = TOKEN_ID_USDC;
-        let amount_sui_adjusted = 12345;
+        let amount_iota_adjusted = 12345;
 
-        let sui_bridge_event = EmittedSuiToEthTokenBridgeV1 {
+        let iota_bridge_event = EmittedIotaToEthTokenBridgeV1 {
             nonce,
-            sui_chain_id,
+            iota_chain_id,
             eth_chain_id,
-            sui_address,
+            iota_address,
             eth_address,
             token_id,
-            amount_sui_adjusted,
+            amount_iota_adjusted,
         };
-        let encoded_bytes = BridgeAction::SuiToEthBridgeAction(SuiToEthBridgeAction {
-            sui_tx_digest,
-            sui_tx_event_index,
-            sui_bridge_event,
+        let encoded_bytes = BridgeAction::IotaToEthBridgeAction(IotaToEthBridgeAction {
+            iota_tx_digest,
+            iota_tx_event_index,
+            iota_bridge_event,
         })
         .to_bytes();
         assert_eq!(
@@ -543,7 +544,7 @@ mod tests {
     fn test_bridge_message_encoding_blocklist_update_v1() {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let pub_key_bytes = BridgeAuthorityPublicKeyBytes::from_bytes(
             &Hex::decode("02321ede33d2c2d7a8a152f275a1484edef2098f034121a602cb7d767d38680aa4")
@@ -552,7 +553,7 @@ mod tests {
         .unwrap();
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 129,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             blocklist_type: BlocklistType::Blocklist,
             members_to_update: vec![pub_key_bytes.clone()],
         });
@@ -579,7 +580,7 @@ mod tests {
         // its evem address: 0xacaef39832cb995c4e049437a3e2ec6a7bad1ab5
         let blocklist_action = BridgeAction::BlocklistCommitteeAction(BlocklistCommitteeAction {
             nonce: 68,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             blocklist_type: BlocklistType::Unblocklist,
             members_to_update: vec![pub_key_bytes.clone(), pub_key_bytes_2.clone()],
         });
@@ -647,7 +648,7 @@ mod tests {
     fn test_bridge_message_encoding_emergency_action() {
         let action = BridgeAction::EmergencyAction(EmergencyAction {
             nonce: 55,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             action_type: EmergencyActionType::Pause,
         });
         let bytes = action.to_bytes();
@@ -688,7 +689,7 @@ mod tests {
     fn test_bridge_message_encoding_limit_update_action() {
         let action = BridgeAction::LimitUpdateAction(LimitUpdateAction {
             nonce: 15,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             sending_chain_id: BridgeChainId::EthCustom,
             new_usd_limit: 1_000_000 * USD_MULTIPLIER, // $1M USD
         });
@@ -715,7 +716,7 @@ mod tests {
     fn test_bridge_message_encoding_asset_price_update_action() {
         let action = BridgeAction::AssetPriceUpdateAction(AssetPriceUpdateAction {
             nonce: 266,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             token_id: TOKEN_ID_BTC,
             new_usd_price: 100_000 * USD_MULTIPLIER, // $100k USD
         });
@@ -864,35 +865,35 @@ mod tests {
     }
 
     #[test]
-    fn test_bridge_message_encoding_regression_eth_to_sui_token_bridge_v1() -> anyhow::Result<()> {
+    fn test_bridge_message_encoding_regression_eth_to_iota_token_bridge_v1() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         let eth_tx_hash = TxHash::random();
         let eth_event_index = 1u16;
 
         let nonce = 10u64;
-        let sui_chain_id = BridgeChainId::SuiTestnet;
+        let iota_chain_id = BridgeChainId::IotaTestnet;
         let eth_chain_id = BridgeChainId::EthSepolia;
-        let sui_address = SuiAddress::from_str(
+        let iota_address = IotaAddress::from_str(
             "0x0000000000000000000000000000000000000000000000000000000000000064",
         )
         .unwrap();
         let eth_address =
             EthAddress::from_str("0x00000000000000000000000000000000000000c8").unwrap();
         let token_id = TOKEN_ID_USDC;
-        let sui_adjusted_amount = 12345;
+        let iota_adjusted_amount = 12345;
 
-        let eth_bridge_event = EthToSuiTokenBridgeV1 {
+        let eth_bridge_event = EthToIotaTokenBridgeV1 {
             nonce,
-            sui_chain_id,
+            iota_chain_id,
             eth_chain_id,
-            sui_address,
+            iota_address,
             eth_address,
             token_id,
-            sui_adjusted_amount,
+            iota_adjusted_amount,
         };
-        let encoded_bytes = BridgeAction::EthToSuiBridgeAction(EthToSuiBridgeAction {
+        let encoded_bytes = BridgeAction::EthToIotaBridgeAction(EthToIotaBridgeAction {
             eth_tx_hash,
             eth_event_index,
             eth_bridge_event,
@@ -914,12 +915,12 @@ mod tests {
     }
 
     #[test]
-    fn test_bridge_message_encoding_regression_add_coins_on_sui() -> anyhow::Result<()> {
+    fn test_bridge_message_encoding_regression_add_coins_on_iota() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
 
-        let action = BridgeAction::AddTokensOnSuiAction(AddTokensOnSuiAction {
+        let action = BridgeAction::AddTokensOnIotaAction(AddTokensOnIotaAction {
             nonce: 0,
-            chain_id: BridgeChainId::SuiCustom,
+            chain_id: BridgeChainId::IotaCustom,
             native: false,
             token_ids: vec![1, 2, 3, 4],
             token_type_names: vec![
@@ -956,7 +957,7 @@ mod tests {
                 EthAddress::from_str("0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84").unwrap(),
                 EthAddress::from_str("0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72").unwrap(),
             ],
-            token_sui_decimals: vec![5, 6, 7],
+            token_iota_decimals: vec![5, 6, 7],
             token_prices: vec![1_000_000_000, 2_000_000_000, 3_000_000_000],
         });
         let encoded_bytes = action.to_bytes();

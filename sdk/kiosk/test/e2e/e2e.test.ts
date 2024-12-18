@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Transaction } from '@mysten/sui/transactions';
-import { normalizeSuiAddress } from '@mysten/sui/utils';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -28,7 +29,7 @@ import {
 	mintVillain,
 	publishExtensionsPackage,
 	publishHeroPackage,
-	setupSuiClient,
+	setupIotaClient,
 	TestToolbox,
 } from './setup';
 
@@ -47,7 +48,7 @@ describe('Testing Kiosk SDK transaction building & querying e2e', () => {
 	let villainType: string;
 
 	beforeAll(async () => {
-		toolbox = await setupSuiClient();
+		toolbox = await setupIotaClient();
 		extensionsPackageId = await publishExtensionsPackage(toolbox);
 		heroPackageId = await publishHeroPackage(toolbox);
 		heroType = `${heroPackageId}::hero::Hero`;
@@ -314,8 +315,8 @@ describe('Testing Kiosk SDK transaction building & querying e2e', () => {
 		});
 
 		expect(kiosk).toHaveProperty('kiosk');
-		expect(normalizeSuiAddress(kiosk.kiosk?.owner || '')).toBe(
-			normalizeSuiAddress(toolbox.address()),
+		expect(normalizeIotaAddress(kiosk.kiosk?.owner || '')).toBe(
+			normalizeIotaAddress(toolbox.address()),
 		);
 	});
 

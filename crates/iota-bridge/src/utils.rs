@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::abi::{
-    EthBridgeCommittee, EthBridgeConfig, EthBridgeLimiter, EthBridgeVault, EthSuiBridge,
+    EthBridgeCommittee, EthBridgeConfig, EthBridgeLimiter, EthBridgeVault, EthIotaBridge,
 };
 use crate::config::{
-    default_ed25519_key_pair, BridgeNodeConfig, EthConfig, MetricsConfig, SuiConfig, WatchdogConfig,
+    default_ed25519_key_pair, BridgeNodeConfig, EthConfig, MetricsConfig, IotaConfig, WatchdogConfig,
 };
 use crate::crypto::BridgeAuthorityKeyPair;
 use crate::crypto::BridgeAuthorityPublicKeyBytes;
 use crate::server::APPLICATION_JSON;
 use crate::types::BridgeCommittee;
-use crate::types::{AddTokensOnSuiAction, BridgeAction};
+use crate::types::{AddTokensOnIotaAction, BridgeAction};
 use anyhow::anyhow;
 use ethers::core::k256::ecdsa::SigningKey;
 use ethers::middleware::SignerMiddleware;
@@ -29,29 +30,29 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use sui_config::Config;
-use sui_json_rpc_types::SuiExecutionStatus;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_keys::keypair_file::read_key;
-use sui_sdk::wallet_context::WalletContext;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::SuiAddress;
-use sui_types::bridge::BridgeChainId;
-use sui_types::bridge::{BRIDGE_MODULE_NAME, BRIDGE_REGISTER_FOREIGN_TOKEN_FUNCTION_NAME};
-use sui_types::committee::StakeUnit;
-use sui_types::crypto::get_key_pair;
-use sui_types::crypto::SuiKeyPair;
-use sui_types::crypto::ToFromBytes;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
-use sui_types::transaction::{ObjectArg, TransactionData};
-use sui_types::BRIDGE_PACKAGE_ID;
+use iota_config::Config;
+use iota_json_rpc_types::IotaExecutionStatus;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_keys::keypair_file::read_key;
+use iota_sdk::wallet_context::WalletContext;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::IotaAddress;
+use iota_types::bridge::BridgeChainId;
+use iota_types::bridge::{BRIDGE_MODULE_NAME, BRIDGE_REGISTER_FOREIGN_TOKEN_FUNCTION_NAME};
+use iota_types::committee::StakeUnit;
+use iota_types::crypto::get_key_pair;
+use iota_types::crypto::IotaKeyPair;
+use iota_types::crypto::ToFromBytes;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
+use iota_types::transaction::{ObjectArg, TransactionData};
+use iota_types::BRIDGE_PACKAGE_ID;
 
 pub type EthSigner = SignerMiddleware<Provider<Http>, Wallet<SigningKey>>;
 
 pub struct EthBridgeContracts<P> {
-    pub bridge: EthSuiBridge<Provider<P>>,
+    pub bridge: EthIotaBridge<Provider<P>>,
     pub committee: EthBridgeCommittee<Provider<P>>,
     pub limiter: EthBridgeLimiter<Provider<P>>,
     pub vault: EthBridgeVault<Provider<P>>,
@@ -68,10 +69,10 @@ pub fn generate_bridge_authority_key_and_write_to_file(
         "Corresponding Ethereum address by this ecdsa key: {:?}",
         eth_address
     );
-    let sui_address = SuiAddress::from(&kp.public);
+    let iota_address = IotaAddress::from(&kp.public);
     println!(
-        "Corresponding Sui address by this ecdsa key: {:?}",
-        sui_address
+        "Corresponding Iota address by this ecdsa key: {:?}",
+        iota_address
     );
     let base64_encoded = kp.encode_base64();
     std::fs::write(path, base64_encoded)
@@ -90,20 +91,20 @@ pub fn generate_bridge_client_key_and_write_to_file(
             "Corresponding Ethereum address by this ecdsa key: {:?}",
             eth_address
         );
-        SuiKeyPair::from(kp)
+        IotaKeyPair::from(kp)
     } else {
         let (_, kp): (_, Ed25519KeyPair) = get_key_pair();
-        SuiKeyPair::from(kp)
+        IotaKeyPair::from(kp)
     };
-    let sui_address = SuiAddress::from(&kp.public());
-    println!("Corresponding Sui address by this key: {:?}", sui_address);
+    let iota_address = IotaAddress::from(&kp.public());
+    println!("Corresponding Iota address by this key: {:?}", iota_address);
 
     let contents = kp.encode_base64();
     std::fs::write(path, contents)
         .map_err(|err| anyhow!("Failed to write encoded key to path: {:?}", err))
 }
 
-/// Given the address of SuiBridge Proxy, return the addresses of the committee, limiter, vault, and config.
+/// Given the address of IotaBridge Proxy, return the addresses of the committee, limiter, vault, and config.
 pub async fn get_eth_contract_addresses<P: ethers::providers::JsonRpcClient + 'static>(
     bridge_proxy_address: EthAddress,
     provider: &Arc<Provider<P>>,
@@ -115,13 +116,13 @@ pub async fn get_eth_contract_addresses<P: ethers::providers::JsonRpcClient + 's
     EthAddress,
     EthAddress,
 )> {
-    let sui_bridge = EthSuiBridge::new(bridge_proxy_address, provider.clone());
-    let committee_address: EthAddress = sui_bridge.committee().call().await?;
+    let iota_bridge = EthIotaBridge::new(bridge_proxy_address, provider.clone());
+    let committee_address: EthAddress = iota_bridge.committee().call().await?;
     let committee = EthBridgeCommittee::new(committee_address, provider.clone());
     let config_address: EthAddress = committee.config().call().await?;
     let bridge_config = EthBridgeConfig::new(config_address, provider.clone());
-    let limiter_address: EthAddress = sui_bridge.limiter().call().await?;
-    let vault_address: EthAddress = sui_bridge.vault().call().await?;
+    let limiter_address: EthAddress = iota_bridge.limiter().call().await?;
+    let vault_address: EthAddress = iota_bridge.vault().call().await?;
     let vault = EthBridgeVault::new(vault_address, provider.clone());
     let weth_address: EthAddress = vault.w_eth().call().await?;
     let usdt_address: EthAddress = bridge_config.token_address_of(4).call().await?;
@@ -136,15 +137,15 @@ pub async fn get_eth_contract_addresses<P: ethers::providers::JsonRpcClient + 's
     ))
 }
 
-/// Given the address of SuiBridge Proxy, return the contracts of the committee, limiter, vault, and config.
+/// Given the address of IotaBridge Proxy, return the contracts of the committee, limiter, vault, and config.
 pub async fn get_eth_contracts<P: ethers::providers::JsonRpcClient + 'static>(
     bridge_proxy_address: EthAddress,
     provider: &Arc<Provider<P>>,
 ) -> anyhow::Result<EthBridgeContracts<P>> {
-    let sui_bridge = EthSuiBridge::new(bridge_proxy_address, provider.clone());
-    let committee_address: EthAddress = sui_bridge.committee().call().await?;
-    let limiter_address: EthAddress = sui_bridge.limiter().call().await?;
-    let vault_address: EthAddress = sui_bridge.vault().call().await?;
+    let iota_bridge = EthIotaBridge::new(bridge_proxy_address, provider.clone());
+    let committee_address: EthAddress = iota_bridge.committee().call().await?;
+    let limiter_address: EthAddress = iota_bridge.limiter().call().await?;
+    let vault_address: EthAddress = iota_bridge.vault().call().await?;
     let committee = EthBridgeCommittee::new(committee_address, provider.clone());
     let config_address: EthAddress = committee.config().call().await?;
 
@@ -152,7 +153,7 @@ pub async fn get_eth_contracts<P: ethers::providers::JsonRpcClient + 'static>(
     let vault = EthBridgeVault::new(vault_address, provider.clone());
     let config = EthBridgeConfig::new(config_address, provider.clone());
     Ok(EthBridgeContracts {
-        bridge: sui_bridge,
+        bridge: iota_bridge,
         committee,
         limiter,
         vault,
@@ -164,24 +165,24 @@ pub async fn get_eth_contracts<P: ethers::providers::JsonRpcClient + 'static>(
 /// If `is_validator_key` is true, the key must be a Secp256k1 key.
 pub fn examine_key(path: &PathBuf, is_validator_key: bool) -> Result<(), anyhow::Error> {
     let key = read_key(path, is_validator_key)?;
-    let sui_address = SuiAddress::from(&key.public());
+    let iota_address = IotaAddress::from(&key.public());
     let pubkey = match key {
-        SuiKeyPair::Secp256k1(kp) => {
+        IotaKeyPair::Secp256k1(kp) => {
             println!("Secp256k1 key:");
             let eth_address = BridgeAuthorityPublicKeyBytes::from(&kp.public).to_eth_address();
             println!("Corresponding Ethereum address: {:x}", eth_address);
             kp.public.as_bytes().to_vec()
         }
-        SuiKeyPair::Ed25519(kp) => {
+        IotaKeyPair::Ed25519(kp) => {
             println!("Ed25519 key:");
             kp.public().as_bytes().to_vec()
         }
-        SuiKeyPair::Secp256r1(kp) => {
+        IotaKeyPair::Secp256r1(kp) => {
             println!("Secp256r1 key:");
             kp.public().as_bytes().to_vec()
         }
     };
-    println!("Corresponding Sui address: {:?}", sui_address);
+    println!("Corresponding Iota address: {:?}", iota_address);
     println!("Corresponding PublicKey: {:?}", Hex::encode(pubkey));
     Ok(())
 }
@@ -195,12 +196,12 @@ pub fn generate_bridge_node_config_and_write_to_file(
         server_listen_port: 9191,
         metrics_port: 9184,
         bridge_authority_key_path: PathBuf::from("/path/to/your/bridge_authority_key"),
-        sui: SuiConfig {
-            sui_rpc_url: "your_sui_rpc_url".to_string(),
-            sui_bridge_chain_id: BridgeChainId::SuiTestnet as u8,
+        iota: IotaConfig {
+            iota_rpc_url: "your_iota_rpc_url".to_string(),
+            iota_bridge_chain_id: BridgeChainId::IotaTestnet as u8,
             bridge_client_key_path: None,
             bridge_client_gas_object: None,
-            sui_bridge_module_last_processed_event_id_override: None,
+            iota_bridge_module_last_processed_event_id_override: None,
         },
         eth: EthConfig {
             eth_rpc_url: "your_eth_rpc_url".to_string(),
@@ -226,7 +227,7 @@ pub fn generate_bridge_node_config_and_write_to_file(
         }),
     };
     if run_client {
-        config.sui.bridge_client_key_path = Some(PathBuf::from("/path/to/your/bridge_client_key"));
+        config.iota.bridge_client_key_path = Some(PathBuf::from("/path/to/your/bridge_client_key"));
         config.db_path = Some(PathBuf::from("/path/to/your/client_db"));
     }
     config.save(path)
@@ -243,7 +244,7 @@ pub async fn get_eth_signer_client(url: &str, private_key_hex: &str) -> anyhow::
     Ok(SignerMiddleware::new(provider, wallet))
 }
 
-pub async fn publish_and_register_coins_return_add_coins_on_sui_action(
+pub async fn publish_and_register_coins_return_add_coins_on_iota_action(
     wallet_context: &WalletContext,
     bridge_arg: ObjectArg,
     token_packages_dir: Vec<PathBuf>,
@@ -253,9 +254,9 @@ pub async fn publish_and_register_coins_return_add_coins_on_sui_action(
 ) -> BridgeAction {
     assert!(token_ids.len() == token_packages_dir.len());
     assert!(token_prices.len() == token_packages_dir.len());
-    let sui_client = wallet_context.get_client().await.unwrap();
-    let quorum_driver_api = Arc::new(sui_client.quorum_driver_api().clone());
-    let rgp = sui_client
+    let iota_client = wallet_context.get_client().await.unwrap();
+    let quorum_driver_api = Arc::new(iota_client.quorum_driver_api().clone());
+    let rgp = iota_client
         .governance_api()
         .get_reference_gas_price()
         .await
@@ -282,13 +283,13 @@ pub async fn publish_and_register_coins_return_add_coins_on_sui_action(
         publish_tokens_tasks.push(tokio::spawn(async move {
             api_clone.execute_transaction_block(
                 tx,
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_effects()
                     .with_input()
                     .with_events()
                     .with_object_changes()
                     .with_balance_changes(),
-                Some(sui_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
+                Some(iota_types::quorum_driver_types::ExecuteTransactionRequestType::WaitForLocalExecution),
             ).await
         }));
     }
@@ -300,7 +301,7 @@ pub async fn publish_and_register_coins_return_add_coins_on_sui_action(
         let response = response.unwrap().unwrap();
         assert_eq!(
             response.effects.unwrap().status(),
-            &SuiExecutionStatus::Success
+            &IotaExecutionStatus::Success
         );
         let object_changes = response.object_changes.unwrap();
         let mut tc = None;
@@ -308,7 +309,7 @@ pub async fn publish_and_register_coins_return_add_coins_on_sui_action(
         let mut uc = None;
         let mut metadata = None;
         for object_change in &object_changes {
-            if let o @ sui_json_rpc_types::ObjectChange::Created { object_type, .. } = object_change
+            if let o @ iota_json_rpc_types::ObjectChange::Created { object_type, .. } = object_change
             {
                 if object_type.name.as_str().starts_with("TreasuryCap") {
                     assert!(tc.is_none() && type_.is_none());
@@ -358,7 +359,7 @@ pub async fn publish_and_register_coins_return_add_coins_on_sui_action(
             api_clone
                 .execute_transaction_block(
                     signed_tx,
-                    SuiTransactionBlockResponseOptions::new().with_effects(),
+                    IotaTransactionBlockResponseOptions::new().with_effects(),
                     None,
                 )
                 .await
@@ -368,13 +369,13 @@ pub async fn publish_and_register_coins_return_add_coins_on_sui_action(
     for response in join_all(register_tasks).await {
         assert_eq!(
             response.unwrap().effects.unwrap().status(),
-            &SuiExecutionStatus::Success
+            &IotaExecutionStatus::Success
         );
     }
 
-    BridgeAction::AddTokensOnSuiAction(AddTokensOnSuiAction {
+    BridgeAction::AddTokensOnIotaAction(AddTokensOnIotaAction {
         nonce,
-        chain_id: BridgeChainId::SuiCustom,
+        chain_id: BridgeChainId::IotaCustom,
         native: false,
         token_ids,
         token_type_names,
@@ -403,23 +404,23 @@ pub async fn wait_for_server_to_be_up(server_url: String, timeout_sec: u64) -> a
 }
 
 /// Return a mappping from validator name to their bridge voting power.
-/// If a validator is not in the Sui committee, we will use its base URL as the name.
+/// If a validator is not in the Iota committee, we will use its base URL as the name.
 pub async fn get_committee_voting_power_by_name(
     bridge_committee: &Arc<BridgeCommittee>,
-    system_state: &SuiSystemStateSummary,
+    system_state: &IotaSystemStateSummary,
 ) -> BTreeMap<String, StakeUnit> {
-    let mut sui_committee: BTreeMap<_, _> = system_state
+    let mut iota_committee: BTreeMap<_, _> = system_state
         .active_validators
         .iter()
-        .map(|v| (v.sui_address, v.name.clone()))
+        .map(|v| (v.iota_address, v.name.clone()))
         .collect();
     bridge_committee
         .members()
         .iter()
         .map(|v| {
             (
-                sui_committee
-                    .remove(&v.1.sui_address)
+                iota_committee
+                    .remove(&v.1.iota_address)
                     .unwrap_or(v.1.base_url.clone()),
                 v.1.voting_power,
             )
@@ -428,15 +429,15 @@ pub async fn get_committee_voting_power_by_name(
 }
 
 /// Return a mappping from validator pub keys to their names.
-/// If a validator is not in the Sui committee, we will use its base URL as the name.
+/// If a validator is not in the Iota committee, we will use its base URL as the name.
 pub async fn get_validator_names_by_pub_keys(
     bridge_committee: &Arc<BridgeCommittee>,
-    system_state: &SuiSystemStateSummary,
+    system_state: &IotaSystemStateSummary,
 ) -> BTreeMap<BridgeAuthorityPublicKeyBytes, String> {
-    let mut sui_committee: BTreeMap<_, _> = system_state
+    let mut iota_committee: BTreeMap<_, _> = system_state
         .active_validators
         .iter()
-        .map(|v| (v.sui_address, v.name.clone()))
+        .map(|v| (v.iota_address, v.name.clone()))
         .collect();
     bridge_committee
         .members()
@@ -444,8 +445,8 @@ pub async fn get_validator_names_by_pub_keys(
         .map(|(name, validator)| {
             (
                 name.clone(),
-                sui_committee
-                    .remove(&validator.sui_address)
+                iota_committee
+                    .remove(&validator.iota_address)
                     .unwrap_or(validator.base_url.clone()),
             )
         })

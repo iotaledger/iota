@@ -1,7 +1,7 @@
 [package]
-name = "sui-replay"
+name = "iota-replay"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -39,15 +39,15 @@ tabled.workspace = true
 regex.workspace = true
 
 shared-crypto.workspace = true
-sui-config.workspace = true
-sui-core.workspace = true
-sui-execution.workspace = true
-sui-framework.workspace = true
-sui-json-rpc.workspace = true
-sui-json-rpc-api.workspace = true
-sui-json-rpc-types.workspace = true
-sui-protocol-config.workspace = true
-sui-sdk.workspace = true
-sui-storage.workspace = true
-sui-transaction-checks.workspace = true
-sui-types.workspace = true
+iota-config.workspace = true
+iota-core.workspace = true
+iota-execution.workspace = true
+iota-framework.workspace = true
+iota-json-rpc.workspace = true
+iota-json-rpc-api.workspace = true
+iota-json-rpc-types.workspace = true
+iota-protocol-config.workspace = true
+iota-sdk.workspace = true
+iota-storage.workspace = true
+iota-transaction-checks.workspace = true
+iota-types.workspace = true

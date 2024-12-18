@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
-import { useFormatCoin } from '@mysten/core';
+import { useFormatCoin } from '@iota/core';
 
 type TxnAmountProps = {
 	amount: string | number;

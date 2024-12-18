@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::{AuthorityName, VerifiedExecutionData};
 use crate::committee::Committee;
-use crate::crypto::{AuthoritySignInfo, AuthoritySignature, SuiAuthoritySignature};
+use crate::crypto::{AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature};
 use crate::effects::{TransactionEffects, TransactionEffectsAPI};
 use crate::gas::GasCostSummary;
 use crate::messages_checkpoint::{
@@ -189,7 +190,7 @@ impl MockCheckpointBuilder {
             .iter()
             .map(|(name, _)| {
                 let intent_msg = shared_crypto::intent::IntentMessage::new(
-                    shared_crypto::intent::Intent::sui_app(
+                    shared_crypto::intent::Intent::iota_app(
                         shared_crypto::intent::IntentScope::CheckpointSummary,
                     ),
                     &checkpoint,

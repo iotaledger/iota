@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -11,7 +12,7 @@ use clap::*;
 use move_vm_config::verifier::VerifierConfig;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
-use sui_protocol_config_macros::{
+use iota_protocol_config_macros::{
     ProtocolConfigAccessors, ProtocolConfigFeatureFlagsGetters, ProtocolConfigOverride,
 };
 use tracing::{info, warn};
@@ -24,7 +25,7 @@ const MAX_PROTOCOL_VERSION: u64 = 70;
 //
 // Version 1: Original version.
 // Version 2: Framework changes, including advancing epoch_start_time in safemode.
-// Version 3: gas model v2, including all sui conservation fixes. Fix for loaded child object
+// Version 3: gas model v2, including all iota conservation fixes. Fix for loaded child object
 //            changes, enable package upgrades, add limits on `max_size_written_objects`,
 //            `max_size_written_objects_system_tx`
 // Version 4: New reward slashing rate. Framework changes to skip stake susbidy when the epoch
@@ -42,19 +43,19 @@ const MAX_PROTOCOL_VERSION: u64 = 70;
 //            Disallow extraneous module bytes,
 //            advance_to_highest_supported_protocol_version,
 // Version 10:increase bytecode verifier `max_verifier_meter_ticks_per_function` and
-//            `max_meter_ticks_per_module` limits each from 6_000_000 to 16_000_000. sui-system
+//            `max_meter_ticks_per_module` limits each from 6_000_000 to 16_000_000. iota-system
 //            framework changes.
 // Version 11: Introduce `std::type_name::get_with_original_ids` to the system frameworks. Bound max depth of values within the VM.
 // Version 12: Changes to deepbook in framework to add API for querying marketplace.
 //             Change NW Batch to use versioned metadata field.
-//             Changes to sui-system package to add PTB-friendly unstake function, and minor cleanup.
+//             Changes to iota-system package to add PTB-friendly unstake function, and minor cleanup.
 // Version 13: System package change deprecating `0xdee9::clob` and `0xdee9::custodian`, replaced by
 //             `0xdee9::clob_v2` and `0xdee9::custodian_v2`.
 // Version 14: Introduce a config variable to allow charging of computation to be either
 //             bucket base or rounding up. The presence of `gas_rounding_step` (or `None`)
 //             decides whether rounding is applied or not.
 // Version 15: Add reordering of user transactions by gas price after consensus.
-//             Add `sui::table_vec::drop` to the framework via a system package upgrade.
+//             Add `iota::table_vec::drop` to the framework via a system package upgrade.
 // Version 16: Enabled simplified_unwrap_then_delete feature flag, which allows the execution engine
 //             to no longer consult the object store when generating unwrapped_then_deleted in the
 //             effects; this also allows us to stop including wrapped tombstones in accumulator.
@@ -66,7 +67,7 @@ const MAX_PROTOCOL_VERSION: u64 = 70;
 //             such that the minimum transaction cost is the same as the minimum computation
 //             bucket.
 //             Add a feature flag to indicate the changes semantics of `base_tx_cost_fixed`.
-// Version 19: Changes to sui-system package to enable liquid staking.
+// Version 19: Changes to iota-system package to enable liquid staking.
 //             Add limit for total size of events.
 //             Increase limit for number of events emitted to 1024.
 // Version 20: Enables the flag `narwhal_new_leader_election_schedule` for the new narwhal leader
@@ -80,12 +81,12 @@ const MAX_PROTOCOL_VERSION: u64 = 70;
 // Version 24: Re-enable simple gas conservation checks.
 //             Package publish/upgrade number in a single transaction limited.
 //             JWK / authenticator state flags.
-// Version 25: Add sui::table_vec::swap and sui::table_vec::swap_remove to system packages.
+// Version 25: Add iota::table_vec::swap and iota::table_vec::swap_remove to system packages.
 // Version 26: New gas model version.
 //             Add support for receiving objects off of other objects in devnet only.
-// Version 28: Add sui::zklogin::verify_zklogin_id and related functions to sui framework.
+// Version 28: Add iota::zklogin::verify_zklogin_id and related functions to iota framework.
 //             Enable transaction effects v2 in devnet.
-// Version 29: Add verify_legacy_zklogin_address flag to sui framework, this add ability to verify
+// Version 29: Add verify_legacy_zklogin_address flag to iota framework, this add ability to verify
 //             transactions from a legacy zklogin address.
 // Version 30: Enable Narwhal CertificateV2
 //             Add support for random beacon.
@@ -95,11 +96,11 @@ const MAX_PROTOCOL_VERSION: u64 = 70;
 //             In execution, has_public_transfer is recomputed when loading the object.
 //             Add support for shared obj deletion and receiving objects off of other objects in devnet only.
 // Version 31: Add support for shared object deletion in devnet only.
-//             Add support for getting object ID referenced by receiving object in sui framework.
+//             Add support for getting object ID referenced by receiving object in iota framework.
 //             Create new execution layer version, and preserve previous behavior in v1.
-//             Update semantics of `sui::transfer::receive` and add `sui::transfer::public_receive`.
+//             Update semantics of `iota::transfer::receive` and add `iota::transfer::public_receive`.
 // Version 32: Add delete functions for VerifiedID and VerifiedIssuer.
-//             Add sui::token module to sui framework.
+//             Add iota::token module to iota framework.
 //             Enable transfer to object in testnet.
 //             Enable Narwhal CertificateV2 on mainnet
 //             Make critbit tree and order getters public in deepbook.
@@ -120,7 +121,7 @@ const MAX_PROTOCOL_VERSION: u64 = 70;
 //             Extra version to fix `test_upgrade_compatibility` simtest.
 // Version 40:
 // Version 41: Enable group operations native functions in testnet and mainnet (without msm).
-// Version 42: Migrate sui framework and related code to Move 2024
+// Version 42: Migrate iota framework and related code to Move 2024
 // Version 43: Introduce the upper bound delta config for a zklogin signature's max epoch.
 //             Introduce an explicit parameter for the tick limit per package (previously this was
 //             represented by the parameter for the tick limit per module).
@@ -152,9 +153,9 @@ const MAX_PROTOCOL_VERSION: u64 = 70;
 //             Enable deny list v2 on devnet.
 // Version 52: Emit `CommitteeMemberUrlUpdateEvent` when updating bridge node url.
 //             std::config native functions.
-//             Modified sui-system package to enable withdrawal of stake before it becomes active.
+//             Modified iota-system package to enable withdrawal of stake before it becomes active.
 //             Enable soft bundle in devnet and testnet.
-//             Core macro visibility in sui core framework.
+//             Core macro visibility in iota core framework.
 //             Enable checkpoint batching in mainnet.
 //             Enable Mysticeti on mainnet.
 //             Enable Leader Scoring & Schedule Change for Mysticeti consensus on mainnet.
@@ -700,11 +701,11 @@ pub struct ProtocolConfig {
     /// Maximum number of input objects to a transaction. Enforced by the transaction input checker
     max_input_objects: Option<u64>,
 
-    /// Max size of objects a transaction can write to disk after completion. Enforce by the Sui adapter.
+    /// Max size of objects a transaction can write to disk after completion. Enforce by the Iota adapter.
     /// This is the sum of the serialized size of all objects written to disk.
     /// The max size of individual objects on the other hand is `max_move_object_size`.
     max_size_written_objects: Option<u64>,
-    /// Max size of objects a system transaction can write to disk after completion. Enforce by the Sui adapter.
+    /// Max size of objects a system transaction can write to disk after completion. Enforce by the Iota adapter.
     /// Similar to `max_size_written_objects` but for system transactions.
     max_size_written_objects_system_tx: Option<u64>,
 
@@ -764,20 +765,20 @@ pub struct ProtocolConfig {
     binary_variant_handles: Option<u16>,
     binary_variant_instantiation_handles: Option<u16>,
 
-    /// Maximum size of the `contents` part of an object, in bytes. Enforced by the Sui adapter when effects are produced.
+    /// Maximum size of the `contents` part of an object, in bytes. Enforced by the Iota adapter when effects are produced.
     max_move_object_size: Option<u64>,
 
     // TODO: Option<increase to 500 KB. currently, publishing a package > 500 KB exceeds the max computation gas cost
-    /// Maximum size of a Move package object, in bytes. Enforced by the Sui adapter at the end of a publish transaction.
+    /// Maximum size of a Move package object, in bytes. Enforced by the Iota adapter at the end of a publish transaction.
     max_move_package_size: Option<u64>,
 
     /// Max number of publish or upgrade commands allowed in a programmable transaction block.
     max_publish_or_upgrade_per_ptb: Option<u64>,
 
-    /// Maximum gas budget in MIST that a transaction can use.
+    /// Maximum gas budget in NANOS that a transaction can use.
     max_tx_gas: Option<u64>,
 
-    /// Maximum amount of the proposed gas price in MIST (defined in the transaction).
+    /// Maximum amount of the proposed gas price in NANOS (defined in the transaction).
     max_gas_price: Option<u64>,
 
     /// The max computation bucket for gas. This is the max that can be charged for computation.
@@ -888,7 +889,7 @@ pub struct ProtocolConfig {
     object_runtime_max_num_store_entries_system_tx: Option<u64>,
 
     // === Execution gas costs ====
-    /// Base cost for any Sui transaction
+    /// Base cost for any Iota transaction
     base_tx_cost_fixed: Option<u64>,
 
     /// Additional cost for a transaction that publishes a package
@@ -932,10 +933,10 @@ pub struct ProtocolConfig {
 
     /// === Storage gas costs ===
 
-    /// Per-byte cost of storing an object in the Sui global object store. Some of this cost may be refundable if the object is later freed
+    /// Per-byte cost of storing an object in the Iota global object store. Some of this cost may be refundable if the object is later freed
     obj_data_cost_refundable: Option<u64>,
 
-    // Per-byte cost of storing an object in the Sui transaction log (e.g., in CertifiedTransactionEffects)
+    // Per-byte cost of storing an object in the Iota transaction log (e.g., in CertifiedTransactionEffects)
     // This depends on the size of various fields including the effects
     // TODO: Option<I don't fully understand this^ and more details would be useful
     obj_metadata_cost_non_refundable: Option<u64>,
@@ -955,7 +956,7 @@ pub struct ProtocolConfig {
     /// In basis point.
     reward_slashing_rate: Option<u64>,
 
-    /// Unit gas price, Mist per internal gas unit.
+    /// Unit gas price, Nanos per internal gas unit.
     storage_gas_price: Option<u64>,
 
     /// === Core Protocol ===
@@ -1756,10 +1757,10 @@ impl ProtocolConfig {
             }
         });
 
-        if std::env::var("SUI_PROTOCOL_CONFIG_OVERRIDE_ENABLE").is_ok() {
+        if std::env::var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE").is_ok() {
             warn!("overriding ProtocolConfig settings with custom settings; this may break non-local networks");
             let overrides: ProtocolConfigOptional =
-                serde_env::from_env_with_prefix("SUI_PROTOCOL_CONFIG_OVERRIDE")
+                serde_env::from_env_with_prefix("IOTA_PROTOCOL_CONFIG_OVERRIDE")
                     .expect("failed to parse ProtocolConfig override env variables");
             overrides.apply_to(&mut ret);
         }
@@ -2255,9 +2256,9 @@ impl ProtocolConfig {
                 3 => {
                     // changes for gas model
                     cfg.gas_model_version = Some(2);
-                    // max gas budget is in MIST and an absolute value 50SUI
+                    // max gas budget is in NANOS and an absolute value 50IOTA
                     cfg.max_tx_gas = Some(50_000_000_000);
-                    // min gas budget is in MIST and an absolute value 2000MIST or 0.000002SUI
+                    // min gas budget is in NANOS and an absolute value 2000NANOS or 0.000002IOTA
                     cfg.base_tx_cost_fixed = Some(2_000);
                     // storage gas price multiplier
                     cfg.storage_gas_price = Some(76);
@@ -3322,7 +3323,7 @@ macro_rules! check_limit_by_meter {
             // Unmetered gets more headroom
             ($unmetered_hard_limit, "unmetered")
         };
-        use sui_protocol_config::check_limit_in_range;
+        use iota_protocol_config::check_limit_in_range;
         let result = check_limit_in_range($x as u64, $metered_limit, h);
         match result {
             LimitThresholdCrossed::None => {}

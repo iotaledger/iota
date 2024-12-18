@@ -27,11 +27,11 @@
           }
           exchangeRatesSize
           stakingPoolActivationEpoch
-          stakingPoolSuiBalance
+          stakingPoolIotaBalance
           rewardsPool
           poolTokenBalance
           pendingStake
-          pendingTotalSuiWithdraw
+          pendingTotalIotaWithdraw
           pendingPoolTokenWithdraw
           votingPower
           gasPrice

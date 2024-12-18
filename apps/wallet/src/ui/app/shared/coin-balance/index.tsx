@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
-import { useFormatCoin } from '@mysten/core';
-import { SUI_TYPE_ARG } from '@mysten/sui/utils';
+import { useFormatCoin } from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
 //TODO create variant for different use cases like heading4, subtitle, bodySmall and different symbols color
 interface CoinBalanceProps {
@@ -12,7 +13,7 @@ interface CoinBalanceProps {
 }
 
 export function CoinBalance({ amount, coinType }: CoinBalanceProps) {
-	const [formatted, symbol] = useFormatCoin(amount, coinType || SUI_TYPE_ARG);
+	const [formatted, symbol] = useFormatCoin(amount, coinType || IOTA_TYPE_ARG);
 
 	return Math.abs(Number(amount)) > 0 ? (
 		<div className="flex gap-0.5 align-baseline flex-nowrap items-baseline">

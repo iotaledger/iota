@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module a::test {
-    use sui::bag::Bag;
-    use sui::object_bag::ObjectBag;
-    use sui::table::Table;
-    use sui::object_table::ObjectTable;
-    use sui::linked_table::LinkedTable;
-    use sui::table_vec::TableVec;
-    use sui::vec_map::VecMap;
-    use sui::vec_set::VecSet;
+    use iota::bag::Bag;
+    use iota::object_bag::ObjectBag;
+    use iota::table::Table;
+    use iota::object_table::ObjectTable;
+    use iota::linked_table::LinkedTable;
+    use iota::table_vec::TableVec;
+    use iota::vec_map::VecMap;
+    use iota::vec_set::VecSet;
 
 
 
@@ -49,70 +50,70 @@ module a::test {
     }
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }
 }
 
-module sui::bag {
-    use sui::object::UID;
+module iota::bag {
+    use iota::object::UID;
 
     struct Bag has key, store {
         id: UID
     }
 }
 
-module sui::object_bag {
-    use sui::object::UID;
+module iota::object_bag {
+    use iota::object::UID;
 
     struct ObjectBag has key, store {
         id: UID
     }
 }
 
-module sui::table {
-    use sui::object::UID;
+module iota::table {
+    use iota::object::UID;
 
     struct Table<phantom K: copy + drop + store, phantom V: store> has key, store {
         id: UID
     }
 }
 
-module sui::object_table {
-    use sui::object::UID;
+module iota::object_table {
+    use iota::object::UID;
 
     struct ObjectTable<phantom K: copy + drop + store, phantom V: key + store> has key, store {
         id: UID
     }
 }
 
-module sui::linked_table {
-    use sui::object::UID;
+module iota::linked_table {
+    use iota::object::UID;
 
     struct LinkedTable<phantom K: copy + drop + store, phantom V: store> has key, store {
         id: UID
     }
 }
 
-module sui::table_vec {
-    use sui::object::UID;
+module iota::table_vec {
+    use iota::object::UID;
 
     struct TableVec<phantom Element: store> has key, store {
         id: UID
     }
 }
 
-module sui::vec_map {
-    use sui::object::UID;
+module iota::vec_map {
+    use iota::object::UID;
 
     struct VecMap<phantom K: copy, phantom V> has key, store {
         id: UID
     }
 }
 
-module sui::vec_set {
-    use sui::object::UID;
+module iota::vec_set {
+    use iota::object::UID;
 
     struct VecSet<phantom K: copy + drop> has key, store {
         id: UID

@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::client_commands::SuiClientCommandResult::PTB;
+use crate::client_commands::IotaClientCommandResult::PTB;
 use crate::client_ptb::ptb::Summary;
 use crate::displays::Pretty;
 use std::fmt::{Display, Formatter};

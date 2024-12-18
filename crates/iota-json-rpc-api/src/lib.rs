@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
@@ -101,11 +102,11 @@ pub struct JsonRpcMetrics {
     pub query_events_result_size: Histogram,
     pub query_events_result_size_total: IntCounter,
 
-    pub get_stake_sui_result_size: Histogram,
-    pub get_stake_sui_result_size_total: IntCounter,
+    pub get_stake_iota_result_size: Histogram,
+    pub get_stake_iota_result_size_total: IntCounter,
 
-    pub get_stake_sui_latency: Histogram,
-    pub get_delegated_sui_latency: Histogram,
+    pub get_stake_iota_latency: Histogram,
+    pub get_delegated_iota_latency: Histogram,
 
     pub orchestrator_latency_ms: Histogram,
     pub post_orchestrator_latency_ms: Histogram,
@@ -117,14 +118,14 @@ impl JsonRpcMetrics {
             get_objects_limit: register_histogram_with_registry!(
                 "json_rpc_get_objects_limit",
                 "The input limit for multi_get_objects, after applying the cap",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             get_objects_result_size: register_histogram_with_registry!(
                 "json_rpc_get_objects_result_size",
                 "The return size for multi_get_objects",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -137,14 +138,14 @@ impl JsonRpcMetrics {
             get_tx_blocks_limit: register_histogram_with_registry!(
                 "json_rpc_get_tx_blocks_limit",
                 "The input limit for get_tx_blocks, after applying the cap",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             get_tx_blocks_result_size: register_histogram_with_registry!(
                 "json_rpc_get_tx_blocks_result_size",
                 "The return size for get_tx_blocks",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -157,14 +158,14 @@ impl JsonRpcMetrics {
             get_checkpoints_limit: register_histogram_with_registry!(
                 "json_rpc_get_checkpoints_limit",
                 "The input limit for get_checkpoints, after applying the cap",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             get_checkpoints_result_size: register_histogram_with_registry!(
                 "json_rpc_get_checkpoints_result_size",
                 "The return size for get_checkpoints",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -177,14 +178,14 @@ impl JsonRpcMetrics {
             get_owned_objects_limit: register_histogram_with_registry!(
                 "json_rpc_get_owned_objects_limit",
                 "The input limit for get_owned_objects, after applying the cap",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             get_owned_objects_result_size: register_histogram_with_registry!(
                 "json_rpc_get_owned_objects_result_size",
                 "The return size for get_owned_objects",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -197,14 +198,14 @@ impl JsonRpcMetrics {
             get_coins_limit: register_histogram_with_registry!(
                 "json_rpc_get_coins_limit",
                 "The input limit for get_coins, after applying the cap",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             get_coins_result_size: register_histogram_with_registry!(
                 "json_rpc_get_coins_result_size",
                 "The return size for get_coins",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -217,14 +218,14 @@ impl JsonRpcMetrics {
             get_dynamic_fields_limit: register_histogram_with_registry!(
                 "json_rpc_get_dynamic_fields_limit",
                 "The input limit for get_dynamic_fields, after applying the cap",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             get_dynamic_fields_result_size: register_histogram_with_registry!(
                 "json_rpc_get_dynamic_fields_result_size",
                 "The return size for get_dynamic_fields",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -237,14 +238,14 @@ impl JsonRpcMetrics {
             query_tx_blocks_limit: register_histogram_with_registry!(
                 "json_rpc_query_tx_blocks_limit",
                 "The input limit for query_tx_blocks, after applying the cap",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             query_tx_blocks_result_size: register_histogram_with_registry!(
                 "json_rpc_query_tx_blocks_result_size",
                 "The return size for query_tx_blocks",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -257,14 +258,14 @@ impl JsonRpcMetrics {
             query_events_limit: register_histogram_with_registry!(
                 "json_rpc_query_events_limit",
                 "The input limit for query_events, after applying the cap",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             query_events_result_size: register_histogram_with_registry!(
                 "json_rpc_query_events_result_size",
                 "The return size for query_events",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
@@ -274,44 +275,44 @@ impl JsonRpcMetrics {
                 registry
             )
             .unwrap(),
-            get_stake_sui_result_size: register_histogram_with_registry!(
-                "json_rpc_get_stake_sui_result_size",
-                "The return size for get_stake_sui",
-                mysten_metrics::COUNT_BUCKETS.to_vec(),
+            get_stake_iota_result_size: register_histogram_with_registry!(
+                "json_rpc_get_stake_iota_result_size",
+                "The return size for get_stake_iota",
+                iota_metrics::COUNT_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
-            get_stake_sui_result_size_total: register_int_counter_with_registry!(
-                "json_rpc_get_stake_sui_result_size_total",
-                "The total return size for get_stake_sui",
+            get_stake_iota_result_size_total: register_int_counter_with_registry!(
+                "json_rpc_get_stake_iota_result_size_total",
+                "The total return size for get_stake_iota",
                 registry
             )
             .unwrap(),
-            get_stake_sui_latency: register_histogram_with_registry!(
-                "get_stake_sui_latency",
-                "The latency of get stake sui, in ms",
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+            get_stake_iota_latency: register_histogram_with_registry!(
+                "get_stake_iota_latency",
+                "The latency of get stake iota, in ms",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
-            get_delegated_sui_latency: register_histogram_with_registry!(
-                "get_delegated_sui_latency",
-                "The latency of get delegated sui, in ms",
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+            get_delegated_iota_latency: register_histogram_with_registry!(
+                "get_delegated_iota_latency",
+                "The latency of get delegated iota, in ms",
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             orchestrator_latency_ms: register_histogram_with_registry!(
                 "json_rpc_orchestrator_latency",
                 "The latency of submitting transaction via transaction orchestrator, in ms",
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),
             post_orchestrator_latency_ms: register_histogram_with_registry!(
                 "json_rpc_post_orchestrator_latency",
                 "The latency of response processing after transaction orchestrator, in ms",
-                mysten_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
+                iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
             .unwrap(),

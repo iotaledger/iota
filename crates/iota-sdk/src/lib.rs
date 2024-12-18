@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The Sui Rust SDK
+//! The Iota Rust SDK
 //!
 //! It aims at providing a similar SDK functionality like the one existing for
-//! [TypeScript](https://github.com/MystenLabs/sui/tree/main/sdk/typescript/).
-//! Sui Rust SDK builds on top of the [JSON RPC API](https://docs.sui.io/sui-jsonrpc)
-//! and therefore many of the return types are the ones specified in [sui_types].
+//! [TypeScript](https://github.com/iotaledger/iota/tree/main/sdk/typescript/).
+//! Iota Rust SDK builds on top of the [JSON RPC API](https://docs.iota.org/iota-jsonrpc)
+//! and therefore many of the return types are the ones specified in [iota_types].
 //!
 //! The API is split in several parts corresponding to different functionalities
 //! as following:
@@ -17,49 +18,49 @@
 //!     block and submit it to the fullnode(s)
 //! * [ReadApi] - provides functions for retrieving data about different
 //!     objects and transactions
-//! * <a href="../sui_transaction_builder/struct.TransactionBuilder.html" title="struct sui_transaction_builder::TransactionBuilder">TransactionBuilder</a> - provides functions for building transactions
+//! * <a href="../iota_transaction_builder/struct.TransactionBuilder.html" title="struct iota_transaction_builder::TransactionBuilder">TransactionBuilder</a> - provides functions for building transactions
 //!
 //! # Usage
-//! The main way to interact with the API is through the [SuiClientBuilder],
-//! which returns a [SuiClient] object from which the user can access the
+//! The main way to interact with the API is through the [IotaClientBuilder],
+//! which returns a [IotaClient] object from which the user can access the
 //! various APIs.
 //!
 //! ## Getting Started
-//! Add the Rust SDK to the project by running `cargo add sui-sdk` in the root
+//! Add the Rust SDK to the project by running `cargo add iota-sdk` in the root
 //! folder of your Rust project.
 //!
-//! The main building block for the Sui Rust SDK is the [SuiClientBuilder],
-//! which provides a simple and straightforward way of connecting to a Sui
+//! The main building block for the Iota Rust SDK is the [IotaClientBuilder],
+//! which provides a simple and straightforward way of connecting to a Iota
 //! network and having access to the different available APIs.
 //!
-//! A simple example that connects to a running Sui local network,
-//! the Sui devnet, and the Sui testnet is shown below.
+//! A simple example that connects to a running Iota local network,
+//! the Iota devnet, and the Iota testnet is shown below.
 //! To successfully run this program, make sure to spin up a local
 //! network with a local validator, a fullnode, and a faucet server
-//! (see [here](https://github.com/stefan-mysten/sui/tree/rust_sdk_api_examples/crates/sui-sdk/examples#preqrequisites) for more information).
+//! (see [here](https://github.com/iotaledger/iota/tree/rust_sdk_api_examples/crates/iota-sdk/examples#preqrequisites) for more information).
 //!
 //! ```rust,no_run
-//! use sui_sdk::SuiClientBuilder;
+//! use iota_sdk::IotaClientBuilder;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), anyhow::Error> {
 //!
-//!     let sui = SuiClientBuilder::default()
-//!         .build("http://127.0.0.1:9000") // provide the Sui network URL
+//!     let iota = IotaClientBuilder::default()
+//!         .build("http://127.0.0.1:9000") // provide the Iota network URL
 //!         .await?;
-//!     println!("Sui local network version: {:?}", sui.api_version());
+//!     println!("Iota local network version: {:?}", iota.api_version());
 //!
-//!     // local Sui network, same result as above except using the dedicated function
-//!     let sui_local = SuiClientBuilder::default().build_localnet().await?;
-//!     println!("Sui local network version: {:?}", sui_local.api_version());
+//!     // local Iota network, same result as above except using the dedicated function
+//!     let iota_local = IotaClientBuilder::default().build_localnet().await?;
+//!     println!("Iota local network version: {:?}", iota_local.api_version());
 //!
-//!     // Sui devnet running at `https://fullnode.devnet.io:443`
-//!     let sui_devnet = SuiClientBuilder::default().build_devnet().await?;
-//!     println!("Sui devnet version: {:?}", sui_devnet.api_version());
+//!     // Iota devnet running at `https://fullnode.devnet.io:443`
+//!     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
+//!     println!("Iota devnet version: {:?}", iota_devnet.api_version());
 //!
-//!     // Sui testnet running at `https://testnet.devnet.io:443`
-//!     let sui_testnet = SuiClientBuilder::default().build_testnet().await?;
-//!     println!("Sui testnet version: {:?}", sui_testnet.api_version());
+//!     // Iota testnet running at `https://testnet.devnet.io:443`
+//!     let iota_testnet = IotaClientBuilder::default().build_testnet().await?;
+//!     println!("Iota testnet version: {:?}", iota_testnet.api_version());
 //!     Ok(())
 //!
 //! }
@@ -68,7 +69,7 @@
 //! ## Examples
 //!
 //! For detailed examples, please check the APIs docs and the examples folder
-//! in the [main repository](https://github.com/MystenLabs/sui/tree/main/crates/sui-sdk/examples).
+//! in the [main repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -84,36 +85,36 @@ use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use serde_json::Value;
 
 use move_core_types::language_storage::StructTag;
-pub use sui_json as json;
-use sui_json_rpc_api::{
+pub use iota_json as json;
+use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
-pub use sui_json_rpc_types as rpc_types;
-use sui_json_rpc_types::{
-    ObjectsPage, SuiObjectDataFilter, SuiObjectDataOptions, SuiObjectResponse,
-    SuiObjectResponseQuery,
+pub use iota_json_rpc_types as rpc_types;
+use iota_json_rpc_types::{
+    ObjectsPage, IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse,
+    IotaObjectResponseQuery,
 };
-use sui_transaction_builder::{DataReader, TransactionBuilder};
-pub use sui_types as types;
-use sui_types::base_types::{ObjectID, ObjectInfo, SuiAddress};
+use iota_transaction_builder::{DataReader, TransactionBuilder};
+pub use iota_types as types;
+use iota_types::base_types::{ObjectID, ObjectInfo, IotaAddress};
 
 use crate::apis::{CoinReadApi, EventApi, GovernanceApi, QuorumDriverApi, ReadApi};
-use crate::error::{Error, SuiRpcResult};
+use crate::error::{Error, IotaRpcResult};
 
 pub mod apis;
 pub mod error;
 pub mod json_rpc_error;
-pub mod sui_client_config;
+pub mod iota_client_config;
 pub mod wallet_context;
 
-pub const SUI_COIN_TYPE: &str = "0x2::sui::SUI";
-pub const SUI_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
-pub const SUI_LOCAL_NETWORK_URL_0: &str = "http://0.0.0.0:9000";
-pub const SUI_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:5003/gas";
-pub const SUI_DEVNET_URL: &str = "https://fullnode.devnet.sui.io:443";
-pub const SUI_TESTNET_URL: &str = "https://fullnode.testnet.sui.io:443";
+pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
+pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
+pub const IOTA_LOCAL_NETWORK_URL_0: &str = "http://0.0.0.0:9000";
+pub const IOTA_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:5003/gas";
+pub const IOTA_DEVNET_URL: &str = "https://fullnode.devnet.iota.io:443";
+pub const IOTA_TESTNET_URL: &str = "https://fullnode.testnet.iota.io:443";
 
-/// A Sui client builder for connecting to the Sui network
+/// A Iota client builder for connecting to the Iota network
 ///
 /// By default the `maximum concurrent requests` is set to 256 and
 /// the `request timeout` is set to 60 seconds. These can be adjusted using the
@@ -125,18 +126,18 @@ pub const SUI_TESTNET_URL: &str = "https://fullnode.testnet.sui.io:443";
 /// # Examples
 ///
 /// ```rust,no_run
-/// use sui_sdk::SuiClientBuilder;
+/// use iota_sdk::IotaClientBuilder;
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {
-///     let sui = SuiClientBuilder::default()
+///     let iota = IotaClientBuilder::default()
 ///         .build("http://127.0.0.1:9000")
 ///         .await?;
 ///
-///     println!("Sui local network version: {:?}", sui.api_version());
+///     println!("Iota local network version: {:?}", iota.api_version());
 ///     Ok(())
 /// }
 /// ```
-pub struct SuiClientBuilder {
+pub struct IotaClientBuilder {
     request_timeout: Duration,
     max_concurrent_requests: usize,
     ws_url: Option<String>,
@@ -144,7 +145,7 @@ pub struct SuiClientBuilder {
     basic_auth: Option<(String, String)>,
 }
 
-impl Default for SuiClientBuilder {
+impl Default for IotaClientBuilder {
     fn default() -> Self {
         Self {
             request_timeout: Duration::from_secs(60),
@@ -156,7 +157,7 @@ impl Default for SuiClientBuilder {
     }
 }
 
-impl SuiClientBuilder {
+impl IotaClientBuilder {
     /// Set the request timeout to the specified duration
     pub fn request_timeout(mut self, request_timeout: Duration) -> Self {
         self.request_timeout = request_timeout;
@@ -169,7 +170,7 @@ impl SuiClientBuilder {
         self
     }
 
-    /// Set the WebSocket URL for the Sui network
+    /// Set the WebSocket URL for the Iota network
     pub fn ws_url(mut self, url: impl AsRef<str>) -> Self {
         self.ws_url = Some(url.as_ref().to_string());
         self
@@ -187,24 +188,24 @@ impl SuiClientBuilder {
         self
     }
 
-    /// Returns a [SuiClient] object connected to the Sui network running at the URI provided.
+    /// Returns a [IotaClient] object connected to the Iota network running at the URI provided.
     ///
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use sui_sdk::SuiClientBuilder;
+    /// use iota_sdk::IotaClientBuilder;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let sui = SuiClientBuilder::default()
+    ///     let iota = IotaClientBuilder::default()
     ///         .build("http://127.0.0.1:9000")
     ///         .await?;
     ///
-    ///     println!("Sui local version: {:?}", sui.api_version());
+    ///     println!("Iota local version: {:?}", iota.api_version());
     ///     Ok(())
     /// }
     /// ```
-    pub async fn build(self, http: impl AsRef<str>) -> SuiRpcResult<SuiClient> {
+    pub async fn build(self, http: impl AsRef<str>) -> IotaRpcResult<IotaClient> {
         let client_version = env!("CARGO_PKG_VERSION");
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -262,7 +263,7 @@ impl SuiClientBuilder {
         let coin_read_api = CoinReadApi::new(api.clone());
         let governance_api = GovernanceApi::new(api.clone());
 
-        Ok(SuiClient {
+        Ok(IotaClient {
             api,
             transaction_builder,
             read_api,
@@ -273,8 +274,8 @@ impl SuiClientBuilder {
         })
     }
 
-    /// Returns a [SuiClient] object that is ready to interact with the local
-    /// development network (by default it expects the Sui network to be
+    /// Returns a [IotaClient] object that is ready to interact with the local
+    /// development network (by default it expects the Iota network to be
     /// up and running at `127.0.0.1:9000`).
     ///
     /// For connecting to a custom URI, use the `build` function instead.
@@ -282,66 +283,66 @@ impl SuiClientBuilder {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use sui_sdk::SuiClientBuilder;
+    /// use iota_sdk::IotaClientBuilder;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let sui = SuiClientBuilder::default()
+    ///     let iota = IotaClientBuilder::default()
     ///         .build_localnet()
     ///         .await?;
     ///
-    ///     println!("Sui local version: {:?}", sui.api_version());
+    ///     println!("Iota local version: {:?}", iota.api_version());
     ///     Ok(())
     /// }
     /// ```
-    pub async fn build_localnet(self) -> SuiRpcResult<SuiClient> {
-        self.build(SUI_LOCAL_NETWORK_URL).await
+    pub async fn build_localnet(self) -> IotaRpcResult<IotaClient> {
+        self.build(IOTA_LOCAL_NETWORK_URL).await
     }
 
-    /// Returns a [SuiClient] object that is ready to interact with the Sui devnet.
+    /// Returns a [IotaClient] object that is ready to interact with the Iota devnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead..
     ///
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use sui_sdk::SuiClientBuilder;
+    /// use iota_sdk::IotaClientBuilder;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let sui = SuiClientBuilder::default()
+    ///     let iota = IotaClientBuilder::default()
     ///         .build_devnet()
     ///         .await?;
     ///
-    ///     println!("{:?}", sui.api_version());
+    ///     println!("{:?}", iota.api_version());
     ///     Ok(())
     /// }
     /// ```
-    pub async fn build_devnet(self) -> SuiRpcResult<SuiClient> {
-        self.build(SUI_DEVNET_URL).await
+    pub async fn build_devnet(self) -> IotaRpcResult<IotaClient> {
+        self.build(IOTA_DEVNET_URL).await
     }
 
-    /// Returns a [SuiClient] object that is ready to interact with the Sui testnet.
+    /// Returns a [IotaClient] object that is ready to interact with the Iota testnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
     ///
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use sui_sdk::SuiClientBuilder;
+    /// use iota_sdk::IotaClientBuilder;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let sui = SuiClientBuilder::default()
+    ///     let iota = IotaClientBuilder::default()
     ///         .build_testnet()
     ///         .await?;
     ///
-    ///     println!("{:?}", sui.api_version());
+    ///     println!("{:?}", iota.api_version());
     ///     Ok(())
     /// }
     /// ```
-    pub async fn build_testnet(self) -> SuiRpcResult<SuiClient> {
-        self.build(SUI_TESTNET_URL).await
+    pub async fn build_testnet(self) -> IotaRpcResult<IotaClient> {
+        self.build(IOTA_TESTNET_URL).await
     }
 
     /// Return the server information as a `ServerInfo` structure.
@@ -393,31 +394,31 @@ impl SuiClientBuilder {
     }
 }
 
-/// SuiClient is the basic type that provides all the necessary abstractions for interacting with the Sui network.
+/// IotaClient is the basic type that provides all the necessary abstractions for interacting with the Iota network.
 ///
 /// # Usage
 ///
-/// Use [SuiClientBuilder] to build a [SuiClient].
+/// Use [IotaClientBuilder] to build a [IotaClient].
 ///
 /// # Examples
 ///
 /// ```rust,no_run
-/// use sui_sdk::types::base_types::SuiAddress;
-/// use sui_sdk::SuiClientBuilder;
+/// use iota_sdk::types::base_types::IotaAddress;
+/// use iota_sdk::IotaClientBuilder;
 /// use std::str::FromStr;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {
-///     let sui = SuiClientBuilder::default()
+///     let iota = IotaClientBuilder::default()
 ///      .build("http://127.0.0.1:9000")
 ///      .await?;
 ///
-///     println!("{:?}", sui.available_rpc_methods());
-///     println!("{:?}", sui.available_subscriptions());
-///     println!("{:?}", sui.api_version());
+///     println!("{:?}", iota.available_rpc_methods());
+///     println!("{:?}", iota.available_subscriptions());
+///     println!("{:?}", iota.api_version());
 ///
-///     let address = SuiAddress::from_str("0x0000....0000")?;
-///     let owned_objects = sui
+///     let address = IotaAddress::from_str("0x0000....0000")?;
+///     let owned_objects = iota
 ///        .read_api()
 ///        .get_owned_objects(address, None, None, None)
 ///        .await?;
@@ -428,7 +429,7 @@ impl SuiClientBuilder {
 /// }
 /// ```
 #[derive(Clone)]
-pub struct SuiClient {
+pub struct IotaClient {
     api: Arc<RpcClient>,
     transaction_builder: TransactionBuilder,
     read_api: Arc<ReadApi>,
@@ -461,7 +462,7 @@ struct ServerInfo {
     version: String,
 }
 
-impl SuiClient {
+impl IotaClient {
     /// Returns a list of RPC methods supported by the node the client is connected to.
     pub fn available_rpc_methods(&self) -> &Vec<String> {
         &self.api.info.rpc_methods
@@ -481,7 +482,7 @@ impl SuiClient {
     }
 
     /// Verifies if the API version matches the server version and returns an error if they do not match.
-    pub fn check_api_version(&self) -> SuiRpcResult<()> {
+    pub fn check_api_version(&self) -> IotaRpcResult<()> {
         let server_version = self.api_version();
         let client_version = env!("CARGO_PKG_VERSION");
         if server_version != client_version {
@@ -538,14 +539,14 @@ impl SuiClient {
 impl DataReader for ReadApi {
     async fn get_owned_objects(
         &self,
-        address: SuiAddress,
+        address: IotaAddress,
         object_type: StructTag,
     ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
         let mut result = vec![];
-        let query = Some(SuiObjectResponseQuery {
-            filter: Some(SuiObjectDataFilter::StructType(object_type)),
+        let query = Some(IotaObjectResponseQuery {
+            filter: Some(IotaObjectDataFilter::StructType(object_type)),
             options: Some(
-                SuiObjectDataOptions::new()
+                IotaObjectDataOptions::new()
                     .with_previous_transaction()
                     .with_type()
                     .with_owner(),
@@ -577,8 +578,8 @@ impl DataReader for ReadApi {
     async fn get_object_with_options(
         &self,
         object_id: ObjectID,
-        options: SuiObjectDataOptions,
-    ) -> Result<SuiObjectResponse, anyhow::Error> {
+        options: IotaObjectDataOptions,
+    ) -> Result<IotaObjectResponse, anyhow::Error> {
         Ok(self.get_object_with_options(object_id, options).await?)
     }
 

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains the public APIs supported by the bytecode verifier.
 
 use move_binary_format::file_format::CompiledModule;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{error::ExecutionError, move_package::FnInfoMap};
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{error::ExecutionError, move_package::FnInfoMap};
 
 use crate::{
     entry_points_verifier, global_storage_access_verifier, id_leak_verifier,
@@ -15,7 +16,7 @@ use move_bytecode_verifier_meter::dummy::DummyMeter;
 use move_bytecode_verifier_meter::Meter;
 
 /// Helper for a "canonical" verification of a module.
-pub fn sui_verify_module_metered(
+pub fn iota_verify_module_metered(
     config: &ProtocolConfig,
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
@@ -29,20 +30,20 @@ pub fn sui_verify_module_metered(
     one_time_witness_verifier::verify_module(module, fn_info_map)
 }
 
-/// Runs the Sui verifier and checks if the error counts as a Sui verifier timeout
+/// Runs the Iota verifier and checks if the error counts as a Iota verifier timeout
 /// NOTE: this function only check if the verifier error is a timeout
 /// All other errors are ignored
-pub fn sui_verify_module_metered_check_timeout_only(
+pub fn iota_verify_module_metered_check_timeout_only(
     config: &ProtocolConfig,
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
     meter: &mut (impl Meter + ?Sized),
 ) -> Result<(), ExecutionError> {
-    // Checks if the error counts as a Sui verifier timeout
-    if let Err(error) = sui_verify_module_metered(config, module, fn_info_map, meter) {
+    // Checks if the error counts as a Iota verifier timeout
+    if let Err(error) = iota_verify_module_metered(config, module, fn_info_map, meter) {
         if matches!(
             error.kind(),
-            sui_types::execution_status::ExecutionFailureStatus::SuiMoveVerificationTimedout
+            iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimedout
         ) {
             return Err(error);
         }
@@ -51,17 +52,17 @@ pub fn sui_verify_module_metered_check_timeout_only(
     Ok(())
 }
 
-pub fn sui_verify_module_unmetered(
+pub fn iota_verify_module_unmetered(
     config: &ProtocolConfig,
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
 ) -> Result<(), ExecutionError> {
-    sui_verify_module_metered(config, module, fn_info_map, &mut DummyMeter).inspect_err(|err| {
+    iota_verify_module_metered(config, module, fn_info_map, &mut DummyMeter).inspect_err(|err| {
         // We must never see timeout error in execution
         debug_assert!(
             !matches!(
                 err.kind(),
-                sui_types::execution_status::ExecutionFailureStatus::SuiMoveVerificationTimedout
+                iota_types::execution_status::ExecutionFailureStatus::IotaMoveVerificationTimedout
             ),
             "Unexpected timeout error in execution"
         );

@@ -1,4 +1,5 @@
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, fmt::Display, sync::Arc};
@@ -13,7 +14,7 @@ use crate::{
     parser::ast::{ConstantName, DatatypeName, Field, FunctionName, VariantName},
     shared::unique_map::UniqueMap,
     shared::*,
-    sui_mode::info::SuiInfo,
+    iota_mode::info::IotaInfo,
     typing::ast::{self as T},
     FullyCompiledProgram,
 };
@@ -54,7 +55,7 @@ pub struct ModuleInfo {
 #[derive(Debug, Clone)]
 pub struct ProgramInfo<const AFTER_TYPING: bool> {
     pub modules: UniqueMap<ModuleIdent, ModuleInfo>,
-    pub sui_flavor_info: Option<SuiInfo>,
+    pub iota_flavor_info: Option<IotaInfo>,
 }
 pub type NamingProgramInfo = ProgramInfo<false>;
 pub type TypingProgramInfo = ProgramInfo<true>;
@@ -120,7 +121,7 @@ macro_rules! program_info {
         }
         ProgramInfo {
             modules,
-            sui_flavor_info: None,
+            iota_flavor_info: None,
         }
     }};
 }
@@ -143,10 +144,10 @@ impl TypingProgramInfo {
         // but this feels roughly equivalent
         if env
             .package_configs()
-            .any(|(_, config)| config.flavor == Flavor::Sui)
+            .any(|(_, config)| config.flavor == Flavor::Iota)
         {
-            let sui_flavor_info = SuiInfo::new(pre_compiled_lib, modules, &info);
-            info.sui_flavor_info = Some(sui_flavor_info);
+            let iota_flavor_info = IotaInfo::new(pre_compiled_lib, modules, &info);
+            info.iota_flavor_info = Some(iota_flavor_info);
         };
         info
     }

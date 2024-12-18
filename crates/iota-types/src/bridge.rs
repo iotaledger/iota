@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::ObjectID;
 use crate::base_types::SequenceNumber;
 use crate::collection_types::LinkedTableNode;
 use crate::dynamic_field::{get_dynamic_field_from_store, Field};
-use crate::error::SuiResult;
+use crate::error::IotaResult;
 use crate::object::Owner;
 use crate::storage::ObjectStore;
-use crate::sui_serde::BigInt;
-use crate::sui_serde::Readable;
+use crate::iota_serde::BigInt;
+use crate::iota_serde::Readable;
 use crate::versioned::Versioned;
-use crate::SUI_BRIDGE_OBJECT_ID;
+use crate::IOTA_BRIDGE_OBJECT_ID;
 use crate::{
-    base_types::SuiAddress,
+    base_types::IotaAddress,
     collection_types::{Bag, LinkedTable, VecMap},
-    error::SuiError,
+    error::IotaError,
     id::UID,
 };
 use enum_dispatch::enum_dispatch;
@@ -42,8 +43,8 @@ pub const BRIDGE_CREATE_FUNCTION_NAME: &IdentStr = ident_str!("create");
 pub const BRIDGE_INIT_COMMITTEE_FUNCTION_NAME: &IdentStr = ident_str!("init_bridge_committee");
 pub const BRIDGE_REGISTER_FOREIGN_TOKEN_FUNCTION_NAME: &IdentStr =
     ident_str!("register_foreign_token");
-pub const BRIDGE_CREATE_ADD_TOKEN_ON_SUI_MESSAGE_FUNCTION_NAME: &IdentStr =
-    ident_str!("create_add_tokens_on_sui_message");
+pub const BRIDGE_CREATE_ADD_TOKEN_ON_IOTA_MESSAGE_FUNCTION_NAME: &IdentStr =
+    ident_str!("create_add_tokens_on_iota_message");
 pub const BRIDGE_EXECUTE_SYSTEM_MESSAGE_FUNCTION_NAME: &IdentStr =
     ident_str!("execute_system_message");
 
@@ -60,11 +61,11 @@ pub const APPROVAL_THRESHOLD_COMMITTEE_BLOCKLIST: u64 = 5001;
 pub const APPROVAL_THRESHOLD_LIMIT_UPDATE: u64 = 5001;
 pub const APPROVAL_THRESHOLD_ASSET_PRICE_UPDATE: u64 = 5001;
 pub const APPROVAL_THRESHOLD_EVM_CONTRACT_UPGRADE: u64 = 5001;
-pub const APPROVAL_THRESHOLD_ADD_TOKENS_ON_SUI: u64 = 5001;
+pub const APPROVAL_THRESHOLD_ADD_TOKENS_ON_IOTA: u64 = 5001;
 pub const APPROVAL_THRESHOLD_ADD_TOKENS_ON_EVM: u64 = 5001;
 
 // const for initial token ids for convenience
-pub const TOKEN_ID_SUI: u8 = 0;
+pub const TOKEN_ID_IOTA: u8 = 0;
 pub const TOKEN_ID_BTC: u8 = 1;
 pub const TOKEN_ID_ETH: u8 = 2;
 pub const TOKEN_ID_USDC: u8 = 3;
@@ -85,9 +86,9 @@ pub const TOKEN_ID_USDT: u8 = 4;
 )]
 #[repr(u8)]
 pub enum BridgeChainId {
-    SuiMainnet = 0,
-    SuiTestnet = 1,
-    SuiCustom = 2,
+    IotaMainnet = 0,
+    IotaTestnet = 1,
+    IotaCustom = 2,
 
     EthMainnet = 10,
     EthSepolia = 11,
@@ -95,19 +96,19 @@ pub enum BridgeChainId {
 }
 
 impl BridgeChainId {
-    pub fn is_sui_chain(&self) -> bool {
+    pub fn is_iota_chain(&self) -> bool {
         matches!(
             self,
-            BridgeChainId::SuiMainnet | BridgeChainId::SuiTestnet | BridgeChainId::SuiCustom
+            BridgeChainId::IotaMainnet | BridgeChainId::IotaTestnet | BridgeChainId::IotaCustom
         )
     }
 }
 
 pub fn get_bridge_obj_initial_shared_version(
     object_store: &dyn ObjectStore,
-) -> SuiResult<Option<SequenceNumber>> {
+) -> IotaResult<Option<SequenceNumber>> {
     Ok(object_store
-        .get_object(&SUI_BRIDGE_OBJECT_ID)
+        .get_object(&IOTA_BRIDGE_OBJECT_ID)
         .map(|obj| match obj.owner {
             Owner::Shared {
                 initial_shared_version,
@@ -126,7 +127,7 @@ pub enum Bridge {
     V1(BridgeInnerV1),
 }
 
-/// Rust version of the Move sui::bridge::Bridge type
+/// Rust version of the Move iota::bridge::Bridge type
 /// This repreents the object with 0x9 ID.
 /// In Rust, this type should be rarely used since it's just a thin
 /// wrapper used to access the inner object.
@@ -149,7 +150,7 @@ pub trait BridgeTrait {
     fn treasury(&self) -> &MoveTypeBridgeTreasury;
     fn bridge_records(&self) -> &LinkedTable<MoveTypeBridgeMessageKey>;
     fn frozen(&self) -> bool;
-    fn try_into_bridge_summary(self) -> SuiResult<BridgeSummary>;
+    fn try_into_bridge_summary(self) -> IotaResult<BridgeSummary>;
 }
 
 #[serde_as]
@@ -195,20 +196,20 @@ impl Default for BridgeSummary {
     }
 }
 
-pub fn get_bridge_wrapper(object_store: &dyn ObjectStore) -> Result<BridgeWrapper, SuiError> {
+pub fn get_bridge_wrapper(object_store: &dyn ObjectStore) -> Result<BridgeWrapper, IotaError> {
     let wrapper = object_store
-        .get_object(&SUI_BRIDGE_OBJECT_ID)
+        .get_object(&IOTA_BRIDGE_OBJECT_ID)
         // Don't panic here on None because object_store is a generic store.
-        .ok_or_else(|| SuiError::SuiBridgeReadError("BridgeWrapper object not found".to_owned()))?;
+        .ok_or_else(|| IotaError::IotaBridgeReadError("BridgeWrapper object not found".to_owned()))?;
     let move_object = wrapper.data.try_as_move().ok_or_else(|| {
-        SuiError::SuiBridgeReadError("BridgeWrapper object must be a Move object".to_owned())
+        IotaError::IotaBridgeReadError("BridgeWrapper object must be a Move object".to_owned())
     })?;
     let result = bcs::from_bytes::<BridgeWrapper>(move_object.contents())
-        .map_err(|err| SuiError::SuiBridgeReadError(err.to_string()))?;
+        .map_err(|err| IotaError::IotaBridgeReadError(err.to_string()))?;
     Ok(result)
 }
 
-pub fn get_bridge(object_store: &dyn ObjectStore) -> Result<Bridge, SuiError> {
+pub fn get_bridge(object_store: &dyn ObjectStore) -> Result<Bridge, IotaError> {
     let wrapper = get_bridge_wrapper(object_store)?;
     let id = wrapper.version.id.id.bytes;
     let version = wrapper.version.version;
@@ -216,15 +217,15 @@ pub fn get_bridge(object_store: &dyn ObjectStore) -> Result<Bridge, SuiError> {
         1 => {
             let result: BridgeInnerV1 = get_dynamic_field_from_store(object_store, id, &version)
                 .map_err(|err| {
-                    SuiError::SuiBridgeReadError(format!(
+                    IotaError::IotaBridgeReadError(format!(
                         "Failed to load bridge inner object with ID {:?} and version {:?}: {:?}",
                         id, version, err
                     ))
                 })?;
             Ok(Bridge::V1(result))
         }
-        _ => Err(SuiError::SuiBridgeReadError(format!(
-            "Unsupported SuiBridge version: {}",
+        _ => Err(IotaError::IotaBridgeReadError(format!(
+            "Unsupported IotaBridge version: {}",
             version
         ))),
     }
@@ -277,7 +278,7 @@ impl BridgeTrait for BridgeInnerV1 {
         self.frozen
     }
 
-    fn try_into_bridge_summary(self) -> SuiResult<BridgeSummary> {
+    fn try_into_bridge_summary(self) -> IotaResult<BridgeSummary> {
         let transfer_limit = self
             .limiter
             .transfer_limit
@@ -285,18 +286,18 @@ impl BridgeTrait for BridgeInnerV1 {
             .into_iter()
             .map(|e| {
                 let source = BridgeChainId::try_from(e.key.source).map_err(|_e| {
-                    SuiError::GenericBridgeError {
+                    IotaError::GenericBridgeError {
                         error: format!("Unrecognized chain id: {}", e.key.source),
                     }
                 })?;
                 let destination = BridgeChainId::try_from(e.key.destination).map_err(|_e| {
-                    SuiError::GenericBridgeError {
+                    IotaError::GenericBridgeError {
                         error: format!("Unrecognized chain id: {}", e.key.destination),
                     }
                 })?;
                 Ok((source, destination, e.value))
             })
-            .collect::<SuiResult<Vec<_>>>()?;
+            .collect::<IotaResult<Vec<_>>>()?;
         let supported_tokens = self
             .treasury
             .supported_tokens
@@ -318,18 +319,18 @@ impl BridgeTrait for BridgeInnerV1 {
             .into_iter()
             .map(|e| {
                 let source = BridgeChainId::try_from(e.key.source).map_err(|_e| {
-                    SuiError::GenericBridgeError {
+                    IotaError::GenericBridgeError {
                         error: format!("Unrecognized chain id: {}", e.key.source),
                     }
                 })?;
                 let destination = BridgeChainId::try_from(e.key.destination).map_err(|_e| {
-                    SuiError::GenericBridgeError {
+                    IotaError::GenericBridgeError {
                         error: format!("Unrecognized chain id: {}", e.key.destination),
                     }
                 })?;
                 Ok((source, destination, e.value))
             })
-            .collect::<SuiResult<Vec<_>>>()?;
+            .collect::<IotaResult<Vec<_>>>()?;
         let limiter = BridgeLimiterSummary {
             transfer_limit,
             transfer_records,
@@ -396,7 +397,7 @@ pub struct BridgeTokenMetadata {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MoveTypeBridgeCommittee {
     pub members: VecMap<Vec<u8>, MoveTypeCommitteeMember>,
-    pub member_registrations: VecMap<SuiAddress, MoveTypeCommitteeMemberRegistration>,
+    pub member_registrations: VecMap<IotaAddress, MoveTypeCommitteeMemberRegistration>,
     pub last_committee_update_epoch: u64,
 }
 
@@ -405,7 +406,7 @@ pub struct MoveTypeBridgeCommittee {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MoveTypeCommitteeMemberRegistration {
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
     pub bridge_pubkey_bytes: Vec<u8>,
     pub http_rest_url: Vec<u8>,
 }
@@ -415,7 +416,7 @@ pub struct MoveTypeCommitteeMemberRegistration {
 #[serde(rename_all = "camelCase")]
 pub struct BridgeCommitteeSummary {
     pub members: Vec<(Vec<u8>, MoveTypeCommitteeMember)>,
-    pub member_registration: Vec<(SuiAddress, MoveTypeCommitteeMemberRegistration)>,
+    pub member_registration: Vec<(IotaAddress, MoveTypeCommitteeMemberRegistration)>,
     pub last_committee_update_epoch: u64,
 }
 
@@ -440,7 +441,7 @@ pub struct BridgeTreasurySummary {
 #[derive(Debug, Serialize, Deserialize, Clone, JsonSchema, Default, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MoveTypeCommitteeMember {
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
     pub bridge_pubkey_bytes: Vec<u8>,
     pub voting_power: u64,
     pub http_rest_url: Vec<u8>,
@@ -496,10 +497,10 @@ pub struct MoveTypeBridgeRecord {
     pub claimed: bool,
 }
 
-pub fn is_bridge_committee_initiated(object_store: &dyn ObjectStore) -> SuiResult<bool> {
+pub fn is_bridge_committee_initiated(object_store: &dyn ObjectStore) -> IotaResult<bool> {
     match get_bridge(object_store) {
         Ok(bridge) => Ok(!bridge.committee().members.contents.is_empty()),
-        Err(SuiError::SuiBridgeReadError(..)) => Ok(false),
+        Err(IotaError::IotaBridgeReadError(..)) => Ok(false),
         Err(other) => Err(other),
     }
 }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -9,21 +10,21 @@ use crate::server::watermark_task::Watermark;
 use crate::types::base64::Base64;
 use crate::types::dynamic_field::{DynamicField, DynamicFieldName};
 use crate::types::epoch::Epoch;
-use crate::types::sui_address::SuiAddress;
+use crate::types::iota_address::IotaAddress;
 use crate::types::type_filter::ExactTypeFilter;
 use async_graphql::*;
 use im::hashmap::HashMap as ImHashMap;
 use shared_crypto::intent::{
     AppId, Intent, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
 };
-use sui_types::authenticator_state::{ActiveJwk, AuthenticatorStateInner};
-use sui_types::crypto::ToFromBytes;
-use sui_types::dynamic_field::{DynamicFieldType, Field};
-use sui_types::signature::GenericSignature;
-use sui_types::signature::VerifyParams;
-use sui_types::signature_verification::VerifiedDigestCache;
-use sui_types::transaction::TransactionData;
-use sui_types::{TypeTag, SUI_AUTHENTICATOR_STATE_ADDRESS};
+use iota_types::authenticator_state::{ActiveJwk, AuthenticatorStateInner};
+use iota_types::crypto::ToFromBytes;
+use iota_types::dynamic_field::{DynamicFieldType, Field};
+use iota_types::signature::GenericSignature;
+use iota_types::signature::VerifyParams;
+use iota_types::signature_verification::VerifiedDigestCache;
+use iota_types::transaction::TransactionData;
+use iota_types::{TypeTag, IOTA_AUTHENTICATOR_STATE_ADDRESS};
 use tracing::warn;
 
 /// An enum that specifies the intent scope to be used to parse the bytes for signature
@@ -52,7 +53,7 @@ pub(crate) async fn verify_zklogin_signature(
     bytes: Base64,
     signature: Base64,
     intent_scope: ZkLoginIntentScope,
-    author: SuiAddress,
+    author: IotaAddress,
 ) -> Result<ZkLoginVerifyResult, Error> {
     let Watermark { hi_cp, .. } = *ctx.data_unchecked();
 
@@ -81,7 +82,7 @@ pub(crate) async fn verify_zklogin_signature(
     // fetch on-chain JWKs from dynamic field of system object.
     let df = DynamicField::query(
         ctx,
-        SUI_AUTHENTICATOR_STATE_ADDRESS.into(),
+        IOTA_AUTHENTICATOR_STATE_ADDRESS.into(),
         None,
         DynamicFieldName {
             type_: ExactTypeFilter(TypeTag::U64),
@@ -127,7 +128,7 @@ pub(crate) async fn verify_zklogin_signature(
         ZkLoginIntentScope::TransactionData => {
             let tx_data: TransactionData = bcs::from_bytes(&bytes)
                 .map_err(|_| Error::Client("Invalid tx data bytes".to_string()))?;
-            let intent_msg = IntentMessage::new(Intent::sui_transaction(), tx_data.clone());
+            let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
             let sig = GenericSignature::ZkLoginAuthenticator(zklogin_sig);
             match sig.verify_authenticator(
                 &intent_msg,
@@ -152,7 +153,7 @@ pub(crate) async fn verify_zklogin_signature(
                 Intent {
                     scope: IntentScope::PersonalMessage,
                     version: IntentVersion::V0,
-                    app_id: AppId::Sui,
+                    app_id: AppId::Iota,
                 },
                 data,
             );

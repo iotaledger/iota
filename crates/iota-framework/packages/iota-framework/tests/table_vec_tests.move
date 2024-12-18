@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::table_vec_tests {
-    use sui::table_vec;
-    use sui::test_scenario;
+module iota::table_vec_tests {
+    use iota::table_vec;
+    use iota::test_scenario;
 
     const TEST_SENDER_ADDR: address = @0x1;
 
@@ -34,7 +35,7 @@ module sui::table_vec_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::table_vec::ETableNonEmpty)]
+    #[expected_failure(abort_code = iota::table_vec::ETableNonEmpty)]
     fun destroy_non_empty_aborts() {
         let mut scenario = test_scenario::begin(TEST_SENDER_ADDR);
         let table_vec = table_vec::singleton(1, scenario.ctx());
@@ -43,7 +44,7 @@ module sui::table_vec_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::table_vec::EIndexOutOfBound)]
+    #[expected_failure(abort_code = iota::table_vec::EIndexOutOfBound)]
     fun pop_back_empty_aborts() {
         let mut scenario = test_scenario::begin(TEST_SENDER_ADDR);
         let mut table_vec = table_vec::empty<u64>(scenario.ctx());
@@ -53,7 +54,7 @@ module sui::table_vec_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::table_vec::EIndexOutOfBound)]
+    #[expected_failure(abort_code = iota::table_vec::EIndexOutOfBound)]
     fun borrow_out_of_bounds_aborts() {
         let mut scenario = test_scenario::begin(TEST_SENDER_ADDR);
         let table_vec = table_vec::singleton(1, scenario.ctx());
@@ -63,7 +64,7 @@ module sui::table_vec_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::table_vec::EIndexOutOfBound)]
+    #[expected_failure(abort_code = iota::table_vec::EIndexOutOfBound)]
     fun borrow_mut_out_of_bounds_aborts() {
         let mut scenario = test_scenario::begin(TEST_SENDER_ADDR);
         let mut table_vec = table_vec::singleton(1, scenario.ctx());
@@ -73,7 +74,7 @@ module sui::table_vec_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::table_vec::EIndexOutOfBound)]
+    #[expected_failure(abort_code = iota::table_vec::EIndexOutOfBound)]
     fun swap_out_of_bounds_aborts() {
         let mut scenario = test_scenario::begin(TEST_SENDER_ADDR);
         let mut table_vec = table_vec::singleton(1, scenario.ctx());
@@ -93,7 +94,7 @@ module sui::table_vec_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::table_vec::EIndexOutOfBound)]
+    #[expected_failure(abort_code = iota::table_vec::EIndexOutOfBound)]
     fun swap_same_index_out_of_bounds_aborts() {
         let mut scenario = test_scenario::begin(TEST_SENDER_ADDR);
         let mut table_vec = table_vec::singleton(1, scenario.ctx());

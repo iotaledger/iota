@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::upgrade_compatibility::compare_packages;
 use insta::assert_snapshot;
 use move_binary_format::CompiledModule;
 use std::path::PathBuf;
-use sui_move_build::BuildConfig;
-use sui_move_build::CompiledPackage;
-use sui_types::move_package::UpgradePolicy;
+use iota_move_build::BuildConfig;
+use iota_move_build::CompiledPackage;
+use iota_types::move_package::UpgradePolicy;
 
 #[test]
 fn test_all() {

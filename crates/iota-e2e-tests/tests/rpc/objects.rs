@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_macros::sim_test;
-use sui_rpc_api::client::sdk::Client;
-use sui_rpc_api::client::Client as CoreClient;
-use sui_rpc_api::ObjectResponse;
-use sui_sdk_types::types::Object;
+use iota_macros::sim_test;
+use iota_rpc_api::client::sdk::Client;
+use iota_rpc_api::client::Client as CoreClient;
+use iota_rpc_api::ObjectResponse;
+use iota_sdk_types::types::Object;
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -36,7 +37,7 @@ async fn get_object() {
         // Make sure list works with json
         let _object = client
             .get(url)
-            .header(reqwest::header::ACCEPT, sui_rpc_api::rest::APPLICATION_JSON)
+            .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_JSON)
             .send()
             .await
             .unwrap()
@@ -48,7 +49,7 @@ async fn get_object() {
         // wanting binary have migrated to grpc
         let bytes = client
             .get(url)
-            .header(reqwest::header::ACCEPT, sui_rpc_api::rest::APPLICATION_BCS)
+            .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_BCS)
             .send()
             .await
             .unwrap()

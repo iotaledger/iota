@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 
 import { DeepBookClient } from '../src/index.js'; // Adjust import source accordingly
 
@@ -18,13 +19,13 @@ import { DeepBookClient } from '../src/index.js'; // Adjust import source accord
 	const dbClient = new DeepBookClient({
 		address: '0x0',
 		env: env,
-		client: new SuiClient({
+		client: new IotaClient({
 			url: getFullnodeUrl(env),
 		}),
 		balanceManagers: balanceManagers,
 	});
 
-	const assets = ['SUI', 'USDC', 'WUSDT', 'WUSDC', 'BETH', 'DEEP']; // Update assets as needed
+	const assets = ['IOTA', 'USDC', 'WUSDT', 'WUSDC', 'BETH', 'DEEP']; // Update assets as needed
 	const manager = 'MANAGER_1'; // Update the manager accordingly
 	console.log('Manager:', manager);
 	for (const asset of assets) {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::manage_package::resolve_lock_file_path;
@@ -7,13 +8,13 @@ use move_cli::base;
 use move_package::BuildConfig as MoveBuildConfig;
 use serde_json::json;
 use std::{fs, path::Path};
-use sui_move_build::{check_invalid_dependencies, check_unpublished_dependencies, BuildConfig};
+use iota_move_build::{check_invalid_dependencies, check_unpublished_dependencies, BuildConfig};
 
 const LAYOUTS_DIR: &str = "layouts";
 const STRUCT_LAYOUTS_FILENAME: &str = "struct_layouts.yaml";
 
 #[derive(Parser)]
-#[group(id = "sui-move-build")]
+#[group(id = "iota-move-build")]
 pub struct Build {
     /// Include the contents of packages in dependencies that haven't been published (only relevant
     /// when dumping bytecode as base64)

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::progress_store::ExecutorProgress;
@@ -11,16 +12,16 @@ use rand::prelude::StdRng;
 use rand::SeedableRng;
 use std::path::PathBuf;
 use std::time::Duration;
-use sui_protocol_config::ProtocolConfig;
-use sui_storage::blob::{Blob, BlobEncoding};
-use sui_types::crypto::KeypairTraits;
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::gas::GasCostSummary;
-use sui_types::messages_checkpoint::{
+use iota_protocol_config::ProtocolConfig;
+use iota_storage::blob::{Blob, BlobEncoding};
+use iota_types::crypto::KeypairTraits;
+use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::gas::GasCostSummary;
+use iota_types::messages_checkpoint::{
     CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
     SignedCheckpointSummary,
 };
-use sui_types::utils::make_committee_key;
+use iota_types::utils::make_committee_key;
 use tempfile::NamedTempFile;
 use tokio::sync::oneshot;
 

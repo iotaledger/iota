@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{
@@ -6,7 +7,7 @@ use async_graphql::{
     *,
 };
 
-use sui_types::{
+use iota_types::{
     authenticator_state::ActiveJwk as NativeActiveJwk,
     transaction::AuthenticatorStateUpdate as NativeAuthenticatorStateUpdateTransaction,
 };

@@ -1,7 +1,7 @@
 [package]
-name = "sui-default-config"
+name = "iota-default-config"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com"]
+authors = ["IOTA Foundation <build@iota.org"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"

@@ -1,24 +1,25 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::env;
 use std::str::FromStr;
-use sui_config::NodeConfig;
+use iota_config::NodeConfig;
 use tap::TapFallible;
 use tokio::runtime::Runtime;
 use tracing::warn;
 
-pub struct SuiRuntimes {
+pub struct IotaRuntimes {
     // Order in this struct is the order in which runtimes are stopped
     pub json_rpc: Runtime,
-    pub sui_node: Runtime,
+    pub iota_node: Runtime,
     pub metrics: Runtime,
 }
 
-impl SuiRuntimes {
+impl IotaRuntimes {
     pub fn new(_confg: &NodeConfig) -> Self {
-        let sui_node = tokio::runtime::Builder::new_multi_thread()
-            .thread_name("sui-node-runtime")
+        let iota_node = tokio::runtime::Builder::new_multi_thread()
+            .thread_name("iota-node-runtime")
             .enable_all()
             .build()
             .unwrap();
@@ -45,7 +46,7 @@ impl SuiRuntimes {
             .build()
             .unwrap();
         Self {
-            sui_node,
+            iota_node,
             metrics,
             json_rpc,
         }

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::{base64::Base64, epoch::Epoch, uint53::UInt53};
 use async_graphql::*;
-use sui_types::transaction::RandomnessStateUpdate as NativeRandomnessStateUpdate;
+use iota_types::transaction::RandomnessStateUpdate as NativeRandomnessStateUpdate;
 
 #[derive(Clone, Eq, PartialEq)]
 pub(crate) struct RandomnessStateUpdateTransaction {

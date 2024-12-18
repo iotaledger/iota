@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use self::{
@@ -11,7 +12,7 @@ use crate::types::transaction_block_kind::{
     end_of_epoch::EndOfEpochTransaction, programmable::ProgrammableTransactionBlock,
 };
 use async_graphql::*;
-use sui_types::transaction::TransactionKind as NativeTransactionKind;
+use iota_types::transaction::TransactionKind as NativeTransactionKind;
 
 pub(crate) mod authenticator_state_update;
 pub(crate) mod consensus_commit_prologue;

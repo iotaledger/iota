@@ -22,27 +22,27 @@ task 3, line 140:
 Owner: Account Address ( A )
 Version: 2
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,8),
         },
     },
     other: test::m::EnumWrapper::Wrapped{
-        pos0: sui::object::UID {
-            id: sui::object::ID {
+        pos0: iota::object::UID {
+            id: iota::object::ID {
                 bytes: _,
             },
         },
     },
     wrapped: test::m::Wrapped {
-        id: sui::object::UID {
-            id: sui::object::ID {
+        id: iota::object::UID {
+            id: iota::object::ID {
                 bytes: _,
             },
         },
         other: test::m::EnumWrapper::Wrapped{
-            pos0: sui::object::UID {
-                id: sui::object::ID {
+            pos0: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
@@ -50,28 +50,28 @@ Contents: test::m::S {
     },
     many: vector[
         test::m::Wrapped {
-            id: sui::object::UID {
-                id: sui::object::ID {
+            id: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
             other: test::m::EnumWrapper::Wrapped{
-                pos0: sui::object::UID {
-                    id: sui::object::ID {
+                pos0: iota::object::UID {
+                    id: iota::object::ID {
                         bytes: _,
                     },
                 },
             },
         },
         test::m::Wrapped {
-            id: sui::object::UID {
-                id: sui::object::ID {
+            id: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
             other: test::m::EnumWrapper::Wrapped{
-                pos0: sui::object::UID {
-                    id: sui::object::ID {
+                pos0: iota::object::UID {
+                    id: iota::object::ID {
                         bytes: _,
                     },
                 },
@@ -91,27 +91,27 @@ task 5, line 145:
 Owner: Account Address ( A )
 Version: 3
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,8),
         },
     },
     other: test::m::EnumWrapper::Wrapped{
-        pos0: sui::object::UID {
-            id: sui::object::ID {
+        pos0: iota::object::UID {
+            id: iota::object::ID {
                 bytes: _,
             },
         },
     },
     wrapped: test::m::Wrapped {
-        id: sui::object::UID {
-            id: sui::object::ID {
+        id: iota::object::UID {
+            id: iota::object::ID {
                 bytes: _,
             },
         },
         other: test::m::EnumWrapper::Wrapped{
-            pos0: sui::object::UID {
-                id: sui::object::ID {
+            pos0: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
@@ -119,28 +119,28 @@ Contents: test::m::S {
     },
     many: vector[
         test::m::Wrapped {
-            id: sui::object::UID {
-                id: sui::object::ID {
+            id: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
             other: test::m::EnumWrapper::Wrapped{
-                pos0: sui::object::UID {
-                    id: sui::object::ID {
+                pos0: iota::object::UID {
+                    id: iota::object::ID {
                         bytes: _,
                     },
                 },
             },
         },
         test::m::Wrapped {
-            id: sui::object::UID {
-                id: sui::object::ID {
+            id: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
             other: test::m::EnumWrapper::Wrapped{
-                pos0: sui::object::UID {
-                    id: sui::object::ID {
+                pos0: iota::object::UID {
+                    id: iota::object::ID {
                         bytes: _,
                     },
                 },
@@ -161,27 +161,27 @@ task 7, lines 150-152:
 Owner: Account Address ( A )
 Version: 4
 Contents: test::m::S {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,8),
         },
     },
     other: test::m::EnumWrapper::Wrapped{
-        pos0: sui::object::UID {
-            id: sui::object::ID {
+        pos0: iota::object::UID {
+            id: iota::object::ID {
                 bytes: _,
             },
         },
     },
     wrapped: test::m::Wrapped {
-        id: sui::object::UID {
-            id: sui::object::ID {
+        id: iota::object::UID {
+            id: iota::object::ID {
                 bytes: _,
             },
         },
         other: test::m::EnumWrapper::Wrapped{
-            pos0: sui::object::UID {
-                id: sui::object::ID {
+            pos0: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
@@ -189,28 +189,28 @@ Contents: test::m::S {
     },
     many: vector[
         test::m::Wrapped {
-            id: sui::object::UID {
-                id: sui::object::ID {
+            id: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
             other: test::m::EnumWrapper::Wrapped{
-                pos0: sui::object::UID {
-                    id: sui::object::ID {
+                pos0: iota::object::UID {
+                    id: iota::object::ID {
                         bytes: _,
                     },
                 },
             },
         },
         test::m::Wrapped {
-            id: sui::object::UID {
-                id: sui::object::ID {
+            id: iota::object::UID {
+                id: iota::object::ID {
                     bytes: _,
                 },
             },
             other: test::m::EnumWrapper::Wrapped{
-                pos0: sui::object::UID {
-                    id: sui::object::ID {
+                pos0: iota::object::UID {
+                    id: iota::object::ID {
                         bytes: _,
                     },
                 },
@@ -250,8 +250,8 @@ task 12, lines 170-173:
 //# programmable --sender A --inputs object(2,8)@4 vector[112] --dev-inspect
 //> test::m::check(Input(0), Input(1))
 // Should fail since at the version of the object we're passing in the field exists still
-Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: sui, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
-Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: sui, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
+Error: Transaction Effects Status: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
+Execution Error: MoveAbort(MoveLocation { module: ModuleId { address: iota, name: Identifier("dynamic_field") }, function: 11, instruction: 0, function_name: Some("borrow_child_object") }, 1) in command 0
 
 task 13, lines 174-175:
 //# programmable --sender A --inputs object(2,8)@2 vector[] --dev-inspect

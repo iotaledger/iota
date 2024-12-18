@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -22,25 +23,25 @@ use axum::Json;
 use itertools::Itertools;
 use move_binary_format::normalized;
 use schemars::JsonSchema;
-use sui_protocol_config::ProtocolConfig;
-use sui_sdk_types::types::unresolved;
-use sui_sdk_types::types::Argument;
-use sui_sdk_types::types::Command;
-use sui_sdk_types::types::ObjectId;
-use sui_sdk_types::types::Transaction;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::ObjectRef;
-use sui_types::base_types::SuiAddress;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::gas::GasCostSummary;
-use sui_types::gas_coin::GasCoin;
-use sui_types::move_package::MovePackage;
-use sui_types::transaction::CallArg;
-use sui_types::transaction::GasData;
-use sui_types::transaction::ObjectArg;
-use sui_types::transaction::ProgrammableTransaction;
-use sui_types::transaction::TransactionData;
-use sui_types::transaction::TransactionDataAPI;
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::types::unresolved;
+use iota_sdk_types::types::Argument;
+use iota_sdk_types::types::Command;
+use iota_sdk_types::types::ObjectId;
+use iota_sdk_types::types::Transaction;
+use iota_types::base_types::ObjectID;
+use iota_types::base_types::ObjectRef;
+use iota_types::base_types::IotaAddress;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::gas::GasCostSummary;
+use iota_types::gas_coin::GasCoin;
+use iota_types::move_package::MovePackage;
+use iota_types::transaction::CallArg;
+use iota_types::transaction::GasData;
+use iota_types::transaction::ObjectArg;
+use iota_types::transaction::ProgrammableTransaction;
+use iota_types::transaction::TransactionData;
+use iota_types::transaction::TransactionDataAPI;
 use tap::Pipe;
 
 mod literal;
@@ -148,7 +149,7 @@ async fn resolve_transaction(
             .map_err(anyhow::Error::from)?
             .iter()
             .flat_map(|obj| match obj {
-                sui_types::transaction::InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => {
+                iota_types::transaction::InputObjectKind::ImmOrOwnedMoveObject((id, _, _)) => {
                     Some(*id)
                 }
                 _ => None,
@@ -205,7 +206,7 @@ fn called_packages(
     protocol_config: &ProtocolConfig,
     unresolved_transaction: &unresolved::Transaction,
 ) -> Result<HashMap<ObjectId, NormalizedPackage>> {
-    let binary_config = sui_types::execution_config_utils::to_binary_config(protocol_config);
+    let binary_config = iota_types::execution_config_utils::to_binary_config(protocol_config);
     let mut packages = HashMap::new();
 
     for move_call in unresolved_transaction
@@ -288,8 +289,8 @@ fn resolve_unresolved_transaction(
     let expiration = unresolved_transaction.expiration.into();
     let ptb = resolve_ptb(reader, called_packages, unresolved_transaction.ptb)?;
     Ok(TransactionData::V1(
-        sui_types::transaction::TransactionDataV1 {
-            kind: sui_types::transaction::TransactionKind::ProgrammableTransaction(ptb),
+        iota_types::transaction::TransactionDataV1 {
+            kind: iota_types::transaction::TransactionKind::ProgrammableTransaction(ptb),
             sender,
             gas_data,
             expiration,
@@ -321,7 +322,7 @@ fn resolve_object_reference(
 // Callers should check that the object_id matches the id in the `unresolved_object_reference`
 // before calling.
 fn resolve_object_reference_with_object(
-    object: &sui_types::object::Object,
+    object: &iota_types::object::Object,
     unresolved_object_reference: unresolved::ObjectReference,
 ) -> Result<ObjectRef> {
     let unresolved::ObjectReference {
@@ -331,7 +332,7 @@ fn resolve_object_reference_with_object(
     } = unresolved_object_reference;
 
     match object.owner() {
-        sui_types::object::Owner::AddressOwner(_) | sui_types::object::Owner::Immutable => {}
+        iota_types::object::Owner::AddressOwner(_) | iota_types::object::Owner::Immutable => {}
         _ => {
             return Err(RpcServiceError::new(
                 axum::http::StatusCode::BAD_REQUEST,
@@ -409,7 +410,7 @@ fn resolve_arg(
 ) -> Result<CallArg> {
     use fastcrypto::encoding::Base64;
     use fastcrypto::encoding::Encoding;
-    use sui_sdk_types::types::unresolved::InputKind::*;
+    use iota_sdk_types::types::unresolved::InputKind::*;
 
     let unresolved::Input {
         kind,
@@ -508,8 +509,8 @@ fn resolve_object(
     commands: &[Command],
     arg_idx: usize,
     object_id: ObjectId,
-    version: Option<sui_sdk_types::types::Version>,
-    digest: Option<sui_sdk_types::types::ObjectDigest>,
+    version: Option<iota_sdk_types::types::Version>,
+    digest: Option<iota_sdk_types::types::ObjectDigest>,
     _mutable: Option<bool>,
 ) -> Result<ObjectArg> {
     let id = object_id.into();
@@ -519,7 +520,7 @@ fn resolve_object(
         .ok_or_else(|| ObjectNotFoundError::new(object_id))?;
 
     match object.owner() {
-        sui_types::object::Owner::Immutable => resolve_object_reference_with_object(
+        iota_types::object::Owner::Immutable => resolve_object_reference_with_object(
             &object,
             unresolved::ObjectReference {
                 object_id,
@@ -529,7 +530,7 @@ fn resolve_object(
         )
         .map(ObjectArg::ImmOrOwnedObject),
 
-        sui_types::object::Owner::AddressOwner(_) => {
+        iota_types::object::Owner::AddressOwner(_) => {
             let object_ref = resolve_object_reference_with_object(
                 &object,
                 unresolved::ObjectReference {
@@ -546,10 +547,10 @@ fn resolve_object(
             }
             .pipe(Ok)
         }
-        sui_types::object::Owner::Shared { .. } | sui_types::object::Owner::ConsensusV2 { .. } => {
+        iota_types::object::Owner::Shared { .. } | iota_types::object::Owner::ConsensusV2 { .. } => {
             resolve_shared_input_with_object(called_packages, commands, arg_idx, object)
         }
-        sui_types::object::Owner::ObjectOwner(_) => Err(RpcServiceError::new(
+        iota_types::object::Owner::ObjectOwner(_) => Err(RpcServiceError::new(
             axum::http::StatusCode::BAD_REQUEST,
             format!("object {object_id} is object owned and cannot be used as an input"),
         )),
@@ -578,7 +579,7 @@ fn is_input_argument_receiving(
     arg_idx: usize,
 ) -> Result<bool> {
     let (receiving_package, receiving_module, receiving_struct) =
-        sui_types::transfer::RESOLVED_RECEIVING_STRUCT;
+        iota_types::transfer::RESOLVED_RECEIVING_STRUCT;
 
     let mut receiving = false;
     for (command, idx) in find_arg_uses(arg_idx, commands) {
@@ -614,7 +615,7 @@ fn is_input_argument_receiving(
 // real type needs to be lookedup from the provided type args in the MoveCall itself
 fn arg_type_of_move_call_input<'a>(
     called_packages: &'a HashMap<ObjectId, NormalizedPackage>,
-    move_call: &sui_sdk_types::types::MoveCall,
+    move_call: &iota_sdk_types::types::MoveCall,
     idx: usize,
 ) -> Result<&'a move_binary_format::normalized::Type> {
     let function = called_packages
@@ -647,13 +648,13 @@ fn resolve_shared_input_with_object(
     called_packages: &HashMap<ObjectId, NormalizedPackage>,
     commands: &[Command],
     arg_idx: usize,
-    object: sui_types::object::Object,
+    object: iota_types::object::Object,
 ) -> Result<ObjectArg> {
     let object_id = object.id();
-    let initial_shared_version = if let sui_types::object::Owner::Shared {
+    let initial_shared_version = if let iota_types::object::Owner::Shared {
         initial_shared_version,
     }
-    | sui_types::object::Owner::ConsensusV2 {
+    | iota_types::object::Owner::ConsensusV2 {
         start_version: initial_shared_version,
         ..
     } = object.owner()
@@ -785,7 +786,7 @@ fn estimate_gas_budget_from_gas_cost(
 
 fn select_gas(
     reader: &StateReader,
-    owner: SuiAddress,
+    owner: IotaAddress,
     budget: u64,
     max_gas_payment_objects: u32,
     input_objects: &[ObjectID],

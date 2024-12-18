@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// The goal of this module is to test Rule configuration setting and how Rules
 /// can read / modify the configuration in 'em.
-module sui::token_config_tests {
-    use sui::token_test_utils::{Self as test, TEST};
-    use sui::token;
+module iota::token_config_tests {
+    use iota::token_test_utils::{Self as test, TEST};
+    use iota::token;
 
     /// Rule witness to store configuration for
     public struct Rule1 has drop {}

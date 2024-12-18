@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -15,7 +16,7 @@ use axum::{
     BoxError, Extension, Json, Router,
 };
 use http::Method;
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 use prometheus::Registry;
 use std::{
     borrow::Cow,
@@ -24,8 +25,8 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use sui_config::SUI_CLIENT_CONFIG;
-use sui_sdk::wallet_context::WalletContext;
+use iota_config::IOTA_CLIENT_CONFIG;
+use iota_sdk::wallet_context::WalletContext;
 use tower::{limit::RateLimitLayer, ServiceBuilder};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
@@ -253,7 +254,7 @@ pub fn create_wallet_context(
     timeout_secs: u64,
     config_dir: PathBuf,
 ) -> Result<WalletContext, anyhow::Error> {
-    let wallet_conf = config_dir.join(SUI_CLIENT_CONFIG);
+    let wallet_conf = config_dir.join(IOTA_CLIENT_CONFIG);
     info!("Initialize wallet from config path: {:?}", wallet_conf);
     WalletContext::new(
         &wallet_conf,

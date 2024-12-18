@@ -9,8 +9,8 @@
 
 # Same tests but with arrays
 --make-move-vec <u16> [1,               2,       3,4                        ]
---make-move-vec <sui::string::String> "[1,               2,       3,4                        ]"
---make-move-vec <sui::string::String> "['1',               '2,       3','',\"4                        \"]"
---make-move-vec  <sui::string::String> "['1',               '2,       3','',\"4                       
+--make-move-vec <iota::string::String> "[1,               2,       3,4                        ]"
+--make-move-vec <iota::string::String> "['1',               '2,       3','',\"4                        \"]"
+--make-move-vec  <iota::string::String> "['1',               '2,       3','',\"4                       
             \"]"
 

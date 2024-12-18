@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
@@ -7,13 +8,13 @@ use std::sync::Arc;
 use diesel::prelude::*;
 use move_core_types::identifier::Identifier;
 
-use sui_json_rpc_types::{type_and_fields_from_move_event_data, BcsEvent, SuiEvent};
-use sui_package_resolver::{PackageStore, Resolver};
-use sui_types::base_types::{ObjectID, SuiAddress};
-use sui_types::digests::TransactionDigest;
-use sui_types::event::EventID;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::parse_sui_struct_tag;
+use iota_json_rpc_types::{type_and_fields_from_move_event_data, BcsEvent, IotaEvent};
+use iota_package_resolver::{PackageStore, Resolver};
+use iota_types::base_types::{ObjectID, IotaAddress};
+use iota_types::digests::TransactionDigest;
+use iota_types::event::EventID;
+use iota_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::parse_iota_struct_tag;
 
 use crate::errors::IndexerError;
 use crate::schema::events;
@@ -54,17 +55,17 @@ impl From<IndexedEvent> for StoredEvent {
 }
 
 impl StoredEvent {
-    pub async fn try_into_sui_event(
+    pub async fn try_into_iota_event(
         self,
         package_resolver: Arc<Resolver<impl PackageStore>>,
-    ) -> Result<SuiEvent, IndexerError> {
+    ) -> Result<IotaEvent, IndexerError> {
         let package_id = ObjectID::from_bytes(self.package.clone()).map_err(|_e| {
             IndexerError::PersistentStorageDataCorruptionError(format!(
                 "Failed to parse event package ID: {:?}",
                 self.package
             ))
         })?;
-        // Note: SuiEvent only has one sender today, so we always use the first one.
+        // Note: IotaEvent only has one sender today, so we always use the first one.
         let sender = {
             self.senders.first().ok_or_else(|| {
                 IndexerError::PersistentStorageDataCorruptionError(
@@ -73,7 +74,7 @@ impl StoredEvent {
             })?
         };
         let sender = match sender {
-            Some(ref s) => SuiAddress::from_bytes(s).map_err(|_e| {
+            Some(ref s) => IotaAddress::from_bytes(s).map_err(|_e| {
                 IndexerError::PersistentStorageDataCorruptionError(format!(
                     "Failed to parse event sender address: {:?}",
                     sender
@@ -86,13 +87,13 @@ impl StoredEvent {
             }
         };
 
-        let type_ = parse_sui_struct_tag(&self.event_type)?;
+        let type_ = parse_iota_struct_tag(&self.event_type)?;
         let move_type_layout = package_resolver
             .type_layout(type_.clone().into())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStructError(format!(
-                    "Failed to convert to sui event with Error: {e}",
+                    "Failed to convert to iota event with Error: {e}",
                 ))
             })?;
         let move_object = BoundedVisitor::deserialize_value(&self.bcs, &move_type_layout)
@@ -106,7 +107,7 @@ impl StoredEvent {
                     self.transaction_digest, e
                 ))
             })?;
-        Ok(SuiEvent {
+        Ok(IotaEvent {
             id: EventID {
                 tx_digest,
                 event_seq: self.event_sequence_number as u64,
@@ -126,7 +127,7 @@ impl StoredEvent {
 mod tests {
     use super::*;
     use move_core_types::{account_address::AccountAddress, language_storage::StructTag};
-    use sui_types::event::Event;
+    use iota_types::event::Event;
 
     #[test]
     fn test_canonical_string_of_event_type() {

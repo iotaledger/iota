@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests that object values can be used private entry functions if they have been used
@@ -8,8 +9,8 @@
 
 //# publish
 module test::m1 {
-    use sui::coin::Coin;
-    use sui::sui::SUI;
+    use iota::coin::Coin;
+    use iota::iota::IOTA;
 
     public struct R has key, store { id: UID }
     public fun r(ctx: &mut TxContext): R { R { id: object::new(ctx) } }
@@ -19,7 +20,7 @@ module test::m1 {
     public entry fun clean(_: &mut R, _extra_arg: u64) {}
     entry fun priv(_: &mut R) { }
 
-    entry fun coin(_: &mut Coin<SUI>) {}
+    entry fun coin(_: &mut Coin<IOTA>) {}
 }
 
 //# programmable --sender A --inputs @A

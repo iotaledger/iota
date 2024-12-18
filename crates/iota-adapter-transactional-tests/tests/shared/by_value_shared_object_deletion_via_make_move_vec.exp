@@ -23,8 +23,8 @@ task 4, line 51:
 Owner: Shared( 3 )
 Version: 3
 Contents: t2::o2::Obj2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(2,0),
         },
     },
@@ -35,8 +35,8 @@ task 5, lines 53-55:
 Owner: Shared( 4 )
 Version: 4
 Contents: t2::o2::Obj2 {
-    id: sui::object::UID {
-        id: sui::object::ID {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
@@ -60,13 +60,13 @@ task 8, lines 62-64:
 //# view-object 7,0
 Owner: Shared( 6 )
 Version: 6
-Contents: sui::coin::Coin<sui::sui::SUI> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(7,0),
         },
     },
-    balance: sui::balance::Balance<sui::sui::SUI> {
+    balance: iota::balance::Balance<iota::iota::IOTA> {
         value: 0u64,
     },
 }

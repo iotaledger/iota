@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_types::SYSTEM_PACKAGE_ADDRESSES;
+use iota_types::SYSTEM_PACKAGE_ADDRESSES;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::info;

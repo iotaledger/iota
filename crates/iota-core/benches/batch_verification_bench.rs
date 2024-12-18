@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use criterion::*;
@@ -10,14 +11,14 @@ use rand::seq::SliceRandom;
 use futures::future::join_all;
 use prometheus::Registry;
 use std::sync::Arc;
-use sui_core::test_utils::{make_cert_with_large_committee, make_dummy_tx};
-use sui_types::committee::Committee;
-use sui_types::crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair};
-use sui_types::transaction::CertifiedTransaction;
+use iota_core::test_utils::{make_cert_with_large_committee, make_dummy_tx};
+use iota_types::committee::Committee;
+use iota_types::crypto::{get_key_pair, AccountKeyPair, AuthorityKeyPair};
+use iota_types::transaction::CertifiedTransaction;
 
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
-use sui_core::signature_verifier::*;
-use sui_types::signature_verification::VerifiedDigestCache;
+use iota_core::signature_verifier::*;
+use iota_types::signature_verification::VerifiedDigestCache;
 fn gen_certs(
     committee: &Committee,
     key_pairs: &[AuthorityKeyPair],

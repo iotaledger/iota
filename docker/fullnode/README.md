@@ -1,6 +1,6 @@
-# Use Docker to Run a Sui Full node Locally
+# Use Docker to Run a Iota Full node Locally
 
-Follow the steps in this Readme to install and configure a Sui Full node for testing locally using Docker. The instructions were validated on the following operating system/processor combinations:
+Follow the steps in this Readme to install and configure a Iota Full node for testing locally using Docker. The instructions were validated on the following operating system/processor combinations:
 
  * Linux/AMD64
  * Darwin/AMD64
@@ -10,26 +10,26 @@ Follow the steps in this Readme to install and configure a Sui Full node for tes
 
  * [Install Docker](https://docs.docker.com/get-docker/) 
  * [Install Docker Compose](https://docs.docker.com/compose/install/)
- * Download the Full node [docker-compose.yaml](https://github.com/MystenLabs/sui/blob/main/docker/fullnode/docker-compose.yaml) file.
+ * Download the Full node [docker-compose.yaml](https://github.com/iotaledger/iota/blob/main/docker/fullnode/docker-compose.yaml) file.
 
 
-## Configure Sui Full node
+## Configure Iota Full node
 
-Download the latest version of the Sui Full node configuration file [fullnode-template.yaml](https://github.com/MystenLabs/sui/raw/main/crates/sui-config/data/fullnode-template.yaml). Use the following command to download the file:
+Download the latest version of the Iota Full node configuration file [fullnode-template.yaml](https://github.com/iotaledger/iota/raw/main/crates/iota-config/data/fullnode-template.yaml). Use the following command to download the file:
 
 ```shell
-wget https://github.com/MystenLabs/sui/raw/main/crates/sui-config/data/fullnode-template.yaml
+wget https://github.com/iotaledger/iota/raw/main/crates/iota-config/data/fullnode-template.yaml
 ```
 
-### Download the Sui genesis blob
+### Download the Iota genesis blob
 
-The genesis blob contains the information that defined the Sui network configuration. Before you can start the Full node, you need to download the most recent file to ensure compatibility with the version of Sui you use. Use the following command to download the [genesis.blob](https://github.com/MystenLabs/sui-genesis/raw/main/devnet/genesis.blob) from the `devnet` branch of the Sui repository:
+The genesis blob contains the information that defined the Iota network configuration. Before you can start the Full node, you need to download the most recent file to ensure compatibility with the version of Iota you use. Use the following command to download the [genesis.blob](https://github.com/iotaledger/iota-genesis/raw/main/devnet/genesis.blob) from the `devnet` branch of the Iota repository:
 
-```wget https://github.com/MystenLabs/sui-genesis/raw/main/devnet/genesis.blob```
+```wget https://github.com/iotaledger/iota-genesis/raw/main/devnet/genesis.blob```
 
-## Start your Sui Full node
+## Start your Iota Full node
 
-Run the following command to start the Sui fullnode in Docker:
+Run the following command to start the Iota fullnode in Docker:
 
 ```shell
 docker compose up
@@ -37,15 +37,15 @@ docker compose up
 
 **Important:** The commands in this document assume you use Docker Compose V2. The `docker compose` command uses a dash (`docker-compose`) in Docker Compose V1. If you use Docker Compose V1, replace the space in each `docker compose` command with a dash (`docker-compose`). For more information, see [Docker Compose V2](https://docs.docker.com/compose/#compose-v2-and-the-new-docker-compose-command).
 
-## Test the Sui Full node
+## Test the Iota Full node
 
 After the Full node starts you can test the JSON-RPC interfaces.
 
-## View activity on your local Full node with Sui Explorer
+## View activity on your local Full node with Iota Explorer
 
-Sui Explorer supports connecting to a local network. To view activity on your local Full node, open the URL: [https://explorer.sui.io/?network=local](https://explorer.sui.io/?network=local).
+Iota Explorer supports connecting to a local network. To view activity on your local Full node, open the URL: [https://explorer.iota.io/?network=local](https://explorer.iota.io/?network=local).
 
-You can also change the network that Sui Explorer connects to by select it in the Sui Explorer interface. 
+You can also change the network that Iota Explorer connects to by select it in the Iota Explorer interface. 
 
 ### Stop the Full node
 
@@ -103,7 +103,7 @@ docker exec -it $CONTAINER_ID /bin/bash
 Inspect the database:
 
 ```shell
-ls -la suidb/
+ls -la iotadb/
 ```
 
 ### Investigate local RPC connectivity issues
@@ -125,11 +125,11 @@ Download each package. For example, on macOS use [homebrew](https://brew.sh/):
 
 ```brew install wget curl```
 
-### Learn more about Sui
- * https://docs.sui.io/learn
+### Learn more about Iota
+ * https://docs.iota.org/learn
 
 ### Learn more about building and running a Full node from source code
- * https://docs.sui.io/build/fullnode
+ * https://docs.iota.org/build/fullnode
 
 ### Learn more about Docker Compose
  * https://docs.docker.com/compose/gettingstarted/

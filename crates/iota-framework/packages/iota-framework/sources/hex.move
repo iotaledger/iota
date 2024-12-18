@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// HEX (Base16) encoding utility.
-module sui::hex;
+module iota::hex;
 
 const EInvalidHexLength: u64 = 0;
 const ENotValidHexCharacter: u64 = 1;

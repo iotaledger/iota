@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui_system::validator_tests {
-    use sui::bag;
-    use sui::balance;
-    use sui::coin::{Self, Coin};
-    use sui::sui::SUI;
-    use sui::test_scenario;
-    use sui::test_utils;
-    use sui::url;
-    use sui_system::staking_pool::StakedSui;
-    use sui_system::validator::{Self, Validator};
+module iota_system::validator_tests {
+    use iota::bag;
+    use iota::balance;
+    use iota::coin::{Self, Coin};
+    use iota::iota::IOTA;
+    use iota::test_scenario;
+    use iota::test_utils;
+    use iota::url;
+    use iota_system::staking_pool::StakedIota;
+    use iota_system::validator::{Self, Validator};
 
     const VALID_NET_PUBKEY: vector<u8> = vector[171, 2, 39, 3, 139, 105, 166, 171, 153, 151, 102, 197, 151, 186, 140, 116, 114, 90, 213, 225, 20, 167, 60, 69, 203, 12, 180, 198, 9, 217, 117, 38];
 
@@ -73,7 +74,7 @@ module sui_system::validator_tests {
 
             let validator = get_test_validator(ctx);
             assert!(validator.total_stake_amount() == 10_000_000_000);
-            assert!(validator.sui_address() == sender);
+            assert!(validator.iota_address() == sender);
 
             test_utils::destroy(validator);
         };
@@ -81,7 +82,7 @@ module sui_system::validator_tests {
         // Check that after destroy, the original stake still exists.
          scenario.next_tx(sender);
          {
-             let stake = scenario.take_from_sender<StakedSui>();
+             let stake = scenario.take_from_sender<StakedIota>();
              assert!(stake.amount() == 10_000_000_000);
              scenario.return_to_sender(stake);
          };
@@ -109,8 +110,8 @@ module sui_system::validator_tests {
 
         scenario.next_tx(sender);
         {
-            let coin_ids = scenario.ids_for_sender<StakedSui>();
-            let stake = scenario.take_from_sender_by_id<StakedSui>(coin_ids[0]);
+            let coin_ids = scenario.ids_for_sender<StakedIota>();
+            let stake = scenario.take_from_sender_by_id<StakedIota>(coin_ids[0]);
             let ctx = scenario.ctx();
             let withdrawn_balance = validator.request_withdraw_stake(stake, ctx);
             transfer::public_transfer(withdrawn_balance.into_coin(ctx), sender);
@@ -131,8 +132,8 @@ module sui_system::validator_tests {
 
         scenario.next_tx(sender);
         {
-            let coin_ids = scenario.ids_for_sender<Coin<SUI>>();
-            let withdraw = scenario.take_from_sender_by_id<Coin<SUI>>(coin_ids[0]);
+            let coin_ids = scenario.ids_for_sender<Coin<IOTA>>();
+            let withdraw = scenario.take_from_sender_by_id<Coin<IOTA>>(coin_ids[0]);
             assert!(withdraw.value() == 10_000_000_000);
             scenario.return_to_sender(withdraw);
         };
@@ -428,7 +429,7 @@ module sui_system::validator_tests {
         scenario_val.end();
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EInvalidProofOfPossession)]
+    #[expected_failure(abort_code = iota_system::validator::EInvalidProofOfPossession)]
     #[test]
     fun test_validator_update_metadata_invalid_proof_of_possession() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -444,7 +445,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EMetadataInvalidNetPubkey)]
+    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidNetPubkey)]
     #[test]
     fun test_validator_update_metadata_invalid_network_key() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -457,7 +458,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EMetadataInvalidWorkerPubkey)]
+    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidWorkerPubkey)]
     #[test]
     fun test_validator_update_metadata_invalid_worker_key() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -470,7 +471,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EMetadataInvalidNetAddr)]
+    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidNetAddr)]
     #[test]
     fun test_validator_update_metadata_invalid_network_addr() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -483,7 +484,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EMetadataInvalidPrimaryAddr)]
+    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidPrimaryAddr)]
     #[test]
     fun test_validator_update_metadata_invalid_primary_addr() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -496,7 +497,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EMetadataInvalidWorkerAddr)]
+    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidWorkerAddr)]
     #[test]
     fun test_validator_update_metadata_invalid_worker_addr() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -509,7 +510,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EMetadataInvalidP2pAddr)]
+    #[expected_failure(abort_code = iota_system::validator::EMetadataInvalidP2pAddr)]
     #[test]
     fun test_validator_update_metadata_invalid_p2p_address() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -525,7 +526,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EValidatorMetadataExceedingLengthLimit)]
+    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
     #[test]
     fun test_validator_update_metadata_primary_address_too_long() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -541,7 +542,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EValidatorMetadataExceedingLengthLimit)]
+    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
     #[test]
     fun test_validator_update_metadata_net_address_too_long() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -558,7 +559,7 @@ module sui_system::validator_tests {
     }
 
 
-    #[expected_failure(abort_code = sui_system::validator::EValidatorMetadataExceedingLengthLimit)]
+    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
     #[test]
     fun test_validator_update_metadata_worker_address_too_long() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -573,7 +574,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EValidatorMetadataExceedingLengthLimit)]
+    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
     #[test]
     fun test_validator_update_metadata_p2p_address_too_long() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -589,7 +590,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EValidatorMetadataExceedingLengthLimit)]
+    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
     #[test]
     fun test_validator_update_name_too_long() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -604,7 +605,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EValidatorMetadataExceedingLengthLimit)]
+    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
     #[test]
     fun test_validator_update_description_too_long() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -619,7 +620,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EValidatorMetadataExceedingLengthLimit)]
+    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
     #[test]
     fun test_validator_update_project_url_too_long() {
         let (sender, mut scenario, mut validator) = set_up();
@@ -634,7 +635,7 @@ module sui_system::validator_tests {
         tear_down(validator, scenario);
     }
 
-    #[expected_failure(abort_code = sui_system::validator::EValidatorMetadataExceedingLengthLimit)]
+    #[expected_failure(abort_code = iota_system::validator::EValidatorMetadataExceedingLengthLimit)]
     #[test]
     fun test_validator_update_image_url_too_long() {
         let (sender, mut scenario, mut validator) = set_up();

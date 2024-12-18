@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type {
@@ -8,14 +9,14 @@ import type {
 	StandardEventsOnMethod,
 	Wallet,
 	WalletWithRequiredFeatures,
-} from '@mysten/wallet-standard';
-import { SUI_CHAINS } from '@mysten/wallet-standard';
+} from '@iota/wallet-standard';
+import { IOTA_CHAINS } from '@iota/wallet-standard';
 import type { Mock } from 'vitest';
 
 export class MockWallet implements Wallet {
 	version = '1.0.0' as const;
 	icon = `data:image/png;base64,` as const;
-	chains = SUI_CHAINS;
+	chains = IOTA_CHAINS;
 
 	mocks: {
 		connect: Mock;

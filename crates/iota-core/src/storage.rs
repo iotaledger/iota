@@ -1,36 +1,37 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SuiAddress;
-use sui_types::base_types::TransactionDigest;
-use sui_types::committee::Committee;
-use sui_types::committee::EpochId;
-use sui_types::digests::TransactionEventsDigest;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::messages_checkpoint::CheckpointContentsDigest;
-use sui_types::messages_checkpoint::CheckpointDigest;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::messages_checkpoint::EndOfEpochData;
-use sui_types::messages_checkpoint::FullCheckpointContents;
-use sui_types::messages_checkpoint::VerifiedCheckpoint;
-use sui_types::messages_checkpoint::VerifiedCheckpointContents;
-use sui_types::object::Object;
-use sui_types::storage::error::Error as StorageError;
-use sui_types::storage::error::Result;
-use sui_types::storage::AccountOwnedObjectInfo;
-use sui_types::storage::CoinInfo;
-use sui_types::storage::DynamicFieldIndexInfo;
-use sui_types::storage::DynamicFieldKey;
-use sui_types::storage::ObjectStore;
-use sui_types::storage::RpcIndexes;
-use sui_types::storage::RpcStateReader;
-use sui_types::storage::WriteStore;
-use sui_types::storage::{ObjectKey, ReadStore};
-use sui_types::transaction::VerifiedTransaction;
+use iota_types::base_types::ObjectID;
+use iota_types::base_types::IotaAddress;
+use iota_types::base_types::TransactionDigest;
+use iota_types::committee::Committee;
+use iota_types::committee::EpochId;
+use iota_types::digests::TransactionEventsDigest;
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::messages_checkpoint::CheckpointContentsDigest;
+use iota_types::messages_checkpoint::CheckpointDigest;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::messages_checkpoint::EndOfEpochData;
+use iota_types::messages_checkpoint::FullCheckpointContents;
+use iota_types::messages_checkpoint::VerifiedCheckpoint;
+use iota_types::messages_checkpoint::VerifiedCheckpointContents;
+use iota_types::object::Object;
+use iota_types::storage::error::Error as StorageError;
+use iota_types::storage::error::Result;
+use iota_types::storage::AccountOwnedObjectInfo;
+use iota_types::storage::CoinInfo;
+use iota_types::storage::DynamicFieldIndexInfo;
+use iota_types::storage::DynamicFieldKey;
+use iota_types::storage::ObjectStore;
+use iota_types::storage::RpcIndexes;
+use iota_types::storage::RpcStateReader;
+use iota_types::storage::WriteStore;
+use iota_types::storage::{ObjectKey, ReadStore};
+use iota_types::transaction::VerifiedTransaction;
 use tap::Pipe;
 
 use crate::authority::AuthorityState;
@@ -175,7 +176,7 @@ impl ReadStore for RocksDbStore {
                             .transaction_cache_reader
                             .get_effects(&tx.effects),
                     ) {
-                        transactions.push(sui_types::base_types::ExecutionData::new(
+                        transactions.push(iota_types::base_types::ExecutionData::new(
                             (*t).clone().into_inner(),
                             e,
                         ))
@@ -212,19 +213,19 @@ impl ReadStore for RocksDbStore {
             .get_events(digest)
     }
 
-    fn get_latest_checkpoint(&self) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.checkpoint_store
             .get_highest_executed_checkpoint()
             .expect("db error")
             .ok_or_else(|| {
-                sui_types::storage::error::Error::missing("unable to get latest checkpoint")
+                iota_types::storage::error::Error::missing("unable to get latest checkpoint")
             })
     }
 
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Option<sui_types::messages_checkpoint::CheckpointContents> {
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
         self.checkpoint_store
             .get_checkpoint_contents(digest)
             .expect("db error")
@@ -233,7 +234,7 @@ impl ReadStore for RocksDbStore {
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Option<sui_types::messages_checkpoint::CheckpointContents> {
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
         match self.get_checkpoint_by_sequence_number(sequence_number) {
             Some(checkpoint) => self.get_checkpoint_contents_by_digest(&checkpoint.content_digest),
             None => None,
@@ -242,14 +243,14 @@ impl ReadStore for RocksDbStore {
 }
 
 impl ObjectStore for RocksDbStore {
-    fn get_object(&self, object_id: &sui_types::base_types::ObjectID) -> Option<Object> {
+    fn get_object(&self, object_id: &iota_types::base_types::ObjectID) -> Option<Object> {
         self.cache_traits.object_store.get_object(object_id)
     }
 
     fn get_object_by_key(
         &self,
-        object_id: &sui_types::base_types::ObjectID,
-        version: sui_types::base_types::VersionNumber,
+        object_id: &iota_types::base_types::ObjectID,
+        version: iota_types::base_types::VersionNumber,
     ) -> Option<Object> {
         self.cache_traits
             .object_store
@@ -261,7 +262,7 @@ impl WriteStore for RocksDbStore {
     fn insert_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), sui_types::storage::error::Error> {
+    ) -> Result<(), iota_types::storage::error::Error> {
         if let Some(EndOfEpochData {
             next_epoch_committee,
             ..
@@ -281,14 +282,14 @@ impl WriteStore for RocksDbStore {
     fn update_highest_synced_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), sui_types::storage::error::Error> {
+    ) -> Result<(), iota_types::storage::error::Error> {
         let mut locked = self.highest_synced_checkpoint.lock();
         if locked.is_some() && locked.unwrap() >= checkpoint.sequence_number {
             return Ok(());
         }
         self.checkpoint_store
             .update_highest_synced_checkpoint(checkpoint)
-            .map_err(sui_types::storage::error::Error::custom)?;
+            .map_err(iota_types::storage::error::Error::custom)?;
         *locked = Some(checkpoint.sequence_number);
         Ok(())
     }
@@ -296,14 +297,14 @@ impl WriteStore for RocksDbStore {
     fn update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
-    ) -> Result<(), sui_types::storage::error::Error> {
+    ) -> Result<(), iota_types::storage::error::Error> {
         let mut locked = self.highest_verified_checkpoint.lock();
         if locked.is_some() && locked.unwrap() >= checkpoint.sequence_number {
             return Ok(());
         }
         self.checkpoint_store
             .update_highest_verified_checkpoint(checkpoint)
-            .map_err(sui_types::storage::error::Error::custom)?;
+            .map_err(iota_types::storage::error::Error::custom)?;
         *locked = Some(checkpoint.sequence_number);
         Ok(())
     }
@@ -312,7 +313,7 @@ impl WriteStore for RocksDbStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
         contents: VerifiedCheckpointContents,
-    ) -> Result<(), sui_types::storage::error::Error> {
+    ) -> Result<(), iota_types::storage::error::Error> {
         self.cache_traits
             .state_sync_store
             .multi_insert_transaction_and_effects(contents.transactions());
@@ -324,7 +325,7 @@ impl WriteStore for RocksDbStore {
     fn insert_committee(
         &self,
         new_committee: Committee,
-    ) -> Result<(), sui_types::storage::error::Error> {
+    ) -> Result<(), iota_types::storage::error::Error> {
         self.committee_store
             .insert_new_committee(&new_committee)
             .unwrap();
@@ -342,23 +343,23 @@ impl RestReadStore {
         Self { state, rocks }
     }
 
-    fn index(&self) -> sui_types::storage::error::Result<&RpcIndexStore> {
+    fn index(&self) -> iota_types::storage::error::Result<&RpcIndexStore> {
         self.state
             .rpc_index
             .as_deref()
-            .ok_or_else(|| sui_types::storage::error::Error::custom("rest index store is disabled"))
+            .ok_or_else(|| iota_types::storage::error::Error::custom("rest index store is disabled"))
     }
 }
 
 impl ObjectStore for RestReadStore {
-    fn get_object(&self, object_id: &sui_types::base_types::ObjectID) -> Option<Object> {
+    fn get_object(&self, object_id: &iota_types::base_types::ObjectID) -> Option<Object> {
         self.rocks.get_object(object_id)
     }
 
     fn get_object_by_key(
         &self,
-        object_id: &sui_types::base_types::ObjectID,
-        version: sui_types::base_types::VersionNumber,
+        object_id: &iota_types::base_types::ObjectID,
+        version: iota_types::base_types::VersionNumber,
     ) -> Option<Object> {
         self.rocks.get_object_by_key(object_id, version)
     }
@@ -369,25 +370,25 @@ impl ReadStore for RestReadStore {
         self.rocks.get_committee(epoch)
     }
 
-    fn get_latest_checkpoint(&self) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    fn get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.rocks.get_latest_checkpoint()
     }
 
     fn get_highest_verified_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.rocks.get_highest_verified_checkpoint()
     }
 
     fn get_highest_synced_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<VerifiedCheckpoint> {
+    ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.rocks.get_highest_synced_checkpoint()
     }
 
     fn get_lowest_available_checkpoint(
         &self,
-    ) -> sui_types::storage::error::Result<CheckpointSequenceNumber> {
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
         self.rocks.get_lowest_available_checkpoint()
     }
 
@@ -406,14 +407,14 @@ impl ReadStore for RestReadStore {
     fn get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Option<sui_types::messages_checkpoint::CheckpointContents> {
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
         self.rocks.get_checkpoint_contents_by_digest(digest)
     }
 
     fn get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
-    ) -> Option<sui_types::messages_checkpoint::CheckpointContents> {
+    ) -> Option<iota_types::messages_checkpoint::CheckpointContents> {
         self.rocks
             .get_checkpoint_contents_by_sequence_number(sequence_number)
     }
@@ -449,7 +450,7 @@ impl ReadStore for RestReadStore {
 impl RpcStateReader for RestReadStore {
     fn get_lowest_available_checkpoint_objects(
         &self,
-    ) -> sui_types::storage::error::Result<CheckpointSequenceNumber> {
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
         let highest_pruned_cp = self
             .state
             .get_object_cache_reader()
@@ -464,7 +465,7 @@ impl RpcStateReader for RestReadStore {
 
     fn get_chain_identifier(
         &self,
-    ) -> sui_types::storage::error::Result<sui_types::digests::ChainIdentifier> {
+    ) -> iota_types::storage::error::Result<iota_types::digests::ChainIdentifier> {
         self.state
             .get_chain_identifier()
             .ok_or_else(|| StorageError::missing("unable to query chain identifier"))
@@ -479,7 +480,7 @@ impl RpcIndexes for RpcIndexStore {
     fn get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,
-    ) -> sui_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
         self.get_transaction_info(digest)
             .map(|maybe_info| maybe_info.map(|info| info.checkpoint))
             .map_err(StorageError::custom)
@@ -487,7 +488,7 @@ impl RpcIndexes for RpcIndexStore {
 
     fn account_owned_objects_info_iter(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: Option<ObjectID>,
     ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>> {
         let iter = self.owner_iter(owner, cursor)?.map(
@@ -508,7 +509,7 @@ impl RpcIndexes for RpcIndexStore {
         &self,
         parent: ObjectID,
         cursor: Option<ObjectID>,
-    ) -> sui_types::storage::error::Result<
+    ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>,
     > {
         let iter = self.dynamic_field_iter(parent, cursor)?;
@@ -519,7 +520,7 @@ impl RpcIndexes for RpcIndexStore {
     fn get_coin_info(
         &self,
         coin_type: &StructTag,
-    ) -> sui_types::storage::error::Result<Option<CoinInfo>> {
+    ) -> iota_types::storage::error::Result<Option<CoinInfo>> {
         self.get_coin_info(coin_type)?
             .map(
                 |CoinIndexInfo {

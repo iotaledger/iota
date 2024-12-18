@@ -2,7 +2,7 @@
 {
   transactionBlocks(
     filter: {
-      function: "0x3::sui_system"
+      function: "0x3::iota_system"
     }
   ) {
     nodes {

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient } from '@mysten/sui/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 import type {
 	InfiniteData,
 	UseInfiniteQueryOptions,
@@ -10,7 +11,7 @@ import type {
 import { useInfiniteQuery } from '@tanstack/react-query';
 
 import type { PartialBy } from '../types/utilityTypes.js';
-import { useSuiClientContext } from './useSuiClient.js';
+import { useIotaClientContext } from './useIotaClient.js';
 
 interface PaginatedResult {
 	data?: unknown;
@@ -18,12 +19,12 @@ interface PaginatedResult {
 	hasNextPage: boolean;
 }
 
-export type SuiRpcPaginatedMethodName = {
-	[K in keyof SuiClient]: SuiClient[K] extends (input: any) => Promise<PaginatedResult> ? K : never;
-}[keyof SuiClient];
+export type IotaRpcPaginatedMethodName = {
+	[K in keyof IotaClient]: IotaClient[K] extends (input: any) => Promise<PaginatedResult> ? K : never;
+}[keyof IotaClient];
 
-export type SuiRpcPaginatedMethods = {
-	[K in SuiRpcPaginatedMethodName]: SuiClient[K] extends (
+export type IotaRpcPaginatedMethods = {
+	[K in IotaRpcPaginatedMethodName]: IotaClient[K] extends (
 		input: infer Params,
 	) => Promise<
 		infer Result extends { hasNextPage?: boolean | null; nextCursor?: infer Cursor | null }
@@ -37,16 +38,16 @@ export type SuiRpcPaginatedMethods = {
 		: never;
 };
 
-export type UseSuiClientInfiniteQueryOptions<
-	T extends keyof SuiRpcPaginatedMethods,
+export type UseIotaClientInfiniteQueryOptions<
+	T extends keyof IotaRpcPaginatedMethods,
 	TData,
 > = PartialBy<
 	Omit<
 		UseInfiniteQueryOptions<
-			SuiRpcPaginatedMethods[T]['result'],
+			IotaRpcPaginatedMethods[T]['result'],
 			Error,
 			TData,
-			SuiRpcPaginatedMethods[T]['result'],
+			IotaRpcPaginatedMethods[T]['result'],
 			unknown[]
 		>,
 		'queryFn' | 'initialPageParam' | 'getNextPageParam'
@@ -54,27 +55,27 @@ export type UseSuiClientInfiniteQueryOptions<
 	'queryKey'
 >;
 
-export function useSuiClientInfiniteQuery<
-	T extends keyof SuiRpcPaginatedMethods,
-	TData = InfiniteData<SuiRpcPaginatedMethods[T]['result']>,
+export function useIotaClientInfiniteQuery<
+	T extends keyof IotaRpcPaginatedMethods,
+	TData = InfiniteData<IotaRpcPaginatedMethods[T]['result']>,
 >(
 	method: T,
-	params: SuiRpcPaginatedMethods[T]['params'],
+	params: IotaRpcPaginatedMethods[T]['params'],
 	{
 		queryKey = [],
 		enabled = !!params,
 		...options
-	}: UseSuiClientInfiniteQueryOptions<T, TData> = {},
+	}: UseIotaClientInfiniteQueryOptions<T, TData> = {},
 ): UseInfiniteQueryResult<TData, Error> {
-	const suiContext = useSuiClientContext();
+	const iotaContext = useIotaClientContext();
 
 	return useInfiniteQuery({
 		...options,
 		initialPageParam: null,
-		queryKey: [suiContext.network, method, params, ...queryKey],
+		queryKey: [iotaContext.network, method, params, ...queryKey],
 		enabled,
 		queryFn: ({ pageParam }) =>
-			suiContext.client[method]({
+			iotaContext.client[method]({
 				...(params ?? {}),
 				cursor: pageParam,
 			} as never),

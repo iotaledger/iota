@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { type TransactionSummary as TransactionSummaryType } from '@mysten/core';
+import { type TransactionSummary as TransactionSummaryType } from '@iota/core';
 import clsx from 'clsx';
 
 import LoadingIndicator from '../../components/loading/LoadingIndicator';
@@ -26,7 +27,7 @@ export function TransactionSummary({
 }) {
 	if (isError) return null;
 	return (
-		<section className="-mx-6 bg-sui/10 min-h-full">
+		<section className="-mx-6 bg-iota/10 min-h-full">
 			{isLoading ? (
 				<div className="flex items-center justify-center p-10">
 					<LoadingIndicator />

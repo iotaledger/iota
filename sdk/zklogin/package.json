@@ -1,9 +1,9 @@
 {
-	"name": "@mysten/zklogin",
+	"name": "@iota/zklogin",
 	"version": "0.8.0",
-	"description": "Deprecated: use @mysten/sui/zklogin instead",
+	"description": "Deprecated: use @iota/iota-sdk/zklogin instead",
 	"license": "Apache-2.0",
-	"author": "Mysten Labs <build@mystenlabs.com>",
+	"author": "IOTA Foundation <info@iota.org>",
 	"type": "commonjs",
 	"main": "./dist/cjs/index.js",
 	"module": "./dist/esm/index.js",
@@ -33,19 +33,19 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/mystenlabs/sui.git"
+		"url": "git+https://github.com/iotaledger/iota.git"
 	},
 	"bugs": {
-		"url": "https://github.com/mystenlabs/sui/issues"
+		"url": "https://github.com/iotaledger/iota/issues"
 	},
-	"homepage": "https://github.com/mystenlabs/sui#readme",
+	"homepage": "https://github.com/iotaledger/iota#readme",
 	"devDependencies": {
-		"@mysten/build-scripts": "workspace:*",
+		"@iota/build-scripts": "workspace:*",
 		"@types/node": "^20.14.10",
 		"typescript": "^5.5.3",
 		"vitest": "^2.0.1"
 	},
 	"dependencies": {
-		"@mysten/sui": "workspace:*"
+		"@iota/iota-sdk": "workspace:*"
 	}
 }

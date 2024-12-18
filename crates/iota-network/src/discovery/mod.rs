@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anemo::types::PeerInfo;
 use anemo::{types::PeerEvent, Network, Peer, PeerId, Request, Response};
 use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use futures::StreamExt;
-use mysten_common::debug_fatal;
+use iota_common::debug_fatal;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentScope;
 use std::{
@@ -13,11 +14,11 @@ use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
-use sui_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
-use sui_types::crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey};
-use sui_types::digests::Digest;
-use sui_types::message_envelope::{Envelope, Message, VerifiedEnvelope};
-use sui_types::multiaddr::Multiaddr;
+use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
+use iota_types::crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey};
+use iota_types::digests::Digest;
+use iota_types::message_envelope::{Envelope, Message, VerifiedEnvelope};
+use iota_types::multiaddr::Multiaddr;
 use tap::{Pipe, TapFallible};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::watch;
@@ -34,7 +35,7 @@ const MAX_PEERS_TO_SEND: usize = 200;
 const MAX_ADDRESSES_PER_PEER: usize = 2;
 
 mod generated {
-    include!(concat!(env!("OUT_DIR"), "/sui.Discovery.rs"));
+    include!(concat!(env!("OUT_DIR"), "/iota.Discovery.rs"));
 }
 mod builder;
 mod metrics;

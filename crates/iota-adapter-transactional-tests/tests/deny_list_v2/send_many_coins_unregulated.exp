@@ -14,13 +14,13 @@ task 2, line 54:
 //# view-object 1,1
 Owner: Account Address ( A )
 Version: 2
-Contents: sui::coin::Coin<test::coin::COIN> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::coin::Coin<test::coin::COIN> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(1,1),
         },
     },
-    balance: sui::balance::Balance<test::coin::COIN> {
+    balance: iota::balance::Balance<test::coin::COIN> {
         value: 100000u64,
     },
 }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::drivers::Interval;
@@ -13,20 +14,20 @@ use crate::{ExecutionEffects, ValidatorProxy};
 use async_trait::async_trait;
 use rand::seq::IteratorRandom;
 use std::sync::Arc;
-use sui_core::test_utils::make_transfer_sui_transaction;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{ObjectRef, SuiAddress};
-use sui_types::crypto::{get_key_pair, AccountKeyPair};
-use sui_types::gas_coin::MIST_PER_SUI;
-use sui_types::transaction::Transaction;
+use iota_core::test_utils::make_transfer_iota_transaction;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::{ObjectRef, IotaAddress};
+use iota_types::crypto::{get_key_pair, AccountKeyPair};
+use iota_types::gas_coin::NANOS_PER_IOTA;
+use iota_types::transaction::Transaction;
 use tracing::error;
 
 #[derive(Debug)]
 pub struct DelegationTestPayload {
     coin: Option<ObjectRef>,
     gas: ObjectRef,
-    validator: SuiAddress,
-    sender: SuiAddress,
+    validator: IotaAddress,
+    sender: IotaAddress,
     keypair: Arc<AccountKeyPair>,
     system_state_observer: Arc<SystemStateObserver>,
 }
@@ -67,10 +68,10 @@ impl Payload for DelegationTestPayload {
             )
             .call_staking(coin, self.validator)
             .build_and_sign(self.keypair.as_ref()),
-            None => make_transfer_sui_transaction(
+            None => make_transfer_iota_transaction(
                 self.gas,
                 self.sender,
-                Some(MIST_PER_SUI),
+                Some(NANOS_PER_IOTA),
                 self.sender,
                 &self.keypair,
                 self.system_state_observer

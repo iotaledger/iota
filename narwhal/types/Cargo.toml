@@ -3,7 +3,7 @@ name = "narwhal-types"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 publish = false
 
 [dependencies]
@@ -33,14 +33,14 @@ config = { path = "../config", package = "narwhal-config" }
 fastcrypto.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
 anemo.workspace = true
-sui-protocol-config.workspace = true
+iota-protocol-config.workspace = true
 once_cell.workspace = true
 
 store = { path = "../../crates/typed-store", package = "typed-store" }
-mysten-metrics.workspace = true
-mysten-common.workspace = true
-mysten-network.workspace = true
-mysten-util-mem.workspace = true
+iota-metrics.workspace = true
+iota-common.workspace = true
+iota-network-stack.workspace = true
+iota-util-mem.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true

@@ -10,13 +10,13 @@ task 2, line 11:
 //# view-object 1,1
 Owner: Account Address ( _ )
 Version: 2
-Contents: sui::package::UpgradeCap {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::package::UpgradeCap {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(1,1),
         },
     },
-    package: sui::object::ID {
+    package: iota::object::ID {
         bytes: Test,
     },
     version: 1u64,

@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use jsonrpsee::core::RpcResult;
 use simulacrum::Simulacrum;
 use std::sync::Arc;
-use sui_json_rpc_api::ReadApiServer;
-use sui_mvr_indexer::apis::read_api::ReadApi;
-use sui_mvr_indexer::indexer_reader::IndexerReader;
-use sui_mvr_indexer::test_utils::{set_up, wait_for_checkpoint};
+use iota_json_rpc_api::ReadApiServer;
+use iota_mvr_indexer::apis::read_api::ReadApi;
+use iota_mvr_indexer::indexer_reader::IndexerReader;
+use iota_mvr_indexer::test_utils::{set_up, wait_for_checkpoint};
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -28,7 +29,7 @@ async fn test_checkpoint_apis() -> RpcResult<()> {
     assert_eq!(latest_checkpoint.into_inner(), 2);
 
     // Test get_checkpoint
-    let checkpoint_id = sui_json_rpc_types::CheckpointId::SequenceNumber(1);
+    let checkpoint_id = iota_json_rpc_types::CheckpointId::SequenceNumber(1);
     let checkpoint = read_api.get_checkpoint(checkpoint_id).await?;
     assert_eq!(checkpoint.sequence_number, 1);
 

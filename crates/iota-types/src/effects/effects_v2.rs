@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::object_change::{ObjectIn, ObjectOut};
 use super::{EffectsObjectChange, IDOperation, ObjectChange};
 use crate::base_types::{
-    EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest,
+    EpochId, ObjectDigest, ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest,
     VersionDigest,
 };
 use crate::digests::{EffectsAuxDataDigest, TransactionEventsDigest};
@@ -296,7 +297,7 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
         } else {
             (
                 (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
-                Owner::AddressOwner(SuiAddress::default()),
+                Owner::AddressOwner(IotaAddress::default()),
             )
         }
     }
@@ -379,11 +380,11 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
             EffectsObjectChange {
                 input_state: ObjectIn::Exist((
                     (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(SuiAddress::default()),
+                    Owner::AddressOwner(IotaAddress::default()),
                 )),
                 output_state: ObjectOut::ObjectWrite((
                     obj_ref.2,
-                    Owner::AddressOwner(SuiAddress::default()),
+                    Owner::AddressOwner(IotaAddress::default()),
                 )),
                 id_operation: IDOperation::None,
             },
@@ -396,7 +397,7 @@ impl TransactionEffectsAPI for TransactionEffectsV2 {
             EffectsObjectChange {
                 input_state: ObjectIn::Exist((
                     (obj_ref.1, obj_ref.2),
-                    Owner::AddressOwner(SuiAddress::default()),
+                    Owner::AddressOwner(IotaAddress::default()),
                 )),
                 output_state: ObjectOut::NotExist,
                 id_operation: IDOperation::Deleted,

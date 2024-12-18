@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// An implementation of Tic Tac Toe, using owned objects.
@@ -19,7 +20,7 @@
 /// only requires one transaction.
 module tic_tac_toe::owned;
 
-use sui::{event, transfer::Receiving};
+use iota::{event, transfer::Receiving};
 
 // === Object Types ===
 

@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
@@ -14,26 +15,26 @@ use move_core_types::{
     u256::U256,
 };
 
-use sui_types::{
+use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
     error::ExecutionErrorKind,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
-    SUI_FRAMEWORK_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 
 use move_core_types::language_storage::TypeTag;
 
-use sui_move_build::{BuildConfig, SuiPackageHooks};
-use sui_types::{
+use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_types::{
     crypto::{get_key_pair, AccountKeyPair},
-    error::SuiError,
+    error::IotaError,
 };
 
 use std::{collections::HashSet, path::PathBuf};
 use std::{env, str::FromStr};
-use sui_types::execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus};
-use sui_types::move_package::UpgradeCap;
+use iota_types::execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus};
+use iota_types::move_package::UpgradeCap;
 
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
@@ -875,7 +876,7 @@ async fn test_entry_point_vector_empty() {
     .unwrap_err();
     assert_eq!(
         err,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::EmptyCommandInput
         }
     );
@@ -905,7 +906,7 @@ async fn test_entry_point_vector_empty() {
     .unwrap_err();
     assert_eq!(
         err,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::EmptyCommandInput
         }
     );
@@ -2267,7 +2268,7 @@ async fn test_entry_point_string_option_error() {
 async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
     gas: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     package_id: ObjectID,
     t: TypeTag,
@@ -2517,14 +2518,14 @@ make_vec_tests_for_type!(test_make_move_vec_u128, u128, TypeTag::U128, 0u128);
 make_vec_tests_for_type!(test_make_move_vec_u256, U256, TypeTag::U256, U256::zero());
 make_vec_tests_for_type!(
     test_make_move_vec_address,
-    SuiAddress,
+    IotaAddress,
     TypeTag::Address,
-    SuiAddress::ZERO
+    IotaAddress::ZERO
 );
 make_vec_tests_for_type!(
     test_make_move_vec_address_id,
     ObjectID,
-    TypeTag::Struct(Box::new(sui_types::id::ID::type_())),
+    TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
     ObjectID::ZERO
 );
 make_vec_tests_for_type!(test_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
@@ -2538,7 +2539,7 @@ make_vec_tests_for_type!(
 async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
     gas: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     t: TypeTag,
     value: T,
@@ -2705,14 +2706,14 @@ make_vec_error_tests_for_type!(
 );
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address,
-    SuiAddress,
+    IotaAddress,
     TypeTag::Address,
-    SuiAddress::ZERO
+    IotaAddress::ZERO
 );
 make_vec_error_tests_for_type!(
     test_error_make_move_vec_address_id,
     ObjectID,
-    TypeTag::Struct(Box::new(sui_types::id::ID::type_())),
+    TypeTag::Struct(Box::new(iota_types::id::ID::type_())),
     ObjectID::ZERO
 );
 make_vec_error_tests_for_type!(test_error_make_move_vec_utf8, &str, utf8_tag(), "❤️🧀");
@@ -2745,7 +2746,7 @@ async fn test_make_move_vec_empty() {
     .unwrap_err();
     assert_eq!(
         result,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::EmptyCommandInput
         }
     );
@@ -2787,8 +2788,8 @@ async fn test_object_no_id_error() {
     path.extend(["src", "unit_tests", "data", "object_no_id"]);
     let res = build_config.build(&path);
 
-    matches!(res.err(), Some(SuiError::ExecutionError(err_str)) if
-                 err_str.contains("SuiMoveVerificationError")
+    matches!(res.err(), Some(IotaError::ExecutionError(err_str)) if
+                 err_str.contains("IotaMoveVerificationError")
                  && err_str.contains("First field of struct NotObject must be 'id'"));
 }
 
@@ -2805,7 +2806,7 @@ pub fn build_package(
     code_dir: &str,
     with_unpublished_deps: bool,
 ) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectID>) {
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", code_dir]);
     let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
@@ -2817,7 +2818,7 @@ pub fn build_package(
 
 pub async fn build_and_try_publish_test_package(
     authority: &AuthorityState,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectID,
     test_dir: &str,
@@ -2825,7 +2826,7 @@ pub async fn build_and_try_publish_test_package(
     gas_price: u64,
     with_unpublished_deps: bool,
 ) -> (Transaction, SignedTransactionEffects) {
-    move_package::package_hooks::register_package_hooks(Box::new(SuiPackageHooks));
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["src", "unit_tests", "data", test_dir]);
 
@@ -2857,7 +2858,7 @@ pub async fn build_and_try_publish_test_package(
 
 pub async fn build_and_publish_test_package(
     authority: &AuthorityState,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectID,
     test_dir: &str,
@@ -2877,7 +2878,7 @@ pub async fn build_and_publish_test_package(
 
 pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectID,
     test_dir: &str,
@@ -2944,11 +2945,11 @@ pub async fn collect_packages_and_upgrade_caps(
 
 pub async fn run_multi_txns(
     authority: &AuthorityState,
-    sender: SuiAddress,
+    sender: IotaAddress,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectID,
     builder: ProgrammableTransactionBuilder,
-) -> Result<(CertifiedTransaction, SignedTransactionEffects), SuiError> {
+) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     // build the transaction data
     let pt = builder.finish();
     let gas_object = authority.get_object(gas_object_id).await;
@@ -2966,7 +2967,7 @@ pub async fn run_multi_txns(
 
 pub fn build_multi_publish_txns(
     builder: &mut ProgrammableTransactionBuilder,
-    sender: SuiAddress,
+    sender: IotaAddress,
     packages: Vec<(Vec<Vec<u8>>, Vec<ObjectID>)>,
 ) {
     for (modules, dep_ids) in packages {
@@ -2997,7 +2998,7 @@ pub fn build_multi_upgrade_txns(
         let policy = builder.pure(package_upgrade.policy).unwrap();
         let digest = builder.pure(package_upgrade.digest).unwrap();
         let ticket = builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             Identifier::new("package").unwrap(),
             Identifier::new("authorize_upgrade").unwrap(),
             vec![],
@@ -3010,7 +3011,7 @@ pub fn build_multi_upgrade_txns(
             package_upgrade.modules,
         );
         builder.programmable_move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             Identifier::new("package").unwrap(),
             Identifier::new("commit_upgrade").unwrap(),
             vec![],

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button } from '_app/shared/ButtonUI';
@@ -9,7 +10,7 @@ import {
 	type ZkLoginProvider,
 } from '_src/background/accounts/zklogin/providers';
 import { ampli } from '_src/shared/analytics/ampli';
-import { LedgerLogo17 as LedgerLogo } from '@mysten/icons';
+import { LedgerLogo17 as LedgerLogo } from '@iota/icons';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';

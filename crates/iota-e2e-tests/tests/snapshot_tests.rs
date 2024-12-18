@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
 use insta::assert_json_snapshot;
-use sui::sui_commands::SuiCommand;
-use sui_macros::sim_test;
-use sui_sdk::wallet_context::WalletContext;
+use iota::iota_commands::IotaCommand;
+use iota_macros::sim_test;
+use iota_sdk::wallet_context::WalletContext;
 use test_cluster::TestClusterBuilder;
 
 // special constants for substitution in commands
@@ -25,9 +26,9 @@ async fn run_one(
             }
         }
         test_output.push(serde_json::Value::String(cli_cmd.to_string()));
-        let c = SuiCommand::try_parse_from(cli_cmd_vec)?;
+        let c = IotaCommand::try_parse_from(cli_cmd_vec)?;
         match c {
-            SuiCommand::Client { cmd, .. } => {
+            IotaCommand::Client { cmd, .. } => {
                 if let Some(client_cmd) = cmd {
                     match client_cmd.execute(context).await {
                         Ok(output) => {
@@ -41,7 +42,7 @@ async fn run_one(
                     }
                 }
             }
-            SuiCommand::Move { .. } => {
+            IotaCommand::Move { .. } => {
                 unimplemented!("Supporting Move publish and upgrade commands")
             }
             _ => panic!("Command {:?} not supported by RPC snapshot tests", cli_cmd),
@@ -57,17 +58,17 @@ async fn basic_read_cmd_snapshot_tests() -> Result<(), anyhow::Error> {
     let context = &mut test_cluster.wallet;
 
     let cmds = vec![
-        "sui client objects {ME}", // valid addr
-        "sui client objects 0x0000000000000000000000000000000000000000000000000000000000000000", // empty addr
-        "sui client object 0x5",       // valid object
-        "sui client object 0x5 --bcs", // valid object BCS
+        "iota client objects {ME}", // valid addr
+        "iota client objects 0x0000000000000000000000000000000000000000000000000000000000000000", // empty addr
+        "iota client object 0x5",       // valid object
+        "iota client object 0x5 --bcs", // valid object BCS
         // Simtest object IDs are not stable so these object IDs may or may not exist currently --
         // commenting them out for now.
-        // "sui client object 0x3b5121a0603ef7ab4cb57827fceca17db3338ef2cd76126cc1523b681df27cee", // valid object
-        // "sui client object 0x3b5121a0603ef7ab4cb57827fceca17db3338ef2cd76126cc1523b681df27cee --bcs", // valid object BCS
-        "sui client object 0x0000000000000000000000000000000000000000000000000000000000000000", // non-existent object
-        "sui client tx-block Duwr9uSk9ZvAndEa8oDHunx345i6oyrp3e78MYHVAbYdv", // valid tx digest
-        "sui client tx-block EgMTHQygMi6SRsBqrPHAEKZCNrpShXurCp9rcb9qbSg8", // non-existent tx digest
+        // "iota client object 0x3b5121a0603ef7ab4cb57827fceca17db3338ef2cd76126cc1523b681df27cee", // valid object
+        // "iota client object 0x3b5121a0603ef7ab4cb57827fceca17db3338ef2cd76126cc1523b681df27cee --bcs", // valid object BCS
+        "iota client object 0x0000000000000000000000000000000000000000000000000000000000000000", // non-existent object
+        "iota client tx-block Duwr9uSk9ZvAndEa8oDHunx345i6oyrp3e78MYHVAbYdv", // valid tx digest
+        "iota client tx-block EgMTHQygMi6SRsBqrPHAEKZCNrpShXurCp9rcb9qbSg8", // non-existent tx digest
     ];
     assert_json_snapshot!(run_one(cmds, context).await?);
     Ok(())

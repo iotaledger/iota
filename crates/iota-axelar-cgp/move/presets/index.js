@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /**
@@ -10,8 +11,8 @@ const secp256k1 = require("secp256k1");
 const {
     utils: {keccak256},
 } = require("ethers");
-const {BCS, fromHEX, toHEX, getSuiMoveConfig} = require("@mysten/bcs");
-const bcs = new BCS(getSuiMoveConfig());
+const {BCS, fromHEX, toHEX, getIotaMoveConfig} = require("@iota/bcs");
+const bcs = new BCS(getIotaMoveConfig());
 
 // generate privKey
 const privKey = Buffer.from(
@@ -182,7 +183,7 @@ console.log(secp256k1.ecdsaVerify(signature, hashed, pubKey));
 function hashMessage(data) {
     // sorry for putting it here...
     const messagePrefix = new Uint8Array(
-        Buffer.from("\x19Sui Signed Message:\n", "ascii")
+        Buffer.from("\x19Iota Signed Message:\n", "ascii")
     );
     let hashed = new Uint8Array(messagePrefix.length + data.length);
     hashed.set(messagePrefix);

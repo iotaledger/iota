@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{ErrorExtensionValues, ErrorExtensions, Pos, ServerError};
-use sui_indexer::errors::IndexerError;
-use sui_json_rpc::name_service::NameServiceError;
+use iota_indexer::errors::IndexerError;
+use iota_json_rpc::name_service::NameServiceError;
 
 use crate::types::move_registry::error::MoveRegistryError;
 

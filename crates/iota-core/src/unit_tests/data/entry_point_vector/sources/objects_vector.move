@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module entry_point_vector::entry_point_vector {
-    use sui::object::{Self, UID};
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
+    use iota::object::{Self, UID};
+    use iota::transfer;
+    use iota::tx_context::{Self, TxContext};
     use std::vector;
 
     public struct Obj has key, store {
@@ -50,7 +51,7 @@ module entry_point_vector::entry_point_vector {
     }
 
     public entry fun mint_child(v: u64, parent: &mut Obj, ctx: &mut TxContext) {
-        sui::dynamic_object_field::add(
+        iota::dynamic_object_field::add(
             &mut parent.id, 0,
             Obj {
                 id: object::new(ctx),
@@ -144,7 +145,7 @@ module entry_point_vector::entry_point_vector {
     }
 
     public entry fun mint_child_any<Any>(v: u64, parent: &mut ObjAny<Any>, ctx: &mut TxContext) {
-        sui::dynamic_object_field::add(
+        iota::dynamic_object_field::add(
             &mut parent.id,
             0,
             ObjAny<Any> {

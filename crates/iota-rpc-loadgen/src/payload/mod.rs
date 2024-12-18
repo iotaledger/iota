@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod checkpoint_utils;
@@ -8,7 +9,7 @@ mod get_object;
 mod get_reference_gas_price;
 mod multi_get_objects;
 mod multi_get_transaction_blocks;
-mod pay_sui;
+mod pay_iota;
 mod query_transactions;
 mod rpc_command_processor;
 mod validation;
@@ -18,8 +19,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use core::default::Default;
 use std::time::Duration;
-use sui_types::{
-    base_types::SuiAddress, digests::TransactionDigest,
+use iota_types::{
+    base_types::IotaAddress, digests::TransactionDigest,
     messages_checkpoint::CheckpointSequenceNumber,
 };
 
@@ -27,7 +28,7 @@ use crate::load_test::LoadTestConfig;
 pub use rpc_command_processor::{
     load_addresses_from_file, load_digests_from_file, load_objects_from_file, RpcCommandProcessor,
 };
-use sui_types::base_types::ObjectID;
+use iota_types::base_types::ObjectID;
 
 #[derive(Default, Clone)]
 pub struct SignerInfo {
@@ -73,9 +74,9 @@ impl Command {
         }
     }
 
-    pub fn new_pay_sui() -> Self {
+    pub fn new_pay_iota() -> Self {
         Self {
-            data: CommandData::PaySui(PaySui {}),
+            data: CommandData::PayIota(PayIota {}),
             ..Default::default()
         }
     }
@@ -101,7 +102,7 @@ impl Command {
 
     pub fn new_query_transaction_blocks(
         address_type: AddressQueryType,
-        addresses: Vec<SuiAddress>,
+        addresses: Vec<IotaAddress>,
     ) -> Self {
         let query_transactions = QueryTransactionBlocks {
             address_type,
@@ -140,7 +141,7 @@ impl Command {
         }
     }
 
-    pub fn new_get_all_balances(addresses: Vec<SuiAddress>, chunk_size: usize) -> Self {
+    pub fn new_get_all_balances(addresses: Vec<IotaAddress>, chunk_size: usize) -> Self {
         let get_all_balances = GetAllBalances {
             addresses,
             chunk_size,
@@ -175,7 +176,7 @@ impl Command {
 pub enum CommandData {
     DryRun(DryRun),
     GetCheckpoints(GetCheckpoints),
-    PaySui(PaySui),
+    PayIota(PayIota),
     QueryTransactionBlocks(QueryTransactionBlocks),
     MultiGetTransactionBlocks(MultiGetTransactionBlocks),
     MultiGetObjects(MultiGetObjects),
@@ -205,12 +206,12 @@ pub struct GetCheckpoints {
 }
 
 #[derive(Clone)]
-pub struct PaySui {}
+pub struct PayIota {}
 
 #[derive(Clone, Default)]
 pub struct QueryTransactionBlocks {
     pub address_type: AddressQueryType,
-    pub addresses: Vec<SuiAddress>,
+    pub addresses: Vec<IotaAddress>,
 }
 
 #[derive(Clone)]
@@ -240,7 +241,7 @@ pub struct GetObject {
 
 #[derive(Clone)]
 pub struct GetAllBalances {
-    pub addresses: Vec<SuiAddress>,
+    pub addresses: Vec<IotaAddress>,
     pub chunk_size: usize,
 }
 

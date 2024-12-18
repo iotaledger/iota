@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{time::Duration, vec};
 
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::transaction::VerifiedTransaction;
-use sui_types::{
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::executable_transaction::VerifiedExecutableTransaction;
+use iota_types::transaction::VerifiedTransaction;
+use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     crypto::deterministic_random_account_key,
     object::Object,
     storage::InputKey,
     transaction::{CallArg, ObjectArg},
-    SUI_FRAMEWORK_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID,
 };
 use tokio::time::Instant;
 use tokio::{
@@ -50,7 +51,7 @@ fn make_transaction(gas_object: Object, input: Vec<CallArg>) -> VerifiedExecutab
     let (sender, keypair) = deterministic_random_account_key();
     let transaction =
         TestTransactionBuilder::new(sender, gas_object.compute_object_reference(), rgp)
-            .move_call(SUI_FRAMEWORK_PACKAGE_ID, "counter", "assert_value", input)
+            .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "counter", "assert_value", input)
             .build_and_sign(&keypair);
     VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(transaction), 0)
 }

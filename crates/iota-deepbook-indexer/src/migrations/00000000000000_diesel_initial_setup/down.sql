@@ -9,6 +9,6 @@ DROP TABLE IF EXISTS stakes;
 DROP TABLE IF EXISTS proposals;
 DROP TABLE IF EXISTS votes;
 DROP TABLE IF EXISTS rebates;
-DROP TABLE IF EXISTS sui_error_transactions;
+DROP TABLE IF EXISTS iota_error_transactions;
 DROP TABLE IF EXISTS progress_store;
 DROP TABLE IF EXISTS pools;

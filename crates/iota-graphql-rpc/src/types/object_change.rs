@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use sui_types::effects::{IDOperation, ObjectChange as NativeObjectChange};
+use iota_types::effects::{IDOperation, ObjectChange as NativeObjectChange};
 
-use super::{object::Object, sui_address::SuiAddress};
+use super::{object::Object, iota_address::IotaAddress};
 
 pub(crate) struct ObjectChange {
     pub native: NativeObjectChange,
@@ -16,7 +17,7 @@ pub(crate) struct ObjectChange {
 #[Object]
 impl ObjectChange {
     /// The address of the object that has changed.
-    async fn address(&self) -> SuiAddress {
+    async fn address(&self) -> IotaAddress {
         self.native.id.into()
     }
 

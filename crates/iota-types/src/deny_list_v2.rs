@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{EpochId, ObjectID, SuiAddress};
+use crate::base_types::{EpochId, ObjectID, IotaAddress};
 use crate::config::{Config, Setting};
 use crate::deny_list_v1::{
     input_object_coin_types_for_denylist_check, DENY_LIST_COIN_TYPE_INDEX, DENY_LIST_MODULE,
@@ -12,7 +13,7 @@ use crate::id::UID;
 use crate::object::Object;
 use crate::storage::{DenyListResult, ObjectStore};
 use crate::transaction::{CheckedInputObjects, ReceivingObjects};
-use crate::{MoveTypeTagTrait, SUI_DENY_LIST_OBJECT_ID, SUI_FRAMEWORK_PACKAGE_ID};
+use crate::{MoveTypeTagTrait, IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID};
 use move_core_types::ident_str;
 use move_core_types::language_storage::{StructTag, TypeTag};
 use serde::de::DeserializeOwned;
@@ -39,7 +40,7 @@ struct ConfigKey {
 impl ConfigKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_PACKAGE_ID.into(),
+            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("ConfigKey").to_owned(),
             type_params: vec![],
@@ -55,12 +56,12 @@ impl MoveTypeTagTrait for ConfigKey {
 
 /// Rust representation of the Move type 0x2::deny_list::AddressKey.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct AddressKey(SuiAddress);
+struct AddressKey(IotaAddress);
 
 impl AddressKey {
     pub fn type_() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_PACKAGE_ID.into(),
+            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("AddressKey").to_owned(),
             type_params: vec![],
@@ -86,7 +87,7 @@ impl GlobalPauseKey {
     }
     pub fn type_() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_PACKAGE_ID.into(),
+            address: IOTA_FRAMEWORK_PACKAGE_ID.into(),
             module: DENY_LIST_MODULE.to_owned(),
             name: ident_str!("GlobalPauseKey").to_owned(),
             type_params: vec![],
@@ -101,7 +102,7 @@ impl MoveTypeTagTrait for GlobalPauseKey {
 }
 
 pub fn check_coin_deny_list_v2_during_signing(
-    address: SuiAddress,
+    address: IotaAddress,
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,
     object_store: &dyn ObjectStore,
@@ -168,7 +169,7 @@ pub fn check_coin_deny_list_v2_during_execution(
 }
 
 fn check_new_regulated_coin_owners(
-    new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<SuiAddress>)>,
+    new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<IotaAddress>)>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> Result<(), ExecutionError> {
@@ -206,13 +207,13 @@ pub fn get_per_type_coin_deny_list_v2(
     };
     // TODO: Consider caching the config object UID to avoid repeat deserialization.
     let config: Config =
-        get_dynamic_field_from_store(object_store, SUI_DENY_LIST_OBJECT_ID, &config_key).ok()?;
+        get_dynamic_field_from_store(object_store, IOTA_DENY_LIST_OBJECT_ID, &config_key).ok()?;
     Some(config)
 }
 
 pub fn check_address_denied_by_config(
     deny_config: &Config,
-    address: SuiAddress,
+    address: IotaAddress,
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
 ) -> bool {

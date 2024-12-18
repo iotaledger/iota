@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useResolveSuiNSName } from '_app/hooks/useAppResolveSuinsName';
+import { useResolveIotaNSName } from '_app/hooks/useAppResolveIotaNSName';
 import { Text } from '_src/ui/app/shared/text';
-import { useFormatCoin } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { CheckFill16 } from '@mysten/icons';
-import { formatAddress, SUI_TYPE_ARG } from '@mysten/sui/utils';
+import { useFormatCoin } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { CheckFill16 } from '@iota/icons';
+import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 
 import { useCoinsReFetchingConfig } from '../../hooks';
@@ -19,10 +20,10 @@ type LedgerAccountRowProps = {
 export function LedgerAccountRow({ isSelected, address }: LedgerAccountRowProps) {
 	const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
 
-	const { data: coinBalance } = useSuiClientQuery(
+	const { data: coinBalance } = useIotaClientQuery(
 		'getBalance',
 		{
-			coinType: SUI_TYPE_ARG,
+			coinType: IOTA_TYPE_ARG,
 			owner: address,
 		},
 		{
@@ -30,11 +31,11 @@ export function LedgerAccountRow({ isSelected, address }: LedgerAccountRowProps)
 			staleTime,
 		},
 	);
-	const domainName = useResolveSuiNSName(address);
+	const domainName = useResolveIotaNSName(address);
 
 	const [totalAmount, totalAmountSymbol] = useFormatCoin(
 		coinBalance?.totalBalance ?? 0,
-		SUI_TYPE_ARG,
+		IOTA_TYPE_ARG,
 	);
 
 	return (

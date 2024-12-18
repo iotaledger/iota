@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useState, useEffect } from "react";
@@ -62,10 +63,10 @@ const Examples = (props) => {
       </p>
       {examples[0].params && (
         <div>
-          <p className="font-bold mt-4 text-sui-gray-80 dark:text-sui-gray-50">
+          <p className="font-bold mt-4 text-iota-gray-80 dark:text-iota-gray-50">
             Request
           </p>
-          <pre className="p-2 pb-0 max-h-96	dark:bg-sui-ghost-dark bg-sui-ghost-white rounded-lg mt-4 overflow-x-auto border dark:border-sui-gray-75">
+          <pre className="p-2 pb-0 max-h-96	dark:bg-iota-ghost-dark bg-iota-ghost-white rounded-lg mt-4 overflow-x-auto border dark:border-iota-gray-75">
             <code className="text-base">
               <SyntaxHighlighter language={js} style={light ? docco : dark}>
                 {stringRequest}
@@ -76,10 +77,10 @@ const Examples = (props) => {
       )}
       {examples[0].result.value && (
         <div>
-          <p className="font-bold mt-6 text-sui-gray-80 dark:text-sui-gray-50">
+          <p className="font-bold mt-6 text-iota-gray-80 dark:text-iota-gray-50">
             Response
           </p>
-          <pre className="p-2 pb-0 max-h-96 dark:bg-sui-ghost-dark bg-sui-ghost-white rounded-lg mt-4 overflow-x-auto border dark:border-sui-gray-75">
+          <pre className="p-2 pb-0 max-h-96 dark:bg-iota-ghost-dark bg-iota-ghost-white rounded-lg mt-4 overflow-x-auto border dark:border-iota-gray-75">
             <code className="text-base">
               <SyntaxHighlighter language={js} style={light ? docco : dark}>
                 {JSON.stringify(response, null, 2)}

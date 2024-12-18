@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{string_input::impl_string_input, sui_address::SuiAddress};
+use super::{string_input::impl_string_input, iota_address::IotaAddress};
 use crate::filter;
 use crate::raw_query::RawQuery;
 use async_graphql::*;
 use move_core_types::language_storage::StructTag;
 use std::{fmt, result::Result, str::FromStr};
-use sui_types::{
-    parse_sui_address, parse_sui_fq_name, parse_sui_module_id, parse_sui_struct_tag,
-    parse_sui_type_tag, TypeTag,
+use iota_types::{
+    parse_iota_address, parse_iota_fq_name, parse_iota_module_id, parse_iota_struct_tag,
+    parse_iota_type_tag, TypeTag,
 };
 
 /// A GraphQL scalar containing a filter on types that requires an exact match.
@@ -28,7 +29,7 @@ pub(crate) enum TypeFilter {
     ///
     ///  0x2::coin::Coin
     ///
-    /// would match both 0x2::coin::Coin and 0x2::coin::Coin<0x2::sui::SUI>.
+    /// would match both 0x2::coin::Coin and 0x2::coin::Coin<0x2::iota::IOTA>.
     ByType(StructTag),
 }
 
@@ -39,17 +40,17 @@ pub(crate) enum FqNameFilter {
     ByModule(ModuleFilter),
 
     /// Exact match on the module member.
-    ByFqName(SuiAddress, String, String),
+    ByFqName(IotaAddress, String, String),
 }
 
 /// GraphQL scalar containing a filter on modules.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ModuleFilter {
     /// Filter the module by the package it's from.
-    ByPackage(SuiAddress),
+    ByPackage(IotaAddress),
 
     /// Exact match on the module.
-    ByModule(SuiAddress, String),
+    ByModule(IotaAddress, String),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -156,20 +157,20 @@ impl TypeFilter {
             (T::ByType(_), T::ByType(_)) => (self == other).then_some(self),
 
             (T::ByType(s), T::ByModule(M::ByPackage(q))) => {
-                (SuiAddress::from(s.address) == *q).then_some(self)
+                (IotaAddress::from(s.address) == *q).then_some(self)
             }
 
             (T::ByType(s), T::ByModule(M::ByModule(q, n))) => {
-                ((SuiAddress::from(s.address), s.module.as_str()) == (*q, n.as_str()))
+                ((IotaAddress::from(s.address), s.module.as_str()) == (*q, n.as_str()))
                     .then_some(self)
             }
 
             (T::ByModule(M::ByPackage(p)), T::ByType(t)) => {
-                (SuiAddress::from(t.address) == *p).then_some(other)
+                (IotaAddress::from(t.address) == *p).then_some(other)
             }
 
             (T::ByModule(M::ByModule(p, m)), T::ByType(t)) => {
-                ((SuiAddress::from(t.address), t.module.as_str()) == (*p, m.as_str()))
+                ((IotaAddress::from(t.address), t.module.as_str()) == (*p, m.as_str()))
                     .then_some(other)
             }
         }
@@ -228,7 +229,7 @@ impl FromStr for ExactTypeFilter {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Error> {
-        if let Ok(tag) = parse_sui_type_tag(s) {
+        if let Ok(tag) = parse_iota_type_tag(s) {
             Ok(ExactTypeFilter(tag))
         } else {
             Err(Error::InvalidFormat(
@@ -241,7 +242,7 @@ impl FromStr for ExactTypeFilter {
 impl FromStr for TypeFilter {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Error> {
-        if let Ok(tag) = parse_sui_struct_tag(s) {
+        if let Ok(tag) = parse_iota_struct_tag(s) {
             Ok(TypeFilter::ByType(tag))
         } else if let Ok(filter) = ModuleFilter::from_str(s) {
             Ok(TypeFilter::ByModule(filter))
@@ -256,9 +257,9 @@ impl FromStr for TypeFilter {
 impl FromStr for FqNameFilter {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Error> {
-        if let Ok((module, name)) = parse_sui_fq_name(s) {
+        if let Ok((module, name)) = parse_iota_fq_name(s) {
             Ok(FqNameFilter::ByFqName(
-                SuiAddress::from(*module.address()),
+                IotaAddress::from(*module.address()),
                 module.name().to_string(),
                 name,
             ))
@@ -273,12 +274,12 @@ impl FromStr for FqNameFilter {
 impl FromStr for ModuleFilter {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Error> {
-        if let Ok(module) = parse_sui_module_id(s) {
+        if let Ok(module) = parse_iota_module_id(s) {
             Ok(ModuleFilter::ByModule(
-                SuiAddress::from(*module.address()),
+                IotaAddress::from(*module.address()),
                 module.name().to_string(),
             ))
-        } else if let Ok(package) = parse_sui_address(s) {
+        } else if let Ok(package) = parse_iota_address(s) {
             Ok(ModuleFilter::ByPackage(package.into()))
         } else {
             Err(Error::InvalidFormat("package[::module]"))
@@ -339,9 +340,9 @@ mod tests {
             "address",
             "bool",
             "0x2::coin::Coin",
-            "0x2::coin::Coin<0x2::sui::SUI>",
+            "0x2::coin::Coin<0x2::iota::IOTA>",
             "vector<u256>",
-            "vector<0x3::staking_pool::StakedSui>",
+            "vector<0x3::staking_pool::StakedIota>",
         ]
         .into_iter();
 
@@ -354,9 +355,9 @@ mod tests {
             address
             bool
             0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin
-            0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>
+            0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>
             vector<u256>
-            vector<0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedSui>"#]];
+            vector<0x0000000000000000000000000000000000000000000000000000000000000003::staking_pool::StakedIota>"#]];
         expect.assert_eq(&filters.join("\n"))
     }
 
@@ -366,7 +367,7 @@ mod tests {
             "0x2",
             "0x2::coin",
             "0x2::coin::Coin",
-            "0x2::coin::Coin<0x2::sui::SUI>",
+            "0x2::coin::Coin<0x2::iota::IOTA>",
         ]
         .into_iter();
 
@@ -378,7 +379,7 @@ mod tests {
             0x0000000000000000000000000000000000000000000000000000000000000002::
             0x0000000000000000000000000000000000000000000000000000000000000002::coin::
             0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin
-            0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>"#]];
+            0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"#]];
         expect.assert_eq(&filters.join("\n"))
     }
 
@@ -407,9 +408,9 @@ mod tests {
     #[test]
     fn test_invalid_function_filters() {
         for invalid_function_filter in [
-            "0x2::coin::Coin<0x2::sui::SUI>",
+            "0x2::coin::Coin<0x2::iota::IOTA>",
             "vector<u256>",
-            "vector<0x3::staking_pool::StakedSui>",
+            "vector<0x3::staking_pool::StakedIota>",
         ] {
             assert!(FqNameFilter::from_str(invalid_function_filter).is_err());
         }
@@ -450,9 +451,9 @@ mod tests {
             "address",
             "bool",
             "0x2::coin::Coin",
-            "0x2::coin::Coin<0x2::sui::SUI>",
+            "0x2::coin::Coin<0x2::iota::IOTA>",
             "vector<u256>",
-            "vector<0x3::staking_pool::StakedSui>",
+            "vector<0x3::staking_pool::StakedIota>",
         ] {
             assert!(ModuleFilter::from_str(invalid_module_filter).is_err());
         }
@@ -460,7 +461,7 @@ mod tests {
 
     #[test]
     fn test_fqname_intersection() {
-        let sui = FqNameFilter::from_str("0x2").unwrap();
+        let iota = FqNameFilter::from_str("0x2").unwrap();
         let coin = FqNameFilter::from_str("0x2::coin").unwrap();
         let take = FqNameFilter::from_str("0x2::coin::take").unwrap();
 
@@ -468,27 +469,27 @@ mod tests {
         let string = FqNameFilter::from_str("0x1::string").unwrap();
         let utf8 = FqNameFilter::from_str("0x1::string::utf8").unwrap();
 
-        assert_eq!(sui.clone().intersect(sui.clone()), Some(sui.clone()));
-        assert_eq!(sui.clone().intersect(coin.clone()), Some(coin.clone()));
-        assert_eq!(sui.clone().intersect(take.clone()), Some(take.clone()));
+        assert_eq!(iota.clone().intersect(iota.clone()), Some(iota.clone()));
+        assert_eq!(iota.clone().intersect(coin.clone()), Some(coin.clone()));
+        assert_eq!(iota.clone().intersect(take.clone()), Some(take.clone()));
         assert_eq!(take.clone().intersect(coin.clone()), Some(take.clone()));
 
-        assert_eq!(sui.clone().intersect(std.clone()), None);
-        assert_eq!(sui.clone().intersect(string.clone()), None);
+        assert_eq!(iota.clone().intersect(std.clone()), None);
+        assert_eq!(iota.clone().intersect(string.clone()), None);
         assert_eq!(utf8.clone().intersect(coin.clone()), None);
     }
 
     #[test]
     fn test_type_intersection() {
-        let sui = TypeFilter::from_str("0x2").unwrap();
+        let iota = TypeFilter::from_str("0x2").unwrap();
         let coin_mod = TypeFilter::from_str("0x2::coin").unwrap();
         let coin_typ = TypeFilter::from_str("0x2::coin::Coin").unwrap();
-        let coin_sui = TypeFilter::from_str("0x2::coin::Coin<0x2::sui::SUI>").unwrap();
+        let coin_iota = TypeFilter::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap();
         let coin_usd = TypeFilter::from_str("0x2::coin::Coin<0x3::usd::USD>").unwrap();
         let std_utf8 = TypeFilter::from_str("0x1::string::String").unwrap();
 
         assert_eq!(
-            sui.clone().intersect(coin_mod.clone()),
+            iota.clone().intersect(coin_mod.clone()),
             Some(coin_mod.clone())
         );
 
@@ -498,13 +499,13 @@ mod tests {
         );
 
         assert_eq!(
-            coin_sui.clone().intersect(coin_typ.clone()),
-            Some(coin_sui.clone())
+            coin_iota.clone().intersect(coin_typ.clone()),
+            Some(coin_iota.clone())
         );
 
-        assert_eq!(sui.clone().intersect(std_utf8.clone()), None);
-        assert_eq!(coin_sui.clone().intersect(coin_usd.clone()), None);
+        assert_eq!(iota.clone().intersect(std_utf8.clone()), None);
+        assert_eq!(coin_iota.clone().intersect(coin_usd.clone()), None);
         assert_eq!(coin_typ.clone().intersect(std_utf8.clone()), None);
-        assert_eq!(coin_sui.clone().intersect(std_utf8.clone()), None);
+        assert_eq!(coin_iota.clone().intersect(std_utf8.clone()), None);
     }
 }

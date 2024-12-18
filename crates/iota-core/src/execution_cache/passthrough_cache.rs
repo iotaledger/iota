@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store::{ExecutionLockWriteGuard, SuiLockResult};
+use crate::authority::authority_store::{ExecutionLockWriteGuard, IotaLockResult};
 use crate::authority::epoch_start_configuration::EpochFlag;
 use crate::authority::epoch_start_configuration::EpochStartConfiguration;
 use crate::authority::AuthorityStore;
@@ -10,25 +11,25 @@ use crate::state_accumulator::AccumulatorStore;
 use crate::transaction_outputs::TransactionOutputs;
 
 use futures::{future::BoxFuture, FutureExt};
-use mysten_common::sync::notify_read::NotifyRead;
+use iota_common::sync::notify_read::NotifyRead;
 use prometheus::Registry;
 use std::future::ready;
 use std::sync::Arc;
-use sui_protocol_config::ProtocolVersion;
-use sui_storage::package_object_cache::PackageObjectCache;
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::VerifiedExecutionData;
-use sui_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber};
-use sui_types::bridge::{get_bridge, Bridge};
-use sui_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::SuiResult;
-use sui_types::message_envelope::Message;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::object::Object;
-use sui_types::storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject};
-use sui_types::sui_system_state::{get_sui_system_state, SuiSystemState};
-use sui_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
+use iota_protocol_config::ProtocolVersion;
+use iota_storage::package_object_cache::PackageObjectCache;
+use iota_types::accumulator::Accumulator;
+use iota_types::base_types::VerifiedExecutionData;
+use iota_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber};
+use iota_types::bridge::{get_bridge, Bridge};
+use iota_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::error::IotaResult;
+use iota_types::message_envelope::Message;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::object::Object;
+use iota_types::storage::{MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, PackageObject};
+use iota_types::iota_system_state::{get_iota_system_state, IotaSystemState};
+use iota_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
 use tap::TapFallible;
 use tracing::instrument;
 use typed_store::Map;
@@ -90,7 +91,7 @@ impl PassthroughCache {
 }
 
 impl ObjectCacheRead for PassthroughCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache
             .get_package_object(package_id, &*self.store)
     }
@@ -149,23 +150,23 @@ impl ObjectCacheRead for PassthroughCache {
             .expect("db error")
     }
 
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> SuiLockResult {
+    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
         self.store.get_lock(obj_ref, epoch_store)
     }
 
-    fn _get_live_objref(&self, object_id: ObjectID) -> SuiResult<ObjectRef> {
+    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
         self.store.get_latest_live_version_for_object_id(object_id)
     }
 
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> SuiResult {
+    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
         self.store.check_owned_objects_are_live(owned_object_refs)
     }
 
-    fn get_sui_system_state_object_unsafe(&self) -> SuiResult<SuiSystemState> {
-        get_sui_system_state(self)
+    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+        get_iota_system_state(self)
     }
 
-    fn get_bridge_object_unsafe(&self) -> SuiResult<Bridge> {
+    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge> {
         get_bridge(self)
     }
 
@@ -297,7 +298,7 @@ impl ExecutionCacheWrite for PassthroughCache {
         owned_input_objects: &'a [ObjectRef],
         tx_digest: TransactionDigest,
         signed_transaction: Option<VerifiedSignedTransaction>,
-    ) -> BoxFuture<'a, SuiResult> {
+    ) -> BoxFuture<'a, IotaResult> {
         self.store
             .acquire_transaction_locks(
                 epoch_store,
@@ -313,8 +314,8 @@ impl AccumulatorStore for PassthroughCache {
     fn get_object_ref_prior_to_key_deprecated(
         &self,
         object_id: &ObjectID,
-        version: sui_types::base_types::VersionNumber,
-    ) -> SuiResult<Option<ObjectRef>> {
+        version: iota_types::base_types::VersionNumber,
+    ) -> IotaResult<Option<ObjectRef>> {
         self.store
             .get_object_ref_prior_to_key_deprecated(object_id, version)
     }
@@ -322,13 +323,13 @@ impl AccumulatorStore for PassthroughCache {
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> SuiResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
         self.store.get_root_state_accumulator_for_epoch(epoch)
     }
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> SuiResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
         self.store.get_root_state_accumulator_for_highest_epoch()
     }
 
@@ -337,7 +338,7 @@ impl AccumulatorStore for PassthroughCache {
         epoch: EpochId,
         checkpoint_seq_num: &CheckpointSequenceNumber,
         acc: &Accumulator,
-    ) -> SuiResult {
+    ) -> IotaResult {
         self.store
             .insert_state_accumulator_for_epoch(epoch, checkpoint_seq_num, acc)
     }

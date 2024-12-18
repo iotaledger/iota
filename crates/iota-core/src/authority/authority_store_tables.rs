@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
 use crate::authority::authority_store::LockDetailsWrapperDeprecated;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::SequenceNumber;
-use sui_types::digests::TransactionEventsDigest;
-use sui_types::effects::TransactionEffects;
-use sui_types::storage::MarkerValue;
+use iota_types::accumulator::Accumulator;
+use iota_types::base_types::SequenceNumber;
+use iota_types::digests::TransactionEventsDigest;
+use iota_types::effects::TransactionEffects;
+use iota_types::storage::MarkerValue;
 use typed_store::metrics::SamplingInterval;
 use typed_store::rocks::util::{empty_compaction_filter, reference_count_merge_operator};
 use typed_store::rocks::{
@@ -119,11 +120,11 @@ pub struct AuthorityPerpetualTables {
     /// A singleton table that stores latest pruned checkpoint. Used to keep objects pruner progress
     pub(crate) pruned_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 
-    /// Expected total amount of SUI in the network. This is expected to remain constant
+    /// Expected total amount of IOTA in the network. This is expected to remain constant
     /// throughout the lifetime of the network. We check it at the end of each epoch if
     /// expensive checks are enabled. We cannot use 10B today because in tests we often
     /// inject extra gas objects into genesis.
-    pub(crate) expected_network_sui_amount: DBMap<(), u64>,
+    pub(crate) expected_network_iota_amount: DBMap<(), u64>,
 
     /// Expected imbalance between storage fund balance and the sum of storage rebate of all live objects.
     /// This could be non-zero due to bugs in earlier protocol versions.
@@ -201,7 +202,7 @@ impl AuthorityPerpetualTables {
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         let iter = self
             .objects
             .safe_range_iter(ObjectKey::min_for_id(&object_id)..=ObjectKey::max_for_id(&object_id))
@@ -217,7 +218,7 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: StoreObjectValue,
-    ) -> Result<Object, SuiError> {
+    ) -> Result<Object, IotaError> {
         let indirect_object = match store_object.data {
             StoreData::IndirectObject(ref metadata) => self
                 .indirect_move_objects
@@ -228,13 +229,13 @@ impl AuthorityPerpetualTables {
         try_construct_object(object_key, store_object, indirect_object)
     }
 
-    // Constructs `sui_types::object::Object` from `StoreObjectWrapper`.
+    // Constructs `iota_types::object::Object` from `StoreObjectWrapper`.
     // Returns `None` if object was deleted/wrapped
     pub fn object(
         &self,
         object_key: &ObjectKey,
         store_object: StoreObjectWrapper,
-    ) -> Result<Option<Object>, SuiError> {
+    ) -> Result<Option<Object>, IotaError> {
         let StoreObject::Value(store_object) = store_object.migrate().into_inner() else {
             return Ok(None);
         };
@@ -245,7 +246,7 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: StoreObjectWrapper,
-    ) -> Result<ObjectRef, SuiError> {
+    ) -> Result<ObjectRef, IotaError> {
         let obj_ref = match store_object.migrate().into_inner() {
             StoreObject::Value(object) => self
                 .construct_object(object_key, object)?
@@ -268,7 +269,7 @@ impl AuthorityPerpetualTables {
         &self,
         object_key: &ObjectKey,
         store_object: &StoreObjectWrapper,
-    ) -> Result<Option<ObjectRef>, SuiError> {
+    ) -> Result<Option<ObjectRef>, IotaError> {
         let obj_ref = match store_object.inner() {
             StoreObject::Deleted => Some((
                 object_key.0,
@@ -288,7 +289,7 @@ impl AuthorityPerpetualTables {
     pub fn get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
-    ) -> Result<Option<ObjectRef>, SuiError> {
+    ) -> Result<Option<ObjectRef>, IotaError> {
         let mut iterator = self
             .objects
             .unbounded_iter()
@@ -305,7 +306,7 @@ impl AuthorityPerpetualTables {
     pub fn get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
-    ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, SuiError> {
+    ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
         let mut iterator = self
             .objects
             .unbounded_iter()
@@ -319,7 +320,7 @@ impl AuthorityPerpetualTables {
         Ok(None)
     }
 
-    pub fn get_recovery_epoch_at_restart(&self) -> SuiResult<EpochId> {
+    pub fn get_recovery_epoch_at_restart(&self) -> IotaResult<EpochId> {
         Ok(self
             .epoch_start_configuration
             .get(&())?
@@ -331,7 +332,7 @@ impl AuthorityPerpetualTables {
     pub fn set_epoch_start_configuration(
         &self,
         epoch_start_configuration: &EpochStartConfiguration,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let mut wb = self.epoch_start_configuration.batch();
         wb.insert_batch(
             &self.epoch_start_configuration,
@@ -341,7 +342,7 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn get_highest_pruned_checkpoint(&self) -> SuiResult<CheckpointSequenceNumber> {
+    pub fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
         Ok(self.pruned_checkpoint.get(&())?.unwrap_or_default())
     }
 
@@ -349,7 +350,7 @@ impl AuthorityPerpetualTables {
         &self,
         wb: &mut DBBatch,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> SuiResult {
+    ) -> IotaResult {
         wb.insert_batch(&self.pruned_checkpoint, [((), checkpoint_number)])?;
         Ok(())
     }
@@ -357,14 +358,14 @@ impl AuthorityPerpetualTables {
     pub fn get_transaction(
         &self,
         digest: &TransactionDigest,
-    ) -> SuiResult<Option<TrustedTransaction>> {
+    ) -> IotaResult<Option<TrustedTransaction>> {
         let Some(transaction) = self.transactions.get(digest)? else {
             return Ok(None);
         };
         Ok(Some(transaction))
     }
 
-    pub fn get_effects(&self, digest: &TransactionDigest) -> SuiResult<Option<TransactionEffects>> {
+    pub fn get_effects(&self, digest: &TransactionDigest) -> IotaResult<Option<TransactionEffects>> {
         let Some(effect_digest) = self.executed_effects.get(digest)? else {
             return Ok(None);
         };
@@ -376,14 +377,14 @@ impl AuthorityPerpetualTables {
     pub fn get_checkpoint_sequence_number(
         &self,
         digest: &TransactionDigest,
-    ) -> SuiResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
         Ok(self.executed_transactions_to_checkpoint.get(digest)?)
     }
 
     pub fn get_newer_object_keys(
         &self,
         object: &(ObjectID, SequenceNumber),
-    ) -> SuiResult<Vec<ObjectKey>> {
+    ) -> IotaResult<Vec<ObjectKey>> {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
             Some(ObjectKey(object.0, object.1.next())),
@@ -398,14 +399,14 @@ impl AuthorityPerpetualTables {
     pub fn set_highest_pruned_checkpoint_without_wb(
         &self,
         checkpoint_number: CheckpointSequenceNumber,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let mut wb = self.pruned_checkpoint.batch();
         self.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
         wb.write()?;
         Ok(())
     }
 
-    pub fn database_is_empty(&self) -> SuiResult<bool> {
+    pub fn database_is_empty(&self) -> IotaResult<bool> {
         Ok(self
             .objects
             .unbounded_iter()
@@ -440,12 +441,12 @@ impl AuthorityPerpetualTables {
         }
     }
 
-    pub fn checkpoint_db(&self, path: &Path) -> SuiResult {
+    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
         // This checkpoints the entire db and not just objects table
         self.objects.checkpoint_db(path).map_err(Into::into)
     }
 
-    pub fn reset_db_for_execution_since_genesis(&self) -> SuiResult {
+    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
         // TODO: Add new tables that get added to the db automatically
         self.objects.unsafe_clear()?;
         self.indirect_move_objects.unsafe_clear()?;
@@ -456,7 +457,7 @@ impl AuthorityPerpetualTables {
         self.root_state_hash_by_epoch.unsafe_clear()?;
         self.epoch_start_configuration.unsafe_clear()?;
         self.pruned_checkpoint.unsafe_clear()?;
-        self.expected_network_sui_amount.unsafe_clear()?;
+        self.expected_network_iota_amount.unsafe_clear()?;
         self.expected_storage_fund_imbalance.unsafe_clear()?;
         self.object_per_epoch_marker_table.unsafe_clear()?;
         self.objects.rocksdb.flush()?;
@@ -466,7 +467,7 @@ impl AuthorityPerpetualTables {
     pub fn get_root_state_hash(
         &self,
         epoch: EpochId,
-    ) -> SuiResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
         Ok(self.root_state_hash_by_epoch.get(&epoch)?)
     }
 
@@ -475,13 +476,13 @@ impl AuthorityPerpetualTables {
         epoch: EpochId,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
         accumulator: Accumulator,
-    ) -> SuiResult {
+    ) -> IotaResult {
         self.root_state_hash_by_epoch
             .insert(&epoch, &(last_checkpoint_of_epoch, accumulator))?;
         Ok(())
     }
 
-    pub fn insert_object_test_only(&self, object: Object) -> SuiResult {
+    pub fn insert_object_test_only(&self, object: Object) -> IotaResult {
         let object_reference = object.compute_object_reference();
         let StoreObjectPair(wrapper, _indirect_object) = get_store_object_pair(object, usize::MAX);
         let mut wb = self.objects.batch();
@@ -493,8 +494,8 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    // fallible get object methods for sui-tool, which may need to attempt to read a corrupted database
-    pub fn get_object_fallible(&self, object_id: &ObjectID) -> SuiResult<Option<Object>> {
+    // fallible get object methods for iota-tool, which may need to attempt to read a corrupted database
+    pub fn get_object_fallible(&self, object_id: &ObjectID) -> IotaResult<Option<Object>> {
         let obj_entry = self
             .objects
             .unbounded_iter()
@@ -513,7 +514,7 @@ impl AuthorityPerpetualTables {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         Ok(self
             .objects
             .get(&ObjectKey(*object_id, version))?

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
@@ -22,18 +23,18 @@ use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
-use sui_config::object_storage_config::ObjectStoreConfig;
-use sui_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
-use sui_core::authority::CHAIN_IDENTIFIER;
-use sui_core::state_accumulator::StateAccumulator;
-use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
-use sui_storage::blob::{Blob, BlobEncoding, BLOB_ENCODING_BYTES};
-use sui_storage::object_store::util::{copy_file, delete_recursively, path_to_filesystem};
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::messages_checkpoint::ECMHLiveObjectSetDigest;
-use sui_types::sui_system_state::get_sui_system_state;
-use sui_types::sui_system_state::SuiSystemStateTrait;
+use iota_config::object_storage_config::ObjectStoreConfig;
+use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
+use iota_core::authority::CHAIN_IDENTIFIER;
+use iota_core::state_accumulator::StateAccumulator;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_storage::blob::{Blob, BlobEncoding, BLOB_ENCODING_BYTES};
+use iota_storage::object_store::util::{copy_file, delete_recursively, path_to_filesystem};
+use iota_types::accumulator::Accumulator;
+use iota_types::base_types::{ObjectID, ObjectRef};
+use iota_types::messages_checkpoint::ECMHLiveObjectSetDigest;
+use iota_types::iota_system_state::get_iota_system_state;
+use iota_types::iota_system_state::IotaSystemStateTrait;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
@@ -261,7 +262,7 @@ impl StateSnapshotWriterV1 {
         perpetual_db: Arc<AuthorityPerpetualTables>,
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()> {
-        let system_state_object = get_sui_system_state(&perpetual_db)?;
+        let system_state_object = get_iota_system_state(&perpetual_db)?;
 
         let protocol_version = system_state_object.protocol_version();
         let chain_identifier = CHAIN_IDENTIFIER

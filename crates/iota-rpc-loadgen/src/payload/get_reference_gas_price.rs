@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use futures::future::try_join_all;
-use sui_sdk::SuiClient;
+use iota_sdk::IotaClient;
 
 use crate::payload::{GetReferenceGasPrice, ProcessPayload, RpcCommandProcessor, SignerInfo};
 use async_trait::async_trait;
@@ -30,7 +31,7 @@ impl<'a> ProcessPayload<'a, &'a GetReferenceGasPrice> for RpcCommandProcessor {
     }
 }
 
-async fn get_reference_gas_price(client: &SuiClient) -> Result<u64> {
+async fn get_reference_gas_price(client: &IotaClient) -> Result<u64> {
     let results = client
         .governance_api()
         .get_reference_gas_price()

@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
 
 use consensus_core::{TransactionIndex, TransactionVerifier, ValidationError};
 use fastcrypto_tbls::dkg_v1;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use prometheus::{register_int_counter_with_registry, IntCounter, Registry};
-use sui_types::{
-    error::{SuiError, SuiResult},
+use iota_types::{
+    error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     transaction::Transaction,
 };
@@ -24,25 +25,25 @@ use crate::{
 
 /// Allows verifying the validity of transactions
 #[derive(Clone)]
-pub struct SuiTxValidator {
+pub struct IotaTxValidator {
     authority_state: Arc<AuthorityState>,
     consensus_overload_checker: Arc<dyn ConsensusOverloadChecker>,
     checkpoint_service: Arc<dyn CheckpointServiceNotify + Send + Sync>,
     _transaction_manager: Arc<TransactionManager>,
-    metrics: Arc<SuiTxValidatorMetrics>,
+    metrics: Arc<IotaTxValidatorMetrics>,
 }
 
-impl SuiTxValidator {
+impl IotaTxValidator {
     pub fn new(
         authority_state: Arc<AuthorityState>,
         consensus_overload_checker: Arc<dyn ConsensusOverloadChecker>,
         checkpoint_service: Arc<dyn CheckpointServiceNotify + Send + Sync>,
         transaction_manager: Arc<TransactionManager>,
-        metrics: Arc<SuiTxValidatorMetrics>,
+        metrics: Arc<IotaTxValidatorMetrics>,
     ) -> Self {
         let epoch_store = authority_state.load_epoch_store_one_call_per_task().clone();
         info!(
-            "SuiTxValidator constructed for epoch {}",
+            "IotaTxValidator constructed for epoch {}",
             epoch_store.epoch()
         );
         Self {
@@ -54,7 +55,7 @@ impl SuiTxValidator {
         }
     }
 
-    fn validate_transactions(&self, txs: &[ConsensusTransactionKind]) -> Result<(), SuiError> {
+    fn validate_transactions(&self, txs: &[ConsensusTransactionKind]) -> Result<(), IotaError> {
         let epoch_store = self.authority_state.load_epoch_store_one_call_per_task();
 
         let mut cert_batch = Vec::new();
@@ -72,13 +73,13 @@ impl SuiTxValidator {
                 ConsensusTransactionKind::RandomnessDkgMessage(_, bytes) => {
                     if bytes.len() > dkg_v1::DKG_MESSAGES_MAX_SIZE {
                         warn!("batch verification error: DKG Message too large");
-                        return Err(SuiError::InvalidDkgMessageSize);
+                        return Err(IotaError::InvalidDkgMessageSize);
                     }
                 }
                 ConsensusTransactionKind::RandomnessDkgConfirmation(_, bytes) => {
                     if bytes.len() > dkg_v1::DKG_MESSAGES_MAX_SIZE {
                         warn!("batch verification error: DKG Confirmation too large");
-                        return Err(SuiError::InvalidDkgMessageSize);
+                        return Err(IotaError::InvalidDkgMessageSize);
                     }
                 }
 
@@ -91,7 +92,7 @@ impl SuiTxValidator {
 
                 ConsensusTransactionKind::UserTransaction(_tx) => {
                     if !epoch_store.protocol_config().mysticeti_fastpath() {
-                        return Err(SuiError::UnexpectedMessage(
+                        return Err(IotaError::UnexpectedMessage(
                             "ConsensusTransactionKind::UserTransaction is unsupported".to_string(),
                         ));
                     }
@@ -150,7 +151,7 @@ impl SuiTxValidator {
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         tx: Box<Transaction>,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         // Currently validity_check() and verify_transaction() are not required to be consistent across validators,
         // so they do not run in validate_transactions(). They can run there once we confirm it is safe.
         tx.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
@@ -183,7 +184,7 @@ fn tx_kind_from_bytes(tx: &[u8]) -> Result<ConsensusTransactionKind, ValidationE
 }
 
 #[async_trait::async_trait]
-impl TransactionVerifier for SuiTxValidator {
+impl TransactionVerifier for IotaTxValidator {
     fn verify_batch(&self, batch: &[&[u8]]) -> Result<(), ValidationError> {
         let _scope = monitored_scope("ValidateBatch");
 
@@ -214,12 +215,12 @@ impl TransactionVerifier for SuiTxValidator {
     }
 }
 
-pub struct SuiTxValidatorMetrics {
+pub struct IotaTxValidatorMetrics {
     certificate_signatures_verified: IntCounter,
     checkpoint_signatures_verified: IntCounter,
 }
 
-impl SuiTxValidatorMetrics {
+impl IotaTxValidatorMetrics {
     pub fn new(registry: &Registry) -> Arc<Self> {
         Arc::new(Self {
             certificate_signatures_verified: register_int_counter_with_registry!(
@@ -243,9 +244,9 @@ mod tests {
     use std::sync::Arc;
 
     use consensus_core::TransactionVerifier as _;
-    use sui_macros::sim_test;
-    use sui_types::{
-        crypto::Ed25519SuiSignature, messages_consensus::ConsensusTransaction, object::Object,
+    use iota_macros::sim_test;
+    use iota_types::{
+        crypto::Ed25519IotaSignature, messages_consensus::ConsensusTransaction, object::Object,
         signature::GenericSignature,
     };
 
@@ -256,7 +257,7 @@ mod tests {
             consensus_tests::{test_certificates, test_gas_objects},
             NoopConsensusOverloadChecker,
         },
-        consensus_validator::{SuiTxValidator, SuiTxValidatorMetrics},
+        consensus_validator::{IotaTxValidator, IotaTxValidatorMetrics},
     };
 
     #[sim_test]
@@ -268,7 +269,7 @@ mod tests {
         objects.push(shared_object.clone());
 
         let network_config =
-            sui_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
                 .with_objects(objects.clone())
                 .build();
 
@@ -285,8 +286,8 @@ mod tests {
         )
         .unwrap();
 
-        let metrics = SuiTxValidatorMetrics::new(&Default::default());
-        let validator = SuiTxValidator::new(
+        let metrics = IotaTxValidatorMetrics::new(&Default::default());
+        let validator = IotaTxValidator::new(
             state.clone(),
             Arc::new(NoopConsensusOverloadChecker {}),
             Arc::new(CheckpointServiceNoop {}),
@@ -313,8 +314,8 @@ mod tests {
             .map(|mut cert| {
                 // set it to an all-zero user signature
                 cert.tx_signatures_mut_for_testing()[0] =
-                    GenericSignature::Signature(sui_types::crypto::Signature::Ed25519SuiSignature(
-                        Ed25519SuiSignature::default(),
+                    GenericSignature::Signature(iota_types::crypto::Signature::Ed25519IotaSignature(
+                        Ed25519IotaSignature::default(),
                     ));
                 bcs::to_bytes(&ConsensusTransaction::new_certificate_message(&name1, cert)).unwrap()
             })

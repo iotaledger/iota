@@ -1,8 +1,10 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # Copyright (c) The Diem Core Contributors
 # Copyright (c) The Move Contributors
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # This script draws on the implementation of the dev_setup.sh script in the core Move repository

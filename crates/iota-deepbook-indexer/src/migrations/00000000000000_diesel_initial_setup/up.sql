@@ -182,7 +182,7 @@ CREATE TABLE IF NOT EXISTS progress_store
     timestamp                   TIMESTAMP     DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS sui_error_transactions
+CREATE TABLE IF NOT EXISTS iota_error_transactions
 (
     id                          SERIAL       PRIMARY KEY,
     txn_digest                  TEXT         NOT NULL,

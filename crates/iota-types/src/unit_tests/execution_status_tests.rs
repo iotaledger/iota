@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::execution_status::ExecutionFailureStatus;
-use sui_enum_compat_util::*;
+use iota_enum_compat_util::*;
 #[test]
 fn enforce_order_test() {
     let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));

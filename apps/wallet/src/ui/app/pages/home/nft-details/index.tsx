@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
@@ -16,9 +17,9 @@ import { useExplorerLink } from '_src/ui/app/hooks/useExplorerLink';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import PageTitle from '_src/ui/app/shared/PageTitle';
 import { Text } from '_src/ui/app/shared/text';
-import { useGetKioskContents } from '@mysten/core';
-import { ArrowRight16, ArrowUpRight12 } from '@mysten/icons';
-import { formatAddress } from '@mysten/sui/utils';
+import { useGetKioskContents } from '@iota/core';
+import { ArrowRight16, ArrowUpRight12 } from '@iota/icons';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -120,13 +121,13 @@ function NFTDetailsPage() {
 												label="Owner"
 												value={
 													<Link
-														color="suiDark"
+														color="iotaDark"
 														weight="medium"
 														size="body"
 														mono
 														href={ownerExplorerLink}
 														text={formatAddress(ownerAddress)}
-														title="View on Sui Explorer"
+														title="View on Iota Explorer"
 													/>
 												}
 											/>
@@ -136,13 +137,13 @@ function NFTDetailsPage() {
 											value={
 												nftId ? (
 													<Link
-														color="suiDark"
+														color="iotaDark"
 														weight="medium"
 														size="body"
 														mono
 														href={objectExplorerLink || ''}
 														text={formatAddress(nftId)}
-														title="View on Sui Explorer"
+														title="View on Iota Explorer"
 													/>
 												) : null
 											}
@@ -192,13 +193,13 @@ function NFTDetailsPage() {
 											<Button
 												after={<ArrowUpRight12 />}
 												variant="outline"
-												href="https://docs.sui.io/build/sui-kiosk"
+												href="https://docs.iota.org/build/iota-kiosk"
 												text="Learn more about Kiosks"
 											/>
 											<Button
 												after={<ArrowUpRight12 />}
 												variant="outline"
-												href={`https://sui.hyperspace.xyz/wallet/sui/${accountAddress}?tokenAddress=${nftId}`}
+												href={`https://iota.hyperspace.xyz/wallet/iota/${accountAddress}?tokenAddress=${nftId}`}
 												text="Marketplace"
 											/>
 										</div>

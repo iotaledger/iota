@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module object_no_id::test_only_object_no_id {
@@ -7,6 +8,6 @@ module object_no_id::test_only_object_no_id {
 
     #[test]
     fun bad_share() {
-        sui::transfer::share_object(NotObject{f: 42});
+        iota::transfer::share_object(NotObject{f: 42});
     }
 }

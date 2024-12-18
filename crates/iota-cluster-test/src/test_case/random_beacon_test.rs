@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{TestCaseImpl, TestContext};
 use async_trait::async_trait;
-use sui_json_rpc_types::{SuiExecutionStatus, SuiTransactionBlockEffectsAPI};
-use sui_sdk::wallet_context::WalletContext;
-use sui_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
+use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
+use iota_sdk::wallet_context::WalletContext;
+use iota_test_transaction_builder::{emit_new_random_u128, publish_basics_package};
 use tracing::info;
 
 pub struct RandomBeaconTest;
@@ -30,15 +31,15 @@ impl TestCaseImpl for RandomBeaconTest {
 
         info!("Testing a transaction that uses Random.");
 
-        let sui_objs = ctx.get_sui_from_faucet(Some(1)).await;
-        assert!(!sui_objs.is_empty());
+        let iota_objs = ctx.get_iota_from_faucet(Some(1)).await;
+        assert!(!iota_objs.is_empty());
 
         let package_ref = publish_basics_package(wallet_context).await;
 
         let response = emit_new_random_u128(wallet_context, package_ref.0).await;
         assert_eq!(
             *response.effects.as_ref().unwrap().status(),
-            SuiExecutionStatus::Success,
+            IotaExecutionStatus::Success,
             "Generate new random value txn failed: {:?}",
             *response.effects.as_ref().unwrap().status()
         );

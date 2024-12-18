@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module tto::tto;
 
-use sui::transfer::Receiving;
+use iota::transfer::Receiving;
 
 public struct A has key, store {
     id: UID,

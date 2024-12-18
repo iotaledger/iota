@@ -1,8 +1,8 @@
 [package]
-name = "sui-adapter-v1"
+name = "iota-adapter-v1"
 version = "0.1.0"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
-description = "Adapter and accompanying CLI for local sui development"
+authors = ["IOTA Foundation <info@iota.org>"]
+description = "Adapter and accompanying CLI for local iota development"
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -27,12 +27,12 @@ move-vm-types.workspace = true
 move-bytecode-verifier = { path = "../../../external-crates/move/move-execution/v1/crates/move-bytecode-verifier", package = "move-bytecode-verifier-v1" }
 move-vm-runtime = { path = "../../../external-crates/move/move-execution/v1/crates/move-vm-runtime", package = "move-vm-runtime-v1" }
 move-vm-profiler = { path = "../../../external-crates/move/crates/move-vm-profiler" }
-sui-move-natives = { path = "../sui-move-natives", package = "sui-move-natives-v1" }
-sui-verifier = { path = "../sui-verifier", package = "sui-verifier-v1" }
+iota-move-natives = { path = "../iota-move-natives", package = "iota-move-natives-v1" }
+iota-verifier = { path = "../iota-verifier", package = "iota-verifier-v1" }
 
-sui-macros.workspace = true
-sui-protocol-config.workspace = true
-sui-types.workspace = true
+iota-macros.workspace = true
+iota-protocol-config.workspace = true
+iota-types.workspace = true
 parking_lot.workspace = true
 
 [dev-dependencies]
@@ -40,7 +40,7 @@ move-package.workspace = true
 
 [features]
 tracing = [
-    "sui-types/tracing",
+    "iota-types/tracing",
     "move-vm-runtime/tracing",
     "move-vm-profiler/tracing",
     "move-vm-config/tracing",

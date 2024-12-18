@@ -1,10 +1,10 @@
 [package]
-name = "mysten-network"
+name = "iota-network-stack"
 version = "0.2.0"
 license = "Apache-2.0"
 edition = "2021"
-authors = ["Brandon Williams <brandon@mystenlabs.com>"]
-description = "Mysten's network tooling"
+authors = ["Brandon Williams <brandon@iota.org>"]
+description = "IOTA's network tooling"
 publish = false
 
 [dependencies]

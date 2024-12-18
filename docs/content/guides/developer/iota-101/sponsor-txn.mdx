@@ -2,9 +2,9 @@
 title: Sponsored Transaction
 ---
 
-A transaction on Sui takes a payment to execute. The payment, also known as gas, is a list of `0x2::coin::Coin<0x2::sui::Sui>` objects. Although gas is a critical piece in Sui tokenomics, it sometimes adds challenges when new Web3 users start to navigate on Sui.
+A transaction on Iota takes a payment to execute. The payment, also known as gas, is a list of `0x2::coin::Coin<0x2::iota::Iota>` objects. Although gas is a critical piece in Iota tokenomics, it sometimes adds challenges when new Web3 users start to navigate on Iota.
 
-Sponsored transactions are a primitive on the Sui blockchain that enable the execution of a transaction without a user paying the gas. Sponsored transactions can reduce the onboarding friction for users because the feature streamlines the process for end users. Using sponsored transactions, you can execute a transaction without requiring the user to pay it themselves. Instead, you can act as a sponsor of the transaction, offering your own payment gas objects for the transaction.
+Sponsored transactions are a primitive on the Iota blockchain that enable the execution of a transaction without a user paying the gas. Sponsored transactions can reduce the onboarding friction for users because the feature streamlines the process for end users. Using sponsored transactions, you can execute a transaction without requiring the user to pay it themselves. Instead, you can act as a sponsor of the transaction, offering your own payment gas objects for the transaction.
 
 ## Roles in sponsored transactions
 
@@ -57,14 +57,14 @@ pub struct SenderSignedTransaction {
 
 pub struct TransactionDataV1 {  // <-- A variant of `TransactionData`
     pub kind: TransactionKind,  // <-- This is the actual transaction details
-    pub sender: SuiAddress,
+    pub sender: IotaAddress,
     pub gas_data: GasData,
     pub expiration: TransactionExpiration,
 }
 
 pub struct GasData {
     pub payment: Vec<ObjectRef>,
-    pub owner: SuiAddress,
+    pub owner: IotaAddress,
     pub price: u64,
     pub budget: u64,
 }
@@ -109,7 +109,7 @@ Because at least two stakeholders are involved in a sponsored transaction, you s
 
 ### Client equivocation risk
 
-Client equivocation happens when more than one legit transaction that shares at least one owned object (such as a gas coin object) at a certain version are submitted to the network simultaneously. On Sui, before a transaction is executed, owned objects in this transaction are locked on validators at specific versions. An honest validator only accepts one transaction and rejects others. Depending on the order validators receive these transactions, validators might accept different transactions. In the event of no single transaction getting accepted by at least 2/3rds of validators, the owned object is locked until end of the epoch.
+Client equivocation happens when more than one legit transaction that shares at least one owned object (such as a gas coin object) at a certain version are submitted to the network simultaneously. On Iota, before a transaction is executed, owned objects in this transaction are locked on validators at specific versions. An honest validator only accepts one transaction and rejects others. Depending on the order validators receive these transactions, validators might accept different transactions. In the event of no single transaction getting accepted by at least 2/3rds of validators, the owned object is locked until end of the epoch.
 
 Practically speaking, client equivocation is rare, mostly caused by buggy client software. After all, no one has incentives to lock their own objects. However, sponsored transactions come with counterparty risks. For example, a malicious user could equivocate the gas station's gas coin object by submitting another transaction that uses one owned object in the gas station signed transaction at the same version. Similarly, a Byzantine gas station could do the same to the user owned objects.
 

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use prometheus::IntGauge;
 
 use super::DagError;
-use mysten_metrics::metered_channel::{channel, Receiver, Sender, WithPermit};
+use iota_metrics::metered_channel::{channel, Receiver, Sender, WithPermit};
 use std::{future, time::Duration};
 
 pub struct Processor {

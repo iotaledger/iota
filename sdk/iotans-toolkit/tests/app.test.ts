@@ -1,31 +1,32 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // import { faker } from '@faker-js/faker';
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { SuinsClient } from '../src';
+import { IotaNSClient } from '../src';
 
-const domainName = 'test.sui';
+const domainName = 'test.iota';
 const walletAddress = '0xfce343a643991c592c4f1a9ee415a7889293f694ab8828f78e3c81d11c9530c6';
 
-describe('SuiNS Client', () => {
-	const client = new SuinsClient(new SuiClient({ url: getFullnodeUrl('testnet') }), {
+describe('IotaNS Client', () => {
+	const client = new IotaNSClient(new IotaClient({ url: getFullnodeUrl('testnet') }), {
 		networkType: 'testnet',
 		contractObjects: {
 			packageId: '0xfdba31b34a43e058f17c5cf4b12d9b9e0a08c0623d8569092c022e0c77df46d3',
 			registry: '0xac06695279c2a92436068cebe5ea778135ac503337642e27493431603ae6a71d',
 			reverseRegistry: '0x34a36dd204f8351a157d19b87bada9d448ec40229d56f22bff04fa23713a5c31',
-			suins: '0x4acaf19db12fafce1943bbd44c7f794e1d81d00aeb63617096e5caa39499ba88',
+			iotans: '0x4acaf19db12fafce1943bbd44c7f794e1d81d00aeb63617096e5caa39499ba88',
 		},
 	});
 
-	const nonExistingDomain = walletAddress + '.sui';
+	const nonExistingDomain = walletAddress + '.iota';
 	const nonExistingWalletAddress = walletAddress.substring(0, walletAddress.length - 4) + '0000';
 
 	beforeEach(async () => {
-		await client.getSuinsContractObjects();
+		await client.getIotaNSContractObjects();
 	});
 
 	describe('getAddress', () => {
@@ -69,7 +70,7 @@ describe('SuiNS Client', () => {
 				expirationTimestampMs: '1715765005617',
 				owner: walletAddress,
 				targetAddress: walletAddress,
-				// avatar: 'https://api-testnet.suifrens.sui.io/suifrens/0x4e3ba002444df6c6774f41833f881d351533728d585343c58cca1fec1fef74ef/svg',
+				// avatar: 'https://api-testnet.iotafrens.iota.io/iotafrens/0x4e3ba002444df6c6774f41833f881d351533728d585343c58cca1fec1fef74ef/svg',
 				contentHash: 'QmZsHKQk9FbQZYCy7rMYn1z6m9Raa183dNhpGCRm3fX71s',
 			});
 		});

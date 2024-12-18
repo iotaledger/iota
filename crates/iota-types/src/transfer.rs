@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{file_format::SignatureToken, CompiledModule};
@@ -14,19 +15,19 @@ use serde::{Deserialize, Serialize};
 use crate::{
     base_types::{ObjectID, SequenceNumber},
     id::ID,
-    SUI_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS,
 };
 
 const TRANSFER_MODULE_NAME: &IdentStr = ident_str!("transfer");
 const RECEIVING_STRUCT_NAME: &IdentStr = ident_str!("Receiving");
 
 pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &SUI_FRAMEWORK_ADDRESS,
+    &IOTA_FRAMEWORK_ADDRESS,
     TRANSFER_MODULE_NAME,
     RECEIVING_STRUCT_NAME,
 );
 
-/// Rust version of the Move sui::transfer::Receiving type
+/// Rust version of the Move iota::transfer::Receiving type
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Receiving {
     pub id: ID,
@@ -47,7 +48,7 @@ impl Receiving {
 
     pub fn struct_tag() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: TRANSFER_MODULE_NAME.to_owned(),
             name: RECEIVING_STRUCT_NAME.to_owned(),
             // TODO: this should really include the type parameters eventually when we add type

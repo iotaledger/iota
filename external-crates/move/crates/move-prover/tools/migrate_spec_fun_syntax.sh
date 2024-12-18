@@ -1,6 +1,7 @@
 #!/bin/bash
 # Copyright (c) The Diem Core Contributors
 # Copyright (c) The Move Contributors
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 # A script to upgrade from `spec fun name` style syntax and related changes to `spec name`. This can create

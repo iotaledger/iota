@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module reviews_rating::moderator;
 
-use sui::tx_context::sender;
+use iota::tx_context::sender;
 
 /// Represents a moderator that can be used to delete reviews
 public struct Moderator has key {

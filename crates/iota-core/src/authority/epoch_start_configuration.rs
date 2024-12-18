@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
-use sui_config::{ExecutionCacheConfig, NodeConfig};
+use iota_config::{ExecutionCacheConfig, NodeConfig};
 
 use std::fmt;
-use sui_types::authenticator_state::get_authenticator_state_obj_initial_shared_version;
-use sui_types::base_types::SequenceNumber;
-use sui_types::bridge::{get_bridge_obj_initial_shared_version, is_bridge_committee_initiated};
-use sui_types::deny_list_v1::get_deny_list_obj_initial_shared_version;
-use sui_types::epoch_data::EpochData;
-use sui_types::error::SuiResult;
-use sui_types::messages_checkpoint::{CheckpointDigest, CheckpointTimestamp};
-use sui_types::randomness_state::get_randomness_state_obj_initial_shared_version;
-use sui_types::storage::ObjectStore;
-use sui_types::sui_system_state::epoch_start_sui_system_state::{
+use iota_types::authenticator_state::get_authenticator_state_obj_initial_shared_version;
+use iota_types::base_types::SequenceNumber;
+use iota_types::bridge::{get_bridge_obj_initial_shared_version, is_bridge_committee_initiated};
+use iota_types::deny_list_v1::get_deny_list_obj_initial_shared_version;
+use iota_types::epoch_data::EpochData;
+use iota_types::error::IotaResult;
+use iota_types::messages_checkpoint::{CheckpointDigest, CheckpointTimestamp};
+use iota_types::randomness_state::get_randomness_state_obj_initial_shared_version;
+use iota_types::storage::ObjectStore;
+use iota_types::iota_system_state::epoch_start_iota_system_state::{
     EpochStartSystemState, EpochStartSystemStateTrait,
 };
 
@@ -143,7 +144,7 @@ impl EpochStartConfiguration {
         epoch_digest: CheckpointDigest,
         object_store: &dyn ObjectStore,
         initial_epoch_flags: Vec<EpochFlag>,
-    ) -> SuiResult<Self> {
+    ) -> IotaResult<Self> {
         let authenticator_obj_initial_shared_version =
             get_authenticator_state_obj_initial_shared_version(object_store)?;
         let randomness_obj_initial_shared_version =

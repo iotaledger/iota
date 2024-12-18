@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React, { useRef } from "react";
@@ -39,7 +40,7 @@ const Method = (props) => {
           >
             <h2
               id={`${api.replaceAll(/\s/g, "-").toLowerCase()}`}
-              className="border-0 border-b border-solid border-sui-blue-dark dark:border-sui-blue scroll-mt-32 text-3xl text-sui-blue-dark dark:text-sui-blue font-bold mt-12 after:content-['_#'] after:hidden after:hover:inline after:opacity-20 cursor-pointer"
+              className="border-0 border-b border-solid border-iota-blue-dark dark:border-iota-blue scroll-mt-32 text-3xl text-iota-blue-dark dark:text-iota-blue font-bold mt-12 after:content-['_#'] after:hidden after:hover:inline after:opacity-20 cursor-pointer"
               onClick={handleClick}
               key={api.replaceAll(/\s/g, "-").toLowerCase()}
             >
@@ -58,7 +59,7 @@ const Method = (props) => {
                     <div
                       className={`snap-start scroll-mt-32 ${
                         method.deprecated
-                          ? "bg-sui-warning-light p-8 pt-4 rounded-lg mt-8 dark:bg-sui-warning-dark"
+                          ? "bg-iota-warning-light p-8 pt-4 rounded-lg mt-8 dark:bg-iota-warning-dark"
                           : "pt-8"
                       }`}
                       key={`div-${api
@@ -76,7 +77,7 @@ const Method = (props) => {
                       </h3>
 
                       {method.deprecated && (
-                        <div className="p-4 bg-sui-issue rounded-lg font-bold mt-4">
+                        <div className="p-4 bg-iota-issue rounded-lg font-bold mt-4">
                           Deprecated
                         </div>
                       )}
@@ -84,7 +85,7 @@ const Method = (props) => {
                         <p className="mb-8">
                           <Markdown>{desc}</Markdown>
                         </p>
-                        <p className="font-bold mt-4 mb-2 text-xl text-sui-grey-80 dark:text-sui-gray-70">
+                        <p className="font-bold mt-4 mb-2 text-xl text-iota-grey-80 dark:text-iota-gray-70">
                           Parameters
                         </p>
                         <Parameters
@@ -92,13 +93,13 @@ const Method = (props) => {
                           params={method.params}
                           schemas={schemas}
                         />
-                        <p className="font-bold mb-2 text-xl text-sui-gray-80 dark:text-sui-gray-70">
+                        <p className="font-bold mb-2 text-xl text-iota-gray-80 dark:text-iota-gray-70">
                           Result
                         </p>
                         <Result result={method.result} json={json} />
                         {method.examples && (
                           <>
-                            <p className="mt-4 font-bold text-xl text-sui-gray-80 dark:text-sui-gray-70">
+                            <p className="mt-4 font-bold text-xl text-iota-gray-80 dark:text-iota-gray-70">
                               Example
                             </p>
                             <Examples method={method.name} examples={method.examples} />

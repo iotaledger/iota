@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Module which defines instances of the poseidon hash functions.
-module sui::poseidon;
+module iota::poseidon;
 
-use sui::bcs;
+use iota::bcs;
 
 /// Error if any of the inputs are larger than or equal to the BN254 field size.
 const ENonCanonicalInput: u64 = 0;

@@ -41,8 +41,8 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 
 task 8, lines 45-48:
 //# upgrade --package Test_V0 --upgrade-capability 1,1 --sender A
-Error: Transaction Effects Status: Sui Move Bytecode Verification Error. Please run the Sui Move Verifier for more information.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: SuiMoveVerificationError, source: Some("First field of struct Foo must be 'id', dummy_field found"), command: Some(1) } }
+Error: Transaction Effects Status: Iota Move Bytecode Verification Error. Please run the Iota Move Verifier for more information.
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some("First field of struct Foo must be 'id', dummy_field found"), command: Some(1) } }
 
 task 9, lines 50-56:
 //# upgrade --package Test_V0 --upgrade-capability 1,1 --sender A

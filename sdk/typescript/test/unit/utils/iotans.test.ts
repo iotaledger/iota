@@ -1,98 +1,99 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, test } from 'vitest';
 
-import { isValidSuiNSName, normalizeSuiNSName } from '../../../src/utils';
+import { isValidIotaNSName, normalizeIotaNSName } from '../../../src/utils';
 
-describe('isValidSuiNSName', () => {
-	test('valid SuiNS names', () => {
-		expect(isValidSuiNSName('example.sui')).toBe(true);
-		expect(isValidSuiNSName('EXAMPLE.sui')).toBe(true);
-		expect(isValidSuiNSName('@example')).toBe(true);
-		expect(isValidSuiNSName('1.example.sui')).toBe(true);
-		expect(isValidSuiNSName('1@example')).toBe(true);
-		expect(isValidSuiNSName('a.b.c.example.sui')).toBe(true);
-		expect(isValidSuiNSName('A.B.c.123@Example')).toBe(true);
-		expect(isValidSuiNSName('1-a@1-b')).toBe(true);
-		expect(isValidSuiNSName('1-a.1-b.sui')).toBe(true);
-		expect(isValidSuiNSName('-@test')).toBe(false);
-		expect(isValidSuiNSName('-1@test')).toBe(false);
-		expect(isValidSuiNSName('test@-')).toBe(false);
-		expect(isValidSuiNSName('test@-1')).toBe(false);
-		expect(isValidSuiNSName('test@-a')).toBe(false);
-		expect(isValidSuiNSName('test.sui2')).toBe(false);
-		expect(isValidSuiNSName('.sui2')).toBe(false);
-		expect(isValidSuiNSName('test@')).toBe(false);
-		expect(isValidSuiNSName('@@')).toBe(false);
-		expect(isValidSuiNSName('@@test')).toBe(false);
-		expect(isValidSuiNSName('test@test.test')).toBe(false);
-		expect(isValidSuiNSName('@test.test')).toBe(false);
-		expect(isValidSuiNSName('#@test')).toBe(false);
-		expect(isValidSuiNSName('test@#')).toBe(false);
-		expect(isValidSuiNSName('test.#.sui')).toBe(false);
-		expect(isValidSuiNSName('#.sui')).toBe(false);
-		expect(isValidSuiNSName('@.test.sue')).toBe(false);
+describe('isValidIotaNSName', () => {
+	test('valid IotaNS names', () => {
+		expect(isValidIotaNSName('example.iota')).toBe(true);
+		expect(isValidIotaNSName('EXAMPLE.iota')).toBe(true);
+		expect(isValidIotaNSName('@example')).toBe(true);
+		expect(isValidIotaNSName('1.example.iota')).toBe(true);
+		expect(isValidIotaNSName('1@example')).toBe(true);
+		expect(isValidIotaNSName('a.b.c.example.iota')).toBe(true);
+		expect(isValidIotaNSName('A.B.c.123@Example')).toBe(true);
+		expect(isValidIotaNSName('1-a@1-b')).toBe(true);
+		expect(isValidIotaNSName('1-a.1-b.iota')).toBe(true);
+		expect(isValidIotaNSName('-@test')).toBe(false);
+		expect(isValidIotaNSName('-1@test')).toBe(false);
+		expect(isValidIotaNSName('test@-')).toBe(false);
+		expect(isValidIotaNSName('test@-1')).toBe(false);
+		expect(isValidIotaNSName('test@-a')).toBe(false);
+		expect(isValidIotaNSName('test.iota2')).toBe(false);
+		expect(isValidIotaNSName('.iota2')).toBe(false);
+		expect(isValidIotaNSName('test@')).toBe(false);
+		expect(isValidIotaNSName('@@')).toBe(false);
+		expect(isValidIotaNSName('@@test')).toBe(false);
+		expect(isValidIotaNSName('test@test.test')).toBe(false);
+		expect(isValidIotaNSName('@test.test')).toBe(false);
+		expect(isValidIotaNSName('#@test')).toBe(false);
+		expect(isValidIotaNSName('test@#')).toBe(false);
+		expect(isValidIotaNSName('test.#.iota')).toBe(false);
+		expect(isValidIotaNSName('#.iota')).toBe(false);
+		expect(isValidIotaNSName('@.test.sue')).toBe(false);
 
-		expect(isValidSuiNSName('hello-.sui')).toBe(false);
-		expect(isValidSuiNSName('hello--.sui')).toBe(false);
-		expect(isValidSuiNSName('hello.-sui')).toBe(false);
-		expect(isValidSuiNSName('hello.--sui')).toBe(false);
-		expect(isValidSuiNSName('hello.sui-')).toBe(false);
-		expect(isValidSuiNSName('hello.sui--')).toBe(false);
-		expect(isValidSuiNSName('hello-@sui')).toBe(false);
-		expect(isValidSuiNSName('hello--@sui')).toBe(false);
-		expect(isValidSuiNSName('hello@-sui')).toBe(false);
-		expect(isValidSuiNSName('hello@--sui')).toBe(false);
-		expect(isValidSuiNSName('hello@sui-')).toBe(false);
-		expect(isValidSuiNSName('hello@sui--')).toBe(false);
-		expect(isValidSuiNSName('hello--world@sui')).toBe(false);
+		expect(isValidIotaNSName('hello-.iota')).toBe(false);
+		expect(isValidIotaNSName('hello--.iota')).toBe(false);
+		expect(isValidIotaNSName('hello.-iota')).toBe(false);
+		expect(isValidIotaNSName('hello.--iota')).toBe(false);
+		expect(isValidIotaNSName('hello.iota-')).toBe(false);
+		expect(isValidIotaNSName('hello.iota--')).toBe(false);
+		expect(isValidIotaNSName('hello-@iota')).toBe(false);
+		expect(isValidIotaNSName('hello--@iota')).toBe(false);
+		expect(isValidIotaNSName('hello@-iota')).toBe(false);
+		expect(isValidIotaNSName('hello@--iota')).toBe(false);
+		expect(isValidIotaNSName('hello@iota-')).toBe(false);
+		expect(isValidIotaNSName('hello@iota--')).toBe(false);
+		expect(isValidIotaNSName('hello--world@iota')).toBe(false);
 	});
 });
 
-describe('normalizeSuiNSName', () => {
-	test('normalize SuiNS names', () => {
-		expect(normalizeSuiNSName('example.sui')).toMatch('@example');
-		expect(normalizeSuiNSName('EXAMPLE.sui')).toMatch('@example');
-		expect(normalizeSuiNSName('@example')).toMatch('@example');
-		expect(normalizeSuiNSName('1.example.sui')).toMatch('1@example');
-		expect(normalizeSuiNSName('1@example')).toMatch('1@example');
-		expect(normalizeSuiNSName('a.b.c.example.sui')).toMatch('a.b.c@example');
-		expect(normalizeSuiNSName('A.B.c.123@Example')).toMatch('a.b.c.123@example');
-		expect(normalizeSuiNSName('1-a@1-b')).toMatch('1-a@1-b');
-		expect(normalizeSuiNSName('1-a.1-b.sui')).toMatch('1-a@1-b');
+describe('normalizeIotaNSName', () => {
+	test('normalize IotaNS names', () => {
+		expect(normalizeIotaNSName('example.iota')).toMatch('@example');
+		expect(normalizeIotaNSName('EXAMPLE.iota')).toMatch('@example');
+		expect(normalizeIotaNSName('@example')).toMatch('@example');
+		expect(normalizeIotaNSName('1.example.iota')).toMatch('1@example');
+		expect(normalizeIotaNSName('1@example')).toMatch('1@example');
+		expect(normalizeIotaNSName('a.b.c.example.iota')).toMatch('a.b.c@example');
+		expect(normalizeIotaNSName('A.B.c.123@Example')).toMatch('a.b.c.123@example');
+		expect(normalizeIotaNSName('1-a@1-b')).toMatch('1-a@1-b');
+		expect(normalizeIotaNSName('1-a.1-b.iota')).toMatch('1-a@1-b');
 
-		expect(normalizeSuiNSName('example.sui', 'dot')).toMatch('example.sui');
-		expect(normalizeSuiNSName('EXAMPLE.sui', 'dot')).toMatch('example.sui');
-		expect(normalizeSuiNSName('@example', 'dot')).toMatch('example.sui');
-		expect(normalizeSuiNSName('1.example.sui', 'dot')).toMatch('1.example.sui');
-		expect(normalizeSuiNSName('1@example', 'dot')).toMatch('1.example.sui');
-		expect(normalizeSuiNSName('a.b.c.example.sui', 'dot')).toMatch('a.b.c.example.sui');
-		expect(normalizeSuiNSName('A.B.c.123@Example', 'dot')).toMatch('a.b.c.123.example.sui');
-		expect(normalizeSuiNSName('1-a@1-b', 'dot')).toMatch('1-a.1-b.sui');
-		expect(normalizeSuiNSName('1-a.1-b.sui', 'dot')).toMatch('1-a.1-b.sui');
+		expect(normalizeIotaNSName('example.iota', 'dot')).toMatch('example.iota');
+		expect(normalizeIotaNSName('EXAMPLE.iota', 'dot')).toMatch('example.iota');
+		expect(normalizeIotaNSName('@example', 'dot')).toMatch('example.iota');
+		expect(normalizeIotaNSName('1.example.iota', 'dot')).toMatch('1.example.iota');
+		expect(normalizeIotaNSName('1@example', 'dot')).toMatch('1.example.iota');
+		expect(normalizeIotaNSName('a.b.c.example.iota', 'dot')).toMatch('a.b.c.example.iota');
+		expect(normalizeIotaNSName('A.B.c.123@Example', 'dot')).toMatch('a.b.c.123.example.iota');
+		expect(normalizeIotaNSName('1-a@1-b', 'dot')).toMatch('1-a.1-b.iota');
+		expect(normalizeIotaNSName('1-a.1-b.iota', 'dot')).toMatch('1-a.1-b.iota');
 
-		expect(() => normalizeSuiNSName('-@test')).toThrowError('Invalid SuiNS name -@test');
-		expect(normalizeSuiNSName('1-a@1-b')).toMatchInlineSnapshot('"1-a@1-b"');
-		expect(normalizeSuiNSName('1-a.1-b.sui')).toMatchInlineSnapshot('"1-a@1-b"');
-		expect(() => normalizeSuiNSName('-@test')).toThrowError('Invalid SuiNS name -@test');
-		expect(() => normalizeSuiNSName('-1@test')).toThrowError('Invalid SuiNS name -1@test');
-		expect(() => normalizeSuiNSName('test@-')).toThrowError('Invalid SuiNS name test@-');
-		expect(() => normalizeSuiNSName('test@-1')).toThrowError('Invalid SuiNS name test@-1');
-		expect(() => normalizeSuiNSName('test@-a')).toThrowError('Invalid SuiNS name test@-a');
-		expect(() => normalizeSuiNSName('test.sui2')).toThrowError('Invalid SuiNS name test.sui2');
-		expect(() => normalizeSuiNSName('.sui2')).toThrowError('Invalid SuiNS name .sui2');
-		expect(() => normalizeSuiNSName('test@')).toThrowError('Invalid SuiNS name test@');
-		expect(() => normalizeSuiNSName('@@')).toThrowError('Invalid SuiNS name @@');
-		expect(() => normalizeSuiNSName('@@test')).toThrowError('Invalid SuiNS name @@test');
-		expect(() => normalizeSuiNSName('test@test.test')).toThrowError(
-			'Invalid SuiNS name test@test.test',
+		expect(() => normalizeIotaNSName('-@test')).toThrowError('Invalid IotaNS name -@test');
+		expect(normalizeIotaNSName('1-a@1-b')).toMatchInlineSnapshot('"1-a@1-b"');
+		expect(normalizeIotaNSName('1-a.1-b.iota')).toMatchInlineSnapshot('"1-a@1-b"');
+		expect(() => normalizeIotaNSName('-@test')).toThrowError('Invalid IotaNS name -@test');
+		expect(() => normalizeIotaNSName('-1@test')).toThrowError('Invalid IotaNS name -1@test');
+		expect(() => normalizeIotaNSName('test@-')).toThrowError('Invalid IotaNS name test@-');
+		expect(() => normalizeIotaNSName('test@-1')).toThrowError('Invalid IotaNS name test@-1');
+		expect(() => normalizeIotaNSName('test@-a')).toThrowError('Invalid IotaNS name test@-a');
+		expect(() => normalizeIotaNSName('test.iota2')).toThrowError('Invalid IotaNS name test.iota2');
+		expect(() => normalizeIotaNSName('.iota2')).toThrowError('Invalid IotaNS name .iota2');
+		expect(() => normalizeIotaNSName('test@')).toThrowError('Invalid IotaNS name test@');
+		expect(() => normalizeIotaNSName('@@')).toThrowError('Invalid IotaNS name @@');
+		expect(() => normalizeIotaNSName('@@test')).toThrowError('Invalid IotaNS name @@test');
+		expect(() => normalizeIotaNSName('test@test.test')).toThrowError(
+			'Invalid IotaNS name test@test.test',
 		);
-		expect(() => normalizeSuiNSName('@test.test')).toThrowError('Invalid SuiNS name @test.test');
-		expect(() => normalizeSuiNSName('#@test')).toThrowError('Invalid SuiNS name #@test');
-		expect(() => normalizeSuiNSName('test@#')).toThrowError('Invalid SuiNS name test@#');
-		expect(() => normalizeSuiNSName('test.#.sui')).toThrowError('Invalid SuiNS name test.#.sui');
-		expect(() => normalizeSuiNSName('#.sui')).toThrowError('Invalid SuiNS name #.sui');
-		expect(() => normalizeSuiNSName('@.test.sue')).toThrowError('Invalid SuiNS name @.test.sue');
+		expect(() => normalizeIotaNSName('@test.test')).toThrowError('Invalid IotaNS name @test.test');
+		expect(() => normalizeIotaNSName('#@test')).toThrowError('Invalid IotaNS name #@test');
+		expect(() => normalizeIotaNSName('test@#')).toThrowError('Invalid IotaNS name test@#');
+		expect(() => normalizeIotaNSName('test.#.iota')).toThrowError('Invalid IotaNS name test.#.iota');
+		expect(() => normalizeIotaNSName('#.iota')).toThrowError('Invalid IotaNS name #.iota');
+		expect(() => normalizeIotaNSName('@.test.sue')).toThrowError('Invalid IotaNS name @.test.sue');
 	});
 });

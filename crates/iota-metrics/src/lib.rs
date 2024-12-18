@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{extract::Extension, http::StatusCode, routing::get, Router};
@@ -174,7 +175,7 @@ tokio::task_local! {
 
 /// Create a new task-local ServerTiming context and run the provided future within it.
 /// Should be used at the top-most level of a request handler. Can be added to an axum router
-/// as a layer by using mysten_service::server_timing_middleware.
+/// as a layer by using iota_service::server_timing_middleware.
 pub async fn with_new_server_timing<T>(fut: impl Future<Output = T> + Send + 'static) -> T {
     let timer = Arc::new(Mutex::new(Timer::new()));
 
@@ -558,20 +559,20 @@ pub fn uptime_metric(
 /// The metric is labeled with:
 /// - 'process': the process type. We keep this label to be able to distinguish between different binaries.
 /// - 'version': binary version, generally be of the format: 'semver-gitrevision'
-/// - 'sui_chain_identifier': the identifier of sui network which this process is part of
+/// - 'iota_chain_identifier': the identifier of iota network which this process is part of
 /// - 'eth_chain_identifier': the identifier of eth network which this process is part of
 /// - 'client_enabled': whether the bridge node is running as a client
 pub fn bridge_uptime_metric(
     process: &str,
     version: &'static str,
-    sui_chain_identifier: &str,
+    iota_chain_identifier: &str,
     eth_chain_identifier: &str,
     client_enabled: bool,
 ) -> Box<dyn prometheus::core::Collector> {
     let opts = prometheus::opts!("uptime", "uptime of the node service in seconds")
         .variable_label("process")
         .variable_label("version")
-        .variable_label("sui_chain_identifier")
+        .variable_label("iota_chain_identifier")
         .variable_label("eth_chain_identifier")
         .variable_label("client_enabled");
 
@@ -584,7 +585,7 @@ pub fn bridge_uptime_metric(
         &[
             process,
             version,
-            sui_chain_identifier,
+            iota_chain_identifier,
             eth_chain_identifier,
             if client_enabled { "true" } else { "false" },
         ],
@@ -684,7 +685,7 @@ mod tests {
         assert_eq!(metric_1.get_help(), "counter_1_desc");
 
         // AND add a second registry with a metric
-        let registry_2 = Registry::new_custom(Some("sui".to_string()), None).unwrap();
+        let registry_2 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
         registry_2
             .register(Box::new(
                 IntCounter::new("counter_2", "counter_2_desc").unwrap(),
@@ -707,7 +708,7 @@ mod tests {
         assert_eq!(metric_1.get_help(), "counter_1_desc");
 
         let metric_2 = metrics.remove(0);
-        assert_eq!(metric_2.get_name(), "sui_counter_2");
+        assert_eq!(metric_2.get_name(), "iota_counter_2");
         assert_eq!(metric_2.get_help(), "counter_2_desc");
 
         // AND remove first registry
@@ -724,7 +725,7 @@ mod tests {
         assert_eq!(metric_default.get_help(), "counter_desc");
 
         let metric_1 = metrics.remove(0);
-        assert_eq!(metric_1.get_name(), "sui_counter_2");
+        assert_eq!(metric_1.get_name(), "iota_counter_2");
         assert_eq!(metric_1.get_help(), "counter_2_desc");
     }
 }

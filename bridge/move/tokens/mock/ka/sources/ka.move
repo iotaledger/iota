@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridged_ka::ka {
     use std::option;
 
-    use sui::coin;
-    use sui::transfer;
-    use sui::tx_context;
-    use sui::tx_context::TxContext;
+    use iota::coin;
+    use iota::transfer;
+    use iota::tx_context;
+    use iota::tx_context::TxContext;
 
     struct KA has drop {}
 
@@ -19,7 +20,7 @@ module bridged_ka::ka {
             DECIMAL,
             b"Ka",
             b"Ka Coin",
-            b"Ka, the opposite of Sui",
+            b"Ka, the opposite of Iota",
             option::none(),
             ctx
         );

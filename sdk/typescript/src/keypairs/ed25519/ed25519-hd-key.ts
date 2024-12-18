@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This is adapted from https://github.com/alepop/ed25519-hd-key replacing create-hmac
 // with @noble/hashes to be browser compatible.
 
-import { fromHex } from '@mysten/bcs';
+import { fromHex } from '@iota/bcs';
 import { hmac } from '@noble/hashes/hmac';
 import { sha512 } from '@noble/hashes/sha512';
 import nacl from 'tweetnacl';

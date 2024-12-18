@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This analysis flags potential custom implementations of transfer/share/freeze calls on objects
@@ -31,7 +32,7 @@ use crate::{
     },
     parser::ast::Ability_,
     shared::Identifier,
-    sui_mode::SUI_ADDR_VALUE,
+    iota_mode::IOTA_ADDR_VALUE,
 };
 use std::collections::BTreeMap;
 
@@ -41,16 +42,16 @@ use super::{
 };
 
 const PRIVATE_OBJ_FUNCTIONS: &[(AccountAddress, &str, &str)] = &[
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, TRANSFER_FUN),
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, SHARE_FUN),
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, FREEZE_FUN),
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, RECEIVE_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, TRANSFER_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, SHARE_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, FREEZE_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, RECEIVE_FUN),
 ];
 
 const CUSTOM_STATE_CHANGE_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagnosticCategory::Sui as u8,
+    LinterDiagnosticCategory::Iota as u8,
     LinterDiagnosticCode::CustomStateChange as u8,
     "potentially unenforceable custom transfer/share/freeze policy",
 );

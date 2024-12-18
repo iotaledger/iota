@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export {
-	type SuiTransport,
-	type SuiTransportRequestOptions,
-	type SuiTransportSubscribeOptions,
+	type IotaTransport,
+	type IotaTransportRequestOptions,
+	type IotaTransportSubscribeOptions,
 	type HttpHeaders,
-	type SuiHTTPTransportOptions,
-	SuiHTTPTransport,
+	type IotaHTTPTransportOptions,
+	IotaHTTPTransport,
 } from './http-transport.js';
 export { getFullnodeUrl } from './network.js';
 export * from './types/index.js';
 export {
-	type SuiClientOptions,
+	type IotaClientOptions,
 	type PaginationArguments,
 	type OrderArguments,
-	isSuiClient,
-	SuiClient,
+	isIotaClient,
+	IotaClient,
 } from './client.js';
-export { SuiHTTPStatusError, SuiHTTPTransportError, JsonRpcError } from './errors.js';
+export { IotaHTTPStatusError, IotaHTTPTransportError, JsonRpcError } from './errors.js';

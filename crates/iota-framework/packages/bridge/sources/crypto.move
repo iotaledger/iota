@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::crypto {
-    use sui::ecdsa_k1;
-    use sui::hash::keccak256;
+    use iota::ecdsa_k1;
+    use iota::hash::keccak256;
     #[test_only]
-    use sui::hex;
+    use iota::hex;
 
     public(package) fun ecdsa_pub_key_to_eth_address(compressed_pub_key: &vector<u8>): vector<u8> {
         // Decompress pub key

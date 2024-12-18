@@ -1,8 +1,8 @@
 [package]
-name = "sui-package-resolver"
+name = "iota-package-resolver"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 
@@ -17,9 +17,9 @@ move-core-types.workspace = true
 # refactor the crate into a `move-utils` at some point and use that instead
 # here once we do.
 move-command-line-common.workspace = true
-sui-types.workspace = true
+iota-types.workspace = true
 thiserror.workspace = true
-sui-rpc-api.workspace = true
+iota-rpc-api.workspace = true
 tokio.workspace = true
 eyre.workspace = true
 serde.workspace = true
@@ -30,5 +30,5 @@ hyper.workspace = true
 insta.workspace = true
 move-compiler.workspace = true
 serde_json.workspace = true
-sui-move-build.workspace = true
+iota-move-build.workspace = true
 tower.workspace = true

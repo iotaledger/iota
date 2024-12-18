@@ -5,20 +5,20 @@ import { UseSignTransactionExample } from '../../../examples/wallet-hooks';
 Use the `useSignTransaction` hook to prompt the user to sign a transaction with their wallet.
 
 ```ts
-import { Transaction } from '@mysten/sui/transactions';
+import { Transaction } from '@iota/iota-sdk/transactions';
 import {
 	ConnectButton,
 	useCurrentAccount,
 	useSignTransaction,
-	useSuiClient,
-} from '@mysten/dapp-kit';
-import { toBase64 } from '@mysten/sui/utils';
+	useIotaClient,
+} from '@iota/dapp-kit';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 function MyComponent() {
 	const { mutateAsync: signTransaction } = useSignTransaction();
 	const [signature, setSignature] = useState('');
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const currentAccount = useCurrentAccount();
 
 	return (
@@ -31,7 +31,7 @@ function MyComponent() {
 							onClick={async () => {
 								const { bytes, signature, reportTransactionEffects } = await signTransaction({
 									transaction: new Transaction(),
-									chain: 'sui:devnet',
+									chain: 'iota:devnet',
 								});
 
 								const executeResult = await client.executeTransactionBlock({

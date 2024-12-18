@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::future::join_all;
@@ -7,23 +8,23 @@ use rand::distributions::Distribution;
 use std::net::SocketAddr;
 use std::ops::Deref;
 use std::time::{Duration, SystemTime};
-use sui_config::node::AuthorityOverloadConfig;
-use sui_core::consensus_adapter::position_submit_certificate;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_macros::{register_fail_point_async, sim_test};
-use sui_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use sui_test_transaction_builder::{
+use iota_config::node::AuthorityOverloadConfig;
+use iota_core::consensus_adapter::position_submit_certificate;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_macros::{register_fail_point_async, sim_test};
+use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
+use iota_test_transaction_builder::{
     publish_basics_package, publish_basics_package_and_make_counter, TestTransactionBuilder,
 };
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::event::Event;
-use sui_types::execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus};
-use sui_types::messages_grpc::{LayoutGenerationOption, ObjectInfoRequest};
-use sui_types::transaction::{CallArg, ObjectArg};
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::event::Event;
+use iota_types::execution_status::{CommandArgumentError, ExecutionFailureStatus, ExecutionStatus};
+use iota_types::messages_grpc::{LayoutGenerationOption, ObjectInfoRequest};
+use iota_types::transaction::{CallArg, ObjectArg};
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 
-/// Send a simple shared object transaction to Sui and ensures the client gets back a response.
+/// Send a simple shared object transaction to Iota and ensures the client gets back a response.
 #[sim_test]
 async fn shared_object_transaction() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -38,7 +39,7 @@ async fn shared_object_transaction() {
                 .next()
                 .unwrap()
                 .config()
-                .sui_address(),
+                .iota_address(),
         )
         .build();
 
@@ -131,7 +132,7 @@ async fn shared_object_deletion_multiple_times() {
 
     // Start a new fullnode and let it sync from genesis and wait for us to see all the deletion
     // transactions.
-    let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
         .get_transaction_cache_reader()
@@ -187,7 +188,7 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
 
     // Start a new fullnode and let it sync from genesis and wait for us to see all the deletion
     // transactions.
-    let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
         .get_transaction_cache_reader()
@@ -300,7 +301,7 @@ async fn shared_object_deletion_multi_certs() {
     );
 
     // Start a new fullnode that is not on the write path
-    let fullnode = test_cluster.spawn_new_fullnode().await.sui_node;
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     fullnode
         .state()
         .get_transaction_cache_reader()
@@ -308,8 +309,8 @@ async fn shared_object_deletion_multi_certs() {
         .await;
 }
 
-/// End-to-end shared transaction test for a Sui validator. It does not test the client or wallet,
-/// but tests the end-to-end flow from Sui to consensus.
+/// End-to-end shared transaction test for a Iota validator. It does not test the client or wallet,
+/// but tests the end-to-end flow from Iota to consensus.
 #[sim_test]
 async fn call_shared_object_contract() {
     let test_cluster = TestClusterBuilder::new().build().await;
@@ -504,7 +505,7 @@ async fn access_clock_object_test() {
     loop {
         let checkpoint = test_cluster
             .fullnode_handle
-            .sui_node
+            .iota_node
             .with_async(|node| async {
                 node.state()
                     .get_transaction_checkpoint_for_tests(
@@ -618,7 +619,7 @@ async fn shared_object_sync() {
     assert!(effects.status().is_ok());
 }
 
-/// Send a simple shared object transaction to Sui and ensures the client gets back a response.
+/// Send a simple shared object transaction to Iota and ensures the client gets back a response.
 #[sim_test]
 async fn replay_shared_object_transaction() {
     let test_cluster = TestClusterBuilder::new().build().await;

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module base_addr::new_module {
 
     public struct MyObject has key, store {
-        id: sui::object::UID,
+        id: iota::object::UID,
         data: u64
     }
 

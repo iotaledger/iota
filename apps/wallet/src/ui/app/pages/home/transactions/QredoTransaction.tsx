@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { toUtf8OrB64 } from '_src/shared/utils';
@@ -6,9 +7,9 @@ import LoadingIndicator from '_src/ui/app/components/loading/LoadingIndicator';
 import { TxnIcon } from '_src/ui/app/components/transactions-card/TxnIcon';
 import { useGetQredoTransaction } from '_src/ui/app/hooks/useGetQredoTransaction';
 import { Text } from '_src/ui/app/shared/text';
-import { formatDate, useOnScreen } from '@mysten/core';
-import { bcs } from '@mysten/sui/bcs';
-import { fromBase64 } from '@mysten/sui/utils';
+import { formatDate, useOnScreen } from '@iota/core';
+import { bcs } from '@iota/iota-sdk/bcs';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 import { useMemo, useRef } from 'react';
 
 export type QredoTransactionProps = {
@@ -52,8 +53,8 @@ export function QredoTransaction({ qredoID, qredoTransactionID }: QredoTransacti
 			<div className="flex flex-col gap-1 overflow-hidden">
 				{isPending ? (
 					<>
-						<div className="bg-sui-lightest h-3 w-20 rounded" />
-						<div className="bg-sui-lightest h-3 w-16 rounded" />
+						<div className="bg-iota-lightest h-3 w-20 rounded" />
+						<div className="bg-iota-lightest h-3 w-16 rounded" />
 					</>
 				) : data ? (
 					<>

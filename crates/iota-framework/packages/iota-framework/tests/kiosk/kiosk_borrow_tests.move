@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// Tests for borrowing mechanics.
-module sui::kiosk_borrow_tests {
-    use sui::kiosk_test_utils::{Self as utils, Asset};
+module iota::kiosk_borrow_tests {
+    use iota::kiosk_test_utils::{Self as utils, Asset};
 
     const AMT: u64 = 1000;
 
@@ -28,7 +29,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::ENotOwner)]
+    #[expected_failure(abort_code = iota::kiosk::ENotOwner)]
     fun test_borrow_fail_not_owner() {
         let ctx = &mut utils::ctx();
         let (_item, id) = utils::get_asset(ctx);
@@ -41,7 +42,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::EItemNotFound)]
+    #[expected_failure(abort_code = iota::kiosk::EItemNotFound)]
     fun test_borrow_fail_item_not_found() {
         let ctx = &mut utils::ctx();
         let (_item, id) = utils::get_asset(ctx);
@@ -69,7 +70,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::ENotOwner)]
+    #[expected_failure(abort_code = iota::kiosk::ENotOwner)]
     fun test_borrow_mut_fail_not_owner() {
         let ctx = &mut utils::ctx();
         let (_item, id) = utils::get_asset(ctx);
@@ -81,7 +82,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::EItemNotFound)]
+    #[expected_failure(abort_code = iota::kiosk::EItemNotFound)]
     fun test_borrow_mut_fail_item_not_found() {
         let ctx = &mut utils::ctx();
         let (_item, id) = utils::get_asset(ctx);
@@ -92,7 +93,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::EItemIsListed)]
+    #[expected_failure(abort_code = iota::kiosk::EItemIsListed)]
     fun test_borrow_mut_fail_item_is_listed() {
         let ctx = &mut utils::ctx();
         let (item, id) = utils::get_asset(ctx);
@@ -114,7 +115,7 @@ module sui::kiosk_borrow_tests {
 
         kiosk.place(&cap, item);
         let (item, potato) = kiosk.borrow_val<Asset>(&cap, id);
-        assert!(sui::object::id(&item) == id);
+        assert!(iota::object::id(&item) == id);
         kiosk.return_val(item, potato);
         assert!(kiosk.has_item(id));
 
@@ -124,7 +125,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::ENotOwner)]
+    #[expected_failure(abort_code = iota::kiosk::ENotOwner)]
     fun test_borrow_val_fail_not_owner() {
         let ctx = &mut utils::ctx();
         let (_item, id) = utils::get_asset(ctx);
@@ -136,7 +137,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::EItemNotFound)]
+    #[expected_failure(abort_code = iota::kiosk::EItemNotFound)]
     fun test_borrow_val_fail_item_not_found() {
         let ctx = &mut utils::ctx();
         let (_item, id) = utils::get_asset(ctx);
@@ -147,7 +148,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::EItemIsListed)]
+    #[expected_failure(abort_code = iota::kiosk::EItemIsListed)]
     fun test_borrow_val_fail_item_is_listed() {
         let ctx = &mut utils::ctx();
         let (item, id) = utils::get_asset(ctx);
@@ -160,7 +161,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::EWrongKiosk)]
+    #[expected_failure(abort_code = iota::kiosk::EWrongKiosk)]
     fun test_borrow_val_fail_wrong_kiosk() {
         let ctx = &mut utils::ctx();
         let (item_1, id_1) = utils::get_asset(ctx);
@@ -180,7 +181,7 @@ module sui::kiosk_borrow_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::kiosk::EItemMismatch)]
+    #[expected_failure(abort_code = iota::kiosk::EItemMismatch)]
     fun test_borrow_val_fail_item_mismatch() {
         let ctx = &mut utils::ctx();
         let (item_1, id_1) = utils::get_asset(ctx);

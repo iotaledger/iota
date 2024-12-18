@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::VersionNumber;
@@ -11,7 +12,7 @@ use crate::transaction::TransactionDataAPI;
 use crate::transaction::{InputObjectKind, InputObjects, ObjectReadResult, Transaction};
 use crate::{
     base_types::{ObjectID, ObjectRef, SequenceNumber},
-    error::{SuiError, SuiResult},
+    error::{IotaError, IotaResult},
     object::{Object, Owner},
     storage::{BackingPackageStore, ChildObjectResolver, ObjectStore, ParentSync},
 };
@@ -29,7 +30,7 @@ pub struct InMemoryStorage {
 }
 
 impl BackingPackageStore for InMemoryStorage {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         load_package_object_from_object_store(self, package_id)
     }
 }
@@ -40,21 +41,21 @@ impl ChildObjectResolver for InMemoryStorage {
         parent: &ObjectID,
         child: &ObjectID,
         child_version_upper_bound: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         let child_object = match self.persistent.get(child).cloned() {
             None => return Ok(None),
             Some(obj) => obj,
         };
         let parent = *parent;
         if child_object.owner != Owner::ObjectOwner(parent.into()) {
-            return Err(SuiError::InvalidChildObjectAccess {
+            return Err(IotaError::InvalidChildObjectAccess {
                 object: *child,
                 given_parent: parent,
                 actual_owner: child_object.owner.clone(),
             });
         }
         if child_object.version() > child_version_upper_bound {
-            return Err(SuiError::UnsupportedFeatureError {
+            return Err(IotaError::UnsupportedFeatureError {
                 error: "TODO InMemoryStorage::read_child_object does not yet support bounded reads"
                     .to_owned(),
             });
@@ -68,7 +69,7 @@ impl ChildObjectResolver for InMemoryStorage {
         receiving_object_id: &ObjectID,
         receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         let recv_object = match self.persistent.get(receiving_object_id).cloned() {
             None => return Ok(None),
             Some(obj) => obj,
@@ -91,7 +92,7 @@ impl ParentSync for InMemoryStorage {
 }
 
 impl ModuleResolver for InMemoryStorage {
-    type Error = SuiError;
+    type Error = IotaError;
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         get_module(self, module_id)
@@ -99,7 +100,7 @@ impl ModuleResolver for InMemoryStorage {
 }
 
 impl ModuleResolver for &mut InMemoryStorage {
-    type Error = SuiError;
+    type Error = IotaError;
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         (**self).get_module(module_id)
@@ -145,7 +146,7 @@ impl ObjectStore for &mut InMemoryStorage {
 }
 
 impl GetModule for InMemoryStorage {
-    type Error = SuiError;
+    type Error = IotaError;
     type Item = CompiledModule;
 
     fn get_module_by_id(&self, id: &ModuleId) -> anyhow::Result<Option<Self::Item>, Self::Error> {

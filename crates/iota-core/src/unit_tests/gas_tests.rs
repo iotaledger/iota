@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
@@ -10,15 +11,15 @@ use crate::authority::test_authority_builder::TestAuthorityBuilder;
 use move_core_types::account_address::AccountAddress;
 use move_core_types::ident_str;
 use once_cell::sync::Lazy;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::crypto::AccountKeyPair;
-use sui_types::effects::TransactionEvents;
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::gas_coin::GasCoin;
-use sui_types::object::GAS_VALUE_FOR_TESTING;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::utils::to_sender_signed_transaction;
-use sui_types::{base_types::dbg_addr, crypto::get_key_pair};
+use iota_protocol_config::ProtocolConfig;
+use iota_types::crypto::AccountKeyPair;
+use iota_types::effects::TransactionEvents;
+use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
+use iota_types::gas_coin::GasCoin;
+use iota_types::object::GAS_VALUE_FOR_TESTING;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::utils::to_sender_signed_transaction;
+use iota_types::{base_types::dbg_addr, crypto::get_key_pair};
 
 // The cost table is used only to get the max budget available which is not dependent on
 // the gas price
@@ -73,7 +74,7 @@ async fn test_tx_more_than_maximum_gas_budget() {
 // - computation ok, OOG for storage, OOG for minimal storage (e.g. computation is entire budget)
 //
 // With multiple gas coins is practically impossible to fail storage cost because we
-// get a significant among of MIST back from smashing. So we try:
+// get a significant among of NANOS back from smashing. So we try:
 // - OOG computation, storage ok
 //
 // impossible scenarios:
@@ -87,7 +88,7 @@ async fn test_tx_more_than_maximum_gas_budget() {
 
 async fn publish_move_random_package(
     authority_state: &Arc<AuthorityState>,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectID,
 ) -> ObjectID {
@@ -117,7 +118,7 @@ async fn publish_move_random_package(
 }
 
 async fn check_oog_transaction<F>(
-    sender: SuiAddress,
+    sender: IotaAddress,
     sender_key: AccountKeyPair,
     function: &'static str,
     args: Vec<CallArg>,
@@ -125,9 +126,9 @@ async fn check_oog_transaction<F>(
     gas_price: u64,
     coin_num: u64,
     checker: F,
-) -> SuiResult
+) -> IotaResult
 where
-    F: FnOnce(&GasCostSummary, u64, u64) -> SuiResult,
+    F: FnOnce(&GasCostSummary, u64, u64) -> IotaResult,
 {
     // initial system with given gas coins
     let gas_amount: u64 = if budget < 10_000_000_000 {
@@ -219,7 +220,7 @@ where
 }
 
 // make a `coin_num` coins distributing `gas_amount` across them
-fn make_gas_coins(owner: SuiAddress, gas_amount: u64, coin_num: u64) -> Vec<Object> {
+fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Object> {
     let mut objects = vec![];
     let coin_balance = gas_amount / coin_num;
     for _ in 1..coin_num {
@@ -244,9 +245,9 @@ fn make_gas_coins(owner: SuiAddress, gas_amount: u64, coin_num: u64) -> Vec<Obje
 // Touch gas coins so that `storage_rebate` is set
 async fn touch_gas_coins(
     authority_state: &AuthorityState,
-    sender: SuiAddress,
+    sender: IotaAddress,
     sender_key: &AccountKeyPair,
-    recipient: SuiAddress,
+    recipient: IotaAddress,
     coin_ids: &[ObjectID],
     gas_object_id: ObjectID,
 ) {
@@ -277,7 +278,7 @@ async fn touch_gas_coins(
 
 // - OOG computation, storage ok
 #[tokio::test]
-async fn test_oog_computation_storage_ok_one_coin() -> SuiResult {
+async fn test_oog_computation_storage_ok_one_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
     let budget: u64 = ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas();
     let (sender, sender_key) = get_key_pair();
@@ -305,7 +306,7 @@ async fn test_oog_computation_storage_ok_one_coin() -> SuiResult {
 }
 
 #[tokio::test]
-async fn test_oog_computation_storage_ok_multi_coins() -> SuiResult {
+async fn test_oog_computation_storage_ok_multi_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1_000;
     let budget: u64 = ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas();
     let (sender, sender_key) = get_key_pair();
@@ -334,7 +335,7 @@ async fn test_oog_computation_storage_ok_multi_coins() -> SuiResult {
 
 // OOG for computation, OOG for minimal storage (e.g. computation is entire budget)
 #[tokio::test]
-async fn test_oog_computation_oog_storage_final_one_coin() -> SuiResult {
+async fn test_oog_computation_oog_storage_final_one_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1000;
     const MAX_UNIT_BUDGET: u64 = 5_000_000;
     const BUDGET: u64 = MAX_UNIT_BUDGET * GAS_PRICE;
@@ -363,7 +364,7 @@ async fn test_oog_computation_oog_storage_final_one_coin() -> SuiResult {
 
 // - computation ok, OOG for storage, minimal storage ok
 #[tokio::test]
-async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> SuiResult {
+async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_100_000;
     let (sender, sender_key) = get_key_pair();
@@ -395,7 +396,7 @@ async fn test_computation_ok_oog_storage_minimal_ok_one_coin() -> SuiResult {
 
 // - computation ok, OOG for storage, minimal storage ok
 #[tokio::test]
-async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> SuiResult {
+async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_100_000;
     let (sender, sender_key) = get_key_pair();
@@ -427,7 +428,7 @@ async fn test_computation_ok_oog_storage_minimal_ok_multi_coins() -> SuiResult {
 
 // - computation ok, OOG for storage, OOG for minimal storage (e.g. computation is entire budget)
 #[tokio::test]
-async fn test_computation_ok_oog_storage_final_one_coin() -> SuiResult {
+async fn test_computation_ok_oog_storage_final_one_coin() -> IotaResult {
     const GAS_PRICE: u64 = 1001;
     const BUDGET: u64 = 1_002_000;
     let (sender, sender_key) = get_key_pair();
@@ -471,7 +472,7 @@ async fn test_tx_gas_balance_less_than_budget() {
 }
 
 #[tokio::test]
-async fn test_native_transfer_sufficient_gas() -> SuiResult {
+async fn test_native_transfer_sufficient_gas() -> IotaResult {
     // This test does a native transfer with sufficient gas budget and balance.
     // It's expected to succeed. We check that gas was charged properly.
     let result = execute_transfer(*MAX_GAS_BUDGET, *MAX_GAS_BUDGET, true, false).await;
@@ -535,7 +536,7 @@ async fn test_native_transfer_gas_price_is_used() {
 }
 
 #[tokio::test]
-async fn test_transfer_sui_insufficient_gas() {
+async fn test_transfer_iota_insufficient_gas() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let authority_state = TestAuthorityBuilder::new().build().await;
@@ -547,7 +548,7 @@ async fn test_transfer_sui_insufficient_gas() {
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.transfer_sui(recipient, None);
+        builder.transfer_iota(recipient, None);
         builder.finish()
     };
     let kind = TransactionKind::ProgrammableTransaction(pt);
@@ -603,19 +604,19 @@ async fn test_invalid_gas_owners() {
     ))
     .await;
     let non_sender_owned_object =
-        init_object(Object::with_owner_for_testing(SuiAddress::ZERO)).await;
+        init_object(Object::with_owner_for_testing(IotaAddress::ZERO)).await;
 
     async fn test(
         good_gas_object: ObjectRef,
         bad_gas_object: ObjectRef,
-        sender: SuiAddress,
+        sender: IotaAddress,
         sender_key: &AccountKeyPair,
         authority_state: &AuthorityState,
     ) -> UserInputError {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let recipient = dbg_addr(2);
-            builder.transfer_sui(recipient, None);
+            builder.transfer_iota(recipient, None);
             builder.finish()
         };
         let kind = TransactionKind::ProgrammableTransaction(pt);
@@ -819,7 +820,7 @@ async fn test_publish_gas() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn test_move_call_gas() -> SuiResult {
+async fn test_move_call_gas() -> IotaResult {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectID::random();
     let (authority_state, package_object_ref) =
@@ -937,7 +938,7 @@ async fn test_tx_gas_coins_input_coins() {
 
     async fn run_merge(
         authority_state: &AuthorityState,
-        sender: SuiAddress,
+        sender: IotaAddress,
         sender_key: &AccountKeyPair,
         gas_coin_refs: Vec<ObjectRef>,
         coin_ref: ObjectRef,
@@ -988,7 +989,7 @@ async fn test_tx_gas_coins_input_coins() {
 struct TransferResult {
     pub authority_state: Arc<AuthorityState>,
     pub gas_object_id: ObjectID,
-    pub response: SuiResult<TransactionStatus>,
+    pub response: IotaResult<TransactionStatus>,
     pub rgp: u64,
 }
 

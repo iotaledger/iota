@@ -1,9 +1,10 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "../../contracts/SuiBridge.sol";
+import "../../contracts/IotaBridge.sol";
 
-contract MockSuiBridgeV2 is SuiBridge {
+contract MockIotaBridgeV2 is IotaBridge {
     uint8 public mock;
     bool public isPausing;
 

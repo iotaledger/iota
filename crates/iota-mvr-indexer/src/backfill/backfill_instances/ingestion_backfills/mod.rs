@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) mod digest_task;
@@ -7,7 +8,7 @@ pub(crate) mod raw_checkpoints;
 pub(crate) mod tx_affected_objects;
 
 use crate::database::ConnectionPool;
-use sui_types::full_checkpoint_content::CheckpointData;
+use iota_types::full_checkpoint_content::CheckpointData;
 
 #[async_trait::async_trait]
 pub trait IngestionBackfillTrait: Send + Sync {

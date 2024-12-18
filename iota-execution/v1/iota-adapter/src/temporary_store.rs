@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::gas_charger::GasCharger;
@@ -7,24 +8,24 @@ use move_core_types::language_storage::StructTag;
 use move_core_types::resolver::ResourceResolver;
 use parking_lot::RwLock;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::VersionDigest;
-use sui_types::committee::EpochId;
-use sui_types::digests::ObjectDigest;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::execution::{
+use iota_protocol_config::ProtocolConfig;
+use iota_types::base_types::VersionDigest;
+use iota_types::committee::EpochId;
+use iota_types::digests::ObjectDigest;
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::execution::{
     DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV2, SharedInput,
 };
-use sui_types::execution_config_utils::to_binary_config;
-use sui_types::execution_status::ExecutionStatus;
-use sui_types::inner_temporary_store::InnerTemporaryStore;
-use sui_types::layout_resolver::LayoutResolver;
-use sui_types::storage::{BackingStore, DenyListResult, PackageObject};
-use sui_types::sui_system_state::{get_sui_system_state_wrapper, AdvanceEpochParams};
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress, TransactionDigest},
+use iota_types::execution_config_utils::to_binary_config;
+use iota_types::execution_status::ExecutionStatus;
+use iota_types::inner_temporary_store::InnerTemporaryStore;
+use iota_types::layout_resolver::LayoutResolver;
+use iota_types::storage::{BackingStore, DenyListResult, PackageObject};
+use iota_types::iota_system_state::{get_iota_system_state_wrapper, AdvanceEpochParams};
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress, TransactionDigest},
     effects::EffectsObjectChange,
-    error::{ExecutionError, SuiError, SuiResult},
+    error::{ExecutionError, IotaError, IotaResult},
     fp_bail,
     gas::GasCostSummary,
     object::Owner,
@@ -32,7 +33,7 @@ use sui_types::{
     storage::{BackingPackageStore, ChildObjectResolver, ParentSync, Storage},
     transaction::InputObjects,
 };
-use sui_types::{is_system_package, SUI_SYSTEM_STATE_OBJECT_ID};
+use iota_types::{is_system_package, IOTA_SYSTEM_STATE_OBJECT_ID};
 
 pub struct TemporaryStore<'backing> {
     // The backing store for retrieving Move packages onchain.
@@ -250,7 +251,7 @@ impl<'backing> TemporaryStore<'backing> {
         } else {
             (
                 (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
-                Owner::AddressOwner(SuiAddress::default()),
+                Owner::AddressOwner(IotaAddress::default()),
             )
         };
         let lampot_version = self.lamport_timestamp;
@@ -561,11 +562,11 @@ impl<'backing> TemporaryStore<'backing> {
             unmetered_storage_rebate
         );
         let mut system_state_wrapper = self
-            .read_object(&SUI_SYSTEM_STATE_OBJECT_ID)
+            .read_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
             .expect("0x5 object must be muated in system tx with unmetered storage rebate")
             .clone();
         // In unmetered execution, storage_rebate field of mutated object must be 0.
-        // If not, we would be dropping SUI on the floor by overriding it.
+        // If not, we would be dropping IOTA on the floor by overriding it.
         assert_eq!(system_state_wrapper.storage_rebate, 0);
         system_state_wrapper.storage_rebate = unmetered_storage_rebate;
         self.mutate_input_object(system_state_wrapper);
@@ -618,10 +619,10 @@ impl<'backing> TemporaryStore<'backing> {
     /// returns lists of (objects whose owner we must authenticate, objects whose owner has already been authenticated)
     fn get_objects_to_authenticate(
         &self,
-        sender: &SuiAddress,
+        sender: &IotaAddress,
         gas_charger: &mut GasCharger,
         is_epoch_change: bool,
-    ) -> SuiResult<(Vec<ObjectID>, HashSet<ObjectID>)> {
+    ) -> IotaResult<(Vec<ObjectID>, HashSet<ObjectID>)> {
         let gas_objs: HashSet<&ObjectID> = gas_charger.gas_coins().iter().map(|g| &g.0).collect();
         let mut objs_to_authenticate = Vec::new();
         let mut authenticated_objs = HashSet::new();
@@ -679,7 +680,7 @@ impl<'backing> TemporaryStore<'backing> {
                     unreachable!("Should already be in authenticated_objs")
                 }
                 Owner::Immutable => {
-                    assert!(is_epoch_change, "Immutable objects cannot be written, except for Sui Framework/Move stdlib upgrades at epoch change boundaries");
+                    assert!(is_epoch_change, "Immutable objects cannot be written, except for Iota Framework/Move stdlib upgrades at epoch change boundaries");
                     // Note: this assumes that the only immutable objects an epoch change tx can update are system packages,
                     // but in principle we could allow others.
                     assert!(
@@ -698,10 +699,10 @@ impl<'backing> TemporaryStore<'backing> {
     // check that every object read is owned directly or indirectly by sender, sponsor, or a shared object input
     pub fn check_ownership_invariants(
         &self,
-        sender: &SuiAddress,
+        sender: &IotaAddress,
         gas_charger: &mut GasCharger,
         is_epoch_change: bool,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         let (mut objects_to_authenticate, mut authenticated_objects) =
             self.get_objects_to_authenticate(sender, gas_charger, is_epoch_change)?;
 
@@ -738,7 +739,7 @@ impl<'backing> TemporaryStore<'backing> {
     /// and each created object. Compute storage refunds for each deleted object.
     /// Will *not* charge anything, gas status keeps track of storage cost and rebate.
     /// All objects will be updated with their new (current) storage rebate/cost.
-    /// `SuiGasStatus` `storage_rebate` and `storage_gas_units` track the transaction
+    /// `IotaGasStatus` `storage_rebate` and `storage_gas_units` track the transaction
     /// overall storage rebate and cost.
     pub(crate) fn collect_storage_and_rebate(&mut self, gas_charger: &mut GasCharger) {
         // Use two loops because we cannot mut iterate written while calling get_object_modified_at.
@@ -821,7 +822,7 @@ impl<'backing> TemporaryStore<'backing> {
         params: &AdvanceEpochParams,
         protocol_config: &ProtocolConfig,
     ) {
-        let wrapper = get_sui_system_state_wrapper(self.store.as_object_store())
+        let wrapper = get_iota_system_state_wrapper(self.store.as_object_store())
             .expect("System state wrapper object must exist");
         let (old_object, new_object) =
             wrapper.advance_epoch_safe_mode(params, self.store.as_object_store(), protocol_config);
@@ -837,7 +838,7 @@ type ModifiedObjectInfo<'a> = (
 );
 
 impl<'backing> TemporaryStore<'backing> {
-    fn get_input_sui(
+    fn get_input_iota(
         &self,
         id: &ObjectID,
         expected_version: SequenceNumber,
@@ -853,9 +854,9 @@ impl<'backing> TemporaryStore<'backing> {
                     obj.version(),
                 );
             }
-            obj.get_total_sui(layout_resolver).map_err(|e| {
+            obj.get_total_iota(layout_resolver).map_err(|e| {
                 make_invariant_violation!(
-                    "Failed looking up input SUI in SUI conservation checking for input with \
+                    "Failed looking up input IOTA in IOTA conservation checking for input with \
                          type {:?}: {e:#?}",
                     obj.struct_tag(),
                 )
@@ -864,12 +865,12 @@ impl<'backing> TemporaryStore<'backing> {
             // not in input objects, must be a dynamic field
             let Some(obj) = self.store.get_object_by_key(id, expected_version) else {
                 invariant_violation!(
-                    "Failed looking up dynamic field {id} in SUI conservation checking"
+                    "Failed looking up dynamic field {id} in IOTA conservation checking"
                 );
             };
-            obj.get_total_sui(layout_resolver).map_err(|e| {
+            obj.get_total_iota(layout_resolver).map_err(|e| {
                 make_invariant_violation!(
-                    "Failed looking up input SUI in SUI conservation checking for type \
+                    "Failed looking up input IOTA in IOTA conservation checking for type \
                          {:?}: {e:#?}",
                     obj.struct_tag(),
                 )
@@ -905,20 +906,20 @@ impl<'backing> TemporaryStore<'backing> {
             .collect()
     }
 
-    /// Check that this transaction neither creates nor destroys SUI. This should hold for all txes
+    /// Check that this transaction neither creates nor destroys IOTA. This should hold for all txes
     /// except the epoch change tx, which mints staking rewards equal to the gas fees burned in the
     /// previous epoch.  Specifically, this checks two key invariants about storage
     /// fees and storage rebate:
     ///
-    /// 1. all SUI in storage rebate fields of input objects should flow either to the transaction
+    /// 1. all IOTA in storage rebate fields of input objects should flow either to the transaction
     ///    storage rebate, or the transaction non-refundable storage rebate
-    /// 2. all SUI charged for storage should flow into the storage rebate field of some output
+    /// 2. all IOTA charged for storage should flow into the storage rebate field of some output
     ///    object
     ///
     /// This function is intended to be called *after* we have charged for
     /// gas + applied the storage rebate to the gas object, but *before* we
     /// have updated object versions.
-    pub fn check_sui_conserved(
+    pub fn check_iota_conserved(
         &self,
         simple_conservation_checks: bool,
         gas_summary: &GasCostSummary,
@@ -926,9 +927,9 @@ impl<'backing> TemporaryStore<'backing> {
         if !simple_conservation_checks {
             return Ok(());
         }
-        // total amount of SUI in storage rebate of input objects
+        // total amount of IOTA in storage rebate of input objects
         let mut total_input_rebate = 0;
-        // total amount of SUI in storage rebate of output objects
+        // total amount of IOTA in storage rebate of output objects
         let mut total_output_rebate = 0;
         for (_, input, output) in self.get_modified_objects() {
             if let Some(input) = input {
@@ -957,31 +958,31 @@ impl<'backing> TemporaryStore<'backing> {
                     + gas_summary.non_refundable_storage_fee
             {
                 return Err(ExecutionError::invariant_violation(format!(
-                    "SUI conservation failed -- no storage charges in gas summary \
+                    "IOTA conservation failed -- no storage charges in gas summary \
                         and total storage input rebate {} not equal  \
                         to total storage output rebate {}",
                     total_input_rebate, total_output_rebate,
                 )));
             }
         } else {
-            // all SUI in storage rebate fields of input objects should flow either to
+            // all IOTA in storage rebate fields of input objects should flow either to
             // the transaction storage rebate, or the non-refundable storage rebate pool
             if total_input_rebate
                 != gas_summary.storage_rebate + gas_summary.non_refundable_storage_fee
             {
                 return Err(ExecutionError::invariant_violation(format!(
-                    "SUI conservation failed -- {} SUI in storage rebate field of input objects, \
-                        {} SUI in tx storage rebate or tx non-refundable storage rebate",
+                    "IOTA conservation failed -- {} IOTA in storage rebate field of input objects, \
+                        {} IOTA in tx storage rebate or tx non-refundable storage rebate",
                     total_input_rebate, gas_summary.non_refundable_storage_fee,
                 )));
             }
 
-            // all SUI charged for storage should flow into the storage rebate field
+            // all IOTA charged for storage should flow into the storage rebate field
             // of some output object
             if gas_summary.storage_cost != total_output_rebate {
                 return Err(ExecutionError::invariant_violation(format!(
-                    "SUI conservation failed -- {} SUI charged for storage, \
-                        {} SUI in storage rebate field of output objects",
+                    "IOTA conservation failed -- {} IOTA charged for storage, \
+                        {} IOTA in storage rebate field of output objects",
                     gas_summary.storage_cost, total_output_rebate
                 )));
             }
@@ -989,36 +990,36 @@ impl<'backing> TemporaryStore<'backing> {
         Ok(())
     }
 
-    /// Check that this transaction neither creates nor destroys SUI.
+    /// Check that this transaction neither creates nor destroys IOTA.
     /// This more expensive check will check a third invariant on top of the 2 performed
-    /// by `check_sui_conserved` above:
+    /// by `check_iota_conserved` above:
     ///
-    /// * all SUI in input objects (including coins etc in the Move part of an object) should flow
+    /// * all IOTA in input objects (including coins etc in the Move part of an object) should flow
     ///    either to an output object, or be burned as part of computation fees or non-refundable
     ///    storage rebate
     ///
     /// This function is intended to be called *after* we have charged for gas + applied the
     /// storage rebate to the gas object, but *before* we have updated object versions. The
-    /// advance epoch transaction would mint `epoch_fees` amount of SUI, and burn `epoch_rebates`
-    /// amount of SUI. We need these information for this check.
-    pub fn check_sui_conserved_expensive(
+    /// advance epoch transaction would mint `epoch_fees` amount of IOTA, and burn `epoch_rebates`
+    /// amount of IOTA. We need these information for this check.
+    pub fn check_iota_conserved_expensive(
         &self,
         gas_summary: &GasCostSummary,
         advance_epoch_gas_summary: Option<(u64, u64)>,
         layout_resolver: &mut impl LayoutResolver,
     ) -> Result<(), ExecutionError> {
-        // total amount of SUI in input objects, including both coins and storage rebates
-        let mut total_input_sui = 0;
-        // total amount of SUI in output objects, including both coins and storage rebates
-        let mut total_output_sui = 0;
+        // total amount of IOTA in input objects, including both coins and storage rebates
+        let mut total_input_iota = 0;
+        // total amount of IOTA in output objects, including both coins and storage rebates
+        let mut total_output_iota = 0;
         for (id, input, output) in self.get_modified_objects() {
             if let Some(input) = input {
-                total_input_sui += self.get_input_sui(&id, input.version, layout_resolver)?;
+                total_input_iota += self.get_input_iota(&id, input.version, layout_resolver)?;
             }
             if let Some(object) = output {
-                total_output_sui += object.get_total_sui(layout_resolver).map_err(|e| {
+                total_output_iota += object.get_total_iota(layout_resolver).map_err(|e| {
                     make_invariant_violation!(
-                        "Failed looking up output SUI in SUI conservation checking for \
+                        "Failed looking up output IOTA in IOTA conservation checking for \
                          mutated type {:?}: {e:#?}",
                         object.struct_tag(),
                     )
@@ -1029,16 +1030,16 @@ impl<'backing> TemporaryStore<'backing> {
         // why it is not accounted for here.
         // similarly, all of the storage_rebate *except* the storage_fund_rebate_inflow
         // gets credited to the gas coin both computation costs and storage rebate inflow are
-        total_output_sui += gas_summary.computation_cost + gas_summary.non_refundable_storage_fee;
+        total_output_iota += gas_summary.computation_cost + gas_summary.non_refundable_storage_fee;
         if let Some((epoch_fees, epoch_rebates)) = advance_epoch_gas_summary {
-            total_input_sui += epoch_fees;
-            total_output_sui += epoch_rebates;
+            total_input_iota += epoch_fees;
+            total_output_iota += epoch_rebates;
         }
-        if total_input_sui != total_output_sui {
+        if total_input_iota != total_output_iota {
             return Err(ExecutionError::invariant_violation(format!(
-                "SUI conservation failed: input={}, output={}, \
-                    this transaction either mints or burns SUI",
-                total_input_sui, total_output_sui,
+                "IOTA conservation failed: input={}, output={}, \
+                    this transaction either mints or burns IOTA",
+                total_input_iota, total_output_iota,
             )));
         }
         Ok(())
@@ -1051,7 +1052,7 @@ impl<'backing> ChildObjectResolver for TemporaryStore<'backing> {
         parent: &ObjectID,
         child: &ObjectID,
         child_version_upper_bound: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         let obj_opt = self.execution_results.written_objects.get(child);
         if obj_opt.is_some() {
             Ok(obj_opt.cloned())
@@ -1067,7 +1068,7 @@ impl<'backing> ChildObjectResolver for TemporaryStore<'backing> {
         receiving_object_id: &ObjectID,
         receive_object_at_version: SequenceNumber,
         epoch_id: EpochId,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         // You should never be able to try and receive an object after deleting it or writing it in the same
         // transaction since `Receiving` doesn't have copy.
         debug_assert!(!self
@@ -1099,7 +1100,7 @@ impl<'backing> Storage for TemporaryStore<'backing> {
     /// Take execution results v2, and translate it back to be compatible with effects v1.
     fn record_execution_results(&mut self, results: ExecutionResults) {
         let ExecutionResults::V2(results) = results else {
-            panic!("ExecutionResults::V2 expected in sui-execution v1 and above");
+            panic!("ExecutionResults::V2 expected in iota-execution v1 and above");
         };
         // It's important to merge instead of override results because it's
         // possible to execute PT more than once during tx execution.
@@ -1124,12 +1125,12 @@ impl<'backing> Storage for TemporaryStore<'backing> {
         &self,
         _written_objects: &BTreeMap<ObjectID, Object>,
     ) -> DenyListResult {
-        unreachable!("Coin denylist v2 is not supported in sui-execution v1");
+        unreachable!("Coin denylist v2 is not supported in iota-execution v1");
     }
 }
 
 impl<'backing> BackingPackageStore for TemporaryStore<'backing> {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         // We first check the objects in the temporary store because in non-production code path,
         // it is possible to read packages that are just written in the same transaction.
         // This can happen for example when we run the expensive conservation checks, where we may
@@ -1160,7 +1161,7 @@ impl<'backing> BackingPackageStore for TemporaryStore<'backing> {
 }
 
 impl<'backing> ResourceResolver for TemporaryStore<'backing> {
-    type Error = SuiError;
+    type Error = IotaError;
 
     fn get_resource(
         &self,
@@ -1173,7 +1174,7 @@ impl<'backing> ResourceResolver for TemporaryStore<'backing> {
                 None => return Ok(None),
                 Some(x) => {
                     if !x.is_immutable() {
-                        fp_bail!(SuiError::ExecutionInvariantViolation);
+                        fp_bail!(IotaError::ExecutionInvariantViolation);
                     }
                     x
                 }

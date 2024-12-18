@@ -31,7 +31,7 @@ Response: {
 
 task 4, lines 35-37:
 //# programmable --sender A --inputs object(1,2) 100 @A
-//> 0: sui::coin::mint<test::fake::FAKE>(Input(0), Input(1));
+//> 0: iota::coin::mint<test::fake::FAKE>(Input(0), Input(1));
 //> TransferObjects([Result(0)], Input(2))
 created: object(4,0)
 mutated: object(0,0), object(1,2)

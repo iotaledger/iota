@@ -11,7 +11,7 @@ A one-time witness (OTW) is a special type that is guaranteed to have at most on
 
 The only instance of this type is passed to its module's `init` function when the package containing it is published.
 
-To check whether a type could be used as a OTW, pass an instance of it to `sui::types::is_one_time_witness`.
+To check whether a type could be used as a OTW, pass an instance of it to `iota::types::is_one_time_witness`.
 
 ```move
 module examples::mycoin {
@@ -39,14 +39,14 @@ The following example illustrates how you could use a OTW:
 /// - cannot be packed manually
 /// - has a `drop` ability
 module examples::one_time_witness_registry {
-    use sui::tx_context::TxContext;
-    use sui::object::{Self, UID};
+    use iota::tx_context::TxContext;
+    use iota::object::{Self, UID};
     use std::string::String;
-    use sui::transfer;
+    use iota::transfer;
 
     // This dependency allows us to check whether type
     // is a one-time witness (OTW)
-    use sui::types;
+    use iota::types;
 
     /// For when someone tries to send a non OTW struct
     const ENotOneTimeWitness: u64 = 0;
@@ -80,7 +80,7 @@ module examples::one_time_witness_registry {
 /// Example of spawning an OTW.
 module examples::my_otw {
     use std::string;
-    use sui::tx_context::TxContext;
+    use iota::tx_context::TxContext;
     use examples::one_time_witness_registry as registry;
 
     /// Type is named after the module but uppercased

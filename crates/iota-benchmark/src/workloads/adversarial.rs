@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{
@@ -24,15 +25,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 use strum::{EnumCount, IntoEnumIterator};
 use strum_macros::{EnumCount as EnumCountMacro, EnumIter};
-use sui_protocol_config::ProtocolConfig;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{random_object_ref, ObjectRef};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::transaction::Command;
-use sui_types::transaction::{CallArg, ObjectArg};
-use sui_types::{base_types::ObjectID, object::Owner};
-use sui_types::{base_types::SuiAddress, crypto::get_key_pair, transaction::Transaction};
-use sui_types::{transaction::TransactionData, utils::to_sender_signed_transaction};
+use iota_protocol_config::ProtocolConfig;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::{random_object_ref, ObjectRef};
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::transaction::Command;
+use iota_types::transaction::{CallArg, ObjectArg};
+use iota_types::{base_types::ObjectID, object::Owner};
+use iota_types::{base_types::IotaAddress, crypto::get_key_pair, transaction::Transaction};
+use iota_types::{transaction::TransactionData, utils::to_sender_signed_transaction};
 use tracing::debug;
 
 /// Number of vectors to create in LargeTransientRuntimeVectors workload
@@ -110,7 +111,7 @@ pub struct AdversarialTestPayload {
     package_id: ObjectID,
     df_parent_obj_ref: ObjectRef,
     /// address to send adversarial transactions from
-    sender: SuiAddress,
+    sender: IotaAddress,
     /// Shared object refs for checking max reads with contention
     shared_objs: Vec<BenchMoveCallArg>,
     state: InMemoryWallet,
@@ -164,7 +165,7 @@ impl Payload for AdversarialTestPayload {
         // Sometimes useful when figuring out why things failed
         let stat = match effects {
             ExecutionEffects::FinalizedTransactionEffects(e, _) => e.data().status(),
-            ExecutionEffects::SuiTransactionBlockEffects(_) => unimplemented!("Not impl"),
+            ExecutionEffects::IotaTransactionBlockEffects(_) => unimplemented!("Not impl"),
         };
 
         debug_assert!(

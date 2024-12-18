@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
@@ -8,7 +9,7 @@ use anemo::Result;
 use fastcrypto::ed25519::Ed25519PublicKey;
 use futures::stream::FuturesUnordered;
 use std::collections::HashSet;
-use sui_config::p2p::AllowlistedPeer;
+use iota_config::p2p::AllowlistedPeer;
 use tokio::time::timeout;
 
 #[tokio::test]

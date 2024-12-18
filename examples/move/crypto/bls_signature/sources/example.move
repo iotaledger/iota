@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Examples of BLS signature related operations.
 module bls_signature::example;
 
 use std::hash::sha2_256;
-use sui::{bcs, bls12381};
+use iota::{bcs, bls12381};
 
 /// Verification of a BLS signature using EC operations (implements bls12381::bls12381_min_sig_verify in Move).
 public fun bls_min_sig_verify(msg: &vector<u8>, pk: &vector<u8>, sig: &vector<u8>): bool {

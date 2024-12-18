@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -25,7 +26,7 @@ use crate::{
         files::{FileName, MappedFiles},
         ide::IDEInfo,
     },
-    sui_mode,
+    iota_mode,
     typing::{
         ast as T,
         visitor::{TypingVisitor, TypingVisitorObj},
@@ -242,8 +243,8 @@ impl CompilationEnv {
         default_config: Option<PackageConfig>,
     ) -> Self {
         visitors.extend([
-            sui_mode::id_leak::IDLeakVerifier.visitor(),
-            sui_mode::typing::SuiTypeChecks.visitor(),
+            iota_mode::id_leak::IDLeakVerifier.visitor(),
+            iota_mode::typing::IotaTypeChecks.visitor(),
         ]);
         let mut known_filters_: BTreeMap<FilterName, BTreeSet<WarningFilter>> =
             WarningFilter::compiler_known_filters();

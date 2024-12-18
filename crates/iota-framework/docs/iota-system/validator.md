@@ -8,8 +8,8 @@ title: Module `0x3::validator`
 -  [Struct `Validator`](#0x3_validator_Validator)
 -  [Struct `StakingRequestEvent`](#0x3_validator_StakingRequestEvent)
 -  [Struct `UnstakingRequestEvent`](#0x3_validator_UnstakingRequestEvent)
--  [Struct `ConvertingToFungibleStakedSuiEvent`](#0x3_validator_ConvertingToFungibleStakedSuiEvent)
--  [Struct `RedeemingFungibleStakedSuiEvent`](#0x3_validator_RedeemingFungibleStakedSuiEvent)
+-  [Struct `ConvertingToFungibleStakedIotaEvent`](#0x3_validator_ConvertingToFungibleStakedIotaEvent)
+-  [Struct `RedeemingFungibleStakedIotaEvent`](#0x3_validator_RedeemingFungibleStakedIotaEvent)
 -  [Constants](#@Constants_0)
 -  [Function `new_metadata`](#0x3_validator_new_metadata)
 -  [Function `new`](#0x3_validator_new)
@@ -17,8 +17,8 @@ title: Module `0x3::validator`
 -  [Function `activate`](#0x3_validator_activate)
 -  [Function `adjust_stake_and_gas_price`](#0x3_validator_adjust_stake_and_gas_price)
 -  [Function `request_add_stake`](#0x3_validator_request_add_stake)
--  [Function `convert_to_fungible_staked_sui`](#0x3_validator_convert_to_fungible_staked_sui)
--  [Function `redeem_fungible_staked_sui`](#0x3_validator_redeem_fungible_staked_sui)
+-  [Function `convert_to_fungible_staked_iota`](#0x3_validator_convert_to_fungible_staked_iota)
+-  [Function `redeem_fungible_staked_iota`](#0x3_validator_redeem_fungible_staked_iota)
 -  [Function `request_add_stake_at_genesis`](#0x3_validator_request_add_stake_at_genesis)
 -  [Function `request_withdraw_stake`](#0x3_validator_request_withdraw_stake)
 -  [Function `request_set_gas_price`](#0x3_validator_request_set_gas_price)
@@ -29,7 +29,7 @@ title: Module `0x3::validator`
 -  [Function `process_pending_stakes_and_withdraws`](#0x3_validator_process_pending_stakes_and_withdraws)
 -  [Function `is_preactive`](#0x3_validator_is_preactive)
 -  [Function `metadata`](#0x3_validator_metadata)
--  [Function `sui_address`](#0x3_validator_sui_address)
+-  [Function `iota_address`](#0x3_validator_iota_address)
 -  [Function `name`](#0x3_validator_name)
 -  [Function `description`](#0x3_validator_description)
 -  [Function `image_url`](#0x3_validator_image_url)
@@ -96,14 +96,14 @@ title: Module `0x3::validator`
 <b>use</b> <a href="../move-stdlib/bcs.md#0x1_bcs">0x1::bcs</a>;
 <b>use</b> <a href="../move-stdlib/option.md#0x1_option">0x1::option</a>;
 <b>use</b> <a href="../move-stdlib/string.md#0x1_string">0x1::string</a>;
-<b>use</b> <a href="../sui-framework/bag.md#0x2_bag">0x2::bag</a>;
-<b>use</b> <a href="../sui-framework/balance.md#0x2_balance">0x2::balance</a>;
-<b>use</b> <a href="../sui-framework/event.md#0x2_event">0x2::event</a>;
-<b>use</b> <a href="../sui-framework/object.md#0x2_object">0x2::object</a>;
-<b>use</b> <a href="../sui-framework/sui.md#0x2_sui">0x2::sui</a>;
-<b>use</b> <a href="../sui-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
-<b>use</b> <a href="../sui-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
-<b>use</b> <a href="../sui-framework/url.md#0x2_url">0x2::url</a>;
+<b>use</b> <a href="../iota-framework/bag.md#0x2_bag">0x2::bag</a>;
+<b>use</b> <a href="../iota-framework/balance.md#0x2_balance">0x2::balance</a>;
+<b>use</b> <a href="../iota-framework/event.md#0x2_event">0x2::event</a>;
+<b>use</b> <a href="../iota-framework/object.md#0x2_object">0x2::object</a>;
+<b>use</b> <a href="../iota-framework/iota.md#0x2_iota">0x2::iota</a>;
+<b>use</b> <a href="../iota-framework/transfer.md#0x2_transfer">0x2::transfer</a>;
+<b>use</b> <a href="../iota-framework/tx_context.md#0x2_tx_context">0x2::tx_context</a>;
+<b>use</b> <a href="../iota-framework/url.md#0x2_url">0x2::url</a>;
 <b>use</b> <a href="staking_pool.md#0x3_staking_pool">0x3::staking_pool</a>;
 <b>use</b> <a href="validator_cap.md#0x3_validator_cap">0x3::validator_cap</a>;
 </code></pre>
@@ -127,10 +127,10 @@ title: Module `0x3::validator`
 
 <dl>
 <dt>
-<code>sui_address: <b>address</b></code>
+<code>iota_address: <b>address</b></code>
 </dt>
 <dd>
- The Sui Address of the validator. This is the sender that created the Validator object,
+ The Iota Address of the validator. This is the sender that created the Validator object,
  and also the address to send validator/coins to during withdraws.
 </dd>
 <dt>
@@ -172,13 +172,13 @@ title: Module `0x3::validator`
 
 </dd>
 <dt>
-<code>image_url: <a href="../sui-framework/url.md#0x2_url_Url">url::Url</a></code>
+<code>image_url: <a href="../iota-framework/url.md#0x2_url_Url">url::Url</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>project_url: <a href="../sui-framework/url.md#0x2_url_Url">url::Url</a></code>
+<code>project_url: <a href="../iota-framework/url.md#0x2_url_Url">url::Url</a></code>
 </dt>
 <dd>
 
@@ -257,7 +257,7 @@ title: Module `0x3::validator`
 
 </dd>
 <dt>
-<code>extra_fields: <a href="../sui-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
+<code>extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -297,7 +297,7 @@ title: Module `0x3::validator`
  stake amount.
 </dd>
 <dt>
-<code>operation_cap_id: <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a></code>
+<code>operation_cap_id: <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a></code>
 </dt>
 <dd>
  The ID of this validator's current valid <code>UnverifiedValidatorOperationCap</code>
@@ -339,7 +339,7 @@ title: Module `0x3::validator`
  The commission rate of the validator starting the next epoch, in basis point.
 </dd>
 <dt>
-<code>extra_fields: <a href="../sui-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
+<code>extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a></code>
 </dt>
 <dd>
  Any extra fields that's not defined statically.
@@ -367,7 +367,7 @@ Event emitted when a new stake request is received.
 
 <dl>
 <dt>
-<code>pool_id: <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a></code>
+<code>pool_id: <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a></code>
 </dt>
 <dd>
 
@@ -419,7 +419,7 @@ Event emitted when a new unstake request is received.
 
 <dl>
 <dt>
-<code>pool_id: <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a></code>
+<code>pool_id: <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a></code>
 </dt>
 <dd>
 
@@ -465,14 +465,14 @@ Event emitted when a new unstake request is received.
 
 </details>
 
-<a name="0x3_validator_ConvertingToFungibleStakedSuiEvent"></a>
+<a name="0x3_validator_ConvertingToFungibleStakedIotaEvent"></a>
 
-## Struct `ConvertingToFungibleStakedSuiEvent`
+## Struct `ConvertingToFungibleStakedIotaEvent`
 
-Event emitted when a staked SUI is converted to a fungible staked SUI.
+Event emitted when a staked IOTA is converted to a fungible staked IOTA.
 
 
-<pre><code><b>struct</b> <a href="validator.md#0x3_validator_ConvertingToFungibleStakedSuiEvent">ConvertingToFungibleStakedSuiEvent</a> <b>has</b> <b>copy</b>, drop
+<pre><code><b>struct</b> <a href="validator.md#0x3_validator_ConvertingToFungibleStakedIotaEvent">ConvertingToFungibleStakedIotaEvent</a> <b>has</b> <b>copy</b>, drop
 </code></pre>
 
 
@@ -483,7 +483,7 @@ Event emitted when a staked SUI is converted to a fungible staked SUI.
 
 <dl>
 <dt>
-<code>pool_id: <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a></code>
+<code>pool_id: <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a></code>
 </dt>
 <dd>
 
@@ -495,13 +495,13 @@ Event emitted when a staked SUI is converted to a fungible staked SUI.
 
 </dd>
 <dt>
-<code>staked_sui_principal_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
+<code>staked_iota_principal_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>fungible_staked_sui_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
+<code>fungible_staked_iota_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
@@ -511,14 +511,14 @@ Event emitted when a staked SUI is converted to a fungible staked SUI.
 
 </details>
 
-<a name="0x3_validator_RedeemingFungibleStakedSuiEvent"></a>
+<a name="0x3_validator_RedeemingFungibleStakedIotaEvent"></a>
 
-## Struct `RedeemingFungibleStakedSuiEvent`
+## Struct `RedeemingFungibleStakedIotaEvent`
 
-Event emitted when a fungible staked SUI is redeemed.
+Event emitted when a fungible staked IOTA is redeemed.
 
 
-<pre><code><b>struct</b> <a href="validator.md#0x3_validator_RedeemingFungibleStakedSuiEvent">RedeemingFungibleStakedSuiEvent</a> <b>has</b> <b>copy</b>, drop
+<pre><code><b>struct</b> <a href="validator.md#0x3_validator_RedeemingFungibleStakedIotaEvent">RedeemingFungibleStakedIotaEvent</a> <b>has</b> <b>copy</b>, drop
 </code></pre>
 
 
@@ -529,19 +529,19 @@ Event emitted when a fungible staked SUI is redeemed.
 
 <dl>
 <dt>
-<code>pool_id: <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a></code>
+<code>pool_id: <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>fungible_staked_sui_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
+<code>fungible_staked_iota_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
 </dd>
 <dt>
-<code>sui_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
+<code>iota_amount: <a href="../move-stdlib/u64.md#0x1_u64">u64</a></code>
 </dt>
 <dd>
 
@@ -727,7 +727,7 @@ Validator Metadata is too long
 
 <a name="0x3_validator_MAX_VALIDATOR_GAS_PRICE"></a>
 
-Max gas price a validator can set is 100K MIST.
+Max gas price a validator can set is 100K NANOS.
 
 
 <pre><code><b>const</b> <a href="validator.md#0x3_validator_MAX_VALIDATOR_GAS_PRICE">MAX_VALIDATOR_GAS_PRICE</a>: <a href="../move-stdlib/u64.md#0x1_u64">u64</a> = 100000;
@@ -750,7 +750,7 @@ Max gas price a validator can set is 100K MIST.
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_new_metadata">new_metadata</a>(sui_address: <b>address</b>, protocol_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, network_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, proof_of_possession: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, name: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, description: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, image_url: <a href="../sui-framework/url.md#0x2_url_Url">url::Url</a>, project_url: <a href="../sui-framework/url.md#0x2_url_Url">url::Url</a>, net_address: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, p2p_address: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, primary_address: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, worker_address: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, extra_fields: <a href="../sui-framework/bag.md#0x2_bag_Bag">bag::Bag</a>): <a href="validator.md#0x3_validator_ValidatorMetadata">validator::ValidatorMetadata</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_new_metadata">new_metadata</a>(iota_address: <b>address</b>, protocol_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, network_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, proof_of_possession: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, name: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, description: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, image_url: <a href="../iota-framework/url.md#0x2_url_Url">url::Url</a>, project_url: <a href="../iota-framework/url.md#0x2_url_Url">url::Url</a>, net_address: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, p2p_address: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, primary_address: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, worker_address: <a href="../move-stdlib/string.md#0x1_string_String">string::String</a>, extra_fields: <a href="../iota-framework/bag.md#0x2_bag_Bag">bag::Bag</a>): <a href="validator.md#0x3_validator_ValidatorMetadata">validator::ValidatorMetadata</a>
 </code></pre>
 
 
@@ -760,7 +760,7 @@ Max gas price a validator can set is 100K MIST.
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_new_metadata">new_metadata</a>(
-    sui_address: <b>address</b>,
+    iota_address: <b>address</b>,
     protocol_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
     network_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
     worker_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
@@ -776,7 +776,7 @@ Max gas price a validator can set is 100K MIST.
     extra_fields: Bag,
 ): <a href="validator.md#0x3_validator_ValidatorMetadata">ValidatorMetadata</a> {
     <b>let</b> metadata = <a href="validator.md#0x3_validator_ValidatorMetadata">ValidatorMetadata</a> {
-        sui_address,
+        iota_address,
         protocol_pubkey_bytes,
         network_pubkey_bytes,
         worker_pubkey_bytes,
@@ -813,7 +813,7 @@ Max gas price a validator can set is 100K MIST.
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_new">new</a>(sui_address: <b>address</b>, protocol_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, network_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, proof_of_possession: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, name: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, description: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, image_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, project_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, net_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, p2p_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, primary_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="validator.md#0x3_validator_Validator">validator::Validator</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_new">new</a>(iota_address: <b>address</b>, protocol_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, network_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, proof_of_possession: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, name: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, description: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, image_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, project_url: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, net_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, p2p_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, primary_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, worker_address: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;, gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="validator.md#0x3_validator_Validator">validator::Validator</a>
 </code></pre>
 
 
@@ -823,7 +823,7 @@ Max gas price a validator can set is 100K MIST.
 
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_new">new</a>(
-    sui_address: <b>address</b>,
+    iota_address: <b>address</b>,
     protocol_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
     network_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
     worker_pubkey_bytes: <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;u8&gt;,
@@ -855,20 +855,20 @@ Max gas price a validator can set is 100K MIST.
     <b>assert</b>!(<a href="validator.md#0x3_validator_gas_price">gas_price</a> &lt; <a href="validator.md#0x3_validator_MAX_VALIDATOR_GAS_PRICE">MAX_VALIDATOR_GAS_PRICE</a>, <a href="validator.md#0x3_validator_EGasPriceHigherThanThreshold">EGasPriceHigherThanThreshold</a>);
 
     <b>let</b> metadata = <a href="validator.md#0x3_validator_new_metadata">new_metadata</a>(
-        sui_address,
+        iota_address,
         protocol_pubkey_bytes,
         network_pubkey_bytes,
         worker_pubkey_bytes,
         proof_of_possession,
         name.to_ascii_string().to_string(),
         description.to_ascii_string().to_string(),
-        <a href="../sui-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(image_url),
-        <a href="../sui-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(project_url),
+        <a href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(image_url),
+        <a href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(project_url),
         net_address.to_ascii_string().to_string(),
         p2p_address.to_ascii_string().to_string(),
         primary_address.to_ascii_string().to_string(),
         worker_address.to_ascii_string().to_string(),
-        <a href="../sui-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
+        <a href="../iota-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
     );
 
     // Checks that the keys & addresses & PoP are valid.
@@ -969,7 +969,7 @@ Process pending stake and pending withdraws, and update the gas price.
 Request to add stake to the validator's staking pool, processed at the end of the epoch.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_request_add_stake">request_add_stake</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, stake: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;, staker_address: <b>address</b>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_request_add_stake">request_add_stake</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, stake: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, staker_address: <b>address</b>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>
 </code></pre>
 
 
@@ -980,29 +980,29 @@ Request to add stake to the validator's staking pool, processed at the end of th
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_request_add_stake">request_add_stake</a>(
     self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>,
-    stake: Balance&lt;SUI&gt;,
+    stake: Balance&lt;IOTA&gt;,
     staker_address: <b>address</b>,
     ctx: &<b>mut</b> TxContext,
-) : StakedSui {
+) : StakedIota {
     <b>let</b> stake_amount = stake.value();
     <b>assert</b>!(stake_amount &gt; 0, <a href="validator.md#0x3_validator_EInvalidStakeAmount">EInvalidStakeAmount</a>);
     <b>let</b> stake_epoch = ctx.epoch() + 1;
-    <b>let</b> staked_sui = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_request_add_stake">request_add_stake</a>(stake, stake_epoch, ctx);
+    <b>let</b> staked_iota = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_request_add_stake">request_add_stake</a>(stake, stake_epoch, ctx);
     // Process stake right away <b>if</b> staking pool is preactive.
     <b>if</b> (self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_is_preactive">is_preactive</a>()) {
         self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.process_pending_stake();
     };
     self.next_epoch_stake = self.next_epoch_stake + stake_amount;
-    <a href="../sui-framework/event.md#0x2_event_emit">event::emit</a>(
+    <a href="../iota-framework/event.md#0x2_event_emit">event::emit</a>(
         <a href="validator.md#0x3_validator_StakingRequestEvent">StakingRequestEvent</a> {
             pool_id: <a href="validator.md#0x3_validator_staking_pool_id">staking_pool_id</a>(self),
-            validator_address: self.metadata.sui_address,
+            validator_address: self.metadata.iota_address,
             staker_address,
             epoch: ctx.epoch(),
             amount: stake_amount,
         }
     );
-    staked_sui
+    staked_iota
 }
 </code></pre>
 
@@ -1010,13 +1010,13 @@ Request to add stake to the validator's staking pool, processed at the end of th
 
 </details>
 
-<a name="0x3_validator_convert_to_fungible_staked_sui"></a>
+<a name="0x3_validator_convert_to_fungible_staked_iota"></a>
 
-## Function `convert_to_fungible_staked_sui`
+## Function `convert_to_fungible_staked_iota`
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_convert_to_fungible_staked_sui">convert_to_fungible_staked_sui</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_convert_to_fungible_staked_iota">convert_to_fungible_staked_iota</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>
 </code></pre>
 
 
@@ -1025,26 +1025,26 @@ Request to add stake to the validator's staking pool, processed at the end of th
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_convert_to_fungible_staked_sui">convert_to_fungible_staked_sui</a>(
+<pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_convert_to_fungible_staked_iota">convert_to_fungible_staked_iota</a>(
     self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>,
-    staked_sui: StakedSui,
+    staked_iota: StakedIota,
     ctx: &<b>mut</b> TxContext,
-) : FungibleStakedSui {
-    <b>let</b> stake_activation_epoch = staked_sui.stake_activation_epoch();
-    <b>let</b> staked_sui_principal_amount = staked_sui.staked_sui_amount();
+) : FungibleStakedIota {
+    <b>let</b> stake_activation_epoch = staked_iota.stake_activation_epoch();
+    <b>let</b> staked_iota_principal_amount = staked_iota.staked_iota_amount();
 
-    <b>let</b> fungible_staked_sui = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_convert_to_fungible_staked_sui">convert_to_fungible_staked_sui</a>(staked_sui, ctx);
+    <b>let</b> fungible_staked_iota = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_convert_to_fungible_staked_iota">convert_to_fungible_staked_iota</a>(staked_iota, ctx);
 
-    <a href="../sui-framework/event.md#0x2_event_emit">event::emit</a>(
-        <a href="validator.md#0x3_validator_ConvertingToFungibleStakedSuiEvent">ConvertingToFungibleStakedSuiEvent</a> {
+    <a href="../iota-framework/event.md#0x2_event_emit">event::emit</a>(
+        <a href="validator.md#0x3_validator_ConvertingToFungibleStakedIotaEvent">ConvertingToFungibleStakedIotaEvent</a> {
             pool_id: self.<a href="validator.md#0x3_validator_staking_pool_id">staking_pool_id</a>(),
             stake_activation_epoch,
-            staked_sui_principal_amount,
-            fungible_staked_sui_amount: fungible_staked_sui.value(),
+            staked_iota_principal_amount,
+            fungible_staked_iota_amount: fungible_staked_iota.value(),
         }
     );
 
-    fungible_staked_sui
+    fungible_staked_iota
 }
 </code></pre>
 
@@ -1052,13 +1052,13 @@ Request to add stake to the validator's staking pool, processed at the end of th
 
 </details>
 
-<a name="0x3_validator_redeem_fungible_staked_sui"></a>
+<a name="0x3_validator_redeem_fungible_staked_iota"></a>
 
-## Function `redeem_fungible_staked_sui`
+## Function `redeem_fungible_staked_iota`
 
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_redeem_fungible_staked_sui">redeem_fungible_staked_sui</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, fungible_staked_sui: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedSui">staking_pool::FungibleStakedSui</a>, ctx: &<a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_redeem_fungible_staked_iota">redeem_fungible_staked_iota</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, fungible_staked_iota: <a href="staking_pool.md#0x3_staking_pool_FungibleStakedIota">staking_pool::FungibleStakedIota</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -1067,26 +1067,26 @@ Request to add stake to the validator's staking pool, processed at the end of th
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_redeem_fungible_staked_sui">redeem_fungible_staked_sui</a>(
+<pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_redeem_fungible_staked_iota">redeem_fungible_staked_iota</a>(
     self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>,
-    fungible_staked_sui: FungibleStakedSui,
+    fungible_staked_iota: FungibleStakedIota,
     ctx: &TxContext,
-) : Balance&lt;SUI&gt; {
-    <b>let</b> fungible_staked_sui_amount = fungible_staked_sui.value();
+) : Balance&lt;IOTA&gt; {
+    <b>let</b> fungible_staked_iota_amount = fungible_staked_iota.value();
 
-    <b>let</b> <a href="../sui-framework/sui.md#0x2_sui">sui</a> = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_redeem_fungible_staked_sui">redeem_fungible_staked_sui</a>(fungible_staked_sui, ctx);
+    <b>let</b> <a href="../iota-framework/iota.md#0x2_iota">iota</a> = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_redeem_fungible_staked_iota">redeem_fungible_staked_iota</a>(fungible_staked_iota, ctx);
 
-    self.next_epoch_stake = self.next_epoch_stake - <a href="../sui-framework/sui.md#0x2_sui">sui</a>.value();
+    self.next_epoch_stake = self.next_epoch_stake - <a href="../iota-framework/iota.md#0x2_iota">iota</a>.value();
 
-    <a href="../sui-framework/event.md#0x2_event_emit">event::emit</a>(
-        <a href="validator.md#0x3_validator_RedeemingFungibleStakedSuiEvent">RedeemingFungibleStakedSuiEvent</a> {
+    <a href="../iota-framework/event.md#0x2_event_emit">event::emit</a>(
+        <a href="validator.md#0x3_validator_RedeemingFungibleStakedIotaEvent">RedeemingFungibleStakedIotaEvent</a> {
             pool_id: self.<a href="validator.md#0x3_validator_staking_pool_id">staking_pool_id</a>(),
-            fungible_staked_sui_amount,
-            sui_amount: <a href="../sui-framework/sui.md#0x2_sui">sui</a>.value(),
+            fungible_staked_iota_amount,
+            iota_amount: <a href="../iota-framework/iota.md#0x2_iota">iota</a>.value(),
         }
     );
 
-    <a href="../sui-framework/sui.md#0x2_sui">sui</a>
+    <a href="../iota-framework/iota.md#0x2_iota">iota</a>
 }
 </code></pre>
 
@@ -1101,7 +1101,7 @@ Request to add stake to the validator's staking pool, processed at the end of th
 Request to add stake to the validator's staking pool at genesis
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_request_add_stake_at_genesis">request_add_stake_at_genesis</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, stake: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;, staker_address: <b>address</b>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_request_add_stake_at_genesis">request_add_stake_at_genesis</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, stake: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;, staker_address: <b>address</b>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -1112,7 +1112,7 @@ Request to add stake to the validator's staking pool at genesis
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_request_add_stake_at_genesis">request_add_stake_at_genesis</a>(
     self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>,
-    stake: Balance&lt;SUI&gt;,
+    stake: Balance&lt;IOTA&gt;,
     staker_address: <b>address</b>,
     ctx: &<b>mut</b> TxContext,
 ) {
@@ -1120,13 +1120,13 @@ Request to add stake to the validator's staking pool at genesis
     <b>let</b> stake_amount = stake.value();
     <b>assert</b>!(stake_amount &gt; 0, <a href="validator.md#0x3_validator_EInvalidStakeAmount">EInvalidStakeAmount</a>);
 
-    <b>let</b> staked_sui = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_request_add_stake">request_add_stake</a>(
+    <b>let</b> staked_iota = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_request_add_stake">request_add_stake</a>(
         stake,
         0, // epoch 0 -- <a href="genesis.md#0x3_genesis">genesis</a>
         ctx
     );
 
-    <a href="../sui-framework/transfer.md#0x2_transfer_public_transfer">transfer::public_transfer</a>(staked_sui, staker_address);
+    <a href="../iota-framework/transfer.md#0x2_transfer_public_transfer">transfer::public_transfer</a>(staked_iota, staker_address);
 
     // Process stake right away
     self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.process_pending_stake();
@@ -1145,7 +1145,7 @@ Request to add stake to the validator's staking pool at genesis
 Request to withdraw stake from the validator's staking pool, processed at the end of the epoch.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_request_withdraw_stake">request_withdraw_stake</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, staked_sui: <a href="staking_pool.md#0x3_staking_pool_StakedSui">staking_pool::StakedSui</a>, ctx: &<a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_request_withdraw_stake">request_withdraw_stake</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, staked_iota: <a href="staking_pool.md#0x3_staking_pool_StakedIota">staking_pool::StakedIota</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;
 </code></pre>
 
 
@@ -1156,19 +1156,19 @@ Request to withdraw stake from the validator's staking pool, processed at the en
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_request_withdraw_stake">request_withdraw_stake</a>(
     self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>,
-    staked_sui: StakedSui,
+    staked_iota: StakedIota,
     ctx: &TxContext,
-) : Balance&lt;SUI&gt; {
-    <b>let</b> principal_amount = staked_sui.staked_sui_amount();
-    <b>let</b> stake_activation_epoch = staked_sui.stake_activation_epoch();
-    <b>let</b> withdrawn_stake = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_request_withdraw_stake">request_withdraw_stake</a>(staked_sui, ctx);
+) : Balance&lt;IOTA&gt; {
+    <b>let</b> principal_amount = staked_iota.staked_iota_amount();
+    <b>let</b> stake_activation_epoch = staked_iota.stake_activation_epoch();
+    <b>let</b> withdrawn_stake = self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.<a href="validator.md#0x3_validator_request_withdraw_stake">request_withdraw_stake</a>(staked_iota, ctx);
     <b>let</b> withdraw_amount = withdrawn_stake.value();
     <b>let</b> reward_amount = withdraw_amount - principal_amount;
     self.next_epoch_stake = self.next_epoch_stake - withdraw_amount;
-    <a href="../sui-framework/event.md#0x2_event_emit">event::emit</a>(
+    <a href="../iota-framework/event.md#0x2_event_emit">event::emit</a>(
         <a href="validator.md#0x3_validator_UnstakingRequestEvent">UnstakingRequestEvent</a> {
             pool_id: <a href="validator.md#0x3_validator_staking_pool_id">staking_pool_id</a>(self),
-            validator_address: self.metadata.sui_address,
+            validator_address: self.metadata.iota_address,
             staker_address: ctx.sender(),
             stake_activation_epoch,
             unstaking_epoch: ctx.epoch(),
@@ -1208,7 +1208,7 @@ Need to present a <code>ValidatorOperationCap</code>.
 ) {
     <b>assert</b>!(new_price &lt; <a href="validator.md#0x3_validator_MAX_VALIDATOR_GAS_PRICE">MAX_VALIDATOR_GAS_PRICE</a>, <a href="validator.md#0x3_validator_EGasPriceHigherThanThreshold">EGasPriceHigherThanThreshold</a>);
     <b>let</b> validator_address = *verified_cap.verified_operation_cap_address();
-    <b>assert</b>!(validator_address == self.metadata.sui_address, <a href="validator.md#0x3_validator_EInvalidCap">EInvalidCap</a>);
+    <b>assert</b>!(validator_address == self.metadata.iota_address, <a href="validator.md#0x3_validator_EInvalidCap">EInvalidCap</a>);
     self.next_epoch_gas_price = new_price;
 }
 </code></pre>
@@ -1241,7 +1241,7 @@ Set new gas price for the candidate validator.
     <b>assert</b>!(<a href="validator.md#0x3_validator_is_preactive">is_preactive</a>(self), <a href="validator.md#0x3_validator_ENotValidatorCandidate">ENotValidatorCandidate</a>);
     <b>assert</b>!(new_price &lt; <a href="validator.md#0x3_validator_MAX_VALIDATOR_GAS_PRICE">MAX_VALIDATOR_GAS_PRICE</a>, <a href="validator.md#0x3_validator_EGasPriceHigherThanThreshold">EGasPriceHigherThanThreshold</a>);
     <b>let</b> validator_address = *verified_cap.verified_operation_cap_address();
-    <b>assert</b>!(validator_address == self.metadata.sui_address, <a href="validator.md#0x3_validator_EInvalidCap">EInvalidCap</a>);
+    <b>assert</b>!(validator_address == self.metadata.iota_address, <a href="validator.md#0x3_validator_EInvalidCap">EInvalidCap</a>);
     self.next_epoch_gas_price = new_price;
     self.gas_price = new_price;
 }
@@ -1311,7 +1311,7 @@ Set new commission rate for the candidate validator.
 Deposit stakes rewards into the validator's staking pool, called at the end of the epoch.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_deposit_stake_rewards">deposit_stake_rewards</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, reward: <a href="../sui-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../sui-framework/sui.md#0x2_sui_SUI">sui::SUI</a>&gt;)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_deposit_stake_rewards">deposit_stake_rewards</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, reward: <a href="../iota-framework/balance.md#0x2_balance_Balance">balance::Balance</a>&lt;<a href="../iota-framework/iota.md#0x2_iota_IOTA">iota::IOTA</a>&gt;)
 </code></pre>
 
 
@@ -1320,7 +1320,7 @@ Deposit stakes rewards into the validator's staking pool, called at the end of t
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_deposit_stake_rewards">deposit_stake_rewards</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>, reward: Balance&lt;SUI&gt;) {
+<pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_deposit_stake_rewards">deposit_stake_rewards</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>, reward: Balance&lt;IOTA&gt;) {
     self.next_epoch_stake = self.next_epoch_stake + reward.value();
     self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.deposit_rewards(reward);
 }
@@ -1337,7 +1337,7 @@ Deposit stakes rewards into the validator's staking pool, called at the end of t
 Process pending stakes and withdraws, called at the end of the epoch.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, ctx: &<a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_process_pending_stakes_and_withdraws">process_pending_stakes_and_withdraws</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, ctx: &<a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -1406,13 +1406,13 @@ Returns true if the validator is preactive.
 
 </details>
 
-<a name="0x3_validator_sui_address"></a>
+<a name="0x3_validator_iota_address"></a>
 
-## Function `sui_address`
+## Function `iota_address`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_sui_address">sui_address</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): <b>address</b>
+<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_iota_address">iota_address</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): <b>address</b>
 </code></pre>
 
 
@@ -1421,8 +1421,8 @@ Returns true if the validator is preactive.
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_sui_address">sui_address</a>(self: &<a href="validator.md#0x3_validator_Validator">Validator</a>): <b>address</b> {
-    self.metadata.sui_address
+<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_iota_address">iota_address</a>(self: &<a href="validator.md#0x3_validator_Validator">Validator</a>): <b>address</b> {
+    self.metadata.iota_address
 }
 </code></pre>
 
@@ -1484,7 +1484,7 @@ Returns true if the validator is preactive.
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_image_url">image_url</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): &<a href="../sui-framework/url.md#0x2_url_Url">url::Url</a>
+<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_image_url">image_url</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): &<a href="../iota-framework/url.md#0x2_url_Url">url::Url</a>
 </code></pre>
 
 
@@ -1508,7 +1508,7 @@ Returns true if the validator is preactive.
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_project_url">project_url</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): &<a href="../sui-framework/url.md#0x2_url_Url">url::Url</a>
+<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_project_url">project_url</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): &<a href="../iota-framework/url.md#0x2_url_Url">url::Url</a>
 </code></pre>
 
 
@@ -1916,7 +1916,7 @@ Returns true if the validator is preactive.
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_operation_cap_id">operation_cap_id</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): &<a href="../sui-framework/object.md#0x2_object_ID">object::ID</a>
+<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_operation_cap_id">operation_cap_id</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): &<a href="../iota-framework/object.md#0x2_object_ID">object::ID</a>
 </code></pre>
 
 
@@ -1974,7 +1974,7 @@ Returns true if the validator is preactive.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_total_stake_amount">total_stake_amount</a>(self: &<a href="validator.md#0x3_validator_Validator">Validator</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
-    self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.sui_balance()
+    self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.iota_balance()
 }
 </code></pre>
 
@@ -1998,7 +1998,7 @@ Returns true if the validator is preactive.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_stake_amount">stake_amount</a>(self: &<a href="validator.md#0x3_validator_Validator">Validator</a>): <a href="../move-stdlib/u64.md#0x1_u64">u64</a> {
-    self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.sui_balance()
+    self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>.iota_balance()
 }
 </code></pre>
 
@@ -2207,7 +2207,7 @@ Set the voting power of this validator, called only from validator_set.
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_staking_pool_id">staking_pool_id</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): <a href="../sui-framework/object.md#0x2_object_ID">object::ID</a>
+<pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_staking_pool_id">staking_pool_id</a>(self: &<a href="validator.md#0x3_validator_Validator">validator::Validator</a>): <a href="../iota-framework/object.md#0x2_object_ID">object::ID</a>
 </code></pre>
 
 
@@ -2217,7 +2217,7 @@ Set the voting power of this validator, called only from validator_set.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_staking_pool_id">staking_pool_id</a>(self: &<a href="validator.md#0x3_validator_Validator">Validator</a>): ID {
-    <a href="../sui-framework/object.md#0x2_object_id">object::id</a>(&self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>)
+    <a href="../iota-framework/object.md#0x2_object_id">object::id</a>(&self.<a href="staking_pool.md#0x3_staking_pool">staking_pool</a>)
 }
 </code></pre>
 
@@ -2241,7 +2241,7 @@ Set the voting power of this validator, called only from validator_set.
 
 
 <pre><code><b>public</b> <b>fun</b> <a href="validator.md#0x3_validator_is_duplicate">is_duplicate</a>(self: &<a href="validator.md#0x3_validator_Validator">Validator</a>, other: &<a href="validator.md#0x3_validator_Validator">Validator</a>): bool {
-     self.metadata.sui_address == other.metadata.sui_address
+     self.metadata.iota_address == other.metadata.iota_address
         || self.metadata.name == other.metadata.name
         || self.metadata.net_address == other.metadata.net_address
         || self.metadata.p2p_address == other.metadata.p2p_address
@@ -2345,7 +2345,7 @@ Create a new <code>UnverifiedValidatorOperationCap</code>, transfer to the valid
 and registers it, thus revoking the previous cap's permission.
 
 
-<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_new_unverified_validator_operation_cap_and_transfer">new_unverified_validator_operation_cap_and_transfer</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
+<pre><code><b>public</b>(<b>friend</b>) <b>fun</b> <a href="validator.md#0x3_validator_new_unverified_validator_operation_cap_and_transfer">new_unverified_validator_operation_cap_and_transfer</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">validator::Validator</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>)
 </code></pre>
 
 
@@ -2356,7 +2356,7 @@ and registers it, thus revoking the previous cap's permission.
 
 <pre><code><b>public</b>(package) <b>fun</b> <a href="validator.md#0x3_validator_new_unverified_validator_operation_cap_and_transfer">new_unverified_validator_operation_cap_and_transfer</a>(self: &<b>mut</b> <a href="validator.md#0x3_validator_Validator">Validator</a>, ctx: &<b>mut</b> TxContext) {
     <b>let</b> <b>address</b> = ctx.sender();
-    <b>assert</b>!(<b>address</b> == self.metadata.sui_address, <a href="validator.md#0x3_validator_ENewCapNotCreatedByValidatorItself">ENewCapNotCreatedByValidatorItself</a>);
+    <b>assert</b>!(<b>address</b> == self.metadata.iota_address, <a href="validator.md#0x3_validator_ENewCapNotCreatedByValidatorItself">ENewCapNotCreatedByValidatorItself</a>);
     <b>let</b> new_id = <a href="validator_cap.md#0x3_validator_cap_new_unverified_validator_operation_cap_and_transfer">validator_cap::new_unverified_validator_operation_cap_and_transfer</a>(<b>address</b>, ctx);
     self.operation_cap_id = new_id;
 }
@@ -2445,7 +2445,7 @@ Update image url of the validator.
         image_url.length() &lt;= <a href="validator.md#0x3_validator_MAX_VALIDATOR_METADATA_LENGTH">MAX_VALIDATOR_METADATA_LENGTH</a>,
         <a href="validator.md#0x3_validator_EValidatorMetadataExceedingLengthLimit">EValidatorMetadataExceedingLengthLimit</a>
     );
-    self.metadata.image_url = <a href="../sui-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(image_url);
+    self.metadata.image_url = <a href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(image_url);
 }
 </code></pre>
 
@@ -2474,7 +2474,7 @@ Update project url of the validator.
         project_url.length() &lt;= <a href="validator.md#0x3_validator_MAX_VALIDATOR_METADATA_LENGTH">MAX_VALIDATOR_METADATA_LENGTH</a>,
         <a href="validator.md#0x3_validator_EValidatorMetadataExceedingLengthLimit">EValidatorMetadataExceedingLengthLimit</a>
     );
-    self.metadata.project_url = <a href="../sui-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(project_url);
+    self.metadata.project_url = <a href="../iota-framework/url.md#0x2_url_new_unsafe_from_bytes">url::new_unsafe_from_bytes</a>(project_url);
 }
 </code></pre>
 
@@ -3035,7 +3035,7 @@ Aborts if validator metadata is valid
 Create a new validator from the given <code><a href="validator.md#0x3_validator_ValidatorMetadata">ValidatorMetadata</a></code>, called by both <code>new</code> and <code>new_for_testing</code>.
 
 
-<pre><code><b>fun</b> <a href="validator.md#0x3_validator_new_from_metadata">new_from_metadata</a>(metadata: <a href="validator.md#0x3_validator_ValidatorMetadata">validator::ValidatorMetadata</a>, gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../sui-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="validator.md#0x3_validator_Validator">validator::Validator</a>
+<pre><code><b>fun</b> <a href="validator.md#0x3_validator_new_from_metadata">new_from_metadata</a>(metadata: <a href="validator.md#0x3_validator_ValidatorMetadata">validator::ValidatorMetadata</a>, gas_price: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>, ctx: &<b>mut</b> <a href="../iota-framework/tx_context.md#0x2_tx_context_TxContext">tx_context::TxContext</a>): <a href="validator.md#0x3_validator_Validator">validator::Validator</a>
 </code></pre>
 
 
@@ -3050,11 +3050,11 @@ Create a new validator from the given <code><a href="validator.md#0x3_validator_
     commission_rate: <a href="../move-stdlib/u64.md#0x1_u64">u64</a>,
     ctx: &<b>mut</b> TxContext
 ): <a href="validator.md#0x3_validator_Validator">Validator</a> {
-    <b>let</b> sui_address = metadata.sui_address;
+    <b>let</b> iota_address = metadata.iota_address;
 
     <b>let</b> <a href="staking_pool.md#0x3_staking_pool">staking_pool</a> = <a href="staking_pool.md#0x3_staking_pool_new">staking_pool::new</a>(ctx);
 
-    <b>let</b> operation_cap_id = <a href="validator_cap.md#0x3_validator_cap_new_unverified_validator_operation_cap_and_transfer">validator_cap::new_unverified_validator_operation_cap_and_transfer</a>(sui_address, ctx);
+    <b>let</b> operation_cap_id = <a href="validator_cap.md#0x3_validator_cap_new_unverified_validator_operation_cap_and_transfer">validator_cap::new_unverified_validator_operation_cap_and_transfer</a>(iota_address, ctx);
     <a href="validator.md#0x3_validator_Validator">Validator</a> {
         metadata,
         // Initialize the voting power <b>to</b> be 0.
@@ -3068,7 +3068,7 @@ Create a new validator from the given <code><a href="validator.md#0x3_validator_
         next_epoch_stake: 0,
         next_epoch_gas_price: gas_price,
         next_epoch_commission_rate: commission_rate,
-        extra_fields: <a href="../sui-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
+        extra_fields: <a href="../iota-framework/bag.md#0x2_bag_new">bag::new</a>(ctx),
     }
 }
 </code></pre>

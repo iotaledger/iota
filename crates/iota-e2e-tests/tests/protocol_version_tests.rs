@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_protocol_config::{ProtocolConfig, ProtocolVersion};
-use sui_types::supported_protocol_versions::SupportedProtocolVersions;
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use test_cluster::TestClusterBuilder;
 
 #[tokio::test]
@@ -61,39 +62,39 @@ mod sim_only_tests {
     use move_core_types::ident_str;
     use std::path::PathBuf;
     use std::sync::Arc;
-    use sui_core::authority::framework_injection;
-    use sui_framework::BuiltInFramework;
-    use sui_json_rpc_api::WriteApiClient;
-    use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
-    use sui_macros::*;
-    use sui_move_build::{BuildConfig, CompiledPackage};
-    use sui_types::base_types::ConciseableName;
-    use sui_types::base_types::{ObjectID, ObjectRef};
-    use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-    use sui_types::id::ID;
-    use sui_types::object::Owner;
-    use sui_types::sui_system_state::{
-        epoch_start_sui_system_state::EpochStartSystemStateTrait, get_validator_from_table,
-        SuiSystemState, SuiSystemStateTrait, SUI_SYSTEM_STATE_SIM_TEST_DEEP_V2,
-        SUI_SYSTEM_STATE_SIM_TEST_SHALLOW_V2, SUI_SYSTEM_STATE_SIM_TEST_V1,
+    use iota_core::authority::framework_injection;
+    use iota_framework::BuiltInFramework;
+    use iota_json_rpc_api::WriteApiClient;
+    use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
+    use iota_macros::*;
+    use iota_move_build::{BuildConfig, CompiledPackage};
+    use iota_types::base_types::ConciseableName;
+    use iota_types::base_types::{ObjectID, ObjectRef};
+    use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+    use iota_types::id::ID;
+    use iota_types::object::Owner;
+    use iota_types::iota_system_state::{
+        epoch_start_iota_system_state::EpochStartSystemStateTrait, get_validator_from_table,
+        IotaSystemState, IotaSystemStateTrait, IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2,
+        IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2, IOTA_SYSTEM_STATE_SIM_TEST_V1,
     };
-    use sui_types::supported_protocol_versions::SupportedProtocolVersions;
-    use sui_types::transaction::{
+    use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+    use iota_types::transaction::{
         CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
         TransactionData, TEST_ONLY_GAS_UNIT_FOR_GENERIC,
     };
-    use sui_types::{
-        base_types::{SequenceNumber, SuiAddress},
+    use iota_types::{
+        base_types::{SequenceNumber, IotaAddress},
         digests::TransactionDigest,
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::TransactionKind,
-        MOVE_STDLIB_PACKAGE_ID, SUI_BRIDGE_OBJECT_ID, SUI_FRAMEWORK_PACKAGE_ID,
-        SUI_SYSTEM_PACKAGE_ID,
+        MOVE_STDLIB_PACKAGE_ID, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_SYSTEM_PACKAGE_ID,
     };
-    use sui_types::{
-        SUI_AUTHENTICATOR_STATE_OBJECT_ID, SUI_CLOCK_OBJECT_ID, SUI_RANDOMNESS_STATE_OBJECT_ID,
-        SUI_SYSTEM_STATE_OBJECT_ID,
+    use iota_types::{
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
+        IOTA_SYSTEM_STATE_OBJECT_ID,
     };
     use test_cluster::TestCluster;
     use tokio::time::{sleep, Duration};
@@ -357,9 +358,9 @@ mod sim_only_tests {
         // Instances of the type that existed before and new instances are able to take advantage of
         // the newly introduced ability
         wrap_obj(&cluster, to_wrap0).await;
-        transfer_obj(&cluster, SuiAddress::ZERO, to_transfer0).await;
+        transfer_obj(&cluster, IotaAddress::ZERO, to_transfer0).await;
         wrap_obj(&cluster, to_wrap1).await;
-        transfer_obj(&cluster, SuiAddress::ZERO, to_transfer1).await;
+        transfer_obj(&cluster, IotaAddress::ZERO, to_transfer1).await;
     }
 
     #[sim_test]
@@ -411,8 +412,8 @@ mod sim_only_tests {
     async fn test_new_framework_package() {
         ProtocolConfig::poison_get_for_min_version();
 
-        let sui_extra = ObjectID::from_single_byte(0x42);
-        framework_injection::set_override(sui_extra, fixture_modules("extra_package"));
+        let iota_extra = ObjectID::from_single_byte(0x42);
+        framework_injection::set_override(iota_extra, fixture_modules("extra_package"));
 
         let cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
@@ -426,7 +427,7 @@ mod sim_only_tests {
 
         // Make sure the epoch change event includes the event from the new package's module
         // initializer
-        let effects = get_framework_upgrade_effects(&cluster, &sui_extra).await;
+        let effects = get_framework_upgrade_effects(&cluster, &iota_extra).await;
 
         let shared_id = effects
             .created()
@@ -434,11 +435,11 @@ mod sim_only_tests {
             .find_map(|(obj, owner)| {
                 if let Owner::Shared { .. } = owner {
                     let is_framework_obj = [
-                        SUI_SYSTEM_STATE_OBJECT_ID,
-                        SUI_CLOCK_OBJECT_ID,
-                        SUI_AUTHENTICATOR_STATE_OBJECT_ID,
-                        SUI_RANDOMNESS_STATE_OBJECT_ID,
-                        SUI_BRIDGE_OBJECT_ID,
+                        IOTA_SYSTEM_STATE_OBJECT_ID,
+                        IOTA_CLOCK_OBJECT_ID,
+                        IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
+                        IOTA_RANDOMNESS_STATE_OBJECT_ID,
+                        IOTA_BRIDGE_OBJECT_ID,
                     ]
                     .contains(&obj.0);
                     (!is_framework_obj).then_some(obj.0)
@@ -458,7 +459,7 @@ mod sim_only_tests {
             dev_inspect_call(
                 &cluster,
                 ProgrammableMoveCall {
-                    package: sui_extra,
+                    package: iota_extra,
                     module: "msim_extra_1".to_owned(),
                     function: "canary".to_owned(),
                     type_arguments: vec![],
@@ -473,10 +474,10 @@ mod sim_only_tests {
     async fn run_framework_upgrade(from: &str, to: &str) -> TestCluster {
         ProtocolConfig::poison_get_for_min_version();
 
-        override_sui_system_modules(to);
+        override_iota_system_modules(to);
         TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
-            .with_objects([sui_system_package_object(from)])
+            .with_objects([iota_system_package_object(from)])
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
                 START, FINISH,
             ))
@@ -488,7 +489,7 @@ mod sim_only_tests {
         dev_inspect_call(
             cluster,
             ProgrammableMoveCall {
-                package: SUI_SYSTEM_PACKAGE_ID,
+                package: IOTA_SYSTEM_PACKAGE_ID,
                 module: "msim_extra_1".to_owned(),
                 function: "canary".to_owned(),
                 type_arguments: vec![],
@@ -503,7 +504,7 @@ mod sim_only_tests {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    SUI_SYSTEM_PACKAGE_ID,
+                    IOTA_SYSTEM_PACKAGE_ID,
                     ident_str!("msim_extra_1").to_owned(),
                     ident_str!("mint").to_owned(),
                     /* type_arguments */ vec![],
@@ -523,7 +524,7 @@ mod sim_only_tests {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
                 .move_call(
-                    SUI_SYSTEM_PACKAGE_ID,
+                    IOTA_SYSTEM_PACKAGE_ID,
                     ident_str!("msim_extra_1").to_owned(),
                     ident_str!("wrap").to_owned(),
                     /* type_arguments */ vec![],
@@ -540,7 +541,7 @@ mod sim_only_tests {
 
     async fn transfer_obj(
         cluster: &TestCluster,
-        recipient: SuiAddress,
+        recipient: IotaAddress,
         obj: ObjectRef,
     ) -> ObjectRef {
         execute(cluster, {
@@ -600,7 +601,7 @@ mod sim_only_tests {
     async fn execute(
         cluster: &TestCluster,
         ptb: ProgrammableTransaction,
-    ) -> SuiTransactionBlockEffects {
+    ) -> IotaTransactionBlockEffects {
         let context = &cluster.wallet;
         let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
 
@@ -631,17 +632,17 @@ mod sim_only_tests {
     async fn get_framework_upgrade_versions(
         cluster: &TestCluster,
     ) -> (Option<SequenceNumber>, Option<SequenceNumber>) {
-        let effects = get_framework_upgrade_effects(cluster, &SUI_SYSTEM_PACKAGE_ID).await;
+        let effects = get_framework_upgrade_effects(cluster, &IOTA_SYSTEM_PACKAGE_ID).await;
 
         let modified_at = effects
             .modified_at_versions()
             .iter()
-            .find_map(|(id, v)| (id == &SUI_SYSTEM_PACKAGE_ID).then_some(*v));
+            .find_map(|(id, v)| (id == &IOTA_SYSTEM_PACKAGE_ID).then_some(*v));
 
         let mutated_to = effects
             .mutated()
             .iter()
-            .find_map(|((id, v, _), _)| (id == &SUI_SYSTEM_PACKAGE_ID).then_some(*v));
+            .find_map(|((id, v, _), _)| (id == &IOTA_SYSTEM_PACKAGE_ID).then_some(*v));
 
         (modified_at, mutated_to)
     }
@@ -650,7 +651,7 @@ mod sim_only_tests {
         cluster: &TestCluster,
         package: &ObjectID,
     ) -> TransactionEffects {
-        let node_handle = &cluster.fullnode_handle.sui_node;
+        let node_handle = &cluster.fullnode_handle.iota_node;
 
         node_handle
             .with_async(|node| async {
@@ -665,7 +666,7 @@ mod sim_only_tests {
     }
 
     async fn get_object(cluster: &TestCluster, object_id: &ObjectID) -> Object {
-        let node_handle = &cluster.fullnode_handle.sui_node;
+        let node_handle = &cluster.fullnode_handle.iota_node;
 
         node_handle
             .with_async(|node| async {
@@ -691,10 +692,10 @@ mod sim_only_tests {
         ProtocolConfig::poison_get_for_min_version();
 
         // Even though a new framework is available, the required new protocol version is not.
-        override_sui_system_modules("compatible");
+        override_iota_system_modules("compatible");
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
-            .with_objects([sui_system_package_object("base")])
+            .with_objects([iota_system_package_object("base")])
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
                 START, START,
             ))
@@ -726,12 +727,12 @@ mod sim_only_tests {
         test_cluster.stop_all_validators().await;
         let first = test_cluster.swarm.validator_nodes().next().unwrap();
         let first_name = first.name();
-        override_sui_system_modules_cb(Box::new(move |name| {
+        override_iota_system_modules_cb(Box::new(move |name| {
             if name == first_name {
                 info!("node {:?} using compatible packages", name.concise());
-                Some(sui_system_modules("base"))
+                Some(iota_system_modules("base"))
             } else {
-                Some(sui_system_modules("compatible"))
+                Some(iota_system_modules("compatible"))
             }
         }));
         test_cluster.start_all_validators().await;
@@ -776,9 +777,9 @@ mod sim_only_tests {
         let mut validators = test_cluster.swarm.validator_nodes();
         let first = validators.next().unwrap().name();
         let second = validators.next().unwrap().name();
-        override_sui_system_modules_cb(Box::new(move |name| {
+        override_iota_system_modules_cb(Box::new(move |name| {
             if name == first || name == second {
-                Some(sui_system_modules("compatible"))
+                Some(iota_system_modules("compatible"))
             } else {
                 None
             }
@@ -795,11 +796,11 @@ mod sim_only_tests {
             config
         });
 
-        override_sui_system_modules("mock_sui_systems/base");
+        override_iota_system_modules("mock_iota_systems/base");
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
-            // Overrides with a sui system package that would abort during epoch change txn
-            .with_objects([sui_system_package_object("mock_sui_systems/safe_mode")])
+            // Overrides with a iota system package that would abort during epoch change txn
+            .with_objects([iota_system_package_object("mock_iota_systems/safe_mode")])
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
                 START, FINISH,
             ))
@@ -842,7 +843,7 @@ mod sim_only_tests {
     }
 
     #[sim_test]
-    async fn sui_system_mock_smoke_test() {
+    async fn iota_system_mock_smoke_test() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_disable_bridge_for_testing();
             config
@@ -853,7 +854,7 @@ mod sim_only_tests {
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
                 START, START,
             ))
-            .with_objects([sui_system_package_object("mock_sui_systems/base")])
+            .with_objects([iota_system_package_object("mock_iota_systems/base")])
             .build()
             .await;
         // Make sure we can survive at least one epoch.
@@ -861,20 +862,20 @@ mod sim_only_tests {
     }
 
     #[sim_test]
-    async fn sui_system_state_shallow_upgrade_test() {
+    async fn iota_system_state_shallow_upgrade_test() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_disable_bridge_for_testing();
             config
         });
 
-        override_sui_system_modules("mock_sui_systems/shallow_upgrade");
+        override_iota_system_modules("mock_iota_systems/shallow_upgrade");
 
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
                 START, FINISH,
             ))
-            .with_objects([sui_system_package_object("mock_sui_systems/base")])
+            .with_objects([iota_system_package_object("mock_iota_systems/base")])
             .build()
             .await;
         // Wait for the upgrade to finish. After the upgrade, the new framework will be installed,
@@ -883,35 +884,35 @@ mod sim_only_tests {
         assert_eq!(system_state.protocol_version(), FINISH);
         assert_eq!(
             system_state.system_state_version(),
-            SUI_SYSTEM_STATE_SIM_TEST_V1
+            IOTA_SYSTEM_STATE_SIM_TEST_V1
         );
-        assert!(matches!(system_state, SuiSystemState::SimTestV1(_)));
+        assert!(matches!(system_state, IotaSystemState::SimTestV1(_)));
 
         // The system state object will be upgraded next time we execute advance_epoch transaction
         // at epoch boundary.
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
         assert_eq!(
             system_state.system_state_version(),
-            SUI_SYSTEM_STATE_SIM_TEST_SHALLOW_V2
+            IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V2
         );
-        assert!(matches!(system_state, SuiSystemState::SimTestShallowV2(_)));
+        assert!(matches!(system_state, IotaSystemState::SimTestShallowV2(_)));
     }
 
     #[sim_test]
-    async fn sui_system_state_deep_upgrade_test() {
+    async fn iota_system_state_deep_upgrade_test() {
         let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
             config.set_disable_bridge_for_testing();
             config
         });
 
-        override_sui_system_modules("mock_sui_systems/deep_upgrade");
+        override_iota_system_modules("mock_iota_systems/deep_upgrade");
 
         let test_cluster = TestClusterBuilder::new()
             .with_epoch_duration_ms(20000)
             .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
                 START, FINISH,
             ))
-            .with_objects([sui_system_package_object("mock_sui_systems/base")])
+            .with_objects([iota_system_package_object("mock_iota_systems/base")])
             .build()
             .await;
         // Wait for the upgrade to finish. After the upgrade, the new framework will be installed,
@@ -920,15 +921,15 @@ mod sim_only_tests {
         assert_eq!(system_state.protocol_version(), FINISH);
         assert_eq!(
             system_state.system_state_version(),
-            SUI_SYSTEM_STATE_SIM_TEST_V1
+            IOTA_SYSTEM_STATE_SIM_TEST_V1
         );
-        if let SuiSystemState::SimTestV1(inner) = system_state {
+        if let IotaSystemState::SimTestV1(inner) = system_state {
             // Make sure we have 1 inactive validator for latter testing.
             assert_eq!(inner.validators.inactive_validators.size, 1);
             get_validator_from_table(
                 test_cluster
                     .fullnode_handle
-                    .sui_node
+                    .iota_node
                     .state()
                     .get_object_store()
                     .as_ref(),
@@ -945,15 +946,15 @@ mod sim_only_tests {
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
         assert_eq!(
             system_state.system_state_version(),
-            SUI_SYSTEM_STATE_SIM_TEST_DEEP_V2
+            IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V2
         );
-        if let SuiSystemState::SimTestDeepV2(inner) = system_state {
+        if let IotaSystemState::SimTestDeepV2(inner) = system_state {
             // Make sure we have 1 inactive validator for latter testing.
             assert_eq!(inner.validators.inactive_validators.size, 1);
             get_validator_from_table(
                 test_cluster
                     .fullnode_handle
-                    .sui_node
+                    .iota_node
                     .state()
                     .get_object_store()
                     .as_ref(),
@@ -967,9 +968,9 @@ mod sim_only_tests {
     }
 
     #[sim_test]
-    async fn sui_system_state_production_upgrade_test() {
-        // Use this test to test a real sui system state upgrade. To make this test work,
-        // put the new sui system in a new path and point to it in the override.
+    async fn iota_system_state_production_upgrade_test() {
+        // Use this test to test a real iota system state upgrade. To make this test work,
+        // put the new iota system in a new path and point to it in the override.
         // It's important to also handle the new protocol version in protocol-config/lib.rs.
         // The MAX_PROTOCOL_VERSION must not be changed yet when testing this.
         let test_cluster = TestClusterBuilder::new()
@@ -980,7 +981,7 @@ mod sim_only_tests {
             .build()
             .await;
         // TODO: Replace the path with the new framework path when we test it for real.
-        override_sui_system_modules("../../../sui-framework/packages/sui-system");
+        override_iota_system_modules("../../../iota-framework/packages/iota-system");
         // Wait for the upgrade to finish. After the upgrade, the new framework will be installed,
         // but the system state object hasn't been upgraded yet.
         let system_state = test_cluster.wait_for_epoch(Some(1)).await;
@@ -989,10 +990,10 @@ mod sim_only_tests {
         // The system state object will be upgraded next time we execute advance_epoch transaction
         // at epoch boundary.
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
-        if let SuiSystemState::V2(inner) = system_state {
+        if let IotaSystemState::V2(inner) = system_state {
             assert_eq!(inner.parameters.min_validator_count, 4);
         } else {
-            unreachable!("Unexpected sui system state version");
+            unreachable!("Unexpected iota system state version");
         }
     }
 
@@ -1003,33 +1004,33 @@ mod sim_only_tests {
         test_cluster.wait_for_epoch(Some(2)).await;
     }
 
-    fn override_sui_system_modules(path: &str) {
-        framework_injection::set_override(SUI_SYSTEM_PACKAGE_ID, sui_system_modules(path));
+    fn override_iota_system_modules(path: &str) {
+        framework_injection::set_override(IOTA_SYSTEM_PACKAGE_ID, iota_system_modules(path));
     }
 
-    fn override_sui_system_modules_cb(f: framework_injection::PackageUpgradeCallback) {
-        framework_injection::set_override_cb(SUI_SYSTEM_PACKAGE_ID, f)
+    fn override_iota_system_modules_cb(f: framework_injection::PackageUpgradeCallback) {
+        framework_injection::set_override_cb(IOTA_SYSTEM_PACKAGE_ID, f)
     }
 
-    /// Get compiled modules for Sui System, built from fixture `fixture` in the
+    /// Get compiled modules for Iota System, built from fixture `fixture` in the
     /// `framework_upgrades` directory.
-    fn sui_system_modules(fixture: &str) -> Vec<CompiledModule> {
+    fn iota_system_modules(fixture: &str) -> Vec<CompiledModule> {
         fixture_package(fixture)
-            .get_sui_system_modules()
+            .get_iota_system_modules()
             .cloned()
             .collect()
     }
 
-    /// Like `sui_system_modules`, but package the modules in an `Object`.
-    fn sui_system_package_object(fixture: &str) -> Object {
+    /// Like `iota_system_modules`, but package the modules in an `Object`.
+    fn iota_system_package_object(fixture: &str) -> Object {
         Object::new_package(
-            &sui_system_modules(fixture),
+            &iota_system_modules(fixture),
             TransactionDigest::genesis_marker(),
             u64::MAX,
             VERSION_MAX,
             &[
                 BuiltInFramework::get_package_by_id(&MOVE_STDLIB_PACKAGE_ID).genesis_move_package(),
-                BuiltInFramework::get_package_by_id(&SUI_FRAMEWORK_PACKAGE_ID)
+                BuiltInFramework::get_package_by_id(&IOTA_FRAMEWORK_PACKAGE_ID)
                     .genesis_move_package(),
             ],
         )

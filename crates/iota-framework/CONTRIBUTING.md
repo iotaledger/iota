@@ -1,4 +1,4 @@
-This file contains useful information and troubleshooting advice for those wishing to contribute to `sui-framework` crate.
+This file contains useful information and troubleshooting advice for those wishing to contribute to `iota-framework` crate.
 
 ## Framework Move  source code changes
 
@@ -6,10 +6,10 @@ If changes need to be made to the framework's Move code, additional actions need
 
 ### Snapshot tests update
 
-Run the following commands in Sui's [root directory](../../) and accept the changes, if any (if you do not have `cargo-insta` command installed, please run the `cargo install cargo-insta` command first):
+Run the following commands in Iota's [root directory](../../) and accept the changes, if any (if you do not have `cargo-insta` command installed, please run the `cargo install cargo-insta` command first):
 
 ``` bash
-cargo insta test -p sui-swarm-config --review
+cargo insta test -p iota-swarm-config --review
 ```
 
-Please use your best judgment to decide if the changes between old and new versions of the snapshots look "reasonable" (e.g., a minor change in gas costs). When in doubt, please reach out to a member of Sui core team.
+Please use your best judgment to decide if the changes between old and new versions of the snapshots look "reasonable" (e.g., a minor change in gas costs). When in doubt, please reach out to a member of Iota core team.

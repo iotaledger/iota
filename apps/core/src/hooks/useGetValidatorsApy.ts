@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClient, useSuiClientQuery } from '@mysten/dapp-kit';
+import { useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
 
 import { roundFloat } from '../utils/roundFloat';
@@ -23,8 +24,8 @@ export interface ApyByValidator {
 const MINIMUM_THRESHOLD = 0.001;
 
 export function useGetValidatorsApy() {
-	const client = useSuiClient();
-	const { data: systemStateResponse, isFetched } = useSuiClientQuery('getLatestSuiSystemState');
+	const client = useIotaClient();
+	const { data: systemStateResponse, isFetched } = useIotaClientQuery('getLatestIotaSystemState');
 	return useQuery({
 		queryKey: ['get-rolling-average-apys'],
 		queryFn: () => client.getValidatorsApy(),

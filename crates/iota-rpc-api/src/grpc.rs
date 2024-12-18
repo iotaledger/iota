@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use http::{Request, Response};
@@ -237,7 +238,7 @@ impl crate::proto::node::node_server::Node for crate::RpcService {
                     format!("invalid signature: {e}"),
                 )
             })?;
-        let signed_transaction = sui_sdk_types::types::SignedTransaction {
+        let signed_transaction = iota_sdk_types::types::SignedTransaction {
             transaction,
             signatures,
         };

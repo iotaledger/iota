@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAppSelector } from '_hooks';
 import { setAttributes } from '_src/shared/experimentation/features';
 import { useGrowthBook } from '@growthbook/growthbook-react';
-import { fromBase64, toBase64 } from '@mysten/sui/utils';
+import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 import * as Sentry from '@sentry/browser';
 import { useEffect } from 'react';
 import Browser from 'webextension-polyfill';
@@ -13,7 +14,7 @@ import { getUrlWithDeviceId } from '../analytics/amplitude';
 
 export const MAIN_UI_URL = Browser.runtime.getURL('ui.html');
 
-const MYSTEN_LABS_DAPPS = ['suifrens.com', 'suins.io'];
+const IOTA_FOUNDATION_DAPPS = ['iotafrens.com', 'iotans.io'];
 
 export function openInNewTab() {
 	return Browser.tabs.create({ url: MAIN_UI_URL });
@@ -44,8 +45,8 @@ export function isValidUrl(url: string | null) {
 
 export function getDAppUrl(appUrl: string) {
 	const url = new URL(appUrl);
-	const isMystenLabsDApp = MYSTEN_LABS_DAPPS.includes(url.hostname);
-	return isMystenLabsDApp ? getUrlWithDeviceId(url) : url;
+	const isIotaFoundationDApp = IOTA_FOUNDATION_DAPPS.includes(url.hostname);
+	return isIotaFoundationDApp ? getUrlWithDeviceId(url) : url;
 }
 
 export function getValidDAppUrl(appUrl: string) {

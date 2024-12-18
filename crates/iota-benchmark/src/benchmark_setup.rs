@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bank::BenchmarkBank;
@@ -12,13 +13,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use sui_swarm_config::genesis_config::AccountConfig;
-use sui_types::base_types::ConciseableName;
-use sui_types::base_types::ObjectID;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{deterministic_random_account_key, AccountKeyPair};
-use sui_types::gas_coin::TOTAL_SUPPLY_MIST;
-use sui_types::object::Owner;
+use iota_swarm_config::genesis_config::AccountConfig;
+use iota_types::base_types::ConciseableName;
+use iota_types::base_types::ObjectID;
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::{deterministic_random_account_key, AccountKeyPair};
+use iota_types::gas_coin::TOTAL_SUPPLY_NANOS;
+use iota_types::object::Owner;
 use test_cluster::TestClusterBuilder;
 use tokio::runtime::Builder;
 use tokio::sync::{oneshot, Barrier};
@@ -80,11 +81,11 @@ impl Env {
         num_server_threads: u64,
     ) -> Result<BenchmarkSetup> {
         info!("Running benchmark setup in local mode..");
-        let (primary_gas_owner, keypair): (SuiAddress, AccountKeyPair) =
+        let (primary_gas_owner, keypair): (IotaAddress, AccountKeyPair) =
             deterministic_random_account_key();
         let keypair = Arc::new(keypair);
 
-        // spawn a thread to spin up sui nodes on the multi-threaded server runtime.
+        // spawn a thread to spin up iota nodes on the multi-threaded server runtime.
         // running forever
         let (shutdown_sender, shutdown_recv) = tokio::sync::oneshot::channel::<()>();
         let (genesis_sender, genesis_recv) = tokio::sync::oneshot::channel();
@@ -100,8 +101,8 @@ impl Env {
                 let cluster = TestClusterBuilder::new()
                     .with_accounts(vec![AccountConfig {
                         address: Some(primary_gas_owner),
-                        // We can't use TOTAL_SUPPLY_MIST because we need to account for validator stakes in genesis allocation.
-                        gas_amounts: vec![TOTAL_SUPPLY_MIST / 2],
+                        // We can't use TOTAL_SUPPLY_NANOS because we need to account for validator stakes in genesis allocation.
+                        gas_amounts: vec![TOTAL_SUPPLY_NANOS / 2],
                     }])
                     .with_num_validators(committee_size)
                     .build()
@@ -164,7 +165,7 @@ impl Env {
                 });
         });
 
-        let genesis = sui_config::node::Genesis::new_from_file(genesis_blob_path);
+        let genesis = iota_config::node::Genesis::new_from_file(genesis_blob_path);
         let genesis = genesis.genesis()?;
 
         let fullnode_rpc_urls = fullnode_rpc_address.clone();

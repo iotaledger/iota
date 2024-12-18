@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // similar to dynamic_field_tests but over multiple transactions, as this uses a different code path
@@ -9,7 +10,7 @@
 //# publish
 module a::m {
 
-use sui::dynamic_field::{add, borrow};
+use iota::dynamic_field::{add, borrow};
 
 public struct Obj has key {
     id: object::UID,
@@ -18,7 +19,7 @@ public struct Obj has key {
 entry fun add_then_freeze(ctx: &mut TxContext) {
     let mut id = object::new(ctx);
     add<u64, u64>(&mut id, 0, 0);
-    sui::transfer::freeze_object(Obj { id })
+    iota::transfer::freeze_object(Obj { id })
 }
 
 entry fun read_from_frozen(obj: &Obj) {

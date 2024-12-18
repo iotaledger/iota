@@ -1,5 +1,5 @@
-error[Sui E02005]: invalid one-time witness usage
-   ┌─ tests/sui_mode/one_time_witness/instantiate.move:12:9
+error[Iota E02005]: invalid one-time witness usage
+   ┌─ tests/iota_mode/one_time_witness/instantiate.move:12:9
    │
 12 │         M { dummy: false }
    │         ^^^^^^^^^^^^^^^^^^ Invalid one-time witness construction. One-time witness types cannot be created manually, but are passed as an argument 'init'

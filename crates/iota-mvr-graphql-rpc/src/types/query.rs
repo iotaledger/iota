@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
@@ -7,17 +8,17 @@ use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
-use sui_json_rpc_types::DevInspectArgs;
-use sui_sdk::SuiClient;
-use sui_types::transaction::{TransactionData, TransactionKind};
-use sui_types::{gas_coin::GAS, transaction::TransactionDataAPI, TypeTag};
+use iota_json_rpc_types::DevInspectArgs;
+use iota_sdk::IotaClient;
+use iota_types::transaction::{TransactionData, TransactionKind};
+use iota_types::{gas_coin::GAS, transaction::TransactionDataAPI, TypeTag};
 
 use super::move_package::{
     self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter,
 };
 use super::move_registry::named_move_package::NamedMovePackage;
 use super::move_registry::named_type::NamedType;
-use super::suins_registration::NameService;
+use super::iotans_registration::NameService;
 use super::uint53::UInt53;
 use super::{
     address::Address,
@@ -35,8 +36,8 @@ use super::{
     object::{self, Object, ObjectFilter},
     owner::Owner,
     protocol_config::ProtocolConfigs,
-    sui_address::SuiAddress,
-    suins_registration::Domain,
+    iota_address::IotaAddress,
+    iotans_registration::Domain,
     transaction_block::{self, TransactionBlock, TransactionBlockFilter},
     transaction_metadata::TransactionMetadata,
     type_filter::ExactTypeFilter,
@@ -50,7 +51,7 @@ use crate::types::zklogin_verify_signature::ZkLoginVerifyResult;
 use crate::{config::ServiceConfig, error::Error, mutation::Mutation};
 
 pub(crate) struct Query;
-pub(crate) type SuiGraphQLSchema = async_graphql::Schema<Query, Mutation, EmptySubscription>;
+pub(crate) type IotaGraphQLSchema = async_graphql::Schema<Query, Mutation, EmptySubscription>;
 
 #[Object]
 impl Query {
@@ -114,13 +115,13 @@ impl Query {
     ) -> Result<DryRunResult> {
         let skip_checks = skip_checks.unwrap_or(false);
 
-        let sui_sdk_client: &Option<SuiClient> = ctx
+        let iota_sdk_client: &Option<IotaClient> = ctx
             .data()
-            .map_err(|_| Error::Internal("Unable to fetch Sui SDK client".to_string()))
+            .map_err(|_| Error::Internal("Unable to fetch Iota SDK client".to_string()))
             .extend()?;
-        let sui_sdk_client = sui_sdk_client
+        let iota_sdk_client = iota_sdk_client
             .as_ref()
-            .ok_or_else(|| Error::Internal("Sui SDK client not initialized".to_string()))
+            .ok_or_else(|| Error::Internal("Iota SDK client not initialized".to_string()))
             .extend()?;
 
         let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
@@ -176,7 +177,7 @@ impl Query {
             skip_checks: Some(skip_checks),
         };
 
-        let res = sui_sdk_client
+        let res = iota_sdk_client
             .read_api()
             .dev_inspect_transaction_block(
                 sender_address,
@@ -190,7 +191,7 @@ impl Query {
         DryRunResult::try_from(res).extend()
     }
 
-    /// Look up an Owner by its SuiAddress.
+    /// Look up an Owner by its IotaAddress.
     ///
     /// `rootVersion` represents the version of the root object in some nested chain of dynamic
     /// fields. It allows consistent historical queries for the case of wrapped objects, which don't
@@ -202,13 +203,13 @@ impl Query {
     /// from above when querying `Owner.asObject`. This can be used, for example, to get the
     /// contents of a dynamic object field when its parent was at `rootVersion`.
     ///
-    /// If `rootVersion` is omitted, dynamic fields will be from a consistent snapshot of the Sui
+    /// If `rootVersion` is omitted, dynamic fields will be from a consistent snapshot of the Iota
     /// state at the latest checkpoint known to the GraphQL RPC. Similarly, `Owner.asObject` will
     /// return the object's version at the latest checkpoint.
     async fn owner(
         &self,
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
         root_version: Option<UInt53>,
     ) -> Result<Option<Owner>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
@@ -224,7 +225,7 @@ impl Query {
     async fn object(
         &self,
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
         version: Option<UInt53>,
     ) -> Result<Option<Object>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
@@ -249,7 +250,7 @@ impl Query {
     async fn package(
         &self,
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
         version: Option<UInt53>,
     ) -> Result<Option<MovePackage>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
@@ -268,7 +269,7 @@ impl Query {
     async fn latest_package(
         &self,
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
     ) -> Result<Option<MovePackage>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         MovePackage::query(ctx, address, MovePackage::latest_at(checkpoint))
@@ -276,8 +277,8 @@ impl Query {
             .extend()
     }
 
-    /// Look-up an Account by its SuiAddress.
-    async fn address(&self, ctx: &Context<'_>, address: SuiAddress) -> Result<Option<Address>> {
+    /// Look-up an Account by its IotaAddress.
+    async fn address(&self, ctx: &Context<'_>, address: IotaAddress) -> Result<Option<Address>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         Ok(Some(Address {
@@ -330,7 +331,7 @@ impl Query {
     /// The coin objects that exist in the network.
     ///
     /// The type field is a string of the inner type of the coin by which to filter (e.g.
-    /// `0x2::sui::SUI`). If no type is provided, it will default to `0x2::sui::SUI`.
+    /// `0x2::iota::IOTA`). If no type is provided, it will default to `0x2::iota::IOTA`.
     async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -519,7 +520,7 @@ impl Query {
         after: Option<move_package::Cursor>,
         last: Option<u64>,
         before: Option<move_package::Cursor>,
-        address: SuiAddress,
+        address: IotaAddress,
         filter: Option<MovePackageVersionFilter>,
     ) -> Result<Connection<String, MovePackage>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
@@ -542,8 +543,8 @@ impl Query {
             .extend()
     }
 
-    /// Resolves a SuiNS `domain` name to an address, if it has been bound.
-    async fn resolve_suins_address(
+    /// Resolves a IotaNS `domain` name to an address, if it has been bound.
+    async fn resolve_iotans_address(
         &self,
         ctx: &Context<'_>,
         domain: Domain,
@@ -609,7 +610,7 @@ impl Query {
         bytes: GraphQLBase64,
         signature: GraphQLBase64,
         intent_scope: ZkLoginIntentScope,
-        author: SuiAddress,
+        author: IotaAddress,
     ) -> Result<ZkLoginVerifyResult> {
         verify_zklogin_signature(ctx, bytes, signature, intent_scope, author)
             .await

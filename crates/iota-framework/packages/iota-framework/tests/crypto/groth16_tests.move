@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::groth16_tests {
-    use sui::groth16;
-    use sui::groth16::{bls12381, bn254};
+module iota::groth16_tests {
+    use iota::groth16;
+    use iota::groth16::{bls12381, bn254};
 
     #[test]
     fun test_prepare_verifying_key_bls12381() {

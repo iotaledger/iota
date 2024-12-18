@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
     error::Error,
-    types::{address::Address, sui_address::SuiAddress, validator::Validator},
+    types::{address::Address, iota_address::IotaAddress, validator::Validator},
 };
 use std::{collections::BTreeMap, time::Duration};
-use sui_indexer::db::ConnectionPoolConfig;
-use sui_indexer::{apis::GovernanceReadApi, indexer_reader::IndexerReader};
-use sui_json_rpc_types::Stake as RpcStakedSui;
-use sui_types::{
-    governance::StakedSui as NativeStakedSui,
-    sui_system_state::sui_system_state_summary::SuiSystemStateSummary as NativeSuiSystemStateSummary,
+use iota_indexer::db::ConnectionPoolConfig;
+use iota_indexer::{apis::GovernanceReadApi, indexer_reader::IndexerReader};
+use iota_json_rpc_types::Stake as RpcStakedIota;
+use iota_types::{
+    governance::StakedIota as NativeStakedIota,
+    iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeIotaSystemStateSummary,
 };
 
 pub(crate) struct PgManager {
@@ -41,33 +42,33 @@ impl PgManager {
 /// Implement methods to be used by graphql resolvers
 impl PgManager {
     /// If no epoch was requested or if the epoch requested is in progress,
-    /// returns the latest sui system state.
-    pub(crate) async fn fetch_sui_system_state(
+    /// returns the latest iota system state.
+    pub(crate) async fn fetch_iota_system_state(
         &self,
         epoch_id: Option<u64>,
-    ) -> Result<NativeSuiSystemStateSummary, Error> {
-        let latest_sui_system_state = self.inner.get_latest_sui_system_state().await?;
+    ) -> Result<NativeIotaSystemStateSummary, Error> {
+        let latest_iota_system_state = self.inner.get_latest_iota_system_state().await?;
 
         if let Some(epoch_id) = epoch_id {
-            if epoch_id == latest_sui_system_state.epoch {
-                Ok(latest_sui_system_state)
+            if epoch_id == latest_iota_system_state.epoch {
+                Ok(latest_iota_system_state)
             } else {
                 Ok(self
                     .inner
-                    .get_epoch_sui_system_state(Some(epoch_id))
+                    .get_epoch_iota_system_state(Some(epoch_id))
                     .await?)
             }
         } else {
-            Ok(latest_sui_system_state)
+            Ok(latest_iota_system_state)
         }
     }
 
-    /// Make a request to the RPC for its representations of the staked sui we parsed out of the
+    /// Make a request to the RPC for its representations of the staked iota we parsed out of the
     /// object.  Used to implement fields that are implemented in JSON-RPC but not GraphQL (yet).
-    pub(crate) async fn fetch_rpc_staked_sui(
+    pub(crate) async fn fetch_rpc_staked_iota(
         &self,
-        stake: NativeStakedSui,
-    ) -> Result<RpcStakedSui, Error> {
+        stake: NativeStakedIota,
+    ) -> Result<RpcStakedIota, Error> {
         let governance_api = GovernanceReadApi::new(self.inner.clone());
 
         let mut delegated_stakes = governance_api
@@ -92,10 +93,10 @@ impl PgManager {
 }
 
 /// `checkpoint_viewed_at` represents the checkpoint sequence number at which the set of
-/// `SuiValidatorSummary` was queried for. Each `Validator` will inherit this checkpoint, so that
+/// `IotaValidatorSummary` was queried for. Each `Validator` will inherit this checkpoint, so that
 /// when viewing the `Validator`'s state, it will be as if it was read at the same checkpoint.
 pub(crate) fn convert_to_validators(
-    system_state_at_requested_epoch: NativeSuiSystemStateSummary,
+    system_state_at_requested_epoch: NativeIotaSystemStateSummary,
     checkpoint_viewed_at: u64,
     requested_for_epoch: u64,
 ) -> Vec<Validator> {
@@ -106,13 +107,13 @@ pub(crate) fn convert_to_validators(
         .active_validators
         .into_iter()
         .map(move |validator_summary| {
-            let at_risk = at_risk.get(&validator_summary.sui_address).copied();
-            let report_records = reports.get(&validator_summary.sui_address).map(|addrs| {
+            let at_risk = at_risk.get(&validator_summary.iota_address).copied();
+            let report_records = reports.get(&validator_summary.iota_address).map(|addrs| {
                 addrs
                     .iter()
                     .cloned()
                     .map(|a| Address {
-                        address: SuiAddress::from(a),
+                        address: IotaAddress::from(a),
                         checkpoint_viewed_at,
                     })
                     .collect()

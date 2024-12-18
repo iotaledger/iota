@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, sync::Arc};
 
 use move_core_types::{identifier::Identifier, language_storage::TypeTag};
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SuiAddress},
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, IotaAddress},
     crypto::AccountKeyPair,
     object::Owner,
     transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
@@ -14,11 +15,11 @@ use sui_types::{
 
 use crate::ProgrammableTransactionBuilder;
 use crate::{convert_move_call_args, workloads::Gas, BenchMoveCallArg, ExecutionEffects};
-use sui_types::transaction::Command;
+use iota_types::transaction::Command;
 
-/// A Sui account and all of the objects it owns
+/// A Iota account and all of the objects it owns
 #[derive(Debug)]
-pub struct SuiAccount {
+pub struct IotaAccount {
     key: Arc<AccountKeyPair>,
     /// object this account uses to pay for gas
     pub gas: ObjectRef,
@@ -27,10 +28,10 @@ pub struct SuiAccount {
     // TODO: optional type info
 }
 
-impl SuiAccount {
+impl IotaAccount {
     pub fn new(key: Arc<AccountKeyPair>, gas: ObjectRef, objs: Vec<ObjectRef>) -> Self {
         let owned = objs.into_iter().map(|obj| (obj.0, obj)).collect();
-        SuiAccount { key, gas, owned }
+        IotaAccount { key, gas, owned }
     }
 
     /// Update the state associated with `obj`, adding it if it doesn't exist
@@ -60,7 +61,7 @@ impl SuiAccount {
 /// Utility struct tracking keys for known accounts, owned objects, shared objects, and immutable objects
 #[derive(Debug, Default)]
 pub struct InMemoryWallet {
-    accounts: BTreeMap<SuiAddress, SuiAccount>, // TODO: track shared and immutable objects as well
+    accounts: BTreeMap<IotaAddress, IotaAccount>, // TODO: track shared and immutable objects as well
 }
 
 impl InMemoryWallet {
@@ -74,12 +75,12 @@ impl InMemoryWallet {
 
     pub fn add_account(
         &mut self,
-        addr: SuiAddress,
+        addr: IotaAddress,
         key: Arc<AccountKeyPair>,
         gas: ObjectRef,
         objs: Vec<ObjectRef>,
     ) {
-        self.accounts.insert(addr, SuiAccount::new(key, gas, objs));
+        self.accounts.insert(addr, IotaAccount::new(key, gas, objs));
     }
 
     /// Apply updates from `effects` to `self`
@@ -104,23 +105,23 @@ impl InMemoryWallet {
         } // else, tx sender is not an account we can spend from, we don't care
     }
 
-    pub fn account_mut(&mut self, addr: &SuiAddress) -> Option<&mut SuiAccount> {
+    pub fn account_mut(&mut self, addr: &IotaAddress) -> Option<&mut IotaAccount> {
         self.accounts.get_mut(addr)
     }
 
-    pub fn account(&self, addr: &SuiAddress) -> Option<&SuiAccount> {
+    pub fn account(&self, addr: &IotaAddress) -> Option<&IotaAccount> {
         self.accounts.get(addr)
     }
 
-    pub fn gas(&self, addr: &SuiAddress) -> Option<&ObjectRef> {
+    pub fn gas(&self, addr: &IotaAddress) -> Option<&ObjectRef> {
         self.accounts.get(addr).map(|a| &a.gas)
     }
 
-    pub fn owned_object(&self, addr: &SuiAddress, id: &ObjectID) -> Option<&ObjectRef> {
+    pub fn owned_object(&self, addr: &IotaAddress, id: &ObjectID) -> Option<&ObjectRef> {
         self.accounts.get(addr).and_then(|a| a.owned.get(id))
     }
 
-    pub fn owned_objects(&self, addr: &SuiAddress) -> Option<impl Iterator<Item = &ObjectRef>> {
+    pub fn owned_objects(&self, addr: &IotaAddress) -> Option<impl Iterator<Item = &ObjectRef>> {
         self.accounts.get(addr).map(|a| a.owned.values())
     }
 
@@ -131,7 +132,7 @@ impl InMemoryWallet {
 
     pub fn move_call(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         package: ObjectID,
         module: &str,
         function: &str,
@@ -158,7 +159,7 @@ impl InMemoryWallet {
 
     pub fn move_call_pt(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         package: ObjectID,
         module: &str,
         function: &str,
@@ -182,7 +183,7 @@ impl InMemoryWallet {
         )
     }
 
-    pub fn keypair(&self, addr: &SuiAddress) -> Option<Arc<AccountKeyPair>> {
+    pub fn keypair(&self, addr: &IotaAddress) -> Option<Arc<AccountKeyPair>> {
         self.accounts.get(addr).map(|a| a.key.clone())
     }
 
@@ -190,7 +191,7 @@ impl InMemoryWallet {
         self.accounts.len()
     }
 
-    pub fn addresses(&self) -> impl Iterator<Item = &SuiAddress> {
+    pub fn addresses(&self) -> impl Iterator<Item = &IotaAddress> {
         self.accounts.keys()
     }
 
@@ -204,7 +205,7 @@ impl InMemoryWallet {
 }
 
 pub fn move_call_pt_impl(
-    sender: SuiAddress,
+    sender: IotaAddress,
     keypair: &AccountKeyPair,
     package: ObjectID,
     module: &str,

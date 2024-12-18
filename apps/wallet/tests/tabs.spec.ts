@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from './fixtures';
@@ -16,7 +17,7 @@ test('Apps tab', async ({ page, extensionUrl }) => {
 	await page.getByRole('navigation').getByRole('link', { name: 'Apps' }).click();
 
 	await expect(page.getByRole('main')).toHaveText(
-		/Apps below are actively curated but do not indicate any endorsement or relationship with Sui Wallet. Please DYOR./i,
+		/Apps below are actively curated but do not indicate any endorsement or relationship with Iota Wallet. Please DYOR./i,
 	);
 });
 

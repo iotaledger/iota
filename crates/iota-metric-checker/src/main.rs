@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::anyhow;
 use backoff::{future::retry, ExponentialBackoff};
@@ -9,8 +10,8 @@ use prometheus_http_query::Client;
 use std::fs::File;
 use std::io::Read;
 use std::time::Duration;
-use sui_metric_checker::query::{instant_query, range_query};
-use sui_metric_checker::{
+use iota_metric_checker::query::{instant_query, range_query};
+use iota_metric_checker::{
     fails_threshold_condition, timestamp_string_to_unix_seconds, Config, NowProvider, QueryType,
 };
 

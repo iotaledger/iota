@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -235,7 +236,7 @@ mod tests {
 
         assert_eq!(
             path_relative_to(&repo_root, &src).unwrap(),
-            PathBuf::from("sui-execution/cut/src"),
+            PathBuf::from("iota-execution/cut/src"),
         );
 
         assert_eq!(
@@ -247,11 +248,11 @@ mod tests {
     #[test]
     fn test_path_relative_to_unrelated() {
         let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let sui_adapter = repo_root.join("sui-execution/latest/sui-adapter");
+        let iota_adapter = repo_root.join("iota-execution/latest/iota-adapter");
         let vm_runtime = repo_root.join("external-crates/move/crates/move-vm-runtime");
 
         assert_eq!(
-            path_relative_to(sui_adapter, vm_runtime).unwrap(),
+            path_relative_to(iota_adapter, vm_runtime).unwrap(),
             PathBuf::from("../../../external-crates/move/crates/move-vm-runtime"),
         );
     }

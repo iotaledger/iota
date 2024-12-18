@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { parse } from 'valibot';
 
 import type { BcsType } from '../bcs/index.js';
 import { bcs } from '../bcs/index.js';
-import type { SuiClient } from '../client/client.js';
-import { normalizeSuiAddress, normalizeSuiObjectId, SUI_TYPE_ARG } from '../utils/index.js';
+import type { IotaClient } from '../client/client.js';
+import { normalizeIotaAddress, normalizeIotaObjectId, IOTA_TYPE_ARG } from '../utils/index.js';
 import { ObjectRef } from './data/internal.js';
 import type { Argument, CallArg, Command, OpenMoveTypeSignature } from './data/internal.js';
 import { Inputs } from './Inputs.js';
@@ -21,7 +22,7 @@ const GAS_SAFE_OVERHEAD = 1000n;
 const MAX_GAS = 50_000_000_000;
 
 export interface BuildTransactionOptions {
-	client?: SuiClient;
+	client?: IotaClient;
 	onlyTransactionKind?: boolean;
 }
 
@@ -110,7 +111,7 @@ async function setGasPayment(
 	if (!transactionData.gasConfig.payment) {
 		const coins = await getClient(options).getCoins({
 			owner: transactionData.gasConfig.owner || transactionData.sender!,
-			coinType: SUI_TYPE_ARG,
+			coinType: IOTA_TYPE_ARG,
 		});
 
 		const paymentCoins = coins.data
@@ -155,7 +156,7 @@ async function resolveObjectReferences(
 
 	const dedupedIds = [
 		...new Set(
-			objectsToResolve.map((input) => normalizeSuiObjectId(input.UnresolvedObject.objectId)),
+			objectsToResolve.map((input) => normalizeIotaObjectId(input.UnresolvedObject.objectId)),
 		),
 	];
 
@@ -215,7 +216,7 @@ async function resolveObjectReferences(
 		}
 
 		let updated: CallArg | undefined;
-		const id = normalizeSuiAddress(input.UnresolvedObject.objectId);
+		const id = normalizeIotaAddress(input.UnresolvedObject.objectId);
 		const object = objectsById.get(id);
 
 		if (input.UnresolvedObject.initialSharedVersion ?? object?.initialSharedVersion) {
@@ -470,10 +471,10 @@ function isReceivingType(type: OpenMoveTypeSignature): boolean {
 	);
 }
 
-export function getClient(options: BuildTransactionOptions): SuiClient {
+export function getClient(options: BuildTransactionOptions): IotaClient {
 	if (!options.client) {
 		throw new Error(
-			`No sui client passed to Transaction#build, but transaction data was not sufficient to build offline.`,
+			`No iota client passed to Transaction#build, but transaction data was not sufficient to build offline.`,
 		);
 	}
 

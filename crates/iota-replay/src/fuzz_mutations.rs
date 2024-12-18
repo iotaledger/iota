@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use rand::{seq::SliceRandom, SeedableRng};
-use sui_types::transaction::TransactionKind;
+use iota_types::transaction::TransactionKind;
 
 use crate::fuzz::TransactionKindMutator;
 

@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// A bag is a heterogeneous map-like collection. The collection is similar to `sui::table` in that
-/// its keys and values are not stored within the `Bag` value, but instead are stored using Sui's
+/// A bag is a heterogeneous map-like collection. The collection is similar to `iota::table` in that
+/// its keys and values are not stored within the `Bag` value, but instead are stored using Iota's
 /// object system. The `Bag` struct acts only as a handle into the object system to retrieve those
 /// keys and values.
 /// Note that this means that `Bag` values with exactly the same key-value mapping will not be
@@ -17,13 +18,13 @@
 /// // bag1 does not equal bag2, despite having the same entries
 /// assert!(&bag1 != &bag2);
 /// ```
-/// At it's core, `sui::bag` is a wrapper around `UID` that allows for access to
-/// `sui::dynamic_field` while preventing accidentally stranding field values. A `UID` can be
+/// At it's core, `iota::bag` is a wrapper around `UID` that allows for access to
+/// `iota::dynamic_field` while preventing accidentally stranding field values. A `UID` can be
 /// deleted, even if it has dynamic fields associated with it, but a bag, on the other hand, must be
 /// empty to be destroyed.
-module sui::bag;
+module iota::bag;
 
-use sui::dynamic_field as field;
+use iota::dynamic_field as field;
 
 // Attempted to destroy a non-empty bag
 const EBagNotEmpty: u64 = 0;
@@ -44,7 +45,7 @@ public fun new(ctx: &mut TxContext): Bag {
 }
 
 /// Adds a key-value pair to the bag `bag: &mut Bag`
-/// Aborts with `sui::dynamic_field::EFieldAlreadyExists` if the bag already has an entry with
+/// Aborts with `iota::dynamic_field::EFieldAlreadyExists` if the bag already has an entry with
 /// that key `k: K`.
 public fun add<K: copy + drop + store, V: store>(bag: &mut Bag, k: K, v: V) {
     field::add(&mut bag.id, k, v);
@@ -53,9 +54,9 @@ public fun add<K: copy + drop + store, V: store>(bag: &mut Bag, k: K, v: V) {
 
 #[syntax(index)]
 /// Immutable borrows the value associated with the key in the bag `bag: &Bag`.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
 /// that key `k: K`.
-/// Aborts with `sui::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
 /// the value does not have the specified type.
 public fun borrow<K: copy + drop + store, V: store>(bag: &Bag, k: K): &V {
     field::borrow(&bag.id, k)
@@ -63,18 +64,18 @@ public fun borrow<K: copy + drop + store, V: store>(bag: &Bag, k: K): &V {
 
 #[syntax(index)]
 /// Mutably borrows the value associated with the key in the bag `bag: &mut Bag`.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
 /// that key `k: K`.
-/// Aborts with `sui::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
 /// the value does not have the specified type.
 public fun borrow_mut<K: copy + drop + store, V: store>(bag: &mut Bag, k: K): &mut V {
     field::borrow_mut(&mut bag.id, k)
 }
 
 /// Mutably borrows the key-value pair in the bag `bag: &mut Bag` and returns the value.
-/// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
+/// Aborts with `iota::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
 /// that key `k: K`.
-/// Aborts with `sui::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
+/// Aborts with `iota::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
 /// the value does not have the specified type.
 public fun remove<K: copy + drop + store, V: store>(bag: &mut Bag, k: K): V {
     let v = field::remove(&mut bag.id, k);

@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::prelude::*;
 
-use sui_json_rpc_types::Checkpoint as RpcCheckpoint;
-use sui_types::base_types::TransactionDigest;
-use sui_types::digests::CheckpointDigest;
-use sui_types::gas::GasCostSummary;
+use iota_json_rpc_types::Checkpoint as RpcCheckpoint;
+use iota_types::base_types::TransactionDigest;
+use iota_types::digests::CheckpointDigest;
+use iota_types::gas::GasCostSummary;
 
 use crate::errors::IndexerError;
 use crate::schema::{chain_identifier, checkpoints, pruner_cp_watermark};

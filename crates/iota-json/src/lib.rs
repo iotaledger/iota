@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, VecDeque};
@@ -23,17 +24,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Number, Value as JsonValue};
 
-use sui_types::base_types::{
-    is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout, ObjectID, SuiAddress,
+use iota_types::base_types::{
+    is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout, ObjectID, IotaAddress,
     TxContext, TxContextKind, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR,
     STD_ASCII_MODULE_NAME, STD_ASCII_STRUCT_NAME, STD_OPTION_MODULE_NAME, STD_OPTION_STRUCT_NAME,
     STD_UTF8_MODULE_NAME, STD_UTF8_STRUCT_NAME,
 };
-use sui_types::id::{self, ID, RESOLVED_SUI_ID};
-use sui_types::move_package::MovePackage;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::transfer::RESOLVED_RECEIVING_STRUCT;
-use sui_types::MOVE_STDLIB_ADDRESS;
+use iota_types::id::{self, ID, RESOLVED_IOTA_ID};
+use iota_types::move_package::MovePackage;
+use iota_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::transfer::RESOLVED_RECEIVING_STRUCT;
+use iota_types::MOVE_STDLIB_ADDRESS;
 
 const HEX_PREFIX: &str = "0x";
 
@@ -42,7 +43,7 @@ mod tests;
 
 /// A list of error categories encountered when parsing numbers.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub enum SuiJsonValueErrorKind {
+pub enum IotaJsonValueErrorKind {
     /// JSON value must be of specific types.
     ValueTypeNotAllowed,
 
@@ -51,13 +52,13 @@ pub enum SuiJsonValueErrorKind {
 }
 
 #[derive(Debug)]
-pub struct SuiJsonValueError {
-    kind: SuiJsonValueErrorKind,
+pub struct IotaJsonValueError {
+    kind: IotaJsonValueErrorKind,
     val: JsonValue,
 }
 
-impl SuiJsonValueError {
-    pub fn new(val: &JsonValue, kind: SuiJsonValueErrorKind) -> Self {
+impl IotaJsonValueError {
+    pub fn new(val: &JsonValue, kind: IotaJsonValueErrorKind) -> Self {
         Self {
             kind,
             val: val.clone(),
@@ -65,15 +66,15 @@ impl SuiJsonValueError {
     }
 }
 
-impl std::error::Error for SuiJsonValueError {}
+impl std::error::Error for IotaJsonValueError {}
 
-impl fmt::Display for SuiJsonValueError {
+impl fmt::Display for IotaJsonValueError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let err_str = match self.kind {
-            SuiJsonValueErrorKind::ValueTypeNotAllowed => {
+            IotaJsonValueErrorKind::ValueTypeNotAllowed => {
                 format!("JSON value type {} not allowed.", self.val)
             }
-            SuiJsonValueErrorKind::ArrayNotHomogeneous => {
+            IotaJsonValueErrorKind::ArrayNotHomogeneous => {
                 format!("Array not homogeneous. Mismatched value: {}.", self.val)
             }
         };
@@ -90,9 +91,9 @@ pub enum ResolvedCallArg {
 }
 
 #[derive(Eq, PartialEq, Clone, Deserialize, Serialize, JsonSchema)]
-pub struct SuiJsonValue(JsonValue);
-impl SuiJsonValue {
-    pub fn new(json_value: JsonValue) -> Result<SuiJsonValue, anyhow::Error> {
+pub struct IotaJsonValue(JsonValue);
+impl IotaJsonValue {
+    pub fn new(json_value: JsonValue) -> Result<IotaJsonValue, anyhow::Error> {
         Self::check_value(&json_value)?;
         Ok(Self(json_value))
     }
@@ -124,7 +125,7 @@ impl SuiJsonValue {
         Ok(())
     }
 
-    pub fn from_object_id(id: ObjectID) -> SuiJsonValue {
+    pub fn from_object_id(id: ObjectID) -> IotaJsonValue {
         Self(JsonValue::String(id.to_hex_uncompressed()))
     }
 
@@ -178,15 +179,15 @@ impl SuiJsonValue {
         } else {
             json!(bytes)
         };
-        SuiJsonValue::new(json)
+        IotaJsonValue::new(json)
     }
 
     pub fn to_json_value(&self) -> JsonValue {
         self.0.clone()
     }
 
-    pub fn to_sui_address(&self) -> anyhow::Result<SuiAddress> {
-        json_value_to_sui_address(&self.0)
+    pub fn to_iota_address(&self) -> anyhow::Result<IotaAddress> {
+        json_value_to_iota_address(&self.0)
     }
 
     fn handle_inner_struct_layout(
@@ -289,7 +290,7 @@ impl SuiJsonValue {
                         "Cannot convert string arg {s} to {} which is expected to be a struct with one field", struct_layout.type_
                     );
                 };
-                let addr = SuiAddress::from_str(s)?;
+                let addr = IotaAddress::from_str(s)?;
                 R::MoveValue::Address(addr.into())
             }
             (JsonValue::Object(o), MoveTypeLayout::Struct(struct_layout)) => {
@@ -345,7 +346,7 @@ impl SuiJsonValue {
             }
 
             (v, MoveTypeLayout::Address) => {
-                let addr = json_value_to_sui_address(v)?;
+                let addr = json_value_to_iota_address(v)?;
                 R::MoveValue::Address(addr.into())
             }
 
@@ -354,20 +355,20 @@ impl SuiJsonValue {
     }
 }
 
-impl Debug for SuiJsonValue {
+impl Debug for IotaJsonValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }
 
-fn json_value_to_sui_address(value: &JsonValue) -> anyhow::Result<SuiAddress> {
+fn json_value_to_iota_address(value: &JsonValue) -> anyhow::Result<IotaAddress> {
     match value {
         JsonValue::String(s) => {
             let s = s.trim().to_lowercase();
             if !s.starts_with(HEX_PREFIX) {
                 bail!("Address hex string must start with 0x.",);
             }
-            Ok(SuiAddress::from_str(&s)?)
+            Ok(IotaAddress::from_str(&s)?)
         }
         JsonValue::Array(bytes) => {
             fn value_to_byte_array(v: &Vec<JsonValue>) -> Option<Vec<u8>> {
@@ -383,8 +384,8 @@ fn json_value_to_sui_address(value: &JsonValue) -> anyhow::Result<SuiAddress> {
                 Some(bytes)
             }
             let bytes = value_to_byte_array(bytes)
-                .ok_or_else(|| anyhow!("Invalid input: Cannot parse input into SuiAddress."))?;
-            Ok(SuiAddress::try_from(bytes)?)
+                .ok_or_else(|| anyhow!("Invalid input: Cannot parse input into IotaAddress."))?;
+            Ok(IotaAddress::try_from(bytes)?)
         }
         v => bail!("Unexpected arg {v} for expected type address"),
     }
@@ -399,7 +400,7 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                 .collect::<Option<_>>()?,
         ),
         MoveValue::Bool(v) => json!(v),
-        MoveValue::Signer(v) | MoveValue::Address(v) => json!(SuiAddress::from(*v).to_string()),
+        MoveValue::Signer(v) | MoveValue::Address(v) => json!(IotaAddress::from(*v).to_string()),
         MoveValue::U8(v) => json!(v),
         MoveValue::U64(v) => json!(v.to_string()),
         MoveValue::U128(v) => json!(v.to_string()),
@@ -426,7 +427,7 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                 // option has a single vec field.
                 let (_, v) = fields.first()?;
                 if let MoveValue::Address(address) = v {
-                    json!(SuiAddress::from(*address))
+                    json!(IotaAddress::from(*address))
                 } else {
                     return None;
                 }
@@ -473,7 +474,7 @@ fn is_move_option_type(tag: &StructTag) -> bool {
         && tag.name.as_ident_str() == STD_OPTION_STRUCT_NAME
 }
 
-impl FromStr for SuiJsonValue {
+impl FromStr for IotaJsonValue {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<Self, anyhow::Error> {
         fn try_escape_array(s: &str) -> JsonValue {
@@ -486,7 +487,7 @@ impl FromStr for SuiJsonValue {
             json!(s)
         }
         // if serde_json fails, the failure usually cause by missing quote escapes, try parse array manually.
-        SuiJsonValue::new(serde_json::from_str(s).unwrap_or_else(|_| try_escape_array(s)))
+        IotaJsonValue::new(serde_json::from_str(s).unwrap_or_else(|_| try_escape_array(s)))
     }
 }
 
@@ -502,7 +503,7 @@ enum ValidJsonType {
 
 /// Check via BFS
 /// The invariant is that all types at a given level must be the same or be empty, and all must be valid
-pub fn check_valid_homogeneous(val: &JsonValue) -> Result<(), SuiJsonValueError> {
+pub fn check_valid_homogeneous(val: &JsonValue) -> Result<(), IotaJsonValueError> {
     let mut deq: VecDeque<&JsonValue> = VecDeque::new();
     deq.push_back(val);
     check_valid_homogeneous_rec(&mut deq)
@@ -510,7 +511,7 @@ pub fn check_valid_homogeneous(val: &JsonValue) -> Result<(), SuiJsonValueError>
 
 /// Check via BFS
 /// The invariant is that all types at a given level must be the same or be empty
-fn check_valid_homogeneous_rec(curr_q: &mut VecDeque<&JsonValue>) -> Result<(), SuiJsonValueError> {
+fn check_valid_homogeneous_rec(curr_q: &mut VecDeque<&JsonValue>) -> Result<(), IotaJsonValueError> {
     if curr_q.is_empty() {
         // Nothing to do
         return Ok(());
@@ -533,9 +534,9 @@ fn check_valid_homogeneous_rec(curr_q: &mut VecDeque<&JsonValue>) -> Result<(), 
             }
             // Not valid
             _ => {
-                return Err(SuiJsonValueError::new(
+                return Err(IotaJsonValueError::new(
                     v,
-                    SuiJsonValueErrorKind::ValueTypeNotAllowed,
+                    IotaJsonValueErrorKind::ValueTypeNotAllowed,
                 ))
             }
         };
@@ -545,9 +546,9 @@ fn check_valid_homogeneous_rec(curr_q: &mut VecDeque<&JsonValue>) -> Result<(), 
             level_type = curr;
         } else if level_type != curr {
             // Mismatch in the level
-            return Err(SuiJsonValueError::new(
+            return Err(IotaJsonValueError::new(
                 v,
-                SuiJsonValueErrorKind::ArrayNotHomogeneous,
+                IotaJsonValueErrorKind::ArrayNotHomogeneous,
             ));
         }
     }
@@ -584,7 +585,7 @@ pub fn primitive_type(
             } else if resolved_struct == RESOLVED_UTF8_STR {
                 // both structs structs representing strings have one field - a vector of type u8
                 MoveTypeLayout::Struct(Box::new(move_utf8_str_layout()))
-            } else if resolved_struct == RESOLVED_SUI_ID {
+            } else if resolved_struct == RESOLVED_IOTA_ID {
                 MoveTypeLayout::Struct(Box::new(id::ID::layout()))
             } else {
                 return None;
@@ -636,7 +637,7 @@ fn layout_of_primitive_typetag(tag: &TypeTag) -> Option<MoveTypeLayout> {
             } = &**stag;
             let resolved_struct = (address, module.as_ident_str(), name.as_ident_str());
             // is id or..
-            if resolved_struct == RESOLVED_SUI_ID {
+            if resolved_struct == RESOLVED_IOTA_ID {
                 MTL::Struct(Box::new(id::ID::layout()))
             } else if resolved_struct == RESOLVED_ASCII_STR {
                 MTL::Struct(Box::new(move_ascii_str_layout()))
@@ -676,7 +677,7 @@ fn resolve_object_arg(idx: usize, arg: &JsonValue) -> Result<ObjectID, anyhow::E
     }
 }
 
-fn resolve_object_vec_arg(idx: usize, arg: &SuiJsonValue) -> Result<Vec<ObjectID>, anyhow::Error> {
+fn resolve_object_vec_arg(idx: usize, arg: &IotaJsonValue) -> Result<Vec<ObjectID>, anyhow::Error> {
     // Every elem has to be a string convertible to a ObjectID
     match arg.to_json_value() {
         JsonValue::Array(a) => {
@@ -713,7 +714,7 @@ fn resolve_call_arg(
     view: &CompiledModule,
     type_args: &[TypeTag],
     idx: usize,
-    arg: &SuiJsonValue,
+    arg: &IotaJsonValue,
     param: &SignatureToken,
 ) -> Result<ResolvedCallArg, anyhow::Error> {
     if let Some(layout) = primitive_type(view, type_args, param) {
@@ -782,7 +783,7 @@ pub fn is_receiving_argument(view: &CompiledModule, arg_type: &SignatureToken) -
 fn resolve_call_args(
     view: &CompiledModule,
     type_args: &[TypeTag],
-    json_args: &[SuiJsonValue],
+    json_args: &[IotaJsonValue],
     parameter_types: &[SignatureToken],
 ) -> Result<Vec<ResolvedCallArg>, anyhow::Error> {
     json_args
@@ -800,7 +801,7 @@ pub fn resolve_move_function_args(
     module_ident: Identifier,
     function: Identifier,
     type_args: &[TypeTag],
-    combined_args_json: Vec<SuiJsonValue>,
+    combined_args_json: Vec<IotaJsonValue>,
 ) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
     // Extract the expected function signature
     let module = package.deserialize_module(&module_ident, &BinaryConfig::standard())?;
@@ -865,73 +866,73 @@ fn convert_string_to_u256(s: &str) -> Result<U256, anyhow::Error> {
 #[macro_export]
 macro_rules! call_args {
         ($($value:expr),*) => {
-        Ok::<_, anyhow::Error>(vec![$(sui_json::call_arg!($value)?,)*])
+        Ok::<_, anyhow::Error>(vec![$(iota_json::call_arg!($value)?,)*])
     };
     }
 
 #[macro_export]
 macro_rules! call_arg {
     ($value:expr) => {{
-        use sui_json::SuiJsonValue;
-        trait SuiJsonArg {
-            fn to_sui_json(&self) -> anyhow::Result<SuiJsonValue>;
+        use iota_json::IotaJsonValue;
+        trait IotaJsonArg {
+            fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue>;
         }
         // TODO: anyway to condense this?
-        impl SuiJsonArg for &str {
-            fn to_sui_json(&self) -> anyhow::Result<SuiJsonValue> {
-                SuiJsonValue::from_str(self)
+        impl IotaJsonArg for &str {
+            fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
+                IotaJsonValue::from_str(self)
             }
         }
-        impl SuiJsonArg for String {
-            fn to_sui_json(&self) -> anyhow::Result<SuiJsonValue> {
-                SuiJsonValue::from_str(&self)
+        impl IotaJsonArg for String {
+            fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
+                IotaJsonValue::from_str(&self)
             }
         }
-        impl SuiJsonArg for sui_types::base_types::ObjectID {
-            fn to_sui_json(&self) -> anyhow::Result<SuiJsonValue> {
-                SuiJsonValue::from_str(&self.to_string())
+        impl IotaJsonArg for iota_types::base_types::ObjectID {
+            fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
+                IotaJsonValue::from_str(&self.to_string())
             }
         }
-        impl SuiJsonArg for sui_types::base_types::SuiAddress {
-            fn to_sui_json(&self) -> anyhow::Result<SuiJsonValue> {
-                SuiJsonValue::from_str(&self.to_string())
+        impl IotaJsonArg for iota_types::base_types::IotaAddress {
+            fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
+                IotaJsonValue::from_str(&self.to_string())
             }
         }
-        impl SuiJsonArg for u64 {
-            fn to_sui_json(&self) -> anyhow::Result<SuiJsonValue> {
-                SuiJsonValue::from_bcs_bytes(
-                    Some(&sui_json::MoveTypeLayout::U64),
+        impl IotaJsonArg for u64 {
+            fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
+                IotaJsonValue::from_bcs_bytes(
+                    Some(&iota_json::MoveTypeLayout::U64),
                     &bcs::to_bytes(self)?,
                 )
             }
         }
-        impl SuiJsonArg for Vec<u8> {
-            fn to_sui_json(&self) -> anyhow::Result<SuiJsonValue> {
-                SuiJsonValue::from_bcs_bytes(None, &self)
+        impl IotaJsonArg for Vec<u8> {
+            fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
+                IotaJsonValue::from_bcs_bytes(None, &self)
             }
         }
-        impl SuiJsonArg for &[u8] {
-            fn to_sui_json(&self) -> anyhow::Result<SuiJsonValue> {
-                SuiJsonValue::from_bcs_bytes(None, self)
+        impl IotaJsonArg for &[u8] {
+            fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
+                IotaJsonValue::from_bcs_bytes(None, self)
             }
         }
-        $value.to_sui_json()
+        $value.to_iota_json()
     }};
 }
 
 #[macro_export]
 macro_rules! type_args {
     ($($value:expr), *) => {{
-        use sui_json_rpc_types::SuiTypeTag;
-        use sui_types::TypeTag;
-        trait SuiJsonTypeArg {
-            fn to_sui_json(&self) -> anyhow::Result<SuiTypeTag>;
+        use iota_json_rpc_types::IotaTypeTag;
+        use iota_types::TypeTag;
+        trait IotaJsonTypeArg {
+            fn to_iota_json(&self) -> anyhow::Result<IotaTypeTag>;
         }
-        impl <T: core::fmt::Display> SuiJsonTypeArg for T {
-            fn to_sui_json(&self) -> anyhow::Result<SuiTypeTag> {
-                Ok(sui_types::parse_sui_type_tag(&self.to_string())?.into())
+        impl <T: core::fmt::Display> IotaJsonTypeArg for T {
+            fn to_iota_json(&self) -> anyhow::Result<IotaTypeTag> {
+                Ok(iota_types::parse_iota_type_tag(&self.to_string())?.into())
             }
         }
-        Ok::<_, anyhow::Error>(vec![$($value.to_sui_json()?,)*])
+        Ok::<_, anyhow::Error>(vec![$($value.to_iota_json()?,)*])
     }};
     }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /** Contains data related to the gas payment for a Transaction */
@@ -9,7 +10,7 @@ export interface GasData {
 	price: string | number | null;
 	/** The owner of the gas coins used to fund the transactions, this is either the sender or the gas sponsor */
 	owner: string | null;
-	/** The list of SUI coins to fund the transaction */
+	/** The list of IOTA coins to fund the transaction */
 	payment: { objectId: string; version: string; digest: string }[] | null;
 }
 

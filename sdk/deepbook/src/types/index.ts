@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { EventId } from '@mysten/sui/client';
+import type { EventId } from '@iota/iota-sdk/client';
 
 export * from './bcs.js';
 

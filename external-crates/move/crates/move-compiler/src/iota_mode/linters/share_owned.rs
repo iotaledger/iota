@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This analysis flags making objects passed as function parameters or resulting from unpacking
@@ -31,13 +32,13 @@ use crate::{
         program_info::{DatatypeKind, TypingProgramInfo},
         Identifier,
     },
-    sui_mode::{
-        info::{SuiInfo, TransferKind},
+    iota_mode::{
+        info::{IotaInfo, TransferKind},
         linters::{
             type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode, LINT_WARNING_PREFIX,
             PUBLIC_SHARE_FUN, SHARE_FUN, TRANSFER_MOD_NAME,
         },
-        SUI_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME,
+        IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_TYPE_NAME,
     },
 };
 use move_core_types::account_address::AccountAddress;
@@ -46,14 +47,14 @@ use move_proc_macros::growing_stack;
 use std::collections::BTreeMap;
 
 const SHARE_FUNCTIONS: &[(AccountAddress, &str, &str)] = &[
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, PUBLIC_SHARE_FUN),
-    (SUI_ADDR_VALUE, TRANSFER_MOD_NAME, SHARE_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, PUBLIC_SHARE_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, SHARE_FUN),
 ];
 
 const SHARE_OWNED_DIAG: DiagnosticInfo = custom(
     LINT_WARNING_PREFIX,
     Severity::Warning,
-    LinterDiagnosticCategory::Sui as u8,
+    LinterDiagnosticCategory::Iota as u8,
     LinterDiagnosticCode::ShareOwned as u8,
     "possible owned object share",
 );
@@ -238,7 +239,7 @@ impl<'a> ShareOwnedVerifierAI<'a> {
             // special case TxContext as not holding an object
             BaseType_::Apply(_, sp!(_, tn), _)
                 if tn.is(
-                    &SUI_ADDR_VALUE,
+                    &IOTA_ADDR_VALUE,
                     TX_CONTEXT_MODULE_NAME,
                     TX_CONTEXT_TYPE_NAME,
                 ) =>
@@ -257,7 +258,7 @@ impl<'a> ShareOwnedVerifierAI<'a> {
             BaseType_::Apply(_, sp!(_, TypeName_::ModuleType(m, n)), targs) => {
                 let m = *m;
                 let n = *n;
-                if self.sui_info().uid_holders.contains_key(&(m, n)) {
+                if self.iota_info().uid_holders.contains_key(&(m, n)) {
                     return true;
                 }
                 let phantom_positions = phantom_positions(self.info, &m, &n);
@@ -291,7 +292,7 @@ impl<'a> ShareOwnedVerifierAI<'a> {
         else {
             return;
         };
-        let Some(transferred_kind) = self.sui_info().transferred.get(&tn) else {
+        let Some(transferred_kind) = self.iota_info().transferred.get(&tn) else {
             return;
         };
 
@@ -318,8 +319,8 @@ impl<'a> ShareOwnedVerifierAI<'a> {
         context.add_diag(d)
     }
 
-    fn sui_info(&self) -> &'a SuiInfo {
-        self.info.sui_flavor_info.as_ref().unwrap()
+    fn iota_info(&self) -> &'a IotaInfo {
+        self.info.iota_flavor_info.as_ref().unwrap()
     }
 }
 

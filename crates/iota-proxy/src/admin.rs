@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::config::{DynamicPeerValidationConfig, RemoteWriteConfig, StaticPeerValidationConfig};
 use crate::handlers::publish_metrics;
 use crate::histogram_relay::HistogramRelay;
 use crate::middleware::{
-    expect_content_length, expect_mysten_proxy_header, expect_valid_public_key,
+    expect_content_length, expect_iota_proxy_header, expect_valid_public_key,
 };
-use crate::peers::{AllowedPeer, SuiNodeProvider};
+use crate::peers::{AllowedPeer, IotaNodeProvider};
 use crate::var;
 use anyhow::Error;
 use anyhow::Result;
@@ -18,8 +19,8 @@ use std::io::BufReader;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_tls::SUI_VALIDATOR_SERVER_NAME;
-use sui_tls::{
+use iota_tls::IOTA_VALIDATOR_SERVER_NAME;
+use iota_tls::{
     rustls::ServerConfig, AllowAll, ClientCertVerifier, SelfSignedCertificate, TlsAcceptor,
 };
 use tokio::signal;
@@ -96,7 +97,7 @@ pub fn app(
     labels: Labels,
     client: ReqwestClient,
     relay: HistogramRelay,
-    allower: Option<SuiNodeProvider>,
+    allower: Option<IotaNodeProvider>,
 ) -> Router {
     // build our application with a route and our sender mpsc
     let mut router = Router::new()
@@ -105,7 +106,7 @@ pub fn app(
             "MAX_BODY_SIZE",
             1024 * 1024 * 5
         )))
-        .route_layer(middleware::from_fn(expect_mysten_proxy_header))
+        .route_layer(middleware::from_fn(expect_iota_proxy_header))
         .route_layer(middleware::from_fn(expect_content_length));
     if let Some(allower) = allower {
         router = router
@@ -240,34 +241,34 @@ fn load_static_peers(
 /// Default allow mode for server, we don't verify clients, everything is accepted
 pub fn create_server_cert_default_allow(
     hostname: String,
-) -> Result<ServerConfig, sui_tls::rustls::Error> {
+) -> Result<ServerConfig, iota_tls::rustls::Error> {
     let CertKeyPair(server_certificate, _) = generate_self_cert(hostname);
 
-    ClientCertVerifier::new(AllowAll, SUI_VALIDATOR_SERVER_NAME.to_string()).rustls_server_config(
+    ClientCertVerifier::new(AllowAll, IOTA_VALIDATOR_SERVER_NAME.to_string()).rustls_server_config(
         vec![server_certificate.rustls_certificate()],
         server_certificate.rustls_private_key(),
     )
 }
 
-/// Verify clients against sui blockchain, clients that are not found in sui_getValidators
+/// Verify clients against iota blockchain, clients that are not found in iota_getValidators
 /// will be rejected
 pub fn create_server_cert_enforce_peer(
     dynamic_peers: DynamicPeerValidationConfig,
     static_peers: Option<StaticPeerValidationConfig>,
-) -> Result<(ServerConfig, Option<SuiNodeProvider>), sui_tls::rustls::Error> {
+) -> Result<(ServerConfig, Option<IotaNodeProvider>), iota_tls::rustls::Error> {
     let (Some(certificate_path), Some(private_key_path)) =
         (dynamic_peers.certificate_file, dynamic_peers.private_key)
     else {
-        return Err(sui_tls::rustls::Error::General(
+        return Err(iota_tls::rustls::Error::General(
             "missing certs to initialize server".into(),
         ));
     };
     let static_peers = load_static_peers(static_peers).map_err(|e| {
-        sui_tls::rustls::Error::General(format!("unable to load static pub keys: {}", e))
+        iota_tls::rustls::Error::General(format!("unable to load static pub keys: {}", e))
     })?;
-    let allower = SuiNodeProvider::new(dynamic_peers.url, dynamic_peers.interval, static_peers);
+    let allower = IotaNodeProvider::new(dynamic_peers.url, dynamic_peers.interval, static_peers);
     allower.poll_peer_list();
-    let c = ClientCertVerifier::new(allower.clone(), SUI_VALIDATOR_SERVER_NAME.to_string())
+    let c = ClientCertVerifier::new(allower.clone(), IOTA_VALIDATOR_SERVER_NAME.to_string())
         .rustls_server_config(
             load_certs(&certificate_path),
             load_private_key(&private_key_path),

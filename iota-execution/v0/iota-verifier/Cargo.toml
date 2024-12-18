@@ -1,9 +1,9 @@
 [package]
-name = "sui-verifier-v0"
+name = "iota-verifier-v0"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mysten Labs <eng@mystenlabs.com>"]
-description = "Move framework for Sui platform"
+authors = ["IOTA Foundation <info@iota.org>"]
+description = "Move framework for Iota platform"
 license = "Apache-2.0"
 publish = false
 
@@ -20,5 +20,5 @@ move-abstract-stack.workspace = true
 
 move-bytecode-verifier = { path = "../../../external-crates/move/move-execution/v0/crates/move-bytecode-verifier", package = "move-bytecode-verifier-v0" }
 
-sui-types.workspace = true
-sui-protocol-config.workspace = true
+iota-types.workspace = true
+iota-protocol-config.workspace = true

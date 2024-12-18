@@ -1,6 +1,6 @@
 module a::m {
-    use sui::object;
-    use sui::tx_context;
+    use iota::object;
+    use iota::tx_context;
     struct Obj<T> has key {
         id: object::UID,
         value: T,
@@ -11,12 +11,12 @@ module a::m {
 
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }
 }
 
-module sui::tx_context {
+module iota::tx_context {
     struct TxContext has drop {}
 }

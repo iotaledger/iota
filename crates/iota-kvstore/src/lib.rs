@@ -1,21 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 mod bigtable;
 use anyhow::Result;
 use async_trait::async_trait;
 pub use bigtable::client::BigTableClient;
 pub use bigtable::worker::KvWorker;
-use sui_types::base_types::ObjectID;
-use sui_types::crypto::AuthorityStrongQuorumSignInfo;
-use sui_types::digests::{CheckpointDigest, TransactionDigest};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::full_checkpoint_content::CheckpointData;
-use sui_types::messages_checkpoint::{
+use iota_types::base_types::ObjectID;
+use iota_types::crypto::AuthorityStrongQuorumSignInfo;
+use iota_types::digests::{CheckpointDigest, TransactionDigest};
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::full_checkpoint_content::CheckpointData;
+use iota_types::messages_checkpoint::{
     CheckpointContents, CheckpointSequenceNumber, CheckpointSummary,
 };
-use sui_types::object::Object;
-use sui_types::storage::ObjectKey;
-use sui_types::transaction::Transaction;
+use iota_types::object::Object;
+use iota_types::storage::ObjectKey;
+use iota_types::transaction::Transaction;
 
 #[async_trait]
 pub trait KeyValueStoreReader {

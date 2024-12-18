@@ -1,6 +1,6 @@
 ---
-source: crates/sui-swarm-config/tests/snapshot_tests.rs
-expression: genesis.sui_system_object().into_genesis_version_for_tooling()
+source: crates/iota-swarm-config/tests/snapshot_tests.rs
+expression: genesis.iota_system_object().into_genesis_version_for_tooling()
 ---
 epoch: 0
 protocol_version: 70
@@ -9,7 +9,7 @@ validators:
   total_stake: 20000000000000000
   active_validators:
     - metadata:
-        sui_address: "0x60307f36c284875bf298d4d85a673046648b1ac4b47e712e42ab10d57dd77a26"
+        iota_address: "0x60307f36c284875bf298d4d85a673046648b1ac4b47e712e42ab10d57dd77a26"
         protocol_pubkey_bytes:
           - 153
           - 242
@@ -249,7 +249,7 @@ validators:
         id: "0x131722dffbbebd704bf861887766f9b11b8ff4ae88e014b1d343eee977d3b4bc"
         activation_epoch: 0
         deactivation_epoch: ~
-        sui_balance: 20000000000000000
+        iota_balance: 20000000000000000
         rewards_pool:
           value: 0
         pool_token_balance: 20000000000000000
@@ -257,7 +257,7 @@ validators:
           id: "0x87e0379fe286c022d350f16878363aa19706f483aabf4d5b28cbe64b737bfbb9"
           size: 1
         pending_stake: 0
-        pending_total_sui_withdraw: 0
+        pending_total_iota_withdraw: 0
         pending_pool_token_withdraw: 0
         extra_fields:
           id:

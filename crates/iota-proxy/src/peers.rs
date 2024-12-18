@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::{bail, Context, Result};
 use fastcrypto::ed25519::Ed25519PublicKey;
@@ -16,10 +17,10 @@ use std::{
     sync::{Arc, RwLock},
     time::Duration,
 };
-use sui_tls::Allower;
-use sui_types::base_types::SuiAddress;
-use sui_types::bridge::BridgeSummary;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
+use iota_tls::Allower;
+use iota_types::base_types::IotaAddress;
+use iota_types::bridge::BridgeSummary;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 use tracing::{debug, error, info, warn};
 use url::Url;
 
@@ -55,28 +56,28 @@ pub struct AllowedPeer {
     pub public_key: Ed25519PublicKey,
 }
 
-/// SuiNodeProvider queries the sui blockchain and keeps a record of known validators based on the response from
-/// sui_getValidators.  The node name, public key and other info is extracted from the chain and stored in this
+/// IotaNodeProvider queries the iota blockchain and keeps a record of known validators based on the response from
+/// iota_getValidators.  The node name, public key and other info is extracted from the chain and stored in this
 /// data structure.  We pass this struct to the tls verifier and it depends on the state contained within.
 /// Handlers also use this data in an Extractor extension to check incoming clients on the http api against known keys.
 #[derive(Debug, Clone)]
-pub struct SuiNodeProvider {
-    sui_nodes: AllowedPeers,
+pub struct IotaNodeProvider {
+    iota_nodes: AllowedPeers,
     bridge_nodes: AllowedPeers,
     static_nodes: AllowedPeers,
     rpc_url: String,
     rpc_poll_interval: Duration,
 }
 
-impl Allower for SuiNodeProvider {
+impl Allower for IotaNodeProvider {
     fn allowed(&self, key: &Ed25519PublicKey) -> bool {
         self.static_nodes.read().unwrap().contains_key(key)
-            || self.sui_nodes.read().unwrap().contains_key(key)
+            || self.iota_nodes.read().unwrap().contains_key(key)
             || self.bridge_nodes.read().unwrap().contains_key(key)
     }
 }
 
-impl SuiNodeProvider {
+impl IotaNodeProvider {
     pub fn new(
         rpc_url: String,
         rpc_poll_interval: Duration,
@@ -88,10 +89,10 @@ impl SuiNodeProvider {
             .map(|v| (v.public_key.clone(), v))
             .collect();
         let static_nodes = Arc::new(RwLock::new(static_nodes));
-        let sui_nodes = Arc::new(RwLock::new(HashMap::new()));
+        let iota_nodes = Arc::new(RwLock::new(HashMap::new()));
         let bridge_nodes = Arc::new(RwLock::new(HashMap::new()));
         Self {
-            sui_nodes,
+            iota_nodes,
             bridge_nodes,
             static_nodes,
             rpc_url,
@@ -109,8 +110,8 @@ impl SuiNodeProvider {
                 public_key: v.public_key.to_owned(),
             });
         }
-        // check sui validators
-        if let Some(v) = self.sui_nodes.read().unwrap().get(key) {
+        // check iota validators
+        if let Some(v) = self.iota_nodes.read().unwrap().get(key) {
             return Some(AllowedPeer {
                 name: v.name.to_owned(),
                 public_key: v.public_key.to_owned(),
@@ -126,14 +127,14 @@ impl SuiNodeProvider {
         None
     }
 
-    /// Get a mutable reference to the allowed sui validator map
-    pub fn get_sui_mut(&mut self) -> &mut AllowedPeers {
-        &mut self.sui_nodes
+    /// Get a mutable reference to the allowed iota validator map
+    pub fn get_iota_mut(&mut self) -> &mut AllowedPeers {
+        &mut self.iota_nodes
     }
 
     /// get_validators will retrieve known validators
-    async fn get_validators(url: String) -> Result<SuiSystemStateSummary> {
-        let rpc_method = "suix_getLatestSuiSystemState";
+    async fn get_validators(url: String) -> Result<IotaSystemStateSummary> {
+        let rpc_method = "iotax_getLatestIotaSystemState";
         let observe = || {
             let timer = JSON_RPC_DURATION
                 .with_label_values(&[rpc_method])
@@ -172,7 +173,7 @@ impl SuiNodeProvider {
 
         #[derive(Debug, Deserialize)]
         struct ResponseBody {
-            result: SuiSystemStateSummary,
+            result: IotaSystemStateSummary,
         }
 
         let body: ResponseBody = match serde_json::from_slice(&raw) {
@@ -197,7 +198,7 @@ impl SuiNodeProvider {
 
     /// get_bridge_validators will retrieve known bridge validators
     async fn get_bridge_validators(url: String) -> Result<BridgeSummary> {
-        let rpc_method = "suix_getLatestBridge";
+        let rpc_method = "iotax_getLatestBridge";
         let _timer = JSON_RPC_DURATION
             .with_label_values(&[rpc_method])
             .start_timer();
@@ -249,15 +250,15 @@ impl SuiNodeProvider {
         Ok(summary)
     }
 
-    async fn update_sui_validator_set(&self) {
+    async fn update_iota_validator_set(&self) {
         match Self::get_validators(self.rpc_url.to_owned()).await {
             Ok(summary) => {
                 let validators = extract(summary);
-                let mut allow = self.sui_nodes.write().unwrap();
+                let mut allow = self.iota_nodes.write().unwrap();
                 allow.clear();
                 allow.extend(validators);
                 info!(
-                    "{} sui validators managed to make it on the allow list",
+                    "{} iota validators managed to make it on the allow list",
                     allow.len()
                 );
             }
@@ -271,22 +272,22 @@ impl SuiNodeProvider {
     }
 
     async fn update_bridge_validator_set(&self, metrics_keys: MetricsPubKeys) {
-        let sui_system = match Self::get_validators(self.rpc_url.to_owned()).await {
+        let iota_system = match Self::get_validators(self.rpc_url.to_owned()).await {
             Ok(summary) => summary,
             Err(error) => {
                 JSON_RPC_STATE
                     .with_label_values(&["update_bridge_peer_count", "failed"])
                     .inc();
-                error!("unable to get sui system state: {error}");
+                error!("unable to get iota system state: {error}");
                 return;
             }
         };
         match Self::get_bridge_validators(self.rpc_url.to_owned()).await {
             Ok(summary) => {
-                let names = sui_system
+                let names = iota_system
                     .active_validators
                     .into_iter()
-                    .map(|v| (v.sui_address, v.name))
+                    .map(|v| (v.iota_address, v.name))
                     .collect();
                 let validators = extract_bridge(summary, Arc::new(names), metrics_keys).await;
                 let mut allow = self.bridge_nodes.write().unwrap();
@@ -301,7 +302,7 @@ impl SuiNodeProvider {
                 JSON_RPC_STATE
                     .with_label_values(&["update_bridge_peer_count", "failed"])
                     .inc();
-                error!("unable to refresh sui bridge peer list: {error}");
+                error!("unable to refresh iota bridge peer list: {error}");
             }
         };
     }
@@ -320,7 +321,7 @@ impl SuiNodeProvider {
             loop {
                 interval.tick().await;
 
-                cloned_self.update_sui_validator_set().await;
+                cloned_self.update_iota_validator_set().await;
                 cloned_self
                     .update_bridge_validator_set(bridge_metrics_keys.clone())
                     .await;
@@ -329,17 +330,17 @@ impl SuiNodeProvider {
     }
 }
 
-/// extract will get the network pubkey bytes from a SuiValidatorSummary type.  This type comes from a
+/// extract will get the network pubkey bytes from a IotaValidatorSummary type.  This type comes from a
 /// full node rpc result.  See get_validators for details.  The key here, if extracted successfully, will
 /// ultimately be stored in the allow list and let us communicate with those actual peers via tls.
 fn extract(
-    summary: SuiSystemStateSummary,
+    summary: IotaSystemStateSummary,
 ) -> impl Iterator<Item = (Ed25519PublicKey, AllowedPeer)> {
     summary.active_validators.into_iter().filter_map(|vm| {
         match Ed25519PublicKey::from_bytes(&vm.network_pubkey_bytes) {
             Ok(public_key) => {
                 debug!(
-                    "adding public key {:?} for sui validator {:?}",
+                    "adding public key {:?} for iota validator {:?}",
                     public_key, vm.name
                 );
                 Some((
@@ -352,8 +353,8 @@ fn extract(
             }
             Err(error) => {
                 error!(
-                    "unable to decode public key for name: {:?} sui_address: {:?} error: {error}",
-                    vm.name, vm.sui_address
+                    "unable to decode public key for name: {:?} iota_address: {:?} error: {error}",
+                    vm.name, vm.iota_address
                 );
                 None // scoped to filter_map
             }
@@ -363,7 +364,7 @@ fn extract(
 
 async fn extract_bridge(
     summary: BridgeSummary,
-    names: Arc<BTreeMap<SuiAddress, String>>,
+    names: Arc<BTreeMap<IotaAddress, String>>,
     metrics_keys: MetricsPubKeys,
 ) -> Vec<(Ed25519PublicKey, AllowedPeer)> {
     {
@@ -388,7 +389,7 @@ async fn extract_bridge(
             let names = names.clone();
             async move {
                 debug!(
-                    address =% cm.sui_address,
+                    address =% cm.iota_address,
                     "Extracting metrics public key for bridge node",
                 );
 
@@ -397,7 +398,7 @@ async fn extract_bridge(
                     Ok(url) => url,
                     Err(_) => {
                         warn!(
-                            address =% cm.sui_address,
+                            address =% cm.iota_address,
                             "Invalid UTF-8 sequence in http_rest_url for bridge node ",
                         );
                         return None;
@@ -429,10 +430,10 @@ async fn extract_bridge(
                         return None;
                     }
                 };
-                let bridge_name = names.get(&cm.sui_address).cloned().unwrap_or_else(|| {
+                let bridge_name = names.get(&cm.iota_address).cloned().unwrap_or_else(|| {
                     warn!(
-                        address =% cm.sui_address,
-                        "Bridge node not found in sui committee, using base URL as the name",
+                        address =% cm.iota_address,
+                        "Bridge node not found in iota committee, using base URL as the name",
                     );
                     String::from(bridge_host)
                 });
@@ -542,22 +543,22 @@ mod tests {
     use super::*;
     use crate::admin::{generate_self_cert, CertKeyPair};
     use serde::Serialize;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeCommitteeMember};
-    use sui_types::sui_system_state::sui_system_state_summary::{
-        SuiSystemStateSummary, SuiValidatorSummary,
+    use iota_types::base_types::IotaAddress;
+    use iota_types::bridge::{BridgeCommitteeSummary, BridgeSummary, MoveTypeCommitteeMember};
+    use iota_types::iota_system_state::iota_system_state_summary::{
+        IotaSystemStateSummary, IotaValidatorSummary,
     };
 
-    /// creates a test that binds our proxy use case to the structure in sui_getLatestSuiSystemState
+    /// creates a test that binds our proxy use case to the structure in iota_getLatestIotaSystemState
     /// most of the fields are garbage, but we will send the results of the serde process to a private decode
     /// function that should always work if the structure is valid for our use
     #[test]
-    fn depend_on_sui_sui_system_state_summary() {
-        let CertKeyPair(_, client_pub_key) = generate_self_cert("sui".into());
+    fn depend_on_iota_iota_system_state_summary() {
+        let CertKeyPair(_, client_pub_key) = generate_self_cert("iota".into());
         // all fields here just satisfy the field types, with exception to active_validators, we use
         // some of those.
-        let depends_on = SuiSystemStateSummary {
-            active_validators: vec![SuiValidatorSummary {
+        let depends_on = IotaSystemStateSummary {
+            active_validators: vec![IotaValidatorSummary {
                 network_pubkey_bytes: Vec::from(client_pub_key.as_bytes()),
                 primary_address: "empty".into(),
                 worker_address: "empty".into(),
@@ -568,14 +569,14 @@ mod tests {
 
         #[derive(Debug, Serialize, Deserialize)]
         struct ResponseBody {
-            result: SuiSystemStateSummary,
+            result: IotaSystemStateSummary,
         }
 
         let r = serde_json::to_string(&ResponseBody { result: depends_on })
-            .expect("expected to serialize ResponseBody{SuiSystemStateSummary}");
+            .expect("expected to serialize ResponseBody{IotaSystemStateSummary}");
 
         let deserialized = serde_json::from_str::<ResponseBody>(&r)
-            .expect("expected to deserialize ResponseBody{SuiSystemStateSummary}");
+            .expect("expected to deserialize ResponseBody{IotaSystemStateSummary}");
 
         let peers = extract(deserialized.result);
         assert_eq!(peers.count(), 1, "peers should have been a length of 1");
@@ -588,7 +589,7 @@ mod tests {
                 members: vec![(
                     vec![],
                     MoveTypeCommitteeMember {
-                        sui_address: SuiAddress::ZERO,
+                        iota_address: IotaAddress::ZERO,
                         http_rest_url: "invalid_bridge_url".as_bytes().to_vec(),
                         ..Default::default()
                     },
@@ -622,7 +623,7 @@ mod tests {
                 members: vec![(
                     vec![],
                     MoveTypeCommitteeMember {
-                        sui_address: SuiAddress::ZERO,
+                        iota_address: IotaAddress::ZERO,
                         http_rest_url: "https://unresponsive_bridge_url".as_bytes().to_vec(),
                         ..Default::default()
                     },

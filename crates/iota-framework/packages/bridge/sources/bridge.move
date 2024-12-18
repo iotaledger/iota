@@ -1,23 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module bridge::bridge {
-    use sui::address;
-    use sui::clock::Clock;
-    use sui::coin::{Coin, TreasuryCap, CoinMetadata};
-    use sui::event::emit;
-    use sui::linked_table::{Self, LinkedTable};
-    use sui::package::UpgradeCap;
-    use sui::vec_map::{Self, VecMap};
-    use sui::versioned::{Self, Versioned};
-    use sui_system::sui_system::SuiSystemState;
+    use iota::address;
+    use iota::clock::Clock;
+    use iota::coin::{Coin, TreasuryCap, CoinMetadata};
+    use iota::event::emit;
+    use iota::linked_table::{Self, LinkedTable};
+    use iota::package::UpgradeCap;
+    use iota::vec_map::{Self, VecMap};
+    use iota::versioned::{Self, Versioned};
+    use iota_system::iota_system::IotaSystemState;
 
     use bridge::chain_ids;
     use bridge::committee::{Self, BridgeCommittee};
     use bridge::limiter::{Self, TransferLimiter};
     use bridge::message::{
         Self, BridgeMessage, BridgeMessageKey, EmergencyOp, UpdateAssetPrice,
-        UpdateBridgeLimit, AddTokenOnSui, ParsedTokenTransferMessage,
+        UpdateBridgeLimit, AddTokenOnIota, ParsedTokenTransferMessage,
         to_parsed_token_transfer_message,
     };
     use bridge::message_types;
@@ -88,7 +89,7 @@ module bridge::bridge {
     const EWrongInnerVersion: u64 = 7;
     const EBridgeUnavailable: u64 = 8;
     const EUnexpectedOperation: u64 = 9;
-    const EInvariantSuiInitializedTokenTransferShouldNotBeClaimed: u64 = 10;
+    const EInvariantIotaInitializedTokenTransferShouldNotBeClaimed: u64 = 10;
     const EMessageNotFoundInRecords: u64 = 11;
     const EUnexpectedMessageVersion: u64 = 12;
     const EBridgeAlreadyPaused: u64 = 13;
@@ -171,7 +172,7 @@ module bridge::bridge {
 
     public fun committee_registration(
         bridge: &mut Bridge,
-        system_state: &mut SuiSystemState,
+        system_state: &mut IotaSystemState,
         bridge_pubkey_bytes: vector<u8>,
         http_rest_url: vector<u8>,
         ctx: &TxContext
@@ -253,7 +254,7 @@ module bridge::bridge {
         );
     }
 
-    // Record bridge message approvals in Sui, called by the bridge client
+    // Record bridge message approvals in Iota, called by the bridge client
     // If already approved, return early instead of aborting.
     public fun approve_token_transfer(
         bridge: &mut Bridge,
@@ -275,13 +276,13 @@ module bridge::bridge {
         );
 
         let message_key = message.key();
-        // retrieve pending message if source chain is Sui, the initial message
+        // retrieve pending message if source chain is Iota, the initial message
         // must exist on chain
         if (message.source_chain() == inner.chain_id) {
             let record = &mut inner.token_transfer_records[message_key];
 
             assert!(record.message == message, EMalformedMessageError);
-            assert!(!record.claimed, EInvariantSuiInitializedTokenTransferShouldNotBeClaimed);
+            assert!(!record.claimed, EInvariantIotaInitializedTokenTransferShouldNotBeClaimed);
 
             // If record already has verified signatures, it means the message has been approved
             // Then we exit early.
@@ -383,9 +384,9 @@ module bridge::bridge {
         } else if (message_type == message_types::update_asset_price()) {
             let payload = message.extract_update_asset_price();
             inner.execute_update_asset_price(payload);
-        } else if (message_type == message_types::add_tokens_on_sui()) {
-            let payload = message.extract_add_tokens_on_sui();
-            inner.execute_add_tokens_on_sui(payload);
+        } else if (message_type == message_types::add_tokens_on_iota()) {
+            let payload = message.extract_add_tokens_on_iota();
+            inner.execute_add_tokens_on_iota(payload);
         } else {
             abort EUnexpectedMessageType
         };
@@ -582,7 +583,7 @@ module bridge::bridge {
         )
     }
 
-    fun execute_add_tokens_on_sui(inner: &mut BridgeInner, payload: AddTokenOnSui) {
+    fun execute_add_tokens_on_iota(inner: &mut BridgeInner, payload: AddTokenOnIota) {
         // FIXME: assert native_token to be false and add test
         let native_token = payload.is_native();
         let mut token_ids = payload.token_ids();
@@ -840,9 +841,9 @@ module bridge::bridge {
     }
 
     #[test_only]
-    public fun test_execute_add_tokens_on_sui(bridge: &mut Bridge, payload: AddTokenOnSui) {
+    public fun test_execute_add_tokens_on_iota(bridge: &mut Bridge, payload: AddTokenOnIota) {
         let inner = load_inner_mut(bridge);
-        inner.execute_add_tokens_on_sui(payload);
+        inner.execute_add_tokens_on_iota(payload);
     }
 
     #[test_only]

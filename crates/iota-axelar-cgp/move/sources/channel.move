@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module axelar::channel {
     use std::string::String;
-    use sui::linked_table::{Self, LinkedTable};
-    use sui::object::{Self, UID};
-    use sui::tx_context::TxContext;
+    use iota::linked_table::{Self, LinkedTable};
+    use iota::object::{Self, UID};
+    use iota::tx_context::TxContext;
 
     /// Generic target for the messaging system.
     ///
-    /// This struct is required on the Sui side to be the destination for the
+    /// This struct is required on the Iota side to be the destination for the
     /// messages sent from other chains. Even though it has a UID field, it does
     /// not have a `key` ability to force wrapping.
     ///
@@ -28,13 +29,13 @@ module axelar::channel {
     /// the system. Destroying a channel would mean the end of the Channel cycle
     /// and all further messages will have to target a new Channel if there is one.
     ///
-    /// - Does not contain direct link to the state in Sui, as some functions
+    /// - Does not contain direct link to the state in Iota, as some functions
     /// might not take any specific data (eg allow users to create new objects).
-    /// If specific object on Sui is targeted by this `Channel`, its reference
+    /// If specific object on Iota is targeted by this `Channel`, its reference
     /// should be implemented using the `data` field.
     ///
     /// - The funniest and extremely simple implementation would be a `Channel<ID>`
-    /// since it actually contains the data required to point at the object in Sui.
+    /// since it actually contains the data required to point at the object in Iota.
 
     /// For when trying to consume the wrong object.
     const EWrongDestination: u64 = 0;
@@ -160,7 +161,7 @@ module axelar::channel {
 
     /// Get the bytes of the Channel address
     public fun source_id<T: store>(self: &Channel<T>): vector<u8> {
-        sui::bcs::to_bytes(&self.id)
+        iota::bcs::to_bytes(&self.id)
     }
 
     // === Testing ===

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{
@@ -8,7 +9,7 @@ use super::{
     digest::Digest,
     epoch::Epoch,
     gas::GasInput,
-    sui_address::SuiAddress,
+    iota_address::IotaAddress,
     transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
     transaction_block_kind::TransactionBlockKind,
 };
@@ -27,12 +28,12 @@ use diesel_async::scoped_futures::ScopedFutureExt;
 use fastcrypto::encoding::{Base58, Encoding};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
-use sui_indexer::{
+use iota_indexer::{
     models::transactions::StoredTransaction,
     schema::{transactions, tx_digests},
 };
-use sui_types::{
-    base_types::SuiAddress as NativeSuiAddress,
+use iota_types::{
+    base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
     event::Event as NativeEvent,
     message_envelope::Message,
@@ -152,8 +153,8 @@ impl TransactionBlock {
     async fn sender(&self) -> Option<Address> {
         let sender = self.native().sender();
 
-        (sender != NativeSuiAddress::ZERO).then(|| Address {
-            address: SuiAddress::from(sender),
+        (sender != NativeIotaAddress::ZERO).then(|| Address {
+            address: IotaAddress::from(sender),
             checkpoint_viewed_at: self.checkpoint_viewed_at,
         })
     }

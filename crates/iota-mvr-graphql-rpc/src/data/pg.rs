@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::QueryExecutor;
@@ -13,7 +14,7 @@ use diesel_async::{methods::LoadQuery, scoped_futures::ScopedBoxFuture};
 use diesel_async::{scoped_futures::ScopedFutureExt, RunQueryDsl};
 use std::fmt;
 use std::time::Instant;
-use sui_indexer::indexer_reader::IndexerReader;
+use iota_indexer::indexer_reader::IndexerReader;
 
 use tracing::error;
 
@@ -244,12 +245,12 @@ mod query_cost {
 mod tests {
     use super::*;
     use diesel::QueryDsl;
-    use sui_framework::BuiltInFramework;
-    use sui_indexer::{
+    use iota_framework::BuiltInFramework;
+    use iota_indexer::{
         database::Connection, db::reset_database, models::objects::StoredObject, schema::objects,
         types::IndexedObject,
     };
-    use sui_pg_temp_db::TempDb;
+    use iota_pg_temp_db::TempDb;
 
     #[tokio::test]
     async fn test_query_cost() {

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Module which defines hash functions. Note that Sha-256 and Sha3-256 is available in the std::hash module in the
 /// standard library.
-module sui::hash;
+module iota::hash;
 
 /// @param data: Arbitrary binary data to hash
 /// Hash the input bytes using Blake2b-256 and returns 32 bytes.

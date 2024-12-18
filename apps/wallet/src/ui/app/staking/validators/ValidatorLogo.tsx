@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { Heading } from '_app/shared/heading';
 import { ImageIcon } from '_app/shared/image-icon';
 import { Text } from '_app/shared/text';
 import { Badge } from '_src/ui/app/shared/Badge';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { formatAddress } from '@mysten/sui/utils';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { useMemo } from 'react';
 
@@ -30,13 +31,13 @@ export function ValidatorLogo({
 	showActiveStatus = false,
 	activeEpoch,
 }: ValidatorLogoProps) {
-	const { data, isPending } = useSuiClientQuery('getLatestSuiSystemState');
+	const { data, isPending } = useIotaClientQuery('getLatestIotaSystemState');
 
 	const validatorMeta = useMemo(() => {
 		if (!data) return null;
 
 		return (
-			data.activeValidators.find((validator) => validator.suiAddress === validatorAddress) || null
+			data.activeValidators.find((validator) => validator.iotaAddress === validatorAddress) || null
 		);
 	}, [validatorAddress, data]);
 

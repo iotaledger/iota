@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
@@ -12,8 +13,8 @@ import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { Collapsible } from '_src/ui/app/shared/collapse';
 import PageTitle from '_src/ui/app/shared/PageTitle';
-import { useGetKioskContents } from '@mysten/core';
-import { formatAddress } from '@mysten/sui/utils';
+import { useGetKioskContents } from '@iota/core';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { Link, useSearchParams } from 'react-router-dom';
 
 function KioskDetailsPage() {

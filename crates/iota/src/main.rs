@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
 use colored::Colorize;
-use sui::client_commands::SuiClientCommands::{ProfileTransaction, ReplayBatch, ReplayTransaction};
-use sui::sui_commands::SuiCommand;
-use sui_types::exit_main;
+use iota::client_commands::IotaClientCommands::{ProfileTransaction, ReplayBatch, ReplayTransaction};
+use iota::iota_commands::IotaCommand;
+use iota_types::exit_main;
 use tracing::debug;
 
 // Define the `GIT_REVISION` and `VERSION` consts
@@ -22,7 +23,7 @@ bin_version::bin_version!();
 )]
 struct Args {
     #[clap(subcommand)]
-    command: SuiCommand,
+    command: IotaCommand,
 }
 
 #[tokio::main]
@@ -32,14 +33,14 @@ async fn main() {
 
     let args = Args::parse();
     let _guard = match args.command {
-        SuiCommand::Console { .. } | SuiCommand::KeyTool { .. } | SuiCommand::Move { .. } => {
+        IotaCommand::Console { .. } | IotaCommand::KeyTool { .. } | IotaCommand::Move { .. } => {
             telemetry_subscribers::TelemetryConfig::new()
                 .with_log_level("error")
                 .with_env()
                 .init()
         }
 
-        SuiCommand::Client {
+        IotaCommand::Client {
             cmd: Some(ReplayBatch { .. }),
             ..
         } => telemetry_subscribers::TelemetryConfig::new()
@@ -47,7 +48,7 @@ async fn main() {
             .with_env()
             .init(),
 
-        SuiCommand::Client {
+        IotaCommand::Client {
             cmd: Some(ReplayTransaction {
                 gas_info, ptb_info, ..
             }),
@@ -65,7 +66,7 @@ async fn main() {
             config.init()
         }
 
-        SuiCommand::Client {
+        IotaCommand::Client {
             cmd: Some(ProfileTransaction { .. }),
             ..
         } => {
@@ -80,6 +81,6 @@ async fn main() {
             .with_env()
             .init(),
     };
-    debug!("Sui CLI version: {VERSION}");
+    debug!("Iota CLI version: {VERSION}");
     exit_main!(args.command.execute().await);
 }

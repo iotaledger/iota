@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::balance::{self, Balance};
@@ -11,9 +12,9 @@ use super::move_object::{MoveObject, MoveObjectImpl};
 use super::move_value::MoveValue;
 use super::object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus};
 use super::owner::OwnerImpl;
-use super::stake::StakedSui;
-use super::sui_address::SuiAddress;
-use super::suins_registration::{DomainFormat, SuinsRegistration};
+use super::stake::StakedIota;
+use super::iota_address::IotaAddress;
+use super::iotans_registration::{DomainFormat, IotaNSRegistration};
 use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
 use super::type_filter::ExactTypeFilter;
 use super::uint53::UInt53;
@@ -22,9 +23,9 @@ use crate::data::Db;
 use crate::error::Error;
 use async_graphql::connection::Connection;
 use async_graphql::*;
-use sui_types::coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap};
-use sui_types::gas_coin::{GAS, TOTAL_SUPPLY_SUI};
-use sui_types::TypeTag;
+use iota_types::coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap};
+use iota_types::gas_coin::{GAS, TOTAL_SUPPLY_IOTA};
+use iota_types::TypeTag;
 
 pub(crate) struct CoinMetadata {
     pub super_: MoveObject,
@@ -39,7 +40,7 @@ pub(crate) enum CoinMetadataDowncastError {
 /// The metadata for a coin type.
 #[Object]
 impl CoinMetadata {
-    pub(crate) async fn address(&self) -> SuiAddress {
+    pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(&self.super_.super_).address().await
     }
 
@@ -59,7 +60,7 @@ impl CoinMetadata {
     }
 
     /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -86,7 +87,7 @@ impl CoinMetadata {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -101,43 +102,43 @@ impl CoinMetadata {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this object.
-    pub(crate) async fn staked_suis(
+    /// The `0x3::staking_pool::StakedIota` objects owned by this object.
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_.super_)
-            .staked_suis(ctx, first, after, last, before)
+            .staked_iotas(ctx, first, after, last, before)
             .await
     }
 
     /// The domain explicitly configured as the default domain pointing to this object.
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_.super_)
-            .default_suins_name(ctx, format)
+            .default_iotans_name(ctx, format)
             .await
     }
 
-    /// The SuinsRegistration NFTs owned by this object. These grant the owner the capability to
+    /// The IotaNSRegistration NFTs owned by this object. These grant the owner the capability to
     /// manage the associated domain.
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         OwnerImpl::from(&self.super_.super_)
-            .suins_registrations(ctx, first, after, last, before)
+            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -176,7 +177,7 @@ impl CoinMetadata {
             .await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
+    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
     /// recalculated based on the present storage gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_.super_).storage_rebate().await
@@ -230,7 +231,7 @@ impl CoinMetadata {
     }
 
     /// Determines whether a transaction can transfer this object, using the TransferObjects
-    /// transaction command or `sui::transfer::public_transfer`, both of which require the object to
+    /// transaction command or `iota::transfer::public_transfer`, both of which require the object to
     /// have the `key` and `store` abilities.
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         MoveObjectImpl(&self.super_).has_public_transfer(ctx).await
@@ -391,7 +392,7 @@ impl CoinMetadata {
         };
 
         Ok(Some(if GAS::is_gas(coin_struct.as_ref()) {
-            TOTAL_SUPPLY_SUI
+            TOTAL_SUPPLY_IOTA
         } else {
             let cap_type = TreasuryCap::type_(*coin_struct);
             let Some(object) = Object::query_singleton(db, cap_type, checkpoint_viewed_at).await?

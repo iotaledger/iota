@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority_client::{
@@ -8,29 +9,29 @@ use crate::authority_client::{
 };
 use crate::safe_client::{SafeClient, SafeClientMetrics, SafeClientMetricsBase};
 use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
-use mysten_metrics::{monitored_future, spawn_monitored_task, GaugeGuard, MonitorCancellation};
-use mysten_network::config::Config;
+use iota_metrics::{monitored_future, spawn_monitored_task, GaugeGuard, MonitorCancellation};
+use iota_network_stack::config::Config;
 use std::convert::AsRef;
 use std::net::SocketAddr;
-use sui_authority_aggregation::ReduceOutput;
-use sui_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult};
-use sui_config::genesis::Genesis;
-use sui_network::{
-    default_mysten_network_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
+use iota_authority_aggregation::ReduceOutput;
+use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult};
+use iota_config::genesis::Genesis;
+use iota_network::{
+    default_iota_network_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
 };
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_types::crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo};
-use sui_types::error::UserInputError;
-use sui_types::fp_ensure;
-use sui_types::message_envelope::Message;
-use sui_types::object::Object;
-use sui_types::quorum_driver_types::{GroupedErrors, QuorumDriverResponse};
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use sui_types::sui_system_state::{SuiSystemState, SuiSystemStateTrait};
-use sui_types::{
+use iota_swarm_config::network_config::NetworkConfig;
+use iota_types::crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo};
+use iota_types::error::UserInputError;
+use iota_types::fp_ensure;
+use iota_types::message_envelope::Message;
+use iota_types::object::Object;
+use iota_types::quorum_driver_types::{GroupedErrors, QuorumDriverResponse};
+use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
+use iota_types::iota_system_state::{IotaSystemState, IotaSystemStateTrait};
+use iota_types::{
     base_types::*,
     committee::Committee,
-    error::{SuiError, SuiResult},
+    error::{IotaError, IotaResult},
     transaction::*,
 };
 use thiserror::Error;
@@ -47,17 +48,17 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::string::ToString;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_types::committee::{CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit};
-use sui_types::effects::{
+use iota_types::committee::{CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit};
+use iota_types::effects::{
     CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects, TransactionEvents,
     VerifiedCertifiedTransactionEffects,
 };
-use sui_types::messages_grpc::{
+use iota_types::messages_grpc::{
     HandleCertificateRequestV3, HandleCertificateResponseV3, LayoutGenerationOption,
     ObjectInfoRequest, TransactionInfoRequest,
 };
-use sui_types::messages_safe_client::PlainTransactionInfoResponse;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
+use iota_types::messages_safe_client::PlainTransactionInfoResponse;
+use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
 use tokio::time::{sleep, timeout};
 
 pub const DEFAULT_RETRIES: usize = 4;
@@ -283,7 +284,7 @@ pub enum AggregatorProcessCertificateError {
     RetryableExecuteCertificate { retryable_errors: GroupedErrors },
 }
 
-pub fn group_errors(errors: Vec<(SuiError, Vec<AuthorityName>, StakeUnit)>) -> GroupedErrors {
+pub fn group_errors(errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>) -> GroupedErrors {
     #[allow(clippy::mutable_key_type)]
     let mut grouped_errors = HashMap::new();
     for (error, names, stake) in errors {
@@ -347,10 +348,10 @@ struct ProcessTransactionState {
     tx_signatures: StakeAggregator<AuthoritySignInfo, true>,
     effects_map: MultiStakeAggregator<TransactionEffectsDigest, TransactionEffects, true>,
     // The list of errors gathered at any point
-    errors: Vec<(SuiError, Vec<AuthorityName>, StakeUnit)>,
+    errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>,
     // This is exclusively non-retryable stake.
     non_retryable_stake: StakeUnit,
-    // This includes both object and package not found sui errors.
+    // This includes both object and package not found iota errors.
     object_or_package_not_found_stake: StakeUnit,
     // Validators that are overloaded with txns pending execution.
     overloaded_stake: StakeUnit,
@@ -392,9 +393,9 @@ impl ProcessTransactionState {
         &mut self,
         validator_name: AuthorityName,
         weight: StakeUnit,
-        err: &SuiError,
+        err: &IotaError,
     ) -> bool {
-        if let SuiError::ObjectLockConflict {
+        if let IotaError::ObjectLockConflict {
             obj_ref,
             pending_transaction: transaction,
         } = err
@@ -420,7 +421,7 @@ impl ProcessTransactionState {
     ) -> bool {
         // In some edge cases, the client may send the same transaction multiple times but with different user signatures.
         // When this happens, the "minority" tx will fail in safe_client because the certificate verification would fail
-        // and return Sui::FailedToVerifyTxCertWithExecutedEffects.
+        // and return Iota::FailedToVerifyTxCertWithExecutedEffects.
         // Here, we check if there are f+1 validators return this error. If so, the transaction is already finalized
         // with a different set of user signatures. It's not trivial to return the results of that successful transaction
         // because we don't want fullnode to store the transaction with non-canonical user signatures. Given that this is
@@ -429,7 +430,7 @@ impl ProcessTransactionState {
             .errors
             .iter()
             .filter_map(|(e, _, stake)| {
-                if matches!(e, SuiError::FailedToVerifyTxCertWithExecutedEffects { .. }) {
+                if matches!(e, IotaError::FailedToVerifyTxCertWithExecutedEffects { .. }) {
                     Some(stake)
                 } else {
                     None
@@ -447,8 +448,8 @@ struct ProcessCertificateState {
     effects_map:
         MultiStakeAggregator<(EpochId, TransactionEffectsDigest), TransactionEffects, true>,
     non_retryable_stake: StakeUnit,
-    non_retryable_errors: Vec<(SuiError, Vec<AuthorityName>, StakeUnit)>,
-    retryable_errors: Vec<(SuiError, Vec<AuthorityName>, StakeUnit)>,
+    non_retryable_errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>,
+    retryable_errors: Vec<(IotaError, Vec<AuthorityName>, StakeUnit)>,
     // As long as none of the exit criteria are met we consider the state retryable
     // 1) >= 2f+1 signatures
     // 2) >= f+1 non-retryable errors
@@ -495,7 +496,7 @@ impl ProcessTransactionResult {
 
 #[derive(Clone)]
 pub struct AuthorityAggregator<A: Clone> {
-    /// Our Sui committee.
+    /// Our Iota committee.
     pub committee: Arc<Committee>,
     /// For more human readable metrics reporting.
     /// It's OK for this map to be empty or missing validators, it then defaults
@@ -548,7 +549,7 @@ impl<A: Clone> AuthorityAggregator<A> {
         committee: CommitteeWithNetworkMetadata,
         network_config: &Config,
         disallow_missing_intermediate_committees: bool,
-    ) -> SuiResult<AuthorityAggregator<NetworkAuthorityClient>> {
+    ) -> IotaResult<AuthorityAggregator<NetworkAuthorityClient>> {
         let network_clients =
             make_network_authority_clients_with_network_config(&committee, network_config);
 
@@ -573,7 +574,7 @@ impl<A: Clone> AuthorityAggregator<A> {
         if disallow_missing_intermediate_committees {
             fp_ensure!(
                 self.committee.epoch + 1 == new_committee.epoch,
-                SuiError::AdvanceEpochError {
+                IotaError::AdvanceEpochError {
                     error: format!(
                         "Trying to advance from epoch {} to epoch {}",
                         self.committee.epoch, new_committee.epoch
@@ -658,7 +659,7 @@ impl AuthorityAggregator<NetworkAuthorityClient> {
         safe_client_metrics_base: SafeClientMetricsBase,
         auth_agg_metrics: Arc<AuthAggMetrics>,
     ) -> Self {
-        let committee = epoch_start_state.get_sui_committee_with_network_metadata();
+        let committee = epoch_start_state.get_iota_committee_with_network_metadata();
         let validator_display_names = epoch_start_state.get_authority_names_to_hostnames();
         Self::new_from_committee(
             committee,
@@ -691,7 +692,7 @@ impl AuthorityAggregator<NetworkAuthorityClient> {
         auth_agg_metrics: Arc<AuthAggMetrics>,
         validator_display_names: Arc<HashMap<AuthorityName, String>>,
     ) -> Self {
-        let net_config = default_mysten_network_config();
+        let net_config = default_iota_network_config();
         let authority_clients =
             make_network_authority_clients_with_network_config(&committee, &net_config);
         Self::new(
@@ -723,10 +724,10 @@ where
         // and authority client parameter and returns a Result<V>.
         map_each_authority: FMap,
         timeout_each_authority: Duration,
-        authority_errors: &mut HashMap<AuthorityName, SuiError>,
-    ) -> Result<S, SuiError>
+        authority_errors: &mut HashMap<AuthorityName, IotaError>,
+    ) -> Result<S, IotaError>
     where
-        FMap: Fn(AuthorityName, Arc<SafeClient<A>>) -> AsyncResult<'a, S, SuiError>
+        FMap: Fn(AuthorityName, Arc<SafeClient<A>>) -> AsyncResult<'a, S, IotaError>
             + Send
             + Clone
             + 'a,
@@ -738,7 +739,7 @@ where
             let authorities_shuffled = self.committee.shuffle_by_stake(preferences, restrict_to);
             let mut authorities_shuffled = authorities_shuffled.iter();
 
-            type RequestResult<S> = Result<Result<S, SuiError>, tokio::time::error::Elapsed>;
+            type RequestResult<S> = Result<Result<S, IotaError>, tokio::time::error::Elapsed>;
 
             enum Event<S> {
                 StartNext,
@@ -791,7 +792,7 @@ where
                     ?restrict_to,
                     "Available authorities list is empty."
                 );
-                SuiError::from("Available authorities list is empty")
+                IotaError::from("Available authorities list is empty")
             })?;
             futures.push(start_req(*name, self.authority_clients[name].clone()));
             futures.push(schedule_next());
@@ -807,7 +808,7 @@ where
                             // timeout
                             Err(_) => {
                                 debug!(name=?name.concise(), "authority request timed out");
-                                authority_errors.insert(name, SuiError::TimeoutError);
+                                authority_errors.insert(name, IotaError::TimeoutError);
                             }
                             // request completed
                             Ok(inner_res) => {
@@ -860,9 +861,9 @@ where
         timeout_total: Option<Duration>,
         // The behavior that authorities expect to perform, used for logging and error
         description: String,
-    ) -> Result<S, SuiError>
+    ) -> Result<S, IotaError>
     where
-        FMap: Fn(AuthorityName, Arc<SafeClient<A>>) -> AsyncResult<'a, S, SuiError>
+        FMap: Fn(AuthorityName, Arc<SafeClient<A>>) -> AsyncResult<'a, S, IotaError>
             + Send
             + Clone
             + 'a,
@@ -881,9 +882,9 @@ where
         if let Some(t) = timeout_total {
             timeout(t, fut).await.map_err(|_timeout_error| {
                 if authority_errors.is_empty() {
-                    SuiError::TimeoutError
+                    IotaError::TimeoutError
                 } else {
-                    SuiError::TooManyIncorrectAuthorities {
+                    IotaError::TooManyIncorrectAuthorities {
                         errors: authority_errors
                             .iter()
                             .map(|(a, b)| (*a, b.clone()))
@@ -905,7 +906,7 @@ where
     pub async fn get_latest_object_version_for_testing(
         &self,
         object_id: ObjectID,
-    ) -> SuiResult<Object> {
+    ) -> IotaResult<Object> {
         #[derive(Debug, Default)]
         struct State {
             latest_object_version: Option<Object>,
@@ -952,7 +953,7 @@ where
                 // A long timeout before we hear back from a quorum
                 self.timeouts.pre_quorum_timeout,
             )
-            .await.map_err(|_state| SuiError::from(UserInputError::ObjectNotFound {
+            .await.map_err(|_state| IotaError::from(UserInputError::ObjectNotFound {
                 object_id,
                 version: None,
             }))?;
@@ -964,10 +965,10 @@ where
     /// It should only be used for testing or benchmarking.
     pub async fn get_latest_system_state_object_for_testing(
         &self,
-    ) -> anyhow::Result<SuiSystemState> {
+    ) -> anyhow::Result<IotaSystemState> {
         #[derive(Debug, Default)]
         struct State {
-            latest_system_state: Option<SuiSystemState>,
+            latest_system_state: Option<IotaSystemState>,
             total_weight: StakeUnit,
         }
         let initial_state = State::default();
@@ -1182,9 +1183,9 @@ where
     fn record_rpc_error_maybe(
         metrics: Arc<AuthAggMetrics>,
         display_name: &String,
-        error: &SuiError,
+        error: &IotaError,
     ) {
-        if let SuiError::RpcError(_message, code) = error {
+        if let IotaError::RpcError(_message, code) = error {
             metrics
                 .total_rpc_err
                 .with_label_values(&[display_name, code.as_str()])
@@ -1312,10 +1313,10 @@ where
         &self,
         tx_digest: &TransactionDigest,
         state: &mut ProcessTransactionState,
-        response: SuiResult<PlainTransactionInfoResponse>,
+        response: IotaResult<PlainTransactionInfoResponse>,
         name: AuthorityName,
         weight: StakeUnit,
-    ) -> SuiResult<Option<ProcessTransactionResult>> {
+    ) -> IotaResult<Option<ProcessTransactionResult>> {
         match response {
             Ok(PlainTransactionInfoResponse::Signed(signed)) => {
                 debug!(?tx_digest, name=?name.concise(), weight, "Received signed transaction from validator handle_transaction");
@@ -1337,7 +1338,7 @@ where
         &self,
         state: &mut ProcessTransactionState,
         plain_tx: SignedTransaction,
-    ) -> SuiResult<Option<ProcessTransactionResult>> {
+    ) -> IotaResult<Option<ProcessTransactionResult>> {
         match state.tx_signatures.insert(plain_tx.clone()) {
             InsertResult::NotEnoughVotes {
                 bad_votes,
@@ -1346,7 +1347,7 @@ where
                 state.non_retryable_stake += bad_votes;
                 if bad_votes > 0 {
                     state.errors.push((
-                        SuiError::InvalidSignature {
+                        IotaError::InvalidSignature {
                             error: "Individual signature verification failed".to_string(),
                         },
                         bad_authorities,
@@ -1374,7 +1375,7 @@ where
         certificate: Option<CertifiedTransaction>,
         plain_tx_effects: SignedTransactionEffects,
         events: TransactionEvents,
-    ) -> SuiResult<Option<ProcessTransactionResult>> {
+    ) -> IotaResult<Option<ProcessTransactionResult>> {
         match certificate {
             Some(certificate) if certificate.epoch() == self.committee.epoch => {
                 // If we get a certificate in the same epoch, then we use it.
@@ -1398,7 +1399,7 @@ where
                         state.non_retryable_stake += bad_votes;
                         if bad_votes > 0 {
                             state.errors.push((
-                                SuiError::InvalidSignature {
+                                IotaError::InvalidSignature {
                                     error: "Individual signature verification failed".to_string(),
                                 },
                                 bad_authorities,
@@ -1471,7 +1472,7 @@ where
             // TODO: Instead of pushing a new error, we should add more information about the non-quorum effects
             // in the final error if state is no longer retryable
             state.errors.push((
-                SuiError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction {
+                IotaError::QuorumFailedToGetEffectsQuorumWhenProcessingTransaction {
                     effects_map: non_quorum_effects,
                 },
                 involved_validators,
@@ -1649,12 +1650,12 @@ where
             );
 
             // record errors and tx retryable state
-            for (sui_err, _, _) in state.retryable_errors.iter().chain(state.non_retryable_errors.iter()) {
+            for (iota_err, _, _) in state.retryable_errors.iter().chain(state.non_retryable_errors.iter()) {
                 self
                     .metrics
                     .total_aggregated_err
                     .with_label_values(&[
-                        sui_err.as_ref(),
+                        iota_err.as_ref(),
                         if state.retryable {
                             "recoverable"
                         } else {
@@ -1707,9 +1708,9 @@ where
         metrics: &AuthAggMetrics,
         tx_digest: &TransactionDigest,
         state: &mut ProcessCertificateState,
-        response: SuiResult<HandleCertificateResponseV3>,
+        response: IotaResult<HandleCertificateResponseV3>,
         name: AuthorityName,
-    ) -> SuiResult<Option<QuorumDriverResponse>> {
+    ) -> IotaResult<Option<QuorumDriverResponse>> {
         match response {
             Ok(HandleCertificateResponseV3 {
                 effects: signed_effects,
@@ -1753,7 +1754,7 @@ where
                         state.non_retryable_stake += bad_votes;
                         if bad_votes > 0 {
                             state.non_retryable_errors.push((
-                                SuiError::InvalidSignature {
+                                IotaError::InvalidSignature {
                                     error: "Individual signature verification failed".to_string(),
                                 },
                                 bad_authorities,
@@ -1839,7 +1840,7 @@ where
         // authorities known to have the transaction info we are requesting.
         validators: &BTreeSet<AuthorityName>,
         timeout_total: Option<Duration>,
-    ) -> SuiResult<PlainTransactionInfoResponse> {
+    ) -> IotaResult<PlainTransactionInfoResponse> {
         self.quorum_once_with_timeout(
             None,
             Some(validators),

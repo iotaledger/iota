@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::{fs, io::Read, path::PathBuf};
-use sui_framework::SystemPackage;
-use sui_types::base_types::ObjectID;
-use sui_types::{
-    BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, SUI_FRAMEWORK_PACKAGE_ID,
-    SUI_SYSTEM_PACKAGE_ID,
+use iota_framework::SystemPackage;
+use iota_types::base_types::ObjectID;
+use iota_types::{
+    BRIDGE_PACKAGE_ID, DEEPBOOK_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID,
 };
 
 pub type SnapshotManifest = BTreeMap<u64, SingleSnapshot>;
@@ -32,8 +33,8 @@ impl SingleSnapshot {
 
 const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectID] = &[
     MOVE_STDLIB_PACKAGE_ID,
-    SUI_FRAMEWORK_PACKAGE_ID,
-    SUI_SYSTEM_PACKAGE_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID,
+    IOTA_SYSTEM_PACKAGE_ID,
     DEEPBOOK_PACKAGE_ID,
     BRIDGE_PACKAGE_ID,
 ];

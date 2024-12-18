@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiNSEnabled } from '@mysten/core';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { type SuiClient } from '@mysten/sui/client';
-import { isValidSuiAddress, isValidSuiNSName } from '@mysten/sui/utils';
+import { useIotaNSEnabled } from '@iota/core';
+import { useIotaClient } from '@iota/dapp-kit';
+import { type IotaClient } from '@iota/iota-sdk/client';
+import { isValidIotaAddress, isValidIotaNSName } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 import * as Yup from 'yup';
 
 const CACHE_EXPIRY_TIME = 60 * 1000; // 1 minute in milliseconds
 
-export function createSuiAddressValidation(client: SuiClient, suiNSEnabled: boolean) {
+export function createIotaAddressValidation(client: IotaClient, iotaNSEnabled: boolean) {
 	const resolveCache = new Map<string, { valid: boolean; expiry: number }>();
 
 	const currentTime = Date.now();
@@ -18,8 +19,8 @@ export function createSuiAddressValidation(client: SuiClient, suiNSEnabled: bool
 		.ensure()
 		.trim()
 		.required()
-		.test('is-sui-address', 'Invalid address. Please check again.', async (value) => {
-			if (suiNSEnabled && isValidSuiNSName(value)) {
+		.test('is-iota-address', 'Invalid address. Please check again.', async (value) => {
+			if (iotaNSEnabled && isValidIotaNSName(value)) {
 				if (resolveCache.has(value)) {
 					const cachedEntry = resolveCache.get(value)!;
 					if (currentTime < cachedEntry.expiry) {
@@ -41,16 +42,16 @@ export function createSuiAddressValidation(client: SuiClient, suiNSEnabled: bool
 				return !!address;
 			}
 
-			return isValidSuiAddress(value);
+			return isValidIotaAddress(value);
 		})
 		.label("Recipient's address");
 }
 
-export function useSuiAddressValidation() {
-	const client = useSuiClient();
-	const suiNSEnabled = useSuiNSEnabled();
+export function useIotaAddressValidation() {
+	const client = useIotaClient();
+	const iotaNSEnabled = useIotaNSEnabled();
 
 	return useMemo(() => {
-		return createSuiAddressValidation(client, suiNSEnabled);
-	}, [client, suiNSEnabled]);
+		return createIotaAddressValidation(client, iotaNSEnabled);
+	}, [client, iotaNSEnabled]);
 }

@@ -1,11 +1,11 @@
 [package]
-name = "SuiSystemShallowUpgrade"
+name = "IotaSystemShallowUpgrade"
 version = "0.0.1"
 edition = "2024.beta"
 
 [dependencies]
-Sui = { local = "../../../../../sui-framework/packages/sui-framework" }
-MoveStdlib = { local = "../../../../../sui-framework/packages/move-stdlib" }
+Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
+MoveStdlib = { local = "../../../../../iota-framework/packages/move-stdlib" }
 
 [addresses]
-sui_system = "0x3"
+iota_system = "0x3"

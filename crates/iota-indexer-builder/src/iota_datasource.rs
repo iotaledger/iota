@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::indexer_builder::{DataSender, Datasource};
@@ -6,17 +7,17 @@ use crate::metrics::IndexerMetricProvider;
 use crate::Task;
 use anyhow::Error;
 use async_trait::async_trait;
-use mysten_metrics::{metered_channel, spawn_monitored_task};
+use iota_metrics::{metered_channel, spawn_monitored_task};
 use prometheus::IntGauge;
 use std::path::PathBuf;
 use std::sync::Arc;
-use sui_data_ingestion_core::{
+use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, Worker, WorkerPool,
 };
-use sui_sdk::SuiClient;
-use sui_types::full_checkpoint_content::CheckpointData as SuiCheckpointData;
-use sui_types::full_checkpoint_content::CheckpointTransaction;
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_sdk::IotaClient;
+use iota_types::full_checkpoint_content::CheckpointData as IotaCheckpointData;
+use iota_types::full_checkpoint_content::CheckpointTransaction;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tokio::sync::oneshot;
 use tokio::sync::oneshot::Sender;
 use tokio::task::JoinHandle;
@@ -24,28 +25,28 @@ use tokio::task::JoinHandle;
 const BACKFILL_TASK_INGESTION_READER_BATCH_SIZE: usize = 300;
 const LIVE_TASK_INGESTION_READER_BATCH_SIZE: usize = 10;
 
-pub struct SuiCheckpointDatasource {
+pub struct IotaCheckpointDatasource {
     remote_store_url: String,
-    sui_client: Arc<SuiClient>,
+    iota_client: Arc<IotaClient>,
     concurrency: usize,
     checkpoint_path: PathBuf,
     genesis_checkpoint: u64,
     ingestion_metrics: DataIngestionMetrics,
     metrics: Box<dyn IndexerMetricProvider>,
 }
-impl SuiCheckpointDatasource {
+impl IotaCheckpointDatasource {
     pub fn new(
         remote_store_url: String,
-        sui_client: Arc<SuiClient>,
+        iota_client: Arc<IotaClient>,
         concurrency: usize,
         checkpoint_path: PathBuf,
         genesis_checkpoint: u64,
         ingestion_metrics: DataIngestionMetrics,
         metrics: Box<dyn IndexerMetricProvider>,
     ) -> Self {
-        SuiCheckpointDatasource {
+        IotaCheckpointDatasource {
             remote_store_url,
-            sui_client,
+            iota_client,
             concurrency,
             checkpoint_path,
             genesis_checkpoint,
@@ -56,7 +57,7 @@ impl SuiCheckpointDatasource {
 }
 
 #[async_trait]
-impl Datasource<CheckpointTxnData> for SuiCheckpointDatasource {
+impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
     async fn start_data_retrieval(
         &self,
         task: Task,
@@ -79,7 +80,7 @@ impl Datasource<CheckpointTxnData> for SuiCheckpointDatasource {
                 .unwrap()
         };
         tracing::info!(
-            "Starting Sui checkpoint data retrieval with batch size {}",
+            "Starting Iota checkpoint data retrieval with batch size {}",
             ingestion_reader_batch_size
         );
         let mut executor = IndexerExecutor::new(progress_store, 1, self.ingestion_metrics.clone());
@@ -110,7 +111,7 @@ impl Datasource<CheckpointTxnData> for SuiCheckpointDatasource {
     }
 
     async fn get_live_task_starting_checkpoint(&self) -> Result<u64, Error> {
-        self.sui_client
+        self.iota_client
             .read_api()
             .get_latest_checkpoint_sequence_number()
             .await
@@ -187,7 +188,7 @@ pub type CheckpointTxnData = (CheckpointTransaction, u64, u64);
 impl Worker for IndexerWorker<CheckpointTxnData> {
     type Result = ();
 
-    async fn process_checkpoint(&self, checkpoint: &SuiCheckpointData) -> anyhow::Result<()> {
+    async fn process_checkpoint(&self, checkpoint: &IotaCheckpointData) -> anyhow::Result<()> {
         tracing::trace!(
             "Received checkpoint [{}] {}: {}",
             checkpoint.checkpoint_summary.epoch,

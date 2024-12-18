@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::{Context, Result};
 use core::time::Duration;
@@ -38,7 +39,7 @@ pub struct RemoteWriteConfig {
     pub pool_max_idle_per_host: usize,
 }
 
-/// DynamicPeerValidationConfig controls what sui-node & sui-bridge binaries that are functioning as a validator that we'll speak with.
+/// DynamicPeerValidationConfig controls what iota-node & iota-bridge binaries that are functioning as a validator that we'll speak with.
 /// Peer in this case is peers within the consensus committee, for each epoch.  This membership is determined dynamically
 /// for each epoch via json-rpc calls to a full node.
 #[serde_as]
@@ -95,7 +96,7 @@ fn hostname_default() -> Option<String> {
 
 /// the default remote write url
 fn remote_write_url() -> String {
-    "http://metrics-gw.testnet.sui.io/api/v1/push".to_string()
+    "http://metrics-gw.testnet.iota.io/api/v1/push".to_string()
 }
 
 /// load our config file from a path

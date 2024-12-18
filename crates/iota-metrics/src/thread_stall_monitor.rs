@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -33,7 +34,7 @@ const ALERT_THRESHOLD: Duration = Duration::from_millis(500);
 //      end
 //
 // Then run gdb with:
-//     gdb -x gdbmcmd -p <pid of sui-node>
+//     gdb -x gdbmcmd -p <pid of iota-node>
 //
 // You will need to type `c` to continue the process after it loads.
 //

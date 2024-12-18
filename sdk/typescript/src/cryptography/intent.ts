@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { bcs } from '../bcs/index.js';
@@ -14,7 +15,7 @@ export function messageWithIntent(scope: IntentScope, message: Uint8Array) {
 			intent: {
 				scope: { [scope as 'PersonalMessage']: true },
 				version: { V0: true },
-				appId: { Sui: true },
+				appId: { Iota: true },
 			},
 			value: message,
 		})

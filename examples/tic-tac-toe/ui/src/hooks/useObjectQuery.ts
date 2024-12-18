@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientContext, useSuiClientQuery, UseSuiClientQueryOptions } from '@mysten/dapp-kit';
-import { GetObjectParams, SuiObjectResponse } from '@mysten/sui/client';
+import { useIotaClientContext, useIotaClientQuery, UseIotaClientQueryOptions } from '@iota/dapp-kit';
+import { GetObjectParams, IotaObjectResponse } from '@iota/iota-sdk/client';
 import { useQueryClient, UseQueryResult } from '@tanstack/react-query';
 
-export type UseObjectQueryOptions = UseSuiClientQueryOptions<'getObject', SuiObjectResponse>;
-export type UseObjectQueryResponse = UseQueryResult<SuiObjectResponse, Error>;
+export type UseObjectQueryOptions = UseIotaClientQueryOptions<'getObject', IotaObjectResponse>;
+export type UseObjectQueryResponse = UseQueryResult<IotaObjectResponse, Error>;
 export type InvalidateUseObjectQuery = () => void;
 
 /**
@@ -17,9 +18,9 @@ export function useObjectQuery(
 	params: GetObjectParams,
 	options?: UseObjectQueryOptions,
 ): [UseObjectQueryResponse, InvalidateUseObjectQuery] {
-	const ctx = useSuiClientContext();
+	const ctx = useIotaClientContext();
 	const client = useQueryClient();
-	const response = useSuiClientQuery('getObject', params, options);
+	const response = useIotaClientQuery('getObject', params, options);
 
 	const invalidate = async () => {
 		await client.invalidateQueries({

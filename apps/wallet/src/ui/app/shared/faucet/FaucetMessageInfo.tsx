@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { GAS_TYPE_ARG } from '_redux/slices/sui-objects/Coin';
-import { useFormatCoin } from '@mysten/core';
+import { GAS_TYPE_ARG } from '_redux/slices/iota-objects/Coin';
+import { useFormatCoin } from '@iota/core';
 
 export type FaucetMessageInfoProps = {
 	error?: string | null;

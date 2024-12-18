@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui_system::storage_fund {
-    use sui::balance::{Self, Balance};
-    use sui::sui::SUI;
+module iota_system::storage_fund {
+    use iota::balance::{Self, Balance};
+    use iota::iota::IOTA;
 
     /// Struct representing the storage fund, containing two `Balance`s:
     /// - `total_object_storage_rebates` has the invariant that it's the sum of `storage_rebate` of
@@ -14,12 +15,12 @@ module sui_system::storage_fund {
     /// - `non_refundable_balance` contains any remaining inflow of the storage fund that should not
     ///    be taken out of the fund.
     public struct StorageFund has store {
-        total_object_storage_rebates: Balance<SUI>,
-        non_refundable_balance: Balance<SUI>,
+        total_object_storage_rebates: Balance<IOTA>,
+        non_refundable_balance: Balance<IOTA>,
     }
 
-    /// Called by `sui_system` at genesis time.
-    public(package) fun new(initial_fund: Balance<SUI>) : StorageFund {
+    /// Called by `iota_system` at genesis time.
+    public(package) fun new(initial_fund: Balance<IOTA>) : StorageFund {
         StorageFund {
             // At the beginning there's no object in the storage yet
             total_object_storage_rebates: balance::zero(),
@@ -27,15 +28,15 @@ module sui_system::storage_fund {
         }
     }
 
-    /// Called by `sui_system` at epoch change times to process the inflows and outflows of storage fund.
+    /// Called by `iota_system` at epoch change times to process the inflows and outflows of storage fund.
     public(package) fun advance_epoch(
         self: &mut StorageFund,
-        storage_charges: Balance<SUI>,
-        storage_fund_reinvestment: Balance<SUI>,
-        leftover_staking_rewards: Balance<SUI>,
+        storage_charges: Balance<IOTA>,
+        storage_fund_reinvestment: Balance<IOTA>,
+        leftover_staking_rewards: Balance<IOTA>,
         storage_rebate_amount: u64,
         non_refundable_storage_fee_amount: u64,
-    ) : Balance<SUI> {
+    ) : Balance<IOTA> {
         // Both the reinvestment and leftover rewards are not to be refunded so they go to the non-refundable balance.
         self.non_refundable_balance.join(storage_fund_reinvestment);
         self.non_refundable_balance.join(leftover_staking_rewards);

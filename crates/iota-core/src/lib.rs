@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 extern crate core;
@@ -61,8 +62,8 @@ mod move_package_tests;
 #[path = "unit_tests/move_package_upgrade_tests.rs"]
 mod move_package_upgrade_tests;
 #[cfg(test)]
-#[path = "unit_tests/pay_sui_tests.rs"]
-mod pay_sui_tests;
+#[path = "unit_tests/pay_iota_tests.rs"]
+mod pay_iota_tests;
 #[cfg(test)]
 #[path = "unit_tests/shared_object_deletion_tests.rs"]
 mod shared_object_deletion_tests;

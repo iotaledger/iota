@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::mock_account::Account;
 use crate::tx_generator::TxGenerator;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::ObjectID;
-use sui_types::transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::ObjectID;
+use iota_types::transaction::{Transaction, DEFAULT_VALIDATOR_GAS_PRICE};
 
 pub struct SharedObjectCreateTxGenerator {
     move_package: ObjectID,

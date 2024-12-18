@@ -1,3 +1,4 @@
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -151,7 +152,7 @@ contract BridgeLimiterTest is BridgeBaseTest {
 
         // deploy new config contract with 2 supported chains
         address[] memory _supportedTokens = new address[](5);
-        _supportedTokens[0] = address(0); // SUI
+        _supportedTokens[0] = address(0); // IOTA
         _supportedTokens[1] = wBTC;
         _supportedTokens[2] = wETH;
         _supportedTokens[3] = USDC;
@@ -163,7 +164,7 @@ contract BridgeLimiterTest is BridgeBaseTest {
             "BridgeConfig.sol",
             abi.encodeCall(
                 BridgeConfig.initialize,
-                (address(committee), chainID, _supportedTokens, tokenPrices, tokenIds, suiDecimals, supportedChains)
+                (address(committee), chainID, _supportedTokens, tokenPrices, tokenIds, iotaDecimals, supportedChains)
             ),
             opts
         );
@@ -256,7 +257,7 @@ contract BridgeLimiterTest is BridgeBaseTest {
 
         // deploy config
         tokenPrices = new uint64[](5);
-        tokenPrices[0] = 10000; // SUI PRICE
+        tokenPrices[0] = 10000; // IOTA PRICE
         tokenPrices[1] = 10000; // BTC PRICE
         tokenPrices[2] = 10000; // ETH PRICE
         tokenPrices[3] = 10000; // USDC PRICE
@@ -265,7 +266,7 @@ contract BridgeLimiterTest is BridgeBaseTest {
             "BridgeConfig.sol",
             abi.encodeCall(
                 BridgeConfig.initialize,
-                (address(committee), chainID, supportedTokens, tokenPrices, tokenIds, suiDecimals, _supportedChains)
+                (address(committee), chainID, supportedTokens, tokenPrices, tokenIds, iotaDecimals, _supportedChains)
             ),
             opts
         );
@@ -288,10 +289,10 @@ contract BridgeLimiterTest is BridgeBaseTest {
             opts
         );
         limiter = BridgeLimiter(_limiter);
-        address _suiBridge = Upgrades.deployUUPSProxy(
-            "SuiBridge.sol",
+        address _iotaBridge = Upgrades.deployUUPSProxy(
+            "IotaBridge.sol",
             abi.encodeCall(
-                SuiBridge.initialize, (address(committee), address(vault), address(limiter))
+                IotaBridge.initialize, (address(committee), address(vault), address(limiter))
             ),
             opts
         );
@@ -342,7 +343,7 @@ contract BridgeLimiterTest is BridgeBaseTest {
 
         // deploy config
         tokenPrices = new uint64[](5);
-        tokenPrices[0] = 10000; // SUI PRICE
+        tokenPrices[0] = 10000; // IOTA PRICE
         tokenPrices[1] = 10000; // BTC PRICE
         tokenPrices[2] = 10000; // ETH PRICE
         tokenPrices[3] = 10000; // USDC PRICE
@@ -351,7 +352,7 @@ contract BridgeLimiterTest is BridgeBaseTest {
             "BridgeConfig.sol",
             abi.encodeCall(
                 BridgeConfig.initialize,
-                (address(committee), chainID, supportedTokens, tokenPrices, tokenIds, suiDecimals, _supportedChains)
+                (address(committee), chainID, supportedTokens, tokenPrices, tokenIds, iotaDecimals, _supportedChains)
             ),
             opts
         );
@@ -375,10 +376,10 @@ contract BridgeLimiterTest is BridgeBaseTest {
             opts
         );
         limiter = BridgeLimiter(_limiter);
-        address _suiBridge = Upgrades.deployUUPSProxy(
-            "SuiBridge.sol",
+        address _iotaBridge = Upgrades.deployUUPSProxy(
+            "IotaBridge.sol",
             abi.encodeCall(
-                SuiBridge.initialize, (address(committee), address(vault), address(limiter))
+                IotaBridge.initialize, (address(committee), address(vault), address(limiter))
             ),
             opts
         );

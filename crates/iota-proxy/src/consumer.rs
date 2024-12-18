@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::admin::ReqwestClient;
@@ -70,7 +71,7 @@ static CONSUMER_OPERATION_DURATION: Lazy<HistogramVec> = Lazy::new(|| {
 #[derive(Debug)]
 pub struct NodeMetric {
     pub peer_addr: Multiaddr, // the sockaddr source address from the incoming request
-    pub public_key: Ed25519PublicKey, // the public key from the sui blockchain
+    pub public_key: Ed25519PublicKey, // the public key from the iota blockchain
     pub data: Vec<proto::MetricFamily>, // decoded protobuf of prometheus data
 }
 
@@ -85,7 +86,7 @@ impl ProtobufDecoder {
     pub fn new(buf: Reader<Bytes>) -> Self {
         Self { buf }
     }
-    /// parse a delimited buffer of protobufs. this is used to consume data sent from a sui-node
+    /// parse a delimited buffer of protobufs. this is used to consume data sent from a iota-node
     pub fn parse<T: protobuf::Message>(&mut self) -> Result<Vec<T>> {
         let timer = CONSUMER_OPERATION_DURATION
             .with_label_values(&["decode_len_delim_protobuf"])

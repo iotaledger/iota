@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { isBasePayload } from '_payloads';
 import type { BasePayload, Payload } from '_payloads';
-import { type SuiSignTransactionBlockInput } from '@mysten/wallet-standard';
+import { type IotaSignTransactionBlockInput } from '@iota/wallet-standard';
 
 import { type TransactionDataType } from './ApprovalRequest';
 
@@ -18,8 +19,8 @@ export function isExecuteTransactionRequest(
 	return isBasePayload(payload) && payload.type === 'execute-transaction-request';
 }
 
-export type SuiSignTransactionSerialized = Omit<
-	SuiSignTransactionBlockInput,
+export type IotaSignTransactionSerialized = Omit<
+	IotaSignTransactionBlockInput,
 	'transactionBlock' | 'account'
 > & {
 	transaction: string;
@@ -28,7 +29,7 @@ export type SuiSignTransactionSerialized = Omit<
 
 export interface SignTransactionRequest extends BasePayload {
 	type: 'sign-transaction-request';
-	transaction: SuiSignTransactionSerialized;
+	transaction: IotaSignTransactionSerialized;
 }
 
 export function isSignTransactionRequest(payload: Payload): payload is SignTransactionRequest {

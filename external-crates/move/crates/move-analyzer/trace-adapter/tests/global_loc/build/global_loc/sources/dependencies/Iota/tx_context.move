@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module sui::tx_context;
+module iota::tx_context;
 
 #[test_only]
 /// Number of bytes in an tx hash (which will be the transaction digest)

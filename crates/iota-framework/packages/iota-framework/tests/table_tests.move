@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::table_tests {
-    use sui::table;
-    use sui::test_scenario;
+module iota::table_tests {
+    use iota::table;
+    use iota::test_scenario;
 
     #[test]
     fun simple_all_functions() {
@@ -37,7 +38,7 @@ module sui::table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldAlreadyExists)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
     fun add_duplicate() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -48,7 +49,7 @@ module sui::table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun borrow_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -58,7 +59,7 @@ module sui::table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun borrow_mut_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -68,7 +69,7 @@ module sui::table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun remove_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -78,7 +79,7 @@ module sui::table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::table::ETableNotEmpty)]
+    #[expected_failure(abort_code = iota::table::ETableNotEmpty)]
     fun destroy_non_empty() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);

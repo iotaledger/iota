@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt;
 
 use async_graphql::*;
-use sui_types::{base_types::SequenceNumber, sui_serde::BigInt};
+use iota_types::{base_types::SequenceNumber, iota_serde::BigInt};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) struct UInt53(u64);

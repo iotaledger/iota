@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@mysten/sui/bcs';
-import type { SuiClient } from '@mysten/sui/client';
-import { SuiGraphQLClient } from '@mysten/sui/graphql';
-import { graphql } from '@mysten/sui/graphql/schemas/2024.4';
-import { fromBase64, normalizeSuiAddress } from '@mysten/sui/utils';
+import { bcs } from '@iota/iota-sdk/bcs';
+import type { IotaClient } from '@iota/iota-sdk/client';
+import { IotaGraphQLClient } from '@iota/iota-sdk/graphql';
+import { graphql } from '@iota/iota-sdk/graphql/schemas/2024.4';
+import { fromBase64, normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 import { ZkSendLink } from './claim.js';
 import type { ZkBagContractOptions } from './zk-bag.js';
 import { getContractIds } from './zk-bag.js';
 
 const ListCreatedLinksQuery = graphql(`
-	query listCreatedLinks($address: SuiAddress!, $function: String!, $cursor: String) {
+	query listCreatedLinks($address: IotaAddress!, $function: String!, $cursor: String) {
 		transactionBlocks(
 			last: 10
 			before: $cursor
@@ -50,18 +51,18 @@ export async function listCreatedLinks({
 	host?: string;
 	path?: string;
 	claimApi?: string;
-	client?: SuiClient;
+	client?: IotaClient;
 	fetch?: typeof fetch;
 }) {
-	const gqlClient = new SuiGraphQLClient({
+	const gqlClient = new IotaGraphQLClient({
 		url:
 			network === 'testnet'
-				? 'https://sui-testnet.mystenlabs.com/graphql'
-				: 'https://sui-mainnet.mystenlabs.com/graphql',
+				? 'https://iota-testnet.iota.org/graphql'
+				: 'https://iota-mainnet.iota.org/graphql',
 		fetch: fetchFn,
 	});
 
-	const packageId = normalizeSuiAddress(contract.packageId);
+	const packageId = normalizeIotaAddress(contract.packageId);
 
 	const page = await gqlClient.query({
 		query: ListCreatedLinksQuery,

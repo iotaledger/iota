@@ -1,8 +1,8 @@
 // allowed, even though a bit pointless
 module a::m {
-    use sui::object::{Self, UID};
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer::transfer;
+    use iota::object::{Self, UID};
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer::transfer;
 
     struct Obj has key {
         id: UID
@@ -22,11 +22,11 @@ module a::m {
 
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }
-    public fun new(_: &mut sui::tx_context::TxContext): UID {
+    public fun new(_: &mut iota::tx_context::TxContext): UID {
         abort 0
     }
     public fun delete(_: UID) {
@@ -34,14 +34,14 @@ module sui::object {
     }
 }
 
-module sui::tx_context {
+module iota::tx_context {
     struct TxContext has drop {}
     public fun sender(_: &TxContext): address {
         @0
     }
 }
 
-module sui::transfer {
+module iota::transfer {
     public fun transfer<T: key>(_: T, _: address) {
         abort 0
     }

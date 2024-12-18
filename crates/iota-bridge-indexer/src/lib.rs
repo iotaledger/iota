@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::config::IndexerConfig;
@@ -8,29 +9,29 @@ use crate::eth_bridge_indexer::{
 use crate::metrics::BridgeIndexerMetrics;
 use crate::models::GovernanceAction as DBGovernanceAction;
 use crate::models::TokenTransferData as DBTokenTransferData;
-use crate::models::{SuiErrorTransactions, TokenTransfer as DBTokenTransfer};
+use crate::models::{IotaErrorTransactions, TokenTransfer as DBTokenTransfer};
 use crate::postgres_manager::PgPool;
 use crate::storage::PgBridgePersistent;
-use crate::sui_bridge_indexer::SuiBridgeDataMapper;
+use crate::iota_bridge_indexer::IotaBridgeDataMapper;
 use ethers::providers::{Http, Provider};
 use ethers::types::Address as EthAddress;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::sync::Arc;
 use strum_macros::Display;
-use sui_bridge::eth_client::EthClient;
-use sui_bridge::metered_eth_provider::MeteredEthHttpProvier;
-use sui_bridge::metrics::BridgeMetrics;
-use sui_bridge::utils::get_eth_contract_addresses;
-use sui_data_ingestion_core::DataIngestionMetrics;
-use sui_indexer_builder::indexer_builder::{BackfillStrategy, Datasource, Indexer, IndexerBuilder};
-use sui_indexer_builder::metrics::IndexerMetricProvider;
-use sui_indexer_builder::progress::{
+use iota_bridge::eth_client::EthClient;
+use iota_bridge::metered_eth_provider::MeteredEthHttpProvier;
+use iota_bridge::metrics::BridgeMetrics;
+use iota_bridge::utils::get_eth_contract_addresses;
+use iota_data_ingestion_core::DataIngestionMetrics;
+use iota_indexer_builder::indexer_builder::{BackfillStrategy, Datasource, Indexer, IndexerBuilder};
+use iota_indexer_builder::metrics::IndexerMetricProvider;
+use iota_indexer_builder::progress::{
     OutOfOrderSaveAfterDurationPolicy, ProgressSavingPolicy, SaveAfterDurationPolicy,
 };
-use sui_indexer_builder::sui_datasource::SuiCheckpointDatasource;
-use sui_sdk::SuiClientBuilder;
-use sui_types::base_types::{SuiAddress, TransactionDigest};
+use iota_indexer_builder::iota_datasource::IotaCheckpointDatasource;
+use iota_sdk::IotaClientBuilder;
+use iota_types::base_types::{IotaAddress, TransactionDigest};
 
 pub mod config;
 pub mod metrics;
@@ -38,24 +39,24 @@ pub mod models;
 pub mod postgres_manager;
 pub mod schema;
 pub mod storage;
-pub mod sui_transaction_handler;
-pub mod sui_transaction_queries;
+pub mod iota_transaction_handler;
+pub mod iota_transaction_queries;
 pub mod types;
 
 pub mod eth_bridge_indexer;
-pub mod sui_bridge_indexer;
+pub mod iota_bridge_indexer;
 
 #[derive(Clone)]
 pub enum ProcessedTxnData {
     TokenTransfer(TokenTransfer),
     GovernanceAction(GovernanceAction),
-    Error(SuiTxnError),
+    Error(IotaTxnError),
 }
 
 #[derive(Clone)]
-pub struct SuiTxnError {
+pub struct IotaTxnError {
     tx_digest: TransactionDigest,
-    sender: SuiAddress,
+    sender: IotaAddress,
     timestamp_ms: u64,
     failure_status: String,
     cmd_idx: Option<u64>,
@@ -130,9 +131,9 @@ impl TokenTransfer {
     }
 }
 
-impl SuiTxnError {
-    fn to_db(&self) -> SuiErrorTransactions {
-        SuiErrorTransactions {
+impl IotaTxnError {
+    fn to_db(&self) -> IotaErrorTransactions {
+        IotaErrorTransactions {
             txn_digest: self.tx_digest.inner().to_vec(),
             sender_address: self.sender.to_vec(),
             timestamp_ms: self.timestamp_ms as i64,
@@ -181,13 +182,13 @@ pub(crate) enum GovernanceActionType {
     UpdateBridgeLimit,
     UpdateTokenPrices,
     UpgradeEVMContract,
-    AddSuiTokens,
+    AddIotaTokens,
     AddEVMTokens,
 }
 
 #[derive(Clone)]
 enum BridgeDataSource {
-    Sui,
+    Iota,
     Eth,
 }
 
@@ -195,19 +196,19 @@ impl Display for BridgeDataSource {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {
             BridgeDataSource::Eth => "ETH",
-            BridgeDataSource::Sui => "SUI",
+            BridgeDataSource::Iota => "IOTA",
         };
         write!(f, "{str}")
     }
 }
 
-pub async fn create_sui_indexer(
+pub async fn create_iota_indexer(
     pool: PgPool,
     metrics: BridgeIndexerMetrics,
     ingestion_metrics: DataIngestionMetrics,
     config: &IndexerConfig,
 ) -> anyhow::Result<
-    Indexer<PgBridgePersistent, SuiCheckpointDatasource, SuiBridgeDataMapper>,
+    Indexer<PgBridgePersistent, IotaCheckpointDatasource, IotaBridgeDataMapper>,
     anyhow::Error,
 > {
     let datastore_with_out_of_order_source = PgBridgePersistent::new(
@@ -217,30 +218,30 @@ pub async fn create_sui_indexer(
         )),
     );
 
-    let sui_client = Arc::new(
-        SuiClientBuilder::default()
-            .build(config.sui_rpc_url.clone())
+    let iota_client = Arc::new(
+        IotaClientBuilder::default()
+            .build(config.iota_rpc_url.clone())
             .await?,
     );
 
-    let sui_checkpoint_datasource = SuiCheckpointDatasource::new(
+    let iota_checkpoint_datasource = IotaCheckpointDatasource::new(
         config.remote_store_url.clone(),
-        sui_client,
+        iota_client,
         config.concurrency as usize,
         config
             .checkpoints_path
             .clone()
             .map(|p| p.into())
             .unwrap_or(tempfile::tempdir()?.into_path()),
-        config.sui_bridge_genesis_checkpoint,
+        config.iota_bridge_genesis_checkpoint,
         ingestion_metrics,
         metrics.clone().boxed(),
     );
 
     Ok(IndexerBuilder::new(
-        "SuiBridgeIndexer",
-        sui_checkpoint_datasource,
-        SuiBridgeDataMapper { metrics },
+        "IotaBridgeIndexer",
+        iota_checkpoint_datasource,
+        IotaBridgeDataMapper { metrics },
         datastore_with_out_of_order_source,
     )
     .build())
@@ -329,7 +330,7 @@ async fn create_eth_indexer_builder<T: Send, D: Datasource<T>>(
 async fn get_eth_bridge_contract_addresses(
     config: &IndexerConfig,
 ) -> Result<Vec<EthAddress>, anyhow::Error> {
-    let bridge_address = EthAddress::from_str(&config.eth_sui_bridge_contract_address)?;
+    let bridge_address = EthAddress::from_str(&config.eth_iota_bridge_contract_address)?;
     let provider = Arc::new(
         Provider::<Http>::try_from(&config.eth_rpc_url)?
             .interval(std::time::Duration::from_millis(2000)),

@@ -9,12 +9,12 @@
 	"updateInternalDependencies": "minor",
 	"privatePackages": false,
 	"ignore": [
-		"sui-wallet",
-		"@mysten/core",
+		"iota-wallet",
+		"@iota/core",
 		"sponsored-transactions",
 		"kiosk-demo",
 		"kiosk-cli",
-		"@mysten/sdk-docs",
+		"@iota/sdk-docs",
 		"mev-bot",
 		"escrow-api-demo",
 		"trading-frontend-demo"

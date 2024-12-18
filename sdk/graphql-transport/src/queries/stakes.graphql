@@ -1,9 +1,10 @@
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-query getStakes($owner: SuiAddress!, $limit: Int, $cursor: String) {
+query getStakes($owner: IotaAddress!, $limit: Int, $cursor: String) {
 	address(address: $owner) {
-		stakedSuis(first: $limit, after: $cursor) {
+		stakedIotas(first: $limit, after: $cursor) {
 			pageInfo {
 				hasNextPage
 				endCursor
@@ -15,7 +16,7 @@ query getStakes($owner: SuiAddress!, $limit: Int, $cursor: String) {
 	}
 }
 
-query getStakesByIds($ids: [SuiAddress!]!, $limit: Int, $cursor: String) {
+query getStakesByIds($ids: [IotaAddress!]!, $limit: Int, $cursor: String) {
 	objects(first: $limit, after: $cursor, filter: { objectIds: $ids }) {
 		pageInfo {
 			hasNextPage
@@ -23,7 +24,7 @@ query getStakesByIds($ids: [SuiAddress!]!, $limit: Int, $cursor: String) {
 		}
 		nodes {
 			asMoveObject {
-				asStakedSui {
+				asStakedIota {
 					...RPC_STAKE_FIELDS
 				}
 			}
@@ -31,7 +32,7 @@ query getStakesByIds($ids: [SuiAddress!]!, $limit: Int, $cursor: String) {
 	}
 }
 
-fragment RPC_STAKE_FIELDS on StakedSui {
+fragment RPC_STAKE_FIELDS on StakedIota {
 	principal
 	activatedEpoch {
 		epochId

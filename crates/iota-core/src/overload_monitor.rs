@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::AuthorityState;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use std::cmp::{max, min};
 use std::hash::Hasher;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Weak;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
-use sui_config::node::AuthorityOverloadConfig;
-use sui_types::digests::TransactionDigest;
-use sui_types::error::SuiError;
-use sui_types::error::SuiResult;
-use sui_types::fp_bail;
+use iota_config::node::AuthorityOverloadConfig;
+use iota_types::digests::TransactionDigest;
+use iota_types::error::IotaError;
+use iota_types::error::IotaResult;
+use iota_types::fp_bail;
 use tokio::time::sleep;
 use tracing::{debug, info};
 use twox_hash::XxHash64;
@@ -234,7 +235,7 @@ fn should_reject_tx(
 pub fn overload_monitor_accept_tx(
     load_shedding_percentage: u32,
     tx_digest: TransactionDigest,
-) -> SuiResult {
+) -> IotaResult {
     // Derive a random seed from the epoch time for transaction selection. Changing the seed every
     // `SEED_UPDATE_DURATION_SECS` interval allows rejected transaction's retry to have a chance
     // to go through in the future.
@@ -242,14 +243,14 @@ pub fn overload_monitor_accept_tx(
     // makes the same decision.
     let temporal_seed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Sui did not exist prior to 1970")
+        .expect("Iota did not exist prior to 1970")
         .as_secs()
         / SEED_UPDATE_DURATION_SECS;
 
     if should_reject_tx(load_shedding_percentage, tx_digest, temporal_seed) {
         // TODO: using `SEED_UPDATE_DURATION_SECS` is a safe suggestion that the time based seed
         // is definitely different by then. However, a shorter suggestion may be available.
-        fp_bail!(SuiError::ValidatorOverloadedRetryAfter {
+        fp_bail!(IotaError::ValidatorOverloadedRetryAfter {
             retry_after_secs: SEED_UPDATE_DURATION_SECS
         });
     }
@@ -267,7 +268,7 @@ mod tests {
         Rng, SeedableRng,
     };
     use std::sync::Arc;
-    use sui_macros::sim_test;
+    use iota_macros::sim_test;
     use tokio::sync::mpsc::unbounded_channel;
     use tokio::sync::mpsc::UnboundedReceiver;
     use tokio::sync::mpsc::UnboundedSender;

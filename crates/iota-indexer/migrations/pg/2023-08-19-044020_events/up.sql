@@ -4,7 +4,7 @@ CREATE TABLE events
     tx_sequence_number          BIGINT       NOT NULL,
     event_sequence_number       BIGINT       NOT NULL,
     transaction_digest          bytea        NOT NULL,
-    -- array of SuiAddress in bytes. All signers of the transaction.
+    -- array of IotaAddress in bytes. All signers of the transaction.
     senders                     bytea[]      NOT NULL,
     -- bytes of the entry package ID. Notice that the package and module here
     -- are the package and module of the function that emitted the event, diffrent

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::hash_map::{DefaultHasher, RandomState};
@@ -18,7 +19,7 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tracing::info;
 
-use mysten_metrics::spawn_monitored_task;
+use iota_metrics::spawn_monitored_task;
 
 #[async_trait]
 pub trait Lock: Send + Sync + Default {

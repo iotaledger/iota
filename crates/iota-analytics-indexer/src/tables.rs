@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
 use crate::{ParquetSchema, ParquetValue};
 use serde::Serialize;
 use strum_macros::Display;
-use sui_analytics_indexer_derive::SerializeParquet;
-use sui_types::dynamic_field::DynamicFieldType;
+use iota_analytics_indexer_derive::SerializeParquet;
+use iota_types::dynamic_field::DynamicFieldType;
 
 //
 // Table entries for the analytics database.

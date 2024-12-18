@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::faucet::{FaucetClient, FaucetClientFactory};
 use async_trait::async_trait;
@@ -9,22 +10,22 @@ use helper::ObjectChecker;
 use jsonrpsee::core::params::ArrayParams;
 use jsonrpsee::{core::client::ClientT, http_client::HttpClientBuilder};
 use std::sync::Arc;
-use sui_faucet::CoinInfo;
-use sui_json_rpc_types::{
-    SuiExecutionStatus, SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponse,
-    SuiTransactionBlockResponseOptions, TransactionBlockBytes,
+use iota_faucet::CoinInfo;
+use iota_json_rpc_types::{
+    IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
-use sui_sdk::wallet_context::WalletContext;
-use sui_test_transaction_builder::batch_make_transfer_transactions;
-use sui_types::base_types::TransactionDigest;
-use sui_types::object::Owner;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
+use iota_sdk::wallet_context::WalletContext;
+use iota_test_transaction_builder::batch_make_transfer_transactions;
+use iota_types::base_types::TransactionDigest;
+use iota_types::object::Owner;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 
-use sui_sdk::SuiClient;
-use sui_types::gas_coin::GasCoin;
-use sui_types::{
-    base_types::SuiAddress,
+use iota_sdk::IotaClient;
+use iota_types::gas_coin::GasCoin;
+use iota_types::{
+    base_types::IotaAddress,
     transaction::{Transaction, TransactionData},
 };
 use test_case::{
@@ -56,9 +57,9 @@ pub struct TestContext {
 }
 
 impl TestContext {
-    async fn get_sui_from_faucet(&self, minimum_coins: Option<usize>) -> Vec<GasCoin> {
+    async fn get_iota_from_faucet(&self, minimum_coins: Option<usize>) -> Vec<GasCoin> {
         let addr = self.get_wallet_address();
-        let faucet_response = self.faucet.request_sui_coins(addr).await;
+        let faucet_response = self.faucet.request_iota_coins(addr).await;
 
         let coin_info = faucet_response
             .transferred_gas_objects
@@ -75,7 +76,7 @@ impl TestContext {
 
         if gas_coins.len() < minimum_coins {
             panic!(
-                "Expect to get at least {minimum_coins} Sui Coins for address {addr}, but only got {}",
+                "Expect to get at least {minimum_coins} Iota Coins for address {addr}, but only got {}",
                 gas_coins.len()
             )
         }
@@ -87,11 +88,11 @@ impl TestContext {
         &self.client
     }
 
-    fn get_fullnode_client(&self) -> &SuiClient {
+    fn get_fullnode_client(&self) -> &IotaClient {
         self.client.get_fullnode_client()
     }
 
-    fn clone_fullnode_client(&self) -> SuiClient {
+    fn clone_fullnode_client(&self) -> IotaClient {
         self.client.get_fullnode_client().clone()
     }
 
@@ -103,11 +104,11 @@ impl TestContext {
         self.client.get_wallet()
     }
 
-    async fn get_latest_sui_system_state(&self) -> SuiSystemStateSummary {
+    async fn get_latest_iota_system_state(&self) -> IotaSystemStateSummary {
         self.client
             .get_fullnode_client()
             .governance_api()
-            .get_latest_sui_system_state()
+            .get_latest_iota_system_state()
             .await
             .unwrap()
     }
@@ -121,7 +122,7 @@ impl TestContext {
             .unwrap()
     }
 
-    fn get_wallet_address(&self) -> SuiAddress {
+    fn get_wallet_address(&self) -> IotaAddress {
         self.client.get_wallet_address()
     }
 
@@ -147,14 +148,14 @@ impl TestContext {
         &self,
         txn_data: TransactionData,
         desc: &str,
-    ) -> SuiTransactionBlockResponse {
+    ) -> IotaTransactionBlockResponse {
         let signature = self.get_context().sign(&txn_data, desc);
         let resp = self
             .get_fullnode_client()
             .quorum_driver_api()
             .execute_transaction_block(
                 Transaction::from_data(txn_data, vec![signature]),
-                SuiTransactionBlockResponseOptions::new()
+                IotaTransactionBlockResponseOptions::new()
                     .with_object_changes()
                     .with_balance_changes()
                     .with_effects()
@@ -166,7 +167,7 @@ impl TestContext {
         assert!(
             matches!(
                 resp.effects.as_ref().unwrap().status(),
-                SuiExecutionStatus::Success
+                IotaExecutionStatus::Success
             ),
             "Failed to execute transaction for {desc}: {:?}",
             resp
@@ -224,7 +225,7 @@ impl TestContext {
             .client
             .get_fullnode_client()
             .read_api()
-            .get_transaction_with_options(digest, SuiTransactionBlockResponseOptions::new())
+            .get_transaction_with_options(digest, IotaTransactionBlockResponseOptions::new())
             .await
         {
             Ok(_) => (true, digest, retry_times),
@@ -238,7 +239,7 @@ impl TestContext {
     async fn check_owner_and_into_gas_coin(
         &self,
         coin_info: Vec<CoinInfo>,
-        owner: SuiAddress,
+        owner: IotaAddress,
     ) -> Vec<GasCoin> {
         futures::future::join_all(
             coin_info

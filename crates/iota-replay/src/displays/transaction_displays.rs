@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::displays::Pretty;
@@ -7,11 +8,11 @@ use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
 use move_core_types::language_storage::TypeTag;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
-use sui_execution::Executor;
-use sui_types::execution::ExecutionResult;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::transaction::CallArg::Pure;
-use sui_types::transaction::{
+use iota_execution::Executor;
+use iota_types::execution::ExecutionResult;
+use iota_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::transaction::CallArg::Pure;
+use iota_types::transaction::{
     write_sep, Argument, CallArg, Command, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
 };
 use tabled::{

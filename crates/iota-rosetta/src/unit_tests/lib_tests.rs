@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::CoinMetadataCache;
@@ -8,17 +9,17 @@ use rand::rngs::OsRng;
 use shared_crypto::intent::Intent;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use sui_json_rpc_types::{
-    ObjectChange, SuiObjectDataOptions, SuiObjectResponseQuery, SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    ObjectChange, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
 };
-use sui_keys::keystore::AccountKeystore;
-use sui_move_build::BuildConfig;
-use sui_sdk::SuiClient;
-use sui_types::base_types::{ObjectID, ObjectRef, SuiAddress};
-use sui_types::gas_coin::GAS;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::{
+use iota_keys::keystore::AccountKeystore;
+use iota_move_build::BuildConfig;
+use iota_sdk::IotaClient;
+use iota_types::base_types::{ObjectID, ObjectRef, IotaAddress};
+use iota_types::gas_coin::GAS;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::transaction::{
     InputObjectKind, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
 };
@@ -58,7 +59,7 @@ async fn test_cache() {
             }
         })
         .collect::<Vec<_>>();
-    let gas = vec![get_random_sui(&client, sender, input_objects).await];
+    let gas = vec![get_random_iota(&client, sender, input_objects).await];
     let data = TransactionData::new_with_gas_coins(
         TransactionKind::programmable(pt.clone()),
         sender,
@@ -68,13 +69,13 @@ async fn test_cache() {
     );
 
     let signature = keystore
-        .sign_secure(&data.sender(), &data, Intent::sui_transaction())
+        .sign_secure(&data.sender(), &data, Intent::iota_transaction())
         .unwrap();
     let response = client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::from_data(data.clone(), vec![signature]),
-            SuiTransactionBlockResponseOptions::full_content(),
+            IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
@@ -111,17 +112,17 @@ async fn test_cache() {
     assert!(!coin_cache.metadata.lock().await.contains(&GAS::type_tag()));
 }
 
-async fn get_random_sui(
-    client: &SuiClient,
-    sender: SuiAddress,
+async fn get_random_iota(
+    client: &IotaClient,
+    sender: IotaAddress,
     except: Vec<ObjectID>,
 ) -> ObjectRef {
     let coins = client
         .read_api()
         .get_owned_objects(
             sender,
-            Some(SuiObjectResponseQuery::new_with_options(
-                SuiObjectDataOptions::new()
+            Some(IotaObjectResponseQuery::new_with_options(
+                IotaObjectDataOptions::new()
                     .with_type()
                     .with_owner()
                     .with_previous_transaction(),

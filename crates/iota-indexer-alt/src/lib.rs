@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Context;
@@ -15,14 +16,14 @@ use handlers::{
     tx_kinds::TxKinds, wal_coin_balances::WalCoinBalances, wal_obj_types::WalObjTypes,
 };
 use models::MIGRATIONS;
-use sui_indexer_alt_framework::db::DbArgs;
-use sui_indexer_alt_framework::ingestion::{ClientArgs, IngestionConfig};
-use sui_indexer_alt_framework::pipeline::{
+use iota_indexer_alt_framework::db::DbArgs;
+use iota_indexer_alt_framework::ingestion::{ClientArgs, IngestionConfig};
+use iota_indexer_alt_framework::pipeline::{
     concurrent::{ConcurrentConfig, PrunerConfig},
     sequential::SequentialConfig,
     CommitterConfig,
 };
-use sui_indexer_alt_framework::{Indexer, IndexerArgs};
+use iota_indexer_alt_framework::{Indexer, IndexerArgs};
 use tokio_util::sync::CancellationToken;
 
 pub mod args;

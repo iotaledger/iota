@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module a::test {
-    use sui::random::{Random, RandomGenerator};
+    use iota::random::{Random, RandomGenerator};
     friend a::test2;
 
     entry fun basic_random(_r: &Random) {}
@@ -24,19 +25,19 @@ module a::test2 {
 
 #[test_only]
 module a::test3 {
-    use sui::random::{Random, RandomGenerator};
+    use iota::random::{Random, RandomGenerator};
 
     public fun test_fn(_r: &Random, _rg: &RandomGenerator) {}
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }
 }
 
-module sui::random {
-    use sui::object::UID;
+module iota::random {
+    use iota::object::UID;
 
     struct Random has key { id: UID }
     struct RandomGenerator has drop {}

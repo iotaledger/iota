@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module reviews_rating::dashboard;
 
 use std::string::String;
-use sui::dynamic_field as df;
+use iota::dynamic_field as df;
 
 /// Dashboard is a collection of services
 public struct Dashboard has key, store {

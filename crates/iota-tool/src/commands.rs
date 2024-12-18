@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -13,27 +14,27 @@ use anyhow::Result;
 use futures::{future::join_all, StreamExt};
 use std::path::PathBuf;
 use std::{collections::BTreeMap, env, sync::Arc};
-use sui_config::genesis::Genesis;
-use sui_core::authority_client::AuthorityAPI;
-use sui_protocol_config::Chain;
-use sui_replay::{execute_replay_command, ReplayToolCommand};
-use sui_sdk::{rpc_types::SuiTransactionBlockResponseOptions, SuiClient, SuiClientBuilder};
+use iota_config::genesis::Genesis;
+use iota_core::authority_client::AuthorityAPI;
+use iota_protocol_config::Chain;
+use iota_replay::{execute_replay_command, ReplayToolCommand};
+use iota_sdk::{rpc_types::IotaTransactionBlockResponseOptions, IotaClient, IotaClientBuilder};
 use telemetry_subscribers::TracingHandle;
 
-use sui_types::{
+use iota_types::{
     base_types::*, crypto::AuthorityPublicKeyBytes, messages_grpc::TransactionInfoRequest,
 };
 
 use clap::*;
 use fastcrypto::encoding::Encoding;
-use sui_archival::{read_manifest_as_json, write_manifest_from_json};
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_config::Config;
-use sui_core::authority_aggregator::AuthorityAggregatorBuilder;
-use sui_types::messages_checkpoint::{
+use iota_archival::{read_manifest_as_json, write_manifest_from_json};
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_config::Config;
+use iota_core::authority_aggregator::AuthorityAggregatorBuilder;
+use iota_types::messages_checkpoint::{
     CheckpointRequest, CheckpointResponse, CheckpointSequenceNumber,
 };
-use sui_types::transaction::{SenderSignedData, Transaction};
+use iota_types::transaction::{SenderSignedData, Transaction};
 
 #[derive(Parser, Clone, ValueEnum)]
 pub enum Verbosity {
@@ -54,7 +55,7 @@ pub enum ToolCommand {
         /// Either id or address must be provided
         /// If provided, check all gas objects owned by this account
         #[arg(long = "address")]
-        address: Option<SuiAddress>,
+        address: Option<IotaAddress>,
         /// RPC address to provide the up-to-date committee info
         #[arg(long = "fullnode-rpc-url")]
         fullnode_rpc_url: String,
@@ -86,8 +87,8 @@ pub enum ToolCommand {
         /// prints tabular output suitable for processing with unix tools. For
         /// instance, to quickly check that all validators agree on the history of an object:
         /// ```text
-        /// $ sui-tool fetch-object --id 0x260efde76ebccf57f4c5e951157f5c361cde822c \
-        ///      --genesis $HOME/.sui/sui_config/genesis.blob \
+        /// $ iota-tool fetch-object --id 0x260efde76ebccf57f4c5e951157f5c361cde822c \
+        ///      --genesis $HOME/.iota/iota_config/genesis.blob \
         ///      --verbosity concise --concise-no-header
         /// ```
         #[arg(
@@ -390,7 +391,7 @@ pub enum ToolCommand {
             long = "cfg-path",
             short,
             help = "Path to the network config file. This should be specified when rpc_url is not present. \
-            If not specified we will use the default network config file at ~/.sui-replay/network-config.yaml"
+            If not specified we will use the default network config file at ~/.iota-replay/network-config.yaml"
         )]
         cfg_path: Option<PathBuf>,
         #[arg(
@@ -419,12 +420,12 @@ pub enum ToolCommand {
 }
 
 async fn check_locked_object(
-    sui_client: &Arc<SuiClient>,
+    iota_client: &Arc<IotaClient>,
     committee: Arc<BTreeMap<AuthorityPublicKeyBytes, u64>>,
     id: ObjectID,
     rescue: bool,
 ) -> anyhow::Result<()> {
-    let clients = Arc::new(make_clients(sui_client).await?);
+    let clients = Arc::new(make_clients(iota_client).await?);
     let output = get_object(id, None, None, clients.clone()).await?;
     let output = GroupedObjectOutput::new(output, committee);
     if output.fully_locked {
@@ -461,11 +462,11 @@ async fn check_locked_object(
         })
         .await?
         .transaction;
-    let res = sui_client
+    let res = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
             Transaction::new(tx),
-            SuiTransactionBlockResponseOptions::full_content(),
+            IotaTransactionBlockResponseOptions::full_content(),
             None,
         )
         .await;
@@ -490,10 +491,10 @@ impl ToolCommand {
                 rescue,
                 address,
             } => {
-                let sui_client =
-                    Arc::new(SuiClientBuilder::default().build(fullnode_rpc_url).await?);
+                let iota_client =
+                    Arc::new(IotaClientBuilder::default().build(fullnode_rpc_url).await?);
                 let committee = Arc::new(
-                    sui_client
+                    iota_client
                         .governance_api()
                         .get_committee_info(None)
                         .await?
@@ -505,7 +506,7 @@ impl ToolCommand {
                     Some(id) => vec![id],
                     None => {
                         let address = address.expect("Either id or address must be provided");
-                        sui_client
+                        iota_client
                             .coin_read_api()
                             .get_coins_stream(address, None)
                             .map(|c| c.coin_object_id)
@@ -517,7 +518,7 @@ impl ToolCommand {
                     let mut tasks = vec![];
                     for id in ids {
                         tasks.push(check_locked_object(
-                            &sui_client,
+                            &iota_client,
                             committee.clone(),
                             *id,
                             rescue,
@@ -537,15 +538,15 @@ impl ToolCommand {
                 verbosity,
                 concise_no_header,
             } => {
-                let sui_client =
-                    Arc::new(SuiClientBuilder::default().build(fullnode_rpc_url).await?);
-                let clients = Arc::new(make_clients(&sui_client).await?);
+                let iota_client =
+                    Arc::new(IotaClientBuilder::default().build(fullnode_rpc_url).await?);
+                let clients = Arc::new(make_clients(&iota_client).await?);
                 let output = get_object(id, version, validator, clients).await?;
 
                 match verbosity {
                     Verbosity::Grouped => {
                         let committee = Arc::new(
-                            sui_client
+                            iota_client
                                 .governance_api()
                                 .get_committee_info(None)
                                 .await?
@@ -595,7 +596,7 @@ impl ToolCommand {
                         .expect("Failed to update log level");
                 }
 
-                sui_package_dump::dump(rpc_url, output_dir, before_checkpoint).await?;
+                iota_package_dump::dump(rpc_url, output_dir, before_checkpoint).await?;
             }
             ToolCommand::DumpValidators { genesis, concise } => {
                 let genesis = Genesis::load(genesis).unwrap();
@@ -608,7 +609,7 @@ impl ToolCommand {
                             "#{:<2} {:<20} {:?} {:?} {}",
                             i,
                             metadata.name,
-                            metadata.sui_pubkey_bytes().concise(),
+                            metadata.iota_pubkey_bytes().concise(),
                             metadata.net_address,
                             anemo::PeerId(metadata.network_pubkey.0.to_bytes()),
                         )
@@ -623,9 +624,9 @@ impl ToolCommand {
                 sequence_number,
                 fullnode_rpc_url,
             } => {
-                let sui_client =
-                    Arc::new(SuiClientBuilder::default().build(fullnode_rpc_url).await?);
-                let clients = make_clients(&sui_client).await?;
+                let iota_client =
+                    Arc::new(IotaClientBuilder::default().build(fullnode_rpc_url).await?);
+                let clients = make_clients(&iota_client).await?;
 
                 for (name, (_, client)) in clients {
                     let resp = client
@@ -652,7 +653,7 @@ impl ToolCommand {
                 config_path,
                 db_checkpoint_path,
             } => {
-                let config = sui_config::NodeConfig::load(config_path)?;
+                let config = iota_config::NodeConfig::load(config_path)?;
                 restore_from_db_checkpoint(&config, &db_checkpoint_path).await?;
             }
             ToolCommand::DownloadFormalSnapshot {
@@ -684,13 +685,13 @@ impl ToolCommand {
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
                         (Chain::Mainnet, false) => Some(
                             env::var("MAINNET_FORMAL_SIGNED_BUCKET")
-                                .unwrap_or("mysten-mainnet-formal".to_string()),
+                                .unwrap_or("iota-mainnet-formal".to_string()),
                         ),
                         (Chain::Mainnet, true) => env::var("MAINNET_FORMAL_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, true) => env::var("TESTNET_FORMAL_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, _) => Some(
                             env::var("TESTNET_FORMAL_SIGNED_BUCKET")
-                                .unwrap_or("mysten-testnet-formal".to_string()),
+                                .unwrap_or("iota-testnet-formal".to_string()),
                         ),
                         (Chain::Unknown, _) => {
                             panic!("Cannot generate default snapshot bucket for unknown network");
@@ -700,9 +701,9 @@ impl ToolCommand {
                 let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
                     if no_sign_request {
                         if network == Chain::Mainnet {
-                            Some("https://formal-snapshot.mainnet.sui.io".to_string())
+                            Some("https://formal-snapshot.mainnet.iota.io".to_string())
                         } else if network == Chain::Testnet {
-                            Some("https://formal-snapshot.testnet.sui.io".to_string())
+                            Some("https://formal-snapshot.testnet.iota.io".to_string())
                         } else {
                             None
                         }
@@ -771,8 +772,8 @@ impl ToolCommand {
 
                 let archive_bucket = Some(
                     env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET").unwrap_or_else(|_| match network {
-                        Chain::Mainnet => "mysten-mainnet-archives".to_string(),
-                        Chain::Testnet => "mysten-testnet-archives".to_string(),
+                        Chain::Mainnet => "iota-mainnet-archives".to_string(),
+                        Chain::Testnet => "iota-testnet-archives".to_string(),
                         Chain::Unknown => {
                             panic!("Cannot generate default archive bucket for unknown network");
                         }
@@ -908,13 +909,13 @@ impl ToolCommand {
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
                         (Chain::Mainnet, false) => Some(
                             env::var("MAINNET_DB_SIGNED_BUCKET")
-                                .unwrap_or("mysten-mainnet-snapshots".to_string()),
+                                .unwrap_or("iota-mainnet-snapshots".to_string()),
                         ),
                         (Chain::Mainnet, true) => env::var("MAINNET_DB_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, true) => env::var("TESTNET_DB_UNSIGNED_BUCKET").ok(),
                         (Chain::Testnet, _) => Some(
                             env::var("TESTNET_DB_SIGNED_BUCKET")
-                                .unwrap_or("mysten-testnet-snapshots".to_string()),
+                                .unwrap_or("iota-testnet-snapshots".to_string()),
                         ),
                         (Chain::Unknown, _) => {
                             panic!("Cannot generate default snapshot bucket for unknown network");
@@ -931,9 +932,9 @@ impl ToolCommand {
                 let snapshot_store_config = if no_sign_request {
                     let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
                         if network == Chain::Mainnet {
-                            Some("https://db-snapshot.mainnet.sui.io".to_string())
+                            Some("https://db-snapshot.mainnet.iota.io".to_string())
                         } else if network == Chain::Testnet {
-                            Some("https://db-snapshot.testnet.sui.io".to_string())
+                            Some("https://db-snapshot.testnet.iota.io".to_string())
                         } else {
                             None
                         }

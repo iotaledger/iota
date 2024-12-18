@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type Transport from '@ledgerhq/hw-transport';
@@ -35,17 +36,17 @@ enum HostToLedger {
 }
 
 /**
- * Sui API
+ * Iota API
  *
  * @example
- * import Sui from "@mysten/ledgerjs-hw-app-sui";
- * const sui = new Sui(transport)
+ * import Iota from "@iota/ledgerjs-hw-app-iota";
+ * const iota = new Iota(transport)
  */
-export default class Sui {
+export default class Iota {
 	transport: Transport;
 	readonly #verbose: boolean;
 
-	constructor(transport: Transport, scrambleKey = 'default_sui_scramble_key', verbose = false) {
+	constructor(transport: Transport, scrambleKey = 'default_iota_scramble_key', verbose = false) {
 		this.#verbose = verbose;
 		this.transport = transport;
 		this.transport.decorateAppAPIMethods(

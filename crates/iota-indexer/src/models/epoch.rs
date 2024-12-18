@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::schema::epochs;
 use crate::{errors::IndexerError, schema::feature_flags, schema::protocol_configs};
 use diesel::prelude::{AsChangeset, Identifiable};
 use diesel::{Insertable, Queryable, Selectable};
-use sui_json_rpc_types::{EndOfEpochInfo, EpochInfo};
-use sui_types::event::SystemEpochInfoEvent;
-use sui_types::messages_checkpoint::CertifiedCheckpointSummary;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
+use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
+use iota_types::event::SystemEpochInfoEvent;
+use iota_types::messages_checkpoint::CertifiedCheckpointSummary;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
 #[diesel(table_name = epochs)]
@@ -144,7 +145,7 @@ impl EpochStartInfo {
 
 impl StartOfEpochUpdate {
     pub fn new(
-        new_system_state_summary: SuiSystemStateSummary,
+        new_system_state_summary: IotaSystemStateSummary,
         epoch_start_info: EpochStartInfo,
     ) -> Self {
         Self {
@@ -219,13 +220,13 @@ impl EndOfEpochUpdate {
 }
 
 impl StoredEpochInfo {
-    pub fn get_json_system_state_summary(&self) -> Result<SuiSystemStateSummary, IndexerError> {
+    pub fn get_json_system_state_summary(&self) -> Result<IotaSystemStateSummary, IndexerError> {
         let Some(system_state_summary_json) = self.system_state_summary_json.clone() else {
             return Err(IndexerError::PersistentStorageDataCorruptionError(
                 "System state summary is null for the given epoch".into(),
             ));
         };
-        let system_state_summary: SuiSystemStateSummary =
+        let system_state_summary: IotaSystemStateSummary =
             serde_json::from_value(system_state_summary_json).map_err(|_| {
                 IndexerError::PersistentStorageDataCorruptionError(format!(
                     "Failed to deserialize `system_state` for epoch {:?}",

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::NativesCostTable;
 use fastcrypto::secp256k1::Secp256k1KeyPair;
@@ -25,7 +26,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use smallvec::smallvec;
 use std::collections::VecDeque;
-use sui_types::crypto::KeypairTraits;
+use iota_types::crypto::KeypairTraits;
 
 pub const FAIL_TO_RECOVER_PUBKEY: u64 = 0;
 pub const INVALID_SIGNATURE: u64 = 1;
@@ -312,7 +313,7 @@ pub fn secp256k1_sign(
     debug_assert!(ty_args.is_empty());
     debug_assert!(args.len() == 4);
 
-    // The corresponding Move function, sui::ecdsa_k1::secp256k1_sign, is only used for testing, so
+    // The corresponding Move function, iota::ecdsa_k1::secp256k1_sign, is only used for testing, so
     // we don't need to charge any gas.
     let cost = 0.into();
 
@@ -365,7 +366,7 @@ pub fn secp256k1_keypair_from_seed(
     debug_assert!(ty_args.is_empty());
     debug_assert!(args.len() == 1);
 
-    // The corresponding Move function, sui::ecdsa_k1::secp256k1_keypair_from_seed, is only used for
+    // The corresponding Move function, iota::ecdsa_k1::secp256k1_keypair_from_seed, is only used for
     // testing, so we don't need to charge any gas.
     let cost = 0.into();
 

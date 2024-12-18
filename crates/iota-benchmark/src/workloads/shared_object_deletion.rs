@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::drivers::Interval;
@@ -17,9 +18,9 @@ use futures::future::join_all;
 use rand::seq::SliceRandom;
 use rand::Rng;
 use std::sync::Arc;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::crypto::get_key_pair;
-use sui_types::{
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::crypto::get_key_pair;
+use iota_types::{
     base_types::{ObjectDigest, ObjectID, SequenceNumber},
     transaction::Transaction,
 };

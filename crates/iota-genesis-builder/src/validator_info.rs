@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::bail;
 use fastcrypto::traits::ToFromBytes;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::{
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::{
     verify_proof_of_possession, AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature,
     NetworkPublicKey,
 };
-use sui_types::multiaddr::Multiaddr;
+use iota_types::multiaddr::Multiaddr;
 
 const MAX_VALIDATOR_METADATA_LENGTH: usize = 256;
 
@@ -20,7 +21,7 @@ const MAX_VALIDATOR_METADATA_LENGTH: usize = 256;
 #[serde(rename_all = "kebab-case")]
 pub struct ValidatorInfo {
     pub name: String,
-    pub account_address: SuiAddress,
+    pub account_address: IotaAddress,
     pub protocol_key: AuthorityPublicKeyBytes,
     pub worker_key: NetworkPublicKey,
     pub network_key: NetworkPublicKey,
@@ -40,7 +41,7 @@ impl ValidatorInfo {
         &self.name
     }
 
-    pub fn sui_address(&self) -> SuiAddress {
+    pub fn iota_address(&self) -> IotaAddress {
         self.account_address
     }
 
@@ -179,7 +180,7 @@ impl From<GenesisValidatorInfo> for GenesisValidatorMetadata {
             description: info.description,
             image_url: info.image_url,
             project_url: info.project_url,
-            sui_address: info.account_address,
+            iota_address: info.account_address,
             gas_price: info.gas_price,
             commission_rate: info.commission_rate,
             protocol_public_key: info.protocol_key.as_bytes().to_vec(),
@@ -202,7 +203,7 @@ pub struct GenesisValidatorMetadata {
     pub image_url: String,
     pub project_url: String,
 
-    pub sui_address: SuiAddress,
+    pub iota_address: IotaAddress,
 
     pub gas_price: u64,
     pub commission_rate: u64,

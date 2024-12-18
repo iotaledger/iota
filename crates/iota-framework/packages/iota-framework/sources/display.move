@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Defines a Display struct which defines the way an Object
@@ -10,12 +11,12 @@
 /// substitution and filling-in the pieces using the data from the object T.
 ///
 /// More entry functions might be added in the future depending on the use cases.
-module sui::display;
+module iota::display;
 
 use std::string::String;
-use sui::event;
-use sui::package::Publisher;
-use sui::vec_map::{Self, VecMap};
+use iota::event;
+use iota::package::Publisher;
+use iota::vec_map::{Self, VecMap};
 
 /// For when T does not belong to the package `Publisher`.
 const ENotOwner: u64 = 0;
@@ -58,7 +59,7 @@ public struct Display<phantom T: key> has key, store {
 /// Type signature of the event corresponds to the type while id serves for
 /// the discovery.
 ///
-/// Since Sui RPC supports querying events by type, finding a Display for the T
+/// Since Iota RPC supports querying events by type, finding a Display for the T
 /// would be as simple as looking for the first event with `Display<T>`.
 public struct DisplayCreated<phantom T: key> has copy, drop {
     id: ID,

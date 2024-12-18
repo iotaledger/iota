@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import networkEnv from '_src/background/NetworkEnv';
 import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
 import { type NetworkEnvType } from '_src/shared/api-env';
-import { getActiveNetworkSuiClient } from '_src/shared/sui-client';
+import { getActiveNetworkIotaClient } from '_src/shared/iota-client';
 
 type EpochCacheInfo = {
 	epoch: number;
@@ -16,9 +17,9 @@ function epochCacheKey(network: NetworkEnvType) {
 }
 
 async function getCurrentEpochRequest(): Promise<EpochCacheInfo> {
-	const suiClient = await getActiveNetworkSuiClient();
+	const iotaClient = await getActiveNetworkIotaClient();
 	const { epoch, epochDurationMs, epochStartTimestampMs } =
-		await suiClient.getLatestSuiSystemState();
+		await iotaClient.getLatestIotaSystemState();
 	return {
 		epoch: Number(epoch),
 		epochEndTimestamp: Number(epochStartTimestampMs) + Number(epochDurationMs),

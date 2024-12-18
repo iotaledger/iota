@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useAppDispatch, useAppSelector } from '_hooks';
@@ -9,12 +10,12 @@ import { setNavVisibility } from '_redux/slices/app';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { persistableStorage } from '_src/shared/analytics/amplitude';
 import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/MethodPayload';
-import { toBase64 } from '@mysten/sui/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { throttle } from 'throttle-debounce';
 
-import { useSuiLedgerClient } from './components/ledger/SuiLedgerClientProvider';
+import { useIotaLedgerClient } from './components/ledger/IotaLedgerClientProvider';
 import { useAccounts } from './hooks/useAccounts';
 import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
 import { useBackgroundClient } from './hooks/useBackgroundClient';
@@ -90,7 +91,7 @@ const App = () => {
 		[accounts],
 	);
 	const backgroundClient = useBackgroundClient();
-	const { connectToLedger, suiLedgerClient } = useSuiLedgerClient();
+	const { connectToLedger, iotaLedgerClient } = useIotaLedgerClient();
 	useEffect(() => {
 		if (accounts?.length) {
 			// The user has accepted our terms of service after their primary
@@ -105,7 +106,7 @@ const App = () => {
 		(async () => {
 			if (allLedgerWithoutPublicKey.length) {
 				try {
-					if (!suiLedgerClient) {
+					if (!iotaLedgerClient) {
 						await connectToLedger();
 						return;
 					}
@@ -113,7 +114,7 @@ const App = () => {
 					for (const { derivationPath, id } of allLedgerWithoutPublicKey) {
 						if (derivationPath) {
 							try {
-								const { publicKey } = await suiLedgerClient.getPublicKey(derivationPath);
+								const { publicKey } = await iotaLedgerClient.getPublicKey(derivationPath);
 								publicKeysToStore.push({
 									accountID: id,
 									publicKey: toBase64(publicKey),
@@ -131,7 +132,7 @@ const App = () => {
 				}
 			}
 		})();
-	}, [allLedgerWithoutPublicKey, suiLedgerClient, backgroundClient, connectToLedger]);
+	}, [allLedgerWithoutPublicKey, iotaLedgerClient, backgroundClient, connectToLedger]);
 	const { data } = useAutoLockMinutes();
 	const autoLockEnabled = !!data;
 	// use mouse move and key down events to detect user activity

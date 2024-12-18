@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::rest::openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler};
@@ -9,8 +10,8 @@ use axum::extract::{Path, State};
 use axum::Json;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sui_sdk_types::types::{ObjectId, StructTag};
-use sui_types::sui_sdk_types_conversions::struct_tag_sdk_to_core;
+use iota_sdk_types::types::{ObjectId, StructTag};
+use iota_types::iota_sdk_types_conversions::struct_tag_sdk_to_core;
 
 pub struct GetCoinInfo;
 
@@ -57,7 +58,7 @@ async fn get_coin_info(
 
     let core_coin_type = struct_tag_sdk_to_core(coin_type.clone())?;
 
-    let sui_types::storage::CoinInfo {
+    let iota_types::storage::CoinInfo {
         coin_metadata_object_id,
         treasury_object_id,
     } = indexes
@@ -68,7 +69,7 @@ async fn get_coin_info(
         state
             .inner()
             .get_object(&coin_metadata_object_id)
-            .map(sui_types::coin::CoinMetadata::try_from)
+            .map(iota_types::coin::CoinMetadata::try_from)
             .transpose()
             .map_err(|_| {
                 RpcServiceError::new(
@@ -85,7 +86,7 @@ async fn get_coin_info(
         state
             .inner()
             .get_object(&treasury_object_id)
-            .map(sui_types::coin::TreasuryCap::try_from)
+            .map(iota_types::coin::TreasuryCap::try_from)
             .transpose()
             .map_err(|_| {
                 RpcServiceError::new(
@@ -97,8 +98,8 @@ async fn get_coin_info(
                 id: Some(treasury.id.id.bytes.into()),
                 total_supply: treasury.total_supply.value,
             })
-    } else if sui_types::gas_coin::GAS::is_gas(&core_coin_type) {
-        Some(CoinTreasury::SUI)
+    } else if iota_types::gas_coin::GAS::is_gas(&core_coin_type) {
+        Some(CoinTreasury::IOTA)
     } else {
         None
     };
@@ -149,8 +150,8 @@ pub struct CoinMetadata {
     pub icon_url: Option<String>,
 }
 
-impl From<sui_types::coin::CoinMetadata> for CoinMetadata {
-    fn from(value: sui_types::coin::CoinMetadata) -> Self {
+impl From<iota_types::coin::CoinMetadata> for CoinMetadata {
+    fn from(value: iota_types::coin::CoinMetadata) -> Self {
         Self {
             id: value.id.id.bytes.into(),
             decimals: value.decimals,
@@ -166,14 +167,14 @@ impl From<sui_types::coin::CoinMetadata> for CoinMetadata {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, JsonSchema)]
 pub struct CoinTreasury {
     pub id: Option<ObjectId>,
-    #[serde_as(as = "sui_types::sui_serde::BigInt<u64>")]
+    #[serde_as(as = "iota_types::iota_serde::BigInt<u64>")]
     #[schemars(with = "crate::rest::_schemars::U64")]
     pub total_supply: u64,
 }
 
 impl CoinTreasury {
-    const SUI: Self = Self {
+    const IOTA: Self = Self {
         id: None,
-        total_supply: sui_types::gas_coin::TOTAL_SUPPLY_MIST,
+        total_supply: iota_types::gas_coin::TOTAL_SUPPLY_NANOS,
     };
 }

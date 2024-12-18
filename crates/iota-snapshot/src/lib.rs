@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 #![allow(dead_code)]
 
@@ -23,25 +24,25 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::authority::authority_store_tables::LiveObject;
-use sui_core::authority::epoch_start_configuration::EpochFlag;
-use sui_core::authority::epoch_start_configuration::EpochStartConfiguration;
-use sui_core::checkpoints::CheckpointStore;
-use sui_core::epoch::committee_store::CommitteeStore;
-use sui_core::state_accumulator::WrappedObject;
-use sui_protocol_config::Chain;
-use sui_storage::object_store::util::path_to_filesystem;
-use sui_storage::{compute_sha3_checksum, FileCompression, SHA3_BYTES};
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::ObjectID;
-use sui_types::messages_checkpoint::ECMHLiveObjectSetDigest;
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemStateTrait;
-use sui_types::sui_system_state::get_sui_system_state;
-use sui_types::sui_system_state::SuiSystemStateTrait;
+use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+use iota_core::authority::authority_store_tables::LiveObject;
+use iota_core::authority::epoch_start_configuration::EpochFlag;
+use iota_core::authority::epoch_start_configuration::EpochStartConfiguration;
+use iota_core::checkpoints::CheckpointStore;
+use iota_core::epoch::committee_store::CommitteeStore;
+use iota_core::state_accumulator::WrappedObject;
+use iota_protocol_config::Chain;
+use iota_storage::object_store::util::path_to_filesystem;
+use iota_storage::{compute_sha3_checksum, FileCompression, SHA3_BYTES};
+use iota_types::accumulator::Accumulator;
+use iota_types::base_types::ObjectID;
+use iota_types::messages_checkpoint::ECMHLiveObjectSetDigest;
+use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
+use iota_types::iota_system_state::get_iota_system_state;
+use iota_types::iota_system_state::IotaSystemStateTrait;
 use tokio::time::Instant;
 
-/// The following describes the format of an object file (*.obj) used for persisting live sui objects.
+/// The following describes the format of an object file (*.obj) used for persisting live iota objects.
 /// The maximum size per .obj file is 128MB. State snapshot will be taken at the end of every epoch.
 /// Live object set is split into and stored across multiple hash buckets. The hashing function used
 /// for bucketing objects is the same as the one used to build the accumulator tree for computing
@@ -238,9 +239,9 @@ pub async fn setup_db_state(
 ) -> Result<()> {
     // This function should be called once state accumulator based hash verification
     // is complete and live object set state is downloaded to local store
-    let system_state_object = get_sui_system_state(&perpetual_db)?;
+    let system_state_object = get_iota_system_state(&perpetual_db)?;
     let new_epoch_start_state = system_state_object.into_epoch_start_state();
-    let next_epoch_committee = new_epoch_start_state.get_sui_committee();
+    let next_epoch_committee = new_epoch_start_state.get_iota_committee();
     let root_digest: ECMHLiveObjectSetDigest = accumulator.digest().into();
     let last_checkpoint = checkpoint_store
         .get_epoch_last_checkpoint(epoch)

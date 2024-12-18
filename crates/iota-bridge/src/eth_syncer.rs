@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! The EthSyncer module is responsible for synchronizing Events emitted on Ethereum blockchain from
@@ -12,7 +13,7 @@ use crate::metrics::BridgeMetrics;
 use crate::retry_with_max_elapsed_time;
 use crate::types::EthLog;
 use ethers::types::Address as EthAddress;
-use mysten_metrics::spawn_logged_monitored_task;
+use iota_metrics::spawn_logged_monitored_task;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -49,12 +50,12 @@ where
         metrics: Arc<BridgeMetrics>,
     ) -> BridgeResult<(
         Vec<JoinHandle<()>>,
-        mysten_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
+        iota_metrics::metered_channel::Receiver<(EthAddress, u64, Vec<EthLog>)>,
         watch::Receiver<u64>,
     )> {
-        let (eth_evnets_tx, eth_events_rx) = mysten_metrics::metered_channel::channel(
+        let (eth_evnets_tx, eth_events_rx) = iota_metrics::metered_channel::channel(
             ETH_EVENTS_CHANNEL_SIZE,
-            &mysten_metrics::get_metrics()
+            &iota_metrics::get_metrics()
                 .unwrap()
                 .channel_inflight
                 .with_label_values(&["eth_events_queue"]),
@@ -129,7 +130,7 @@ where
         contract_address: EthAddress,
         mut start_block: u64,
         mut last_finalized_block_receiver: watch::Receiver<u64>,
-        events_sender: mysten_metrics::metered_channel::Sender<(EthAddress, u64, Vec<EthLog>)>,
+        events_sender: iota_metrics::metered_channel::Sender<(EthAddress, u64, Vec<EthLog>)>,
         eth_client: Arc<EthClient<P>>,
         metrics: Arc<BridgeMetrics>,
     ) {
@@ -225,7 +226,7 @@ mod tests {
     async fn test_last_finalized_block() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         let mock_provider = EthMockProvider::new();
         mock_last_finalized_block(&mock_provider, 777);
         let client = EthClient::new_mocked(
@@ -295,7 +296,7 @@ mod tests {
     async fn test_multiple_addresses() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
 
         let mock_provider = EthMockProvider::new();
         mock_last_finalized_block(&mock_provider, 198);
@@ -426,7 +427,7 @@ mod tests {
     async fn test_paginated_eth_log_query() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();
-        mysten_metrics::init_metrics(&registry);
+        iota_metrics::init_metrics(&registry);
         let mock_provider = EthMockProvider::new();
         let start_block = 100;
         // range too big, we need two queries

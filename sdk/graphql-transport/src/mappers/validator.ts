@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiValidatorSummary } from '@mysten/sui/client';
+import type { IotaValidatorSummary } from '@iota/iota-sdk/client';
 
 import type { Rpc_Validator_FieldsFragment } from '../generated/queries.js';
 
 export function mapGraphQlValidatorToRpcValidator(
 	validator: Rpc_Validator_FieldsFragment,
-): SuiValidatorSummary {
+): IotaValidatorSummary {
 	return {
 		commissionRate: validator.commissionRate?.toString()!,
 		description: validator.description!,
@@ -31,7 +32,7 @@ export function mapGraphQlValidatorToRpcValidator(
 		nextEpochWorkerPubkeyBytes: validator.nextEpochCredentials?.workerPubKey,
 		operationCapId: validator.operationCap?.address!,
 		p2pAddress: validator.credentials?.p2PAddress!,
-		pendingTotalSuiWithdraw: validator.pendingTotalSuiWithdraw,
+		pendingTotalIotaWithdraw: validator.pendingTotalIotaWithdraw,
 		pendingPoolTokenWithdraw: validator.pendingPoolTokenWithdraw,
 		poolTokenBalance: validator.poolTokenBalance,
 		pendingStake: validator.pendingStake,
@@ -42,8 +43,8 @@ export function mapGraphQlValidatorToRpcValidator(
 		rewardsPool: validator.rewardsPool,
 		stakingPoolId: validator.stakingPool?.address!,
 		stakingPoolActivationEpoch: validator.stakingPoolActivationEpoch?.toString(),
-		stakingPoolSuiBalance: validator.stakingPoolSuiBalance,
-		suiAddress: validator.address.address,
+		stakingPoolIotaBalance: validator.stakingPoolIotaBalance,
+		iotaAddress: validator.address.address,
 		votingPower: validator.votingPower?.toString()!,
 		workerAddress: validator.credentials?.workerAddress!,
 		workerPubkeyBytes: validator.credentials?.workerPubKey,

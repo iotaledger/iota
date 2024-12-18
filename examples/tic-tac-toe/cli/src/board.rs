@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use serde::Deserialize;
 use std::fmt;
-use sui_types::base_types::{ObjectID, SuiAddress};
+use iota_types::base_types::{ObjectID, IotaAddress};
 
 #[derive(Deserialize)]
 pub(crate) struct Board {
     pub id: ObjectID,
     pub marks: Vec<u8>,
     pub turn: u8,
-    pub x: SuiAddress,
-    pub o: SuiAddress,
+    pub x: IotaAddress,
+    pub o: IotaAddress,
 }
 
 #[derive(Eq, PartialEq)]

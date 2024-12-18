@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use insta::assert_snapshot;
 use std::fs;
 use std::path::PathBuf;
-use sui_graphql_rpc::server::builder::export_schema;
+use iota_graphql_rpc::server::builder::export_schema;
 
 #[test]
 fn test_schema_sdl_export() {

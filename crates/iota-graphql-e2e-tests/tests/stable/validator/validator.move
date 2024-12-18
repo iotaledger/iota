@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Test the change of APY with heavy transactions
@@ -29,7 +30,7 @@ module P0::m {
     public entry fun new(ctx: &mut TxContext){
         let id = object::new(ctx);
         let w = weight();
-        sui::transfer::public_transfer(
+        iota::transfer::public_transfer(
             Big { id, weight: w },
             ctx.sender()
         )

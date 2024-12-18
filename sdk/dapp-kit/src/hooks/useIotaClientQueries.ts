@@ -1,55 +1,56 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useQueries } from '@tanstack/react-query';
 
-import { useSuiClientContext } from './useSuiClient.js';
-import type { SuiRpcMethods, UseSuiClientQueryOptions } from './useSuiClientQuery.js';
+import { useIotaClientContext } from './useIotaClient.js';
+import type { IotaRpcMethods, UseIotaClientQueryOptions } from './useIotaClientQuery.js';
 
-type SuiClientQueryOptions = SuiRpcMethods[keyof SuiRpcMethods] extends infer Method
+type IotaClientQueryOptions = IotaRpcMethods[keyof IotaRpcMethods] extends infer Method
 	? Method extends {
-			name: infer M extends keyof SuiRpcMethods;
+			name: infer M extends keyof IotaRpcMethods;
 			params?: infer P;
 		}
 		? undefined extends P
 			? {
 					method: M;
 					params?: P;
-					options?: UseSuiClientQueryOptions<M, unknown>;
+					options?: UseIotaClientQueryOptions<M, unknown>;
 				}
 			: {
 					method: M;
 					params: P;
-					options?: UseSuiClientQueryOptions<M, unknown>;
+					options?: UseIotaClientQueryOptions<M, unknown>;
 				}
 		: never
 	: never;
 
-export type UseSuiClientQueriesResults<Args extends readonly SuiClientQueryOptions[]> = {
+export type UseIotaClientQueriesResults<Args extends readonly IotaClientQueryOptions[]> = {
 	-readonly [K in keyof Args]: Args[K] extends {
-		method: infer M extends keyof SuiRpcMethods;
+		method: infer M extends keyof IotaRpcMethods;
 		readonly options?:
 			| {
 					select?: (...args: any[]) => infer R;
 			  }
 			| object;
 	}
-		? UseQueryResult<unknown extends R ? SuiRpcMethods[M]['result'] : R>
+		? UseQueryResult<unknown extends R ? IotaRpcMethods[M]['result'] : R>
 		: never;
 };
 
-export function useSuiClientQueries<
-	const Queries extends readonly SuiClientQueryOptions[],
-	Results = UseSuiClientQueriesResults<Queries>,
+export function useIotaClientQueries<
+	const Queries extends readonly IotaClientQueryOptions[],
+	Results = UseIotaClientQueriesResults<Queries>,
 >({
 	queries,
 	combine,
 }: {
 	queries: Queries;
-	combine?: (results: UseSuiClientQueriesResults<Queries>) => Results;
+	combine?: (results: UseIotaClientQueriesResults<Queries>) => Results;
 }): Results {
-	const suiContext = useSuiClientContext();
+	const iotaContext = useIotaClientContext();
 
 	return useQueries({
 		combine: combine as never,
@@ -58,9 +59,9 @@ export function useSuiClientQueries<
 
 			return {
 				...restOptions,
-				queryKey: [suiContext.network, method, params, ...queryKey],
+				queryKey: [iotaContext.network, method, params, ...queryKey],
 				queryFn: async () => {
-					return await suiContext.client[method](params as never);
+					return await iotaContext.client[method](params as never);
 				},
 			};
 		}) as [],

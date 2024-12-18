@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React from "react";
@@ -10,7 +11,7 @@ export default function GetStartedLink() {
   return (
     <>
       {location.pathname === "/" && (
-        <Link to="/guides#get-started-developing-on-sui" className="button-cta">
+        <Link to="/guides#get-started-developing-on-iota" className="button-cta">
           Get started
         </Link>
       )}

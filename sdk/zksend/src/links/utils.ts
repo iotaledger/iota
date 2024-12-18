@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ObjectOwner, SuiObjectChange, SuiTransactionBlockResponse } from '@mysten/sui/client';
-import type { Transaction } from '@mysten/sui/transactions';
-import { normalizeStructTag, normalizeSuiAddress, parseStructTag } from '@mysten/sui/utils';
+import type { ObjectOwner, IotaObjectChange, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import type { Transaction } from '@iota/iota-sdk/transactions';
+import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
 
 // eslint-disable-next-line import/no-cycle
 
@@ -75,11 +76,11 @@ export function getAssetsFromTransaction({
 	address,
 	isSent,
 }: {
-	transaction: SuiTransactionBlockResponse;
+	transaction: IotaTransactionBlockResponse;
 	address: string;
 	isSent: boolean;
 }): LinkAssets {
-	const normalizedAddress = normalizeSuiAddress(address);
+	const normalizedAddress = normalizeIotaAddress(address);
 	const balances: {
 		coinType: string;
 		amount: bigint;
@@ -118,7 +119,7 @@ export function getAssetsFromTransaction({
 			const type = parseStructTag(change.objectType);
 
 			if (
-				type.address === normalizeSuiAddress('0x2') &&
+				type.address === normalizeIotaAddress('0x2') &&
 				type.module === 'coin' &&
 				type.name === 'Coin'
 			) {
@@ -156,7 +157,7 @@ export function getAssetsFromTransaction({
 	};
 }
 
-function getObjectOwnerFromObjectChange(objectChange: SuiObjectChange, isSent: boolean) {
+function getObjectOwnerFromObjectChange(objectChange: IotaObjectChange, isSent: boolean) {
 	if (isSent) {
 		return 'owner' in objectChange ? objectChange.owner : null;
 	}
@@ -164,7 +165,7 @@ function getObjectOwnerFromObjectChange(objectChange: SuiObjectChange, isSent: b
 	return 'recipient' in objectChange ? objectChange.recipient : null;
 }
 
-function isObjectOwner(objectChange: SuiObjectChange, address: string, isSent: boolean) {
+function isObjectOwner(objectChange: IotaObjectChange, address: string, isSent: boolean) {
 	const owner = getObjectOwnerFromObjectChange(objectChange, isSent);
 
 	if (isSent) {
@@ -175,9 +176,9 @@ function isObjectOwner(objectChange: SuiObjectChange, address: string, isSent: b
 }
 
 export function ownedAfterChange(
-	objectChange: SuiObjectChange,
+	objectChange: IotaObjectChange,
 	address: string,
-): objectChange is Extract<SuiObjectChange, { type: 'created' | 'transferred' | 'mutated' }> {
+): objectChange is Extract<IotaObjectChange, { type: 'created' | 'transferred' | 'mutated' }> {
 	if (objectChange.type === 'transferred' && isOwner(objectChange.recipient, address)) {
 		return true;
 	}
@@ -197,6 +198,6 @@ export function isOwner(owner: ObjectOwner, address: string): owner is { Address
 		owner &&
 		typeof owner === 'object' &&
 		'AddressOwner' in owner &&
-		normalizeSuiAddress(owner.AddressOwner) === address
+		normalizeIotaAddress(owner.AddressOwner) === address
 	);
 }

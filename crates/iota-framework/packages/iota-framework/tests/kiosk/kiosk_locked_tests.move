@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// Test illustrating how an asset can be forever locked in the Kiosk.
-module sui::kiosk_locked_test {
-    use sui::item_locked_policy as locked_policy;
-    use sui::kiosk_test_utils::{Self as test, Asset};
+module iota::kiosk_locked_test {
+    use iota::item_locked_policy as locked_policy;
+    use iota::kiosk_test_utils::{Self as test, Asset};
 
     #[test]
     fun test_item_always_locked() {
@@ -14,7 +15,7 @@ module sui::kiosk_locked_test {
         let (mut policy, policy_cap) = test::get_policy(ctx);
         let (mut kiosk, kiosk_cap) = test::get_kiosk(ctx);
         let (item, item_id) = test::get_asset(ctx);
-        let payment = test::get_sui(1000, ctx);
+        let payment = test::get_iota(1000, ctx);
 
         // Alice the Creator
         // - disallow taking from the Kiosk

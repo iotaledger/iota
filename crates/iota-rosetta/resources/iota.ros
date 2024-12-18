@@ -1,7 +1,7 @@
 transfer(10){
   transfer{
-    transfer.network = {"network":"{{sui.env}}", "blockchain":"sui"};
-    currency = {"symbol":"SUI", "decimals":9};
+    transfer.network = {"network":"{{iota.env}}", "blockchain":"iota"};
+    currency = {"symbol":"IOTA", "decimals":9};
     sender = find_balance({
       "minimum_balance":{
         "value": "100000",
@@ -24,7 +24,7 @@ transfer(10){
     transfer.operations = [
       {
         "operation_identifier":{"index":0},
-        "type":"PaySui",
+        "type":"PayIota",
         "account":{{recipient.account_identifier}},
         "amount":{
           "value":{{recipient_amount}},
@@ -33,7 +33,7 @@ transfer(10){
       },
       {
         "operation_identifier":{"index":1},
-        "type":"PaySui",
+        "type":"PayIota",
         "account":{{sender.account_identifier}},
         "amount":{
           "value":{{sender_amount}},

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Tests `public_receive` should fail for an object _without_ public transfer,
@@ -8,7 +9,7 @@
 
 //# publish
 module test::m {
-    use sui::transfer::Receiving;
+    use iota::transfer::Receiving;
 
     public struct Parent has key { id: UID }
     public struct S has key { id: UID }
@@ -106,11 +107,11 @@ module test::m {
 
 //# programmable --sender A --inputs object(10,0) receiving(10,1)
 //> 0: test::m::parent_uid(Input(0));
-//> 1: sui::transfer::public_receive<test::m::S>(Result(0), Input(1));
+//> 1: iota::transfer::public_receive<test::m::S>(Result(0), Input(1));
 
 //# programmable --sender A --inputs object(10,0) receiving(10,1)
 //> 0: test::m::parent_uid(Input(0));
-//> 1: sui::transfer::receive<test::m::S>(Result(0), Input(1));
+//> 1: iota::transfer::receive<test::m::S>(Result(0), Input(1));
 
 // Now publish one with store. We should:
 // 1. Not be able to call `receive` to receive it.
@@ -124,11 +125,11 @@ module test::m {
 
 //# programmable --sender A --inputs object(15,0) receiving(15,1)
 //> 0: test::m::parent_uid(Input(0));
-//> 1: sui::transfer::receive<test::m::Store>(Result(0), Input(1));
+//> 1: iota::transfer::receive<test::m::Store>(Result(0), Input(1));
 
 // Can receive it via a direct `public_receive` call since `Store` has the `store` ability.
 //# programmable --sender A --inputs object(15,0) receiving(15,1)
 //> 0: test::m::parent_uid(Input(0));
-//> 1: sui::transfer::public_receive<test::m::Store>(Result(0), Input(1));
+//> 1: iota::transfer::public_receive<test::m::Store>(Result(0), Input(1));
 //> 2: test::m::destroy_store(Result(1));
-//> 3: sui::object::delete(Result(0));
+//> 3: iota::object::delete(Result(0));

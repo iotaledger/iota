@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::{SequenceNumber, SuiAddress};
+use crate::base_types::{SequenceNumber, IotaAddress};
 use crate::collection_types::{Bag, Table, VecSet};
 use crate::dynamic_field::get_dynamic_field_from_store;
 use crate::error::{UserInputError, UserInputResult};
@@ -9,7 +10,7 @@ use crate::id::{ID, UID};
 use crate::object::{Object, Owner};
 use crate::storage::ObjectStore;
 use crate::transaction::{CheckedInputObjects, ReceivingObjects};
-use crate::SUI_DENY_LIST_OBJECT_ID;
+use crate::IOTA_DENY_LIST_OBJECT_ID;
 use move_core_types::ident_str;
 use move_core_types::identifier::IdentStr;
 use serde::{Deserialize, Serialize};
@@ -50,7 +51,7 @@ pub struct PerTypeDenyList {
 /// Checks coin denylist v1 at signing time.
 /// It checks that none of the coin types in the transaction are denied for the sender.
 pub fn check_coin_deny_list_v1(
-    sender: SuiAddress,
+    sender: IotaAddress,
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,
     object_store: &dyn ObjectStore,
@@ -69,7 +70,7 @@ pub fn check_coin_deny_list_v1(
 }
 
 /// Returns all unique coin types in canonical string form from the input objects and receiving objects.
-/// It filters out SUI coins since it's known that it's not a regulated coin.
+/// It filters out IOTA coins since it's known that it's not a regulated coin.
 pub(crate) fn input_object_coin_types_for_denylist_check(
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,
@@ -92,11 +93,11 @@ pub(crate) fn input_object_coin_types_for_denylist_check(
 
 fn check_deny_list_v1_impl(
     deny_list: PerTypeDenyList,
-    address: SuiAddress,
+    address: IotaAddress,
     coin_types: BTreeSet<String>,
     object_store: &dyn ObjectStore,
 ) -> UserInputResult {
-    let Ok(count) = get_dynamic_field_from_store::<SuiAddress, u64>(
+    let Ok(count) = get_dynamic_field_from_store::<IotaAddress, u64>(
         object_store,
         deny_list.denied_count.id,
         &address,
@@ -107,7 +108,7 @@ fn check_deny_list_v1_impl(
         return Ok(());
     }
     for coin_type in coin_types {
-        let Ok(denied_addresses) = get_dynamic_field_from_store::<Vec<u8>, VecSet<SuiAddress>>(
+        let Ok(denied_addresses) = get_dynamic_field_from_store::<Vec<u8>, VecSet<IotaAddress>>(
             object_store,
             deny_list.denied_addresses.id,
             &coin_type.clone().into_bytes(),
@@ -140,7 +141,7 @@ pub struct RegulatedCoinMetadata {
 
 pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Object> {
     // TODO: We should return error if this is not found.
-    match object_store.get_object(&SUI_DENY_LIST_OBJECT_ID) {
+    match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
         Some(obj) => Some(obj),
         None => {
             error!("Deny list object not found");

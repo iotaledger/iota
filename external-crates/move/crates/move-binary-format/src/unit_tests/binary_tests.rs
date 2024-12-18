@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{file_format::Bytecode, file_format_common::*};
@@ -78,7 +79,7 @@ fn test_flavor() {
         assert_eq!(BinaryFlavor::decode_version(flavored), i);
         assert_eq!(
             BinaryFlavor::decode_flavor(flavored),
-            Some(BinaryFlavor::SUI_FLAVOR)
+            Some(BinaryFlavor::IOTA_FLAVOR)
         );
     }
 }

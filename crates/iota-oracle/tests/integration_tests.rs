@@ -1,25 +1,26 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::Path;
 use std::str::FromStr;
 
 use shared_crypto::intent::Intent;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_json_rpc_types::{ObjectChange, SuiExecutionStatus};
-use sui_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use sui_move_build::BuildConfig;
-use sui_sdk::rpc_types::SuiTransactionBlockResponseOptions;
-use sui_sdk::types::base_types::{ObjectID, SuiAddress};
-use sui_sdk::types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_sdk::types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_sdk::types::transaction::{CallArg, ObjectArg, Transaction, TransactionData};
-use sui_sdk::types::Identifier;
-use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::base_types::{ObjectRef, SequenceNumber};
-use sui_types::{parse_sui_type_tag, TypeTag};
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_json_rpc_types::{ObjectChange, IotaExecutionStatus};
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
+use iota_move_build::BuildConfig;
+use iota_sdk::rpc_types::IotaTransactionBlockResponseOptions;
+use iota_sdk::types::base_types::{ObjectID, IotaAddress};
+use iota_sdk::types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_sdk::types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_sdk::types::transaction::{CallArg, ObjectArg, Transaction, TransactionData};
+use iota_sdk::types::Identifier;
+use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_types::base_types::{ObjectRef, SequenceNumber};
+use iota_types::{parse_iota_type_tag, TypeTag};
 
-// Integration tests for SUI Oracle, these test can be run manually on local or remote testnet.
+// Integration tests for IOTA Oracle, these test can be run manually on local or remote testnet.
 #[ignore]
 #[tokio::test]
 async fn test_publish_primitive() {
@@ -47,7 +48,7 @@ async fn test_publish_primitive() {
     let mut builder = ProgrammableTransactionBuilder::new();
 
     for i in 1..200 {
-        let ticker = format!("SUI {}", i);
+        let ticker = format!("IOTA {}", i);
 
         let value = builder
             .input(CallArg::Pure(
@@ -94,7 +95,7 @@ async fn test_publish_primitive() {
     let data = TransactionData::new_programmable(sender, vec![gas], pt, 1000000000, gas_price);
 
     let signature = keystore
-        .sign_secure(&sender, &data, Intent::sui_transaction())
+        .sign_secure(&sender, &data, Intent::iota_transaction())
         .unwrap();
 
     let tx = Transaction::from_data(data.clone(), vec![signature]);
@@ -103,7 +104,7 @@ async fn test_publish_primitive() {
         .quorum_driver_api()
         .execute_transaction_block(
             tx,
-            SuiTransactionBlockResponseOptions::new().with_effects(),
+            IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
@@ -144,7 +145,7 @@ async fn test_publish_complex_value() {
         .unwrap();
 
     for i in 1..200 {
-        let ticker = format!("SUI {}", i);
+        let ticker = format!("IOTA {}", i);
 
         let value = builder
             .input(CallArg::Pure(
@@ -189,7 +190,7 @@ async fn test_publish_complex_value() {
             package,
             module.clone(),
             submit_data.clone(),
-            vec![parse_sui_type_tag(&format!("{package}::decimal_value::DecimalValue")).unwrap()],
+            vec![parse_iota_type_tag(&format!("{package}::decimal_value::DecimalValue")).unwrap()],
             vec![simple_oracle, clock, ticker, decimal_value, identifier],
         );
     }
@@ -199,7 +200,7 @@ async fn test_publish_complex_value() {
     let data = TransactionData::new_programmable(sender, vec![gas], pt, 1000000000, gas_price);
 
     let signature = keystore
-        .sign_secure(&sender, &data, Intent::sui_transaction())
+        .sign_secure(&sender, &data, Intent::iota_transaction())
         .unwrap();
 
     let tx = Transaction::from_data(data.clone(), vec![signature]);
@@ -208,7 +209,7 @@ async fn test_publish_complex_value() {
         .quorum_driver_api()
         .execute_transaction_block(
             tx,
-            SuiTransactionBlockResponseOptions::new().with_effects(),
+            IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
@@ -274,7 +275,7 @@ async fn test_consume_oracle_data() {
             .unwrap();
 
         let ticker = builder
-            .input(CallArg::Pure(bcs::to_bytes("SUIUSD".as_bytes()).unwrap()))
+            .input(CallArg::Pure(bcs::to_bytes("IOTAUSD".as_bytes()).unwrap()))
             .unwrap();
         let identifier = builder
             .input(CallArg::Pure(
@@ -286,7 +287,7 @@ async fn test_consume_oracle_data() {
             package,
             module.clone(),
             submit_data.clone(),
-            vec![parse_sui_type_tag(&format!("{package}::decimal_value::DecimalValue")).unwrap()],
+            vec![parse_iota_type_tag(&format!("{package}::decimal_value::DecimalValue")).unwrap()],
             vec![simple_oracle, clock, ticker, decimal_value, identifier],
         );
 
@@ -295,7 +296,7 @@ async fn test_consume_oracle_data() {
         let data = TransactionData::new_programmable(sender, vec![gas], pt, 1000000000, gas_price);
 
         let signature = keystore
-            .sign_secure(&sender, &data, Intent::sui_transaction())
+            .sign_secure(&sender, &data, Intent::iota_transaction())
             .unwrap();
 
         let tx = Transaction::from_data(data.clone(), vec![signature]);
@@ -304,7 +305,7 @@ async fn test_consume_oracle_data() {
             .quorum_driver_api()
             .execute_transaction_block(
                 tx,
-                SuiTransactionBlockResponseOptions::new().with_effects(),
+                IotaTransactionBlockResponseOptions::new().with_effects(),
                 Some(ExecuteTransactionRequestType::WaitForLocalExecution),
             )
             .await
@@ -328,20 +329,20 @@ async fn test_consume_oracle_data() {
         }))
         .unwrap();
     let ticker = builder
-        .input(CallArg::Pure(bcs::to_bytes("SUIUSD".as_bytes()).unwrap()))
+        .input(CallArg::Pure(bcs::to_bytes("IOTAUSD".as_bytes()).unwrap()))
         .unwrap();
     let data = builder.programmable_move_call(
         package,
         module,
         Identifier::from_str("get_latest_data").unwrap(),
-        vec![parse_sui_type_tag(&format!("{package}::decimal_value::DecimalValue")).unwrap()],
+        vec![parse_iota_type_tag(&format!("{package}::decimal_value::DecimalValue")).unwrap()],
         vec![simple_oracle, ticker],
     );
 
     // call simple_fx_ptb
     let test_module = Identifier::from_str("test_module").unwrap();
     let simple_fx_ptb = Identifier::from_str("simple_fx_ptb").unwrap();
-    let mist_amount = builder
+    let nanos_amount = builder
         .input(CallArg::Pure(bcs::to_bytes(&10000000u64).unwrap()))
         .unwrap();
     builder.programmable_move_call(
@@ -349,12 +350,12 @@ async fn test_consume_oracle_data() {
         test_module.clone(),
         simple_fx_ptb,
         vec![],
-        vec![data, mist_amount],
+        vec![data, nanos_amount],
     );
 
     // call simple_fx
     let simple_fx = Identifier::from_str("simple_fx").unwrap();
-    let mist_amount = builder
+    let nanos_amount = builder
         .input(CallArg::Pure(bcs::to_bytes(&10000000u64).unwrap()))
         .unwrap();
 
@@ -363,7 +364,7 @@ async fn test_consume_oracle_data() {
         test_module.clone(),
         simple_fx,
         vec![],
-        vec![simple_oracle, mist_amount],
+        vec![simple_oracle, nanos_amount],
     );
 
     // Call trusted_fx
@@ -386,7 +387,7 @@ async fn test_consume_oracle_data() {
         test_module,
         trusted_fx,
         vec![],
-        vec![oracles[0], oracles[1], oracles[2], mist_amount],
+        vec![oracles[0], oracles[1], oracles[2], nanos_amount],
     );
 
     let pt = builder.finish();
@@ -394,7 +395,7 @@ async fn test_consume_oracle_data() {
     let data = TransactionData::new_programmable(sender, vec![gas], pt, 1000000000, gas_price);
 
     let signature = keystore
-        .sign_secure(&sender, &data, Intent::sui_transaction())
+        .sign_secure(&sender, &data, Intent::iota_transaction())
         .unwrap();
 
     let tx = Transaction::from_data(data.clone(), vec![signature]);
@@ -403,7 +404,7 @@ async fn test_consume_oracle_data() {
         .quorum_driver_api()
         .execute_transaction_block(
             tx,
-            SuiTransactionBlockResponseOptions::new().with_effects(),
+            IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
@@ -412,7 +413,7 @@ async fn test_consume_oracle_data() {
     assert!(result.effects.unwrap().status().is_ok());
 }
 
-async fn get_gas(client: &SuiClient, sender: SuiAddress) -> (ObjectRef, u64) {
+async fn get_gas(client: &IotaClient, sender: IotaAddress) -> (ObjectRef, u64) {
     let gas = client
         .coin_read_api()
         .get_coins(sender, None, None, Some(1))
@@ -428,9 +429,9 @@ async fn get_gas(client: &SuiClient, sender: SuiAddress) -> (ObjectRef, u64) {
     (gas, gas_price)
 }
 
-async fn init_test_client() -> (SuiClient, Keystore, SuiAddress) {
-    let client = SuiClientBuilder::default()
-        .build("https://rpc.devnet.sui.io:443")
+async fn init_test_client() -> (IotaClient, Keystore, IotaAddress) {
+    let client = IotaClientBuilder::default()
+        .build("https://rpc.devnet.iota.io:443")
         .await
         .unwrap();
 
@@ -438,11 +439,11 @@ async fn init_test_client() -> (SuiClient, Keystore, SuiAddress) {
         FileBasedKeystore::new(
             &dirs::home_dir()
                 .unwrap()
-                .join(".sui/sui_config/sui.keystore"),
+                .join(".iota/iota_config/iota.keystore"),
         )
         .unwrap(),
     );
-    let sender: SuiAddress = keystore.addresses()[0];
+    let sender: IotaAddress = keystore.addresses()[0];
     let gas = client
         .coin_read_api()
         .get_coins(sender, None, None, Some(1))
@@ -459,9 +460,9 @@ async fn init_test_client() -> (SuiClient, Keystore, SuiAddress) {
 }
 
 async fn publish_package(
-    sender: SuiAddress,
+    sender: IotaAddress,
     keystore: &Keystore,
-    client: &SuiClient,
+    client: &IotaClient,
     path: &Path,
 ) -> ObjectID {
     let compiled_package = BuildConfig::new_for_testing().build(path).unwrap();
@@ -482,7 +483,7 @@ async fn publish_package(
         1000,
     );
     let signature = keystore
-        .sign_secure(&sender, &data, Intent::sui_transaction())
+        .sign_secure(&sender, &data, Intent::iota_transaction())
         .unwrap();
 
     let tx = Transaction::from_data(data.clone(), vec![signature]);
@@ -491,7 +492,7 @@ async fn publish_package(
         .quorum_driver_api()
         .execute_transaction_block(
             tx,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_effects()
                 .with_object_changes(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
@@ -499,7 +500,7 @@ async fn publish_package(
         .await
         .unwrap();
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         result.effects.unwrap().status()
     );
 
@@ -518,9 +519,9 @@ async fn publish_package(
 }
 
 async fn create_oracle(
-    sender: SuiAddress,
+    sender: IotaAddress,
     keystore: &Keystore,
-    client: &SuiClient,
+    client: &IotaClient,
     package: ObjectID,
     module: Identifier,
 ) -> (ObjectID, SequenceNumber) {
@@ -554,14 +555,14 @@ async fn create_oracle(
     let data = TransactionData::new_programmable(sender, vec![gas], pt, 1000000000, gas_price);
 
     let signature = keystore
-        .sign_secure(&sender, &data, Intent::sui_transaction())
+        .sign_secure(&sender, &data, Intent::iota_transaction())
         .unwrap();
     let tx = Transaction::from_data(data.clone(), vec![signature]);
     let result = client
         .quorum_driver_api()
         .execute_transaction_block(
             tx,
-            SuiTransactionBlockResponseOptions::new()
+            IotaTransactionBlockResponseOptions::new()
                 .with_effects()
                 .with_object_changes(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
@@ -569,7 +570,7 @@ async fn create_oracle(
         .await
         .unwrap();
     assert_eq!(
-        &SuiExecutionStatus::Success,
+        &IotaExecutionStatus::Success,
         result.effects.unwrap().status()
     );
     let simple_oracle = result.object_changes.unwrap().iter().find(|change| matches!(change, ObjectChange::Created {object_type,..} if object_type.name.as_str() == "SimpleOracle")).unwrap().clone();

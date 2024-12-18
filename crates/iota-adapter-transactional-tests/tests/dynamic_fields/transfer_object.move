@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // similar to dynamic_object_field_tests but over multiple transactions,
@@ -10,7 +11,7 @@
 //# publish
 module a::m {
 
-use sui::dynamic_object_field::{add, borrow, borrow_mut, remove};
+use iota::dynamic_object_field::{add, borrow, borrow_mut, remove};
 
 public struct Obj has key, store {
     id: UID,
@@ -42,7 +43,7 @@ fun destroy(counter: Counter): u64 {
 
 entry fun create(ctx: &mut TxContext) {
     let id = object::new(ctx);
-    sui::transfer::public_transfer(Obj { id }, ctx.sender())
+    iota::transfer::public_transfer(Obj { id }, ctx.sender())
 }
 
 entry fun add_counter(obj: &mut Obj, ctx: &mut TxContext) {

@@ -1,4 +1,4 @@
-# sui-network
+# iota-network
 
 ## Changing an RPC service
 

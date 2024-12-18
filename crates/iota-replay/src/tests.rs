@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::config::ReplayableNetworkConfigSet;
 use crate::types::ReplayEngineError;
 use crate::types::{MAX_CONCURRENT_REQUESTS, RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD};
 use crate::LocalExec;
-use sui_config::node::ExpensiveSafetyCheckConfig;
-use sui_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::base_types::SuiAddress;
-use sui_types::digests::TransactionDigest;
+use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_types::base_types::IotaAddress;
+use iota_types::digests::TransactionDigest;
 
 /// Keep searching for non-system TXs in the checkppints for this long
 /// Very unlikely to take this long, but we want to be sure we find one
@@ -36,7 +37,7 @@ async fn verify_latest_tx_replay_impl() {
         handles.push(tokio::spawn(async move {
             {
                 let mut num_checkpoint_trials_left = NUM_CHECKPOINTS_TO_ATTEMPT;
-                let rpc_client = SuiClientBuilder::default()
+                let rpc_client = IotaClientBuilder::default()
                     .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
                     .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
                     .build(&url)
@@ -99,10 +100,10 @@ async fn verify_latest_tx_replay_impl() {
 }
 
 async fn extract_one_system_tx(
-    rpc_client: &SuiClient,
+    rpc_client: &IotaClient,
     mut txs: Vec<TransactionDigest>,
 ) -> Option<TransactionDigest> {
-    let opts = SuiTransactionBlockResponseOptions::full_content();
+    let opts = IotaTransactionBlockResponseOptions::full_content();
     txs.retain(|q| *q != TransactionDigest::genesis_marker());
 
     for ch in txs.chunks(*QUERY_MAX_RESULT_LIMIT) {
@@ -114,8 +115,8 @@ async fn extract_one_system_tx(
             .into_iter()
             .filter_map(|x| {
                 if match x.transaction.unwrap().data {
-                    sui_json_rpc_types::SuiTransactionBlockData::V1(tx) => tx.sender,
-                } != SuiAddress::ZERO
+                    iota_json_rpc_types::IotaTransactionBlockData::V1(tx) => tx.sender,
+                } != IotaAddress::ZERO
                 {
                     Some(x.digest)
                 } else {

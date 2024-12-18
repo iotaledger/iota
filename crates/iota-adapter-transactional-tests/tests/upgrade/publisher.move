@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses A0=0x0 A1=0x0 --accounts A
 
 //# publish --upgradeable --sender A
 module A0::m {
-    use sui::package;
+    use iota::package;
 
     public struct A {}
     public struct M has drop {}
@@ -17,7 +18,7 @@ module A0::m {
 
 //# upgrade --package A0 --upgrade-capability 1,2 --sender A
 module A1::m {
-    use sui::package::{Self, Publisher};
+    use iota::package::{Self, Publisher};
 
     public struct A {}
     public struct B {}

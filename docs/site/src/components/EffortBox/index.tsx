@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // This component is used as part of the effort plugin.
@@ -28,7 +29,7 @@ export default function EffortBox(props) {
     <Admonition
       title="Expected effort"
       icon="🧠"
-      className="!my-12 bg-sui-ghost-white border-sui-ghost-dark dark:bg-sui-ghost-dark dark:border-sui-ghost-white"
+      className="!my-12 bg-iota-ghost-white border-iota-ghost-dark dark:bg-iota-ghost-dark dark:border-iota-ghost-white"
       type="info"
     >
       <p className="pt-2">

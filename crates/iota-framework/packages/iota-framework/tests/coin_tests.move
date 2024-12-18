@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only, allow(deprecated_usage)]
-module sui::coin_tests {
-    use sui::coin::{Self, Coin};
-    use sui::pay;
-    use sui::url;
-    use sui::test_scenario;
-    use sui::deny_list;
+module iota::coin_tests {
+    use iota::coin::{Self, Coin};
+    use iota::pay;
+    use iota::url;
+    use iota::test_scenario;
+    use iota::deny_list;
 
     public struct COIN_TESTS has drop {}
 
@@ -20,7 +21,7 @@ module sui::coin_tests {
         contains_next_epoch: bool,
         ctx: &TxContext,
     ) {
-        use sui::coin::{
+        use iota::coin::{
             deny_list_v2_contains_next_epoch as contains_next_epoch,
             deny_list_v2_contains_current_epoch as contains_current_epoch,
         };
@@ -34,7 +35,7 @@ module sui::coin_tests {
         paused_next_epoch: bool,
         ctx: &TxContext,
     ) {
-        use sui::coin::{
+        use iota::coin::{
             deny_list_v2_is_global_pause_enabled_next_epoch as is_global_pause_enabled_next_epoch,
             deny_list_v2_is_global_pause_enabled_current_epoch
                 as is_global_pause_enabled_current_epoch,
@@ -214,7 +215,7 @@ module sui::coin_tests {
 
     #[test]
     fun deny_list_v2() {
-        use sui::coin::{
+        use iota::coin::{
             deny_list_v2_add as add,
             deny_list_v2_remove as remove,
         };
@@ -289,7 +290,7 @@ module sui::coin_tests {
 
     #[test]
     fun deny_list_v2_global_pause() {
-        use sui::coin::{
+        use iota::coin::{
             deny_list_v2_add as add,
             deny_list_v2_remove as remove,
             deny_list_v2_enable_global_pause as enable_global_pause,
@@ -366,7 +367,7 @@ module sui::coin_tests {
 
     #[test]
     fun deny_list_v2_double_add() {
-        use sui::coin::{
+        use iota::coin::{
             deny_list_v2_add as add,
             deny_list_v2_remove as remove,
         };
@@ -404,7 +405,7 @@ module sui::coin_tests {
         scenario.end();
     }
 
-    #[test, expected_failure(abort_code = sui::coin::EGlobalPauseNotAllowed)]
+    #[test, expected_failure(abort_code = iota::coin::EGlobalPauseNotAllowed)]
     fun deny_list_v2_global_pause_not_allowed_enable() {
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
@@ -426,7 +427,7 @@ module sui::coin_tests {
         abort 0
     }
 
-    #[test, expected_failure(abort_code = sui::coin::EGlobalPauseNotAllowed)]
+    #[test, expected_failure(abort_code = iota::coin::EGlobalPauseNotAllowed)]
     fun deny_list_v2_global_pause_not_allowed_disable() {
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
@@ -513,7 +514,7 @@ module sui::coin_tests {
         scenario.end();
     }
 
-    #[test, expected_failure(abort_code = sui::coin::EGlobalPauseNotAllowed)]
+    #[test, expected_failure(abort_code = iota::coin::EGlobalPauseNotAllowed)]
     fun migrate_regulated_currency_to_v2_disallow_global_pause() {
         let mut scenario = test_scenario::begin(@0);
         deny_list::create_for_test(scenario.ctx());
@@ -564,7 +565,7 @@ module sui::coin_tests {
 
     #[test]
     fun deny_list_v2_add_remove() {
-        use sui::coin::{
+        use iota::coin::{
             deny_list_v2_add as add,
             deny_list_v2_remove as remove,
         };

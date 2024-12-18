@@ -1,6 +1,6 @@
 {
   "network": {
-    "blockchain": "sui",
+    "blockchain": "iota",
     "network": "localnet"
   },
   "online_url": "http://rosetta-online:9002",
@@ -19,7 +19,7 @@
   "coin_supported": false,
   "construction": {
     "offline_url": "http://rosetta-offline:9003",
-    "constructor_dsl_file": "sui.ros",
+    "constructor_dsl_file": "iota.ros",
     "end_conditions": {
       "transfer": 20
     },

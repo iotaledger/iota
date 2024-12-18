@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { type Transaction } from '@mysten/sui/transactions';
+import { type Transaction } from '@iota/iota-sdk/transactions';
 import { useEffect } from 'react';
 
 import { useAppSelector } from '../../hooks';

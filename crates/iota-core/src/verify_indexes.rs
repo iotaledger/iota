@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, sync::Arc};
 
 use crate::jsonrpc_index::{CoinIndexKey2, CoinInfo, IndexStore};
 use anyhow::{anyhow, bail, Result};
-use sui_types::{base_types::ObjectInfo, object::Owner};
+use iota_types::{base_types::ObjectInfo, object::Owner};
 use tracing::info;
 use typed_store::traits::Map;
 

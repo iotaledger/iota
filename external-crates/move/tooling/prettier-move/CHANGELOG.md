@@ -1,4 +1,4 @@
-# @mysten/prettier-plugin-move
+# @iota/prettier-plugin-move
 
 ## 0.2.1
 

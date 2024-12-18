@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Context;
@@ -30,24 +31,24 @@ pub fn bootstrap_service(lang: &ServiceLanguage, path: &Path) -> Result<()> {
     }
 }
 
-/// Add the new service to the sui-services dockerfile in the sui repository
-fn add_to_sui_dockerfile(path: &Path) -> Result<()> {
+/// Add the new service to the iota-services dockerfile in the iota repository
+fn add_to_iota_dockerfile(path: &Path) -> Result<()> {
     let path = path.canonicalize().context("canonicalizing service path")?;
     let crates_dir = path.parent().unwrap();
-    if !crates_dir.ends_with("sui/crates") {
-        panic!("directory wasn't in the sui repo");
+    if !crates_dir.ends_with("iota/crates") {
+        panic!("directory wasn't in the iota repo");
     }
-    let sui_services_dockerfile_path = &crates_dir.join("../docker/sui-services/Dockerfile");
+    let iota_services_dockerfile_path = &crates_dir.join("../docker/iota-services/Dockerfile");
     // read the dockerfile
-    let dockerfile = fs::read_to_string(sui_services_dockerfile_path)
-        .context("reading sui-services dockerfile")?;
+    let dockerfile = fs::read_to_string(iota_services_dockerfile_path)
+        .context("reading iota-services dockerfile")?;
 
     // find the line with the build cmd
     let build_line = dockerfile
         .lines()
         .enumerate()
         .find(|(_, line)| line.contains("RUN cargo build --release \\"))
-        .expect("couldn't find build line in sui-services dockerfile")
+        .expect("couldn't find build line in iota-services dockerfile")
         .0;
     // update with the new service
     let mut final_dockerfile = dockerfile.lines().collect::<Vec<_>>();
@@ -60,8 +61,8 @@ fn add_to_sui_dockerfile(path: &Path) -> Result<()> {
     );
     final_dockerfile.insert(build_line + 1, &bin_str);
     // write the file back
-    fs::write(sui_services_dockerfile_path, final_dockerfile.join("\n"))
-        .context("writing sui-services dockerfile after modifying it")?;
+    fs::write(iota_services_dockerfile_path, final_dockerfile.join("\n"))
+        .context("writing iota-services dockerfile after modifying it")?;
 
     Ok(())
 }
@@ -70,8 +71,8 @@ fn add_member_to_workspace(path: &Path) -> Result<()> {
     // test
     let path = path.canonicalize().context("canonicalizing service path")?;
     let crates_dir = path.parent().context("getting path parent").unwrap();
-    if !crates_dir.ends_with("sui/crates") {
-        panic!("directory wasn't in the sui repo");
+    if !crates_dir.ends_with("iota/crates") {
+        panic!("directory wasn't in the iota repo");
     }
     let workspace_toml_path = &crates_dir.join("../Cargo.toml");
     // read the workspace toml
@@ -102,15 +103,15 @@ fn create_rust_service(path: &Path) -> Result<()> {
     info!("creating rust service in {}", path.to_string_lossy());
     // create the dir to ensure we can canonicalize any relative paths
     create_dir_all(path).context("creating rust service dirs")?;
-    let is_sui_service = path
+    let is_iota_service = path
         // expand relative paths and symlinks
         .canonicalize()
         .context("canonicalizing service path")?
         .to_string_lossy()
-        .contains("sui/crates");
-    debug!("sui service: {:?}", is_sui_service);
-    let cargo_toml_path = if is_sui_service {
-        "Cargo-sui.toml"
+        .contains("iota/crates");
+    debug!("iota service: {:?}", is_iota_service);
+    let cargo_toml_path = if is_iota_service {
+        "Cargo-iota.toml"
     } else {
         "Cargo-ext.toml"
     };
@@ -148,13 +149,13 @@ fn create_rust_service(path: &Path) -> Result<()> {
         .context("writing cargo toml file")?;
 
     // add the project as a member of the cargo workspace
-    if is_sui_service {
-        add_member_to_workspace(path).context("adding crate to sui workspace")?;
+    if is_iota_service {
+        add_member_to_workspace(path).context("adding crate to iota workspace")?;
     }
     // now that the source directory works, let's update/add a dockerfile
-    if is_sui_service {
-        // update sui-services dockerfile
-        add_to_sui_dockerfile(path).context("adding crate to sui services dockerfile")?;
+    if is_iota_service {
+        // update iota-services dockerfile
+        add_to_iota_dockerfile(path).context("adding crate to iota services dockerfile")?;
     } else {
         // TODO: create a new dockerfile where the user designates
     }

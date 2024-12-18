@@ -1,20 +1,20 @@
 [package]
 authors = [
-  "Jk Jensen <jk@mystenlabs.com>",
-  "Mysten Labs <build@mystenlabs.com>",
+  "Jk Jensen <jk@iota.org>",
+  "IOTA Foundation <build@iota.org>",
 ]
 edition = "2021"
 license = "Apache-2.0"
-name = "suiop-cli"
+name = "iotaop-cli"
 publish = false
 version.workspace = true
 
 [lib]
-name = "suioplib"
+name = "iotaoplib"
 path = "src/lib.rs"
 
 [[bin]]
-name = "suiop"
+name = "iotaop"
 path = "src/main.rs"
 
 [dependencies]

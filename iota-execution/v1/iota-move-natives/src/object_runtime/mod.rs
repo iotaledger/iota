@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use better_any::{Tid, TidAble};
@@ -21,9 +22,9 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
-use sui_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
-use sui_types::{
-    base_types::{MoveObjectType, ObjectID, SequenceNumber, SuiAddress},
+use iota_protocol_config::{check_limit_by_meter, LimitThresholdCrossed, ProtocolConfig};
+use iota_types::{
+    base_types::{MoveObjectType, ObjectID, SequenceNumber, IotaAddress},
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
@@ -31,7 +32,7 @@ use sui_types::{
     metrics::LimitsMetrics,
     object::{MoveObject, Owner},
     storage::ChildObjectResolver,
-    SUI_AUTHENTICATOR_STATE_OBJECT_ID, SUI_CLOCK_OBJECT_ID, SUI_SYSTEM_STATE_OBJECT_ID,
+    IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
 };
 
 pub(crate) mod object_store;
@@ -56,7 +57,7 @@ type Set<K> = LinkedHashMap<K, ()>;
 pub(crate) struct TestInventories {
     pub(crate) objects: BTreeMap<ObjectID, Value>,
     // address inventories. Most recent objects are at the back of the set
-    pub(crate) address_inventories: BTreeMap<SuiAddress, BTreeMap<Type, Set<ObjectID>>>,
+    pub(crate) address_inventories: BTreeMap<IotaAddress, BTreeMap<Type, Set<ObjectID>>>,
     // global inventories.Most recent objects are at the back of the set
     pub(crate) shared_inventory: BTreeMap<Type, Set<ObjectID>>,
     pub(crate) immutable_inventory: BTreeMap<Type, Set<ObjectID>>,
@@ -289,9 +290,9 @@ impl<'a> ObjectRuntime<'a> {
         // - If it was not in the input objects, it must have been wrapped or must have been a
         //   child object
         let is_framework_obj = [
-            SUI_SYSTEM_STATE_OBJECT_ID,
-            SUI_CLOCK_OBJECT_ID,
-            SUI_AUTHENTICATOR_STATE_OBJECT_ID,
+            IOTA_SYSTEM_STATE_OBJECT_ID,
+            IOTA_CLOCK_OBJECT_ID,
+            IOTA_AUTHENTICATOR_STATE_OBJECT_ID,
         ]
         .contains(&id);
         let transfer_result = if self.state.new_ids.contains_key(&id) {

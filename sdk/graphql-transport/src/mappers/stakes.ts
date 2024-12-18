@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { DelegatedStake } from '@mysten/sui/client';
+import type { DelegatedStake } from '@iota/iota-sdk/client';
 
 import type { Rpc_Stake_FieldsFragment } from '../generated/queries.js';
 
@@ -20,7 +21,7 @@ export function mapGraphQLStakeToRpcStake(stakes: Rpc_Stake_FieldsFragment[]): D
 
 		const delegatedStake = delegatedStakes.get(pool)!;
 		delegatedStake.stakes.push({
-			stakedSuiId: stake.address,
+			stakedIotaId: stake.address,
 			stakeRequestEpoch: stake.requestedEpoch?.epochId.toString()!,
 			stakeActiveEpoch: stake.activatedEpoch?.epochId.toString()!,
 			principal: stake.principal?.value,

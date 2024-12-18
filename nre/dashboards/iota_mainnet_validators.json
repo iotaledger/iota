@@ -241,7 +241,7 @@
             "uid": "8Xt1pVoVk"
           },
           "editorMode": "code",
-          "expr": "sui_system_state_safe_mode{network=\"mainnet\"}",
+          "expr": "iota_system_state_safe_mode{network=\"mainnet\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -302,7 +302,7 @@
             "uid": "8Xt1pVoVk"
           },
           "editorMode": "code",
-          "expr": "sui_system_state_protocol_version{network=\"mainnet\"}",
+          "expr": "iota_system_state_protocol_version{network=\"mainnet\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1575,7 +1575,7 @@
         "type": "prometheus",
         "uid": "8Xt1pVoVk"
       },
-      "description": "Error rate (as reported by all the Mysten FNs) for the RPC errors",
+      "description": "Error rate (as reported by all the IOTA Foundation FNs) for the RPC errors",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2052,7 +2052,7 @@
     ]
   },
   "timezone": "America/Los_Angeles",
-  "title": "Sui Mainnet Validators",
+  "title": "Iota Mainnet Validators",
   "uid": "e3f62ded-4845-497c-b879-3f958b8561c2",
   "version": 27,
   "weekStart": ""

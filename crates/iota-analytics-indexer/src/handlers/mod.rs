@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -6,16 +7,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{anyhow, Result};
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
 use move_core_types::language_storage::{StructTag, TypeTag};
-use sui_data_ingestion_core::Worker;
+use iota_data_ingestion_core::Worker;
 
-use sui_package_resolver::{PackageStore, Resolver};
-use sui_types::base_types::ObjectID;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::object::bounded_visitor::BoundedVisitor;
-use sui_types::object::{Object, Owner};
-use sui_types::transaction::TransactionData;
-use sui_types::transaction::TransactionDataAPI;
+use iota_package_resolver::{PackageStore, Resolver};
+use iota_types::base_types::ObjectID;
+use iota_types::effects::TransactionEffects;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::object::bounded_visitor::BoundedVisitor;
+use iota_types::object::{Object, Owner};
+use iota_types::transaction::TransactionData;
+use iota_types::transaction::TransactionDataAPI;
 
 use crate::tables::{InputObjectKind, ObjectStatus, OwnerType};
 use crate::FileType;
@@ -245,7 +246,7 @@ fn parse_struct_field(
                     }
                 }
             } else if "0x1::option::Option" == struct_name {
-                // Option in sui move is implemented as vector of size 1
+                // Option in iota move is implemented as vector of size 1
                 if let Some(MoveValue::Vector(vec_values)) = values.get("vec").cloned() {
                     if let Some(first_value) = vec_values.first() {
                         parse_struct_field(
@@ -294,7 +295,7 @@ mod tests {
     use move_core_types::language_storage::StructTag;
     use std::collections::BTreeMap;
     use std::str::FromStr;
-    use sui_types::base_types::ObjectID;
+    use iota_types::base_types::ObjectID;
 
     #[tokio::test]
     async fn test_wrapped_object_parsing() -> anyhow::Result<()> {

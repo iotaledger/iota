@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{MultiSigPublicKey, ThresholdUnit, WeightUnit};
 use crate::{
-    base_types::SuiAddress,
+    base_types::IotaAddress,
     crypto::{
-        get_key_pair, get_key_pair_from_rng, Ed25519SuiSignature, PublicKey, Signature, SuiKeyPair,
-        SuiSignatureInner, ZkLoginPublicIdentifier,
+        get_key_pair, get_key_pair_from_rng, Ed25519IotaSignature, PublicKey, Signature, IotaKeyPair,
+        IotaSignatureInner, ZkLoginPublicIdentifier,
     },
     multisig::{as_indices, MultiSig, MAX_SIGNER_IN_MULTISIG},
     multisig_legacy::bitmap_to_u16,
@@ -35,9 +36,9 @@ use shared_crypto::intent::{Intent, IntentMessage, PersonalMessage};
 use std::{str::FromStr, sync::Arc};
 #[test]
 fn test_combine_sigs() {
-    let kp1: SuiKeyPair = SuiKeyPair::Ed25519(get_key_pair().1);
-    let kp2: SuiKeyPair = SuiKeyPair::Secp256k1(get_key_pair().1);
-    let kp3: SuiKeyPair = SuiKeyPair::Secp256r1(get_key_pair().1);
+    let kp1: IotaKeyPair = IotaKeyPair::Ed25519(get_key_pair().1);
+    let kp2: IotaKeyPair = IotaKeyPair::Secp256k1(get_key_pair().1);
+    let kp3: IotaKeyPair = IotaKeyPair::Secp256r1(get_key_pair().1);
 
     let pk1 = kp1.public();
     let pk2 = kp2.public();
@@ -45,7 +46,7 @@ fn test_combine_sigs() {
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
 
     let msg = IntentMessage::new(
-        Intent::sui_transaction(),
+        Intent::iota_transaction(),
         PersonalMessage {
             message: "Hello".as_bytes().to_vec(),
         },
@@ -64,7 +65,7 @@ fn test_combine_sigs() {
 #[test]
 fn test_serde_roundtrip() {
     let msg = IntentMessage::new(
-        Intent::sui_transaction(),
+        Intent::iota_transaction(),
         PersonalMessage {
             message: "Hello".as_bytes().to_vec(),
         },
@@ -121,15 +122,15 @@ fn test_serde_roundtrip() {
     assert!(GenericSignature::from_bytes(generic_sig_bytes).is_err());
 
     // Single sig serialization unchanged.
-    let sig = Ed25519SuiSignature::default();
+    let sig = Ed25519IotaSignature::default();
     let single_sig = GenericSignature::Signature(sig.clone().into());
     let single_sig_bytes = single_sig.as_bytes();
     let single_sig_roundtrip = GenericSignature::from_bytes(single_sig_bytes).unwrap();
     assert_eq!(single_sig, single_sig_roundtrip);
-    assert_eq!(single_sig_bytes.len(), Ed25519SuiSignature::LENGTH);
+    assert_eq!(single_sig_bytes.len(), Ed25519IotaSignature::LENGTH);
     assert_eq!(
         single_sig_bytes.first().unwrap(),
-        &Ed25519SuiSignature::SCHEME.flag()
+        &Ed25519IotaSignature::SCHEME.flag()
     );
     assert_eq!(sig.as_bytes().len(), single_sig_bytes.len());
 }
@@ -187,9 +188,9 @@ fn test_multisig_address() {
 
     let multisig_pk =
         MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![w1, w2, w3], threshold).unwrap();
-    let address: SuiAddress = (&multisig_pk).into();
+    let address: IotaAddress = (&multisig_pk).into();
     assert_eq!(
-        SuiAddress::from_str("0xe35c69eb504de34afdbd9f307fb3ca152646c92d549fea00065d26fc422109ea")
+        IotaAddress::from_str("0xe35c69eb504de34afdbd9f307fb3ca152646c92d549fea00065d26fc422109ea")
             .unwrap(),
         address
     );
@@ -198,7 +199,7 @@ fn test_multisig_address() {
 #[test]
 fn test_max_sig() {
     let msg = IntentMessage::new(
-        Intent::sui_transaction(),
+        Intent::iota_transaction(),
         PersonalMessage {
             message: "Hello".as_bytes().to_vec(),
         },
@@ -208,7 +209,7 @@ fn test_max_sig() {
     let mut pks = Vec::new();
 
     for _ in 0..11 {
-        let k = SuiKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
+        let k = IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut seed).1);
         pks.push(k.public());
         keys.push(k);
     }
@@ -280,7 +281,7 @@ fn multisig_get_pk() {
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 2).unwrap();
     let msg = IntentMessage::new(
-        Intent::sui_transaction(),
+        Intent::iota_transaction(),
         PersonalMessage {
             message: "Hello".as_bytes().to_vec(),
         },
@@ -306,7 +307,7 @@ fn multisig_get_indices() {
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2, pk3], vec![1, 1, 1], 2).unwrap();
     let msg = IntentMessage::new(
-        Intent::sui_transaction(),
+        Intent::iota_transaction(),
         PersonalMessage {
             message: "Hello".as_bytes().to_vec(),
         },
@@ -334,11 +335,11 @@ fn multisig_get_indices() {
 
 #[test]
 fn multisig_zklogin_scenarios() {
-    // consistency test with sui/sdk/typescript/test/unit/cryptography/multisig.test.ts
+    // consistency test with iota/sdk/typescript/test/unit/cryptography/multisig.test.ts
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
-    let skp: SuiKeyPair = SuiKeyPair::Ed25519(kp);
-    let pk1 = skp.public();
+    let ikp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
+    let pk1 = ikp.public();
 
     let (_, _, inputs) = &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json")[0];
     // pk consistent with the one in make_zklogin_tx
@@ -352,10 +353,10 @@ fn multisig_zklogin_scenarios() {
 
     // set up 1-out-of-2 multisig with one zklogin public identifier and one traditional public key.
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 1).unwrap();
-    let multisig_addr = SuiAddress::from(&multisig_pk);
+    let multisig_addr = IotaAddress::from(&multisig_pk);
     assert_eq!(
         multisig_addr,
-        SuiAddress::from_str("0xb9c0780a3943cde13a2409bf1a6f06ae60b0dff2b2f373260cf627aa4f43a588")
+        IotaAddress::from_str("0xb9c0780a3943cde13a2409bf1a6f06ae60b0dff2b2f373260cf627aa4f43a588")
             .unwrap()
     );
 
@@ -364,10 +365,10 @@ fn multisig_zklogin_scenarios() {
     let tx = binding.transaction_data();
     assert_eq!(Base64::encode(bcs::to_bytes(tx).unwrap()), "AAABACACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEBAQABAAC5wHgKOUPN4TokCb8abwauYLDf8rLzcyYM9ieqT0OliAGbB4FfBEl+LgXSLKw6oGFBCyCGjMYZFUxCocYb6ZAnFwEAAAAAAAAAIJZw7UpW1XHubORIOaY8d2+WyBNwoJ+FEAxlsa7h7JHrucB4CjlDzeE6JAm/Gm8GrmCw3/Ky83MmDPYnqk9DpYgBAAAAAAAAABAnAAAAAAAAAA==".to_string());
 
-    let intent_msg = &IntentMessage::new(Intent::sui_transaction(), tx.clone());
+    let intent_msg = &IntentMessage::new(Intent::iota_transaction(), tx.clone());
     assert_eq!(Base64::encode(zklogin_sig.as_ref()), "BQNNMTczMTgwODkxMjU5NTI0MjE3MzYzNDIyNjM3MTc5MzI3MTk0Mzc3MTc4NDQyODI0MTAxODc5NTc5ODQ3NTE5Mzk5NDI4OTgyNTEyNTBNMTEzNzM5NjY2NDU0NjkxMjI1ODIwNzQwODIyOTU5ODUzODgyNTg4NDA2ODE2MTgyNjg1OTM5NzY2OTczMjU4OTIyODA5MTU2ODEyMDcBMQMCTDU5Mzk4NzExNDczNDg4MzQ5OTczNjE3MjAxMjIyMzg5ODAxNzcxNTIzMDMyNzQzMTEwNDcyNDk5MDU5NDIzODQ5MTU3Njg2OTA4OTVMNDUzMzU2ODI3MTEzNDc4NTI3ODczMTIzNDU3MDM2MTQ4MjY1MTk5Njc0MDc5MTg4ODI4NTg2NDk2Njg4NDAzMjcxNzA0OTgxMTcwOAJNMTA1NjQzODcyODUwNzE1NTU0Njk3NTM5OTA2NjE0MTA4NDAxMTg2MzU5MjU0NjY1OTcwMzcwMTgwNTg3NzAwNDEzNDc1MTg0NjEzNjhNMTI1OTczMjM1NDcyNzc1NzkxNDQ2OTg0OTYzNzIyNDI2MTUzNjgwODU4MDEzMTMzNDMxNTU3MzU1MTEzMzAwMDM4ODQ3Njc5NTc4NTQCATEBMANNMTU3OTE1ODk0NzI1NTY4MjYyNjMyMzE2NDQ3Mjg4NzMzMzc2MjkwMTUyNjk5ODQ2OTk0MDQwNzM2MjM2MDMzNTI1Mzc2Nzg4MTMxNzFMNDU0Nzg2NjQ5OTI0ODg4MTQ0OTY3NjE2MTE1ODAyNDc0ODA2MDQ4NTM3MzI1MDAyOTQyMzkwNDExMzAxNzQyMjUzOTAzNzE2MjUyNwExMXdpYVhOeklqb2lhSFIwY0hNNkx5OXBaQzUwZDJsMFkyZ3VkSFl2YjJGMWRHZ3lJaXcCMmV5SmhiR2NpT2lKU1V6STFOaUlzSW5SNWNDSTZJa3BYVkNJc0ltdHBaQ0k2SWpFaWZRTTIwNzk0Nzg4NTU5NjIwNjY5NTk2MjA2NDU3MDIyOTY2MTc2OTg2Njg4NzI3ODc2MTI4MjIzNjI4MTEzOTE2MzgwOTI3NTAyNzM3OTExCgAAAAAAAABhABHpkQ5JvxqbqCKtqh9M0U5c3o3l62B6ALVOxMq6nsc0y3JlY8Gf1ZoPA976dom6y3JGBUTsry6axfqHcVrtRAy5xu4WMO8+cRFEpkjbBruyKE9ydM++5T/87lA8waSSAA==".to_string());
 
-    let single_sig = GenericSignature::Signature(Signature::new_secure(intent_msg, &skp));
+    let single_sig = GenericSignature::Signature(Signature::new_secure(intent_msg, &ikp));
     let multisig = GenericSignature::MultiSig(
         MultiSig::combine(vec![single_sig, zklogin_sig], multisig_pk.clone()).unwrap(),
     );
@@ -378,7 +379,7 @@ fn multisig_zklogin_scenarios() {
 fn zklogin_in_multisig_works_with_both_addresses() {
     let mut seed = StdRng::from_seed([0; 32]);
     let kp: Ed25519KeyPair = get_key_pair_from_rng(&mut seed).1;
-    let skp: SuiKeyPair = SuiKeyPair::Ed25519(kp);
+    let ikp: IotaKeyPair = IotaKeyPair::Ed25519(kp);
 
     // create a new multisig address based on pk1 and pk2 where pk1 is a zklogin public identifier, with a crafted unpadded bytes.
     let mut bytes = Vec::new();
@@ -391,13 +392,13 @@ fn zklogin_in_multisig_works_with_both_addresses() {
     bytes.extend(address_seed.unpadded());
 
     let pk1 = PublicKey::ZkLogin(ZkLoginPublicIdentifier(bytes));
-    let pk2 = skp.public();
+    let pk2 = ikp.public();
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2.clone()], vec![1; 2], 1).unwrap();
-    let multisig_address = SuiAddress::from(&multisig_pk);
+    let multisig_address = IotaAddress::from(&multisig_pk);
 
     let (kp, _pk, input) = &load_test_vectors("./src/unit_tests/zklogin_test_vectors.json")[0];
     let intent_msg = &IntentMessage::new(
-        Intent::sui_transaction(),
+        Intent::iota_transaction(),
         make_transaction_data(multisig_address),
     );
     let user_signature = Signature::new_secure(intent_msg, kp);
@@ -427,7 +428,7 @@ fn zklogin_in_multisig_works_with_both_addresses() {
     );
     // since the zklogin inputs is crafted, it is expected that the proof verify failed, but all checks before passes.
     assert!(
-        matches!(res, Err(crate::error::SuiError::InvalidSignature { error }) if error.contains("General cryptographic error: Groth16 proof verify failed"))
+        matches!(res, Err(crate::error::IotaError::InvalidSignature { error }) if error.contains("General cryptographic error: Groth16 proof verify failed"))
     );
 
     // initialize zklogin pk (pk1_padd) with padded address seed
@@ -439,12 +440,12 @@ fn zklogin_in_multisig_works_with_both_addresses() {
         .unwrap(),
     );
     let multisig_pk_padded = MultiSigPublicKey::new(vec![pk1_padded, pk2], vec![1; 2], 1).unwrap();
-    let multisig_address_padded = SuiAddress::from(&multisig_pk_padded);
+    let multisig_address_padded = IotaAddress::from(&multisig_pk_padded);
     let modified_inputs_padded =
         ZkLoginInputs::from_json(&serde_json::to_string(input).unwrap(), SHORT_ADDRESS_SEED)
             .unwrap();
     let intent_msg_padded = &IntentMessage::new(
-        Intent::sui_transaction(),
+        Intent::iota_transaction(),
         make_transaction_data(multisig_address_padded),
     );
     let user_signature_padded = Signature::new_secure(intent_msg_padded, kp);
@@ -466,7 +467,7 @@ fn zklogin_in_multisig_works_with_both_addresses() {
         Arc::new(VerifiedDigestCache::new_empty()),
     );
     assert!(
-        matches!(res, Err(crate::error::SuiError::InvalidSignature { error }) if error.contains("General cryptographic error: Groth16 proof verify failed"))
+        matches!(res, Err(crate::error::IotaError::InvalidSignature { error }) if error.contains("General cryptographic error: Groth16 proof verify failed"))
     );
 }
 
@@ -491,10 +492,10 @@ fn test_derive_multisig_address() {
     assert_eq!(pk1.as_ref().len(), pk2.as_ref().len());
 
     let multisig_pk = MultiSigPublicKey::new(vec![pk1, pk2], vec![1, 1], 1).unwrap();
-    let multisig_addr = SuiAddress::from(&multisig_pk);
+    let multisig_addr = IotaAddress::from(&multisig_pk);
     assert_eq!(
         multisig_addr,
-        SuiAddress::from_str("0x77a9fbf3c695d78dd83449a81a9e70aa79a77dbfd6fb72037bf09201c12052cd")
+        IotaAddress::from_str("0x77a9fbf3c695d78dd83449a81a9e70aa79a77dbfd6fb72037bf09201c12052cd")
             .unwrap()
     );
 }

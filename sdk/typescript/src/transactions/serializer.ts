@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { BcsType } from '@mysten/bcs';
+import type { BcsType } from '@iota/bcs';
 
 import { bcs } from '../bcs/index.js';
-import type { SuiMoveNormalizedType } from '../client/index.js';
-import { MOVE_STDLIB_ADDRESS, SUI_FRAMEWORK_ADDRESS } from '../utils/index.js';
-import { normalizeSuiAddress } from '../utils/sui-types.js';
+import type { IotaMoveNormalizedType } from '../client/index.js';
+import { MOVE_STDLIB_ADDRESS, IOTA_FRAMEWORK_ADDRESS } from '../utils/index.js';
+import { normalizeIotaAddress } from '../utils/iota-types.js';
 import type { OpenMoveTypeSignature, OpenMoveTypeSignatureBody } from './data/internal.js';
 
 const OBJECT_MODULE_NAME = 'object';
@@ -27,7 +28,7 @@ export function isTxContext(param: OpenMoveTypeSignature): boolean {
 
 	return (
 		!!struct &&
-		normalizeSuiAddress(struct.package) === normalizeSuiAddress('0x2') &&
+		normalizeIotaAddress(struct.package) === normalizeIotaAddress('0x2') &&
 		struct.module === 'tx_context' &&
 		struct.type === 'TxContext'
 	);
@@ -70,9 +71,9 @@ export function getPureBcsSchema(typeSignature: OpenMoveTypeSignatureBody): BcsT
 	}
 
 	if ('datatype' in typeSignature) {
-		const pkg = normalizeSuiAddress(typeSignature.datatype.package);
+		const pkg = normalizeIotaAddress(typeSignature.datatype.package);
 
-		if (pkg === normalizeSuiAddress(MOVE_STDLIB_ADDRESS)) {
+		if (pkg === normalizeIotaAddress(MOVE_STDLIB_ADDRESS)) {
 			if (
 				typeSignature.datatype.module === STD_ASCII_MODULE_NAME &&
 				typeSignature.datatype.type === STD_ASCII_STRUCT_NAME
@@ -97,7 +98,7 @@ export function getPureBcsSchema(typeSignature: OpenMoveTypeSignatureBody): BcsT
 		}
 
 		if (
-			pkg === normalizeSuiAddress(SUI_FRAMEWORK_ADDRESS) &&
+			pkg === normalizeIotaAddress(IOTA_FRAMEWORK_ADDRESS) &&
 			typeSignature.datatype.module === OBJECT_MODULE_NAME &&
 			typeSignature.datatype.type === ID_STRUCT_NAME
 		) {
@@ -109,7 +110,7 @@ export function getPureBcsSchema(typeSignature: OpenMoveTypeSignatureBody): BcsT
 }
 
 export function normalizedTypeToMoveTypeSignature(
-	type: SuiMoveNormalizedType,
+	type: IotaMoveNormalizedType,
 ): OpenMoveTypeSignature {
 	if (typeof type === 'object' && 'Reference' in type) {
 		return {
@@ -131,7 +132,7 @@ export function normalizedTypeToMoveTypeSignature(
 }
 
 function normalizedTypeToMoveTypeSignatureBody(
-	type: SuiMoveNormalizedType,
+	type: IotaMoveNormalizedType,
 ): OpenMoveTypeSignatureBody {
 	if (typeof type === 'string') {
 		switch (type) {

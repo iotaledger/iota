@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::zklogin_verified_issuer_tests {
-    use sui::zklogin_verified_issuer::{check_zklogin_issuer, delete, verify_zklogin_issuer, VerifiedIssuer};
-    use sui::test_scenario;
+module iota::zklogin_verified_issuer_tests {
+    use iota::zklogin_verified_issuer::{check_zklogin_issuer, delete, verify_zklogin_issuer, VerifiedIssuer};
+    use iota::test_scenario;
 
     #[test]
     fun test_check_zklogin_issuer() {
@@ -45,7 +46,7 @@ module sui::zklogin_verified_issuer_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::zklogin_verified_issuer::EInvalidProof)]
+    #[expected_failure(abort_code = iota::zklogin_verified_issuer::EInvalidProof)]
     fun test_invalid_verified_issuer() {
         let other_address = @0x1;
         let iss = b"https://accounts.google.com".to_string();

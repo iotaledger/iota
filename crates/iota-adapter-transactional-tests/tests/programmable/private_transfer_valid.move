@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests calling public transfer functions
@@ -13,18 +14,18 @@ module test::m1 {
 
 //# programmable --sender A --inputs @A
 //> 0: test::m1::pub();
-//> sui::transfer::public_transfer<test::m1::Pub>(Result(0), Input(0));
+//> iota::transfer::public_transfer<test::m1::Pub>(Result(0), Input(0));
 
 //# view-object 2,0
 
 //# programmable
 //> 0: test::m1::pub();
-//> sui::transfer::public_share_object<test::m1::Pub>(Result(0));
+//> iota::transfer::public_share_object<test::m1::Pub>(Result(0));
 
 //# view-object 4,0
 
 //# programmable
 //> 0: test::m1::pub();
-//> sui::transfer::public_freeze_object<test::m1::Pub>(Result(0));
+//> iota::transfer::public_freeze_object<test::m1::Pub>(Result(0));
 
 //# view-object 6,0

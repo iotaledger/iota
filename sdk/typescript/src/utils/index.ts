@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export { formatAddress, formatDigest } from './format.js';
 export {
-	isValidSuiAddress,
-	isValidSuiObjectId,
+	isValidIotaAddress,
+	isValidIotaObjectId,
 	isValidTransactionDigest,
 	normalizeStructTag,
-	normalizeSuiAddress,
-	normalizeSuiObjectId,
+	normalizeIotaAddress,
+	normalizeIotaObjectId,
 	parseStructTag,
-	SUI_ADDRESS_LENGTH,
-} from './sui-types.js';
+	IOTA_ADDRESS_LENGTH,
+} from './iota-types.js';
 
 export {
 	fromB64,
@@ -24,19 +25,19 @@ export {
 	toBase64,
 	fromBase58,
 	toBase58,
-} from '@mysten/bcs';
-export { isValidSuiNSName, normalizeSuiNSName } from './suins.js';
+} from '@iota/bcs';
+export { isValidIotaNSName, normalizeIotaNSName } from './iotans.js';
 
 export {
-	SUI_DECIMALS,
-	MIST_PER_SUI,
+	IOTA_DECIMALS,
+	NANOS_PER_IOTA,
 	MOVE_STDLIB_ADDRESS,
-	SUI_FRAMEWORK_ADDRESS,
-	SUI_SYSTEM_ADDRESS,
-	SUI_CLOCK_OBJECT_ID,
-	SUI_SYSTEM_MODULE_NAME,
-	SUI_TYPE_ARG,
-	SUI_SYSTEM_STATE_OBJECT_ID,
+	IOTA_FRAMEWORK_ADDRESS,
+	IOTA_SYSTEM_ADDRESS,
+	IOTA_CLOCK_OBJECT_ID,
+	IOTA_SYSTEM_MODULE_NAME,
+	IOTA_TYPE_ARG,
+	IOTA_SYSTEM_STATE_OBJECT_ID,
 } from './constants.js';
 
 export { isValidNamedPackage, isValidNamedType } from './move-registry.js';

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashSet;
@@ -14,15 +15,15 @@ use move_core_types::{account_address::AccountAddress, ident_str};
 use parking_lot::Mutex;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use sui_types::crypto::{deterministic_random_account_key, AccountKeyPair};
-use sui_types::gas::GasCostSummary;
-use sui_types::messages_checkpoint::{
+use iota_types::crypto::{deterministic_random_account_key, AccountKeyPair};
+use iota_types::gas::GasCostSummary;
+use iota_types::messages_checkpoint::{
     CheckpointContents, CheckpointSignatureMessage, CheckpointSummary, SignedCheckpointSummary,
 };
-use sui_types::utils::{make_committee_key, to_sender_signed_transaction};
-use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
-use sui_types::{
-    base_types::{ExecutionDigests, ObjectID, SuiAddress},
+use iota_types::utils::{make_committee_key, to_sender_signed_transaction};
+use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
+use iota_types::{
+    base_types::{ExecutionDigests, ObjectID, IotaAddress},
     object::Object,
     transaction::{
         CallArg, CertifiedTransaction, ObjectArg, TransactionData, VerifiedTransaction,
@@ -78,7 +79,7 @@ pub async fn test_certificates_with_gas_objects(
 
         let data = TransactionData::new_move_call(
             sender,
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             ident_str!(module).to_owned(),
             ident_str!(function).to_owned(),
             /* type_args */ vec![],
@@ -118,7 +119,7 @@ pub async fn test_certificates_with_gas_objects(
 /// Fixture: creates a transaction using the specified gas and input objects.
 pub async fn test_user_transaction(
     authority: &AuthorityState,
-    sender: SuiAddress,
+    sender: IotaAddress,
     keypair: &AccountKeyPair,
     gas_object: Object,
     input_objects: Vec<Object>,
@@ -159,7 +160,7 @@ pub async fn test_user_transaction(
 
     let data = TransactionData::new_move_call(
         sender,
-        SUI_FRAMEWORK_PACKAGE_ID,
+        IOTA_FRAMEWORK_PACKAGE_ID,
         ident_str!(module).to_owned(),
         ident_str!(function).to_owned(),
         /* type_args */ vec![],
@@ -197,7 +198,7 @@ pub fn make_consensus_adapter_for_test(
             &self,
             transactions: &[ConsensusTransaction],
             epoch_store: &Arc<AuthorityPerEpochStore>,
-        ) -> SuiResult<BlockStatusReceiver> {
+        ) -> IotaResult<BlockStatusReceiver> {
             let sequenced_transactions: Vec<SequencedConsensusTransaction> = transactions
                 .iter()
                 .map(|txn| SequencedConsensusTransaction::new_test(txn.clone()))

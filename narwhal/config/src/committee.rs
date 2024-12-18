@@ -1,12 +1,13 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{CommitteeUpdateError, ConfigError, Epoch, Stake};
 use crypto::{NetworkPublicKey, PublicKey, PublicKeyBytes};
 use fastcrypto::traits::EncodeDecodeBase64;
-use mysten_network::Multiaddr;
-use mysten_util_mem::MallocSizeOf;
+use iota_network_stack::Multiaddr;
+use iota_util_mem::MallocSizeOf;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -527,7 +528,7 @@ mod tests {
     use crate::{Authority, Committee};
     use crypto::{KeyPair, NetworkKeyPair, PublicKey};
     use fastcrypto::traits::KeyPair as _;
-    use mysten_network::Multiaddr;
+    use iota_network_stack::Multiaddr;
     use rand::thread_rng;
     use std::collections::BTreeMap;
 

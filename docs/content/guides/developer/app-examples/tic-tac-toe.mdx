@@ -5,11 +5,11 @@ effort: small
 
 :::info
 
-You can view the [complete source code for this app example](https://github.com/MystenLabs/sui/tree/main/examples/tic-tac-toe) in the Sui repository.
+You can view the [complete source code for this app example](https://github.com/iotaledger/iota/tree/main/examples/tic-tac-toe) in the Iota repository.
 
 :::
 
-This guide covers three different implementations of the game tic-tac-toe on Sui. The first example utilizes a centralized admin that owns the board object and marks it on the users’ behalf. The second example utilizes a shared object that both users can mutate. And the third example utilizes a [multisig](https://docs.sui.io/guides/developer/cryptography/multisig), where instead of sharing the game board, it's in a 1-of-2 multisig of both users’ accounts.
+This guide covers three different implementations of the game tic-tac-toe on Iota. The first example utilizes a centralized admin that owns the board object and marks it on the users’ behalf. The second example utilizes a shared object that both users can mutate. And the third example utilizes a [multisig](https://docs.iota.org/guides/developer/cryptography/multisig), where instead of sharing the game board, it's in a 1-of-2 multisig of both users’ accounts.
 
 The guide is divided into three parts that each cover a different implementation of the tic-tac-toe game board:
 
@@ -21,15 +21,15 @@ The guide is divided into three parts that each cover a different implementation
 
 - **Owned objects:** The guide teaches you how to use [owned objects](../../../concepts/object-ownership/address-owned.mdx), in this case to act as the game board in the centralized and multisig version of tic-tac-toe. Owned objects are objects that are owned by a single account and can only be modified by that account. In this case, the game board is owned by a game admin, who is responsible for updating the board with each player's move.
 - **Shared objects:** The guide teaches you how to use [shared objects](../../../concepts/object-ownership/shared.mdx), in this case to act as the game board in the more decentralized version of tic-tac-toe. Shared objects are objects that can be modified by multiple accounts. In this case, the game board is shared between the two players, allowing them to update the board directly.
-- **Multisig accounts:** The guide teaches you how to use [multisig accounts](https://sdk.mystenlabs.com/typescript/cryptography/multisig) to share ownership of the game board between two players. Multisig accounts are accounts that require a certain threshold of signatures to authorize a transaction. In this case, the game board is owned by a 1-of-2 multisig account.
+- **Multisig accounts:** The guide teaches you how to use [multisig accounts](https://docs.iota.org/references/ts-sdk/typescript/cryptography/multisig) to share ownership of the game board between two players. Multisig accounts are accounts that require a certain threshold of signatures to authorize a transaction. In this case, the game board is owned by a 1-of-2 multisig account.
 - **Dynamic object fields:** The guide teaches you how to use [dynamic object fields](../../../concepts/dynamic-fields.mdx), in this case to transfer the actions of the players to the game board, which will be retrieved by the game admin. 
 
 ## What you need
 
 Before getting started, make sure you have:
 
-- [Installed the latest version of Sui](../getting-started/sui-install.mdx).
-- Read the basics of [shared versus owned objects](../sui-101/shared-owned.mdx).
+- [Installed the latest version of Iota](../getting-started/iota-install.mdx).
+- Read the basics of [shared versus owned objects](../iota-101/shared-owned.mdx).
 
 ## Directory structure
 
@@ -48,7 +48,7 @@ In this folder, create the following subfolders:
 
 :::checkpoint
 
-- You have the latest version of Sui installed. If you run `sui --version` in your terminal or console, it responds with the currently installed version.
+- You have the latest version of Iota installed. If you run `iota --version` in your terminal or console, it responds with the currently installed version.
 - You have a directory to place the files you create in. 
 - You have created a `Move.toml` file in the `tic-tac-toe/move/` directory.
 
@@ -83,7 +83,7 @@ When playing the game, the admin operates a service that keeps track of marks us
 
 When a player sends a mark, a `Mark` object is created and is sent to the `Game` object. The admin then receives the mark and places it on the board. This is a use of dynamic object fields, where an object, `Game`, can hold other objects, `Mark`.
 
-To view the entire source code, see the [owned.move source file](https://github.com/MystenLabs/sui/blob/main/examples/tic-tac-toe/move/sources/owned.move). You can find the rest of the logic, including how to check for a winner, as well as deleting the game board after the game concludes there.
+To view the entire source code, see the [owned.move source file](https://github.com/iotaledger/iota/blob/main/examples/tic-tac-toe/move/sources/owned.move). You can find the rest of the logic, including how to check for a winner, as well as deleting the game board after the game concludes there.
 
 <details>
 <summary>
@@ -96,7 +96,7 @@ An alternative version of this game, shared tic-tac-toe, uses shared objects for
 
 ## shared.move {#shared.move}
 
-In the previous version, the admin owned the game object, preventing players from directly changing the gameboard, as well as requiring two transactions for each marker placement. In this version, the game object is a shared object, allowing both players to access and modify it directly, enabling them to place markers in just one transaction. However, using a shared object generally incurs extra costs because Sui needs to sequence the operations from different transactions. In the context of this game, where players are expected to take turns, this shouldn't significantly impact performance. Overall, this shared object approach simplifies the implementation compared to the previous method.
+In the previous version, the admin owned the game object, preventing players from directly changing the gameboard, as well as requiring two transactions for each marker placement. In this version, the game object is a shared object, allowing both players to access and modify it directly, enabling them to place markers in just one transaction. However, using a shared object generally incurs extra costs because Iota needs to sequence the operations from different transactions. In the context of this game, where players are expected to take turns, this shouldn't significantly impact performance. Overall, this shared object approach simplifies the implementation compared to the previous method.
 
 As the following code demonstrates, the `Game` object in this example is almost identical to the one before it. The only differences are that it does not include an `admin` field, which is only relevant for the multisig version of the game, and it does not have `store`, because it only ever exists as a shared object (so it cannot be transferred or wrapped).
 
@@ -131,7 +131,7 @@ A multisig account is defined by the public keys of its constituent keypairs, th
 export function multiSigPublicKey(keys: PublicKey[]): MultiSigPublicKey {
   const deduplicated: { [key: string]: PublicKey } = {};
   for (const key of keys) {
-    deduplicated[key.toSuiAddress()] = key;
+    deduplicated[key.toIotaAddress()] = key;
   }
 
   return MultiSigPublicKey.fromPublicKeys({
@@ -150,7 +150,7 @@ export function multiSigPublicKey(keys: PublicKey[]): MultiSigPublicKey {
 {@inject: examples/tic-tac-toe/ui/src/MultiSig.ts}
 </details>
 
-Note that an address on Sui can be derived from a public key (this fact is used in the previous example to deduplicate public keys based on their accompanying address), but the opposite is not true. This means that to start a game of multisig tic-tac-toe, players must exchange public keys, instead of addresses.
+Note that an address on Iota can be derived from a public key (this fact is used in the previous example to deduplicate public keys based on their accompanying address), but the opposite is not true. This means that to start a game of multisig tic-tac-toe, players must exchange public keys, instead of addresses.
 
 ### Building a multisig transaction
 
@@ -164,13 +164,13 @@ newMultiSigGame(player: PublicKey, opponent: PublicKey): Transaction {
   const game = tx.moveCall({
     target: `${this.packageId}::owned::new`,
     arguments: [
-      tx.pure.address(player.toSuiAddress()),
-      tx.pure.address(opponent.toSuiAddress()),
+      tx.pure.address(player.toIotaAddress()),
+      tx.pure.address(opponent.toIotaAddress()),
       tx.pure(bcs.vector(bcs.u8()).serialize(admin.toRawBytes()).toBytes()),
     ],
   });
 
-  tx.transferObjects([game], admin.toSuiAddress());
+  tx.transferObjects([game], admin.toIotaAddress());
 
   return tx;
 }
@@ -203,7 +203,7 @@ function OwnedGame({
 }): ReactElement {
   const adminKey = game.admin ? new MultiSigPublicKey(new Uint8Array(game.admin)) : null;
 
-  const client = useSuiClient();
+  const client = useIotaClient();
   const signAndExecute = useExecutor();
   const multiSignAndExecute = useExecutor({
     execute: ({ bytes, signature }) => {
@@ -237,7 +237,7 @@ function OwnedGame({
 
         if (mark && mark.type === 'created') {
           const recv = tx.receiveMark(game, mark);
-          recv.setSender(adminKey!!.toSuiAddress());
+          recv.setSender(adminKey!!.toIotaAddress());
           recv.setGasOwner(account?.address!!);
 
           multiSignAndExecute({ tx: recv }, () => {
@@ -265,4 +265,4 @@ The first step is to get the multisig public key, which was written to `Game.adm
 
 The reason for the two signatures is clearer when looking at the construction of the `recv` transaction: The multisig authorizes access to the `Game`, and the wallet authorizes access to the gas object. This is because the multisig account does not hold any coins of its own, so it relies on the player account to sponsor the transaction.
 
-You can find an example React front-end supporting both the multi-sig and shared variants of the game in the [ui directory](https://github.com/MystenLabs/sui/blob/main/examples/tic-tac-toe/ui), and a CLI written in Rust in the [cli directory](https://github.com/MystenLabs/sui/blob/main/examples/tic-tac-toe/cli).
+You can find an example React front-end supporting both the multi-sig and shared variants of the game in the [ui directory](https://github.com/iotaledger/iota/blob/main/examples/tic-tac-toe/ui), and a CLI written in Rust in the [cli directory](https://github.com/iotaledger/iota/blob/main/examples/tic-tac-toe/cli).

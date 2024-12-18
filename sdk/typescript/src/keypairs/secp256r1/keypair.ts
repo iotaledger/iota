@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { secp256r1 } from '@noble/curves/p256';
@@ -7,7 +8,7 @@ import { sha256 } from '@noble/hashes/sha256';
 import { bytesToHex } from '@noble/hashes/utils';
 import { HDKey } from '@scure/bip32';
 
-import { decodeSuiPrivateKey, encodeSuiPrivateKey, Keypair } from '../../cryptography/keypair.js';
+import { decodeIotaPrivateKey, encodeIotaPrivateKey, Keypair } from '../../cryptography/keypair.js';
 import { isValidBIP32Path, mnemonicToSeed } from '../../cryptography/mnemonics.js';
 import type { PublicKey } from '../../cryptography/publickey.js';
 import type { SignatureScheme } from '../../cryptography/signature-scheme.js';
@@ -79,7 +80,7 @@ export class Secp256r1Keypair extends Keypair {
 		options?: { skipValidation?: boolean },
 	): Secp256r1Keypair {
 		if (typeof secretKey === 'string') {
-			const decoded = decodeSuiPrivateKey(secretKey);
+			const decoded = decodeIotaPrivateKey(secretKey);
 
 			if (decoded.schema !== 'Secp256r1') {
 				throw new Error(`Expected a Secp256r1 keypair, got ${decoded.schema}`);
@@ -91,7 +92,7 @@ export class Secp256r1Keypair extends Keypair {
 		const publicKey: Uint8Array = secp256r1.getPublicKey(secretKey, true);
 		if (!options || !options.skipValidation) {
 			const encoder = new TextEncoder();
-			const signData = encoder.encode('sui validation');
+			const signData = encoder.encode('iota validation');
 			const msgHash = bytesToHex(blake2b(signData, { dkLen: 32 }));
 			const signature = secp256r1.sign(msgHash, secretKey, { lowS: true });
 			if (!secp256r1.verify(signature, msgHash, publicKey, { lowS: true })) {
@@ -122,7 +123,7 @@ export class Secp256r1Keypair extends Keypair {
 	 * The Bech32 secret key string for this Secp256r1 keypair
 	 */
 	getSecretKey(): string {
-		return encodeSuiPrivateKey(this.keypair.secretKey, this.getKeyScheme());
+		return encodeIotaPrivateKey(this.keypair.secretKey, this.getKeyScheme());
 	}
 
 	/**

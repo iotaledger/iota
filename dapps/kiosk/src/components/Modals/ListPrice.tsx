@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MIST_PER_SUI } from '@mysten/sui/utils';
+import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 import { usePlaceAndListMutation } from '../../mutations/kiosk';
@@ -31,13 +32,13 @@ export function ListPrice({ item, onSuccess, closeModal, listAndPlace, kioskId }
 					<DisplayObjectThumbnail item={item}></DisplayObjectThumbnail>
 				</div>
 				<div>
-					<label className="font-medium mb-1 block text-sm">Listing price (in SUI)</label>
+					<label className="font-medium mb-1 block text-sm">Listing price (in IOTA)</label>
 					<input
 						type="number"
 						min="0"
 						value={price}
 						className="block w-full rounded border border-primary bg-white p-2.5 text-sm outline-primary focus:border-gray-500"
-						placeholder="The amount in SUI"
+						placeholder="The amount in IOTA"
 						onChange={(e) => setPrice(e.target.value)}
 					></input>
 				</div>
@@ -49,7 +50,7 @@ export function ListPrice({ item, onSuccess, closeModal, listAndPlace, kioskId }
 						onClick={() =>
 							placeAndListToKioskMutation.mutate({
 								item,
-								price: (Number(price) * Number(MIST_PER_SUI)).toString(),
+								price: (Number(price) * Number(NANOS_PER_IOTA)).toString(),
 								shouldPlace: listAndPlace,
 								kioskId,
 							})

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::language_storage::StructTag;
@@ -6,10 +7,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::fmt::{Display, Formatter, Result};
-use sui_types::base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::object::Owner;
-use sui_types::sui_serde::SequenceNumber as AsSequenceNumber;
-use sui_types::sui_serde::SuiStructTag;
+use iota_types::base_types::{ObjectDigest, ObjectID, ObjectRef, SequenceNumber, IotaAddress};
+use iota_types::object::Owner;
+use iota_types::iota_serde::SequenceNumber as AsSequenceNumber;
+use iota_types::iota_serde::IotaStructTag;
 
 /// ObjectChange are derived from the object mutations in the TransactionEffect to provide richer object information.
 #[serde_as]
@@ -29,10 +30,10 @@ pub enum ObjectChange {
     /// Transfer objects to new address / wrap in another object
     #[serde(rename_all = "camelCase")]
     Transferred {
-        sender: SuiAddress,
+        sender: IotaAddress,
         recipient: Owner,
         #[schemars(with = "String")]
-        #[serde_as(as = "SuiStructTag")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -43,10 +44,10 @@ pub enum ObjectChange {
     /// Object mutated.
     #[serde(rename_all = "camelCase")]
     Mutated {
-        sender: SuiAddress,
+        sender: IotaAddress,
         owner: Owner,
         #[schemars(with = "String")]
-        #[serde_as(as = "SuiStructTag")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -60,9 +61,9 @@ pub enum ObjectChange {
     /// Delete object
     #[serde(rename_all = "camelCase")]
     Deleted {
-        sender: SuiAddress,
+        sender: IotaAddress,
         #[schemars(with = "String")]
-        #[serde_as(as = "SuiStructTag")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -72,9 +73,9 @@ pub enum ObjectChange {
     /// Wrapped object
     #[serde(rename_all = "camelCase")]
     Wrapped {
-        sender: SuiAddress,
+        sender: IotaAddress,
         #[schemars(with = "String")]
-        #[serde_as(as = "SuiStructTag")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]
@@ -84,10 +85,10 @@ pub enum ObjectChange {
     /// New object creation
     #[serde(rename_all = "camelCase")]
     Created {
-        sender: SuiAddress,
+        sender: IotaAddress,
         owner: Owner,
         #[schemars(with = "String")]
-        #[serde_as(as = "SuiStructTag")]
+        #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectID,
         #[schemars(with = "AsSequenceNumber")]

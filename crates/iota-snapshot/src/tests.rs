@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::reader::StateSnapshotReaderV1;
@@ -10,14 +11,14 @@ use indicatif::MultiProgress;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use sui_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
-use sui_core::authority::authority_store_tables::AuthorityPerpetualTables;
-use sui_core::state_accumulator::StateAccumulator;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::ObjectID;
-use sui_types::messages_checkpoint::ECMHLiveObjectSetDigest;
-use sui_types::object::Object;
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
+use iota_core::authority::authority_store_tables::AuthorityPerpetualTables;
+use iota_core::state_accumulator::StateAccumulator;
+use iota_protocol_config::ProtocolConfig;
+use iota_types::accumulator::Accumulator;
+use iota_types::base_types::ObjectID;
+use iota_types::messages_checkpoint::ECMHLiveObjectSetDigest;
+use iota_types::object::Object;
 use tempfile::tempdir;
 
 fn temp_dir() -> std::path::PathBuf {

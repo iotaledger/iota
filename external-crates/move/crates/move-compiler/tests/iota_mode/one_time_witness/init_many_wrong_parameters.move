@@ -4,9 +4,9 @@ module a::m {
 
 module a::beep {
     struct BEEP has drop {}
-    fun init(_: Who, _: u64, _: &mut sui::tx_context::TxContext) {}
+    fun init(_: Who, _: u64, _: &mut iota::tx_context::TxContext) {}
 }
 
-module sui::tx_context {
+module iota::tx_context {
     struct TxContext {}
 }

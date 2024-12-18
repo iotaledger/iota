@@ -1,5 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -24,7 +25,7 @@ use crate::{
             check_valid_function_parameter_name, check_valid_local_name,
             check_valid_module_member_alias, check_valid_module_member_name,
             check_valid_type_parameter_name, valid_local_variable_name, ModuleMemberKind, NameCase,
-            IMPLICIT_STD_MEMBERS, IMPLICIT_STD_MODULES, IMPLICIT_SUI_MEMBERS, IMPLICIT_SUI_MODULES,
+            IMPLICIT_STD_MEMBERS, IMPLICIT_STD_MODULES, IMPLICIT_IOTA_MEMBERS, IMPLICIT_IOTA_MODULES,
         },
         path_expander::{
             access_result, Access, LegacyPathExpander, ModuleAccessResult, Move2024PathExpander,
@@ -426,7 +427,7 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
     // Unused loc since these will not conflict and are implicit so no warnings are given
     let loc = Loc::invalid();
     let std_address = maybe_make_well_known_address(context, loc, symbol!("std"));
-    let sui_address = maybe_make_well_known_address(context, loc, symbol!("sui"));
+    let iota_address = maybe_make_well_known_address(context, loc, symbol!("iota"));
     let mut modules: Vec<(Address, Symbol)> = vec![];
     let mut members: Vec<(Address, Symbol, Symbol, ModuleMemberKind)> = vec![];
     // if std is defined, add implicit std aliases
@@ -444,21 +445,21 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
                 .map(|(m, mem, k)| (std_address, m, mem, k)),
         );
     }
-    // if sui is defined and the current package is in Sui mode, add implicit sui aliases
-    if sui_address.is_some() && context.env().package_config(current_package).flavor == Flavor::Sui
+    // if iota is defined and the current package is in Iota mode, add implicit iota aliases
+    if iota_address.is_some() && context.env().package_config(current_package).flavor == Flavor::Iota
     {
-        let sui_address = sui_address.unwrap();
+        let iota_address = iota_address.unwrap();
         modules.extend(
-            IMPLICIT_SUI_MODULES
+            IMPLICIT_IOTA_MODULES
                 .iter()
                 .copied()
-                .map(|m| (sui_address, m)),
+                .map(|m| (iota_address, m)),
         );
         members.extend(
-            IMPLICIT_SUI_MEMBERS
+            IMPLICIT_IOTA_MEMBERS
                 .iter()
                 .copied()
-                .map(|(m, mem, k)| (sui_address, m, mem, k)),
+                .map(|(m, mem, k)| (iota_address, m, mem, k)),
         );
     }
     for (addr, module) in modules {

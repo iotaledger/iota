@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import React from "react";
 import { MDXProvider } from "@mdx-js/react";
@@ -9,7 +10,7 @@ import { Card, Cards } from "@site/src/components/Cards";
 import EffortBox from "@site/src/components/EffortBox";
 import BetaTag from "@site/src/components/BetaTag";
 export default function MDXContent({ children }) {
-  const suiComponents = {
+  const iotaComponents = {
     ...MDXComponents,
     Card,
     Cards,
@@ -18,5 +19,5 @@ export default function MDXContent({ children }) {
     EffortBox,
     BetaTag,
   };
-  return <MDXProvider components={suiComponents}>{children}</MDXProvider>;
+  return <MDXProvider components={iotaComponents}>{children}</MDXProvider>;
 }

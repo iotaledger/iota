@@ -1,14 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt;
 
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
-use sui_json_rpc_types::SuiRawMoveObject;
-use sui_package_management::PublishedAtError;
-use sui_sdk::error::Error as SdkError;
-use sui_types::{base_types::ObjectID, error::SuiObjectResponseError};
+use iota_json_rpc_types::IotaRawMoveObject;
+use iota_package_management::PublishedAtError;
+use iota_sdk::error::Error as SdkError;
+use iota_types::{base_types::ObjectID, error::IotaObjectResponseError};
 
 #[derive(Debug, thiserror::Error)]
 pub struct AggregateError(pub(crate) Vec<Error>);
@@ -48,8 +49,8 @@ pub enum Error {
         module: Symbol,
     },
 
-    #[error("Dependency ID contains a Sui object, not a Move package: {0}")]
-    ObjectFoundWhenPackageExpected(ObjectID, SuiRawMoveObject),
+    #[error("Dependency ID contains a Iota object, not a Move package: {0}")]
+    ObjectFoundWhenPackageExpected(ObjectID, IotaRawMoveObject),
 
     #[error("Could not deserialize on-chain dependency {address}::{module}.")]
     OnChainDependencyDeserializationError {
@@ -64,7 +65,7 @@ pub enum Error {
     PublishedAt(#[from] PublishedAtError),
 
     #[error("Dependency object does not exist or was deleted: {0:?}")]
-    SuiObjectRefFailure(SuiObjectResponseError),
+    IotaObjectRefFailure(IotaObjectResponseError),
 
     #[error("On-chain address cannot be zero")]
     ZeroOnChainAddresSpecifiedFailure,

@@ -9,7 +9,7 @@
 module prettier::members;
 
 use std::string::String;
-use sui::coin::Coin;
+use iota::coin::Coin;
 
 const I: u8 = 0; // together with const B
 const B: u16 = 100; // empty line after

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses test=0x0 --accounts A --simulator
 
 //# publish --sender A
 module test::fake {
-    use sui::coin;
+    use iota::coin;
 
     public struct FAKE has drop {}
 
@@ -33,7 +34,7 @@ module test::fake {
 
 
 //# programmable --sender A --inputs object(1,2) 100 @A
-//> 0: sui::coin::mint<test::fake::FAKE>(Input(0), Input(1));
+//> 0: iota::coin::mint<test::fake::FAKE>(Input(0), Input(1));
 //> TransferObjects([Result(0)], Input(2))
 
 //# create-checkpoint

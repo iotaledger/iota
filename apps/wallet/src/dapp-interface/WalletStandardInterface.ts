@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { createMessage } from '_messages';
@@ -29,16 +30,16 @@ import {
 } from '_src/shared/messaging/messages/payloads/QredoConnect';
 import { type SignMessageRequest } from '_src/shared/messaging/messages/payloads/transactions/SignMessage';
 import { isWalletStatusChangePayload } from '_src/shared/messaging/messages/payloads/wallet-status-change';
-import { bcs } from '@mysten/sui/bcs';
-import { isTransaction } from '@mysten/sui/transactions';
-import { fromBase64, toBase64 } from '@mysten/sui/utils';
+import { bcs } from '@iota/iota-sdk/bcs';
+import { isTransaction } from '@iota/iota-sdk/transactions';
+import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 import {
 	ReadonlyWalletAccount,
-	SUI_CHAINS,
-	SUI_DEVNET_CHAIN,
-	SUI_LOCALNET_CHAIN,
-	SUI_MAINNET_CHAIN,
-	SUI_TESTNET_CHAIN,
+	IOTA_CHAINS,
+	IOTA_DEVNET_CHAIN,
+	IOTA_LOCALNET_CHAIN,
+	IOTA_MAINNET_CHAIN,
+	IOTA_TESTNET_CHAIN,
 	type StandardConnectFeature,
 	type StandardConnectMethod,
 	type StandardDisconnectFeature,
@@ -46,15 +47,15 @@ import {
 	type StandardEventsFeature,
 	type StandardEventsListeners,
 	type StandardEventsOnMethod,
-	type SuiFeatures,
-	type SuiSignAndExecuteTransactionBlockMethod,
-	type SuiSignAndExecuteTransactionMethod,
-	type SuiSignMessageMethod,
-	type SuiSignPersonalMessageMethod,
-	type SuiSignTransactionBlockMethod,
-	type SuiSignTransactionMethod,
+	type IotaFeatures,
+	type IotaSignAndExecuteTransactionBlockMethod,
+	type IotaSignAndExecuteTransactionMethod,
+	type IotaSignMessageMethod,
+	type IotaSignPersonalMessageMethod,
+	type IotaSignTransactionBlockMethod,
+	type IotaSignTransactionMethod,
 	type Wallet,
-} from '@mysten/wallet-standard';
+} from '@iota/wallet-standard';
 import mitt, { type Emitter } from 'mitt';
 import { filter, map, type Observable } from 'rxjs';
 
@@ -65,7 +66,7 @@ type WalletEventsMap = {
 };
 
 // NOTE: Because this runs in a content script, we can't fetch the manifest.
-const name = process.env.APP_NAME || 'Sui Wallet';
+const name = process.env.APP_NAME || 'Iota Wallet';
 
 export type QredoConnectInput = {
 	service: string;
@@ -89,13 +90,13 @@ type QredoConnectFeature = {
 };
 type ChainType = Wallet['chains'][number];
 const API_ENV_TO_CHAIN: Record<Exclude<API_ENV, API_ENV.customRPC>, ChainType> = {
-	[API_ENV.local]: SUI_LOCALNET_CHAIN,
-	[API_ENV.devNet]: SUI_DEVNET_CHAIN,
-	[API_ENV.testNet]: SUI_TESTNET_CHAIN,
-	[API_ENV.mainnet]: SUI_MAINNET_CHAIN,
+	[API_ENV.local]: IOTA_LOCALNET_CHAIN,
+	[API_ENV.devNet]: IOTA_DEVNET_CHAIN,
+	[API_ENV.testNet]: IOTA_TESTNET_CHAIN,
+	[API_ENV.mainnet]: IOTA_MAINNET_CHAIN,
 };
 
-export class SuiWallet implements Wallet {
+export class IotaWallet implements Wallet {
 	readonly #events: Emitter<WalletEventsMap>;
 	readonly #version = '1.0.0' as const;
 	readonly #name = name;
@@ -117,13 +118,13 @@ export class SuiWallet implements Wallet {
 
 	get chains() {
 		// TODO: Extract chain from wallet:
-		return SUI_CHAINS;
+		return IOTA_CHAINS;
 	}
 
 	get features(): StandardConnectFeature &
 		StandardEventsFeature &
 		StandardDisconnectFeature &
-		SuiFeatures &
+		IotaFeatures &
 		QredoConnectFeature {
 		return {
 			'standard:connect': {
@@ -138,27 +139,27 @@ export class SuiWallet implements Wallet {
 				version: '1.0.0',
 				disconnect: this.#disconnect,
 			},
-			'sui:signTransactionBlock': {
+			'iota:signTransactionBlock': {
 				version: '1.0.0',
 				signTransactionBlock: this.#signTransactionBlock,
 			},
-			'sui:signTransaction': {
+			'iota:signTransaction': {
 				version: '2.0.0',
 				signTransaction: this.#signTransaction,
 			},
-			'sui:signAndExecuteTransactionBlock': {
+			'iota:signAndExecuteTransactionBlock': {
 				version: '1.0.0',
 				signAndExecuteTransactionBlock: this.#signAndExecuteTransactionBlock,
 			},
-			'sui:signAndExecuteTransaction': {
+			'iota:signAndExecuteTransaction': {
 				version: '2.0.0',
 				signAndExecuteTransaction: this.#signAndExecuteTransaction,
 			},
-			'sui:signMessage': {
+			'iota:signMessage': {
 				version: '1.0.0',
 				signMessage: this.#signMessage,
 			},
-			'sui:signPersonalMessage': {
+			'iota:signPersonalMessage': {
 				version: '1.0.0',
 				signPersonalMessage: this.#signPersonalMessage,
 			},
@@ -181,7 +182,7 @@ export class SuiWallet implements Wallet {
 					label: nickname || undefined,
 					publicKey: publicKey ? fromBase64(publicKey) : new Uint8Array(),
 					chains: this.#activeChain ? [this.#activeChain] : [],
-					features: ['sui:signAndExecuteTransaction'],
+					features: ['iota:signAndExecuteTransaction'],
 				}),
 		);
 	}
@@ -189,7 +190,7 @@ export class SuiWallet implements Wallet {
 	constructor() {
 		this.#events = mitt();
 		this.#accounts = [];
-		this.#messagesStream = new WindowMessageStream('sui_in-page', 'sui_content-script');
+		this.#messagesStream = new WindowMessageStream('iota_in-page', 'iota_content-script');
 		this.#messagesStream.messages.subscribe(({ payload }) => {
 			if (isWalletStatusChangePayload(payload)) {
 				const { network, accounts } = payload;
@@ -259,7 +260,7 @@ export class SuiWallet implements Wallet {
 		});
 	};
 
-	#signTransactionBlock: SuiSignTransactionBlockMethod = async ({
+	#signTransactionBlock: IotaSignTransactionBlockMethod = async ({
 		transactionBlock,
 		account,
 		...input
@@ -285,7 +286,7 @@ export class SuiWallet implements Wallet {
 		);
 	};
 
-	#signTransaction: SuiSignTransactionMethod = async ({ transaction, account, ...input }) => {
+	#signTransaction: IotaSignTransactionMethod = async ({ transaction, account, ...input }) => {
 		return mapToPromise(
 			this.#send<SignTransactionRequest, SignTransactionResponse>({
 				type: 'sign-transaction-request',
@@ -304,7 +305,7 @@ export class SuiWallet implements Wallet {
 		);
 	};
 
-	#signAndExecuteTransactionBlock: SuiSignAndExecuteTransactionBlockMethod = async (input) => {
+	#signAndExecuteTransactionBlock: IotaSignAndExecuteTransactionBlockMethod = async (input) => {
 		if (!isTransaction(input.transactionBlock)) {
 			throw new Error(
 				'Unexpected transaction format found. Ensure that you are using the `Transaction` class.',
@@ -327,7 +328,7 @@ export class SuiWallet implements Wallet {
 		);
 	};
 
-	#signAndExecuteTransaction: SuiSignAndExecuteTransactionMethod = async (input) => {
+	#signAndExecuteTransaction: IotaSignAndExecuteTransactionMethod = async (input) => {
 		return mapToPromise(
 			this.#send<ExecuteTransactionRequest, ExecuteTransactionResponse>({
 				type: 'execute-transaction-request',
@@ -363,7 +364,7 @@ export class SuiWallet implements Wallet {
 		);
 	};
 
-	#signMessage: SuiSignMessageMethod = async ({ message, account }) => {
+	#signMessage: IotaSignMessageMethod = async ({ message, account }) => {
 		return mapToPromise(
 			this.#send<SignMessageRequest, SignMessageRequest>({
 				type: 'sign-message-request',
@@ -381,7 +382,7 @@ export class SuiWallet implements Wallet {
 		);
 	};
 
-	#signPersonalMessage: SuiSignPersonalMessageMethod = async ({ message, account }) => {
+	#signPersonalMessage: IotaSignPersonalMessageMethod = async ({ message, account }) => {
 		return mapToPromise(
 			this.#send<SignMessageRequest, SignMessageRequest>({
 				type: 'sign-message-request',
@@ -431,7 +432,7 @@ export class SuiWallet implements Wallet {
 	}
 
 	#setActiveChain({ env }: NetworkEnvType) {
-		this.#activeChain = env === API_ENV.customRPC ? 'sui:unknown' : API_ENV_TO_CHAIN[env];
+		this.#activeChain = env === API_ENV.customRPC ? 'iota:unknown' : API_ENV_TO_CHAIN[env];
 	}
 
 	#qredoConnect = async (input: QredoConnectInput): Promise<void> => {

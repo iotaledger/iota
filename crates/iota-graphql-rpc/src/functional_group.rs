@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -23,7 +24,7 @@ pub enum FunctionalGroup {
     /// Querying an object's dynamic fields.
     DynamicFields,
 
-    /// SuiNS name and reverse name look-up.
+    /// IotaNS name and reverse name look-up.
     NameService,
 
     /// Transaction and Event subscriptions.
@@ -72,8 +73,8 @@ fn functional_groups() -> &'static BTreeMap<(&'static str, &'static str), Functi
             (("Address", "balance"), G::Coins),
             (("Address", "balances"), G::Coins),
             (("Address", "coins"), G::Coins),
-            (("Address", "defaultSuinsName"), G::NameService),
-            (("Address", "suinsRegistrations"), G::NameService),
+            (("Address", "defaultIotaNSName"), G::NameService),
+            (("Address", "iotansRegistrations"), G::NameService),
             (("Checkpoint", "addressMetrics"), G::Analytics),
             (("Checkpoint", "networkTotalTransactions"), G::Analytics),
             (("Epoch", "protocolConfigs"), G::SystemState),
@@ -82,24 +83,24 @@ fn functional_groups() -> &'static BTreeMap<(&'static str, &'static str), Functi
             (("Object", "balance"), G::Coins),
             (("Object", "balances"), G::Coins),
             (("Object", "coins"), G::Coins),
-            (("Object", "defaultSuinsName"), G::NameService),
+            (("Object", "defaultIotaNSName"), G::NameService),
             (("Object", "dynamicField"), G::DynamicFields),
             (("Object", "dynamicObjectField"), G::DynamicFields),
             (("Object", "dynamicFields"), G::DynamicFields),
-            (("Object", "suinsRegistrations"), G::NameService),
+            (("Object", "iotansRegistrations"), G::NameService),
             (("Owner", "balance"), G::Coins),
             (("Owner", "balances"), G::Coins),
             (("Owner", "coins"), G::Coins),
-            (("Owner", "defaultSuinsName"), G::NameService),
+            (("Owner", "defaultIotaNSName"), G::NameService),
             (("Owner", "dynamicField"), G::DynamicFields),
             (("Owner", "dynamicObjectField"), G::DynamicFields),
             (("Owner", "dynamicFields"), G::DynamicFields),
-            (("Owner", "suinsRegistrations"), G::NameService),
+            (("Owner", "iotansRegistrations"), G::NameService),
             (("Query", "coinMetadata"), G::Coins),
             (("Query", "moveCallMetrics"), G::Analytics),
             (("Query", "networkMetrics"), G::Analytics),
             (("Query", "protocolConfig"), G::SystemState),
-            (("Query", "resolveSuinsAddress"), G::NameService),
+            (("Query", "resolveIotaNSAddress"), G::NameService),
             (("Query", "packageByName"), G::MoveRegistry),
             (("Query", "typeByName"), G::MoveRegistry),
             (("Subscription", "events"), G::Subscriptions),

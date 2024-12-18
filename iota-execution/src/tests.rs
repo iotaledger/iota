@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -14,9 +15,9 @@ type PackageGraph<'p> = DiGraphMap<&'p str, ()>;
 struct Packages(HashMap<String, Package>);
 
 #[test]
-/// Make sure that all accesses to execution layer crates in the `sui-node` and `sui-replay` crates
-/// go via the `sui-execution` crate (in other words, the `sui-execution` crate dominates execution
-/// layer crates in the dependency graphs of `sui-node` and `sui-replay`).
+/// Make sure that all accesses to execution layer crates in the `iota-node` and `iota-replay` crates
+/// go via the `iota-execution` crate (in other words, the `iota-execution` crate dominates execution
+/// layer crates in the dependency graphs of `iota-node` and `iota-replay`).
 ///
 /// This helps ensures that execution that may be committed on-chain respects the execution version
 /// that is stated in the protocol config.
@@ -25,12 +26,12 @@ fn test_encapsulation() {
     let packages = Packages::new(&metadata);
 
     // Identify the crates that are part of the execution layer
-    let mut exec_crates: BTreeSet<_> = packages.normal_deps("sui-execution").collect();
+    let mut exec_crates: BTreeSet<_> = packages.normal_deps("iota-execution").collect();
 
     // Remove the crates that the execution layer depends on but which are not directly part of the
-    // execution layer -- these don't need to be accessed exclusively via `sui-execution`.
-    exec_crates.remove("sui-protocol-config");
-    exec_crates.remove("sui-types");
+    // execution layer -- these don't need to be accessed exclusively via `iota-execution`.
+    exec_crates.remove("iota-protocol-config");
+    exec_crates.remove("iota-types");
     exec_crates.remove("move-binary-format");
     exec_crates.remove("move-bytecode-utils");
     exec_crates.remove("move-core-types");
@@ -39,12 +40,12 @@ fn test_encapsulation() {
     // Capture problematic paths from roots to execution crates
     let mut examples = vec![];
 
-    for root in ["sui-node", "sui-replay"] {
+    for root in ["iota-node", "iota-replay"] {
         let mut graph = packages.graph(root);
 
         // If we can still create a path from `root` to an execution crate after removing these
-        // nodes then we know that we can potential bypass "sui-execution".
-        graph.remove_node("sui-execution");
+        // nodes then we know that we can potential bypass "iota-execution".
+        graph.remove_node("iota-execution");
 
         for exec_crate in &exec_crates {
             let paths = all_simple_paths::<Vec<&str>, &PackageGraph>(
@@ -61,25 +62,25 @@ fn test_encapsulation() {
     }
 
     panic!(
-        "protocol-sensitive binaries depend on execution crates outside of 'sui-execution', e.g.:\n\
+        "protocol-sensitive binaries depend on execution crates outside of 'iota-execution', e.g.:\n\
          \n  {}\n\
          \n\
          This can cause execution to fork by not respecting the execution layer version set in the \
-         protocol config.  Fix this by depending on these crates via 'sui-execution'.\n\
+         protocol config.  Fix this by depending on these crates via 'iota-execution'.\n\
          \n\
-         P.S. if you believe one of these crates should not be part of 'sui-execution' then update \
+         P.S. if you believe one of these crates should not be part of 'iota-execution' then update \
          the test to exclude this crate.",
         examples.join("\n  "),
     );
 }
 
-/// Parse `cargo metadata` for the `sui` repo.
+/// Parse `cargo metadata` for the `iota` repo.
 fn cargo_metadata() -> cargo_metadata::Result<Metadata> {
-    let sui_execution = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let iota_execution = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
     MetadataCommand::new()
-        .manifest_path(sui_execution.join("../Cargo.toml"))
-        .current_dir(sui_execution.join(".."))
+        .manifest_path(iota_execution.join("../Cargo.toml"))
+        .current_dir(iota_execution.join(".."))
         .no_deps()
         .exec()
 }

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{borrow::BorrowMut, marker::PhantomData, str::FromStr};
@@ -8,7 +9,7 @@ use move_core_types::parsing::{
     types::{ParsedType, TypeToken},
 };
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
-use sui_types::{
+use iota_types::{
     base_types::ObjectID,
     transaction::{Argument, Command, ProgrammableMoveCall},
     type_input::TypeInput,

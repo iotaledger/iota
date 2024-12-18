@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use anyhow::bail;
 use async_trait::async_trait;
@@ -7,8 +8,8 @@ use fullnode_reconfig_observer::FullNodeReconfigObserver;
 use prometheus::Registry;
 use rand::Rng;
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
-use sui_config::genesis::Genesis;
-use sui_core::{
+use iota_config::genesis::Genesis;
+use iota_core::{
     authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
     authority_client::NetworkAuthorityClient,
     quorum_driver::{
@@ -16,31 +17,31 @@ use sui_core::{
         QuorumDriverHandlerBuilder, QuorumDriverMetrics,
     },
 };
-use sui_json_rpc_types::{
-    SuiObjectDataOptions, SuiObjectResponse, SuiObjectResponseQuery, SuiTransactionBlockEffects,
-    SuiTransactionBlockEffectsAPI, SuiTransactionBlockResponseOptions,
+use iota_json_rpc_types::{
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions,
 };
-use sui_sdk::{SuiClient, SuiClientBuilder};
-use sui_types::effects::{TransactionEffectsAPI, TransactionEvents};
-use sui_types::gas::GasCostSummary;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::quorum_driver_types::EffectsFinalityInfo;
-use sui_types::quorum_driver_types::FinalizedEffects;
-use sui_types::sui_system_state::sui_system_state_summary::SuiSystemStateSummary;
-use sui_types::transaction::Argument;
-use sui_types::transaction::CallArg;
-use sui_types::transaction::ObjectArg;
-use sui_types::{
+use iota_sdk::{IotaClient, IotaClientBuilder};
+use iota_types::effects::{TransactionEffectsAPI, TransactionEvents};
+use iota_types::gas::GasCostSummary;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::quorum_driver_types::EffectsFinalityInfo;
+use iota_types::quorum_driver_types::FinalizedEffects;
+use iota_types::iota_system_state::iota_system_state_summary::IotaSystemStateSummary;
+use iota_types::transaction::Argument;
+use iota_types::transaction::CallArg;
+use iota_types::transaction::ObjectArg;
+use iota_types::{
     base_types::ObjectID,
     committee::{Committee, EpochId},
     object::Object,
     transaction::Transaction,
 };
-use sui_types::{base_types::ObjectRef, crypto::AuthorityStrongQuorumSignInfo, object::Owner};
-use sui_types::{base_types::SequenceNumber, gas_coin::GasCoin};
-use sui_types::{
-    base_types::{AuthorityName, SuiAddress},
-    sui_system_state::SuiSystemStateTrait,
+use iota_types::{base_types::ObjectRef, crypto::AuthorityStrongQuorumSignInfo, object::Owner};
+use iota_types::{base_types::SequenceNumber, gas_coin::GasCoin};
+use iota_types::{
+    base_types::{AuthorityName, IotaAddress},
+    iota_system_state::IotaSystemStateTrait,
 };
 use tokio::time::sleep;
 use tracing::{error, info, warn};
@@ -55,7 +56,7 @@ pub mod options;
 pub mod system_state_observer;
 pub mod util;
 pub mod workloads;
-use sui_types::quorum_driver_types::{QuorumDriverError, QuorumDriverResponse};
+use iota_types::quorum_driver_types::{QuorumDriverError, QuorumDriverResponse};
 
 #[derive(Debug)]
 /// A wrapper on execution results to accommodate different types of
@@ -63,7 +64,7 @@ use sui_types::quorum_driver_types::{QuorumDriverError, QuorumDriverResponse};
 #[allow(clippy::large_enum_variant)]
 pub enum ExecutionEffects {
     FinalizedTransactionEffects(FinalizedEffects, TransactionEvents),
-    SuiTransactionBlockEffects(SuiTransactionBlockEffects),
+    IotaTransactionBlockEffects(IotaTransactionBlockEffects),
 }
 
 impl ExecutionEffects {
@@ -72,7 +73,7 @@ impl ExecutionEffects {
             ExecutionEffects::FinalizedTransactionEffects(effects, ..) => {
                 effects.data().mutated().to_vec()
             }
-            ExecutionEffects::SuiTransactionBlockEffects(sui_tx_effects) => sui_tx_effects
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
                 .mutated()
                 .iter()
                 .map(|refe| (refe.reference.to_object_ref(), refe.owner.clone()))
@@ -83,7 +84,7 @@ impl ExecutionEffects {
     pub fn created(&self) -> Vec<(ObjectRef, Owner)> {
         match self {
             ExecutionEffects::FinalizedTransactionEffects(effects, ..) => effects.data().created(),
-            ExecutionEffects::SuiTransactionBlockEffects(sui_tx_effects) => sui_tx_effects
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
                 .created()
                 .iter()
                 .map(|refe| (refe.reference.to_object_ref(), refe.owner.clone()))
@@ -96,7 +97,7 @@ impl ExecutionEffects {
             ExecutionEffects::FinalizedTransactionEffects(effects, ..) => {
                 effects.data().deleted().to_vec()
             }
-            ExecutionEffects::SuiTransactionBlockEffects(sui_tx_effects) => sui_tx_effects
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => iota_tx_effects
                 .deleted()
                 .iter()
                 .map(|refe| refe.to_object_ref())
@@ -112,7 +113,7 @@ impl ExecutionEffects {
                     _ => None,
                 }
             }
-            ExecutionEffects::SuiTransactionBlockEffects(_) => None,
+            ExecutionEffects::IotaTransactionBlockEffects(_) => None,
         }
     }
 
@@ -121,14 +122,14 @@ impl ExecutionEffects {
             ExecutionEffects::FinalizedTransactionEffects(effects, ..) => {
                 effects.data().gas_object()
             }
-            ExecutionEffects::SuiTransactionBlockEffects(sui_tx_effects) => {
-                let refe = &sui_tx_effects.gas_object();
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
+                let refe = &iota_tx_effects.gas_object();
                 (refe.reference.to_object_ref(), refe.owner.clone())
             }
         }
     }
 
-    pub fn sender(&self) -> SuiAddress {
+    pub fn sender(&self) -> IotaAddress {
         match self.gas_object().1 {
             Owner::AddressOwner(a) => a,
             Owner::ObjectOwner(_)
@@ -143,8 +144,8 @@ impl ExecutionEffects {
             ExecutionEffects::FinalizedTransactionEffects(effects, ..) => {
                 effects.data().status().is_ok()
             }
-            ExecutionEffects::SuiTransactionBlockEffects(sui_tx_effects) => {
-                sui_tx_effects.status().is_ok()
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
+                iota_tx_effects.status().is_ok()
             }
         }
     }
@@ -154,8 +155,8 @@ impl ExecutionEffects {
             ExecutionEffects::FinalizedTransactionEffects(effects, ..) => {
                 format!("{:#?}", effects.data().status())
             }
-            ExecutionEffects::SuiTransactionBlockEffects(sui_tx_effects) => {
-                format!("{:#?}", sui_tx_effects.status())
+            ExecutionEffects::IotaTransactionBlockEffects(iota_tx_effects) => {
+                format!("{:#?}", iota_tx_effects.status())
             }
         }
     }
@@ -165,7 +166,7 @@ impl ExecutionEffects {
             crate::ExecutionEffects::FinalizedTransactionEffects(a, _) => {
                 a.data().gas_cost_summary().clone()
             }
-            crate::ExecutionEffects::SuiTransactionBlockEffects(b) => {
+            crate::ExecutionEffects::IotaTransactionBlockEffects(b) => {
                 std::convert::Into::<GasCostSummary>::into(b.gas_cost_summary().clone())
             }
         }
@@ -205,10 +206,10 @@ pub trait ValidatorProxy {
 
     async fn get_owned_objects(
         &self,
-        account_address: SuiAddress,
+        account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error>;
 
-    async fn get_latest_system_state_object(&self) -> Result<SuiSystemStateSummary, anyhow::Error>;
+    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error>;
 
     async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects>;
 
@@ -218,7 +219,7 @@ pub trait ValidatorProxy {
 
     fn clone_new(&self) -> Box<dyn ValidatorProxy + Send + Sync>;
 
-    async fn get_validators(&self) -> Result<Vec<SuiAddress>, anyhow::Error>;
+    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error>;
 }
 
 // TODO: Eventually remove this proxy because we shouldn't rely on validators to read objects.
@@ -313,17 +314,17 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
 
     async fn get_owned_objects(
         &self,
-        _account_address: SuiAddress,
+        _account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
         unimplemented!("Not available for local proxy");
     }
 
-    async fn get_latest_system_state_object(&self) -> Result<SuiSystemStateSummary, anyhow::Error> {
+    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error> {
         let auth_agg = self.qd.authority_aggregator().load();
         Ok(auth_agg
             .get_latest_system_state_object_for_testing()
             .await?
-            .into_sui_system_state_summary())
+            .into_iota_system_state_summary())
     }
 
     async fn execute_transaction_block(&self, tx: Transaction) -> anyhow::Result<ExecutionEffects> {
@@ -333,7 +334,7 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
             let ticket = self
                 .qd
                 .submit_transaction(
-                    sui_types::quorum_driver_types::ExecuteTransactionRequestV3 {
+                    iota_types::quorum_driver_types::ExecuteTransactionRequestV3 {
                         transaction: tx.clone(),
                         include_events: true,
                         include_input_objects: false,
@@ -394,30 +395,30 @@ impl ValidatorProxy for LocalValidatorAggregatorProxy {
         })
     }
 
-    async fn get_validators(&self) -> Result<Vec<SuiAddress>, anyhow::Error> {
+    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
         let system_state = self.get_latest_system_state_object().await?;
         Ok(system_state
             .active_validators
             .iter()
-            .map(|v| v.sui_address)
+            .map(|v| v.iota_address)
             .collect())
     }
 }
 
 pub struct FullNodeProxy {
-    sui_client: SuiClient,
+    iota_client: IotaClient,
     committee: Arc<Committee>,
 }
 
 impl FullNodeProxy {
     pub async fn from_url(http_url: &str) -> Result<Self, anyhow::Error> {
         // Each request times out after 60s (default value)
-        let sui_client = SuiClientBuilder::default()
+        let iota_client = IotaClientBuilder::default()
             .max_concurrent_requests(500_000)
             .build(http_url)
             .await?;
 
-        let resp = sui_client.read_api().get_committee_info(None).await?;
+        let resp = iota_client.read_api().get_committee_info(None).await?;
         let epoch = resp.epoch;
         let committee_vec = resp.validators;
         let committee_map = BTreeMap::from_iter(committee_vec.into_iter());
@@ -425,7 +426,7 @@ impl FullNodeProxy {
             Committee::new_for_testing_with_normalized_voting_power(epoch, committee_map);
 
         Ok(Self {
-            sui_client,
+            iota_client,
             committee: Arc::new(committee),
         })
     }
@@ -435,13 +436,13 @@ impl FullNodeProxy {
 impl ValidatorProxy for FullNodeProxy {
     async fn get_object(&self, object_id: ObjectID) -> Result<Object, anyhow::Error> {
         let response = self
-            .sui_client
+            .iota_client
             .read_api()
-            .get_object_with_options(object_id, SuiObjectDataOptions::bcs_lossless())
+            .get_object_with_options(object_id, IotaObjectDataOptions::bcs_lossless())
             .await?;
 
-        if let Some(sui_object) = response.data {
-            sui_object.try_into()
+        if let Some(iota_object) = response.data {
+            iota_object.try_into()
         } else if let Some(error) = response.error {
             bail!("Error getting object {:?}: {}", object_id, error)
         } else {
@@ -451,18 +452,18 @@ impl ValidatorProxy for FullNodeProxy {
 
     async fn get_owned_objects(
         &self,
-        account_address: SuiAddress,
+        account_address: IotaAddress,
     ) -> Result<Vec<(u64, Object)>, anyhow::Error> {
-        let mut objects: Vec<SuiObjectResponse> = Vec::new();
+        let mut objects: Vec<IotaObjectResponse> = Vec::new();
         let mut cursor = None;
         loop {
             let response = self
-                .sui_client
+                .iota_client
                 .read_api()
                 .get_owned_objects(
                     account_address,
-                    Some(SuiObjectResponseQuery::new_with_options(
-                        SuiObjectDataOptions::bcs_lossless(),
+                    Some(IotaObjectResponseQuery::new_with_options(
+                        IotaObjectDataOptions::bcs_lossless(),
                     )),
                     cursor,
                     None,
@@ -492,11 +493,11 @@ impl ValidatorProxy for FullNodeProxy {
         Ok(values_objects)
     }
 
-    async fn get_latest_system_state_object(&self) -> Result<SuiSystemStateSummary, anyhow::Error> {
+    async fn get_latest_system_state_object(&self) -> Result<IotaSystemStateSummary, anyhow::Error> {
         Ok(self
-            .sui_client
+            .iota_client
             .governance_api()
-            .get_latest_sui_system_state()
+            .get_latest_iota_system_state()
             .await?)
     }
 
@@ -505,19 +506,19 @@ impl ValidatorProxy for FullNodeProxy {
         let mut retry_cnt = 0;
         while retry_cnt < 10 {
             // Fullnode could time out after WAIT_FOR_FINALITY_TIMEOUT (30s) in TransactionOrchestrator
-            // SuiClient times out after 60s
+            // IotaClient times out after 60s
             match self
-                .sui_client
+                .iota_client
                 .quorum_driver_api()
                 .execute_transaction_block(
                     tx.clone(),
-                    SuiTransactionBlockResponseOptions::new().with_effects(),
+                    IotaTransactionBlockResponseOptions::new().with_effects(),
                     None,
                 )
                 .await
             {
                 Ok(resp) => {
-                    return Ok(ExecutionEffects::SuiTransactionBlockEffects(
+                    return Ok(ExecutionEffects::IotaTransactionBlockEffects(
                         resp.effects.expect("effects field should not be None"),
                     ));
                 }
@@ -543,19 +544,19 @@ impl ValidatorProxy for FullNodeProxy {
 
     fn clone_new(&self) -> Box<dyn ValidatorProxy + Send + Sync> {
         Box::new(Self {
-            sui_client: self.sui_client.clone(),
+            iota_client: self.iota_client.clone(),
             committee: self.clone_committee(),
         })
     }
 
-    async fn get_validators(&self) -> Result<Vec<SuiAddress>, anyhow::Error> {
+    async fn get_validators(&self) -> Result<Vec<IotaAddress>, anyhow::Error> {
         let validators = self
-            .sui_client
+            .iota_client
             .governance_api()
-            .get_latest_sui_system_state()
+            .get_latest_iota_system_state()
             .await?
             .active_validators;
-        Ok(validators.into_iter().map(|v| v.sui_address).collect())
+        Ok(validators.into_iter().map(|v| v.iota_address).collect())
     }
 }
 

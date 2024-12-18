@@ -1,27 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use clap::*;
-use mysten_metrics::start_prometheus_server;
+use iota_metrics::start_prometheus_server;
 use std::env;
 use std::net::IpAddr;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Arc;
-use sui_config::Config;
-use sui_data_ingestion_core::DataIngestionMetrics;
-use sui_deepbook_indexer::config::IndexerConfig;
-use sui_deepbook_indexer::metrics::DeepBookIndexerMetrics;
-use sui_deepbook_indexer::postgres_manager::get_connection_pool;
-use sui_deepbook_indexer::server::run_server;
-use sui_deepbook_indexer::sui_deepbook_indexer::PgDeepbookPersistent;
-use sui_deepbook_indexer::sui_deepbook_indexer::SuiDeepBookDataMapper;
-use sui_indexer_builder::indexer_builder::IndexerBuilder;
-use sui_indexer_builder::progress::{OutOfOrderSaveAfterDurationPolicy, ProgressSavingPolicy};
-use sui_indexer_builder::sui_datasource::SuiCheckpointDatasource;
-use sui_sdk::SuiClientBuilder;
-use sui_types::base_types::ObjectID;
+use iota_config::Config;
+use iota_data_ingestion_core::DataIngestionMetrics;
+use iota_deepbook_indexer::config::IndexerConfig;
+use iota_deepbook_indexer::metrics::DeepBookIndexerMetrics;
+use iota_deepbook_indexer::postgres_manager::get_connection_pool;
+use iota_deepbook_indexer::server::run_server;
+use iota_deepbook_indexer::iota_deepbook_indexer::PgDeepbookPersistent;
+use iota_deepbook_indexer::iota_deepbook_indexer::IotaDeepBookDataMapper;
+use iota_indexer_builder::indexer_builder::IndexerBuilder;
+use iota_indexer_builder::progress::{OutOfOrderSaveAfterDurationPolicy, ProgressSavingPolicy};
+use iota_indexer_builder::iota_datasource::IotaCheckpointDatasource;
+use iota_sdk::IotaClientBuilder;
+use iota_types::base_types::ObjectID;
 use tracing::info;
 
 #[derive(Parser, Clone, Debug)]
@@ -54,7 +55,7 @@ async fn main() -> Result<()> {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), config.metric_port);
     let registry_service = start_prometheus_server(metrics_address);
     let registry = registry_service.default_registry();
-    mysten_metrics::init_metrics(&registry);
+    iota_metrics::init_metrics(&registry);
     info!("Metrics server started at port {}", config.metric_port);
 
     let indexer_meterics = DeepBookIndexerMetrics::new(&registry);
@@ -68,14 +69,14 @@ async fn main() -> Result<()> {
         )),
     );
 
-    let sui_client = Arc::new(
-        SuiClientBuilder::default()
-            .build(config.sui_rpc_url.clone())
+    let iota_client = Arc::new(
+        IotaClientBuilder::default()
+            .build(config.iota_rpc_url.clone())
             .await?,
     );
-    let sui_checkpoint_datasource = SuiCheckpointDatasource::new(
+    let iota_checkpoint_datasource = IotaCheckpointDatasource::new(
         config.remote_store_url,
-        sui_client,
+        iota_client,
         config.concurrency as usize,
         config
             .checkpoints_path
@@ -91,9 +92,9 @@ async fn main() -> Result<()> {
     run_server(service_address, datastore.clone());
 
     let indexer = IndexerBuilder::new(
-        "SuiDeepBookIndexer",
-        sui_checkpoint_datasource,
-        SuiDeepBookDataMapper {
+        "IotaDeepBookIndexer",
+        iota_checkpoint_datasource,
+        IotaDeepBookDataMapper {
             metrics: indexer_meterics.clone(),
             package_id: ObjectID::from_hex_literal(&config.deepbook_package_id.clone())
                 .unwrap_or_else(|err| panic!("Failed to parse deepbook package ID: {}", err)),

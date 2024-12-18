@@ -1,7 +1,7 @@
 ---
-name: Sui Code Bug
-about: Create a new software bug for issues encountered running Sui
-title: 'Sui Code Bug or Feature Request'
+name: Iota Code Bug
+about: Create a new software bug for issues encountered running Iota
+title: 'Iota Code Bug or Feature Request'
 labels: bug
 assignees: ''
 ---

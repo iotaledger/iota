@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashSet;
 
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
-use sui_types::base_types::{ObjectID, SuiAddress};
+use iota_types::base_types::{ObjectID, IotaAddress};
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -29,9 +30,9 @@ pub struct TransactionDenyConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     package_deny_list: Vec<ObjectID>,
 
-    /// A list of sui addresses that are not allowed to be used as the sender or sponsor.
+    /// A list of iota addresses that are not allowed to be used as the sender or sponsor.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    address_deny_list: Vec<SuiAddress>,
+    address_deny_list: Vec<IotaAddress>,
 
     /// Whether publishing new packages is disabled.
     #[serde(default)]
@@ -58,7 +59,7 @@ pub struct TransactionDenyConfig {
     package_deny_set: OnceCell<HashSet<ObjectID>>,
 
     #[serde(skip)]
-    address_deny_set: OnceCell<HashSet<SuiAddress>>,
+    address_deny_set: OnceCell<HashSet<IotaAddress>>,
 
     /// Whether receiving objects transferred to other objects is allowed
     #[serde(default)]
@@ -86,7 +87,7 @@ impl TransactionDenyConfig {
             .get_or_init(|| self.package_deny_list.iter().cloned().collect())
     }
 
-    pub fn get_address_deny_set(&self) -> &HashSet<SuiAddress> {
+    pub fn get_address_deny_set(&self) -> &HashSet<IotaAddress> {
         self.address_deny_set
             .get_or_init(|| self.address_deny_list.iter().cloned().collect())
     }
@@ -164,7 +165,7 @@ impl TransactionDenyConfigBuilder {
         self
     }
 
-    pub fn add_denied_address(mut self, address: SuiAddress) -> Self {
+    pub fn add_denied_address(mut self, address: IotaAddress) -> Self {
         self.config.address_deny_list.push(address);
         self
     }

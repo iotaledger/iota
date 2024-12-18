@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -303,8 +304,8 @@ pub struct CommittedSubDag {
     /// First commit after genesis has a index of 1, then every next commit has a
     /// index incremented by 1.
     pub commit_ref: CommitRef,
-    /// Optional scores that are provided as part of the consensus output to Sui
-    /// that can then be used by Sui for future submission to consensus.
+    /// Optional scores that are provided as part of the consensus output to Iota
+    /// that can then be used by Iota for future submission to consensus.
     pub reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
 }
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::config::{Limits, ServiceConfig};
@@ -22,7 +23,7 @@ use std::mem;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use sui_graphql_rpc_headers::LIMITS_HEADER;
+use iota_graphql_rpc_headers::LIMITS_HEADER;
 use tracing::{error, info};
 use uuid::Uuid;
 

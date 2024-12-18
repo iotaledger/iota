@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::object_table_tests {
-    use sui::object_table::{Self, add};
-    use sui::test_scenario;
+module iota::object_table_tests {
+    use iota::object_table::{Self, add};
+    use iota::test_scenario;
 
     public struct Counter has key, store {
         id: UID,
@@ -49,7 +50,7 @@ module sui::object_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldAlreadyExists)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
     fun add_duplicate() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -60,7 +61,7 @@ module sui::object_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun borrow_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -70,7 +71,7 @@ module sui::object_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun borrow_mut_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -80,7 +81,7 @@ module sui::object_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::dynamic_field::EFieldDoesNotExist)]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldDoesNotExist)]
     fun remove_missing() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);
@@ -90,7 +91,7 @@ module sui::object_table_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::object_table::ETableNotEmpty)]
+    #[expected_failure(abort_code = iota::object_table::ETableNotEmpty)]
     fun destroy_non_empty() {
         let sender = @0x0;
         let mut scenario = test_scenario::begin(sender);

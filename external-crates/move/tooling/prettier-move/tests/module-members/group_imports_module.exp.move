@@ -16,13 +16,13 @@ use std::option::{Self as opt, Option};
 use std::string::String;
 use std::type_name::get as type_name_get;
 use std::vector as vec;
-use sui::balance::{Self, Balance};
-use sui::coin::{Self, Coin};
-use sui::dynamic_field as df;
-use sui::dynamic_object_field as dof;
-use sui::event;
-use sui::sui::SUI;
-use sui::transfer_policy::{
+use iota::balance::{Self, Balance};
+use iota::coin::{Self, Coin};
+use iota::dynamic_field as df;
+use iota::dynamic_object_field as dof;
+use iota::event;
+use iota::iota::IOTA;
+use iota::transfer_policy::{
     Self,
     TransferPolicy,
     TransferRequest

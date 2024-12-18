@@ -1,6 +1,6 @@
 [package]
-name = "sui-data-ingestion"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+name = "iota-data-ingestion"
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -18,7 +18,7 @@ bcs.workspace = true
 byteorder.workspace = true
 bytes.workspace = true
 futures.workspace = true
-mysten-metrics.workspace = true
+iota-metrics.workspace = true
 notify.workspace = true
 object_store.workspace = true
 serde.workspace = true
@@ -28,11 +28,11 @@ prometheus.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
-sui-archival.workspace = true
-sui-storage.workspace = true
-sui-data-ingestion-core.workspace = true
-sui-kvstore.workspace = true
-sui-types.workspace = true
+iota-archival.workspace = true
+iota-storage.workspace = true
+iota-data-ingestion-core.workspace = true
+iota-kvstore.workspace = true
+iota-types.workspace = true
 tempfile.workspace = true
 url.workspace = true
 

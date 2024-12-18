@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Text } from '_app/shared/text';
 import Alert from '_src/ui/app/components/alert';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { QrCode, X12 } from '@mysten/icons';
-import { isValidSuiAddress } from '@mysten/sui/utils';
+import { useIotaClient } from '@iota/dapp-kit';
+import { QrCode, X12 } from '@iota/icons';
+import { isValidIotaAddress } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 import { cx } from 'class-variance-authority';
 import { useField, useFormikContext } from 'formik';
@@ -13,7 +14,7 @@ import { useCallback, useMemo } from 'react';
 import type { ChangeEventHandler } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 
-import { useSuiAddressValidation } from './validation';
+import { useIotaAddressValidation } from './validation';
 
 export interface AddressInputProps {
 	disabled?: boolean;
@@ -33,12 +34,12 @@ export function AddressInput({
 }: AddressInputProps) {
 	const [field, meta] = useField(name);
 
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const { data: warningData } = useQuery({
 		queryKey: ['address-input-warning', field.value],
 		queryFn: async () => {
 			// We assume this validation will happen elsewhere:
-			if (!isValidSuiAddress(field.value)) {
+			if (!isValidIotaAddress(field.value)) {
 				return null;
 			}
 
@@ -73,19 +74,19 @@ export function AddressInput({
 	});
 
 	const { isSubmitting, setFieldValue, isValidating } = useFormikContext();
-	const suiAddressValidation = useSuiAddressValidation();
+	const iotaAddressValidation = useIotaAddressValidation();
 
 	const disabled = forcedDisabled !== undefined ? forcedDisabled : isSubmitting;
 	const handleOnChange = useCallback<ChangeEventHandler<HTMLTextAreaElement>>(
 		(e) => {
 			const address = e.currentTarget.value;
-			setFieldValue(name, suiAddressValidation.cast(address));
+			setFieldValue(name, iotaAddressValidation.cast(address));
 		},
-		[setFieldValue, name, suiAddressValidation],
+		[setFieldValue, name, iotaAddressValidation],
 	);
 	const formattedValue = useMemo(
-		() => suiAddressValidation.cast(field?.value),
-		[field?.value, suiAddressValidation],
+		() => iotaAddressValidation.cast(field?.value),
+		[field?.value, iotaAddressValidation],
 	);
 
 	const clearAddress = useCallback(() => {

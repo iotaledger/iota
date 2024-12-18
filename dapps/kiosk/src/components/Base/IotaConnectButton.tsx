@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ConnectButton } from '@mysten/dapp-kit';
+import { ConnectButton } from '@iota/dapp-kit';
 
-export function SuiConnectButton() {
+export function IotaConnectButton() {
 	return <ConnectButton className="flex-shrink-0" />;
 }

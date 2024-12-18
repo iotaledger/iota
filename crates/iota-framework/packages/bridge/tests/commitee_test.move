@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 module bridge::committee_test {
 
-    use sui::vec_map;
-    use sui_system::sui_system;
-    use sui_system::sui_system::SuiSystemState;
+    use iota::vec_map;
+    use iota_system::iota_system;
+    use iota_system::iota_system::IotaSystemState;
 
     use bridge::committee::{
         BridgeCommittee, CommitteeMember, blocklisted, bridge_pubkey_bytes, create,
@@ -19,11 +20,11 @@ module bridge::committee_test {
     use bridge::crypto;
     use bridge::message;
 
-    use sui::{hex, test_scenario, test_utils::{Self, assert_eq}};
+    use iota::{hex, test_scenario, test_utils::{Self, assert_eq}};
     use bridge::chain_ids;
-    use sui_system::governance_test_utils::{
+    use iota_system::governance_test_utils::{
         advance_epoch_with_reward_amounts,
-        create_sui_system_state_for_testing,
+        create_iota_system_state_for_testing,
         create_validator_for_testing
     };
 
@@ -110,11 +111,11 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
             create_validator_for_testing(@0xC, 100, ctx)
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // validator registration
         committee.register(
@@ -160,11 +161,11 @@ module bridge::committee_test {
         let validators = vector[
             create_validator_for_testing(@0xA, 100, ctx),
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // validator registration
         committee.register(
@@ -208,11 +209,11 @@ module bridge::committee_test {
         let validators = vector[
             create_validator_for_testing(@0xA, 100, ctx),
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // validator registration
         committee.register(
@@ -257,11 +258,11 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
             create_validator_for_testing(@0xC, 100, ctx)
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // validator registration
         committee.register(&mut system_state, hex::decode(VALIDATOR1_PUBKEY), b"", &tx(@0xD, 0));
@@ -282,11 +283,11 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
             create_validator_for_testing(@0xC, 100, ctx)
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // validator registration
         committee.register(&mut system_state, hex::decode(VALIDATOR1_PUBKEY), b"", &tx(@0xA, 0));
@@ -310,11 +311,11 @@ module bridge::committee_test {
             create_validator_for_testing(@0xE, 100, ctx),
             create_validator_for_testing(@0xF, 100, ctx)
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // validator registration, 3 validators registered, should have 60% voting power in total
         committee.register(&mut system_state, hex::decode(VALIDATOR1_PUBKEY), b"", &tx(@0xA, 0));
@@ -325,15 +326,15 @@ module bridge::committee_test {
         assert_eq(3, committee.member_registrations().size());
 
         // Validator 0xA become inactive, total voting power become 50%
-        sui_system::request_remove_validator(&mut system_state, &mut tx(@0xA, 0));
+        iota_system::request_remove_validator(&mut system_state, &mut tx(@0xA, 0));
         test_scenario::return_shared(system_state);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // create committee should not create a committe because of not enough stake.
         let ctx = test_scenario::ctx(&mut scenario);
-        let voting_powers = sui_system::validator_voting_powers_for_testing(&mut system_state);
+        let voting_powers = iota_system::validator_voting_powers_for_testing(&mut system_state);
         try_create_next_committee(&mut committee, voting_powers, 6000, ctx);
 
         assert!(committee.members().is_empty());
@@ -353,11 +354,11 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
             create_validator_for_testing(@0xC, 100, ctx)
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // validator registration
         committee.register(&mut system_state, hex::decode(VALIDATOR1_PUBKEY), b"", &tx(@0xA, 0));
@@ -399,11 +400,11 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
             create_validator_for_testing(@0xC, 100, ctx)
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
         test_scenario::next_tx(&mut scenario, @0x0);
 
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
 
         // validator registration
         committee.register(&mut system_state, hex::decode(VALIDATOR1_PUBKEY), b"", &tx(@0xA, 0));
@@ -412,7 +413,7 @@ module bridge::committee_test {
         assert!(committee.members().is_empty());
 
         let ctx = test_scenario::ctx(&mut scenario);
-        let voting_powers = sui_system::validator_voting_powers_for_testing(&mut system_state);
+        let voting_powers = iota_system::validator_voting_powers_for_testing(&mut system_state);
         try_create_next_committee(&mut committee, voting_powers, 6000, ctx);
 
         // committee should be empty because registration did not reach min stake threshold.
@@ -434,16 +435,16 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
             create_validator_for_testing(@0xC, 100, ctx)
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
 
         test_scenario::next_tx(&mut scenario, @0x0);
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
         committee.register(&mut system_state, hex::decode(VALIDATOR1_PUBKEY), b"", &tx(@0xA, 0));
         committee.register(&mut system_state, hex::decode(VALIDATOR2_PUBKEY), b"", &tx(@0xC, 0));
         assert!(committee.members().is_empty());
         let ctx = test_scenario::ctx(&mut scenario);
-        let voting_powers = sui_system::validator_voting_powers_for_testing(&mut system_state);
+        let voting_powers = iota_system::validator_voting_powers_for_testing(&mut system_state);
         try_create_next_committee(&mut committee, voting_powers, 6000, ctx);
 
         test_scenario::next_tx(&mut scenario, @0x0);
@@ -465,11 +466,11 @@ module bridge::committee_test {
             create_validator_for_testing(@0xA, 100, ctx),
             create_validator_for_testing(@0xC, 100, ctx)
         ];
-        create_sui_system_state_for_testing(validators, 0, 0, ctx);
+        create_iota_system_state_for_testing(validators, 0, 0, ctx);
         advance_epoch_with_reward_amounts(0, 0, &mut scenario);
 
         test_scenario::next_tx(&mut scenario, @0x0);
-        let mut system_state = test_scenario::take_shared<SuiSystemState>(&scenario);
+        let mut system_state = test_scenario::take_shared<IotaSystemState>(&scenario);
         committee.register(&mut system_state, hex::decode(VALIDATOR2_PUBKEY), b"", &tx(@0xC, 0));
         // this fails with invalid public key
         committee.register(&mut system_state, b"029bef8", b"", &tx(@0xA, 0));
@@ -502,7 +503,7 @@ module bridge::committee_test {
 
         // Block a member
         let blocklist = message::create_blocklist_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             0,
             0, // type 0 is block
             vector[crypto::ecdsa_pub_key_to_eth_address(validator1)]
@@ -543,7 +544,7 @@ module bridge::committee_test {
 
         // Blocklist both
         let blocklist = message::create_blocklist_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             0, // seq
             0, // type 0 is blocklist
             vector[eth_address0, invalid_eth_address1]
@@ -570,7 +571,7 @@ module bridge::committee_test {
 
         // Blocklist both
         let blocklist = message::create_blocklist_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             0, // seq
             0, // type 0 is blocklist
             vector[eth_address0, eth_address1]
@@ -580,7 +581,7 @@ module bridge::committee_test {
 
         // Blocklist both reverse order
         let blocklist = message::create_blocklist_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             0, // seq
             0, // type 0 is blocklist
             vector[eth_address1, eth_address0]
@@ -597,7 +598,7 @@ module bridge::committee_test {
 
         // unblocklist val1
         let blocklist = message::create_blocklist_message(
-            chain_ids::sui_testnet(),
+            chain_ids::iota_testnet(),
             1, // seq, this is supposed to increment, but we don't test it here
             1, // type 1 is unblocklist
             vector[eth_address1],

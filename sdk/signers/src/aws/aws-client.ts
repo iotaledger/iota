@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Secp256k1PublicKey } from '@mysten/sui/keypairs/secp256k1';
-import { Secp256r1PublicKey } from '@mysten/sui/keypairs/secp256r1';
-import { fromBase64 } from '@mysten/sui/utils';
+import { Secp256k1PublicKey } from '@iota/iota-sdk/keypairs/secp256k1';
+import { Secp256r1PublicKey } from '@iota/iota-sdk/keypairs/secp256r1';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 import { ASN1Construction, ASN1TagClass, DERElement } from 'asn1-ts';
 
 import { AwsClient } from './aws4fetch.js';

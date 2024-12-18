@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
@@ -19,28 +20,28 @@ use fastcrypto::traits::KeyPair;
 use prometheus::Registry;
 use std::path::PathBuf;
 use std::sync::Arc;
-use sui_archival::reader::ArchiveReaderBalancer;
-use sui_config::certificate_deny_config::CertificateDenyConfig;
-use sui_config::genesis::Genesis;
-use sui_config::node::AuthorityOverloadConfig;
-use sui_config::node::{
+use iota_archival::reader::ArchiveReaderBalancer;
+use iota_config::certificate_deny_config::CertificateDenyConfig;
+use iota_config::genesis::Genesis;
+use iota_config::node::AuthorityOverloadConfig;
+use iota_config::node::{
     AuthorityStorePruningConfig, DBCheckpointConfig, ExpensiveSafetyCheckConfig,
 };
-use sui_config::transaction_deny_config::TransactionDenyConfig;
-use sui_config::ExecutionCacheConfig;
-use sui_macros::nondeterministic;
-use sui_network::randomness;
-use sui_protocol_config::ProtocolConfig;
-use sui_swarm_config::genesis_config::AccountConfig;
-use sui_swarm_config::network_config::NetworkConfig;
-use sui_types::base_types::{AuthorityName, ObjectID};
-use sui_types::crypto::AuthorityKeyPair;
-use sui_types::digests::ChainIdentifier;
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::object::Object;
-use sui_types::sui_system_state::SuiSystemStateTrait;
-use sui_types::supported_protocol_versions::SupportedProtocolVersions;
-use sui_types::transaction::VerifiedTransaction;
+use iota_config::transaction_deny_config::TransactionDenyConfig;
+use iota_config::ExecutionCacheConfig;
+use iota_macros::nondeterministic;
+use iota_network::randomness;
+use iota_protocol_config::ProtocolConfig;
+use iota_swarm_config::genesis_config::AccountConfig;
+use iota_swarm_config::network_config::NetworkConfig;
+use iota_types::base_types::{AuthorityName, ObjectID};
+use iota_types::crypto::AuthorityKeyPair;
+use iota_types::digests::ChainIdentifier;
+use iota_types::executable_transaction::VerifiedExecutableTransaction;
+use iota_types::object::Object;
+use iota_types::iota_system_state::IotaSystemStateTrait;
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+use iota_types::transaction::VerifiedTransaction;
 
 use super::epoch_start_configuration::EpochFlag;
 
@@ -165,7 +166,7 @@ impl<'a> TestAuthorityBuilder<'a> {
 
     pub async fn build(self) -> Arc<AuthorityState> {
         let mut local_network_config_builder =
-            sui_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir()
                 .with_accounts(self.accounts)
                 .with_reference_gas_price(self.reference_gas_price.unwrap_or(500));
         if let Some(protocol_config) = &self.protocol_config {
@@ -221,7 +222,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             .map(|config| ProtocolConfig::apply_overrides_for_testing(move |_, _| config.clone()));
         let epoch_flags = EpochFlag::default_flags_for_new_epoch(&config);
         let epoch_start_configuration = EpochStartConfiguration::new(
-            genesis.sui_system_object().into_epoch_start_state(),
+            genesis.iota_system_object().into_epoch_start_state(),
             *genesis.checkpoint().digest(),
             &genesis.objects(),
             epoch_flags,

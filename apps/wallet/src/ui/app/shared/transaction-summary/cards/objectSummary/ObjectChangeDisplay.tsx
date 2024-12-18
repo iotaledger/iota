@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import ExplorerLink from '_src/ui/app/components/explorer-link';
 import { ExplorerLinkType } from '_src/ui/app/components/explorer-link/ExplorerLinkType';
 import { NftImage } from '_src/ui/app/components/nft-display/NftImage';
-import { type SuiObjectChangeWithDisplay } from '@mysten/core';
-import { formatAddress } from '@mysten/sui/utils';
+import { type IotaObjectChangeWithDisplay } from '@iota/core';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 import { Text } from '../../../text';
 
-export function ObjectChangeDisplay({ change }: { change: SuiObjectChangeWithDisplay }) {
+export function ObjectChangeDisplay({ change }: { change: IotaObjectChangeWithDisplay }) {
 	const display = change?.display?.data;
 	const objectId = 'objectId' in change && change?.objectId;
 

@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::base_types::SuiAddress;
+use crate::base_types::IotaAddress;
 use crate::ObjectID;
 use move_binary_format::file_format::{CodeOffset, TypeParameterIndex};
 use move_core_types::language_storage::ModuleId;
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display, Formatter};
-use sui_macros::EnumVariantOrder;
+use iota_macros::EnumVariantOrder;
 use thiserror::Error;
 
 #[cfg(test)]
@@ -45,7 +46,7 @@ pub enum ExecutionFailureStatus {
     //
     #[error("Insufficient Gas.")]
     InsufficientGas,
-    #[error("Invalid Gas Object. Possibly not address-owned or possibly not a SUI coin.")]
+    #[error("Invalid Gas Object. Possibly not address-owned or possibly not a IOTA coin.")]
     InvalidGasObject,
     #[error("INVARIANT VIOLATION.")]
     InvariantViolation,
@@ -88,10 +89,10 @@ pub enum ExecutionFailureStatus {
     PublishErrorNonZeroAddress,
 
     #[error(
-        "Sui Move Bytecode Verification Error. \
-        Please run the Sui Move Verifier for more information."
+        "Iota Move Bytecode Verification Error. \
+        Please run the Iota Move Verifier for more information."
     )]
-    SuiMoveVerificationError,
+    IotaMoveVerificationError,
 
     //
     // Errors from the Move VM
@@ -191,10 +192,10 @@ pub enum ExecutionFailureStatus {
     CertificateDenied,
 
     #[error(
-        "Sui Move Bytecode Verification Timeout. \
-        Please run the Sui Move Verifier for more information."
+        "Iota Move Bytecode Verification Timeout. \
+        Please run the Iota Move Verifier for more information."
     )]
-    SuiMoveVerificationTimedout,
+    IotaMoveVerificationTimedout,
 
     #[error("The shared object operation is not allowed.")]
     SharedObjectOperationNotAllowed,
@@ -207,7 +208,7 @@ pub enum ExecutionFailureStatus {
 
     #[error("Address {address:?} is denied for coin {coin_type}")]
     AddressDeniedForCoin {
-        address: SuiAddress,
+        address: IotaAddress,
         coin_type: String,
     },
 

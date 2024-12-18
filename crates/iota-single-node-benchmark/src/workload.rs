@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::benchmark_context::BenchmarkContext;
@@ -6,7 +7,7 @@ use crate::command::WorkloadKind;
 use crate::tx_generator::{MoveTxGenerator, PackagePublishTxGenerator, TxGenerator};
 use std::path::PathBuf;
 use std::sync::Arc;
-use sui_test_transaction_builder::PublishData;
+use iota_test_transaction_builder::PublishData;
 
 #[derive(Clone)]
 pub struct Workload {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::types::transaction_block_effects::TransactionBlockEffectsKind;
@@ -9,16 +10,16 @@ use crate::{
 use async_graphql::*;
 use fastcrypto::encoding::Encoding;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_sdk::SuiClient;
-use sui_types::effects::TransactionEffects as NativeTransactionEffects;
-use sui_types::event::Event as NativeEvent;
-use sui_types::quorum_driver_types::ExecuteTransactionRequestType;
-use sui_types::transaction::SenderSignedData;
-use sui_types::{signature::GenericSignature, transaction::Transaction};
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_sdk::IotaClient;
+use iota_types::effects::TransactionEffects as NativeTransactionEffects;
+use iota_types::event::Event as NativeEvent;
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
+use iota_types::transaction::SenderSignedData;
+use iota_types::{signature::GenericSignature, transaction::Transaction};
 pub struct Mutation;
 
-/// Mutations are used to write to the Sui network.
+/// Mutations are used to write to the Iota network.
 #[Object]
 impl Mutation {
     /// Execute a transaction, committing its effects on chain.
@@ -41,13 +42,13 @@ impl Mutation {
         tx_bytes: String,
         signatures: Vec<String>,
     ) -> Result<ExecutionResult> {
-        let sui_sdk_client: &Option<SuiClient> = ctx
+        let iota_sdk_client: &Option<IotaClient> = ctx
             .data()
-            .map_err(|_| Error::Internal("Unable to fetch Sui SDK client".to_string()))
+            .map_err(|_| Error::Internal("Unable to fetch Iota SDK client".to_string()))
             .extend()?;
-        let sui_sdk_client = sui_sdk_client
+        let iota_sdk_client = iota_sdk_client
             .as_ref()
-            .ok_or_else(|| Error::Internal("Sui SDK client not initialized".to_string()))
+            .ok_or_else(|| Error::Internal("Iota SDK client not initialized".to_string()))
             .extend()?;
         let tx_data = bcs::from_bytes(
             &Base64::decode(&tx_bytes)
@@ -82,12 +83,12 @@ impl Mutation {
             );
         }
         let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
-        let options = SuiTransactionBlockResponseOptions::new()
+        let options = IotaTransactionBlockResponseOptions::new()
             .with_events()
             .with_raw_input()
             .with_raw_effects();
 
-        let result = sui_sdk_client
+        let result = iota_sdk_client
             .quorum_driver_api()
             .execute_transaction_block(
                 transaction,

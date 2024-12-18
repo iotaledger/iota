@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // test invalid usages of coin commands
@@ -24,17 +25,17 @@ module test::m1 {
 
 // split non-coin
 //# programmable --sender A --inputs 0
-//> 0: test::m1::mint<sui::sui::SUI>();
+//> 0: test::m1::mint<iota::iota::IOTA>();
 //> SplitCoins(Result(0), [Input(0)])
 
 // merge into non-coin
 //# programmable --sender A --inputs 0
-//> 0: test::m1::mint<sui::sui::SUI>();
+//> 0: test::m1::mint<iota::iota::IOTA>();
 //> MergeCoins(Result(0), [Gas])
 
 // merge non-coin into gas
 //# programmable --sender A --inputs 0
-//> 0: test::m1::mint<sui::sui::SUI>();
+//> 0: test::m1::mint<iota::iota::IOTA>();
 //> MergeCoins(Gas, [Result(0)])
 
 //# programmable --sender A --inputs 10000u64

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright 2016-2017 The Servo Project Developers. See the COPYRIGHT
@@ -549,7 +550,7 @@ impl<T: MallocSizeOf> MallocSizeOf for parking_lot::RwLock<T> {
 /// in front of type list.
 ///
 /// ```rust
-/// use mysten_util_mem::{malloc_size, malloc_size_of_is_0};
+/// use iota_util_mem::{malloc_size, malloc_size_of_is_0};
 ///
 /// struct Data<P> {
 /// 	phantom: std::marker::PhantomData<P>,
@@ -564,7 +565,7 @@ impl<T: MallocSizeOf> MallocSizeOf for parking_lot::RwLock<T> {
 /// and when no "any: "
 ///
 /// ```rust
-/// use mysten_util_mem::{malloc_size, malloc_size_of_is_0};
+/// use iota_util_mem::{malloc_size, malloc_size_of_is_0};
 ///
 /// struct Data<T>(pub T);
 ///

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useSuiClientContext } from '@mysten/dapp-kit';
-import { ObjectOwner, SuiObjectChange } from '@mysten/sui/client';
+import { useIotaClientContext } from '@iota/dapp-kit';
+import { ObjectOwner, IotaObjectChange } from '@iota/iota-sdk/client';
 import { CheckIcon, CopyIcon } from 'lucide-react';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -27,12 +28,12 @@ export function ObjectLink({
 	inputObject?: string;
 	type?: string;
 	owner?: ObjectOwner;
-	object?: SuiObjectChange;
+	object?: IotaObjectChange;
 } & React.HTMLAttributes<HTMLAnchorElement> &
 	React.ComponentPropsWithoutRef<'a'>) {
 	const [copied, setCopied] = useState(false);
 
-	const { network } = useSuiClientContext();
+	const { network } = useIotaClientContext();
 
 	let objectId: string | undefined;
 	let display: string | undefined;
@@ -70,7 +71,7 @@ export function ObjectLink({
 	}
 
 	const link = objectId
-		? `https://suiexplorer.com/${ownerDisplay ? 'address' : 'object'}/${objectId}?network=${
+		? `https://explorer.iota.org/${ownerDisplay ? 'address' : 'object'}/${objectId}?network=${
 				network.split(':')[1]
 			}`
 		: undefined;

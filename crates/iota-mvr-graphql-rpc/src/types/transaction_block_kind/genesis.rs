@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use sui_types::{
+use iota_types::{
     digests::TransactionDigest,
     object::Object as NativeObject,
     transaction::{GenesisObject, GenesisTransaction as NativeGenesisTransaction},
@@ -16,7 +17,7 @@ use crate::{
     types::{
         cursor::{JsonCursor, Page},
         object::Object,
-        sui_address::SuiAddress,
+        iota_address::IotaAddress,
     },
 };
 
@@ -58,7 +59,7 @@ impl GenesisTransaction {
             let native =
                 NativeObject::new_from_genesis(data, owner, TransactionDigest::genesis_marker());
 
-            let object = Object::from_native(SuiAddress::from(native.id()), native, c.c, None);
+            let object = Object::from_native(IotaAddress::from(native.id()), native, c.c, None);
             connection.edges.push(Edge::new(c.encode_cursor(), object));
         }
 

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::bail;
@@ -11,19 +12,19 @@ use move_package::{
     source_package::layout::SourcePackageLayout,
     BuildConfig,
 };
-use sui_types::base_types::ObjectID;
+use iota_types::base_types::ObjectID;
 
 const NO_LOCK_FILE: &str = "Expected a `Move.lock` file to exist in the package path, \
-                            but none found. Consider running `sui move build` to \
+                            but none found. Consider running `iota move build` to \
                             generate the `Move.lock` file in the package directory.";
 
 /// Record addresses (Object IDs) for where this package is published on chain (this command sets variables in
 /// Move.lock).
 #[derive(Parser)]
-#[group(id = "sui-move-manage-package")]
+#[group(id = "iota-move-manage-package")]
 pub struct ManagePackage {
     #[clap(long)]
-    /// The environment to associate this package information with (consider using `sui client active-env`).
+    /// The environment to associate this package information with (consider using `iota client active-env`).
     pub environment: String,
     #[clap(long = "network-id")]
     /// The network chain identifer. Use '35834a8a' for mainnet.

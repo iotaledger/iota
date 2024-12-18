@@ -102,7 +102,7 @@
       {
         "indexed": false,
         "internalType": "uint8",
-        "name": "suiDecimal",
+        "name": "iotaDecimal",
         "type": "uint8"
       },
       {
@@ -183,7 +183,7 @@
       {
         "indexed": false,
         "internalType": "uint8[]",
-        "name": "suiDecimals",
+        "name": "iotaDecimals",
         "type": "uint8[]"
       },
       {
@@ -448,7 +448,7 @@
       },
       {
         "internalType": "uint8",
-        "name": "suiDecimal",
+        "name": "iotaDecimal",
         "type": "uint8"
       },
       {
@@ -525,7 +525,7 @@
         "type": "uint8"
       }
     ],
-    "name": "tokenSuiDecimalOf",
+    "name": "tokenIotaDecimalOf",
     "outputs": [
       {
         "internalType": "uint8",

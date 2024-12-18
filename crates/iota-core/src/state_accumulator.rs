@@ -1,27 +1,28 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use itertools::Itertools;
-use mysten_metrics::monitored_scope;
+use iota_metrics::monitored_scope;
 use prometheus::{register_int_gauge_with_registry, IntGauge, Registry};
 use serde::Serialize;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber};
-use sui_types::committee::EpochId;
-use sui_types::digests::{ObjectDigest, TransactionDigest};
-use sui_types::in_memory_storage::InMemoryStorage;
-use sui_types::storage::{ObjectKey, ObjectStore};
+use iota_protocol_config::ProtocolConfig;
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, VersionNumber};
+use iota_types::committee::EpochId;
+use iota_types::digests::{ObjectDigest, TransactionDigest};
+use iota_types::in_memory_storage::InMemoryStorage;
+use iota_types::storage::{ObjectKey, ObjectStore};
 use tracing::debug;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use fastcrypto::hash::MultisetHash;
-use sui_types::accumulator::Accumulator;
-use sui_types::effects::TransactionEffects;
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::error::SuiResult;
-use sui_types::messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest};
+use iota_types::accumulator::Accumulator;
+use iota_types::effects::TransactionEffects;
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::error::IotaResult;
+use iota_types::messages_checkpoint::{CheckpointSequenceNumber, ECMHLiveObjectSetDigest};
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
 use crate::authority::authority_store_tables::LiveObject;
@@ -66,23 +67,23 @@ pub trait AccumulatorStore: ObjectStore + Send + Sync {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> SuiResult<Option<ObjectRef>>;
+    ) -> IotaResult<Option<ObjectRef>>;
 
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> SuiResult<Option<(CheckpointSequenceNumber, Accumulator)>>;
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>>;
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> SuiResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>>;
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>>;
 
     fn insert_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
         checkpoint_seq_num: &CheckpointSequenceNumber,
         acc: &Accumulator,
-    ) -> SuiResult;
+    ) -> IotaResult;
 
     fn iter_live_object_set(
         &self,
@@ -102,20 +103,20 @@ impl AccumulatorStore for InMemoryStorage {
         &self,
         _object_id: &ObjectID,
         _version: VersionNumber,
-    ) -> SuiResult<Option<ObjectRef>> {
+    ) -> IotaResult<Option<ObjectRef>> {
         unreachable!("get_object_ref_prior_to_key is only called by accumulate_effects_v1, while InMemoryStorage is used by testing and genesis only, which always uses latest protocol ")
     }
 
     fn get_root_state_accumulator_for_epoch(
         &self,
         _epoch: EpochId,
-    ) -> SuiResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
         unreachable!("not used for testing")
     }
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> SuiResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
         unreachable!("not used for testing")
     }
 
@@ -124,7 +125,7 @@ impl AccumulatorStore for InMemoryStorage {
         _epoch: EpochId,
         _checkpoint_seq_num: &CheckpointSequenceNumber,
         _acc: &Accumulator,
-    ) -> SuiResult {
+    ) -> IotaResult {
         unreachable!("not used for testing")
     }
 
@@ -427,7 +428,7 @@ impl StateAccumulator {
         effects: Vec<TransactionEffects>,
         checkpoint_seq_num: CheckpointSequenceNumber,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> SuiResult<Accumulator> {
+    ) -> IotaResult<Accumulator> {
         let _scope = monitored_scope("AccumulateCheckpoint");
         if let Some(acc) = epoch_store.get_state_hash_for_checkpoint(&checkpoint_seq_num)? {
             return Ok(acc);
@@ -450,7 +451,7 @@ impl StateAccumulator {
         epoch_store: &AuthorityPerEpochStore,
         checkpoint_seq_num: CheckpointSequenceNumber,
         checkpoint_acc: Option<Accumulator>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         match self {
             StateAccumulator::V1(_) => {
                 // V1 does not have a running root accumulator
@@ -468,7 +469,7 @@ impl StateAccumulator {
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
-    ) -> SuiResult<Accumulator> {
+    ) -> IotaResult<Accumulator> {
         match self {
             StateAccumulator::V1(impl_v1) => {
                 impl_v1
@@ -561,7 +562,7 @@ impl StateAccumulator {
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
-    ) -> SuiResult<ECMHLiveObjectSetDigest> {
+    ) -> IotaResult<ECMHLiveObjectSetDigest> {
         Ok(self
             .accumulate_epoch(epoch_store, last_checkpoint_of_epoch)
             .await?
@@ -583,7 +584,7 @@ impl StateAccumulatorV1 {
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
-    ) -> SuiResult<Accumulator> {
+    ) -> IotaResult<Accumulator> {
         let _scope = monitored_scope("AccumulateEpochV1");
         let epoch = epoch_store.epoch();
         if let Some((_checkpoint, acc)) = self.store.get_root_state_accumulator_for_epoch(epoch)? {
@@ -670,7 +671,7 @@ impl StateAccumulatorV2 {
         epoch_store: &AuthorityPerEpochStore,
         checkpoint_seq_num: CheckpointSequenceNumber,
         checkpoint_acc: Option<Accumulator>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let _scope = monitored_scope("AccumulateRunningRoot");
         tracing::info!(
             "accumulating running root for checkpoint {}",
@@ -758,7 +759,7 @@ impl StateAccumulatorV2 {
         &self,
         epoch_store: Arc<AuthorityPerEpochStore>,
         last_checkpoint_of_epoch: CheckpointSequenceNumber,
-    ) -> SuiResult<Accumulator> {
+    ) -> IotaResult<Accumulator> {
         let _scope = monitored_scope("AccumulateEpochV2");
         let running_root = epoch_store
             .get_running_root_accumulator(&last_checkpoint_of_epoch)?

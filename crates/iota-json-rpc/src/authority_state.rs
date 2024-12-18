@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
@@ -7,38 +8,38 @@ use async_trait::async_trait;
 use move_core_types::language_storage::TypeTag;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-use sui_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use sui_core::authority::AuthorityState;
-use sui_core::execution_cache::ObjectCacheRead;
-use sui_core::jsonrpc_index::TotalBalance;
-use sui_core::subscription_handler::SubscriptionHandler;
-use sui_json_rpc_types::{
-    Coin as SuiCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, SuiEvent,
-    SuiObjectDataFilter, TransactionFilter,
+use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
+use iota_core::authority::AuthorityState;
+use iota_core::execution_cache::ObjectCacheRead;
+use iota_core::jsonrpc_index::TotalBalance;
+use iota_core::subscription_handler::SubscriptionHandler;
+use iota_json_rpc_types::{
+    Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
+    IotaObjectDataFilter, TransactionFilter,
 };
-use sui_storage::key_value_store::{
+use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
-use sui_types::base_types::{
-    MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, SuiAddress,
+use iota_types::base_types::{
+    MoveObjectType, ObjectID, ObjectInfo, ObjectRef, SequenceNumber, IotaAddress,
 };
-use sui_types::bridge::Bridge;
-use sui_types::committee::{Committee, EpochId};
-use sui_types::digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest};
-use sui_types::dynamic_field::DynamicFieldInfo;
-use sui_types::effects::TransactionEffects;
-use sui_types::error::{SuiError, UserInputError};
-use sui_types::event::EventID;
-use sui_types::governance::StakedSui;
-use sui_types::messages_checkpoint::{
+use iota_types::bridge::Bridge;
+use iota_types::committee::{Committee, EpochId};
+use iota_types::digests::{ChainIdentifier, TransactionDigest, TransactionEventsDigest};
+use iota_types::dynamic_field::DynamicFieldInfo;
+use iota_types::effects::TransactionEffects;
+use iota_types::error::{IotaError, UserInputError};
+use iota_types::event::EventID;
+use iota_types::governance::StakedIota;
+use iota_types::messages_checkpoint::{
     CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
     VerifiedCheckpoint,
 };
-use sui_types::object::{Object, ObjectRead, PastObjectRead};
-use sui_types::storage::{BackingPackageStore, ObjectStore, WriteKind};
-use sui_types::sui_serde::BigInt;
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::transaction::{Transaction, TransactionData, TransactionKind};
+use iota_types::object::{Object, ObjectRead, PastObjectRead};
+use iota_types::storage::{BackingPackageStore, ObjectStore, WriteKind};
+use iota_types::iota_serde::BigInt;
+use iota_types::iota_system_state::IotaSystemState;
+use iota_types::transaction::{Transaction, TransactionData, TransactionKind};
 use thiserror::Error;
 use tokio::task::JoinError;
 
@@ -87,9 +88,9 @@ pub trait StateRead: Send + Sync {
 
     fn get_owner_objects(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: Option<ObjectID>,
-        filter: Option<SuiObjectDataFilter>,
+        filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>>;
 
     async fn query_events(
@@ -100,7 +101,7 @@ pub trait StateRead: Send + Sync {
         cursor: Option<EventID>,
         limit: usize,
         descending: bool,
-    ) -> StateReadResult<Vec<SuiEvent>>;
+    ) -> StateReadResult<Vec<IotaEvent>>;
 
     // transaction_execution_api
     #[allow(clippy::type_complexity)]
@@ -117,11 +118,11 @@ pub trait StateRead: Send + Sync {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
-        gas_sponsor: Option<SuiAddress>,
+        gas_sponsor: Option<IotaAddress>,
         gas_objects: Option<Vec<ObjectRef>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
@@ -132,10 +133,10 @@ pub trait StateRead: Send + Sync {
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: Option<ObjectID>,
         limit: usize,
-        filter: Option<SuiObjectDataFilter>,
+        filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>>;
 
     async fn get_transactions(
@@ -155,8 +156,8 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Option<ObjectID>>;
 
     // governance_api
-    async fn get_staked_sui(&self, owner: SuiAddress) -> StateReadResult<Vec<StakedSui>>;
-    fn get_system_state(&self) -> StateReadResult<SuiSystemState>;
+    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>>;
+    fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee>;
 
     // bridge_api
@@ -166,11 +167,11 @@ pub trait StateRead: Send + Sync {
     fn find_publish_txn_digest(&self, package_id: ObjectID) -> StateReadResult<TransactionDigest>;
     fn get_owned_coins(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: (String, u64, ObjectID),
         limit: usize,
         one_coin_type_only: bool,
-    ) -> StateReadResult<Vec<SuiCoin>>;
+    ) -> StateReadResult<Vec<IotaCoin>>;
     async fn get_executed_transaction_and_effects(
         &self,
         digest: TransactionDigest,
@@ -178,12 +179,12 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<(Transaction, TransactionEffects)>;
     async fn get_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance>;
     async fn get_all_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>>;
 
     // read_api
@@ -291,9 +292,9 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: Option<ObjectID>,
-        filter: Option<SuiObjectDataFilter>,
+        filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
         Ok(self
             .get_owner_objects_iterator(owner, cursor, filter)?
@@ -308,7 +309,7 @@ impl StateRead for AuthorityState {
         cursor: Option<EventID>,
         limit: usize,
         descending: bool,
-    ) -> StateReadResult<Vec<SuiEvent>> {
+    ) -> StateReadResult<Vec<IotaEvent>> {
         Ok(self
             .query_events(kv_store, query, cursor, limit, descending)
             .await?)
@@ -332,11 +333,11 @@ impl StateRead for AuthorityState {
 
     async fn dev_inspect_transaction_block(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
         gas_budget: Option<u64>,
-        gas_sponsor: Option<SuiAddress>,
+        gas_sponsor: Option<IotaAddress>,
         gas_objects: Option<Vec<ObjectRef>>,
         show_raw_txn_data_and_effects: Option<bool>,
         skip_checks: Option<bool>,
@@ -361,10 +362,10 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: Option<ObjectID>,
         limit: usize,
-        filter: Option<SuiObjectDataFilter>,
+        filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
         Ok(self.get_owner_objects(owner, cursor, limit, filter)?)
     }
@@ -392,15 +393,15 @@ impl StateRead for AuthorityState {
         Ok(self.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)?)
     }
 
-    async fn get_staked_sui(&self, owner: SuiAddress) -> StateReadResult<Vec<StakedSui>> {
+    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>> {
         Ok(self
-            .get_move_objects(owner, MoveObjectType::staked_sui())
+            .get_move_objects(owner, MoveObjectType::staked_iota())
             .await?)
     }
-    fn get_system_state(&self) -> StateReadResult<SuiSystemState> {
+    fn get_system_state(&self) -> StateReadResult<IotaSystemState> {
         Ok(self
             .get_object_cache_reader()
-            .get_sui_system_state_object_unsafe()?)
+            .get_iota_system_state_object_unsafe()?)
     }
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee> {
         Ok(self
@@ -419,14 +420,14 @@ impl StateRead for AuthorityState {
     }
     fn get_owned_coins(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         cursor: (String, u64, ObjectID),
         limit: usize,
         one_coin_type_only: bool,
-    ) -> StateReadResult<Vec<SuiCoin>> {
+    ) -> StateReadResult<Vec<IotaCoin>> {
         Ok(self
             .get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)?
-            .map(|(key, coin)| SuiCoin {
+            .map(|(key, coin)| IotaCoin {
                 coin_type: key.coin_type,
                 coin_object_id: key.object_id,
                 version: coin.version,
@@ -449,25 +450,25 @@ impl StateRead for AuthorityState {
 
     async fn get_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
         Ok(self
             .indexes
             .as_ref()
-            .ok_or(SuiError::IndexStoreNotAvailable)?
+            .ok_or(IotaError::IndexStoreNotAvailable)?
             .get_balance(owner, coin_type)
             .await?)
     }
 
     async fn get_all_balance(
         &self,
-        owner: SuiAddress,
+        owner: IotaAddress,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         Ok(self
             .indexes
             .as_ref()
-            .ok_or(SuiError::IndexStoreNotAvailable)?
+            .ok_or(IotaError::IndexStoreNotAvailable)?
             .get_all_balance(owner)
             .await?)
     }
@@ -601,7 +602,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
 #[derive(Debug, Error)]
 pub enum StateReadInternalError {
     #[error(transparent)]
-    SuiError(#[from] SuiError),
+    IotaError(#[from] IotaError),
     #[error(transparent)]
     JoinError(#[from] JoinError),
     #[error(transparent)]
@@ -611,7 +612,7 @@ pub enum StateReadInternalError {
 #[derive(Debug, Error)]
 pub enum StateReadClientError {
     #[error(transparent)]
-    SuiError(#[from] SuiError),
+    IotaError(#[from] IotaError),
     #[error(transparent)]
     UserInputError(#[from] UserInputError),
 }
@@ -622,7 +623,7 @@ pub enum StateReadClientError {
 /// This context is preserved in `Internal` and `Client` variants.
 #[derive(Debug, Error)]
 pub enum StateReadError {
-    // sui_json_rpc::Error will do the final conversion to generic error message
+    // iota_json_rpc::Error will do the final conversion to generic error message
     #[error(transparent)]
     Internal(#[from] StateReadInternalError),
 
@@ -631,14 +632,14 @@ pub enum StateReadError {
     Client(#[from] StateReadClientError),
 }
 
-impl From<SuiError> for StateReadError {
-    fn from(e: SuiError) -> Self {
+impl From<IotaError> for StateReadError {
+    fn from(e: IotaError) -> Self {
         match e {
-            SuiError::IndexStoreNotAvailable
-            | SuiError::TransactionNotFound { .. }
-            | SuiError::UnsupportedFeatureError { .. }
-            | SuiError::UserInputError { .. }
-            | SuiError::WrongMessageVersion { .. } => StateReadError::Client(e.into()),
+            IotaError::IndexStoreNotAvailable
+            | IotaError::TransactionNotFound { .. }
+            | IotaError::UnsupportedFeatureError { .. }
+            | IotaError::UserInputError { .. }
+            | IotaError::WrongMessageVersion { .. } => StateReadError::Client(e.into()),
             _ => StateReadError::Internal(e.into()),
         }
     }

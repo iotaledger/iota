@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses P0=0x0 P1=0x0 --accounts A --simulator
@@ -401,7 +402,7 @@ fragment ComprehensivePTB on ProgrammableTransactionBlock {
 //# programmable --sender A --inputs 41u64 @A
 //> 0: MakeMoveVec<u64>([Input(0)]);
 //> 1: P0::m::new(Result(0));
-//> sui::transfer::public_transfer<P0::m::Foo>(Result(1), Input(1))
+//> iota::transfer::public_transfer<P0::m::Foo>(Result(1), Input(1))
 
 //# programmable --sender A --inputs 42u64 43u64 1000 @A
 //> 0: MakeMoveVec<u64>([Input(0), Input(1)]);

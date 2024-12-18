@@ -25,16 +25,16 @@ task 4, line 29:
 //# view-object 3,0
 Owner: Object ID: ( fake(2,0) )
 Version: 4
-Contents: sui::dynamic_field::Field<sui::dynamic_object_field::Wrapper<u64>, sui::object::ID> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
-    name: sui::dynamic_object_field::Wrapper<u64> {
+    name: iota::dynamic_object_field::Wrapper<u64> {
         name: 0u64,
     },
-    value: sui::object::ID {
+    value: iota::object::ID {
         bytes: fake(3,1),
     },
 }
@@ -47,16 +47,16 @@ task 6, line 33:
 //# view-object 3,0
 Owner: Object ID: ( fake(2,0) )
 Version: 4
-Contents: sui::dynamic_field::Field<sui::dynamic_object_field::Wrapper<u64>, sui::object::ID> {
-    id: sui::object::UID {
-        id: sui::object::ID {
+Contents: iota::dynamic_field::Field<iota::dynamic_object_field::Wrapper<u64>, iota::object::ID> {
+    id: iota::object::UID {
+        id: iota::object::ID {
             bytes: fake(3,0),
         },
     },
-    name: sui::dynamic_object_field::Wrapper<u64> {
+    name: iota::dynamic_object_field::Wrapper<u64> {
         name: 0u64,
     },
-    value: sui::object::ID {
+    value: iota::object::ID {
         bytes: fake(3,1),
     },
 }

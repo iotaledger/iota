@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::{Base58, Base64};
@@ -8,16 +9,16 @@ use serde::{Deserialize, Serialize};
 pub use balance_changes::*;
 pub use object_changes::*;
 use serde_with::serde_as;
-pub use sui_checkpoint::*;
-pub use sui_coin::*;
-pub use sui_event::*;
-pub use sui_extended::*;
-pub use sui_governance::*;
-pub use sui_move::*;
-pub use sui_object::*;
-pub use sui_protocol::*;
-pub use sui_transaction::*;
-use sui_types::base_types::ObjectID;
+pub use iota_checkpoint::*;
+pub use iota_coin::*;
+pub use iota_event::*;
+pub use iota_extended::*;
+pub use iota_governance::*;
+pub use iota_move::*;
+pub use iota_object::*;
+pub use iota_protocol::*;
+pub use iota_transaction::*;
+use iota_types::base_types::ObjectID;
 
 #[cfg(test)]
 #[path = "unit_tests/rpc_types_tests.rs"]
@@ -26,15 +27,15 @@ mod rpc_types_tests;
 mod balance_changes;
 mod displays;
 mod object_changes;
-mod sui_checkpoint;
-mod sui_coin;
-mod sui_event;
-mod sui_extended;
-mod sui_governance;
-mod sui_move;
-mod sui_object;
-mod sui_protocol;
-mod sui_transaction;
+mod iota_checkpoint;
+mod iota_coin;
+mod iota_event;
+mod iota_extended;
+mod iota_governance;
+mod iota_move;
+mod iota_object;
+mod iota_protocol;
+mod iota_transaction;
 
 pub type DynamicFieldPage = Page<DynamicFieldInfo, ObjectID>;
 /// `next_cursor` points to the last item in the page;
@@ -62,19 +63,19 @@ impl<T, C> Page<T, C> {
 #[derive(Clone, Serialize, Deserialize, JsonSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldInfo {
-    pub name: sui_types::dynamic_field::DynamicFieldName,
+    pub name: iota_types::dynamic_field::DynamicFieldName,
     #[serde(flatten)]
     pub bcs_name: BcsName,
-    pub type_: sui_types::dynamic_field::DynamicFieldType,
+    pub type_: iota_types::dynamic_field::DynamicFieldType,
     pub object_type: String,
     pub object_id: ObjectID,
-    pub version: sui_types::base_types::SequenceNumber,
-    pub digest: sui_types::digests::ObjectDigest,
+    pub version: iota_types::base_types::SequenceNumber,
+    pub digest: iota_types::digests::ObjectDigest,
 }
 
-impl From<sui_types::dynamic_field::DynamicFieldInfo> for DynamicFieldInfo {
+impl From<iota_types::dynamic_field::DynamicFieldInfo> for DynamicFieldInfo {
     fn from(
-        sui_types::dynamic_field::DynamicFieldInfo {
+        iota_types::dynamic_field::DynamicFieldInfo {
             name,
             bcs_name,
             type_,
@@ -82,7 +83,7 @@ impl From<sui_types::dynamic_field::DynamicFieldInfo> for DynamicFieldInfo {
             object_id,
             version,
             digest,
-        }: sui_types::dynamic_field::DynamicFieldInfo,
+        }: iota_types::dynamic_field::DynamicFieldInfo,
     ) -> Self {
         Self {
             name,

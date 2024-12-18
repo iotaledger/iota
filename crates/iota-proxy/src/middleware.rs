@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::{consumer::ProtobufDecoder, peers::SuiNodeProvider};
+use crate::{consumer::ProtobufDecoder, peers::IotaNodeProvider};
 use axum::{
     async_trait,
     body::Body,
@@ -17,7 +18,7 @@ use hyper::header::CONTENT_ENCODING;
 use once_cell::sync::Lazy;
 use prometheus::{proto::MetricFamily, register_counter_vec, CounterVec};
 use std::sync::Arc;
-use sui_tls::TlsConnectionInfo;
+use iota_tls::TlsConnectionInfo;
 use tracing::error;
 
 static MIDDLEWARE_OPS: Lazy<CounterVec> = Lazy::new(|| {
@@ -38,7 +39,7 @@ static MIDDLEWARE_HEADERS: Lazy<CounterVec> = Lazy::new(|| {
     .unwrap()
 });
 
-/// we expect sui-node to send us an http header content-length encoding.
+/// we expect iota-node to send us an http header content-length encoding.
 pub async fn expect_content_length(
     TypedHeader(content_length): TypedHeader<ContentLength>,
     request: Request<Body>,
@@ -48,8 +49,8 @@ pub async fn expect_content_length(
     Ok(next.run(request).await)
 }
 
-/// we expect sui-node to send us an http header content-type encoding.
-pub async fn expect_mysten_proxy_header(
+/// we expect iota-node to send us an http header content-type encoding.
+pub async fn expect_iota_proxy_header(
     TypedHeader(content_type): TypedHeader<ContentType>,
     request: Request<Body>,
     next: Next,
@@ -59,17 +60,17 @@ pub async fn expect_mysten_proxy_header(
         ct => {
             error!("invalid content-type; {ct}");
             MIDDLEWARE_OPS
-                .with_label_values(&["expect_mysten_proxy_header", "invalid-content-type"])
+                .with_label_values(&["expect_iota_proxy_header", "invalid-content-type"])
                 .inc();
             Err((StatusCode::BAD_REQUEST, "invalid content-type header"))
         }
     }
 }
 
-/// we expect that calling sui-nodes are known on the blockchain and we enforce
+/// we expect that calling iota-nodes are known on the blockchain and we enforce
 /// their pub key tls creds here
 pub async fn expect_valid_public_key(
-    Extension(allower): Extension<Arc<SuiNodeProvider>>,
+    Extension(allower): Extension<Arc<IotaNodeProvider>>,
     Extension(tls_connect_info): Extension<TlsConnectionInfo>,
     mut request: Request<Body>,
     next: Next,

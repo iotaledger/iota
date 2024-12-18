@@ -1,15 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::network_config::NetworkConfig;
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use std::collections::HashMap;
-use sui_types::{
+use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId, StakeUnit},
     crypto::{
         AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature, KeypairTraits,
-        SuiAuthoritySignature,
+        IotaAuthoritySignature,
     },
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
@@ -38,7 +39,7 @@ impl CommitteeFixture {
         committee_size: usize,
     ) -> Self {
         let validators = (0..committee_size)
-            .map(|_| sui_types::crypto::get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng).1)
+            .map(|_| iota_types::crypto::get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng).1)
             .map(|keypair| (keypair.public().into(), (keypair, 1)))
             .collect::<HashMap<_, _>>();
 
@@ -118,7 +119,7 @@ impl CommitteeFixture {
             .iter()
             .map(|(name, (key, _))| {
                 let intent_msg = IntentMessage::new(
-                    Intent::sui_app(IntentScope::CheckpointSummary),
+                    Intent::iota_app(IntentScope::CheckpointSummary),
                     checkpoint.clone(),
                 );
                 let signature = AuthoritySignature::new_secure(&intent_msg, &checkpoint.epoch, key);

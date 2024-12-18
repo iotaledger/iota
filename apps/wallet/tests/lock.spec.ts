@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from './fixtures';
@@ -8,7 +9,7 @@ test('account lock-unlock', async ({ page, context, extensionUrl }) => {
 	await createWallet(page, extensionUrl);
 	await page.getByTestId('lock-account-button').click();
 	await page.getByTestId('unlock-account-button').click();
-	await page.getByPlaceholder('Password').fill('mystenlabs');
+	await page.getByPlaceholder('Password').fill('iota');
 	await page.getByRole('button', { name: /Unlock/ }).click();
 	await expect(page.getByTestId('coin-balance')).toBeVisible();
 });

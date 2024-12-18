@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
@@ -54,7 +55,7 @@ export class ImportedAccount
 		};
 		return {
 			type: 'imported',
-			address: keyPair.getPublicKey().toSuiAddress(),
+			address: keyPair.getPublicKey().toIotaAddress(),
 			publicKey: keyPair.getPublicKey().toBase64(),
 			encrypted: await encrypt(inputs.password, dataToEncrypt),
 			lastUnlockedOn: null,

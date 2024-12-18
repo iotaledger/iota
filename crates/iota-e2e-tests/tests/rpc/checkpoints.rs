@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_macros::sim_test;
-use sui_rpc_api::client::sdk::Client;
-use sui_rpc_api::client::Client as CoreClient;
-use sui_rpc_api::CheckpointResponse;
-use sui_sdk_types::types::SignedCheckpointSummary;
+use iota_macros::sim_test;
+use iota_rpc_api::client::sdk::Client;
+use iota_rpc_api::client::Client as CoreClient;
+use iota_rpc_api::CheckpointResponse;
+use iota_sdk_types::types::SignedCheckpointSummary;
 use test_cluster::TestClusterBuilder;
 
 use crate::transfer_coin;
@@ -36,7 +37,7 @@ async fn list_checkpoint() {
     // Make sure list works with json
     let _checkpoints = client
         .get(&url)
-        .header(reqwest::header::ACCEPT, sui_rpc_api::rest::APPLICATION_JSON)
+        .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_JSON)
         .send()
         .await
         .unwrap()
@@ -50,7 +51,7 @@ async fn list_checkpoint() {
     // Make sure list works with BCS and the old format of only a SignedCheckpoint with no contents
     let bytes = client
         .get(&url)
-        .header(reqwest::header::ACCEPT, sui_rpc_api::rest::APPLICATION_BCS)
+        .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_BCS)
         .send()
         .await
         .unwrap()
@@ -105,7 +106,7 @@ async fn get_full_checkpoint() {
     // wanting binary have migrated to grpc
     let bytes = client
         .get(&url)
-        .header(reqwest::header::ACCEPT, sui_rpc_api::rest::APPLICATION_BCS)
+        .header(reqwest::header::ACCEPT, iota_rpc_api::rest::APPLICATION_BCS)
         .send()
         .await
         .unwrap()
@@ -113,5 +114,5 @@ async fn get_full_checkpoint() {
         .await
         .unwrap();
     let _checkpoints =
-        bcs::from_bytes::<sui_types::full_checkpoint_content::CheckpointData>(&bytes).unwrap();
+        bcs::from_bytes::<iota_types::full_checkpoint_content::CheckpointData>(&bytes).unwrap();
 }

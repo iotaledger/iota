@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod executor;
@@ -17,7 +18,7 @@ pub use executor::{setup_single_workflow, IndexerExecutor, MAX_CHECKPOINTS_IN_PR
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};
 pub use reader::ReaderOptions;
-use sui_types::full_checkpoint_content::CheckpointData;
+use iota_types::full_checkpoint_content::CheckpointData;
 pub use util::create_remote_store_client;
 pub use worker_pool::WorkerPool;
 

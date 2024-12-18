@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React from "react";
@@ -52,11 +53,11 @@ export default function CodeBlockString({
   const showLineNumbers =
     showLineNumbersProp ?? containsLineNumbers(metastring);
 
-  // Sui added code.
+  // Iota added code.
   // Change component to render title as anchor.
   const sourceLink =
     title && !title.match(/^http/)
-      ? `https://github.com/MystenLabs/sui/tree/main/${title}`
+      ? `https://github.com/iotaledger/iota/tree/main/${title}`
       : title;
   const tailwind = "relative ";
 

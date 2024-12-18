@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::shared_object_congestion_tracker::SharedObjectCongestionTracker;
@@ -17,14 +18,14 @@ use crate::{
 };
 use move_core_types::ident_str;
 use std::sync::Arc;
-use sui_macros::{register_fail_point_arg, sim_test};
-use sui_protocol_config::{Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
-use sui_types::digests::TransactionDigest;
-use sui_types::effects::{InputSharedObject, TransactionEffectsAPI};
-use sui_types::executable_transaction::VerifiedExecutableTransaction;
-use sui_types::transaction::{ObjectArg, Transaction};
-use sui_types::{
-    base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress},
+use iota_macros::{register_fail_point_arg, sim_test};
+use iota_protocol_config::{Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
+use iota_types::digests::TransactionDigest;
+use iota_types::effects::{InputSharedObject, TransactionEffectsAPI};
+use iota_types::executable_transaction::VerifiedExecutableTransaction;
+use iota_types::transaction::{ObjectArg, Transaction};
+use iota_types::{
+    base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress},
     crypto::{get_key_pair, AccountKeyPair},
     effects::TransactionEffects,
     execution_status::{CongestedObjects, ExecutionFailureStatus, ExecutionStatus},
@@ -39,7 +40,7 @@ pub const TEST_ONLY_GAS_UNIT: u64 = 10_000;
 struct TestSetup {
     setup_authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
-    sender: SuiAddress,
+    sender: IotaAddress,
     sender_key: AccountKeyPair,
     package: ObjectRef,
     gas_object_id: ObjectID,
@@ -197,7 +198,7 @@ impl TestSetup {
 async fn update_objects(
     authority_state: &AuthorityState,
     package: &ObjectRef,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectID,
     shared_object_1: &(ObjectID, SequenceNumber),

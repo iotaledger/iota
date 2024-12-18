@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::{
@@ -11,11 +12,11 @@ use rand::{
     Rng,
 };
 use std::collections::{HashMap, HashSet};
-use sui_test_transaction_builder::make_transfer_sui_transaction;
+use iota_test_transaction_builder::make_transfer_iota_transaction;
 use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, trace};
 
-use sui_macros::*;
+use iota_macros::*;
 use test_cluster::TestClusterBuilder;
 
 async fn make_fut(i: usize) -> usize {
@@ -127,7 +128,7 @@ async fn test_hash_collections() {
 async fn test_net_determinism() {
     let mut test_cluster = TestClusterBuilder::new().build().await;
 
-    let txn = make_transfer_sui_transaction(&test_cluster.wallet, None, None).await;
+    let txn = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
     let digest = test_cluster.execute_transaction(txn).await.digest;
 
     sleep(Duration::from_millis(1000)).await;
@@ -135,7 +136,7 @@ async fn test_net_determinism() {
     let handle = test_cluster.spawn_new_fullnode().await;
 
     handle
-        .sui_node
+        .iota_node
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])

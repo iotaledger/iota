@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { normalizeSuiAddress } from '@mysten/sui/utils';
+import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
 
 import { BalanceManagerContract } from '../transactions/balanceManager.js';
 import type { BalanceManager, Environment } from '../types/index.js';
@@ -47,7 +48,7 @@ export class DeepBookConfig {
 		coins?: CoinMap;
 		pools?: PoolMap;
 	}) {
-		this.address = normalizeSuiAddress(address);
+		this.address = normalizeIotaAddress(address);
 		this.adminCap = adminCap;
 		this.balanceManagers = balanceManagers || {};
 

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::hex_tests {
-    use sui::hex;
+module iota::hex_tests {
+    use iota::hex;
 
     #[test]
     fun test_hex_encode_string_literal() {

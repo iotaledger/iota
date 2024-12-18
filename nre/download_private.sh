@@ -1,5 +1,6 @@
 #!/bin/bash
 # Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2024 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
 if ! cosign version &> /dev/null
@@ -10,17 +11,17 @@ then
 fi
 
 commit_sha=$1
-pub_key=https://sui-private.s3.us-west-2.amazonaws.com/sui_security_release.pem
-url=https://sui-releases.s3-accelerate.amazonaws.com/$commit_sha
+pub_key=https://iota-private.s3.us-west-2.amazonaws.com/iota_security_release.pem
+url=https://iota-releases.s3-accelerate.amazonaws.com/$commit_sha
 
-echo "[+] Downloading sui binaries for $commit_sha ..."
-curl $url/sui -o sui
-curl $url/sui-indexer -o sui-indexer
-curl $url/sui-node -o sui-node
-curl $url/sui-tool -o sui-tool
+echo "[+] Downloading iota binaries for $commit_sha ..."
+curl $url/iota -o iota
+curl $url/iota-indexer -o iota-indexer
+curl $url/iota-node -o iota-node
+curl $url/iota-tool -o iota-tool
 
-echo "[+] Verifying sui binaries for $commit_sha ..."
-cosign verify-blob --insecure-ignore-tlog --key $pub_key --signature $url/sui.sig sui
-cosign verify-blob --insecure-ignore-tlog --key $pub_key --signature $url/sui-indexer.sig sui-indexer
-cosign verify-blob --insecure-ignore-tlog --key $pub_key --signature $url/sui-node.sig sui-node
-cosign verify-blob --insecure-ignore-tlog --key $pub_key --signature $url/sui-tool.sig sui-tool
+echo "[+] Verifying iota binaries for $commit_sha ..."
+cosign verify-blob --insecure-ignore-tlog --key $pub_key --signature $url/iota.sig iota
+cosign verify-blob --insecure-ignore-tlog --key $pub_key --signature $url/iota-indexer.sig iota-indexer
+cosign verify-blob --insecure-ignore-tlog --key $pub_key --signature $url/iota-node.sig iota-node
+cosign verify-blob --insecure-ignore-tlog --key $pub_key --signature $url/iota-tool.sig iota-tool

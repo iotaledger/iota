@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import React from "react";
@@ -22,7 +23,7 @@ const RefNav = (props) => {
               data-to-scrollspy-id={`${api
                 .replaceAll(/\s/g, "-")
                 .toLowerCase()}`}
-              className="hover:no-underline pt-4 block text-black dark:text-white hover:text-sui-blue dark:hover:text-sui-blue"
+              className="hover:no-underline pt-4 block text-black dark:text-white hover:text-iota-blue dark:hover:text-iota-blue"
             >
               {api}
             </Link>
@@ -31,7 +32,7 @@ const RefNav = (props) => {
               .map((method) => {
                 return (
                   <Link
-                    className="my-1 pl-4 block text-sui-gray-95 dark:text-sui-grey-35 hover:no-underline dark:hover:text-sui-blue"
+                    className="my-1 pl-4 block text-iota-gray-95 dark:text-iota-grey-35 hover:no-underline dark:hover:text-iota-blue"
                     key={`link-${method.name.toLowerCase()}`}
                     href={`#${method.name.toLowerCase()}`}
                     data-to-scrollspy-id={`${method.name.toLowerCase()}`}

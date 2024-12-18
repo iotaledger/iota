@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use sui_types::base_types::ObjectRef;
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
-use sui_types::inner_temporary_store::{InnerTemporaryStore, WrittenObjects};
-use sui_types::storage::{MarkerValue, ObjectKey};
-use sui_types::transaction::{TransactionDataAPI, VerifiedTransaction};
+use iota_types::base_types::ObjectRef;
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents};
+use iota_types::inner_temporary_store::{InnerTemporaryStore, WrittenObjects};
+use iota_types::storage::{MarkerValue, ObjectKey};
+use iota_types::transaction::{TransactionDataAPI, VerifiedTransaction};
 
 /// TransactionOutputs
 pub struct TransactionOutputs {

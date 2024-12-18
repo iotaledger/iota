@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::hmac_tests {
-    use sui::hmac;
+module iota::hmac_tests {
+    use iota::hmac;
 
     #[test]
     fun test_hmac_sha3_256() {

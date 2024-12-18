@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module test::test_module {
@@ -14,11 +15,11 @@ module test::test_module {
     use oracle::meta_oracle;
     use oracle::simple_oracle;
     use oracle::simple_oracle::SimpleOracle;
-    use sui::object;
-    use sui::object::UID;
-    use sui::transfer;
-    use sui::tx_context;
-    use sui::tx_context::TxContext;
+    use iota::object;
+    use iota::object::UID;
+    use iota::transfer;
+    use iota::tx_context;
+    use iota::tx_context::TxContext;
 
     public struct MockUSD has key, store {
         id: UID,
@@ -26,13 +27,13 @@ module test::test_module {
         decimals: u8,
     }
 
-    public fun simple_fx_ptb(single_data: Option<Data<DecimalValue>>, mist_amount: u64, ctx: &mut TxContext) {
+    public fun simple_fx_ptb(single_data: Option<Data<DecimalValue>>, nanos_amount: u64, ctx: &mut TxContext) {
         let single_data = option::destroy_some(single_data);
         let value = data::value(&single_data);
         let decimals = decimal_value::decimal(value);
         let value = decimal_value::value(value);
 
-        let amount = mist_amount * value;
+        let amount = nanos_amount * value;
         let usd = MockUSD {
             id: object::new(ctx),
             amount,
@@ -41,14 +42,14 @@ module test::test_module {
         transfer::transfer(usd, tx_context::sender(ctx));
     }
 
-    public fun simple_fx(oracle: &SimpleOracle, mist_amount: u64, ctx: &mut TxContext) {
-        let single_data = simple_oracle::get_latest_data<DecimalValue>(oracle, string::utf8(b"SUIUSD"));
+    public fun simple_fx(oracle: &SimpleOracle, nanos_amount: u64, ctx: &mut TxContext) {
+        let single_data = simple_oracle::get_latest_data<DecimalValue>(oracle, string::utf8(b"IOTAUSD"));
         let single_data = option::destroy_some(single_data);
         let value = data::value(&single_data);
         let decimals = decimal_value::decimal(value);
         let value = decimal_value::value(value);
 
-        let amount = mist_amount * value;
+        let amount = nanos_amount * value;
         let usd = MockUSD {
             id: object::new(ctx),
             amount,
@@ -61,10 +62,10 @@ module test::test_module {
         oracle1: &SimpleOracle,
         oracle2: &SimpleOracle,
         oracle3: &SimpleOracle,
-        mist_amount: u64,
+        nanos_amount: u64,
         ctx: &mut TxContext
     ) {
-        let mut meta_oracle = meta_oracle::new<DecimalValue>(3, 60000, string::utf8(b"SUIUSD"));
+        let mut meta_oracle = meta_oracle::new<DecimalValue>(3, 60000, string::utf8(b"IOTAUSD"));
         meta_oracle::add_simple_oracle(&mut meta_oracle, oracle1);
         meta_oracle::add_simple_oracle(&mut meta_oracle, oracle2);
         meta_oracle::add_simple_oracle(&mut meta_oracle, oracle3);
@@ -74,7 +75,7 @@ module test::test_module {
         let decimals = decimal_value::decimal(value);
         let value = decimal_value::value(value);
 
-        let amount = mist_amount * value;
+        let amount = nanos_amount * value;
         let usd = MockUSD {
             id: object::new(ctx),
             amount,

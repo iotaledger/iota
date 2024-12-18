@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::malicious_policy {
-    use sui::transfer_policy::{Self as policy, TransferRequest};
+module iota::malicious_policy {
+    use iota::transfer_policy::{Self as policy, TransferRequest};
 
     public struct Rule has drop {}
 
@@ -13,12 +14,12 @@ module sui::malicious_policy {
 }
 
 #[test_only]
-module sui::transfer_policy_tests {
-    use sui::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap};
-    use sui::dummy_policy;
-    use sui::malicious_policy;
-    use sui::package;
-    use sui::coin;
+module iota::transfer_policy_tests {
+    use iota::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap};
+    use iota::dummy_policy;
+    use iota::malicious_policy;
+    use iota::package;
+    use iota::coin;
 
     public struct OTW has drop {}
     public struct Asset has key, store { id: UID }
@@ -85,7 +86,7 @@ module sui::transfer_policy_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::transfer_policy::EPolicyNotSatisfied)]
+    #[expected_failure(abort_code = iota::transfer_policy::EPolicyNotSatisfied)]
     /// Policy set but not satisfied;
     fun test_rule_ignored() {
         let ctx = &mut tx_context::dummy();
@@ -101,7 +102,7 @@ module sui::transfer_policy_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::transfer_policy::ERuleAlreadySet)]
+    #[expected_failure(abort_code = iota::transfer_policy::ERuleAlreadySet)]
     /// Attempt to add another policy;
     fun test_rule_exists() {
         let ctx = &mut tx_context::dummy();
@@ -118,7 +119,7 @@ module sui::transfer_policy_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::transfer_policy::EIllegalRule)]
+    #[expected_failure(abort_code = iota::transfer_policy::EIllegalRule)]
     /// Attempt to cheat by using another rule approval;
     fun test_rule_swap() {
         let ctx = &mut tx_context::dummy();

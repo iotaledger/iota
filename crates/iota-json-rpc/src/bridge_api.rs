@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -6,15 +7,15 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::RpcModule;
-use sui_core::authority::AuthorityState;
-use sui_json_rpc_api::{BridgeReadApiOpenRpc, BridgeReadApiServer, JsonRpcMetrics};
-use sui_open_rpc::Module;
-use sui_types::bridge::{get_bridge_obj_initial_shared_version, BridgeSummary, BridgeTrait};
+use iota_core::authority::AuthorityState;
+use iota_json_rpc_api::{BridgeReadApiOpenRpc, BridgeReadApiServer, JsonRpcMetrics};
+use iota_open_rpc::Module;
+use iota_types::bridge::{get_bridge_obj_initial_shared_version, BridgeSummary, BridgeTrait};
 use tracing::{info, instrument};
 
 use crate::authority_state::StateRead;
 use crate::error::Error;
-use crate::{with_tracing, SuiRpcModule};
+use crate::{with_tracing, IotaRpcModule};
 
 #[derive(Clone)]
 pub struct BridgeReadApi {
@@ -55,7 +56,7 @@ impl BridgeReadApiServer for BridgeReadApi {
     }
 }
 
-impl SuiRpcModule for BridgeReadApi {
+impl IotaRpcModule for BridgeReadApi {
     fn rpc(self) -> RpcModule<Self> {
         self.into_rpc()
     }

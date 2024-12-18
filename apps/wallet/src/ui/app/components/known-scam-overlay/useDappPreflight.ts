@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useAppsBackend } from '@mysten/core';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { type Transaction } from '@mysten/sui/transactions';
-import { toBase64 } from '@mysten/sui/utils';
+import { useAppsBackend } from '@iota/core';
+import { useIotaClient } from '@iota/dapp-kit';
+import { type Transaction } from '@iota/iota-sdk/transactions';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { useQuery } from '@tanstack/react-query';
 
 import {
@@ -27,7 +28,7 @@ export function useDappPreflight({
 	network: Network;
 }) {
 	const { request } = useAppsBackend();
-	const client = useSuiClient();
+	const client = useIotaClient();
 
 	return useQuery({
 		// eslint-disable-next-line @tanstack/query/exhaustive-deps

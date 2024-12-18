@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::ops::Not;
@@ -22,19 +23,19 @@ use futures::stream::FuturesUnordered;
 use itertools::izip;
 use move_core_types::resolver::ModuleResolver;
 use serde::{Deserialize, Serialize};
-use sui_config::node::AuthorityStorePruningConfig;
-use sui_macros::fail_point_arg;
-use sui_storage::mutex_table::{MutexGuard, MutexTable, RwLockGuard, RwLockTable};
-use sui_types::accumulator::Accumulator;
-use sui_types::digests::TransactionEventsDigest;
-use sui_types::error::UserInputError;
-use sui_types::execution::TypeLayoutStore;
-use sui_types::message_envelope::Message;
-use sui_types::storage::{
+use iota_config::node::AuthorityStorePruningConfig;
+use iota_macros::fail_point_arg;
+use iota_storage::mutex_table::{MutexGuard, MutexTable, RwLockGuard, RwLockTable};
+use iota_types::accumulator::Accumulator;
+use iota_types::digests::TransactionEventsDigest;
+use iota_types::error::UserInputError;
+use iota_types::execution::TypeLayoutStore;
+use iota_types::message_envelope::Message;
+use iota_types::storage::{
     get_module, BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore,
 };
-use sui_types::sui_system_state::get_sui_system_state;
-use sui_types::{base_types::SequenceNumber, fp_bail, fp_ensure};
+use iota_types::iota_system_state::get_iota_system_state;
+use iota_types::{base_types::SequenceNumber, fp_bail, fp_ensure};
 use tokio::sync::{RwLockReadGuard, RwLockWriteGuard};
 use tokio::time::Instant;
 use tracing::{debug, info, trace};
@@ -46,53 +47,53 @@ use typed_store::{
 
 use super::authority_store_tables::LiveObject;
 use super::{authority_store_tables::AuthorityPerpetualTables, *};
-use mysten_common::sync::notify_read::NotifyRead;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::gas_coin::TOTAL_SUPPLY_MIST;
+use iota_common::sync::notify_read::NotifyRead;
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::gas_coin::TOTAL_SUPPLY_NANOS;
 use typed_store::rocks::util::is_ref_count_value;
 
 const NUM_SHARDS: usize = 4096;
 
 struct AuthorityStoreMetrics {
-    sui_conservation_check_latency: IntGauge,
-    sui_conservation_live_object_count: IntGauge,
-    sui_conservation_live_object_size: IntGauge,
-    sui_conservation_imbalance: IntGauge,
-    sui_conservation_storage_fund: IntGauge,
-    sui_conservation_storage_fund_imbalance: IntGauge,
+    iota_conservation_check_latency: IntGauge,
+    iota_conservation_live_object_count: IntGauge,
+    iota_conservation_live_object_size: IntGauge,
+    iota_conservation_imbalance: IntGauge,
+    iota_conservation_storage_fund: IntGauge,
+    iota_conservation_storage_fund_imbalance: IntGauge,
     epoch_flags: IntGaugeVec,
 }
 
 impl AuthorityStoreMetrics {
     pub fn new(registry: &Registry) -> Self {
         Self {
-            sui_conservation_check_latency: register_int_gauge_with_registry!(
-                "sui_conservation_check_latency",
-                "Number of seconds took to scan all live objects in the store for SUI conservation check",
+            iota_conservation_check_latency: register_int_gauge_with_registry!(
+                "iota_conservation_check_latency",
+                "Number of seconds took to scan all live objects in the store for IOTA conservation check",
                 registry,
             ).unwrap(),
-            sui_conservation_live_object_count: register_int_gauge_with_registry!(
-                "sui_conservation_live_object_count",
+            iota_conservation_live_object_count: register_int_gauge_with_registry!(
+                "iota_conservation_live_object_count",
                 "Number of live objects in the store",
                 registry,
             ).unwrap(),
-            sui_conservation_live_object_size: register_int_gauge_with_registry!(
-                "sui_conservation_live_object_size",
+            iota_conservation_live_object_size: register_int_gauge_with_registry!(
+                "iota_conservation_live_object_size",
                 "Size in bytes of live objects in the store",
                 registry,
             ).unwrap(),
-            sui_conservation_imbalance: register_int_gauge_with_registry!(
-                "sui_conservation_imbalance",
-                "Total amount of SUI in the network - 10B * 10^9. This delta shows the amount of imbalance",
+            iota_conservation_imbalance: register_int_gauge_with_registry!(
+                "iota_conservation_imbalance",
+                "Total amount of IOTA in the network - 10B * 10^9. This delta shows the amount of imbalance",
                 registry,
             ).unwrap(),
-            sui_conservation_storage_fund: register_int_gauge_with_registry!(
-                "sui_conservation_storage_fund",
+            iota_conservation_storage_fund: register_int_gauge_with_registry!(
+                "iota_conservation_storage_fund",
                 "Storage Fund pool balance (only includes the storage fund proper that represents object storage)",
                 registry,
             ).unwrap(),
-            sui_conservation_storage_fund_imbalance: register_int_gauge_with_registry!(
-                "sui_conservation_storage_fund_imbalance",
+            iota_conservation_storage_fund_imbalance: register_int_gauge_with_registry!(
+                "iota_conservation_storage_fund_imbalance",
                 "Imbalance of storage fund, computed with storage_fund_balance - total_object_storage_rebates",
                 registry,
             ).unwrap(),
@@ -109,9 +110,9 @@ impl AuthorityStoreMetrics {
 /// ALL_OBJ_VER determines whether we want to store all past
 /// versions of every object in the store. Authority doesn't store
 /// them, but other entities such as replicas will.
-/// S is a template on Authority signature state. This allows SuiDataStore to be used on either
+/// S is a template on Authority signature state. This allows IotaDataStore to be used on either
 /// authorities or non-authorities. Specifically, when storing transactions and effects,
-/// S allows SuiDataStore to either store the authority signed version or unsigned version.
+/// S allows IotaDataStore to either store the authority signed version or unsigned version.
 pub struct AuthorityStore {
     /// Internal vector of locks to manage concurrent writes to the database
     mutex_table: MutexTable<ObjectDigest>,
@@ -125,8 +126,8 @@ pub struct AuthorityStore {
 
     indirect_objects_threshold: usize,
 
-    /// Whether to enable expensive SUI conservation check at epoch boundaries.
-    enable_epoch_sui_conservation_check: bool,
+    /// Whether to enable expensive IOTA conservation check at epoch boundaries.
+    enable_epoch_iota_conservation_check: bool,
 
     metrics: AuthorityStoreMetrics,
 }
@@ -142,11 +143,11 @@ impl AuthorityStore {
         genesis: &Genesis,
         config: &NodeConfig,
         registry: &Registry,
-    ) -> SuiResult<Arc<Self>> {
+    ) -> IotaResult<Arc<Self>> {
         let indirect_objects_threshold = config.indirect_objects_threshold;
-        let enable_epoch_sui_conservation_check = config
+        let enable_epoch_iota_conservation_check = config
             .expensive_safety_check_config
-            .enable_epoch_sui_conservation_check();
+            .enable_epoch_iota_conservation_check();
 
         let epoch_start_configuration = if perpetual_tables.database_is_empty()? {
             info!("Creating new epoch start config from genesis");
@@ -159,7 +160,7 @@ impl AuthorityStore {
             });
 
             let epoch_start_configuration = EpochStartConfiguration::new(
-                genesis.sui_system_object().into_epoch_start_state(),
+                genesis.iota_system_object().into_epoch_start_state(),
                 *genesis.checkpoint().digest(),
                 &genesis.objects(),
                 initial_epoch_flags,
@@ -180,7 +181,7 @@ impl AuthorityStore {
             genesis,
             perpetual_tables,
             indirect_objects_threshold,
-            enable_epoch_sui_conservation_check,
+            enable_epoch_iota_conservation_check,
             registry,
         )
         .await?;
@@ -208,7 +209,7 @@ impl AuthorityStore {
     pub fn clear_object_per_epoch_marker_table(
         &self,
         _execution_guard: &ExecutionLockWriteGuard<'_>,
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         // We can safely delete all entries in the per epoch marker table since this is only called
         // at epoch boundaries (during reconfiguration). Therefore any entries that currently
         // exist can be removed. Because of this we can use the `schedule_delete_all` method.
@@ -223,7 +224,7 @@ impl AuthorityStore {
         committee: &Committee,
         genesis: &Genesis,
         indirect_objects_threshold: usize,
-    ) -> SuiResult<Arc<Self>> {
+    ) -> IotaResult<Arc<Self>> {
         // TODO: Since we always start at genesis, the committee should be technically the same
         // as the genesis committee.
         assert_eq!(committee.epoch, 0);
@@ -241,9 +242,9 @@ impl AuthorityStore {
         genesis: &Genesis,
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         indirect_objects_threshold: usize,
-        enable_epoch_sui_conservation_check: bool,
+        enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
-    ) -> SuiResult<Arc<Self>> {
+    ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
@@ -251,7 +252,7 @@ impl AuthorityStore {
                 NotifyRead::<EpochId, (CheckpointSequenceNumber, Accumulator)>::new(),
             objects_lock_table: Arc::new(RwLockTable::new(NUM_SHARDS)),
             indirect_objects_threshold,
-            enable_epoch_sui_conservation_check,
+            enable_epoch_iota_conservation_check,
             metrics: AuthorityStoreMetrics::new(registry),
         });
         // Only initialize an empty database.
@@ -299,9 +300,9 @@ impl AuthorityStore {
     pub fn open_no_genesis(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
         indirect_objects_threshold: usize,
-        enable_epoch_sui_conservation_check: bool,
+        enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
-    ) -> SuiResult<Arc<Self>> {
+    ) -> IotaResult<Arc<Self>> {
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
@@ -309,25 +310,25 @@ impl AuthorityStore {
                 NotifyRead::<EpochId, (CheckpointSequenceNumber, Accumulator)>::new(),
             objects_lock_table: Arc::new(RwLockTable::new(NUM_SHARDS)),
             indirect_objects_threshold,
-            enable_epoch_sui_conservation_check,
+            enable_epoch_iota_conservation_check,
             metrics: AuthorityStoreMetrics::new(registry),
         });
         Ok(store)
     }
 
-    pub fn get_recovery_epoch_at_restart(&self) -> SuiResult<EpochId> {
+    pub fn get_recovery_epoch_at_restart(&self) -> IotaResult<EpochId> {
         self.perpetual_tables.get_recovery_epoch_at_restart()
     }
 
     pub fn get_effects(
         &self,
         effects_digest: &TransactionEffectsDigest,
-    ) -> SuiResult<Option<TransactionEffects>> {
+    ) -> IotaResult<Option<TransactionEffects>> {
         Ok(self.perpetual_tables.effects.get(effects_digest)?)
     }
 
     /// Returns true if we have an effects structure for this transaction digest
-    pub fn effects_exists(&self, effects_digest: &TransactionEffectsDigest) -> SuiResult<bool> {
+    pub fn effects_exists(&self, effects_digest: &TransactionEffectsDigest) -> IotaResult<bool> {
         self.perpetual_tables
             .effects
             .contains_key(effects_digest)
@@ -350,7 +351,7 @@ impl AuthorityStore {
     pub fn multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
-    ) -> SuiResult<Vec<Option<TransactionEvents>>> {
+    ) -> IotaResult<Vec<Option<TransactionEvents>>> {
         Ok(event_digests
             .iter()
             .map(|digest| self.get_events(digest))
@@ -360,14 +361,14 @@ impl AuthorityStore {
     pub fn multi_get_effects<'a>(
         &self,
         effects_digests: impl Iterator<Item = &'a TransactionEffectsDigest>,
-    ) -> SuiResult<Vec<Option<TransactionEffects>>> {
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
         Ok(self.perpetual_tables.effects.multi_get(effects_digests)?)
     }
 
     pub fn get_executed_effects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> SuiResult<Option<TransactionEffects>> {
+    ) -> IotaResult<Option<TransactionEffects>> {
         let effects_digest = self.perpetual_tables.executed_effects.get(tx_digest)?;
         match effects_digest {
             Some(digest) => Ok(self.perpetual_tables.effects.get(&digest)?),
@@ -380,7 +381,7 @@ impl AuthorityStore {
     pub fn multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<TransactionEffectsDigest>>> {
+    ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
         Ok(self.perpetual_tables.executed_effects.multi_get(digests)?)
     }
 
@@ -389,7 +390,7 @@ impl AuthorityStore {
     pub fn multi_get_executed_effects(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<TransactionEffects>>> {
+    ) -> IotaResult<Vec<Option<TransactionEffects>>> {
         let executed_effects_digests = self.perpetual_tables.executed_effects.multi_get(digests)?;
         let effects = self.multi_get_effects(executed_effects_digests.iter().flatten())?;
         let mut tx_to_effects_map = effects
@@ -403,7 +404,7 @@ impl AuthorityStore {
             .collect())
     }
 
-    pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> SuiResult<bool> {
+    pub fn is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
         Ok(self
             .perpetual_tables
             .executed_effects
@@ -415,7 +416,7 @@ impl AuthorityStore {
         object_id: &ObjectID,
         version: &SequenceNumber,
         epoch_id: EpochId,
-    ) -> SuiResult<Option<MarkerValue>> {
+    ) -> IotaResult<Option<MarkerValue>> {
         let object_key = (epoch_id, ObjectKey(*object_id, *version));
         Ok(self
             .perpetual_tables
@@ -427,7 +428,7 @@ impl AuthorityStore {
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
-    ) -> SuiResult<Option<(SequenceNumber, MarkerValue)>> {
+    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
         let min_key = (epoch_id, ObjectKey::min_for_id(object_id));
         let max_key = (epoch_id, ObjectKey::max_for_id(object_id));
 
@@ -454,7 +455,7 @@ impl AuthorityStore {
     pub async fn notify_read_root_state_hash(
         &self,
         epoch: EpochId,
-    ) -> SuiResult<(CheckpointSequenceNumber, Accumulator)> {
+    ) -> IotaResult<(CheckpointSequenceNumber, Accumulator)> {
         // We need to register waiters _before_ reading from the database to avoid race conditions
         let registration = self.root_state_notify_read.register_one(&epoch);
         let hash = self.perpetual_tables.root_state_hash_by_epoch.get(&epoch)?;
@@ -475,7 +476,7 @@ impl AuthorityStore {
         digests: &[TransactionDigest],
         epoch: EpochId,
         sequence: CheckpointSequenceNumber,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let mut batch = self
             .perpetual_tables
             .executed_transactions_to_checkpoint
@@ -493,7 +494,7 @@ impl AuthorityStore {
     pub fn deprecated_get_transaction_checkpoint(
         &self,
         digest: &TransactionDigest,
-    ) -> SuiResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
         Ok(self
             .perpetual_tables
             .executed_transactions_to_checkpoint
@@ -504,7 +505,7 @@ impl AuthorityStore {
     pub fn deprecated_multi_get_transaction_checkpoint(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
+    ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
         Ok(self
             .perpetual_tables
             .executed_transactions_to_checkpoint
@@ -514,7 +515,7 @@ impl AuthorityStore {
     }
 
     /// Returns true if there are no objects in the database
-    pub fn database_is_empty(&self) -> SuiResult<bool> {
+    pub fn database_is_empty(&self) -> IotaResult<bool> {
         self.perpetual_tables.database_is_empty()
     }
 
@@ -529,14 +530,14 @@ impl AuthorityStore {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> SuiResult<bool> {
+    ) -> IotaResult<bool> {
         Ok(self
             .perpetual_tables
             .objects
             .contains_key(&ObjectKey(*object_id, version))?)
     }
 
-    pub fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> SuiResult<Vec<bool>> {
+    pub fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
         Ok(self
             .perpetual_tables
             .objects
@@ -549,7 +550,7 @@ impl AuthorityStore {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> Result<Option<ObjectRef>, SuiError> {
+    ) -> Result<Option<ObjectRef>, IotaError> {
         let Some(prior_version) = version.one_before() else {
             return Ok(None);
         };
@@ -572,7 +573,7 @@ impl AuthorityStore {
     pub fn multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
-    ) -> Result<Vec<Option<Object>>, SuiError> {
+    ) -> Result<Vec<Option<Object>>, IotaError> {
         let wrappers = self
             .perpetual_tables
             .objects
@@ -590,7 +591,7 @@ impl AuthorityStore {
     }
 
     /// Get many objects
-    pub fn get_objects(&self, objects: &[ObjectID]) -> Result<Vec<Option<Object>>, SuiError> {
+    pub fn get_objects(&self, objects: &[ObjectID]) -> Result<Vec<Option<Object>>, IotaError> {
         let mut result = Vec::new();
         for id in objects {
             result.push(self.get_object(id));
@@ -603,7 +604,7 @@ impl AuthorityStore {
         object_id: &ObjectID,
         version: VersionNumber,
         epoch_id: EpochId,
-    ) -> Result<bool, SuiError> {
+    ) -> Result<bool, IotaError> {
         let object_key = ObjectKey::max_for_id(object_id);
         let marker_key = (epoch_id, object_key);
 
@@ -633,7 +634,7 @@ impl AuthorityStore {
 
     /// Insert a genesis object.
     /// TODO: delete this method entirely (still used by authority_tests.rs)
-    pub(crate) fn insert_genesis_object(&self, object: Object) -> SuiResult {
+    pub(crate) fn insert_genesis_object(&self, object: Object) -> IotaResult {
         // We only side load objects with a genesis parent transaction.
         debug_assert!(object.previous_transaction == TransactionDigest::genesis_marker());
         let object_ref = object.compute_object_reference();
@@ -643,7 +644,7 @@ impl AuthorityStore {
     /// Insert an object directly into the store, and also update relevant tables
     /// NOTE: does not handle transaction lock.
     /// This is used to insert genesis objects
-    fn insert_object_direct(&self, object_ref: ObjectRef, object: &Object) -> SuiResult {
+    fn insert_object_direct(&self, object_ref: ObjectRef, object: &Object) -> IotaResult {
         let mut write_batch = self.perpetual_tables.objects.batch();
 
         // Insert object
@@ -675,7 +676,7 @@ impl AuthorityStore {
 
     /// This function should only be used for initializing genesis and should remain private.
     #[instrument(level = "debug", skip_all)]
-    pub(crate) fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> SuiResult<()> {
+    pub(crate) fn bulk_insert_genesis_objects(&self, objects: &[Object]) -> IotaResult<()> {
         let mut batch = self.perpetual_tables.objects.batch();
         let ref_and_objects: Vec<_> = objects
             .iter()
@@ -723,7 +724,7 @@ impl AuthorityStore {
         live_objects: impl Iterator<Item = LiveObject>,
         indirect_objects_threshold: usize,
         expected_sha3_digest: &[u8; 32],
-    ) -> SuiResult<()> {
+    ) -> IotaResult<()> {
         let mut hasher = Sha3_256::default();
         let mut batch = perpetual_db.objects.batch();
         for object in live_objects {
@@ -771,7 +772,7 @@ impl AuthorityStore {
                 "Sha does not match! expected: {:?}, actual: {:?}",
                 expected_sha3_digest, sha3_digest
             );
-            return Err(SuiError::from("Sha does not match"));
+            return Err(IotaError::from("Sha does not match"));
         }
         batch.write()?;
         Ok(())
@@ -780,13 +781,13 @@ impl AuthorityStore {
     pub fn set_epoch_start_configuration(
         &self,
         epoch_start_configuration: &EpochStartConfiguration,
-    ) -> SuiResult {
+    ) -> IotaResult {
         self.perpetual_tables
             .set_epoch_start_configuration(epoch_start_configuration)?;
         Ok(())
     }
 
-    pub fn get_epoch_start_configuration(&self) -> SuiResult<Option<EpochStartConfiguration>> {
+    pub fn get_epoch_start_configuration(&self) -> IotaResult<Option<EpochStartConfiguration>> {
         Ok(self.perpetual_tables.epoch_start_configuration.get(&())?)
     }
 
@@ -824,7 +825,7 @@ impl AuthorityStore {
         &self,
         epoch_id: EpochId,
         tx_outputs: &[Arc<TransactionOutputs>],
-    ) -> SuiResult {
+    ) -> IotaResult {
         let mut written = Vec::with_capacity(tx_outputs.len());
         for outputs in tx_outputs {
             written.extend(outputs.written.values().cloned());
@@ -859,7 +860,7 @@ impl AuthorityStore {
         write_batch: &mut DBBatch,
         epoch_id: EpochId,
         tx_outputs: &TransactionOutputs,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let TransactionOutputs {
             transaction,
             effects,
@@ -977,7 +978,7 @@ impl AuthorityStore {
     pub(crate) fn commit_transactions(
         &self,
         transactions: &[(TransactionDigest, VerifiedTransaction)],
-    ) -> SuiResult {
+    ) -> IotaResult {
         let mut batch = self.perpetual_tables.transactions.batch();
         batch.insert_batch(
             &self.perpetual_tables.transactions,
@@ -995,7 +996,7 @@ impl AuthorityStore {
         owned_input_objects: &[ObjectRef],
         tx_digest: TransactionDigest,
         signed_transaction: Option<VerifiedSignedTransaction>,
-    ) -> SuiResult {
+    ) -> IotaResult {
         let epoch = epoch_store.epoch();
         // Other writers may be attempting to acquire locks on the same objects, so a mutex is
         // required.
@@ -1055,7 +1056,7 @@ impl AuthorityStore {
                     info!(prev_tx_digest = ?previous_tx_digest,
                           cur_tx_digest = ?tx_digest,
                           "Cannot acquire lock: conflicting transaction!");
-                    return Err(SuiError::ObjectLockConflict {
+                    return Err(IotaError::ObjectLockConflict {
                         obj_ref: *obj_ref,
                         pending_transaction: *previous_tx_digest,
                     });
@@ -1079,7 +1080,7 @@ impl AuthorityStore {
         &self,
         obj_ref: ObjectRef,
         epoch_store: &AuthorityPerEpochStore,
-    ) -> SuiLockResult {
+    ) -> IotaLockResult {
         if self
             .perpetual_tables
             .live_owned_object_markers
@@ -1110,7 +1111,7 @@ impl AuthorityStore {
     pub(crate) fn get_latest_live_version_for_object_id(
         &self,
         object_id: ObjectID,
-    ) -> SuiResult<ObjectRef> {
+    ) -> IotaResult<ObjectRef> {
         let mut iterator = self
             .perpetual_tables
             .live_owned_object_markers
@@ -1127,7 +1128,7 @@ impl AuthorityStore {
                 }
             })
             .ok_or_else(|| {
-                SuiError::from(UserInputError::ObjectNotFound {
+                IotaError::from(UserInputError::ObjectNotFound {
                     object_id,
                     version: None,
                 })
@@ -1139,7 +1140,7 @@ impl AuthorityStore {
     /// Returns UserInputError::ObjectNotFound if cannot find lock record for at least one of the objects.
     /// Returns UserInputError::ObjectVersionUnavailableForConsumption if at least one object lock is not initialized
     ///     at the given version.
-    pub fn check_owned_objects_are_live(&self, objects: &[ObjectRef]) -> SuiResult {
+    pub fn check_owned_objects_are_live(&self, objects: &[ObjectRef]) -> IotaResult {
         let locks = self
             .perpetual_tables
             .live_owned_object_markers
@@ -1158,13 +1159,13 @@ impl AuthorityStore {
     }
 
     /// Initialize a lock to None (but exists) for a given list of ObjectRefs.
-    /// Returns SuiError::ObjectLockAlreadyInitialized if the lock already exists and is locked to a transaction
+    /// Returns IotaError::ObjectLockAlreadyInitialized if the lock already exists and is locked to a transaction
     fn initialize_live_object_markers_impl(
         &self,
         write_batch: &mut DBBatch,
         objects: &[ObjectRef],
         is_force_reset: bool,
-    ) -> SuiResult {
+    ) -> IotaResult {
         AuthorityStore::initialize_live_object_markers(
             &self.perpetual_tables.live_owned_object_markers,
             write_batch,
@@ -1178,7 +1179,7 @@ impl AuthorityStore {
         write_batch: &mut DBBatch,
         objects: &[ObjectRef],
         is_force_reset: bool,
-    ) -> SuiResult {
+    ) -> IotaResult {
         trace!(?objects, "initialize_locks");
 
         let live_object_markers = live_object_marker_table.multi_get(objects)?;
@@ -1199,7 +1200,7 @@ impl AuthorityStore {
                     ?existing_live_object_markers,
                     "Cannot initialize live_object_markers because some exist already"
                 );
-                return Err(SuiError::ObjectLockAlreadyInitialized {
+                return Err(IotaError::ObjectLockAlreadyInitialized {
                     refs: existing_live_object_markers,
                 });
             }
@@ -1217,7 +1218,7 @@ impl AuthorityStore {
         &self,
         write_batch: &mut DBBatch,
         objects: &[ObjectRef],
-    ) -> SuiResult {
+    ) -> IotaResult {
         trace!(?objects, "delete_locks");
         write_batch.delete_batch(
             &self.perpetual_tables.live_owned_object_markers,
@@ -1266,7 +1267,7 @@ impl AuthorityStore {
     /// so that when we receive the checkpoint that includes it from state
     /// sync, we are able to execute the checkpoint.
     /// TODO: implement GC for transactions that are no longer needed.
-    pub fn revert_state_update(&self, tx_digest: &TransactionDigest) -> SuiResult {
+    pub fn revert_state_update(&self, tx_digest: &TransactionDigest) -> IotaResult {
         let Some(effects) = self.get_executed_effects(tx_digest)? else {
             info!("Not reverting {:?} as it was not executed", tx_digest);
             return Ok(());
@@ -1362,7 +1363,7 @@ impl AuthorityStore {
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         self.perpetual_tables
             .find_object_lt_or_eq_version(object_id, version)
     }
@@ -1379,7 +1380,7 @@ impl AuthorityStore {
     pub fn get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
-    ) -> Result<Option<ObjectRef>, SuiError> {
+    ) -> Result<Option<ObjectRef>, IotaError> {
         self.perpetual_tables
             .get_latest_object_ref_or_tombstone(object_id)
     }
@@ -1389,7 +1390,7 @@ impl AuthorityStore {
     pub fn get_latest_object_ref_if_alive(
         &self,
         object_id: ObjectID,
-    ) -> Result<Option<ObjectRef>, SuiError> {
+    ) -> Result<Option<ObjectRef>, IotaError> {
         match self.get_latest_object_ref_or_tombstone(object_id)? {
             Some(objref) if objref.2.is_alive() => Ok(Some(objref)),
             _ => Ok(None),
@@ -1402,7 +1403,7 @@ impl AuthorityStore {
     pub fn get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
-    ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, SuiError> {
+    ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
         let Some((object_key, store_object)) = self
             .perpetual_tables
             .get_latest_object_or_tombstone(object_id)?
@@ -1469,7 +1470,7 @@ impl AuthorityStore {
     pub fn multi_get_transaction_blocks(
         &self,
         tx_digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<VerifiedTransaction>>> {
+    ) -> IotaResult<Vec<Option<VerifiedTransaction>>> {
         Ok(self
             .perpetual_tables
             .transactions
@@ -1492,30 +1493,30 @@ impl AuthorityStore {
     /// the old or the new system state object.
     /// Hence this function should only be called during RPC reads where data race is not a major concern.
     /// In general we should avoid this as much as possible.
-    /// If the intent is for testing, you can use AuthorityState:: get_sui_system_state_object_for_testing.
-    pub fn get_sui_system_state_object_unsafe(&self) -> SuiResult<SuiSystemState> {
-        get_sui_system_state(self.perpetual_tables.as_ref())
+    /// If the intent is for testing, you can use AuthorityState:: get_iota_system_state_object_for_testing.
+    pub fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+        get_iota_system_state(self.perpetual_tables.as_ref())
     }
 
-    pub fn expensive_check_sui_conservation<T>(
+    pub fn expensive_check_iota_conservation<T>(
         self: &Arc<Self>,
         type_layout_store: T,
         old_epoch_store: &AuthorityPerEpochStore,
-    ) -> SuiResult
+    ) -> IotaResult
     where
         T: TypeLayoutStore + Send + Copy,
     {
-        if !self.enable_epoch_sui_conservation_check {
+        if !self.enable_epoch_iota_conservation_check {
             return Ok(());
         }
 
         let executor = old_epoch_store.executor();
-        info!("Starting SUI conservation check. This may take a while..");
+        info!("Starting IOTA conservation check. This may take a while..");
         let cur_time = Instant::now();
         let mut pending_objects = vec![];
         let mut count = 0;
         let mut size = 0;
-        let (mut total_sui, mut total_storage_rebate) = thread::scope(|s| {
+        let (mut total_iota, mut total_storage_rebate) = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
             for o in self.iter_live_object_set(false) {
                 match o {
@@ -1530,19 +1531,19 @@ impl AuthorityStore {
                                 let mut layout_resolver =
                                     executor.type_layout_resolver(Box::new(type_layout_store));
                                 let mut total_storage_rebate = 0;
-                                let mut total_sui = 0;
+                                let mut total_iota = 0;
                                 for object in task_objects {
                                     total_storage_rebate += object.storage_rebate;
-                                    // get_total_sui includes storage rebate, however all storage rebate is
+                                    // get_total_iota includes storage rebate, however all storage rebate is
                                     // also stored in the storage fund, so we need to subtract it here.
-                                    total_sui +=
-                                        object.get_total_sui(layout_resolver.as_mut()).unwrap()
+                                    total_iota +=
+                                        object.get_total_iota(layout_resolver.as_mut()).unwrap()
                                             - object.storage_rebate;
                                 }
                                 if count % 50_000_000 == 0 {
                                     info!("Processed {} objects", count);
                                 }
-                                (total_sui, total_storage_rebate)
+                                (total_iota, total_storage_rebate)
                             }));
                         }
                     }
@@ -1559,8 +1560,8 @@ impl AuthorityStore {
         let mut layout_resolver = executor.type_layout_resolver(Box::new(type_layout_store));
         for object in pending_objects {
             total_storage_rebate += object.storage_rebate;
-            total_sui +=
-                object.get_total_sui(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
+            total_iota +=
+                object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
         }
         info!(
             "Scanned {} live objects, took {:?}",
@@ -1568,36 +1569,36 @@ impl AuthorityStore {
             cur_time.elapsed()
         );
         self.metrics
-            .sui_conservation_live_object_count
+            .iota_conservation_live_object_count
             .set(count as i64);
         self.metrics
-            .sui_conservation_live_object_size
+            .iota_conservation_live_object_size
             .set(size as i64);
         self.metrics
-            .sui_conservation_check_latency
+            .iota_conservation_check_latency
             .set(cur_time.elapsed().as_secs() as i64);
 
         // It is safe to call this function because we are in the middle of reconfiguration.
         let system_state = self
-            .get_sui_system_state_object_unsafe()
-            .expect("Reading sui system state object cannot fail")
-            .into_sui_system_state_summary();
+            .get_iota_system_state_object_unsafe()
+            .expect("Reading iota system state object cannot fail")
+            .into_iota_system_state_summary();
         let storage_fund_balance = system_state.storage_fund_total_object_storage_rebates;
         info!(
-            "Total SUI amount in the network: {}, storage fund balance: {}, total storage rebate: {} at beginning of epoch {}",
-            total_sui, storage_fund_balance, total_storage_rebate, system_state.epoch
+            "Total IOTA amount in the network: {}, storage fund balance: {}, total storage rebate: {} at beginning of epoch {}",
+            total_iota, storage_fund_balance, total_storage_rebate, system_state.epoch
         );
 
         let imbalance = (storage_fund_balance as i64) - (total_storage_rebate as i64);
         self.metrics
-            .sui_conservation_storage_fund
+            .iota_conservation_storage_fund
             .set(storage_fund_balance as i64);
         self.metrics
-            .sui_conservation_storage_fund_imbalance
+            .iota_conservation_storage_fund_imbalance
             .set(imbalance);
         self.metrics
-            .sui_conservation_imbalance
-            .set((total_sui as i128 - TOTAL_SUPPLY_MIST as i128) as i64);
+            .iota_conservation_imbalance
+            .set((total_iota as i128 - TOTAL_SUPPLY_NANOS as i128) as i64);
 
         if let Some(expected_imbalance) = self
             .perpetual_tables
@@ -1607,7 +1608,7 @@ impl AuthorityStore {
         {
             fp_ensure!(
                 imbalance == expected_imbalance,
-                SuiError::from(
+                IotaError::from(
                     format!(
                         "Inconsistent state detected at epoch {}: total storage rebate: {}, storage fund balance: {}, expected imbalance: {}",
                         system_state.epoch, total_storage_rebate, storage_fund_balance, expected_imbalance
@@ -1621,26 +1622,26 @@ impl AuthorityStore {
                 .expect("DB write cannot fail");
         }
 
-        if let Some(expected_sui) = self
+        if let Some(expected_iota) = self
             .perpetual_tables
-            .expected_network_sui_amount
+            .expected_network_iota_amount
             .get(&())
             .expect("DB read cannot fail")
         {
             fp_ensure!(
-                total_sui == expected_sui,
-                SuiError::from(
+                total_iota == expected_iota,
+                IotaError::from(
                     format!(
-                        "Inconsistent state detected at epoch {}: total sui: {}, expecting {}",
-                        system_state.epoch, total_sui, expected_sui
+                        "Inconsistent state detected at epoch {}: total iota: {}, expecting {}",
+                        system_state.epoch, total_iota, expected_iota
                     )
                     .as_str()
                 )
             );
         } else {
             self.perpetual_tables
-                .expected_network_sui_amount
-                .insert(&(), &total_sui)
+                .expected_network_iota_amount
+                .insert(&(), &total_iota)
                 .expect("DB write cannot fail");
         }
 
@@ -1866,14 +1867,14 @@ impl AccumulatorStore for AuthorityStore {
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
-    ) -> SuiResult<Option<ObjectRef>> {
+    ) -> IotaResult<Option<ObjectRef>> {
         self.get_object_ref_prior_to_key(object_id, version)
     }
 
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
-    ) -> SuiResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
+    ) -> IotaResult<Option<(CheckpointSequenceNumber, Accumulator)>> {
         self.perpetual_tables
             .root_state_hash_by_epoch
             .get(&epoch)
@@ -1882,7 +1883,7 @@ impl AccumulatorStore for AuthorityStore {
 
     fn get_root_state_accumulator_for_highest_epoch(
         &self,
-    ) -> SuiResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
+    ) -> IotaResult<Option<(EpochId, (CheckpointSequenceNumber, Accumulator))>> {
         Ok(self
             .perpetual_tables
             .root_state_hash_by_epoch
@@ -1897,7 +1898,7 @@ impl AccumulatorStore for AuthorityStore {
         epoch: EpochId,
         last_checkpoint_of_epoch: &CheckpointSequenceNumber,
         acc: &Accumulator,
-    ) -> SuiResult {
+    ) -> IotaResult {
         self.perpetual_tables
             .root_state_hash_by_epoch
             .insert(&epoch, &(*last_checkpoint_of_epoch, acc.clone()))?;
@@ -1952,7 +1953,7 @@ impl ResolverWrapper {
 }
 
 impl ModuleResolver for ResolverWrapper {
-    type Error = SuiError;
+    type Error = IotaError;
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
         self.inc_cache_size_gauge();
         get_module(&*self.resolver, module_id)
@@ -1964,7 +1965,7 @@ pub enum UpdateType {
     Genesis,
 }
 
-pub type SuiLockResult = SuiResult<ObjectLockStatus>;
+pub type IotaLockResult = IotaResult<ObjectLockStatus>;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ObjectLockStatus {

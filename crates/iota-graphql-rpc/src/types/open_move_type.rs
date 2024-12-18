@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt;
@@ -6,13 +7,13 @@ use std::fmt;
 use async_graphql::*;
 use move_binary_format::file_format::{Ability, AbilitySet, Visibility};
 use serde::{Deserialize, Serialize};
-use sui_package_resolver::{OpenSignature, OpenSignatureBody, Reference};
+use iota_package_resolver::{OpenSignature, OpenSignatureBody, Reference};
 
 pub(crate) struct OpenMoveType {
     signature: OpenMoveTypeSignature,
 }
 
-/// Abilities are keywords in Sui Move that define how types behave at the compiler level.
+/// Abilities are keywords in Iota Move that define how types behave at the compiler level.
 #[derive(Enum, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum MoveAbility {
     /// Enables values to be copied.
@@ -290,7 +291,7 @@ mod tests {
 
     use expect_test::expect;
     use move_core_types::language_storage::StructTag;
-    use sui_package_resolver::{DatatypeKey, DatatypeRef};
+    use iota_package_resolver::{DatatypeKey, DatatypeRef};
 
     use OpenSignatureBody as S;
 
@@ -329,7 +330,7 @@ mod tests {
     fn instance_signature() {
         let signature = OpenMoveTypeSignature::from(S::Datatype(
             struct_key("0x2::coin::Coin"),
-            vec![S::Datatype(struct_key("0x2::sui::SUI"), vec![])],
+            vec![S::Datatype(struct_key("0x2::iota::IOTA"), vec![])],
         ));
 
         let expect = expect![[r#"
@@ -342,8 +343,8 @@ mod tests {
                     type_parameters: [
                         Datatype {
                             package: "0x0000000000000000000000000000000000000000000000000000000000000002",
-                            module: "sui",
-                            type_: "SUI",
+                            module: "iota",
+                            type_: "IOTA",
                             type_parameters: [],
                         },
                     ],
@@ -367,10 +368,10 @@ mod tests {
     fn instance_signature_repr() {
         let signature = OpenMoveTypeSignature::from(S::Datatype(
             struct_key("0x2::coin::Coin"),
-            vec![S::Datatype(struct_key("0x2::sui::SUI"), vec![])],
+            vec![S::Datatype(struct_key("0x2::iota::IOTA"), vec![])],
         ));
 
-        let expect = expect!["0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI>"];
+        let expect = expect!["0x0000000000000000000000000000000000000000000000000000000000000002::coin::Coin<0x0000000000000000000000000000000000000000000000000000000000000002::iota::IOTA>"];
         expect.assert_eq(&format!("{signature}"));
     }
 }

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::anyhow;
 
 use serde::{Deserialize, Serialize};
-use sui_types::{
+use iota_types::{
     base_types::ObjectRef,
     committee::Committee,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
@@ -14,7 +15,7 @@ use sui_types::{
     transaction::Transaction,
 };
 
-/// Define aspect of Sui state that need to be certified in a proof
+/// Define aspect of Iota state that need to be certified in a proof
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ProofTarget {
     /// Objects that need to be certified.

@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --protocol-version 51 --addresses P0=0x0 --accounts A --simulator
 
 //# publish
 module P0::M {
-    use sui::dynamic_object_field as dof;
+    use iota::dynamic_object_field as dof;
 
     public struct O has key {
         id: UID,

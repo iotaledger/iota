@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Content, Menu } from '_app/shared/bottom-menu-layout';
@@ -7,9 +8,9 @@ import { Text } from '_app/shared/text';
 import Alert from '_components/alert';
 import LoadingIndicator from '_components/loading/LoadingIndicator';
 import { ampli } from '_src/shared/analytics/ampli';
-import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } from '@mysten/core';
-import { useSuiClientQuery } from '@mysten/dapp-kit';
-import { ArrowRight16 } from '@mysten/icons';
+import { calculateStakeShare, formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
+import { useIotaClientQuery } from '@iota/dapp-kit';
+import { ArrowRight16 } from '@iota/icons';
 import cl from 'clsx';
 import { useMemo, useState } from 'react';
 
@@ -34,7 +35,7 @@ export function SelectValidatorCard() {
 	const [selectedValidator, setSelectedValidator] = useState<Validator | null>(null);
 	const [sortKey, setSortKey] = useState<SortKeys | null>(null);
 	const [sortAscending, setSortAscending] = useState(true);
-	const { data, isPending, isError } = useSuiClientQuery('getLatestSuiSystemState');
+	const { data, isPending, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
 	const { data: rollingAverageApys } = useGetValidatorsApy();
 
@@ -52,7 +53,7 @@ export function SelectValidatorCard() {
 	const totalStake = useMemo(() => {
 		if (!data) return 0;
 		return data.activeValidators.reduce(
-			(acc, curr) => (acc += BigInt(curr.stakingPoolSuiBalance)),
+			(acc, curr) => (acc += BigInt(curr.stakingPoolIotaBalance)),
 			0n,
 		);
 	}, [data]);
@@ -63,14 +64,14 @@ export function SelectValidatorCard() {
 	);
 	const validatorList = useMemo(() => {
 		const sortedAsc = validatorsRandomOrder.map((validator) => {
-			const { apy, isApyApproxZero } = rollingAverageApys?.[validator.suiAddress] ?? { apy: null };
+			const { apy, isApyApproxZero } = rollingAverageApys?.[validator.iotaAddress] ?? { apy: null };
 			return {
 				name: validator.name,
-				address: validator.suiAddress,
+				address: validator.iotaAddress,
 				apy,
 				isApyApproxZero,
 				stakeShare: calculateStakeShare(
-					BigInt(validator.stakingPoolSuiBalance),
+					BigInt(validator.stakingPoolIotaBalance),
 					BigInt(totalStake),
 				),
 			};
@@ -148,7 +149,7 @@ export function SelectValidatorCard() {
 					</div>
 					<div className="flex items-start w-full">
 						<Text variant="subtitle" weight="medium" color="steel-darker">
-							Select a validator to start staking SUI.
+							Select a validator to start staking IOTA.
 						</Text>
 					</div>
 				</div>

@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::models::SuiProgressStore;
+use crate::models::IotaProgressStore;
 use crate::schema::governance_actions;
-use crate::schema::sui_progress_store::txn_digest;
-use crate::schema::{sui_error_transactions, token_transfer_data};
+use crate::schema::iota_progress_store::txn_digest;
+use crate::schema::{iota_error_transactions, token_transfer_data};
 use crate::{schema, schema::token_transfer, ProcessedTxnData};
 use diesel::query_dsl::methods::FilterDsl;
 use diesel::upsert::excluded;
@@ -15,12 +16,12 @@ use diesel_async::scoped_futures::ScopedFutureExt;
 use diesel_async::AsyncConnection;
 use diesel_async::AsyncPgConnection;
 use diesel_async::RunQueryDsl;
-use sui_types::digests::TransactionDigest;
+use iota_types::digests::TransactionDigest;
 
 pub(crate) type PgPool =
     diesel_async::pooled_connection::bb8::Pool<diesel_async::AsyncPgConnection>;
 
-const SUI_PROGRESS_STORE_DUMMY_KEY: i32 = 1;
+const IOTA_PROGRESS_STORE_DUMMY_KEY: i32 = 1;
 
 pub async fn get_connection_pool(database_url: String) -> PgPool {
     let manager = AsyncDieselConnectionManager::<AsyncPgConnection>::new(database_url);
@@ -110,7 +111,7 @@ pub async fn write(pool: &PgPool, token_txns: Vec<ProcessedTxnData>) -> Result<(
                     .filter(token_transfer::is_finalized.eq(false))
                     .execute(conn)
                     .await?;
-                diesel::insert_into(sui_error_transactions::table)
+                diesel::insert_into(iota_error_transactions::table)
                     .values(&errors)
                     .on_conflict_do_nothing()
                     .execute(conn)
@@ -127,17 +128,17 @@ pub async fn write(pool: &PgPool, token_txns: Vec<ProcessedTxnData>) -> Result<(
     Ok(())
 }
 
-pub async fn update_sui_progress_store(
+pub async fn update_iota_progress_store(
     pool: &PgPool,
     tx_digest: TransactionDigest,
 ) -> Result<(), anyhow::Error> {
     let mut conn = pool.get().await?;
-    diesel::insert_into(schema::sui_progress_store::table)
-        .values(&SuiProgressStore {
-            id: SUI_PROGRESS_STORE_DUMMY_KEY,
+    diesel::insert_into(schema::iota_progress_store::table)
+        .values(&IotaProgressStore {
+            id: IOTA_PROGRESS_STORE_DUMMY_KEY,
             txn_digest: tx_digest.inner().to_vec(),
         })
-        .on_conflict(schema::sui_progress_store::dsl::id)
+        .on_conflict(schema::iota_progress_store::dsl::id)
         .do_update()
         .set(txn_digest.eq(tx_digest.inner().to_vec()))
         .execute(&mut conn)
@@ -145,10 +146,10 @@ pub async fn update_sui_progress_store(
     Ok(())
 }
 
-pub async fn read_sui_progress_store(pool: &PgPool) -> anyhow::Result<Option<TransactionDigest>> {
+pub async fn read_iota_progress_store(pool: &PgPool) -> anyhow::Result<Option<TransactionDigest>> {
     let mut conn = pool.get().await?;
-    let val: Option<SuiProgressStore> = crate::schema::sui_progress_store::dsl::sui_progress_store
-        .select(SuiProgressStore::as_select())
+    let val: Option<IotaProgressStore> = crate::schema::iota_progress_store::dsl::iota_progress_store
+        .select(IotaProgressStore::as_select())
         .first(&mut conn)
         .await
         .optional()?;

@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import TransportWebHID from '@ledgerhq/hw-transport-webhid';
 import TransportWebUSB from '@ledgerhq/hw-transport-webusb';
-import SuiLedgerClient from '@mysten/ledgerjs-hw-app-sui';
+import IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import {
@@ -12,68 +13,68 @@ import {
 	LedgerNoTransportMechanismError,
 } from './ledgerErrors';
 
-type SuiLedgerClientProviderProps = {
+type IotaLedgerClientProviderProps = {
 	children: React.ReactNode;
 };
 
-type SuiLedgerClientContextValue = {
-	suiLedgerClient: SuiLedgerClient | undefined;
-	connectToLedger: (requestPermissionsFirst?: boolean) => Promise<SuiLedgerClient>;
+type IotaLedgerClientContextValue = {
+	iotaLedgerClient: IotaLedgerClient | undefined;
+	connectToLedger: (requestPermissionsFirst?: boolean) => Promise<IotaLedgerClient>;
 };
 
-const SuiLedgerClientContext = createContext<SuiLedgerClientContextValue | undefined>(undefined);
+const IotaLedgerClientContext = createContext<IotaLedgerClientContextValue | undefined>(undefined);
 
-export function SuiLedgerClientProvider({ children }: SuiLedgerClientProviderProps) {
-	const [suiLedgerClient, setSuiLedgerClient] = useState<SuiLedgerClient>();
-	const resetSuiLedgerClient = useCallback(async () => {
-		await suiLedgerClient?.transport.close();
-		setSuiLedgerClient(undefined);
-	}, [suiLedgerClient]);
+export function IotaLedgerClientProvider({ children }: IotaLedgerClientProviderProps) {
+	const [iotaLedgerClient, setIotaLedgerClient] = useState<IotaLedgerClient>();
+	const resetIotaLedgerClient = useCallback(async () => {
+		await iotaLedgerClient?.transport.close();
+		setIotaLedgerClient(undefined);
+	}, [iotaLedgerClient]);
 
 	useEffect(() => {
 		// NOTE: The disconnect event is fired when someone physically disconnects
 		// their Ledger device in addition to when user's exit out of an application
-		suiLedgerClient?.transport.on('disconnect', resetSuiLedgerClient);
+		iotaLedgerClient?.transport.on('disconnect', resetIotaLedgerClient);
 		return () => {
-			suiLedgerClient?.transport.off('disconnect', resetSuiLedgerClient);
+			iotaLedgerClient?.transport.off('disconnect', resetIotaLedgerClient);
 		};
-	}, [resetSuiLedgerClient, suiLedgerClient?.transport]);
+	}, [resetIotaLedgerClient, iotaLedgerClient?.transport]);
 
 	const connectToLedger = useCallback(
 		async (requestPermissionsFirst = false) => {
 			// If we've already connected to a Ledger device, we need
 			// to close the connection before we try to re-connect
-			await resetSuiLedgerClient();
+			await resetIotaLedgerClient();
 
 			const ledgerTransport = requestPermissionsFirst
 				? await requestLedgerConnection()
 				: await openLedgerConnection();
-			const ledgerClient = new SuiLedgerClient(ledgerTransport);
-			setSuiLedgerClient(ledgerClient);
+			const ledgerClient = new IotaLedgerClient(ledgerTransport);
+			setIotaLedgerClient(ledgerClient);
 			return ledgerClient;
 		},
-		[resetSuiLedgerClient],
+		[resetIotaLedgerClient],
 	);
-	const contextValue: SuiLedgerClientContextValue = useMemo(() => {
+	const contextValue: IotaLedgerClientContextValue = useMemo(() => {
 		return {
-			suiLedgerClient,
+			iotaLedgerClient,
 			connectToLedger,
 		};
-	}, [connectToLedger, suiLedgerClient]);
+	}, [connectToLedger, iotaLedgerClient]);
 
 	return (
-		<SuiLedgerClientContext.Provider value={contextValue}>
+		<IotaLedgerClientContext.Provider value={contextValue}>
 			{children}
-		</SuiLedgerClientContext.Provider>
+		</IotaLedgerClientContext.Provider>
 	);
 }
 
-export function useSuiLedgerClient() {
-	const suiLedgerClientContext = useContext(SuiLedgerClientContext);
-	if (!suiLedgerClientContext) {
-		throw new Error('useSuiLedgerClient must be used within SuiLedgerClientContext');
+export function useIotaLedgerClient() {
+	const iotaLedgerClientContext = useContext(IotaLedgerClientContext);
+	if (!iotaLedgerClientContext) {
+		throw new Error('useIotaLedgerClient must be used within IotaLedgerClientContext');
 	}
-	return suiLedgerClientContext;
+	return iotaLedgerClientContext;
 }
 
 async function requestLedgerConnection() {

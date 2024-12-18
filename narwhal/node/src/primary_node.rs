@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use crate::metrics::new_registry;
 use crate::{try_join_all, FuturesUnordered, NodeError};
@@ -7,8 +8,8 @@ use config::{AuthorityIdentifier, Committee, Parameters, WorkerCache};
 use crypto::{KeyPair, NetworkKeyPair, PublicKey};
 use executor::{get_restored_consensus_output, ExecutionState, Executor, SubscriberResult};
 use fastcrypto::traits::{KeyPair as _, VerifyingKey};
-use mysten_metrics::metered_channel;
-use mysten_metrics::{RegistryID, RegistryService};
+use iota_metrics::metered_channel;
+use iota_metrics::{RegistryID, RegistryService};
 use network::client::NetworkClient;
 use primary::consensus::{
     Bullshark, ChannelMetrics, Consensus, ConsensusMetrics, ConsensusRound, LeaderSchedule,
@@ -18,7 +19,7 @@ use prometheus::{IntGauge, Registry};
 use std::sync::Arc;
 use std::time::Instant;
 use storage::NodeStorage;
-use sui_protocol_config::ProtocolConfig;
+use iota_protocol_config::ProtocolConfig;
 use tokio::sync::{watch, RwLock};
 use tokio::task::JoinHandle;
 use tracing::{info, instrument};

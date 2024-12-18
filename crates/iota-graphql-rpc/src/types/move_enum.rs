@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use sui_package_resolver::{DataDef, MoveData, VariantDef};
+use iota_package_resolver::{DataDef, MoveData, VariantDef};
 
 use crate::error::Error;
 
@@ -10,11 +11,11 @@ use super::{
     move_module::MoveModule,
     move_struct::{MoveField, MoveStructTypeParameter},
     open_move_type::{abilities, MoveAbility},
-    sui_address::SuiAddress,
+    iota_address::IotaAddress,
 };
 
 pub(crate) struct MoveEnum {
-    defining_id: SuiAddress,
+    defining_id: IotaAddress,
     module: String,
     name: String,
     abilities: Vec<MoveAbility>,
@@ -130,7 +131,7 @@ impl MoveEnum {
             .collect();
 
         Ok(MoveEnum {
-            defining_id: SuiAddress::from(def.defining_id),
+            defining_id: IotaAddress::from(def.defining_id),
             module,
             name,
             abilities: abilities(def.abilities),

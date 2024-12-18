@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests cannot call init with programmable transactions
@@ -13,14 +14,14 @@ module test::m1 {
 
 //# programmable
 //> 0: test::m1::a();
-//> sui::event::emit<test::m1::A>(Result(0));
+//> iota::event::emit<test::m1::A>(Result(0));
 
 //# programmable
 //> 0: test::m1::a();
 // wrong type annotation doesn't matter
-//> sui::event::emit<bool>(Result(0));
+//> iota::event::emit<bool>(Result(0));
 
 //# programmable
 //> 0: test::m1::a();
 // function doesn't exist
-//> sui::event::does_not_exist<test::m1::A>(Result(0));
+//> iota::event::does_not_exist<test::m1::A>(Result(0));

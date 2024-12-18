@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::CompiledModule;
@@ -8,16 +9,16 @@ use once_cell::unsync::OnceCell;
 use prometheus::core::{Atomic, AtomicU64};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use sui_storage::package_object_cache::PackageObjectCache;
-use sui_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VersionNumber};
-use sui_types::error::{SuiError, SuiResult};
-use sui_types::inner_temporary_store::InnerTemporaryStore;
-use sui_types::object::{Object, Owner};
-use sui_types::storage::{
+use iota_storage::package_object_cache::PackageObjectCache;
+use iota_types::base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VersionNumber};
+use iota_types::error::{IotaError, IotaResult};
+use iota_types::inner_temporary_store::InnerTemporaryStore;
+use iota_types::object::{Object, Owner};
+use iota_types::storage::{
     get_module_by_id, BackingPackageStore, ChildObjectResolver, GetSharedLocks, ObjectStore,
     PackageObject, ParentSync,
 };
-use sui_types::transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey};
+use iota_types::transaction::{InputObjectKind, InputObjects, ObjectReadResult, TransactionKey};
 
 #[derive(Clone)]
 pub(crate) struct InMemoryObjectStore {
@@ -47,7 +48,7 @@ impl InMemoryObjectStore {
         shared_locks: &dyn GetSharedLocks,
         tx_key: &TransactionKey,
         input_object_kinds: &[InputObjectKind],
-    ) -> SuiResult<InputObjects> {
+    ) -> IotaResult<InputObjects> {
         let shared_locks_cell: OnceCell<Option<HashMap<_, _>>> = OnceCell::new();
         let mut input_objects = Vec::new();
         for kind in input_object_kinds {
@@ -66,7 +67,7 @@ impl InMemoryObjectStore {
                                 .map(|l| l.into_iter().collect())
                         })
                         .as_ref()
-                        .ok_or_else(|| SuiError::GenericAuthorityError {
+                        .ok_or_else(|| IotaError::GenericAuthorityError {
                             error: "Shared object locks should have been set.".to_string(),
                         })?;
                     let version = shared_locks.get(id).unwrap_or_else(|| {
@@ -117,7 +118,7 @@ impl ObjectStore for InMemoryObjectStore {
 }
 
 impl BackingPackageStore for InMemoryObjectStore {
-    fn get_package_object(&self, package_id: &ObjectID) -> SuiResult<Option<PackageObject>> {
+    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache.get_package_object(package_id, self)
     }
 }
@@ -128,7 +129,7 @@ impl ChildObjectResolver for InMemoryObjectStore {
         parent: &ObjectID,
         child: &ObjectID,
         child_version_upper_bound: SequenceNumber,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         Ok(self.get_object(child).and_then(|o| {
             if o.version() <= child_version_upper_bound
                 && o.owner == Owner::ObjectOwner((*parent).into())
@@ -146,13 +147,13 @@ impl ChildObjectResolver for InMemoryObjectStore {
         _receiving_object_id: &ObjectID,
         _receive_object_at_version: SequenceNumber,
         _epoch_id: EpochId,
-    ) -> SuiResult<Option<Object>> {
+    ) -> IotaResult<Option<Object>> {
         unimplemented!()
     }
 }
 
 impl GetModule for InMemoryObjectStore {
-    type Error = SuiError;
+    type Error = IotaError;
     type Item = CompiledModule;
 
     fn get_module_by_id(&self, id: &ModuleId) -> Result<Option<Self::Item>, Self::Error> {
@@ -170,7 +171,7 @@ impl GetSharedLocks for InMemoryObjectStore {
     fn get_shared_locks(
         &self,
         _key: &TransactionKey,
-    ) -> SuiResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
+    ) -> IotaResult<Option<Vec<(ObjectID, SequenceNumber)>>> {
         unreachable!()
     }
 }

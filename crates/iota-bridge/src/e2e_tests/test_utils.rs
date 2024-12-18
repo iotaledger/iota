@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::abi::EthBridgeConfig;
-use crate::abi::{EthBridgeCommittee, EthBridgeEvent, EthERC20, EthSuiBridge, EthSuiBridgeEvents};
+use crate::abi::{EthBridgeCommittee, EthBridgeEvent, EthERC20, EthIotaBridge, EthIotaBridgeEvents};
 use crate::config::default_ed25519_key_pair;
 use crate::crypto::BridgeAuthorityKeyPair;
 use crate::crypto::BridgeAuthorityPublicKeyBytes;
@@ -10,14 +11,14 @@ use crate::crypto::BridgeAuthoritySignInfo;
 use crate::events::*;
 use crate::metrics::BridgeMetrics;
 use crate::server::BridgeNodePublicMetadata;
-use crate::sui_transaction_builder::build_add_tokens_on_sui_transaction;
-use crate::sui_transaction_builder::build_committee_register_transaction;
+use crate::iota_transaction_builder::build_add_tokens_on_iota_transaction;
+use crate::iota_transaction_builder::build_committee_register_transaction;
 use crate::types::BridgeCommitteeValiditySignInfo;
 use crate::types::CertifiedBridgeAction;
 use crate::types::VerifiedCertifiedBridgeAction;
-use crate::types::{BridgeAction, BridgeActionStatus, SuiToEthBridgeAction};
+use crate::types::{BridgeAction, BridgeActionStatus, IotaToEthBridgeAction};
 use crate::utils::get_eth_signer_client;
-use crate::utils::publish_and_register_coins_return_add_coins_on_sui_action;
+use crate::utils::publish_and_register_coins_return_add_coins_on_iota_action;
 use crate::utils::wait_for_server_to_be_up;
 use crate::utils::EthSigner;
 use ethers::types::Address as EthAddress;
@@ -38,30 +39,30 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 use std::sync::Arc;
-use sui_json_rpc_api::BridgeReadApiClient;
-use sui_json_rpc_types::SuiEvent;
-use sui_json_rpc_types::SuiExecutionStatus;
-use sui_json_rpc_types::SuiTransactionBlockEffectsAPI;
-use sui_json_rpc_types::SuiTransactionBlockResponse;
-use sui_json_rpc_types::SuiTransactionBlockResponseOptions;
-use sui_json_rpc_types::SuiTransactionBlockResponseQuery;
-use sui_json_rpc_types::TransactionFilter;
-use sui_sdk::wallet_context::WalletContext;
-use sui_test_transaction_builder::TestTransactionBuilder;
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::bridge::get_bridge_obj_initial_shared_version;
-use sui_types::bridge::BridgeChainId;
-use sui_types::bridge::BridgeSummary;
-use sui_types::bridge::BridgeTrait;
-use sui_types::bridge::{get_bridge, BRIDGE_MODULE_NAME};
-use sui_types::bridge::{TOKEN_ID_BTC, TOKEN_ID_ETH, TOKEN_ID_USDC, TOKEN_ID_USDT};
-use sui_types::committee::TOTAL_VOTING_POWER;
-use sui_types::crypto::get_key_pair;
-use sui_types::crypto::ToFromBytes;
-use sui_types::digests::TransactionDigest;
-use sui_types::object::Object;
-use sui_types::transaction::{ObjectArg, Transaction, TransactionData};
-use sui_types::{BRIDGE_PACKAGE_ID, SUI_BRIDGE_OBJECT_ID};
+use iota_json_rpc_api::BridgeReadApiClient;
+use iota_json_rpc_types::IotaEvent;
+use iota_json_rpc_types::IotaExecutionStatus;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_json_rpc_types::IotaTransactionBlockResponse;
+use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
+use iota_json_rpc_types::IotaTransactionBlockResponseQuery;
+use iota_json_rpc_types::TransactionFilter;
+use iota_sdk::wallet_context::WalletContext;
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::base_types::{ObjectID, ObjectRef};
+use iota_types::bridge::get_bridge_obj_initial_shared_version;
+use iota_types::bridge::BridgeChainId;
+use iota_types::bridge::BridgeSummary;
+use iota_types::bridge::BridgeTrait;
+use iota_types::bridge::{get_bridge, BRIDGE_MODULE_NAME};
+use iota_types::bridge::{TOKEN_ID_BTC, TOKEN_ID_ETH, TOKEN_ID_USDC, TOKEN_ID_USDT};
+use iota_types::committee::TOTAL_VOTING_POWER;
+use iota_types::crypto::get_key_pair;
+use iota_types::crypto::ToFromBytes;
+use iota_types::digests::TransactionDigest;
+use iota_types::object::Object;
+use iota_types::transaction::{ObjectArg, Transaction, TransactionData};
+use iota_types::{BRIDGE_PACKAGE_ID, IOTA_BRIDGE_OBJECT_ID};
 use tokio::join;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -69,27 +70,27 @@ use tokio::time::Instant;
 use tracing::error;
 use tracing::info;
 
-use crate::config::{BridgeNodeConfig, EthConfig, SuiConfig};
+use crate::config::{BridgeNodeConfig, EthConfig, IotaConfig};
 use crate::node::run_bridge_node;
-use crate::sui_client::SuiBridgeClient;
+use crate::iota_client::IotaBridgeClient;
 use crate::BRIDGE_ENABLE_PROTOCOL_VERSION;
 use anyhow::anyhow;
 use ethers::prelude::*;
 use move_core_types::ident_str;
 use std::process::Child;
-use sui_config::local_ip_utils::get_available_port;
-use sui_sdk::SuiClient;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::EncodeDecodeBase64;
-use sui_types::crypto::KeypairTraits;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_config::local_ip_utils::get_available_port;
+use iota_sdk::IotaClient;
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::EncodeDecodeBase64;
+use iota_types::crypto::KeypairTraits;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 use tap::TapFallible;
 use tempfile::tempdir;
 use test_cluster::TestCluster;
 use test_cluster::TestClusterBuilder;
 
 const BRIDGE_COMMITTEE_NAME: &str = "BridgeCommittee";
-const SUI_BRIDGE_NAME: &str = "SuiBridge";
+const IOTA_BRIDGE_NAME: &str = "IotaBridge";
 const BRIDGE_CONFIG_NAME: &str = "BridgeConfig";
 const BRIDGE_LIMITER_NAME: &str = "BridgeLimiter";
 const BRIDGE_VAULT_NAME: &str = "BridgeVault";
@@ -106,13 +107,13 @@ pub const TEST_PK: &str = "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1
 pub struct BridgeTestCluster {
     pub num_validators: usize,
     pub test_cluster: TestClusterWrapper,
-    bridge_client: SuiBridgeClient,
+    bridge_client: IotaBridgeClient,
     eth_environment: EthBridgeEnvironment,
     bridge_node_handles: Option<Vec<JoinHandle<()>>>,
     approved_governance_actions_for_next_start: Option<Vec<Vec<BridgeAction>>>,
     bridge_tx_cursor: Option<TransactionDigest>,
     eth_chain_id: BridgeChainId,
-    sui_chain_id: BridgeChainId,
+    iota_chain_id: BridgeChainId,
 }
 
 pub struct BridgeTestClusterBuilder {
@@ -121,7 +122,7 @@ pub struct BridgeTestClusterBuilder {
     num_validators: usize,
     approved_governance_actions: Option<Vec<Vec<BridgeAction>>>,
     eth_chain_id: BridgeChainId,
-    sui_chain_id: BridgeChainId,
+    iota_chain_id: BridgeChainId,
 }
 
 impl Default for BridgeTestClusterBuilder {
@@ -138,7 +139,7 @@ impl BridgeTestClusterBuilder {
             num_validators: 4,
             approved_governance_actions: None,
             eth_chain_id: BridgeChainId::EthCustom,
-            sui_chain_id: BridgeChainId::SuiCustom,
+            iota_chain_id: BridgeChainId::IotaCustom,
         }
     }
 
@@ -166,8 +167,8 @@ impl BridgeTestClusterBuilder {
         self
     }
 
-    pub fn with_sui_chain_id(mut self, chain_id: BridgeChainId) -> Self {
-        self.sui_chain_id = chain_id;
+    pub fn with_iota_chain_id(mut self, chain_id: BridgeChainId) -> Self {
+        self.iota_chain_id = chain_id;
         self
     }
 
@@ -205,7 +206,7 @@ impl BridgeTestClusterBuilder {
             );
         }
         let bridge_client =
-            SuiBridgeClient::new(&test_cluster.inner.fullnode_handle.rpc_url, metrics)
+            IotaBridgeClient::new(&test_cluster.inner.fullnode_handle.rpc_url, metrics)
                 .await
                 .unwrap();
         info!(
@@ -224,7 +225,7 @@ impl BridgeTestClusterBuilder {
             bridge_node_handles,
             approved_governance_actions_for_next_start: self.approved_governance_actions,
             bridge_tx_cursor: None,
-            sui_chain_id: self.sui_chain_id,
+            iota_chain_id: self.iota_chain_id,
             eth_chain_id: self.eth_chain_id,
         }
     }
@@ -278,20 +279,20 @@ impl BridgeTestCluster {
         eth_signer
     }
 
-    pub fn bridge_client(&self) -> &SuiBridgeClient {
+    pub fn bridge_client(&self) -> &IotaBridgeClient {
         &self.bridge_client
     }
 
-    pub fn sui_client(&self) -> &SuiClient {
-        &self.test_cluster.inner.fullnode_handle.sui_client
+    pub fn iota_client(&self) -> &IotaClient {
+        &self.test_cluster.inner.fullnode_handle.iota_client
     }
 
-    pub fn sui_user_address(&self) -> SuiAddress {
+    pub fn iota_user_address(&self) -> IotaAddress {
         self.test_cluster.inner.get_address_0()
     }
 
-    pub fn sui_chain_id(&self) -> BridgeChainId {
-        self.sui_chain_id
+    pub fn iota_chain_id(&self) -> BridgeChainId {
+        self.iota_chain_id
     }
 
     pub fn eth_chain_id(&self) -> BridgeChainId {
@@ -306,8 +307,8 @@ impl BridgeTestCluster {
         self.eth_environment.contracts()
     }
 
-    pub fn sui_bridge_address(&self) -> String {
-        self.eth_environment.contracts().sui_bridge_addrress_hex()
+    pub fn iota_bridge_address(&self) -> String {
+        self.eth_environment.contracts().iota_bridge_addrress_hex()
     }
 
     pub fn wallet_mut(&mut self) -> &mut WalletContext {
@@ -322,7 +323,7 @@ impl BridgeTestCluster {
         self.test_cluster.bridge_authority_keys[index].copy()
     }
 
-    pub fn sui_rpc_url(&self) -> String {
+    pub fn iota_rpc_url(&self) -> String {
         self.test_cluster.inner.fullnode_handle.rpc_url.clone()
     }
 
@@ -336,7 +337,7 @@ impl BridgeTestCluster {
 
     pub async fn test_transaction_builder_with_sender(
         &self,
-        sender: SuiAddress,
+        sender: IotaAddress,
     ) -> TestTransactionBuilder {
         self.test_cluster
             .inner
@@ -353,7 +354,7 @@ impl BridgeTestCluster {
     pub async fn sign_and_execute_transaction(
         &self,
         tx_data: &TransactionData,
-    ) -> SuiTransactionBlockResponse {
+    ) -> IotaTransactionBlockResponse {
         self.test_cluster
             .inner
             .sign_and_execute_transaction(tx_data)
@@ -389,14 +390,14 @@ impl BridgeTestCluster {
     pub async fn new_bridge_transactions(
         &mut self,
         assert_success: bool,
-    ) -> Vec<SuiTransactionBlockResponse> {
+    ) -> Vec<IotaTransactionBlockResponse> {
         let resps = self
-            .sui_client()
+            .iota_client()
             .read_api()
             .query_transaction_blocks(
-                SuiTransactionBlockResponseQuery {
-                    filter: Some(TransactionFilter::InputObject(SUI_BRIDGE_OBJECT_ID)),
-                    options: Some(SuiTransactionBlockResponseOptions::full_content()),
+                IotaTransactionBlockResponseQuery {
+                    filter: Some(TransactionFilter::InputObject(IOTA_BRIDGE_OBJECT_ID)),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
                 },
                 self.bridge_tx_cursor,
                 None,
@@ -440,7 +441,7 @@ impl BridgeTestCluster {
         &mut self,
         event_types: HashSet<StructTag>,
         assert_success: bool,
-    ) -> Vec<SuiEvent> {
+    ) -> Vec<IotaEvent> {
         let txes = self.new_bridge_transactions(assert_success).await;
         let events = txes
             .iter()
@@ -474,7 +475,7 @@ pub async fn get_eth_signer_client_e2e_test_only(
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct DeployedSolContracts {
-    pub sui_bridge: EthAddress,
+    pub iota_bridge: EthAddress,
     pub bridge_committee: EthAddress,
     pub bridge_limiter: EthAddress,
     pub bridge_vault: EthAddress,
@@ -491,8 +492,8 @@ impl DeployedSolContracts {
         format!("{:x}", addr)
     }
 
-    pub fn sui_bridge_addrress_hex(&self) -> String {
-        Self::eth_adress_to_hex(self.sui_bridge)
+    pub fn iota_bridge_addrress_hex(&self) -> String {
+        Self::eth_adress_to_hex(self.iota_bridge)
     }
 }
 
@@ -507,7 +508,7 @@ struct SolDeployConfig {
     supported_chain_limits_in_dollars: Vec<u64>,
     supported_tokens: Vec<String>,
     token_ids: Vec<u64>,
-    sui_decimals: Vec<u64>,
+    iota_decimals: Vec<u64>,
     token_prices: Vec<u64>,
     weth: String,
 }
@@ -552,7 +553,7 @@ pub(crate) async fn deploy_sol_contract(
         ],
         supported_tokens: vec![], // this is set up in the deploy script
         token_ids: vec![],        // this is set up in the deploy script
-        sui_decimals: vec![],     // this is set up in the deploy script
+        iota_decimals: vec![],     // this is set up in the deploy script
         token_prices: vec![12800, 432518900, 25969600, 10000, 10000],
         weth: "".to_string(), // this is set up in the deploy script
     };
@@ -643,7 +644,7 @@ pub(crate) async fn deploy_sol_contract(
     }
 
     let contracts = DeployedSolContracts {
-        sui_bridge: deployed_contracts.remove(SUI_BRIDGE_NAME).unwrap(),
+        iota_bridge: deployed_contracts.remove(IOTA_BRIDGE_NAME).unwrap(),
         bridge_committee: deployed_contracts.remove(BRIDGE_COMMITTEE_NAME).unwrap(),
         bridge_config: deployed_contracts.remove(BRIDGE_CONFIG_NAME).unwrap(),
         bridge_limiter: deployed_contracts.remove(BRIDGE_LIMITER_NAME).unwrap(),
@@ -734,9 +735,9 @@ impl EthBridgeEnvironment {
     pub async fn get_supported_token(&self, token_id: u8) -> (EthAddress, u8, u64) {
         let config = self.get_bridge_config();
         let token_address = config.token_address_of(token_id).call().await.unwrap();
-        let token_sui_decimal = config.token_sui_decimal_of(token_id).call().await.unwrap();
+        let token_iota_decimal = config.token_iota_decimal_of(token_id).call().await.unwrap();
         let token_price = config.token_price_of(token_id).call().await.unwrap();
-        (token_address, token_sui_decimal, token_price)
+        (token_address, token_iota_decimal, token_price)
     }
 }
 
@@ -767,7 +768,7 @@ pub(crate) async fn start_bridge_cluster(
         .contracts
         .as_ref()
         .unwrap()
-        .sui_bridge_addrress_hex();
+        .iota_bridge_addrress_hex();
 
     let mut handles = vec![];
     for (i, ((kp, server_listen_port), approved_governance_actions)) in bridge_authority_keys
@@ -799,12 +800,12 @@ pub(crate) async fn start_bridge_cluster(
                 eth_contracts_start_block_fallback: Some(0),
                 eth_contracts_start_block_override: None,
             },
-            sui: SuiConfig {
-                sui_rpc_url: test_cluster.inner.fullnode_handle.rpc_url.clone(),
-                sui_bridge_chain_id: BridgeChainId::SuiCustom as u8,
+            iota: IotaConfig {
+                iota_rpc_url: test_cluster.inner.fullnode_handle.rpc_url.clone(),
+                iota_bridge_chain_id: BridgeChainId::IotaCustom as u8,
                 bridge_client_key_path: None,
                 bridge_client_gas_object: None,
-                sui_bridge_module_last_processed_event_id_override: None,
+                iota_bridge_module_last_processed_event_id_override: None,
             },
             metrics_key_pair: default_ed25519_key_pair(),
             metrics: None,
@@ -825,12 +826,12 @@ pub(crate) async fn start_bridge_cluster(
 }
 
 pub async fn get_signatures(
-    sui_bridge_client: &SuiBridgeClient,
+    iota_bridge_client: &IotaBridgeClient,
     nonce: u64,
-    sui_chain_id: u8,
+    iota_chain_id: u8,
 ) -> Vec<Bytes> {
-    let sigs = sui_bridge_client
-        .get_token_transfer_action_onchain_signatures_until_success(sui_chain_id, nonce)
+    let sigs = iota_bridge_client
+        .get_token_transfer_action_onchain_signatures_until_success(iota_chain_id, nonce)
         .await
         .unwrap();
 
@@ -914,7 +915,7 @@ impl TestClusterWrapperBuilder {
             .bridge_authority_keys
             .iter()
             .map(|k| {
-                let address = SuiAddress::from(k.public());
+                let address = IotaAddress::from(k.public());
                 Object::with_id_owner_for_testing(ObjectID::random(), address)
             })
             .collect::<Vec<_>>();
@@ -940,7 +941,7 @@ impl TestClusterWrapperBuilder {
         let quorum_driver_api = test_cluster.quorum_driver_api().clone();
         // Reorder the nodes so that the last node has the largest stake.
         let validator_with_max_stake = test_cluster
-            .sui_client()
+            .iota_client()
             .governance_api()
             .get_committee_info(None)
             .await
@@ -964,7 +965,7 @@ impl TestClusterWrapperBuilder {
             .iter()
             .chain(std::iter::once(&node_with_max_stake));
         for (node, kp) in reordered_nodes.zip(self.bridge_authority_keys.iter()) {
-            let validator_address = node.config().sui_address();
+            let validator_address = node.config().iota_address();
             // create committee registration tx
             let gas = test_cluster
                 .wallet
@@ -996,7 +997,7 @@ impl TestClusterWrapperBuilder {
                 api_clone
                     .execute_transaction_block(
                         tx,
-                        SuiTransactionBlockResponseOptions::new().with_effects(),
+                        IotaTransactionBlockResponseOptions::new().with_effects(),
                         None,
                     )
                     .await
@@ -1007,7 +1008,7 @@ impl TestClusterWrapperBuilder {
             let timer = Instant::now();
             let token_ids = vec![TOKEN_ID_BTC, TOKEN_ID_ETH, TOKEN_ID_USDC, TOKEN_ID_USDT];
             let token_prices = vec![500_000_000u64, 30_000_000u64, 1_000u64, 1_000u64];
-            let action = publish_and_register_coins_return_add_coins_on_sui_action(
+            let action = publish_and_register_coins_return_add_coins_on_iota_action(
                 test_cluster.wallet(),
                 bridge_arg,
                 vec![
@@ -1050,7 +1051,7 @@ impl TestClusterWrapperBuilder {
             )
             .await;
 
-            let tx = build_add_tokens_on_sui_transaction(
+            let tx = build_add_tokens_on_iota_transaction(
                 sender_address,
                 &test_cluster
                     .wallet
@@ -1067,7 +1068,7 @@ impl TestClusterWrapperBuilder {
             let response = test_cluster.sign_and_execute_transaction(&tx).await;
             assert_eq!(
                 response.effects.unwrap().status(),
-                &SuiExecutionStatus::Success
+                &IotaExecutionStatus::Success
             );
             info!("Deploy tokens took {:?} secs", timer.elapsed().as_secs());
         } else {
@@ -1076,7 +1077,7 @@ impl TestClusterWrapperBuilder {
         async fn await_committee_register_tasks(
             test_cluster: &TestCluster,
             tasks: Vec<
-                impl Future<Output = Result<SuiTransactionBlockResponse, sui_sdk::error::Error>>,
+                impl Future<Output = Result<IotaTransactionBlockResponse, iota_sdk::error::Error>>,
             >,
         ) {
             // The tx may fail if a member tries to register when the committee is already finalized.
@@ -1085,7 +1086,7 @@ impl TestClusterWrapperBuilder {
             let responses = join_all(tasks).await;
             let mut has_failure = false;
             for response in responses {
-                if response.unwrap().effects.unwrap().status() != &SuiExecutionStatus::Success {
+                if response.unwrap().effects.unwrap().status() != &IotaExecutionStatus::Success {
                     has_failure = true;
                 }
             }
@@ -1157,7 +1158,7 @@ impl TestClusterWrapper {
 
 async fn get_bridge_summary(test_cluster: &TestCluster) -> BridgeSummary {
     test_cluster
-        .sui_client()
+        .iota_client()
         .http()
         .get_latest_bridge()
         .await
@@ -1168,13 +1169,13 @@ async fn get_mut_bridge_arg(test_cluster: &TestCluster) -> Option<ObjectArg> {
     get_bridge_obj_initial_shared_version(
         test_cluster
             .fullnode_handle
-            .sui_node
+            .iota_node
             .state()
             .get_object_store(),
     )
     .unwrap()
     .map(|seq| ObjectArg::SharedObject {
-        id: SUI_BRIDGE_OBJECT_ID,
+        id: IOTA_BRIDGE_OBJECT_ID,
         initial_shared_version: seq,
         mutable: true,
     })
@@ -1186,7 +1187,7 @@ async fn trigger_reconfiguration_if_not_yet_and_assert_bridge_committee_initiali
     let mut bridge = get_bridge(
         test_cluster
             .fullnode_handle
-            .sui_node
+            .iota_node
             .state()
             .get_object_store(),
     )
@@ -1203,7 +1204,7 @@ async fn trigger_reconfiguration_if_not_yet_and_assert_bridge_committee_initiali
     bridge = get_bridge(
         test_cluster
             .fullnode_handle
-            .sui_node
+            .iota_node
             .state()
             .get_object_store(),
     )
@@ -1216,7 +1217,7 @@ async fn trigger_reconfiguration_if_not_yet_and_assert_bridge_committee_initiali
     );
 }
 
-pub async fn initiate_bridge_eth_to_sui(
+pub async fn initiate_bridge_eth_to_iota(
     bridge_test_cluster: &BridgeTestCluster,
     amount: u64,
     nonce: u64,
@@ -1227,18 +1228,18 @@ pub async fn initiate_bridge_eth_to_sui(
         .await
         .unwrap();
 
-    let sui_address = bridge_test_cluster.sui_user_address();
-    let sui_chain_id = bridge_test_cluster.sui_chain_id();
+    let iota_address = bridge_test_cluster.iota_user_address();
+    let iota_chain_id = bridge_test_cluster.iota_chain_id();
     let eth_chain_id = bridge_test_cluster.eth_chain_id();
     let token_id = TOKEN_ID_ETH;
 
-    let sui_amount = (U256::from(amount) * U256::exp10(8)).as_u64(); // DP for Ether on Sui
+    let iota_amount = (U256::from(amount) * U256::exp10(8)).as_u64(); // DP for Ether on Iota
 
     let eth_tx = deposit_native_eth_to_sol_contract(
         &eth_signer,
-        bridge_test_cluster.contracts().sui_bridge,
-        sui_address,
-        sui_chain_id,
+        bridge_test_cluster.contracts().iota_bridge,
+        iota_address,
+        iota_chain_id,
         amount,
     )
     .await;
@@ -1248,7 +1249,7 @@ pub async fn initiate_bridge_eth_to_sui(
         .iter()
         .find_map(EthBridgeEvent::try_from_log)
         .unwrap();
-    let EthBridgeEvent::EthSuiBridgeEvents(EthSuiBridgeEvents::TokensDepositedFilter(
+    let EthBridgeEvent::EthIotaBridgeEvents(EthIotaBridgeEvents::TokensDepositedFilter(
         eth_bridge_event,
     )) = eth_bridge_event
     else {
@@ -1257,11 +1258,11 @@ pub async fn initiate_bridge_eth_to_sui(
     // assert eth log matches
     assert_eq!(eth_bridge_event.source_chain_id, eth_chain_id as u8);
     assert_eq!(eth_bridge_event.nonce, nonce);
-    assert_eq!(eth_bridge_event.destination_chain_id, sui_chain_id as u8);
+    assert_eq!(eth_bridge_event.destination_chain_id, iota_chain_id as u8);
     assert_eq!(eth_bridge_event.token_id, token_id);
-    assert_eq!(eth_bridge_event.sui_adjusted_amount, sui_amount);
+    assert_eq!(eth_bridge_event.iota_adjusted_amount, iota_amount);
     assert_eq!(eth_bridge_event.sender_address, eth_address);
-    assert_eq!(eth_bridge_event.recipient_address, sui_address.to_vec());
+    assert_eq!(eth_bridge_event.recipient_address, iota_address.to_vec());
     info!(
         "Deposited Eth to Solidity contract, block: {:?}",
         tx_receipt.block_number
@@ -1275,32 +1276,32 @@ pub async fn initiate_bridge_eth_to_sui(
     )
     .await
     .tap_ok(|_| {
-        info!("Eth to Sui bridge transfer claimed");
+        info!("Eth to Iota bridge transfer claimed");
     })
 }
 
-pub async fn initiate_bridge_sui_to_eth(
+pub async fn initiate_bridge_iota_to_eth(
     bridge_test_cluster: &BridgeTestCluster,
     eth_address: EthAddress,
     token: ObjectRef,
     nonce: u64,
-    sui_amount: u64,
-) -> Result<SuiToEthBridgeAction, anyhow::Error> {
+    iota_amount: u64,
+) -> Result<IotaToEthBridgeAction, anyhow::Error> {
     let bridge_object_arg = bridge_test_cluster
         .bridge_client()
         .get_mutable_bridge_object_arg_must_succeed()
         .await;
-    let sui_client = bridge_test_cluster.sui_client();
+    let iota_client = bridge_test_cluster.iota_client();
     let token_types = bridge_test_cluster
         .bridge_client()
         .get_token_id_map()
         .await
         .unwrap();
-    let sui_address = bridge_test_cluster.sui_user_address();
+    let iota_address = bridge_test_cluster.iota_user_address();
 
-    let resp = match deposit_eth_to_sui_package(
-        sui_client,
-        sui_address,
+    let resp = match deposit_eth_to_iota_package(
+        iota_client,
+        iota_address,
         bridge_test_cluster.wallet(),
         bridge_test_cluster.eth_chain_id(),
         eth_address,
@@ -1312,7 +1313,7 @@ pub async fn initiate_bridge_sui_to_eth(
     {
         Ok(resp) => {
             if !resp.status_ok().unwrap() {
-                return Err(anyhow!("Sui TX error"));
+                return Err(anyhow!("Iota TX error"));
             } else {
                 resp
             }
@@ -1320,15 +1321,15 @@ pub async fn initiate_bridge_sui_to_eth(
         Err(e) => return Err(e),
     };
 
-    let sui_events = resp.events.unwrap().data;
-    let bridge_event = sui_events
+    let iota_events = resp.events.unwrap().data;
+    let bridge_event = iota_events
         .iter()
         .filter_map(|e| {
-            let sui_bridge_event = SuiBridgeEvent::try_from_sui_event(e).unwrap()?;
-            sui_bridge_event.try_into_bridge_action(e.id.tx_digest, e.id.event_seq as u16)
+            let iota_bridge_event = IotaBridgeEvent::try_from_iota_event(e).unwrap()?;
+            iota_bridge_event.try_into_bridge_action(e.id.tx_digest, e.id.event_seq as u16)
         })
         .find_map(|e| {
-            if let BridgeAction::SuiToEthBridgeAction(a) = e {
+            if let BridgeAction::IotaToEthBridgeAction(a) = e {
                 Some(a)
             } else {
                 None
@@ -1336,39 +1337,39 @@ pub async fn initiate_bridge_sui_to_eth(
         })
         .unwrap();
     info!("Deposited Eth to move package");
-    assert_eq!(bridge_event.sui_bridge_event.nonce, nonce);
+    assert_eq!(bridge_event.iota_bridge_event.nonce, nonce);
     assert_eq!(
-        bridge_event.sui_bridge_event.sui_chain_id,
-        bridge_test_cluster.sui_chain_id()
+        bridge_event.iota_bridge_event.iota_chain_id,
+        bridge_test_cluster.iota_chain_id()
     );
     assert_eq!(
-        bridge_event.sui_bridge_event.eth_chain_id,
+        bridge_event.iota_bridge_event.eth_chain_id,
         bridge_test_cluster.eth_chain_id()
     );
-    assert_eq!(bridge_event.sui_bridge_event.sui_address, sui_address);
-    assert_eq!(bridge_event.sui_bridge_event.eth_address, eth_address);
-    assert_eq!(bridge_event.sui_bridge_event.token_id, TOKEN_ID_ETH);
+    assert_eq!(bridge_event.iota_bridge_event.iota_address, iota_address);
+    assert_eq!(bridge_event.iota_bridge_event.eth_address, eth_address);
+    assert_eq!(bridge_event.iota_bridge_event.token_id, TOKEN_ID_ETH);
     assert_eq!(
-        bridge_event.sui_bridge_event.amount_sui_adjusted,
-        sui_amount
+        bridge_event.iota_bridge_event.amount_iota_adjusted,
+        iota_amount
     );
 
     // Wait for the bridge action to be approved
     wait_for_transfer_action_status(
         bridge_test_cluster.bridge_client(),
-        bridge_test_cluster.sui_chain_id(),
+        bridge_test_cluster.iota_chain_id(),
         nonce,
         BridgeActionStatus::Approved,
     )
     .await
     .unwrap();
-    info!("Sui to Eth bridge transfer approved.");
+    info!("Iota to Eth bridge transfer approved.");
 
     Ok(bridge_event)
 }
 
 async fn wait_for_transfer_action_status(
-    sui_bridge_client: &SuiBridgeClient,
+    iota_bridge_client: &IotaBridgeClient,
     chain_id: BridgeChainId,
     nonce: u64,
     status: BridgeActionStatus,
@@ -1381,7 +1382,7 @@ async fn wait_for_transfer_action_status(
     );
     loop {
         let timer = std::time::Instant::now();
-        let res = sui_bridge_client
+        let res = iota_bridge_client
             .get_token_transfer_action_onchain_status_until_success(chain_id as u8, nonce)
             .await;
         info!(
@@ -1408,16 +1409,16 @@ async fn wait_for_transfer_action_status(
     }
 }
 
-async fn deposit_eth_to_sui_package(
-    sui_client: &SuiClient,
-    sui_address: SuiAddress,
+async fn deposit_eth_to_iota_package(
+    iota_client: &IotaClient,
+    iota_address: IotaAddress,
     wallet_context: &WalletContext,
     target_chain: BridgeChainId,
     target_address: EthAddress,
     token: ObjectRef,
     bridge_object_arg: ObjectArg,
-    sui_token_type_tags: &HashMap<u8, TypeTag>,
-) -> Result<SuiTransactionBlockResponse, anyhow::Error> {
+    iota_token_type_tags: &HashMap<u8, TypeTag>,
+) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let mut builder = ProgrammableTransactionBuilder::new();
     let arg_target_chain = builder.pure(target_chain as u8).unwrap();
     let arg_target_address = builder.pure(target_address.as_bytes()).unwrap();
@@ -1428,22 +1429,22 @@ async fn deposit_eth_to_sui_package(
         BRIDGE_PACKAGE_ID,
         BRIDGE_MODULE_NAME.to_owned(),
         ident_str!("send_token").to_owned(),
-        vec![sui_token_type_tags.get(&TOKEN_ID_ETH).unwrap().clone()],
+        vec![iota_token_type_tags.get(&TOKEN_ID_ETH).unwrap().clone()],
         vec![arg_bridge, arg_target_chain, arg_target_address, arg_token],
     );
 
     let pt = builder.finish();
     let gas_object_ref = wallet_context
-        .get_one_gas_object_owned_by_address(sui_address)
+        .get_one_gas_object_owned_by_address(iota_address)
         .await
         .unwrap()
         .unwrap();
     let tx_data = TransactionData::new_programmable(
-        sui_address,
+        iota_address,
         vec![gas_object_ref],
         pt,
         500_000_000,
-        sui_client
+        iota_client
             .governance_api()
             .get_reference_gas_price()
             .await
@@ -1453,7 +1454,7 @@ async fn deposit_eth_to_sui_package(
     wallet_context.execute_transaction_may_fail(tx).await
 }
 
-pub async fn initiate_bridge_erc20_to_sui(
+pub async fn initiate_bridge_erc20_to_iota(
     bridge_test_cluster: &BridgeTestCluster,
     amount_u64: u64,
     token_address: EthAddress,
@@ -1469,34 +1470,34 @@ pub async fn initiate_bridge_erc20_to_sui(
     let contract = EthERC20::new(token_address, eth_signer.clone().into());
     let decimal = contract.decimals().await? as usize;
     let amount = U256::from(amount_u64) * U256::exp10(decimal);
-    let sui_amount = amount.as_u64();
+    let iota_amount = amount.as_u64();
     let mint_call = contract.mint(eth_address, amount);
     let mint_tx_receipt = send_eth_tx_and_get_tx_receipt(mint_call).await;
     assert_eq!(mint_tx_receipt.status.unwrap().as_u64(), 1);
 
     // Second, set allowance
-    let allowance_call = contract.approve(bridge_test_cluster.contracts().sui_bridge, amount);
+    let allowance_call = contract.approve(bridge_test_cluster.contracts().iota_bridge, amount);
     let allowance_tx_receipt = send_eth_tx_and_get_tx_receipt(allowance_call).await;
     assert_eq!(allowance_tx_receipt.status.unwrap().as_u64(), 1);
 
     // Third, deposit to bridge
-    let sui_recipient_address = bridge_test_cluster.sui_user_address();
-    let sui_chain_id = bridge_test_cluster.sui_chain_id();
+    let iota_recipient_address = bridge_test_cluster.iota_user_address();
+    let iota_chain_id = bridge_test_cluster.iota_chain_id();
     let eth_chain_id = bridge_test_cluster.eth_chain_id();
 
     info!(
         "Depositing ERC20 (token id:{}, token_address: {}) to Solidity contract",
         token_id, token_address
     );
-    let contract = EthSuiBridge::new(
-        bridge_test_cluster.contracts().sui_bridge,
+    let contract = EthIotaBridge::new(
+        bridge_test_cluster.contracts().iota_bridge,
         eth_signer.clone().into(),
     );
     let deposit_call = contract.bridge_erc20(
         token_id,
         amount,
-        sui_recipient_address.to_vec().into(),
-        sui_chain_id as u8,
+        iota_recipient_address.to_vec().into(),
+        iota_chain_id as u8,
     );
     let tx_receipt = send_eth_tx_and_get_tx_receipt(deposit_call).await;
     let eth_bridge_event = tx_receipt
@@ -1504,7 +1505,7 @@ pub async fn initiate_bridge_erc20_to_sui(
         .iter()
         .find_map(EthBridgeEvent::try_from_log)
         .unwrap();
-    let EthBridgeEvent::EthSuiBridgeEvents(EthSuiBridgeEvents::TokensDepositedFilter(
+    let EthBridgeEvent::EthIotaBridgeEvents(EthIotaBridgeEvents::TokensDepositedFilter(
         eth_bridge_event,
     )) = eth_bridge_event
     else {
@@ -1513,13 +1514,13 @@ pub async fn initiate_bridge_erc20_to_sui(
     // assert eth log matches
     assert_eq!(eth_bridge_event.source_chain_id, eth_chain_id as u8);
     assert_eq!(eth_bridge_event.nonce, nonce);
-    assert_eq!(eth_bridge_event.destination_chain_id, sui_chain_id as u8);
+    assert_eq!(eth_bridge_event.destination_chain_id, iota_chain_id as u8);
     assert_eq!(eth_bridge_event.token_id, token_id);
-    assert_eq!(eth_bridge_event.sui_adjusted_amount, sui_amount);
+    assert_eq!(eth_bridge_event.iota_adjusted_amount, iota_amount);
     assert_eq!(eth_bridge_event.sender_address, eth_address);
     assert_eq!(
         eth_bridge_event.recipient_address,
-        sui_recipient_address.to_vec()
+        iota_recipient_address.to_vec()
     );
     info!(
         "Deposited ERC20 (token id:{}, token_address: {}) to Solidity contract",
@@ -1536,7 +1537,7 @@ pub async fn initiate_bridge_erc20_to_sui(
     .tap_ok(|_| {
         info!(
             nonce,
-            token_id, amount_u64, "Eth to Sui bridge transfer claimed"
+            token_id, amount_u64, "Eth to Iota bridge transfer claimed"
         );
     })
 }
@@ -1544,14 +1545,14 @@ pub async fn initiate_bridge_erc20_to_sui(
 pub(crate) async fn deposit_native_eth_to_sol_contract(
     signer: &EthSigner,
     contract_address: EthAddress,
-    sui_recipient_address: SuiAddress,
-    sui_chain_id: BridgeChainId,
+    iota_recipient_address: IotaAddress,
+    iota_chain_id: BridgeChainId,
     amount: u64,
 ) -> ContractCall<EthSigner, ()> {
-    let contract = EthSuiBridge::new(contract_address, signer.clone().into());
-    let sui_recipient_address = sui_recipient_address.to_vec().into();
+    let contract = EthIotaBridge::new(contract_address, signer.clone().into());
+    let iota_recipient_address = iota_recipient_address.to_vec().into();
     let amount = U256::from(amount) * U256::exp10(18); // 1 ETH
     contract
-        .bridge_eth(sui_recipient_address, sui_chain_id as u8)
+        .bridge_eth(iota_recipient_address, iota_chain_id as u8)
         .value(amount)
 }

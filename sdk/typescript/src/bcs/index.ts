@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@mysten/bcs';
+import { bcs } from '@iota/bcs';
 
 import {
 	Address,
@@ -27,7 +28,7 @@ import {
 	SenderSignedTransaction,
 	SharedObjectRef,
 	StructTag,
-	SuiObjectRef,
+	IotaObjectRef,
 	TransactionData,
 	TransactionDataV1,
 	TransactionExpiration,
@@ -39,9 +40,9 @@ import { TransactionEffects } from './effects.js';
 export type { TypeTag } from './types.js';
 
 export { TypeTagSerializer } from './type-tag-serializer.js';
-export { BcsType, type BcsTypeOptions } from '@mysten/bcs';
+export { BcsType, type BcsTypeOptions } from '@iota/bcs';
 
-const suiBcs = {
+const iotaBcs = {
 	...bcs,
 	U8: bcs.u8(),
 	U16: bcs.u16(),
@@ -74,7 +75,7 @@ const suiBcs = {
 	SenderSignedTransaction,
 	SharedObjectRef,
 	StructTag,
-	SuiObjectRef,
+	IotaObjectRef,
 	Command,
 	TransactionData,
 	TransactionDataV1,
@@ -84,4 +85,4 @@ const suiBcs = {
 	TransactionEffects,
 };
 
-export { suiBcs as bcs };
+export { iotaBcs as bcs };

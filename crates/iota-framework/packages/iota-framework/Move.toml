@@ -1,5 +1,5 @@
 [package]
-name = "Sui"
+name = "Iota"
 version = "0.0.1"
 published-at = "0x2"
 edition = "2024.beta"
@@ -8,4 +8,4 @@ edition = "2024.beta"
 MoveStdlib = { local = "../move-stdlib" }
 
 [addresses]
-sui = "0x2"
+iota = "0x2"

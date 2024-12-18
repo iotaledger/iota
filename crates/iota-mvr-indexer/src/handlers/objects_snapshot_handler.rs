@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use mysten_metrics::get_metrics;
-use mysten_metrics::metered_channel::Sender;
-use mysten_metrics::spawn_monitored_task;
-use sui_data_ingestion_core::Worker;
-use sui_rpc_api::CheckpointData;
+use iota_metrics::get_metrics;
+use iota_metrics::metered_channel::Sender;
+use iota_metrics::spawn_monitored_task;
+use iota_data_ingestion_core::Worker;
+use iota_rpc_api::CheckpointData;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -96,7 +97,7 @@ pub async fn start_objects_snapshot_handler(
     info!("Starting object snapshot handler...");
 
     let global_metrics = get_metrics().unwrap();
-    let (sender, receiver) = mysten_metrics::metered_channel::channel(
+    let (sender, receiver) = iota_metrics::metered_channel::channel(
         600,
         &global_metrics
             .channel_inflight

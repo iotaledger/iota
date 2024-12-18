@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::schema::{
@@ -14,8 +15,8 @@ use diesel::{
     sql_types::SmallInt,
 };
 use serde::{Deserialize, Serialize};
-use sui_field_count::FieldCount;
-use sui_types::object::Owner;
+use iota_field_count::FieldCount;
+use iota_types::object::Owner;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BalanceChange {

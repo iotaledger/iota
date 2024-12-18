@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // similar to dynamic_object_field_tests but over multiple transactions,
@@ -10,7 +11,7 @@
 //# publish
 module a::m {
 
-use sui::dynamic_field::{add, exists_, borrow, borrow_mut};
+use iota::dynamic_field::{add, exists_, borrow, borrow_mut};
 
 public struct Wrapper has key {
     id: UID,
@@ -47,7 +48,7 @@ fun destroy(counter: Counter): u64 {
 
 entry fun t0(ctx: &mut TxContext) {
     let id = object::new(ctx);
-    sui::transfer::transfer(Obj { id }, ctx.sender())
+    iota::transfer::transfer(Obj { id }, ctx.sender())
 }
 
 entry fun t1(obj: &mut Obj, ctx: &mut TxContext) {
@@ -64,7 +65,7 @@ entry fun t3(obj: Obj, ctx: &mut TxContext) {
     let Obj { id } = obj;
     assert!(count(borrow(&id, 0)) == 1, 0);
     let wrapper = Wrapper { id: object::new(ctx), old: id };
-    sui::transfer::transfer(wrapper, ctx.sender())
+    iota::transfer::transfer(wrapper, ctx.sender())
 }
 
 entry fun t4(wrapper: &mut Wrapper) {

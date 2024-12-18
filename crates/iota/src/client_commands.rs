@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -34,48 +35,48 @@ use move_package::BuildConfig as MoveBuildConfig;
 use prometheus::Registry;
 use serde::Serialize;
 use serde_json::{json, Value};
-use sui_config::verifier_signing_config::VerifierSigningConfig;
-use sui_move::manage_package::resolve_lock_file_path;
-use sui_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use sui_source_validation::{BytecodeSourceVerifier, ValidationMode};
+use iota_config::verifier_signing_config::VerifierSigningConfig;
+use iota_move::manage_package::resolve_lock_file_path;
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 
 use shared_crypto::intent::Intent;
-use sui_json::SuiJsonValue;
-use sui_json_rpc_types::{
+use iota_json::IotaJsonValue;
+use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldInfo,
-    DynamicFieldPage, SuiCoinMetadata, SuiData, SuiExecutionStatus, SuiObjectData,
-    SuiObjectDataOptions, SuiObjectResponse, SuiObjectResponseQuery, SuiParsedData,
-    SuiProtocolConfigValue, SuiRawData, SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI,
-    SuiTransactionBlockResponse, SuiTransactionBlockResponseOptions,
+    DynamicFieldPage, IotaCoinMetadata, IotaData, IotaExecutionStatus, IotaObjectData,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, IotaParsedData,
+    IotaProtocolConfigValue, IotaRawData, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
 };
-use sui_keys::keystore::AccountKeystore;
-use sui_move_build::{
+use iota_keys::keystore::AccountKeystore;
+use iota_move_build::{
     build_from_resolution_graph, check_invalid_dependencies, check_unpublished_dependencies,
     gather_published_ids, BuildConfig, CompiledPackage, PackageDependencies,
 };
-use sui_package_management::{LockCommand, PublishedAtError};
-use sui_replay::ReplayToolCommand;
-use sui_sdk::{
+use iota_package_management::{LockCommand, PublishedAtError};
+use iota_replay::ReplayToolCommand;
+use iota_sdk::{
     apis::ReadApi,
-    sui_client_config::{SuiClientConfig, SuiEnv},
+    iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
-    SuiClient, SUI_COIN_TYPE, SUI_DEVNET_URL, SUI_LOCAL_NETWORK_URL, SUI_LOCAL_NETWORK_URL_0,
-    SUI_TESTNET_URL,
+    IotaClient, IOTA_COIN_TYPE, IOTA_DEVNET_URL, IOTA_LOCAL_NETWORK_URL, IOTA_LOCAL_NETWORK_URL_0,
+    IOTA_TESTNET_URL,
 };
-use sui_types::{
-    base_types::{ObjectID, SequenceNumber, SuiAddress},
+use iota_types::{
+    base_types::{ObjectID, SequenceNumber, IotaAddress},
     crypto::{EmptySignInfo, SignatureScheme},
     digests::TransactionDigest,
-    error::SuiError,
+    error::IotaError,
     gas::GasCostSummary,
     gas_coin::GasCoin,
     message_envelope::Envelope,
     metrics::BytecodeVerifierMetrics,
     move_package::UpgradeCap,
     object::Owner,
-    parse_sui_type_tag,
+    parse_iota_type_tag,
     signature::GenericSignature,
-    sui_serde,
+    iota_serde,
     transaction::{
         SenderSignedData, Transaction, TransactionData, TransactionDataAPI, TransactionKind,
     },
@@ -106,7 +107,7 @@ pub const GAS_SAFE_OVERHEAD: u64 = 1000;
 
 #[derive(Parser)]
 #[clap(rename_all = "kebab-case")]
-pub enum SuiClientCommands {
+pub enum IotaClientCommands {
     /// Default address used for commands when none specified
     #[clap(name = "active-address")]
     ActiveAddress,
@@ -126,7 +127,7 @@ pub enum SuiClientCommands {
         /// Address (or its alias)
         #[arg(value_parser)]
         address: Option<KeyIdentity>,
-        /// Show balance for the specified coin (e.g., 0x2::sui::SUI).
+        /// Show balance for the specified coin (e.g., 0x2::iota::IOTA).
         /// All coins will be shown if none is passed.
         #[clap(long, required = false)]
         coin_type: Option<String>,
@@ -150,14 +151,14 @@ pub enum SuiClientCommands {
         /// All must be specified, or the call will fail.
         #[clap(
             long,
-            value_parser = parse_sui_type_tag,
+            value_parser = parse_iota_type_tag,
             num_args(1..),
         )]
         type_args: Vec<TypeTag>,
         /// Simplified ordered args like in the function syntax
         /// ObjectIDs, Addresses must be hex strings
         #[clap(long, num_args(1..))]
-        args: Vec<SuiJsonValue>,
+        args: Vec<IotaJsonValue>,
         /// Optional gas price for this call. Currently use only for testing and not in production environments.
         #[clap(hide = true)]
         gas_price: Option<u64>,
@@ -184,12 +185,12 @@ pub enum SuiClientCommands {
         limit: usize,
     },
 
-    /// List all Sui environments
+    /// List all Iota environments
     Envs,
 
     /// Execute a Signed Transaction. This is useful when the user prefers to sign elsewhere and use this command to execute.
     ExecuteSignedTx {
-        /// BCS serialized transaction data bytes without its type tag, as base64 encoded string. This is the output of sui client command using --serialize-unsigned-transaction.
+        /// BCS serialized transaction data bytes without its type tag, as base64 encoded string. This is the output of iota client command using --serialize-unsigned-transaction.
         #[clap(long)]
         tx_bytes: String,
 
@@ -199,7 +200,7 @@ pub enum SuiClientCommands {
     },
     /// Execute a combined serialized SenderSignedData string.
     ExecuteCombinedSignedTx {
-        /// BCS serialized sender signed data, as base64 encoded string. This is the output of sui client command using --serialize-signed-transaction.
+        /// BCS serialized sender signed data, as base64 encoded string. This is the output of iota client command using --serialize-signed-transaction.
         #[clap(long)]
         signed_tx_bytes: String,
     },
@@ -251,7 +252,7 @@ pub enum SuiClientCommands {
         derivation_path: Option<DerivationPath>,
     },
 
-    /// Add new Sui environment.
+    /// Add new Iota environment.
     #[clap(name = "new-env")]
     NewEnv {
         #[clap(long)]
@@ -279,7 +280,7 @@ pub enum SuiClientCommands {
     #[clap(name = "objects")]
     Objects {
         /// Address owning the object. If no address is provided, it will show all
-        /// objects owned by `sui client active-address`.
+        /// objects owned by `iota client active-address`.
         #[clap(name = "owner_address")]
         address: Option<KeyIdentity>,
     },
@@ -304,9 +305,9 @@ pub enum SuiClientCommands {
         opts: OptsWithGas,
     },
 
-    /// Pay all residual SUI coins to the recipient with input coins, after deducting the gas cost.
+    /// Pay all residual IOTA coins to the recipient with input coins, after deducting the gas cost.
     /// The input coins also include the coin for gas payment, so no extra gas coin is required.
-    PayAllSui {
+    PayAllIota {
         /// The input coins to be used for pay recipients, including the gas coin.
         #[clap(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
@@ -319,10 +320,10 @@ pub enum SuiClientCommands {
         opts: Opts,
     },
 
-    /// Pay SUI coins to recipients following following specified amounts, with input coins.
+    /// Pay IOTA coins to recipients following following specified amounts, with input coins.
     /// Length of recipients must be the same as that of amounts.
     /// The input coins also include the coin for gas payment, so no extra gas coin is required.
-    PaySui {
+    PayIota {
         /// The input coins to be used for pay recipients, including the gas coin.
         #[clap(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
@@ -420,18 +421,18 @@ pub enum SuiClientCommands {
         opts: OptsWithGas,
     },
 
-    /// Transfer SUI, and pay gas with the same SUI coin object.
+    /// Transfer IOTA, and pay gas with the same IOTA coin object.
     /// If amount is specified, only the amount is transferred; otherwise the entire object
     /// is transferred.
-    #[clap(name = "transfer-sui")]
-    TransferSui {
+    #[clap(name = "transfer-iota")]
+    TransferIota {
         /// Recipient address (or its alias if it's an address in the keystore)
         #[clap(long)]
         to: KeyIdentity,
 
         /// ID of the coin to transfer. This is also the gas object.
         #[clap(long)]
-        sui_coin_object_id: ObjectID,
+        iota_coin_object_id: ObjectID,
 
         /// The amount to transfer, if not specified, the entire coin object will be transferred.
         #[clap(long)]
@@ -586,7 +587,7 @@ pub enum SuiClientCommands {
 /// Global options for most transaction execution related commands
 #[derive(Args, Debug)]
 pub struct Opts {
-    /// An optional gas budget for this transaction (in MIST). If gas budget is not provided, the
+    /// An optional gas budget for this transaction (in NANOS). If gas budget is not provided, the
     /// tool will first perform a dry run to estimate the gas cost, and then it will execute the
     /// transaction. Please note that this incurs a small cost in performance due to the additional
     /// dry run call.
@@ -600,13 +601,13 @@ pub struct Opts {
     pub dev_inspect: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the unsigned transaction data
     /// (TransactionData) using base64 encoding, and print out the string <TX_BYTES>. The string can
-    /// be used to execute transaction with `sui client execute-signed-tx --tx-bytes <TX_BYTES>`.
+    /// be used to execute transaction with `iota client execute-signed-tx --tx-bytes <TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_unsigned_transaction: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the signed transaction data
     /// (SenderSignedData) using base64 encoding, and print out the string <SIGNED_TX_BYTES>. The
     /// string can be used to execute transaction with
-    /// `sui client execute-combined-signed-tx --signed-tx-bytes <SIGNED_TX_BYTES>`.
+    /// `iota client execute-combined-signed-tx --signed-tx-bytes <SIGNED_TX_BYTES>`.
     #[arg(long, required = false)]
     pub serialize_signed_transaction: bool,
 }
@@ -670,13 +671,13 @@ struct FaucetResponse {
     error: Option<String>,
 }
 
-impl SuiClientCommands {
+impl IotaClientCommands {
     pub async fn execute(
         self,
         context: &mut WalletContext,
-    ) -> Result<SuiClientCommandResult, anyhow::Error> {
+    ) -> Result<IotaClientCommandResult, anyhow::Error> {
         let ret = match self {
-            SuiClientCommands::ProfileTransaction {
+            IotaClientCommands::ProfileTransaction {
                 tx_digest,
                 profile_output,
             } => {
@@ -696,12 +697,12 @@ impl SuiClientCommands {
                 };
                 let rpc = context.config.get_active_env()?.rpc.clone();
                 let _command_result =
-                    sui_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
+                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
                 // this will be displayed via trace info, so no output is needed here
-                SuiClientCommandResult::NoOutput
+                IotaClientCommandResult::NoOutput
             }
-            SuiClientCommands::ReplayTransaction {
+            IotaClientCommands::ReplayTransaction {
                 tx_digest,
                 gas_info: _,
                 ptb_info: _,
@@ -718,12 +719,12 @@ impl SuiClientCommands {
 
                 let rpc = context.config.get_active_env()?.rpc.clone();
                 let _command_result =
-                    sui_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
+                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
                 // this will be displayed via trace info, so no output is needed here
-                SuiClientCommandResult::NoOutput
+                IotaClientCommandResult::NoOutput
             }
-            SuiClientCommands::ReplayBatch {
+            IotaClientCommands::ReplayBatch {
                 path,
                 terminate_early,
             } => {
@@ -735,12 +736,12 @@ impl SuiClientCommands {
                 };
                 let rpc = context.config.get_active_env()?.rpc.clone();
                 let _command_result =
-                    sui_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
+                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
                 // this will be displayed via trace info, so no output is needed here
-                SuiClientCommandResult::NoOutput
+                IotaClientCommandResult::NoOutput
             }
-            SuiClientCommands::ReplayCheckpoints {
+            IotaClientCommands::ReplayCheckpoints {
                 start,
                 end,
                 terminate_early,
@@ -753,14 +754,14 @@ impl SuiClientCommands {
                 };
                 let rpc = context.config.get_active_env()?.rpc.clone();
                 let _command_result =
-                    sui_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
+                    iota_replay::execute_replay_command(Some(rpc), false, false, None, None, cmd)
                         .await?;
                 // this will be displayed via trace info, so no output is needed here
-                SuiClientCommandResult::NoOutput
+                IotaClientCommandResult::NoOutput
             }
-            SuiClientCommands::Addresses { sort_by_alias } => {
+            IotaClientCommands::Addresses { sort_by_alias } => {
                 let active_address = context.active_address()?;
-                let mut addresses: Vec<(String, SuiAddress)> = context
+                let mut addresses: Vec<(String, IotaAddress)> = context
                     .config
                     .keystore
                     .addresses_with_alias()
@@ -775,9 +776,9 @@ impl SuiClientCommands {
                     active_address,
                     addresses,
                 };
-                SuiClientCommandResult::Addresses(output)
+                IotaClientCommandResult::Addresses(output)
             }
-            SuiClientCommands::Balance {
+            IotaClientCommands::Balance {
                 address,
                 coin_type,
                 with_coins,
@@ -840,28 +841,28 @@ impl SuiClientCommands {
 
                     coins.push(c);
                 }
-                let sui_type_tag = canonicalize_type(SUI_COIN_TYPE)?;
+                let iota_type_tag = canonicalize_type(IOTA_COIN_TYPE)?;
 
-                // show SUI first
-                let ordered_coins_sui_first = coins_by_type
-                    .remove(&sui_type_tag)
+                // show IOTA first
+                let ordered_coins_iota_first = coins_by_type
+                    .remove(&iota_type_tag)
                     .into_iter()
                     .chain(coins_by_type.into_values())
                     .collect();
 
-                SuiClientCommandResult::Balance(ordered_coins_sui_first, with_coins)
+                IotaClientCommandResult::Balance(ordered_coins_iota_first, with_coins)
             }
 
-            SuiClientCommands::DynamicFieldQuery { id, cursor, limit } => {
+            IotaClientCommands::DynamicFieldQuery { id, cursor, limit } => {
                 let client = context.get_client().await?;
                 let df_read = client
                     .read_api()
                     .get_dynamic_fields(id, cursor, Some(limit))
                     .await?;
-                SuiClientCommandResult::DynamicFieldQuery(df_read)
+                IotaClientCommandResult::DynamicFieldQuery(df_read)
             }
 
-            SuiClientCommands::Upgrade {
+            IotaClientCommands::Upgrade {
                 package_path,
                 upgrade_capability,
                 build_config,
@@ -879,12 +880,12 @@ impl SuiClientCommands {
                 let package_path =
                     package_path
                         .canonicalize()
-                        .map_err(|e| SuiError::ModulePublishFailure {
+                        .map_err(|e| IotaError::ModulePublishFailure {
                             error: format!("Failed to canonicalize package path: {}", e),
                         })?;
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
                 let previous_id = if let Some(ref chain_id) = chain_id {
-                    sui_package_management::set_package_id(
+                    iota_package_management::set_package_id(
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
@@ -910,7 +911,7 @@ impl SuiClientCommands {
                 .await;
                 // Restore original ID, then check result.
                 if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
-                    let _ = sui_package_management::set_package_id(
+                    let _ = iota_package_management::set_package_id(
                         &package_path,
                         build_config.install_dir.clone(),
                         &chain_id,
@@ -937,8 +938,8 @@ impl SuiClientCommands {
                 )
                 .await?;
 
-                if let SuiClientCommandResult::TransactionBlock(ref response) = result {
-                    if let Err(e) = sui_package_management::update_lock_file(
+                if let IotaClientCommandResult::TransactionBlock(ref response) = result {
+                    if let Err(e) = iota_package_management::update_lock_file(
                         context,
                         LockCommand::Upgrade,
                         build_config.install_dir,
@@ -957,7 +958,7 @@ impl SuiClientCommands {
                 };
                 result
             }
-            SuiClientCommands::Publish {
+            IotaClientCommands::Publish {
                 package_path,
                 build_config,
                 skip_dependency_verification,
@@ -965,7 +966,7 @@ impl SuiClientCommands {
                 opts,
             } => {
                 if build_config.test_mode {
-                    return Err(SuiError::ModulePublishFailure {
+                    return Err(IotaError::ModulePublishFailure {
                         error:
                             "The `publish` subcommand should not be used with the `--test` flag\n\
                             \n\
@@ -973,7 +974,7 @@ impl SuiClientCommands {
                             In order to fix this and publish the package without `--test`, \
                             remove any non-test dependencies on test-only code.\n\
                             You can ensure all test-only dependencies have been removed by \
-                            compiling the package normally with `sui move build`."
+                            compiling the package normally with `iota move build`."
                                 .to_string(),
                     }
                     .into());
@@ -989,12 +990,12 @@ impl SuiClientCommands {
                 let package_path =
                     package_path
                         .canonicalize()
-                        .map_err(|e| SuiError::ModulePublishFailure {
+                        .map_err(|e| IotaError::ModulePublishFailure {
                             error: format!("Failed to canonicalize package path: {}", e),
                         })?;
                 let build_config = resolve_lock_file_path(build_config, Some(&package_path))?;
                 let previous_id = if let Some(ref chain_id) = chain_id {
-                    sui_package_management::set_package_id(
+                    iota_package_management::set_package_id(
                         &package_path,
                         build_config.install_dir.clone(),
                         chain_id,
@@ -1013,7 +1014,7 @@ impl SuiClientCommands {
                 .await;
                 // Restore original ID, then check result.
                 if let (Some(chain_id), Some(previous_id)) = (chain_id, previous_id) {
-                    let _ = sui_package_management::set_package_id(
+                    let _ = iota_package_management::set_package_id(
                         &package_path,
                         build_config.install_dir.clone(),
                         &chain_id,
@@ -1035,8 +1036,8 @@ impl SuiClientCommands {
                 )
                 .await?;
 
-                if let SuiClientCommandResult::TransactionBlock(ref response) = result {
-                    if let Err(e) = sui_package_management::update_lock_file(
+                if let IotaClientCommandResult::TransactionBlock(ref response) = result {
+                    if let Err(e) = iota_package_management::update_lock_file(
                         context,
                         LockCommand::Publish,
                         build_config.install_dir,
@@ -1056,7 +1057,7 @@ impl SuiClientCommands {
                 result
             }
 
-            SuiClientCommands::VerifyBytecodeMeter {
+            IotaClientCommands::VerifyBytecodeMeter {
                 protocol_version,
                 module_paths,
                 package_path,
@@ -1100,7 +1101,7 @@ impl SuiClientCommands {
                 };
 
                 let signing_limits = Some(VerifierSigningConfig::default().limits_for_signing());
-                let mut verifier = sui_execution::verifier(
+                let mut verifier = iota_execution::verifier(
                     &protocol_config,
                     signing_limits,
                     &bytecode_verifier_metrics,
@@ -1131,7 +1132,7 @@ impl SuiClientCommands {
                     Some(allowed_ticks) if allowed_ticks < used_ticks.max_ticks(Scope::Function)
                 );
 
-                SuiClientCommandResult::VerifyBytecodeMeter {
+                IotaClientCommandResult::VerifyBytecodeMeter {
                     success: !exceeded,
                     max_package_ticks: meter_config.max_per_pkg_meter_units,
                     max_module_ticks: meter_config.max_per_mod_meter_units,
@@ -1140,31 +1141,31 @@ impl SuiClientCommands {
                 }
             }
 
-            SuiClientCommands::Object { id, bcs } => {
+            IotaClientCommands::Object { id, bcs } => {
                 // Fetch the object ref
                 let client = context.get_client().await?;
                 if !bcs {
                     let object_read = client
                         .read_api()
-                        .get_object_with_options(id, SuiObjectDataOptions::full_content())
+                        .get_object_with_options(id, IotaObjectDataOptions::full_content())
                         .await?;
-                    SuiClientCommandResult::Object(object_read)
+                    IotaClientCommandResult::Object(object_read)
                 } else {
                     let raw_object_read = client
                         .read_api()
-                        .get_object_with_options(id, SuiObjectDataOptions::bcs_lossless())
+                        .get_object_with_options(id, IotaObjectDataOptions::bcs_lossless())
                         .await?;
-                    SuiClientCommandResult::RawObject(raw_object_read)
+                    IotaClientCommandResult::RawObject(raw_object_read)
                 }
             }
 
-            SuiClientCommands::TransactionBlock { digest } => {
+            IotaClientCommands::TransactionBlock { digest } => {
                 let client = context.get_client().await?;
                 let tx_read = client
                     .read_api()
                     .get_transaction_with_options(
                         digest,
-                        SuiTransactionBlockResponseOptions {
+                        IotaTransactionBlockResponseOptions {
                             show_input: true,
                             show_raw_input: false,
                             show_effects: true,
@@ -1175,10 +1176,10 @@ impl SuiClientCommands {
                         },
                     )
                     .await?;
-                SuiClientCommandResult::TransactionBlock(tx_read)
+                IotaClientCommandResult::TransactionBlock(tx_read)
             }
 
-            SuiClientCommands::Call {
+            IotaClientCommands::Call {
                 package,
                 module,
                 function,
@@ -1188,10 +1189,10 @@ impl SuiClientCommands {
                 opts,
             } => {
                 // Convert all numeric input to String, this will allow number input from the CLI
-                // without failing SuiJSON's checks.
+                // without failing IotaJSON's checks.
                 let args = args
                     .into_iter()
-                    .map(|value| SuiJsonValue::new(convert_number_to_string(value.to_json_value())))
+                    .map(|value| IotaJsonValue::new(convert_number_to_string(value.to_json_value())))
                     .collect::<Result<_, _>>()?;
 
                 let type_args = type_args
@@ -1219,7 +1220,7 @@ impl SuiClientCommands {
                 .await?
             }
 
-            SuiClientCommands::Transfer {
+            IotaClientCommands::Transfer {
                 to,
                 object_id,
                 opts,
@@ -1237,9 +1238,9 @@ impl SuiClientCommands {
                 .await?
             }
 
-            SuiClientCommands::TransferSui {
+            IotaClientCommands::TransferIota {
                 to,
-                sui_coin_object_id: object_id,
+                iota_coin_object_id: object_id,
                 amount,
                 opts,
             } => {
@@ -1248,7 +1249,7 @@ impl SuiClientCommands {
                 let client = context.get_client().await?;
                 let tx_kind = client
                     .transaction_builder()
-                    .transfer_sui_tx_kind(to, amount);
+                    .transfer_iota_tx_kind(to, amount);
                 dry_run_or_execute_or_serialize(
                     signer,
                     tx_kind,
@@ -1261,7 +1262,7 @@ impl SuiClientCommands {
                 .await?
             }
 
-            SuiClientCommands::Pay {
+            IotaClientCommands::Pay {
                 input_coins,
                 recipients,
                 amounts,
@@ -1286,7 +1287,7 @@ impl SuiClientCommands {
                 let recipients = recipients
                     .into_iter()
                     .map(|x| get_identity_address(Some(x), context))
-                    .collect::<Result<Vec<SuiAddress>, anyhow::Error>>()
+                    .collect::<Result<Vec<IotaAddress>, anyhow::Error>>()
                     .map_err(|e| anyhow!("{e}"))?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
@@ -1297,7 +1298,7 @@ impl SuiClientCommands {
 
                 if let Some(gas) = opts.gas {
                     if input_coins.contains(&gas) {
-                        bail!("Gas coin is in input coins of Pay transaction, use PaySui transaction instead!");
+                        bail!("Gas coin is in input coins of Pay transaction, use PayIota transaction instead!");
                     }
                 }
 
@@ -1307,7 +1308,7 @@ impl SuiClientCommands {
                 .await?
             }
 
-            SuiClientCommands::PaySui {
+            IotaClientCommands::PayIota {
                 input_coins,
                 recipients,
                 amounts,
@@ -1315,11 +1316,11 @@ impl SuiClientCommands {
             } => {
                 ensure!(
                     !input_coins.is_empty(),
-                    "PaySui transaction requires a non-empty list of input coins"
+                    "PayIota transaction requires a non-empty list of input coins"
                 );
                 ensure!(
                     !recipients.is_empty(),
-                    "PaySui transaction requires a non-empty list of recipient addresses"
+                    "PayIota transaction requires a non-empty list of recipient addresses"
                 );
                 ensure!(
                     recipients.len() == amounts.len(),
@@ -1332,13 +1333,13 @@ impl SuiClientCommands {
                 let recipients = recipients
                     .into_iter()
                     .map(|x| get_identity_address(Some(x), context))
-                    .collect::<Result<Vec<SuiAddress>, anyhow::Error>>()
+                    .collect::<Result<Vec<IotaAddress>, anyhow::Error>>()
                     .map_err(|e| anyhow!("{e}"))?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
                 let tx_kind = client
                     .transaction_builder()
-                    .pay_sui_tx_kind(recipients, amounts)?;
+                    .pay_iota_tx_kind(recipients, amounts)?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -1352,19 +1353,19 @@ impl SuiClientCommands {
                 .await?
             }
 
-            SuiClientCommands::PayAllSui {
+            IotaClientCommands::PayAllIota {
                 input_coins,
                 recipient,
                 opts,
             } => {
                 ensure!(
                     !input_coins.is_empty(),
-                    "PayAllSui transaction requires a non-empty list of input coins"
+                    "PayAllIota transaction requires a non-empty list of input coins"
                 );
                 let recipient = get_identity_address(Some(recipient), context)?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_client().await?;
-                let tx_kind = client.transaction_builder().pay_all_sui_tx_kind(recipient);
+                let tx_kind = client.transaction_builder().pay_all_iota_tx_kind(recipient);
                 dry_run_or_execute_or_serialize(
                     signer,
                     tx_kind,
@@ -1377,18 +1378,18 @@ impl SuiClientCommands {
                 .await?
             }
 
-            SuiClientCommands::Objects { address } => {
+            IotaClientCommands::Objects { address } => {
                 let address = get_identity_address(address, context)?;
                 let client = context.get_client().await?;
-                let mut objects: Vec<SuiObjectResponse> = Vec::new();
+                let mut objects: Vec<IotaObjectResponse> = Vec::new();
                 let mut cursor = None;
                 loop {
                     let response = client
                         .read_api()
                         .get_owned_objects(
                             address,
-                            Some(SuiObjectResponseQuery::new_with_options(
-                                SuiObjectDataOptions::full_content(),
+                            Some(IotaObjectResponseQuery::new_with_options(
+                                IotaObjectDataOptions::full_content(),
                             )),
                             cursor,
                             None,
@@ -1402,10 +1403,10 @@ impl SuiClientCommands {
                         break;
                     }
                 }
-                SuiClientCommandResult::Objects(objects)
+                IotaClientCommandResult::Objects(objects)
             }
 
-            SuiClientCommands::NewAddress {
+            IotaClientCommands::NewAddress {
                 key_scheme,
                 alias,
                 derivation_path,
@@ -1423,14 +1424,14 @@ impl SuiClientCommands {
                     None => context.config.keystore.get_alias_by_address(&address)?,
                 };
 
-                SuiClientCommandResult::NewAddress(NewAddressOutput {
+                IotaClientCommandResult::NewAddress(NewAddressOutput {
                     alias,
                     address,
                     key_scheme: scheme,
                     recovery_phrase: phrase,
                 })
             }
-            SuiClientCommands::Gas { address } => {
+            IotaClientCommands::Gas { address } => {
                 let address = get_identity_address(address, context)?;
                 let coins = context
                     .gas_objects(address)
@@ -1439,9 +1440,9 @@ impl SuiClientCommands {
                     // Ok to unwrap() since `get_gas_objects` guarantees gas
                     .map(|(_val, object)| GasCoin::try_from(object).unwrap())
                     .collect();
-                SuiClientCommandResult::Gas(coins)
+                IotaClientCommandResult::Gas(coins)
             }
-            SuiClientCommands::Faucet { address, url } => {
+            IotaClientCommands::Faucet { address, url } => {
                 let address = get_identity_address(address, context)?;
                 let url = if let Some(url) = url {
                     url
@@ -1450,9 +1451,9 @@ impl SuiClientCommands {
 
                     if let Ok(env) = active_env {
                         let network = match env.rpc.as_str() {
-                            SUI_DEVNET_URL => "https://faucet.devnet.sui.io/v1/gas",
-                            SUI_TESTNET_URL => "https://faucet.testnet.sui.io/v1/gas",
-                            SUI_LOCAL_NETWORK_URL | SUI_LOCAL_NETWORK_URL_0 => "http://127.0.0.1:9123/gas",
+                            IOTA_DEVNET_URL => "https://faucet.devnet.iota.io/v1/gas",
+                            IOTA_TESTNET_URL => "https://faucet.testnet.iota.io/v1/gas",
+                            IOTA_LOCAL_NETWORK_URL | IOTA_LOCAL_NETWORK_URL_0 => "http://127.0.0.1:9123/gas",
                             _ => bail!("Cannot recognize the active network. Please provide the gas faucet full URL.")
                         };
                         network.to_string()
@@ -1461,18 +1462,18 @@ impl SuiClientCommands {
                     }
                 };
                 request_tokens_from_faucet(address, url).await?;
-                SuiClientCommandResult::NoOutput
+                IotaClientCommandResult::NoOutput
             }
-            SuiClientCommands::ChainIdentifier => {
+            IotaClientCommands::ChainIdentifier => {
                 let ci = context
                     .get_client()
                     .await?
                     .read_api()
                     .get_chain_identifier()
                     .await?;
-                SuiClientCommandResult::ChainIdentifier(ci)
+                IotaClientCommandResult::ChainIdentifier(ci)
             }
-            SuiClientCommands::SplitCoin {
+            IotaClientCommands::SplitCoin {
                 coin_id,
                 amounts,
                 count,
@@ -1495,7 +1496,7 @@ impl SuiClientCommands {
                 )
                 .await?
             }
-            SuiClientCommands::MergeCoin {
+            IotaClientCommands::MergeCoin {
                 primary_coin,
                 coin_to_merge,
                 opts,
@@ -1512,7 +1513,7 @@ impl SuiClientCommands {
                 )
                 .await?
             }
-            SuiClientCommands::Switch { address, env } => {
+            IotaClientCommands::Switch { address, env } => {
                 let mut addr = None;
 
                 if address.is_none() && env.is_none() {
@@ -1534,13 +1535,13 @@ impl SuiClientCommands {
                     Self::switch_env(&mut context.config, env)?;
                 }
                 context.config.save()?;
-                SuiClientCommandResult::Switch(SwitchResponse { address: addr, env })
+                IotaClientCommandResult::Switch(SwitchResponse { address: addr, env })
             }
-            SuiClientCommands::ActiveAddress => {
-                SuiClientCommandResult::ActiveAddress(context.active_address().ok())
+            IotaClientCommands::ActiveAddress => {
+                IotaClientCommandResult::ActiveAddress(context.active_address().ok())
             }
 
-            SuiClientCommands::ExecuteSignedTx {
+            IotaClientCommands::ExecuteSignedTx {
                 tx_bytes,
                 signatures,
             } => {
@@ -1549,7 +1550,7 @@ impl SuiClientCommands {
                     .map_err(|_| anyhow!("Invalid Base64 encoding"))?
                     .to_vec()
                     .map_err(|_| anyhow!("Invalid Base64 encoding"))?
-                ).map_err(|_| anyhow!("Failed to parse tx bytes, check if it matches the output of sui client commands with --serialize-unsigned-transaction"))?;
+                ).map_err(|_| anyhow!("Failed to parse tx bytes, check if it matches the output of iota client commands with --serialize-unsigned-transaction"))?;
 
                 let mut sigs = Vec::new();
                 for sig in signatures {
@@ -1566,20 +1567,20 @@ impl SuiClientCommands {
                 let transaction = Transaction::from_generic_sig_data(data, sigs);
 
                 let response = context.execute_transaction_may_fail(transaction).await?;
-                SuiClientCommandResult::TransactionBlock(response)
+                IotaClientCommandResult::TransactionBlock(response)
             }
-            SuiClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
+            IotaClientCommands::ExecuteCombinedSignedTx { signed_tx_bytes } => {
                 let data: SenderSignedData = bcs::from_bytes(
                     &Base64::try_from(signed_tx_bytes)
                         .map_err(|_| anyhow!("Invalid Base64 encoding"))?
                         .to_vec()
                         .map_err(|_| anyhow!("Invalid Base64 encoding"))?
-                ).map_err(|_| anyhow!("Failed to parse SenderSignedData bytes, check if it matches the output of sui client commands with --serialize-signed-transaction"))?;
+                ).map_err(|_| anyhow!("Failed to parse SenderSignedData bytes, check if it matches the output of iota client commands with --serialize-signed-transaction"))?;
                 let transaction = Envelope::<SenderSignedData, EmptySignInfo>::new(data);
                 let response = context.execute_transaction_may_fail(transaction).await?;
-                SuiClientCommandResult::TransactionBlock(response)
+                IotaClientCommandResult::TransactionBlock(response)
             }
-            SuiClientCommands::NewEnv {
+            IotaClientCommands::NewEnv {
                 alias,
                 rpc,
                 ws,
@@ -1590,7 +1591,7 @@ impl SuiClientCommands {
                         "Environment config with name [{alias}] already exists."
                     ));
                 }
-                let env = SuiEnv {
+                let env = IotaEnv {
                     alias,
                     rpc,
                     ws,
@@ -1601,16 +1602,16 @@ impl SuiClientCommands {
                 env.create_rpc_client(None, None).await?;
                 context.config.envs.push(env.clone());
                 context.config.save()?;
-                SuiClientCommandResult::NewEnv(env)
+                IotaClientCommandResult::NewEnv(env)
             }
-            SuiClientCommands::ActiveEnv => {
-                SuiClientCommandResult::ActiveEnv(context.config.active_env.clone())
+            IotaClientCommands::ActiveEnv => {
+                IotaClientCommandResult::ActiveEnv(context.config.active_env.clone())
             }
-            SuiClientCommands::Envs => SuiClientCommandResult::Envs(
+            IotaClientCommands::Envs => IotaClientCommandResult::Envs(
                 context.config.envs.clone(),
                 context.config.active_env.clone(),
             ),
-            SuiClientCommands::VerifySource {
+            IotaClientCommands::VerifySource {
                 package_path,
                 build_config,
                 verify_deps,
@@ -1649,19 +1650,19 @@ impl SuiClientCommands {
                     .verify(&compiled_package, mode)
                     .await?;
 
-                SuiClientCommandResult::VerifySource
+                IotaClientCommandResult::VerifySource
             }
-            SuiClientCommands::PTB(ptb) => {
+            IotaClientCommands::PTB(ptb) => {
                 ptb.execute(context).await?;
-                SuiClientCommandResult::NoOutput
+                IotaClientCommandResult::NoOutput
             }
         };
         Ok(ret.prerender_clever_errors(context).await)
     }
 
-    pub fn switch_env(config: &mut SuiClientConfig, env: &str) -> Result<(), anyhow::Error> {
+    pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
         let env = Some(env.into());
-        ensure!(config.get_env(&env).is_some(), "Environment config not found for [{env:?}], add new environment config using the `sui client new-env` command.");
+        ensure!(config.get_env(&env).is_some(), "Environment config not found for [{env:?}], add new environment config using the `iota client new-env` command.");
         config.active_env = env;
         Ok(())
     }
@@ -1735,8 +1736,8 @@ pub(crate) async fn upgrade_package(
                  You may want to:
 
                  - delete the published-at address in the `Move.toml` if the `Move.lock` address is correct; OR
-                 - update the `Move.lock` address using the `sui manage-package` command to be the same as the `Move.toml`; OR
-                 - check that your `sui active-env` {env_alias} corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
+                 - update the `Move.lock` address using the `iota manage-package` command to be the same as the `Move.toml`; OR
+                 - check that your `iota active-env` {env_alias} corresponds to the chain on which the package is published (i.e., devnet, testnet, mainnet); OR
                  - contact the maintainer if this package is a dependency and request resolving the conflict."
             )
         }
@@ -1745,7 +1746,7 @@ pub(crate) async fn upgrade_package(
     let resp = read_api
         .get_object_with_options(
             upgrade_capability,
-            SuiObjectDataOptions::default().with_bcs().with_owner(),
+            IotaObjectDataOptions::default().with_bcs().with_owner(),
         )
         .await?;
 
@@ -1817,13 +1818,13 @@ pub(crate) async fn compile_package(
     let protocol_config = read_api.get_protocol_config(None).await?;
 
     // Check that the package's Move version is compatible with the chain's
-    if let Some(Some(SuiProtocolConfigValue::U32(min_version))) = protocol_config
+    if let Some(Some(IotaProtocolConfigValue::U32(min_version))) = protocol_config
         .attributes
         .get("min_move_binary_format_version")
     {
         for module in compiled_package.get_modules_and_deps() {
             if module.version() < *min_version {
-                return Err(SuiError::ModulePublishFailure {
+                return Err(IotaError::ModulePublishFailure {
                     error: format!(
                         "Module {} has a version {} that is \
                          lower than the minimum version {min_version} supported by the chain.",
@@ -1837,7 +1838,7 @@ pub(crate) async fn compile_package(
     }
 
     // Check that the package's Move version is compatible with the chain's
-    if let Some(Some(SuiProtocolConfigValue::U32(max_version))) =
+    if let Some(Some(IotaProtocolConfigValue::U32(max_version))) =
         protocol_config.attributes.get("move_binary_format_version")
     {
         for module in compiled_package.get_modules_and_deps() {
@@ -1848,7 +1849,7 @@ pub(crate) async fn compile_package(
                 } else {
                     ""
                 };
-                return Err(SuiError::ModulePublishFailure {
+                return Err(IotaError::ModulePublishFailure {
                     error: format!(
                         "Module {} has a version {} that is \
                          higher than the maximum version {max_version} supported by the chain.{help_msg}",
@@ -1863,7 +1864,7 @@ pub(crate) async fn compile_package(
 
     if !compiled_package.is_system_package() {
         if let Some(already_published) = compiled_package.published_root_module() {
-            return Err(SuiError::ModulePublishFailure {
+            return Err(IotaError::ModulePublishFailure {
                 error: format!(
                     "Modules must all have 0x0 as their addresses. \
                      Violated by module {:?}",
@@ -1883,7 +1884,7 @@ pub(crate) async fn compile_package(
             .verify(&compiled_package, ValidationMode::deps())
             .await
         {
-            return Err(SuiError::ModulePublishFailure {
+            return Err(IotaError::ModulePublishFailure {
                 error: format!(
                     "[warning] {e}\n\
                      \n\
@@ -1914,18 +1915,18 @@ pub(crate) async fn compile_package(
         .compiled_package_info
         .build_flags
         .update_lock_file_toolchain_version(package_path, env!("CARGO_PKG_VERSION").into())
-        .map_err(|e| SuiError::ModuleBuildFailure {
+        .map_err(|e| IotaError::ModuleBuildFailure {
             error: format!("Failed to update Move.lock toolchain version: {e}"),
         })?;
 
     Ok((dependencies, compiled_modules, compiled_package, package_id))
 }
 
-impl Display for SuiClientCommandResult {
+impl Display for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match self {
-            SuiClientCommandResult::Addresses(addresses) => {
+            IotaClientCommandResult::Addresses(addresses) => {
                 let mut builder = TableBuilder::default();
                 builder.set_header(vec!["alias", "address", "active address"]);
                 for (alias, address) in &addresses.addresses {
@@ -1941,7 +1942,7 @@ impl Display for SuiClientCommandResult {
                 table.with(style);
                 write!(f, "{}", table)?
             }
-            SuiClientCommandResult::Balance(coins, with_coins) => {
+            IotaClientCommandResult::Balance(coins, with_coins) => {
                 if coins.is_empty() {
                     return write!(f, "No coins found for this address.");
                 }
@@ -1956,7 +1957,7 @@ impl Display for SuiClientCommandResult {
                 table.with(tabled::settings::style::BorderSpanCorrection);
                 write!(f, "{}", table)?;
             }
-            SuiClientCommandResult::DynamicFieldQuery(df_refs) => {
+            IotaClientCommandResult::DynamicFieldQuery(df_refs) => {
                 let df_refs = DynamicFieldOutput {
                     has_next_page: df_refs.has_next_page,
                     next_cursor: df_refs.next_cursor,
@@ -1969,7 +1970,7 @@ impl Display for SuiClientCommandResult {
                 table.with(style);
                 write!(f, "{}", table)?
             }
-            SuiClientCommandResult::Gas(gas_coins) => {
+            IotaClientCommandResult::Gas(gas_coins) => {
                 let gas_coins = gas_coins
                     .iter()
                     .map(GasCoinOutput::from)
@@ -1980,12 +1981,12 @@ impl Display for SuiClientCommandResult {
                 }
 
                 let mut builder = TableBuilder::default();
-                builder.set_header(vec!["gasCoinId", "mistBalance (MIST)", "suiBalance (SUI)"]);
+                builder.set_header(vec!["gasCoinId", "nanosBalance (NANOS)", "iotaBalance (IOTA)"]);
                 for coin in &gas_coins {
                     builder.push_record(vec![
                         coin.gas_coin_id.to_string(),
-                        coin.mist_balance.to_string(),
-                        coin.sui_balance.to_string(),
+                        coin.nanos_balance.to_string(),
+                        coin.iota_balance.to_string(),
                     ]);
                 }
                 let mut table = builder.build();
@@ -2011,7 +2012,7 @@ impl Display for SuiClientCommandResult {
                 }
                 write!(f, "{}", table)?;
             }
-            SuiClientCommandResult::NewAddress(new_address) => {
+            IotaClientCommandResult::NewAddress(new_address) => {
                 let mut builder = TableBuilder::default();
                 builder.push_record(vec!["alias", new_address.alias.as_str()]);
                 builder.push_record(vec!["address", new_address.address.to_string().as_str()]);
@@ -2041,7 +2042,7 @@ impl Display for SuiClientCommandResult {
 
                 write!(f, "{}", table)?
             }
-            SuiClientCommandResult::Object(object_read) => match object_read.object() {
+            IotaClientCommandResult::Object(object_read) => match object_read.object() {
                 Ok(obj) => {
                     let object = ObjectOutput::from(obj);
                     let json_obj = json!(&object);
@@ -2051,7 +2052,7 @@ impl Display for SuiClientCommandResult {
                 }
                 Err(e) => writeln!(f, "Internal error, cannot read the object: {e}")?,
             },
-            SuiClientCommandResult::Objects(object_refs) => {
+            IotaClientCommandResult::Objects(object_refs) => {
                 if object_refs.is_empty() {
                     writeln!(f, "This address has no owned objects.")?
                 } else {
@@ -2067,16 +2068,16 @@ impl Display for SuiClientCommandResult {
                     }
                 }
             }
-            SuiClientCommandResult::TransactionBlock(response) => {
+            IotaClientCommandResult::TransactionBlock(response) => {
                 write!(writer, "{}", response)?;
             }
-            SuiClientCommandResult::RawObject(raw_object_read) => {
+            IotaClientCommandResult::RawObject(raw_object_read) => {
                 let raw_object = match raw_object_read.object() {
                     Ok(v) => match &v.bcs {
-                        Some(SuiRawData::MoveObject(o)) => {
+                        Some(IotaRawData::MoveObject(o)) => {
                             format!("{:?}\nNumber of bytes: {}", o.bcs_bytes, o.bcs_bytes.len())
                         }
-                        Some(SuiRawData::Package(p)) => {
+                        Some(IotaRawData::Package(p)) => {
                             let mut temp = String::new();
                             let mut bcs_bytes = 0usize;
                             for m in &p.module_map {
@@ -2091,42 +2092,42 @@ impl Display for SuiClientCommandResult {
                 };
                 writeln!(writer, "{}", raw_object)?;
             }
-            SuiClientCommandResult::SerializedUnsignedTransaction(tx_data) => {
+            IotaClientCommandResult::SerializedUnsignedTransaction(tx_data) => {
                 writeln!(
                     writer,
                     "{}",
                     fastcrypto::encoding::Base64::encode(bcs::to_bytes(tx_data).unwrap())
                 )?;
             }
-            SuiClientCommandResult::SerializedSignedTransaction(sender_signed_tx) => {
+            IotaClientCommandResult::SerializedSignedTransaction(sender_signed_tx) => {
                 writeln!(
                     writer,
                     "{}",
                     fastcrypto::encoding::Base64::encode(bcs::to_bytes(sender_signed_tx).unwrap())
                 )?;
             }
-            SuiClientCommandResult::SyncClientState => {
+            IotaClientCommandResult::SyncClientState => {
                 writeln!(writer, "Client state sync complete.")?;
             }
-            SuiClientCommandResult::ChainIdentifier(ci) => {
+            IotaClientCommandResult::ChainIdentifier(ci) => {
                 writeln!(writer, "{}", ci)?;
             }
-            SuiClientCommandResult::Switch(response) => {
+            IotaClientCommandResult::Switch(response) => {
                 write!(writer, "{}", response)?;
             }
-            SuiClientCommandResult::ActiveAddress(response) => {
+            IotaClientCommandResult::ActiveAddress(response) => {
                 match response {
                     Some(r) => write!(writer, "{}", r)?,
                     None => write!(writer, "None")?,
                 };
             }
-            SuiClientCommandResult::ActiveEnv(env) => {
+            IotaClientCommandResult::ActiveEnv(env) => {
                 write!(writer, "{}", env.as_deref().unwrap_or("None"))?;
             }
-            SuiClientCommandResult::NewEnv(env) => {
-                writeln!(writer, "Added new Sui env [{}] to config.", env.alias)?;
+            IotaClientCommandResult::NewEnv(env) => {
+                writeln!(writer, "Added new Iota env [{}] to config.", env.alias)?;
             }
-            SuiClientCommandResult::Envs(envs, active) => {
+            IotaClientCommandResult::Envs(envs, active) => {
                 let mut builder = TableBuilder::default();
                 builder.set_header(["alias", "url", "active"]);
                 for env in envs {
@@ -2142,10 +2143,10 @@ impl Display for SuiClientCommandResult {
                 table.with(TableStyle::rounded());
                 write!(f, "{}", table)?
             }
-            SuiClientCommandResult::VerifySource => {
+            IotaClientCommandResult::VerifySource => {
                 writeln!(writer, "Source verification succeeded!")?;
             }
-            SuiClientCommandResult::VerifyBytecodeMeter {
+            IotaClientCommandResult::VerifyBytecodeMeter {
                 success,
                 max_package_ticks,
                 max_module_ticks,
@@ -2233,11 +2234,11 @@ impl Display for SuiClientCommandResult {
 
                 writeln!(f, "{}", table)?;
             }
-            SuiClientCommandResult::NoOutput => {}
-            SuiClientCommandResult::DryRun(response) => {
+            IotaClientCommandResult::NoOutput => {}
+            IotaClientCommandResult::DryRun(response) => {
                 writeln!(f, "{}", Pretty(response))?;
             }
-            SuiClientCommandResult::DevInspect(response) => {
+            IotaClientCommandResult::DevInspect(response) => {
                 writeln!(f, "{}", Pretty(response))?;
             }
         }
@@ -2258,21 +2259,21 @@ fn convert_number_to_string(value: Value) -> Value {
     }
 }
 
-impl Debug for SuiClientCommandResult {
+impl Debug for IotaClientCommandResult {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let s = unwrap_err_to_string(|| match self {
-            SuiClientCommandResult::Gas(gas_coins) => {
+            IotaClientCommandResult::Gas(gas_coins) => {
                 let gas_coins = gas_coins
                     .iter()
                     .map(GasCoinOutput::from)
                     .collect::<Vec<_>>();
                 Ok(serde_json::to_string_pretty(&gas_coins)?)
             }
-            SuiClientCommandResult::Object(object_read) => {
+            IotaClientCommandResult::Object(object_read) => {
                 let object = object_read.object()?;
                 Ok(serde_json::to_string_pretty(&object)?)
             }
-            SuiClientCommandResult::RawObject(raw_object_read) => {
+            IotaClientCommandResult::RawObject(raw_object_read) => {
                 let raw_object = raw_object_read.object()?;
                 Ok(serde_json::to_string_pretty(&raw_object)?)
             }
@@ -2289,9 +2290,9 @@ fn unwrap_err_to_string<T: Display, F: FnOnce() -> Result<T, anyhow::Error>>(fun
     }
 }
 
-impl SuiClientCommandResult {
-    pub fn objects_response(&self) -> Option<Vec<SuiObjectResponse>> {
-        use SuiClientCommandResult::*;
+impl IotaClientCommandResult {
+    pub fn objects_response(&self) -> Option<Vec<IotaObjectResponse>> {
+        use IotaClientCommandResult::*;
         match self {
             Object(o) | RawObject(o) => Some(vec![o.clone()]),
             Objects(o) => Some(o.clone()),
@@ -2313,8 +2314,8 @@ impl SuiClientCommandResult {
         }
     }
 
-    pub fn tx_block_response(&self) -> Option<&SuiTransactionBlockResponse> {
-        use SuiClientCommandResult::*;
+    pub fn tx_block_response(&self) -> Option<&IotaTransactionBlockResponse> {
+        use IotaClientCommandResult::*;
         match self {
             TransactionBlock(b) => Some(b),
             _ => None,
@@ -2323,8 +2324,8 @@ impl SuiClientCommandResult {
 
     pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
         match &mut self {
-            SuiClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
-            | SuiClientCommandResult::TransactionBlock(SuiTransactionBlockResponse {
+            IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
+            | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
             }) => {
@@ -2332,31 +2333,31 @@ impl SuiClientCommandResult {
                 prerender_clever_errors(effects, client.read_api()).await
             }
 
-            SuiClientCommandResult::TransactionBlock(SuiTransactionBlockResponse {
+            IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: None,
                 ..
             }) => (),
-            SuiClientCommandResult::ActiveAddress(_)
-            | SuiClientCommandResult::ActiveEnv(_)
-            | SuiClientCommandResult::Addresses(_)
-            | SuiClientCommandResult::Balance(_, _)
-            | SuiClientCommandResult::ChainIdentifier(_)
-            | SuiClientCommandResult::DynamicFieldQuery(_)
-            | SuiClientCommandResult::DevInspect(_)
-            | SuiClientCommandResult::Envs(_, _)
-            | SuiClientCommandResult::Gas(_)
-            | SuiClientCommandResult::NewAddress(_)
-            | SuiClientCommandResult::NewEnv(_)
-            | SuiClientCommandResult::NoOutput
-            | SuiClientCommandResult::Object(_)
-            | SuiClientCommandResult::Objects(_)
-            | SuiClientCommandResult::RawObject(_)
-            | SuiClientCommandResult::SerializedSignedTransaction(_)
-            | SuiClientCommandResult::SerializedUnsignedTransaction(_)
-            | SuiClientCommandResult::Switch(_)
-            | SuiClientCommandResult::SyncClientState
-            | SuiClientCommandResult::VerifyBytecodeMeter { .. }
-            | SuiClientCommandResult::VerifySource => (),
+            IotaClientCommandResult::ActiveAddress(_)
+            | IotaClientCommandResult::ActiveEnv(_)
+            | IotaClientCommandResult::Addresses(_)
+            | IotaClientCommandResult::Balance(_, _)
+            | IotaClientCommandResult::ChainIdentifier(_)
+            | IotaClientCommandResult::DynamicFieldQuery(_)
+            | IotaClientCommandResult::DevInspect(_)
+            | IotaClientCommandResult::Envs(_, _)
+            | IotaClientCommandResult::Gas(_)
+            | IotaClientCommandResult::NewAddress(_)
+            | IotaClientCommandResult::NewEnv(_)
+            | IotaClientCommandResult::NoOutput
+            | IotaClientCommandResult::Object(_)
+            | IotaClientCommandResult::Objects(_)
+            | IotaClientCommandResult::RawObject(_)
+            | IotaClientCommandResult::SerializedSignedTransaction(_)
+            | IotaClientCommandResult::SerializedUnsignedTransaction(_)
+            | IotaClientCommandResult::Switch(_)
+            | IotaClientCommandResult::SyncClientState
+            | IotaClientCommandResult::VerifyBytecodeMeter { .. }
+            | IotaClientCommandResult::VerifySource => (),
         }
         self
     }
@@ -2365,8 +2366,8 @@ impl SuiClientCommandResult {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AddressesOutput {
-    pub active_address: SuiAddress,
-    pub addresses: Vec<(String, SuiAddress)>,
+    pub active_address: IotaAddress,
+    pub addresses: Vec<(String, IotaAddress)>,
 }
 
 #[derive(Serialize)]
@@ -2381,7 +2382,7 @@ pub struct DynamicFieldOutput {
 #[serde(rename_all = "camelCase")]
 pub struct NewAddressOutput {
     pub alias: String,
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     pub key_scheme: SignatureScheme,
     pub recovery_phrase: String,
 }
@@ -2400,11 +2401,11 @@ pub struct ObjectOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_rebate: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub content: Option<SuiParsedData>,
+    pub content: Option<IotaParsedData>,
 }
 
-impl From<&SuiObjectData> for ObjectOutput {
-    fn from(obj: &SuiObjectData) -> Self {
+impl From<&IotaObjectData> for ObjectOutput {
+    fn from(obj: &IotaObjectData) -> Self {
         let obj_type = match obj.type_.as_ref() {
             Some(x) => x.to_string(),
             None => "unknown".to_string(),
@@ -2426,16 +2427,16 @@ impl From<&SuiObjectData> for ObjectOutput {
 #[serde(rename_all = "camelCase")]
 pub struct GasCoinOutput {
     pub gas_coin_id: ObjectID,
-    pub mist_balance: u64,
-    pub sui_balance: String,
+    pub nanos_balance: u64,
+    pub iota_balance: String,
 }
 
 impl From<&GasCoin> for GasCoinOutput {
     fn from(gas_coin: &GasCoin) -> Self {
         Self {
             gas_coin_id: *gas_coin.id(),
-            mist_balance: gas_coin.value(),
-            sui_balance: format_balance(gas_coin.value() as u128, 9, 2, None),
+            nanos_balance: gas_coin.value(),
+            iota_balance: format_balance(gas_coin.value() as u128, 9, 2, None),
         }
     }
 }
@@ -2450,11 +2451,11 @@ pub struct ObjectsOutput {
 }
 
 impl ObjectsOutput {
-    fn from(obj: SuiObjectResponse) -> Result<Self, anyhow::Error> {
+    fn from(obj: IotaObjectResponse) -> Result<Self, anyhow::Error> {
         let obj = obj.into_object()?;
-        // this replicates the object type display as in the sui explorer
+        // this replicates the object type display as in the iota explorer
         let object_type = match obj.type_ {
-            Some(sui_types::base_types::ObjectType::Struct(x)) => {
+            Some(iota_types::base_types::ObjectType::Struct(x)) => {
                 let address = x.address().to_string();
                 // check if the address has length of 64 characters
                 // otherwise, keep it as it is
@@ -2465,7 +2466,7 @@ impl ObjectsOutput {
                 };
                 format!("{}::{}::{}", address, x.module(), x.name(),)
             }
-            Some(sui_types::base_types::ObjectType::Package) => "Package".to_string(),
+            Some(iota_types::base_types::ObjectType::Package) => "Package".to_string(),
             None => "unknown".to_string(),
         };
         Ok(Self {
@@ -2475,7 +2476,7 @@ impl ObjectsOutput {
             object_type,
         })
     }
-    fn from_vec(objs: Vec<SuiObjectResponse>) -> Result<Vec<Self>, anyhow::Error> {
+    fn from_vec(objs: Vec<IotaObjectResponse>) -> Result<Vec<Self>, anyhow::Error> {
         objs.into_iter()
             .map(ObjectsOutput::from)
             .collect::<Result<Vec<_>, _>>()
@@ -2484,28 +2485,28 @@ impl ObjectsOutput {
 
 #[derive(Serialize)]
 #[serde(untagged)]
-pub enum SuiClientCommandResult {
-    ActiveAddress(Option<SuiAddress>),
+pub enum IotaClientCommandResult {
+    ActiveAddress(Option<IotaAddress>),
     ActiveEnv(Option<String>),
     Addresses(AddressesOutput),
-    Balance(Vec<(Option<SuiCoinMetadata>, Vec<Coin>)>, bool),
+    Balance(Vec<(Option<IotaCoinMetadata>, Vec<Coin>)>, bool),
     ChainIdentifier(String),
     DynamicFieldQuery(DynamicFieldPage),
     DryRun(DryRunTransactionBlockResponse),
     DevInspect(DevInspectResults),
-    Envs(Vec<SuiEnv>, Option<String>),
+    Envs(Vec<IotaEnv>, Option<String>),
     Gas(Vec<GasCoin>),
     NewAddress(NewAddressOutput),
-    NewEnv(SuiEnv),
+    NewEnv(IotaEnv),
     NoOutput,
-    Object(SuiObjectResponse),
-    Objects(Vec<SuiObjectResponse>),
-    RawObject(SuiObjectResponse),
+    Object(IotaObjectResponse),
+    Objects(Vec<IotaObjectResponse>),
+    RawObject(IotaObjectResponse),
     SerializedSignedTransaction(SenderSignedData),
     SerializedUnsignedTransaction(TransactionData),
     Switch(SwitchResponse),
     SyncClientState,
-    TransactionBlock(SuiTransactionBlockResponse),
+    TransactionBlock(IotaTransactionBlockResponse),
     VerifyBytecodeMeter {
         success: bool,
         max_package_ticks: Option<u128>,
@@ -2539,7 +2540,7 @@ impl Display for SwitchResponse {
 
 /// Request tokens from the Faucet for the given address
 pub async fn request_tokens_from_faucet(
-    address: SuiAddress,
+    address: IotaAddress,
     url: String,
 ) -> Result<(), anyhow::Error> {
     let address_str = address.to_string();
@@ -2566,7 +2567,7 @@ pub async fn request_tokens_from_faucet(
             if let Some(err) = faucet_resp.error {
                 bail!("Faucet request was unsuccessful: {err}")
             } else {
-                println!("Request successful. It can take up to 1 minute to get the coin. Run sui client gas to check your gas coins.");
+                println!("Request successful. It can take up to 1 minute to get the coin. Run iota client gas to check your gas coins.");
             }
         }
         StatusCode::TOO_MANY_REQUESTS => {
@@ -2583,7 +2584,7 @@ pub async fn request_tokens_from_faucet(
 }
 
 fn pretty_print_balance(
-    coins_by_type: &Vec<(Option<SuiCoinMetadata>, Vec<Coin>)>,
+    coins_by_type: &Vec<(Option<IotaCoinMetadata>, Vec<Coin>)>,
     builder: &mut TableBuilder,
     with_coins: bool,
 ) {
@@ -2717,13 +2718,13 @@ fn format_balance(
 /// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
     context: &mut WalletContext,
-    signer: SuiAddress,
+    signer: IotaAddress,
     kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
     gas_payment: Option<Vec<ObjectID>>,
-    sponsor: Option<SuiAddress>,
-) -> Result<SuiClientCommandResult, anyhow::Error> {
+    sponsor: Option<IotaAddress>,
+) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
@@ -2740,7 +2741,7 @@ pub async fn execute_dry_run(
         .await
         .map_err(|e| anyhow!("Dry run failed: {e}"))?;
     debug!("Finished executing dry run");
-    let resp = SuiClientCommandResult::DryRun(response)
+    let resp = IotaClientCommandResult::DryRun(response)
         .prerender_clever_errors(context)
         .await;
     Ok(resp)
@@ -2755,17 +2756,17 @@ pub async fn execute_dry_run(
 /// overhead
 ///
 /// This gas estimate is computed exactly as in the TypeScript SDK
-/// <https://github.com/MystenLabs/sui/blob/3c4369270605f78a243842098b7029daf8d883d9/sdk/typescript/src/transactions/TransactionBlock.ts#L845-L858>
+/// <https://github.com/iotaledger/iota/blob/3c4369270605f78a243842098b7029daf8d883d9/sdk/typescript/src/transactions/TransactionBlock.ts#L845-L858>
 pub async fn estimate_gas_budget(
     context: &mut WalletContext,
-    signer: SuiAddress,
+    signer: IotaAddress,
     kind: TransactionKind,
     gas_price: u64,
     gas_payment: Option<Vec<ObjectID>>,
-    sponsor: Option<SuiAddress>,
+    sponsor: Option<IotaAddress>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
-    let Ok(SuiClientCommandResult::DryRun(dry_run)) =
+    let Ok(IotaClientCommandResult::DryRun(dry_run)) =
         execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await
     else {
         bail!("Could not automatically determine the gas budget. Please supply one using the --gas-budget flag.")
@@ -2791,10 +2792,10 @@ pub fn estimate_gas_budget_from_gas_cost(
 }
 
 /// Queries the protocol config for the maximum gas allowed in a transaction.
-pub async fn max_gas_budget(client: &SuiClient) -> Result<u64, anyhow::Error> {
+pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
     let cfg = client.read_api().get_protocol_config(None).await?;
     Ok(match cfg.attributes.get("max_tx_gas") {
-        Some(Some(sui_json_rpc_types::SuiProtocolConfigValue::U64(y))) => *y,
+        Some(Some(iota_json_rpc_types::IotaProtocolConfigValue::U64(y))) => *y,
         _ => bail!(
             "Could not automatically find the maximum gas allowed in a transaction from the \
             protocol config. Please provide a gas budget with the --gas-budget flag."
@@ -2808,14 +2809,14 @@ pub async fn max_gas_budget(client: &SuiClient) -> Result<u64, anyhow::Error> {
 /// or serializing a transaction and puts it in a function to reduce code duplication.
 // TODO (stefan): Add gas_price option for all commands and remove it from this function
 pub(crate) async fn dry_run_or_execute_or_serialize(
-    signer: SuiAddress,
+    signer: IotaAddress,
     tx_kind: TransactionKind,
     context: &mut WalletContext,
     gas_payment: Option<Vec<ObjectID>>,
     gas_price: Option<u64>,
     gas: Option<ObjectID>,
     opts: Opts,
-) -> Result<SuiClientCommandResult, anyhow::Error> {
+) -> Result<IotaClientCommandResult, anyhow::Error> {
     let (
         dry_run,
         dev_inspect,
@@ -2906,18 +2907,18 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     debug!("Finished preparing transaction data");
 
     if serialize_unsigned_transaction {
-        Ok(SuiClientCommandResult::SerializedUnsignedTransaction(
+        Ok(IotaClientCommandResult::SerializedUnsignedTransaction(
             tx_data,
         ))
     } else {
         let signature = context.config.keystore.sign_secure(
             &tx_data.sender(),
             &tx_data,
-            Intent::sui_transaction(),
+            Intent::iota_transaction(),
         )?;
         let sender_signed_data = SenderSignedData::new_from_sender_signature(tx_data, signature);
         if serialize_signed_transaction {
-            Ok(SuiClientCommandResult::SerializedSignedTransaction(
+            Ok(IotaClientCommandResult::SerializedSignedTransaction(
                 sender_signed_data,
             ))
         } else {
@@ -2931,31 +2932,31 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 prerender_clever_errors(effects, client.read_api()).await;
             }
             let effects = response.effects.as_ref().ok_or_else(|| {
-                anyhow!("Effects from SuiTransactionBlockResult should not be empty")
+                anyhow!("Effects from IotaTransactionBlockResult should not be empty")
             })?;
-            if let SuiExecutionStatus::Failure { error } = effects.status() {
+            if let IotaExecutionStatus::Failure { error } = effects.status() {
                 return Err(anyhow!(
                     "Error executing transaction '{}': {error}",
                     response.digest
                 ));
             }
-            Ok(SuiClientCommandResult::TransactionBlock(response))
+            Ok(IotaClientCommandResult::TransactionBlock(response))
         }
     }
 }
 
 async fn execute_dev_inspect(
     context: &mut WalletContext,
-    signer: SuiAddress,
+    signer: IotaAddress,
     tx_kind: TransactionKind,
     gas_budget: Option<u64>,
     gas_price: u64,
     gas_payment: Option<Vec<ObjectID>>,
-    gas_sponsor: Option<SuiAddress>,
+    gas_sponsor: Option<IotaAddress>,
     skip_checks: Option<bool>,
-) -> Result<SuiClientCommandResult, anyhow::Error> {
+) -> Result<IotaClientCommandResult, anyhow::Error> {
     let client = context.get_client().await?;
-    let gas_budget = gas_budget.map(sui_serde::BigInt::from);
+    let gas_budget = gas_budget.map(iota_serde::BigInt::from);
     let mut gas_objs = vec![];
     let gas_objects = if let Some(gas_payment) = gas_payment {
         for o in gas_payment.iter() {
@@ -2979,20 +2980,20 @@ async fn execute_dev_inspect(
         .dev_inspect_transaction_block(
             signer,
             tx_kind,
-            Some(sui_serde::BigInt::from(gas_price)),
+            Some(iota_serde::BigInt::from(gas_price)),
             None,
             Some(dev_inspect_args),
         )
         .await?;
-    Ok(SuiClientCommandResult::DevInspect(dev_inspect_result))
+    Ok(IotaClientCommandResult::DevInspect(dev_inspect_result))
 }
 
 pub(crate) async fn prerender_clever_errors(
-    effects: &mut SuiTransactionBlockEffects,
+    effects: &mut IotaTransactionBlockEffects,
     read_api: &ReadApi,
 ) {
-    let SuiTransactionBlockEffects::V1(effects) = effects;
-    if let SuiExecutionStatus::Failure { error } = &mut effects.status {
+    let IotaTransactionBlockEffects::V1(effects) = effects;
+    if let IotaExecutionStatus::Failure { error } = &mut effects.status {
         if let Some(rendered) = render_clever_error_opt(error, read_api).await {
             *error = rendered;
         }
@@ -3000,7 +3001,7 @@ pub(crate) async fn prerender_clever_errors(
 }
 
 /// Warn the user if the CLI falls behind more than 2 protocol versions.
-async fn check_protocol_version_and_warn(client: &SuiClient) -> Result<(), anyhow::Error> {
+async fn check_protocol_version_and_warn(client: &IotaClient) -> Result<(), anyhow::Error> {
     let protocol_cfg = client.read_api().get_protocol_config(None).await?;
     let on_chain_protocol_version = protocol_cfg.protocol_version.as_u64();
     let cli_protocol_version = ProtocolVersion::MAX.as_u64();
@@ -3011,7 +3012,7 @@ async fn check_protocol_version_and_warn(client: &SuiClient) -> Result<(), anyho
                 "[warning] CLI's protocol version is {cli_protocol_version}, but the active \
                 network's protocol version is {on_chain_protocol_version}. \
                 \n Consider installing the latest version of the CLI - \
-                https://docs.sui.io/guides/developer/getting-started/sui-install \n\n \
+                https://docs.iota.org/guides/developer/getting-started/iota-install \n\n \
                 If publishing/upgrading returns a dependency verification error, then install the \
                 latest CLI version."
             )

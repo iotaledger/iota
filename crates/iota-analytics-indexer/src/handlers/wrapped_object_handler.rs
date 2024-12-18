@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use std::collections::BTreeMap;
 use std::path::Path;
-use sui_data_ingestion_core::Worker;
-use sui_types::SYSTEM_PACKAGE_ADDRESSES;
+use iota_data_ingestion_core::Worker;
+use iota_types::SYSTEM_PACKAGE_ADDRESSES;
 use tokio::sync::Mutex;
 
-use sui_package_resolver::Resolver;
-use sui_rpc_api::{CheckpointData, CheckpointTransaction};
-use sui_types::object::Object;
+use iota_package_resolver::Resolver;
+use iota_rpc_api::{CheckpointData, CheckpointTransaction};
+use iota_types::object::Object;
 
 use crate::handlers::{get_move_struct, parse_struct, AnalyticsHandler};
 

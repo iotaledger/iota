@@ -1,5 +1,5 @@
 [package]
-name = "mysten-util-mem-derive"
+name = "iota-util-mem-derive"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 license = "MIT OR Apache-2.0"

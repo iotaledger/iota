@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-/// Events module. Defines the `sui::event::emit` function which
+/// Events module. Defines the `iota::event::emit` function which
 /// creates and sends a custom MoveEvent as a part of the effects
 /// certificate of the transaction.
 ///
@@ -15,7 +16,7 @@
 /// Example:
 /// ```
 /// module my::marketplace {
-///    use sui::event;
+///    use iota::event;
 ///    /* ... */
 ///    struct ItemPurchased has copy, drop {
 ///      item_id: ID, buyer: address
@@ -26,7 +27,7 @@
 ///    }
 /// }
 /// ```
-module sui::event;
+module iota::event;
 
 /// Emit a custom Move event, sending the data offchain.
 ///

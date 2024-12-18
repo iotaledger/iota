@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt::{Display, Formatter};
@@ -12,25 +13,25 @@ use serde::Serialize;
 use serde_json::Value;
 use tokio::task::JoinHandle;
 
-use sui_config::local_ip_utils;
-use sui_keys::keystore::AccountKeystore;
-use sui_keys::keystore::Keystore;
-use sui_rosetta::operations::Operations;
-use sui_rosetta::types::{
+use iota_config::local_ip_utils;
+use iota_keys::keystore::AccountKeystore;
+use iota_keys::keystore::Keystore;
+use iota_rosetta::operations::Operations;
+use iota_rosetta::types::{
     AccountBalanceRequest, AccountBalanceResponse, AccountIdentifier, ConstructionCombineRequest,
     ConstructionCombineResponse, ConstructionMetadataRequest, ConstructionMetadataResponse,
     ConstructionPayloadsRequest, ConstructionPayloadsResponse, ConstructionPreprocessRequest,
     ConstructionPreprocessResponse, ConstructionSubmitRequest, Currencies, NetworkIdentifier,
-    Signature, SignatureType, SubAccount, SubAccountType, SuiEnv, TransactionIdentifierResponse,
+    Signature, SignatureType, SubAccount, SubAccountType, IotaEnv, TransactionIdentifierResponse,
 };
-use sui_rosetta::{RosettaOfflineServer, RosettaOnlineServer};
-use sui_sdk::SuiClient;
-use sui_types::base_types::SuiAddress;
-use sui_types::crypto::SuiSignature;
+use iota_rosetta::{RosettaOfflineServer, RosettaOnlineServer};
+use iota_sdk::IotaClient;
+use iota_types::base_types::IotaAddress;
+use iota_types::crypto::IotaSignature;
 
-pub async fn start_rosetta_test_server(client: SuiClient) -> (RosettaClient, Vec<JoinHandle<()>>) {
-    let online_server = RosettaOnlineServer::new(SuiEnv::LocalNet, client);
-    let offline_server = RosettaOfflineServer::new(SuiEnv::LocalNet);
+pub async fn start_rosetta_test_server(client: IotaClient) -> (RosettaClient, Vec<JoinHandle<()>>) {
+    let online_server = RosettaOnlineServer::new(IotaEnv::LocalNet, client);
+    let offline_server = RosettaOfflineServer::new(IotaEnv::LocalNet);
     let local_ip = local_ip_utils::localhost_for_testing();
     let port = local_ip_utils::get_available_port(&local_ip);
     let rosetta_address = format!("{}:{}", local_ip, port);
@@ -109,8 +110,8 @@ impl RosettaClient {
         keystore: &Keystore,
     ) -> TransactionIdentifierResponse {
         let network_identifier = NetworkIdentifier {
-            blockchain: "sui".to_string(),
-            network: SuiEnv::LocalNet,
+            blockchain: "iota".to_string(),
+            network: IotaEnv::LocalNet,
         };
         // Preprocess
         let preprocess: ConstructionPreprocessResponse = self
@@ -165,7 +166,7 @@ impl RosettaClient {
                         signing_payload: signing_payload.clone(),
                         public_key: public_key.into(),
                         signature_type: SignatureType::Ed25519,
-                        hex_bytes: Hex::from_bytes(SuiSignature::signature_bytes(&signature)),
+                        hex_bytes: Hex::from_bytes(IotaSignature::signature_bytes(&signature)),
                     }],
                 },
             )
@@ -188,7 +189,7 @@ impl RosettaClient {
     pub async fn get_balance(
         &self,
         network_identifier: NetworkIdentifier,
-        address: SuiAddress,
+        address: IotaAddress,
         sub_account: Option<SubAccountType>,
     ) -> AccountBalanceResponse {
         let sub_account = sub_account.map(|account_type| SubAccount { account_type });

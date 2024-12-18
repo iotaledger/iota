@@ -1,20 +1,21 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 pub mod checked {
 
-    use crate::sui_types::gas::SuiGasStatusAPI;
+    use crate::iota_types::gas::IotaGasStatusAPI;
     use crate::temporary_store::TemporaryStore;
-    use sui_protocol_config::ProtocolConfig;
-    use sui_types::gas::{deduct_gas, GasCostSummary, SuiGasStatus};
-    use sui_types::gas_model::gas_predicates::{
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::gas::{deduct_gas, GasCostSummary, IotaGasStatus};
+    use iota_types::gas_model::gas_predicates::{
         charge_upgrades, dont_charge_budget_on_storage_oog,
     };
-    use sui_types::{
+    use iota_types::{
         base_types::{ObjectID, ObjectRef},
         digests::TransactionDigest,
         error::ExecutionError,
@@ -40,14 +41,14 @@ pub mod checked {
         // this is the first gas coin in `gas_coins` and the one that all others will
         // be smashed into. It can be None for system transactions when `gas_coins` is empty.
         smashed_gas_coin: Option<ObjectID>,
-        gas_status: SuiGasStatus,
+        gas_status: IotaGasStatus,
     }
 
     impl GasCharger {
         pub fn new(
             tx_digest: TransactionDigest,
             gas_coins: Vec<ObjectRef>,
-            gas_status: SuiGasStatus,
+            gas_status: IotaGasStatus,
             protocol_config: &ProtocolConfig,
         ) -> Self {
             let gas_model_version = protocol_config.gas_model_version();
@@ -66,7 +67,7 @@ pub mod checked {
                 gas_model_version: 6, // pick any of the latest, it should not matter
                 gas_coins: vec![],
                 smashed_gas_coin: None,
-                gas_status: SuiGasStatus::new_unmetered(),
+                gas_status: IotaGasStatus::new_unmetered(),
             }
         }
 
@@ -108,7 +109,7 @@ pub mod checked {
             self.gas_status.move_gas_status_mut()
         }
 
-        pub fn into_gas_status(self) -> SuiGasStatus {
+        pub fn into_gas_status(self) -> IotaGasStatus {
             self.gas_status
         }
 
@@ -236,7 +237,7 @@ pub mod checked {
             let total_size = temporary_store
                 .objects()
                 .iter()
-                // don't charge for loading Sui Framework or Move stdlib
+                // don't charge for loading Iota Framework or Move stdlib
                 .filter(|(id, _)| !is_system_package(**id))
                 .map(|(_, obj)| obj.object_size_for_gas_metering())
                 .sum();

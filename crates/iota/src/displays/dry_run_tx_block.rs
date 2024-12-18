@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{client_commands::estimate_gas_budget_from_gas_cost, displays::Pretty};
 use std::fmt::{Display, Formatter};
-use sui_json_rpc_types::{
-    DryRunTransactionBlockResponse, ObjectChange, SuiTransactionBlockDataAPI,
-    SuiTransactionBlockEffectsAPI,
+use iota_json_rpc_types::{
+    DryRunTransactionBlockResponse, ObjectChange, IotaTransactionBlockDataAPI,
+    IotaTransactionBlockEffectsAPI,
 };
 use tabled::{
     builder::Builder as TableBuilder,
@@ -97,7 +98,7 @@ impl<'a> Display for Pretty<'a, DryRunTransactionBlockResponse> {
         )?;
         writeln!(
             f,
-            "Estimated gas cost (includes a small buffer): {} MIST",
+            "Estimated gas cost (includes a small buffer): {} NANOS",
             estimate_gas_budget_from_gas_cost(
                 response.effects.gas_cost_summary(),
                 response.input.gas_data().price

@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
 /// A `TransferPolicy` Rule which implements percentage-based royalty fee.
-module sui::royalty_policy {
-    use sui::sui::SUI;
-    use sui::coin::{Self, Coin};
-    use sui::transfer_policy::{
+module iota::royalty_policy {
+    use iota::iota::IOTA;
+    use iota::coin::{Self, Coin};
+    use iota::transfer_policy::{
         Self as policy,
         TransferPolicy,
         TransferPolicyCap,
@@ -43,7 +44,7 @@ module sui::royalty_policy {
     public fun pay<T: key + store>(
         policy: &mut TransferPolicy<T>,
         request: &mut TransferRequest<T>,
-        payment: &mut Coin<SUI>,
+        payment: &mut Coin<IOTA>,
         ctx: &mut TxContext
     ) {
         let config: &Config = policy::get_rule(Rule {}, policy);
@@ -59,12 +60,12 @@ module sui::royalty_policy {
 }
 
 #[test_only]
-module sui::royalty_policy_tests {
-    use sui::coin;
-    use sui::sui::SUI;
-    use sui::royalty_policy;
-    use sui::transfer_policy as policy;
-    use sui::transfer_policy_tests as test;
+module iota::royalty_policy_tests {
+    use iota::coin;
+    use iota::iota::IOTA;
+    use iota::royalty_policy;
+    use iota::transfer_policy as policy;
+    use iota::transfer_policy_tests as test;
 
     #[test]
     fun test_default_flow() {
@@ -75,7 +76,7 @@ module sui::royalty_policy_tests {
         royalty_policy::set(&mut policy, &cap, 100);
 
         let mut request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
-        let mut payment = coin::mint_for_testing<SUI>(2000, ctx);
+        let mut payment = coin::mint_for_testing<IOTA>(2000, ctx);
 
         royalty_policy::pay(&mut policy, &mut request, &mut payment, ctx);
         policy::confirm_request(&policy, request);
@@ -88,7 +89,7 @@ module sui::royalty_policy_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::royalty_policy::EIncorrectArgument)]
+    #[expected_failure(abort_code = iota::royalty_policy::EIncorrectArgument)]
     fun test_incorrect_config() {
         let ctx = &mut tx_context::dummy();
         let (mut policy, cap) = test::prepare(ctx);
@@ -98,7 +99,7 @@ module sui::royalty_policy_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::royalty_policy::EInsufficientAmount)]
+    #[expected_failure(abort_code = iota::royalty_policy::EInsufficientAmount)]
     fun test_insufficient_amount() {
         let ctx = &mut tx_context::dummy();
         let (mut policy, cap) = test::prepare(ctx);
@@ -106,9 +107,9 @@ module sui::royalty_policy_tests {
         // 1% royalty
         royalty_policy::set(&mut policy, &cap, 100);
 
-        // Requires 1_000 MIST, coin has only 999
+        // Requires 1_000 NANOS, coin has only 999
         let mut request = policy::new_request(test::fresh_id(ctx), 100_000, test::fresh_id(ctx));
-        let mut payment = coin::mint_for_testing<SUI>(999, ctx);
+        let mut payment = coin::mint_for_testing<IOTA>(999, ctx);
 
         royalty_policy::pay(&mut policy, &mut request, &mut payment, ctx);
         policy::confirm_request(&policy, request);

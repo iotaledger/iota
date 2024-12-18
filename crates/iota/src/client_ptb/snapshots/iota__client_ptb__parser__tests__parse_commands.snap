@@ -1,5 +1,5 @@
 ---
-source: crates/sui/src/client_ptb/parser.rs
+source: crates/iota/src/client_ptb/parser.rs
 expression: parsed
 ---
 [
@@ -742,7 +742,7 @@ expression: parsed
                                         end: 27,
                                     },
                                     value: Identifier(
-                                        "sui_system",
+                                        "iota_system",
                                     ),
                                 },
                                 function_name: Spanned {

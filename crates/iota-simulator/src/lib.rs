@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(msim)]
@@ -9,7 +10,7 @@ use std::hash::Hasher;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-// Re-export things used by sui-macros
+// Re-export things used by iota-macros
 pub use ::rand as rand_crate;
 pub use anemo;
 pub use anemo_tower;
@@ -17,9 +18,9 @@ pub use fastcrypto;
 pub use lru;
 pub use move_package;
 pub use narwhal_network;
-pub use sui_framework;
-pub use sui_move_build;
-pub use sui_types;
+pub use iota_framework;
+pub use iota_move_build;
+pub use iota_types;
 pub use telemetry_subscribers;
 pub use tempfile;
 pub use tower;
@@ -82,22 +83,22 @@ pub mod configs {
         }
     }
 
-    /// Select from among a number of configs using the SUI_SIM_CONFIG env var.
+    /// Select from among a number of configs using the IOTA_SIM_CONFIG env var.
     pub fn env_config(
-        // Config to use when SUI_SIM_CONFIG is not set.
+        // Config to use when IOTA_SIM_CONFIG is not set.
         default: SimConfig,
         // List of (&str, SimConfig) pairs - the SimConfig associated with the value
-        // of the SUI_SIM_CONFIG var is chosen.
+        // of the IOTA_SIM_CONFIG var is chosen.
         env_configs: impl IntoIterator<Item = (&'static str, SimConfig)>,
     ) -> SimConfig {
         let mut env_configs = HashMap::<&'static str, SimConfig>::from_iter(env_configs);
-        if let Some(env) = std::env::var("SUI_SIM_CONFIG").ok() {
+        if let Some(env) = std::env::var("IOTA_SIM_CONFIG").ok() {
             if let Some(cfg) = env_configs.remove(env.as_str()) {
-                info!("Using test config for SUI_SIM_CONFIG={}", env);
+                info!("Using test config for IOTA_SIM_CONFIG={}", env);
                 cfg
             } else {
                 panic!(
-                    "No config found for SUI_SIM_CONFIG={}. Available configs are: {:?}",
+                    "No config found for IOTA_SIM_CONFIG={}. Available configs are: {:?}",
                     env,
                     env_configs.keys()
                 );

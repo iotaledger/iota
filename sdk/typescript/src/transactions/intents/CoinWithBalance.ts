@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import type { InferInput } from 'valibot';
 import { bigint, object, parse, string } from 'valibot';
 
 import { bcs } from '../../bcs/index.js';
-import type { CoinStruct, SuiClient } from '../../client/index.js';
-import { normalizeStructTag } from '../../utils/sui-types.js';
+import type { CoinStruct, IotaClient } from '../../client/index.js';
+import { normalizeStructTag } from '../../utils/iota-types.js';
 import { Commands } from '../Commands.js';
 import type { Argument } from '../data/internal.js';
 import { Inputs } from '../Inputs.js';
@@ -16,10 +17,10 @@ import type { Transaction } from '../Transaction.js';
 import type { TransactionDataBuilder } from '../TransactionData.js';
 
 const COIN_WITH_BALANCE = 'CoinWithBalance';
-const SUI_TYPE = normalizeStructTag('0x2::sui::SUI');
+const IOTA_TYPE = normalizeStructTag('0x2::iota::IOTA');
 
 export function coinWithBalance({
-	type = SUI_TYPE,
+	type = IOTA_TYPE,
 	balance,
 	useGasCoin = true,
 }: {
@@ -36,7 +37,7 @@ export function coinWithBalance({
 				name: COIN_WITH_BALANCE,
 				inputs: {},
 				data: {
-					type: coinType === SUI_TYPE && useGasCoin ? 'gas' : coinType,
+					type: coinType === IOTA_TYPE && useGasCoin ? 'gas' : coinType,
 					balance: BigInt(balance),
 				} satisfies InferInput<typeof CoinWithBalanceData>,
 			}),
@@ -175,7 +176,7 @@ async function getCoinsOfType({
 }: {
 	coinType: string;
 	balance: bigint;
-	client: SuiClient;
+	client: IotaClient;
 	owner: string;
 	usedIds: Set<string>;
 }): Promise<CoinStruct[]> {

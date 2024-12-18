@@ -1,4 +1,4 @@
-# Get the latest sui system state data
+# Get the latest iota system state data
 {
   epoch {
     storageFund {

@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Transaction } from '@mysten/sui/transactions';
-import { toBase64 } from '@mysten/sui/utils';
+import type { Transaction } from '@iota/iota-sdk/transactions';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import type {
-	SuiSignAndExecuteTransactionInput,
-	SuiSignAndExecuteTransactionOutput,
-} from '@mysten/wallet-standard';
-import { signTransaction } from '@mysten/wallet-standard';
+	IotaSignAndExecuteTransactionInput,
+	IotaSignAndExecuteTransactionOutput,
+} from '@iota/wallet-standard';
+import { signTransaction } from '@iota/wallet-standard';
 import type { UseMutationOptions, UseMutationResult } from '@tanstack/react-query';
 import { useMutation } from '@tanstack/react-query';
 
@@ -18,19 +19,19 @@ import {
 	WalletNotConnectedError,
 } from '../../errors/walletErrors.js';
 import type { PartialBy } from '../../types/utilityTypes.js';
-import { useSuiClient } from '../useSuiClient.js';
+import { useIotaClient } from '../useIotaClient.js';
 import { useCurrentAccount } from './useCurrentAccount.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useReportTransactionEffects } from './useReportTransactionEffects.js';
 
 type UseSignAndExecuteTransactionArgs = PartialBy<
-	Omit<SuiSignAndExecuteTransactionInput, 'transaction'>,
+	Omit<IotaSignAndExecuteTransactionInput, 'transaction'>,
 	'account' | 'chain'
 > & {
 	transaction: Transaction | string;
 };
 
-type UseSignAndExecuteTransactionResult = SuiSignAndExecuteTransactionOutput;
+type UseSignAndExecuteTransactionResult = IotaSignAndExecuteTransactionOutput;
 
 type UseSignAndExecuteTransactionError =
 	| WalletFeatureNotSupportedError
@@ -77,7 +78,7 @@ export function useSignAndExecuteTransaction<
 > {
 	const { currentWallet, supportedIntents } = useCurrentWallet();
 	const currentAccount = useCurrentAccount();
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const { mutate: reportTransactionEffects } = useReportTransactionEffects();
 
 	const executeTransaction: ({
@@ -122,8 +123,8 @@ export function useSignAndExecuteTransaction<
 			const chain = signTransactionArgs.chain ?? signerAccount?.chains[0];
 
 			if (
-				!currentWallet.features['sui:signTransaction'] &&
-				!currentWallet.features['sui:signTransactionBlock']
+				!currentWallet.features['iota:signTransaction'] &&
+				!currentWallet.features['iota:signTransactionBlock']
 			) {
 				throw new WalletFeatureNotSupportedError(
 					"This wallet doesn't support the `signTransaction` feature.",

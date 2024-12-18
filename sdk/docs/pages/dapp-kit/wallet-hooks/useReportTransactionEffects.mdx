@@ -12,15 +12,15 @@ import {
 	ConnectButton,
 	useCurrentAccount,
 	useReportTransactionEffects,
-	useSuiClient,
-} from '@mysten/dapp-kit';
-import { toBase64 } from '@mysten/sui/utils';
+	useIotaClient,
+} from '@iota/dapp-kit';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { useState } from 'react';
 
 function MyComponent() {
 	const { mutateAsync: reportTransactionEffects } = useReportTransactionEffects();
 	const [signature, setSignature] = useState('');
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const currentAccount = useCurrentAccount();
 
 	return (

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import LoadingIndicator from '_components/loading/LoadingIndicator';
@@ -55,8 +56,8 @@ export const LargeButton = forwardRef(
 				{...otherProps}
 				className={clsx(
 					'group border border-solid border-transparent flex rounded-md items-center py-2 px-8 justify-between no-underline',
-					disabled ? 'bg-hero-darkest/5 pointer-events-none' : 'bg-white/80 hover:border-sui/10',
-					primary ? '!bg-sui-primaryBlue2023' : '',
+					disabled ? 'bg-hero-darkest/5 pointer-events-none' : 'bg-white/80 hover:border-iota/10',
+					primary ? '!bg-iota-primaryBlue2023' : '',
 					spacing === 'sm' && '!p-3',
 					className,
 				)}

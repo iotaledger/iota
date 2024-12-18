@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Exercise test functions that wrap and object and subsequently unwrap it
@@ -9,7 +10,7 @@
 //# publish
 
 module test::object_basics {
-    use sui::event;
+    use iota::event;
 
     public struct Object has key, store {
         id: UID,

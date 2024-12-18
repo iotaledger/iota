@@ -1,23 +1,24 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use sui_core::authority_client::AuthorityAPI;
-use sui_macros::*;
-use sui_test_transaction_builder::publish_package;
-use sui_types::base_types::{ObjectID, ObjectRef};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::{SuiError, UserInputError};
-use sui_types::object::Owner;
-use sui_types::transaction::{CallArg, ObjectArg, Transaction};
+use iota_core::authority_client::AuthorityAPI;
+use iota_macros::*;
+use iota_test_transaction_builder::publish_package;
+use iota_types::base_types::{ObjectID, ObjectRef};
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::error::{IotaError, UserInputError};
+use iota_types::object::Owner;
+use iota_types::transaction::{CallArg, ObjectArg, Transaction};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[sim_test]
 async fn receive_object_feature_deny() {
-    use sui_protocol_config::ProtocolConfig;
+    use iota_protocol_config::ProtocolConfig;
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_receive_object_for_testing(false);
@@ -46,7 +47,7 @@ async fn receive_object_feature_deny() {
 
     assert!(matches!(
         err,
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::Unsupported(..)
         }
     ));

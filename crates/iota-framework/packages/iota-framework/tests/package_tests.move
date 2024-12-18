@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::package_tests {
-    use sui::package::{Self, UpgradeCap, UpgradeTicket};
-    use sui::test_utils;
-    use sui::test_scenario::{Self, Scenario};
+module iota::package_tests {
+    use iota::package::{Self, UpgradeCap, UpgradeTicket};
+    use iota::test_utils;
+    use iota::test_scenario::{Self, Scenario};
 
     /// OTW for the package_tests module -- it can't actually be a OTW
     /// (name matching module name) because we need to be able to
@@ -80,7 +81,7 @@ module sui::package_tests {
 
         while (!policies.is_empty()) {
             let policy = policies.pop_back();
-            let ticket = check_ticket(&mut cap, policy, sui::hash::blake2b256(&vector[policy]));
+            let ticket = check_ticket(&mut cap, policy, iota::hash::blake2b256(&vector[policy]));
             let receipt = ticket.test_upgrade();
             cap.commit_upgrade(receipt);
         };
@@ -99,7 +100,7 @@ module sui::package_tests {
         let version = cap.version();
         let ticket = cap.authorize_upgrade(
             package::dep_only_policy(),
-            sui::hash::blake2b256(&b"package contents"),
+            iota::hash::blake2b256(&b"package contents"),
         );
 
         test_utils::assert_eq(ticket.ticket_policy(), package::dep_only_policy());
@@ -112,7 +113,7 @@ module sui::package_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::package::ETooPermissive)]
+    #[expected_failure(abort_code = iota::package::ETooPermissive)]
     fun test_failure_to_widen_upgrade_policy() {
         let mut scenario = test_scenario::begin(@0x1);
         let mut cap = package::test_publish(@0x42.to_id(), scenario.ctx());
@@ -125,7 +126,7 @@ module sui::package_tests {
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::package::ETooPermissive)]
+    #[expected_failure(abort_code = iota::package::ETooPermissive)]
     fun test_failure_to_authorize_overly_permissive_upgrade() {
         let mut scenario = test_scenario::begin(@0x1);
         let mut cap = package::test_publish(@0x42.to_id(), scenario.ctx());
@@ -133,35 +134,35 @@ module sui::package_tests {
 
         let _ticket = cap.authorize_upgrade(
             package::compatible_policy(),
-            sui::hash::blake2b256(&b"package contents"),
+            iota::hash::blake2b256(&b"package contents"),
         );
 
         abort 0
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::package::EAlreadyAuthorized)]
+    #[expected_failure(abort_code = iota::package::EAlreadyAuthorized)]
     fun test_failure_to_authorize_multiple_upgrades() {
         let mut scenario = test_scenario::begin(@0x1);
         let mut cap = package::test_publish(@0x42.to_id(), scenario.ctx());
 
         let _ticket0 = cap.authorize_upgrade(
             package::compatible_policy(),
-            sui::hash::blake2b256(&b"package contents 0"),
+            iota::hash::blake2b256(&b"package contents 0"),
         );
 
         // It's an error to try and issue more than one simultaneous
         // upgrade ticket -- this should abort.
         let _ticket1 = cap.authorize_upgrade(
             package::compatible_policy(),
-            sui::hash::blake2b256(&b"package contents 1"),
+            iota::hash::blake2b256(&b"package contents 1"),
         );
 
         abort 0
     }
 
     #[test]
-    #[expected_failure(abort_code = sui::package::EWrongUpgradeCap)]
+    #[expected_failure(abort_code = iota::package::EWrongUpgradeCap)]
     fun test_failure_to_commit_upgrade_to_wrong_cap() {
         let mut scenario = test_scenario::begin(@0x1);
         let mut cap0 = package::test_publish(@0x42.to_id(), scenario.ctx());
@@ -169,7 +170,7 @@ module sui::package_tests {
 
         let ticket1 = cap1.authorize_upgrade(
             package::dep_only_policy(),
-            sui::hash::blake2b256(&b"package contents 1"),
+            iota::hash::blake2b256(&b"package contents 1"),
         );
 
         test_utils::assert_eq(ticket1.ticket_policy(), package::dep_only_policy());

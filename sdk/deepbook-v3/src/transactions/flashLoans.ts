@@ -1,6 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import type { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions';
+import type { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 
 import type { DeepBookConfig } from '../utils/config.js';
 

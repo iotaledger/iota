@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ErrorBoundary } from '_components/error-boundary';
@@ -6,15 +7,15 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { useBuyNLargeAssets } from '_src/ui/app/components/buynlarge/useBuyNLargeAssets';
 import { NFTDisplayCard } from '_src/ui/app/components/nft-display';
 import { Button } from '_src/ui/app/shared/ButtonUI';
-import { getKioskIdFromOwnerCap, isKioskOwnerToken } from '@mysten/core';
-import { useKioskClient } from '@mysten/core/src/hooks/useKioskClient';
-import { EyeClose16 } from '@mysten/icons';
-import { type SuiObjectData } from '@mysten/sui/client';
+import { getKioskIdFromOwnerCap, isKioskOwnerToken } from '@iota/core';
+import { useKioskClient } from '@iota/core/src/hooks/useKioskClient';
+import { EyeClose16 } from '@iota/icons';
+import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
 
 import { useHiddenAssets } from '../hidden-assets/HiddenAssetsProvider';
 
-export default function VisualAssets({ items }: { items: SuiObjectData[] }) {
+export default function VisualAssets({ items }: { items: IotaObjectData[] }) {
 	const { hideAsset } = useHiddenAssets();
 	const kioskClient = useKioskClient();
 	const bnl = useBuyNLargeAssets();

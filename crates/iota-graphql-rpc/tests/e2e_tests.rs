@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::{Base64, Encoding};
@@ -8,20 +9,20 @@ use serde_json::json;
 use simulacrum::Simulacrum;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_graphql_rpc::client::simple_client::GraphqlQueryVariable;
-use sui_graphql_rpc::client::ClientError;
-use sui_graphql_rpc::config::Limits;
-use sui_graphql_rpc::config::ServiceConfig;
-use sui_graphql_rpc::test_infra::cluster::prep_executor_cluster;
-use sui_graphql_rpc::test_infra::cluster::start_cluster;
-use sui_types::digests::ChainIdentifier;
-use sui_types::gas_coin::GAS;
-use sui_types::transaction::CallArg;
-use sui_types::transaction::ObjectArg;
-use sui_types::transaction::TransactionDataAPI;
-use sui_types::DEEPBOOK_ADDRESS;
-use sui_types::SUI_FRAMEWORK_ADDRESS;
-use sui_types::SUI_FRAMEWORK_PACKAGE_ID;
+use iota_graphql_rpc::client::simple_client::GraphqlQueryVariable;
+use iota_graphql_rpc::client::ClientError;
+use iota_graphql_rpc::config::Limits;
+use iota_graphql_rpc::config::ServiceConfig;
+use iota_graphql_rpc::test_infra::cluster::prep_executor_cluster;
+use iota_graphql_rpc::test_infra::cluster::start_cluster;
+use iota_types::digests::ChainIdentifier;
+use iota_types::gas_coin::GAS;
+use iota_types::transaction::CallArg;
+use iota_types::transaction::ObjectArg;
+use iota_types::transaction::TransactionDataAPI;
+use iota_types::DEEPBOOK_ADDRESS;
+use iota_types::IOTA_FRAMEWORK_ADDRESS;
+use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
 use tempfile::tempdir;
 use tokio::time::sleep;
 
@@ -49,7 +50,7 @@ async fn test_simple_client_validator_cluster() {
         .network
         .validator_fullnode_handle
         .fullnode_handle
-        .sui_client
+        .iota_client
         .read_api()
         .get_chain_identifier()
         .await
@@ -83,7 +84,7 @@ async fn test_simple_client_simulator_cluster() {
         "{{\"data\":{{\"chainIdentifier\":\"{}\"}}}}",
         chain_id_actual
     );
-    let cluster = sui_graphql_rpc::test_infra::cluster::serve_executor(
+    let cluster = iota_graphql_rpc::test_infra::cluster::serve_executor(
         Arc::new(sim),
         None,
         None,
@@ -145,12 +146,12 @@ async fn test_graphql_client_variables() {
     let variables = vec![
         GraphqlQueryVariable {
             name: "framework_addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0x2"),
         },
         GraphqlQueryVariable {
             name: "deepbook_addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0xdee9"),
         },
     ];
@@ -170,7 +171,7 @@ async fn test_graphql_client_variables() {
             .unwrap()
             .as_str()
             .unwrap(),
-        SUI_FRAMEWORK_ADDRESS.to_canonical_string(true)
+        IOTA_FRAMEWORK_ADDRESS.to_canonical_string(true)
     );
     assert_eq!(
         data.get("obj2")
@@ -185,17 +186,17 @@ async fn test_graphql_client_variables() {
     let bad_variables = vec![
         GraphqlQueryVariable {
             name: "framework_addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0x2"),
         },
         GraphqlQueryVariable {
             name: "deepbook_addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0xdee9"),
         },
         GraphqlQueryVariable {
             name: "deepbook_addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0xdee96666666"),
         },
     ];
@@ -209,17 +210,17 @@ async fn test_graphql_client_variables() {
     let bad_variables = vec![
         GraphqlQueryVariable {
             name: "framework_addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0x2"),
         },
         GraphqlQueryVariable {
             name: "deepbook_addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0xdee9"),
         },
         GraphqlQueryVariable {
             name: "deepbook_addr".to_string(),
-            ty: "SuiAddressP!".to_string(),
+            ty: "IotaAddressP!".to_string(),
             value: json!("0xdee9"),
         },
     ];
@@ -233,27 +234,27 @@ async fn test_graphql_client_variables() {
     let bad_variables = vec![
         GraphqlQueryVariable {
             name: "framework addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0x2"),
         },
         GraphqlQueryVariable {
             name: " deepbook_addr".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0xdee9"),
         },
         GraphqlQueryVariable {
             name: "4deepbook_addr".to_string(),
-            ty: "SuiAddressP!".to_string(),
+            ty: "IotaAddressP!".to_string(),
             value: json!("0xdee9"),
         },
         GraphqlQueryVariable {
             name: "".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0xdee9"),
         },
         GraphqlQueryVariable {
             name: " ".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!("0xdee9"),
         },
     ];
@@ -292,7 +293,7 @@ async fn test_transaction_execution() {
         .validator_fullnode_handle
         .test_transaction_builder()
         .await
-        .transfer_sui(Some(1_000), recipient)
+        .transfer_iota(Some(1_000), recipient)
         .build();
     let signed_tx = cluster
         .network
@@ -379,12 +380,12 @@ async fn test_transaction_execution() {
 async fn test_zklogin_sig_verify() {
     use shared_crypto::intent::Intent;
     use shared_crypto::intent::IntentMessage;
-    use sui_test_transaction_builder::TestTransactionBuilder;
-    use sui_types::base_types::SuiAddress;
-    use sui_types::crypto::Signature;
-    use sui_types::signature::GenericSignature;
-    use sui_types::utils::load_test_vectors;
-    use sui_types::zk_login_authenticator::ZkLoginAuthenticator;
+    use iota_test_transaction_builder::TestTransactionBuilder;
+    use iota_types::base_types::IotaAddress;
+    use iota_types::crypto::Signature;
+    use iota_types::signature::GenericSignature;
+    use iota_types::utils::load_test_vectors;
+    use iota_types::zk_login_authenticator::ZkLoginAuthenticator;
 
     telemetry_subscribers::init_for_testing();
 
@@ -396,7 +397,7 @@ async fn test_zklogin_sig_verify() {
 
     // Construct a valid zkLogin transaction data, signature.
     let (kp, pk_zklogin, inputs) =
-        &load_test_vectors("../sui-types/src/unit_tests/zklogin_test_vectors.json")[1];
+        &load_test_vectors("../iota-types/src/unit_tests/zklogin_test_vectors.json")[1];
 
     let zklogin_addr = (pk_zklogin).into();
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -404,9 +405,9 @@ async fn test_zklogin_sig_verify() {
         .fund_address_and_return_gas(rgp, Some(20000000000), zklogin_addr)
         .await;
     let tx_data = TestTransactionBuilder::new(zklogin_addr, gas, rgp)
-        .transfer_sui(None, SuiAddress::ZERO)
+        .transfer_iota(None, IotaAddress::ZERO)
         .build();
-    let msg = IntentMessage::new(Intent::sui_transaction(), tx_data.clone());
+    let msg = IntentMessage::new(Intent::iota_transaction(), tx_data.clone());
     let eph_sig = Signature::new_secure(&msg, kp);
     let generic_sig = GenericSignature::ZkLoginAuthenticator(ZkLoginAuthenticator::new(
         inputs.clone(),
@@ -440,7 +441,7 @@ async fn test_zklogin_sig_verify() {
         },
         GraphqlQueryVariable {
             name: "author".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!(author),
         },
     ];
@@ -476,7 +477,7 @@ async fn test_zklogin_sig_verify() {
         },
         GraphqlQueryVariable {
             name: "author".to_string(),
-            ty: "SuiAddress!".to_string(),
+            ty: "IotaAddress!".to_string(),
             value: json!(author),
         },
     ];
@@ -511,7 +512,7 @@ async fn test_transaction_dry_run() {
         .validator_fullnode_handle
         .test_transaction_builder()
         .await
-        .transfer_sui(Some(1_000), recipient)
+        .transfer_iota(Some(1_000), recipient)
         .build();
     let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
 
@@ -603,7 +604,7 @@ async fn test_transaction_dry_run_with_kind() {
         .validator_fullnode_handle
         .test_transaction_builder()
         .await
-        .transfer_sui(Some(1_000), recipient)
+        .transfer_iota(Some(1_000), recipient)
         .build();
     let tx_kind_bytes = Base64::encode(bcs::to_bytes(&tx.into_kind()).unwrap());
 
@@ -684,7 +685,7 @@ async fn test_dry_run_failed_execution() {
         .await
         // A split coin that goes nowhere -> execution failure
         .move_call(
-            SUI_FRAMEWORK_PACKAGE_ID,
+            IOTA_FRAMEWORK_PACKAGE_ID,
             "coin",
             "split",
             vec![
@@ -789,7 +790,7 @@ async fn test_epoch_live_object_set_digest() {
 #[tokio::test]
 async fn test_payload_using_vars_mutation_passes() {
     telemetry_subscribers::init_for_testing();
-    let cluster = sui_graphql_rpc::test_infra::cluster::start_cluster(ServiceConfig {
+    let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(ServiceConfig {
         limits: Limits {
             max_query_payload_size: 5000,
             max_tx_payload_size: 6000,
@@ -810,7 +811,7 @@ async fn test_payload_using_vars_mutation_passes() {
         .validator_fullnode_handle
         .test_transaction_builder()
         .await
-        .transfer_sui(Some(1_000), recipient)
+        .transfer_iota(Some(1_000), recipient)
         .build();
     let signed_tx = cluster
         .network

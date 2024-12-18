@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useState } from 'react';
@@ -12,8 +13,8 @@ export function ExplorerLink(opts: LinkOptions) {
 	const [copied, setCopied] = useState<boolean>(false);
 	const link =
 		'address' in opts
-			? `https://suiexplorer.com/address/${opts.address}?network=testnet`
-			: `https://suiexplorer.com/object/${opts.object}?network=testnet`;
+			? `https://explorer.iota.org/address/${opts.address}?network=testnet`
+			: `https://explorer.iota.org/object/${opts.object}?network=testnet`;
 
 	const copyToClipboard = async () => {
 		await navigator.clipboard.writeText('address' in opts ? opts.address : opts.object);

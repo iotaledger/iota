@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useTransactionData } from '_src/ui/app/hooks';
 import { Tab as HeadlessTab, type TabProps } from '@headlessui/react';
-import { type Transaction } from '@mysten/sui/transactions';
+import { type Transaction } from '@iota/iota-sdk/transactions';
 
 import { SummaryCard } from '../SummaryCard';
 import { Command } from './Command';

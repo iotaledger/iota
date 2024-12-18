@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::big_int::BigInt;
 use async_graphql::*;
 
-/// SUI set aside to account for objects stored on-chain.
+/// IOTA set aside to account for objects stored on-chain.
 #[derive(Clone, Debug, PartialEq, Eq, SimpleObject)]
 pub(crate) struct StorageFund {
     /// Sum of storage rebates of live objects on chain.

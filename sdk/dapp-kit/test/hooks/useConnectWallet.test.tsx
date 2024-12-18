@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { act, renderHook, waitFor } from '@testing-library/react';
@@ -72,7 +73,7 @@ describe('useConnectWallet', () => {
 		});
 	});
 
-	test('only Sui accounts from multi-chain wallets are connected', async () => {
+	test('only Iota accounts from multi-chain wallets are connected', async () => {
 		const { unregister, mockWallet } = registerMockWallet({
 			walletName: 'Mock Wallet 1',
 			accounts: [createMockAccount(), createMockAccount({ chains: ['solana:mainnet'] })],

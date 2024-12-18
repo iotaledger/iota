@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{file_format::SignatureToken, CompiledModule};
@@ -8,25 +9,25 @@ use move_core_types::{account_address::AccountAddress, ident_str, identifier::Id
 use crate::base_types::SequenceNumber;
 
 use crate::{
-    error::SuiResult, object::Owner, storage::ObjectStore, SUI_FRAMEWORK_ADDRESS,
-    SUI_RANDOMNESS_STATE_OBJECT_ID,
+    error::IotaResult, object::Owner, storage::ObjectStore, IOTA_FRAMEWORK_ADDRESS,
+    IOTA_RANDOMNESS_STATE_OBJECT_ID,
 };
 
 pub const RANDOMNESS_MODULE_NAME: &IdentStr = ident_str!("random");
 pub const RANDOMNESS_STATE_STRUCT_NAME: &IdentStr = ident_str!("Random");
 pub const RANDOMNESS_STATE_UPDATE_FUNCTION_NAME: &IdentStr = ident_str!("update_randomness_state");
 pub const RANDOMNESS_STATE_CREATE_FUNCTION_NAME: &IdentStr = ident_str!("create");
-pub const RESOLVED_SUI_RANDOMNESS_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &SUI_FRAMEWORK_ADDRESS,
+pub const RESOLVED_IOTA_RANDOMNESS_STATE: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &IOTA_FRAMEWORK_ADDRESS,
     RANDOMNESS_MODULE_NAME,
     RANDOMNESS_STATE_STRUCT_NAME,
 );
 
 pub fn get_randomness_state_obj_initial_shared_version(
     object_store: &dyn ObjectStore,
-) -> SuiResult<Option<SequenceNumber>> {
+) -> IotaResult<Option<SequenceNumber>> {
     Ok(object_store
-        .get_object(&SUI_RANDOMNESS_STATE_OBJECT_ID)
+        .get_object(&IOTA_RANDOMNESS_STATE_OBJECT_ID)
         .map(|obj| match obj.owner {
             Owner::Shared {
                 initial_shared_version,
@@ -39,7 +40,7 @@ pub fn is_mutable_random(view: &CompiledModule, s: &SignatureToken) -> bool {
     match s {
         SignatureToken::MutableReference(inner) => is_mutable_random(view, inner),
         SignatureToken::Datatype(idx) => {
-            resolve_struct(view, *idx) == RESOLVED_SUI_RANDOMNESS_STATE
+            resolve_struct(view, *idx) == RESOLVED_IOTA_RANDOMNESS_STATE
         }
         _ => false,
     }

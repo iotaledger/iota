@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ImageIcon } from '_app/shared/image-icon';
@@ -29,7 +30,7 @@ function CardView({ name, link, icon }: CardViewProp) {
 	const appUrl = getDAppUrl(link);
 	const originLabel = appUrl.hostname;
 	return (
-		<div className="bg-white flex flex-col p-3.75 box-border w-full rounded-2xl border border-gray-45 border-solid h-32 hover:bg-sui/10 hover:border-sui/30">
+		<div className="bg-white flex flex-col p-3.75 box-border w-full rounded-2xl border border-gray-45 border-solid h-32 hover:bg-iota/10 hover:border-iota/30">
 			<div className="flex mb-1">
 				<ImageIcon src={icon || null} label={name} fallback={name} size="lg" rounded="lg" />
 			</div>
@@ -57,10 +58,10 @@ type ListViewProp = {
 
 function ListView({ name, icon, description, tags }: ListViewProp) {
 	return (
-		<div className="bg-white flex py-3.5 px-1.25 gap-3 item-center box-border rounded hover:bg-sui/10">
+		<div className="bg-white flex py-3.5 px-1.25 gap-3 item-center box-border rounded hover:bg-iota/10">
 			<ImageIcon src={icon || null} label={name} fallback={name} size="xxl" rounded="lg" />
 			<div className="flex flex-col gap-1 justify-center">
-				<Text variant="body" weight="semibold" color="sui-dark">
+				<Text variant="body" weight="semibold" color="iota-dark">
 					{name}
 				</Text>
 				<Text variant="pSubtitle" weight="normal" color="steel-darker">
@@ -85,7 +86,7 @@ function ListView({ name, icon, description, tags }: ListViewProp) {
 	);
 }
 
-export interface SuiAppProps {
+export interface IotaAppProps {
 	name: string;
 	description: string;
 	link: string;
@@ -96,7 +97,7 @@ export interface SuiAppProps {
 	openAppSite?: boolean;
 }
 
-export function SuiApp({
+export function IotaApp({
 	name,
 	description,
 	link,
@@ -105,7 +106,7 @@ export function SuiApp({
 	permissionID,
 	displayType,
 	openAppSite,
-}: SuiAppProps) {
+}: IotaAppProps) {
 	const [showDisconnectApp, setShowDisconnectApp] = useState(false);
 	const appUrl = getDAppUrl(link);
 

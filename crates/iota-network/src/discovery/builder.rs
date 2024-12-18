@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::{
@@ -12,8 +13,8 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-use sui_config::p2p::P2pConfig;
-use sui_types::crypto::NetworkKeyPair;
+use iota_config::p2p::P2pConfig;
+use iota_types::crypto::NetworkKeyPair;
 use tap::Pipe;
 use tokio::{
     sync::{oneshot, watch},

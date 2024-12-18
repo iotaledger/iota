@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
@@ -11,7 +12,7 @@ use crate::signature_verification::VerifiedDigestCache;
 use crate::utils::{get_zklogin_user_address, make_zklogin_tx, sign_zklogin_personal_msg};
 use crate::utils::{load_test_vectors, SHORT_ADDRESS_SEED};
 use crate::{
-    base_types::SuiAddress, signature::GenericSignature, zk_login_util::DEFAULT_JWK_BYTES,
+    base_types::IotaAddress, signature::GenericSignature, zk_login_util::DEFAULT_JWK_BYTES,
 };
 use fastcrypto::encoding::Base64;
 use fastcrypto::traits::ToFromBytes;
@@ -32,7 +33,7 @@ fn test_serde_zk_login_signature() {
     let deserialized = GenericSignature::from_bytes(serialized).unwrap();
     assert_eq!(deserialized, authenticator);
 
-    let addr: SuiAddress = (&authenticator).try_into().unwrap();
+    let addr: IotaAddress = (&authenticator).try_into().unwrap();
     assert_eq!(addr, user_address);
 }
 
@@ -61,8 +62,8 @@ fn test_serde_zk_public_identifier() {
     let deserialized: PublicKey = bcs::from_bytes(&serialized).unwrap();
     assert_eq!(deserialized, pk1);
     assert_eq!(
-        SuiAddress::try_from_unpadded(&modified_inputs).unwrap(),
-        SuiAddress::from(&pk1)
+        IotaAddress::try_from_unpadded(&modified_inputs).unwrap(),
+        IotaAddress::from(&pk1)
     );
 
     let pk2 = PublicKey::ZkLogin(
@@ -80,8 +81,8 @@ fn test_serde_zk_public_identifier() {
     let deserialized2: PublicKey = bcs::from_bytes(&serialized2).unwrap();
     assert_eq!(deserialized2, pk2);
     assert_eq!(
-        SuiAddress::try_from_padded(&modified_inputs).unwrap(),
-        SuiAddress::from(&pk2)
+        IotaAddress::try_from_padded(&modified_inputs).unwrap(),
+        IotaAddress::from(&pk2)
     );
 
     assert_eq!(serialized.len() + 1, serialized2.len());

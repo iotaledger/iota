@@ -5,7 +5,7 @@
 // Covers `enum_definition` node in grammar
 module tests::enum;
 
-use sui::vec_map::VecMap;
+use iota::vec_map::VecMap;
 
 // empty enum example.
 // gets fomatted but

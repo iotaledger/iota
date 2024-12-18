@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, Context, Result};
@@ -12,11 +13,11 @@ pub(crate) struct Client {
 }
 
 impl Client {
-    /// Create a new GraphQL client, talking to a Sui GraphQL service at `url`.
+    /// Create a new GraphQL client, talking to a Iota GraphQL service at `url`.
     pub(crate) fn new(url: impl IntoUrl) -> Result<Self> {
         Ok(Self {
             inner: reqwest::Client::builder()
-                .user_agent(concat!("sui-package-dump/", env!("CARGO_PKG_VERSION")))
+                .user_agent(concat!("iota-package-dump/", env!("CARGO_PKG_VERSION")))
                 .build()
                 .context("Failed to create GraphQL client")?,
             url: url.into_url().context("Invalid RPC URL")?,

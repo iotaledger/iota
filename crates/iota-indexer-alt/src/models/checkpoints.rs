@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, Result};
 use diesel::prelude::*;
-use sui_field_count::FieldCount;
-use sui_protocol_config::{Chain, ProtocolVersion};
-use sui_types::digests::{ChainIdentifier, CheckpointDigest};
+use iota_field_count::FieldCount;
+use iota_protocol_config::{Chain, ProtocolVersion};
+use iota_types::digests::{ChainIdentifier, CheckpointDigest};
 
 use crate::schema::{kv_checkpoints, kv_genesis};
 

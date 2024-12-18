@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(implicit_const_copy)]
 #[test_only]
-module sui::bls12381_tests {
-    use sui::bls12381;
-    use sui::group_ops;
-    use sui::random;
-    use sui::test_utils::assert_eq;
+module iota::bls12381_tests {
+    use iota::bls12381;
+    use iota::group_ops;
+    use iota::random;
+    use iota::test_utils::assert_eq;
     use std::hash::sha2_256;
 
     const ORDER_BYTES: vector<u8> = x"73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001";

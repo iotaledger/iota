@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui_system::voting_power_tests {
-    use sui_system::governance_test_utils as gtu;
-    use sui_system::voting_power;
-    use sui::test_scenario;
-    use sui::test_utils;
-    use sui_system::validator::{Self, Validator};
+module iota_system::voting_power_tests {
+    use iota_system::governance_test_utils as gtu;
+    use iota_system::voting_power;
+    use iota::test_scenario;
+    use iota::test_utils;
+    use iota_system::validator::{Self, Validator};
 
     const TOTAL_VOTING_POWER: u64 = 10_000;
 

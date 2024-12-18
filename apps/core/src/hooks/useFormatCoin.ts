@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useFeatureValue } from '@growthbook/growthbook-react';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { CoinMetadata } from '@mysten/sui/client';
-import { SUI_TYPE_ARG } from '@mysten/sui/utils';
+import { useIotaClient } from '@iota/dapp-kit';
+import { CoinMetadata } from '@iota/iota-sdk/client';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
@@ -54,7 +55,7 @@ type CoinMetadataOverrides = {
 };
 
 export function useCoinMetadata(coinType?: string | null) {
-	const client = useSuiClient();
+	const client = useIotaClient();
 	const tokenMetadataOverrides = useFeatureValue<CoinMetadataOverrides>(
 		'token-metadata-overrides',
 		{},
@@ -67,15 +68,15 @@ export function useCoinMetadata(coinType?: string | null) {
 				throw new Error('Fetching coin metadata should be disabled when coin type is disabled.');
 			}
 
-			// Optimize the known case of SUI to avoid a network call:
-			if (coinType === SUI_TYPE_ARG) {
+			// Optimize the known case of IOTA to avoid a network call:
+			if (coinType === IOTA_TYPE_ARG) {
 				const metadata: CoinMetadata = {
 					id: null,
 					decimals: 9,
 					description: '',
 					iconUrl: null,
-					name: 'Sui',
-					symbol: 'SUI',
+					name: 'Iota',
+					symbol: 'IOTA',
 				};
 
 				return metadata;

@@ -1,6 +1,6 @@
-Sui indexer is an off-fullnode service to serve data from Sui protocol, including both data directly generated from chain and derivative data.
+Iota indexer is an off-fullnode service to serve data from Iota protocol, including both data directly generated from chain and derivative data.
 
-&#9888; **Warning:** Sui indexer is still experimental and we expect occasional breaking changes that require backfills.
+&#9888; **Warning:** Iota indexer is still experimental and we expect occasional breaking changes that require backfills.
 
 ## Architecture
 ![enhanced_FN](https://user-images.githubusercontent.com/106119108/221022505-a1d873c6-60e2-45f1-b2aa-e50192c4dfbb.png)
@@ -28,20 +28,20 @@ brew services start postgresql@version
 
 ### Local Development(Recommended)
 
-See the [docs](https://docs.sui.io/guides/developer/getting-started/local-network) for detailed information. Below is a quick start guide:
+See the [docs](https://docs.iota.org/guides/developer/getting-started/local-network) for detailed information. Below is a quick start guide:
 
-Start a local network using the `sui` binary:
+Start a local network using the `iota` binary:
 ```sh
-cargo run --bin sui -- start --with-faucet --force-regenesis
+cargo run --bin iota -- start --with-faucet --force-regenesis
 ```
 
 If you want to run a local network with the indexer enabled (note that `libpq` is required), you can run the following command after following the steps in the next section to set up an indexer DB:
 ```sh
-cargo run --bin sui -- start --with-faucet --force-regenesis --with-indexer --pg-port 5432 --pg-db-name sui_indexer_v2
+cargo run --bin iota -- start --with-faucet --force-regenesis --with-indexer --pg-port 5432 --pg-db-name iota_indexer_v2
 ```
 
 ### Running standalone indexer
-1. DB setup, under `sui/crates/sui-indexer` run:
+1. DB setup, under `iota/crates/iota-indexer` run:
 ```sh
 # an example DATABASE_URL is "postgres://postgres:postgres@localhost/exampledb"
 diesel setup --database-url="<DATABASE_URL>"
@@ -55,22 +55,22 @@ For example, if you want to be on the DevNet branch
 ```sh
 git fetch upstream devnet && git reset --hard upstream/devnet
 ```
-3. Start indexer binary, under `sui/crates/sui-indexer` run:
+3. Start indexer binary, under `iota/crates/iota-indexer` run:
 - run indexer as a writer, which pulls data from fullnode and writes data to DB
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
-cargo run --bin sui-indexer -- --db-url "<DATABASE_URL>" --rpc-client-url "https://fullnode.devnet.sui.io:443" --fullnode-sync-worker --reset-db
+cargo run --bin iota-indexer -- --db-url "<DATABASE_URL>" --rpc-client-url "https://fullnode.devnet.iota.io:443" --fullnode-sync-worker --reset-db
 ```
-- run indexer as a reader, which is a JSON RPC server with the [interface](https://docs.sui.io/sui-api-ref#suix_getallbalances)
+- run indexer as a reader, which is a JSON RPC server with the [interface](https://docs.iota.org/iota-api-ref#iotax_getallbalances)
 ```
-cargo run --bin sui-indexer -- --db-url "<DATABASE_URL>" --rpc-client-url "https://fullnode.devnet.sui.io:443" --rpc-server-worker
+cargo run --bin iota-indexer -- --db-url "<DATABASE_URL>" --rpc-client-url "https://fullnode.devnet.iota.io:443" --rpc-server-worker
 ```
 More flags info can be found in this [file](src/main.rs#L41).
 
 ### DB reset
 When making db-related changes, you may find yourself having to run migrations and reset dbs often. The commands below are how you can invoke these actions.
 ```sh
-cargo run --bin sui-indexer -- --database-url "<DATABASE_URL>" reset-database --force
+cargo run --bin iota-indexer -- --database-url "<DATABASE_URL>" reset-database --force
 ```
 
 ## Steps to run locally (TiDB)
@@ -110,7 +110,7 @@ mysql --comments --host 127.0.0.1 --port 4000 -u root
 create database test;
 ```
 
-3.DB setup, under `sui/crates/sui-indexer` run:
+3.DB setup, under `iota/crates/iota-indexer` run:
 
 ```sh
 # an example DATABASE_URL is "mysql://root:password@127.0.0.1:4000/test"
@@ -123,7 +123,7 @@ Note that you need an existing database for this to work. Using the DATABASE_URL
 
 ```sh
 # Change the RPC_CLIENT_URL to http://0.0.0.0:9000 to run indexer against local validator & fullnode
-cargo run --bin sui-indexer --features mysql-feature --no-default-features -- --db-url "<DATABASE_URL>" --rpc-client-url "https://fullnode.devnet.sui.io:443" --fullnode-sync-worker --reset-db
+cargo run --bin iota-indexer --features mysql-feature --no-default-features -- --db-url "<DATABASE_URL>" --rpc-client-url "https://fullnode.devnet.iota.io:443" --fullnode-sync-worker --reset-db
 ```
 
 ### Extending the indexer

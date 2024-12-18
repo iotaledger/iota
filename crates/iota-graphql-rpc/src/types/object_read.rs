@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use sui_types::base_types::ObjectRef as NativeObjectRef;
+use iota_types::base_types::ObjectRef as NativeObjectRef;
 
-use super::{object::Object, sui_address::SuiAddress, uint53::UInt53};
+use super::{object::Object, iota_address::IotaAddress, uint53::UInt53};
 
 // A helper type representing the read of a specific version of an object. Intended to be
 // "flattened" into other GraphQL types.
@@ -18,7 +19,7 @@ pub(crate) struct ObjectRead {
 #[Object]
 impl ObjectRead {
     /// ID of the object being read.
-    async fn address(&self) -> SuiAddress {
+    async fn address(&self) -> IotaAddress {
         self.address_impl()
     }
 
@@ -46,8 +47,8 @@ impl ObjectRead {
 }
 
 impl ObjectRead {
-    fn address_impl(&self) -> SuiAddress {
-        SuiAddress::from(self.native.0)
+    fn address_impl(&self) -> IotaAddress {
+        IotaAddress::from(self.native.0)
     }
 
     fn version_impl(&self) -> u64 {

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::future::BoxFuture;
@@ -6,7 +7,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 
-pub use sui_proc_macros::*;
+pub use iota_proc_macros::*;
 
 /// Evaluates an expression in a new thread which will not be subject to interception of
 /// getrandom(), clock_gettime(), etc.
@@ -170,7 +171,7 @@ pub fn register_fail_point_async<F>(
 ///
 /// ```ignore
 ///     register_fail_point_if("foo", || {
-///         sui_simulator::current_simnode_id() == 2
+///         iota_simulator::current_simnode_id() == 2
 ///     });
 /// ```
 ///

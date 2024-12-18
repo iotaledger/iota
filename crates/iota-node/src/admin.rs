@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::SuiNode;
+use crate::IotaNode;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -16,10 +17,10 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     str::FromStr,
 };
-use sui_types::{
+use iota_types::{
     base_types::AuthorityName,
     crypto::{RandomnessPartialSignature, RandomnessRound, RandomnessSignature},
-    error::SuiError,
+    error::IotaError,
 };
 use telemetry_subscribers::TracingHandle;
 use tokio::sync::oneshot;
@@ -82,11 +83,11 @@ const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-s
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
 
 struct AppState {
-    node: Arc<SuiNode>,
+    node: Arc<IotaNode>,
     tracing_handle: TracingHandle,
 }
 
-pub async fn run_admin_server(node: Arc<SuiNode>, port: u16, tracing_handle: TracingHandle) {
+pub async fn run_admin_server(node: Arc<IotaNode>, port: u16, tracing_handle: TracingHandle) {
     let filter = tracing_handle.get_log().unwrap();
 
     let app_state = AppState {
@@ -317,7 +318,7 @@ async fn force_close_epoch(
     let epoch_store = state.node.state().load_epoch_store_one_call_per_task();
     let actual_epoch = epoch_store.epoch();
     if actual_epoch != expected_epoch {
-        let err = SuiError::WrongEpoch {
+        let err = IotaError::WrongEpoch {
             expected_epoch,
             actual_epoch,
         };

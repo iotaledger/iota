@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
@@ -6,19 +7,19 @@ use camino::Utf8PathBuf;
 use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use std::path::PathBuf;
-use sui_config::{genesis::UnsignedGenesis, SUI_GENESIS_FILENAME};
-use sui_genesis_builder::Builder;
-use sui_types::multiaddr::Multiaddr;
-use sui_types::{
-    base_types::SuiAddress,
+use iota_config::{genesis::UnsignedGenesis, IOTA_GENESIS_FILENAME};
+use iota_genesis_builder::Builder;
+use iota_types::multiaddr::Multiaddr;
+use iota_types::{
+    base_types::IotaAddress,
     committee::ProtocolVersion,
     crypto::{
-        generate_proof_of_possession, AuthorityKeyPair, KeypairTraits, NetworkKeyPair, SuiKeyPair,
+        generate_proof_of_possession, AuthorityKeyPair, KeypairTraits, NetworkKeyPair, IotaKeyPair,
     },
     message_envelope::Message,
 };
 
-use sui_keys::keypair_file::{
+use iota_keys::keypair_file::{
     read_authority_keypair_from_file, read_keypair_from_file, read_network_keypair_from_file,
 };
 
@@ -129,19 +130,19 @@ pub fn run(cmd: Ceremony) -> Result<()> {
         } => {
             let mut builder = Builder::load(&dir)?;
             let keypair: AuthorityKeyPair = read_authority_keypair_from_file(validator_key_file)?;
-            let account_keypair: SuiKeyPair = read_keypair_from_file(account_key_file)?;
+            let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file)?;
             let worker_keypair: NetworkKeyPair = read_network_keypair_from_file(worker_key_file)?;
             let network_keypair: NetworkKeyPair = read_network_keypair_from_file(network_key_file)?;
             let pop = generate_proof_of_possession(&keypair, (&account_keypair.public()).into());
             builder = builder.add_validator(
-                sui_genesis_builder::validator_info::ValidatorInfo {
+                iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
                     protocol_key: keypair.public().into(),
                     worker_key: worker_keypair.public().clone(),
-                    account_address: SuiAddress::from(&account_keypair.public()),
+                    account_address: IotaAddress::from(&account_keypair.public()),
                     network_key: network_keypair.public().clone(),
-                    gas_price: sui_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
-                    commission_rate: sui_config::node::DEFAULT_COMMISSION_RATE,
+                    gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
+                    commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address,
                     p2p_address,
                     narwhal_primary_address,
@@ -233,11 +234,11 @@ pub fn run(cmd: Ceremony) -> Result<()> {
 
             let genesis = builder.build();
 
-            genesis.save(dir.join(SUI_GENESIS_FILENAME))?;
+            genesis.save(dir.join(IOTA_GENESIS_FILENAME))?;
 
-            println!("Successfully built {SUI_GENESIS_FILENAME}");
+            println!("Successfully built {IOTA_GENESIS_FILENAME}");
             println!(
-                "{SUI_GENESIS_FILENAME} blake2b-256: {}",
+                "{IOTA_GENESIS_FILENAME} blake2b-256: {}",
                 Hex::encode(genesis.hash())
             );
         }
@@ -249,7 +250,7 @@ pub fn run(cmd: Ceremony) -> Result<()> {
 fn check_protocol_version(builder: &Builder, protocol_version: ProtocolVersion) -> Result<()> {
     // It is entirely possible for the user to sign a genesis blob with an unknown
     // protocol version, but if this happens there is almost certainly some confusion
-    // (e.g. using a `sui` binary built at the wrong commit).
+    // (e.g. using a `iota` binary built at the wrong commit).
     if builder.protocol_version() != protocol_version {
         return Err(anyhow::anyhow!(
                         "Serialized protocol version does not match local --protocol-version argument. ({:?} vs {:?})",
@@ -262,11 +263,11 @@ fn check_protocol_version(builder: &Builder, protocol_version: ProtocolVersion) 
 mod test {
     use super::*;
     use anyhow::Result;
-    use sui_config::local_ip_utils;
-    use sui_genesis_builder::validator_info::ValidatorInfo;
-    use sui_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use sui_macros::nondeterministic;
-    use sui_types::crypto::{get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, SuiKeyPair};
+    use iota_config::local_ip_utils;
+    use iota_genesis_builder::validator_info::ValidatorInfo;
+    use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
+    use iota_macros::nondeterministic;
+    use iota_types::crypto::{get_key_pair_from_rng, AccountKeyPair, AuthorityKeyPair, IotaKeyPair};
 
     #[test]
     #[cfg_attr(msim, ignore)]
@@ -286,10 +287,10 @@ mod test {
                     name: format!("validator-{i}"),
                     protocol_key: keypair.public().into(),
                     worker_key: worker_keypair.public().clone(),
-                    account_address: SuiAddress::from(account_keypair.public()),
+                    account_address: IotaAddress::from(account_keypair.public()),
                     network_key: network_keypair.public().clone(),
-                    gas_price: sui_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
-                    commission_rate: sui_config::node::DEFAULT_COMMISSION_RATE,
+                    gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
+                    commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address: local_ip_utils::new_local_tcp_address_for_testing(),
                     p2p_address: local_ip_utils::new_local_udp_address_for_testing(),
                     narwhal_primary_address: local_ip_utils::new_local_udp_address_for_testing(),
@@ -302,15 +303,15 @@ mod test {
                 write_authority_keypair_to_file(&keypair, &key_file).unwrap();
 
                 let worker_key_file = dir.path().join(format!("{}.key", info.name));
-                write_keypair_to_file(&SuiKeyPair::Ed25519(worker_keypair), &worker_key_file)
+                write_keypair_to_file(&IotaKeyPair::Ed25519(worker_keypair), &worker_key_file)
                     .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
-                write_keypair_to_file(&SuiKeyPair::Ed25519(network_keypair), &network_key_file)
+                write_keypair_to_file(&IotaKeyPair::Ed25519(network_keypair), &network_key_file)
                     .unwrap();
 
                 let account_key_file = dir.path().join(format!("{}-2.key", info.name));
-                write_keypair_to_file(&SuiKeyPair::Ed25519(account_keypair), &account_key_file)
+                write_keypair_to_file(&IotaKeyPair::Ed25519(account_keypair), &account_key_file)
                     .unwrap();
 
                 (

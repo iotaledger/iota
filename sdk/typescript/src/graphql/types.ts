@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 export type MoveData =
@@ -82,5 +83,5 @@ export interface CustomScalars {
 	MoveTypeLayout: MoveTypeLayout;
 	MoveTypeSignature: MoveTypeSignature;
 	OpenMoveTypeSignature: OpenMoveTypeSignature;
-	SuiAddress: string;
+	IotaAddress: string;
 }

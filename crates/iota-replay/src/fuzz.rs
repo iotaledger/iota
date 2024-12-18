@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use sui_config::node::ExpensiveSafetyCheckConfig;
-use sui_types::{
+use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_types::{
     digests::TransactionDigest, execution_status::ExecutionFailureStatus,
     transaction::TransactionKind,
 };

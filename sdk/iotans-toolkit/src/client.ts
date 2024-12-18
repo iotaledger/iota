@@ -1,37 +1,38 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient } from '@mysten/sui/client';
+import type { IotaClient } from '@iota/iota-sdk/client';
 
-import type { DataFields, NameObject, NetworkType, SuiNSContract } from './types/objects.js';
+import type { DataFields, NameObject, NetworkType, IotaNSContract } from './types/objects.js';
 import { DEVNET_JSON_FILE, GCS_URL, TESTNET_JSON_FILE } from './utils/constants.js';
 import { camelCase, parseObjectDataResponse, parseRegistryResponse } from './utils/parser.js';
 import { getAvatar, getOwner } from './utils/queries.js';
 
 export const AVATAR_NOT_OWNED = 'AVATAR_NOT_OWNED';
 
-class SuinsClient {
-	private suiClient: SuiClient;
-	contractObjects: SuiNSContract | undefined;
+class IotaNSClient {
+	private iotaClient: IotaClient;
+	contractObjects: IotaNSContract | undefined;
 	networkType: NetworkType | undefined;
 
 	constructor(
-		suiClient: SuiClient,
+		iotaClient: IotaClient,
 		options?: {
-			contractObjects?: SuiNSContract;
+			contractObjects?: IotaNSContract;
 			networkType?: NetworkType;
 		},
 	) {
-		if (!suiClient) {
-			throw new Error('SuiClient must be specified.');
+		if (!iotaClient) {
+			throw new Error('IotaClient must be specified.');
 		}
-		this.suiClient = suiClient;
+		this.iotaClient = iotaClient;
 		this.contractObjects = options?.contractObjects;
 		this.networkType = options?.networkType;
 	}
 
-	async getSuinsContractObjects() {
-		if ((this.contractObjects as SuiNSContract)?.packageId) return;
+	async getIotaNSContractObjects() {
+		if ((this.contractObjects as IotaNSContract)?.packageId) return;
 
 		const contractJsonFileUrl =
 			GCS_URL + (this.networkType === 'testnet' ? TESTNET_JSON_FILE : DEVNET_JSON_FILE);
@@ -40,7 +41,7 @@ class SuinsClient {
 		try {
 			response = await fetch(contractJsonFileUrl);
 		} catch (error) {
-			throw new Error(`Error getting SuiNS contract objects, ${(error as Error).message}`);
+			throw new Error(`Error getting IotaNS contract objects, ${(error as Error).message}`);
 		}
 
 		if (!response?.ok) {
@@ -55,7 +56,7 @@ class SuinsClient {
 		key: unknown,
 		type = '0x1::string::String',
 	) {
-		const dynamicFieldObject = await this.suiClient.getDynamicFieldObject({
+		const dynamicFieldObject = await this.iotaClient.getDynamicFieldObject({
 			parentId: parentObjectId,
 			name: {
 				type: type,
@@ -71,7 +72,7 @@ class SuinsClient {
 	protected async getNameData(dataObjectId: string, fields: DataFields[] = []) {
 		if (!dataObjectId) return {};
 
-		const { data: dynamicFields } = await this.suiClient.getDynamicFields({
+		const { data: dynamicFields } = await this.iotaClient.getDynamicFields({
 			parentId: dataObjectId,
 		});
 
@@ -82,7 +83,7 @@ class SuinsClient {
 
 		const data = await Promise.allSettled(
 			filteredDynamicFields?.map(({ objectId }) =>
-				this.suiClient
+				this.iotaClient
 					.getObject({
 						id: objectId,
 						options: { showContent: true },
@@ -121,10 +122,10 @@ class SuinsClient {
 		},
 	): Promise<NameObject> {
 		const [, domain, topLevelDomain] = name.match(/^(.+)\.([^.]+)$/) || [];
-		await this.getSuinsContractObjects();
+		await this.getIotaNSContractObjects();
 
 		const registryResponse = await this.getDynamicFieldObject(
-			(this.contractObjects as SuiNSContract).registry,
+			(this.contractObjects as IotaNSContract).registry,
 			[topLevelDomain, domain],
 			`${this.contractObjects?.packageId}::domain::Domain`,
 		);
@@ -140,8 +141,8 @@ class SuinsClient {
 		// We use Promise.all to do these calls at the same time.
 		if (nameObject.nftId && (includeAvatar || options?.showOwner)) {
 			const [owner, avatarNft] = await Promise.all([
-				getOwner(this.suiClient, nameObject.nftId),
-				includeAvatar ? getAvatar(this.suiClient, nameObject.avatar) : Promise.resolve(null),
+				getOwner(this.iotaClient, nameObject.nftId),
+				includeAvatar ? getAvatar(this.iotaClient, nameObject.avatar) : Promise.resolve(null),
 			]);
 
 			nameObject.owner = owner;
@@ -167,7 +168,7 @@ class SuinsClient {
 	/**
 	 * Returns the linked address of the input domain if the link was set. Otherwise, it will return undefined.
 	 *
-	 * @param domain a domain name ends with `.sui`
+	 * @param domain a domain name ends with `.iota`
 	 */
 	async getAddress(domain: string): Promise<string | undefined> {
 		const { targetAddress } = await this.getNameObject(domain);
@@ -178,7 +179,7 @@ class SuinsClient {
 	/**
 	 * Returns the default name of the input address if it was set. Otherwise, it will return undefined.
 	 *
-	 * @param address a Sui address.
+	 * @param address a Iota address.
 	 */
 	async getName(address: string): Promise<string | undefined> {
 		const res = await this.getDynamicFieldObject(
@@ -193,4 +194,4 @@ class SuinsClient {
 	}
 }
 
-export { SuinsClient };
+export { IotaNSClient };

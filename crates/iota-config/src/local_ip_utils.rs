@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::net::SocketAddr;
 #[cfg(msim)]
 use std::sync::{atomic::AtomicI16, Arc};
-use sui_types::multiaddr::Multiaddr;
+use iota_types::multiaddr::Multiaddr;
 
 /// A singleton struct to manage IP addresses and ports for simtest.
 /// This allows us to generate unique IP addresses and ports for each node in simtest.

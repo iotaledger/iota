@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toBase58 } from '@mysten/bcs';
+import { toBase58 } from '@iota/bcs';
 import { describe, expect, it } from 'vitest';
 
 import { Arguments, Transaction } from '../../src/transactions';

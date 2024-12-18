@@ -1,10 +1,11 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::available_range::AvailableRange;
 use super::cursor::{self, Page, RawPaginated, ScanLimited, Target};
 use super::uint53::UInt53;
-use super::{big_int::BigInt, move_type::MoveType, sui_address::SuiAddress};
+use super::{big_int::BigInt, move_type::MoveType, iota_address::IotaAddress};
 use crate::consistency::Checkpointed;
 use crate::data::{Db, DbConnection, QueryExecutor};
 use crate::error::Error;
@@ -19,13 +20,13 @@ use diesel::{
 use diesel_async::scoped_futures::ScopedFutureExt;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use sui_indexer::types::OwnerType;
-use sui_types::TypeTag;
+use iota_indexer::types::OwnerType;
+use iota_types::TypeTag;
 
 /// The total balance for a particular coin type.
 #[derive(Clone, Debug, SimpleObject)]
 pub(crate) struct Balance {
-    /// Coin type for the balance, such as 0x2::sui::SUI
+    /// Coin type for the balance, such as 0x2::iota::IOTA
     pub(crate) coin_type: MoveType,
     /// How many coins of this type constitute the balance
     pub(crate) coin_object_count: Option<UInt53>,
@@ -64,7 +65,7 @@ impl Balance {
     /// object.
     pub(crate) async fn query(
         db: &Db,
-        address: SuiAddress,
+        address: IotaAddress,
         coin_type: TypeTag,
         checkpoint_viewed_at: u64,
     ) -> Result<Option<Balance>, Error> {
@@ -94,7 +95,7 @@ impl Balance {
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
-        address: SuiAddress,
+        address: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, Balance>, Error> {
         // If cursors are provided, defer to the `checkpoint_viewed_at` in the cursor if they are
@@ -207,7 +208,7 @@ impl TryFrom<StoredBalance> for Balance {
 /// a particular coin type, owned by `address`. This function is meant to be called within a thunk
 /// and returns a RawQuery that can be converted into a BoxedSqlQuery with `.into_boxed()`.
 fn balance_query(
-    address: SuiAddress,
+    address: IotaAddress,
     coin_type: Option<TypeTag>,
     range: AvailableRange,
 ) -> RawQuery {
@@ -269,7 +270,7 @@ fn balance_query(
 
 /// Applies the filtering criteria for balances to the input `RawQuery` and returns a new
 /// `RawQuery`.
-fn filter(mut query: RawQuery, owner: SuiAddress, coin_type: Option<TypeTag>) -> RawQuery {
+fn filter(mut query: RawQuery, owner: IotaAddress, coin_type: Option<TypeTag>) -> RawQuery {
     query = filter!(query, "coin_type IS NOT NULL AND object_status = 0");
 
     query = filter!(

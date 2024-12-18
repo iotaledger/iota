@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub use checked::*;
 
-#[sui_macros::with_checked_arithmetic]
+#[iota_macros::with_checked_arithmetic]
 mod checked {
     use std::collections::BTreeSet;
     use std::{
@@ -42,15 +43,15 @@ mod checked {
     };
     use move_vm_types::data_store::DataStore;
     use move_vm_types::loaded_data::runtime_types::Type;
-    use sui_move_natives::object_runtime::{
+    use iota_move_natives::object_runtime::{
         self, get_all_uids, max_event_error, LoadedRuntimeObject, ObjectRuntime, RuntimeResults,
     };
-    use sui_protocol_config::ProtocolConfig;
-    use sui_types::execution::ExecutionResults;
-    use sui_types::storage::{DenyListResult, PackageObject};
-    use sui_types::{
+    use iota_protocol_config::ProtocolConfig;
+    use iota_types::execution::ExecutionResults;
+    use iota_types::storage::{DenyListResult, PackageObject};
+    use iota_types::{
         balance::Balance,
-        base_types::{MoveObjectType, ObjectID, SuiAddress, TxContext},
+        base_types::{MoveObjectType, ObjectID, IotaAddress, TxContext},
         coin::Coin,
         error::{ExecutionError, ExecutionErrorKind},
         event::Event,
@@ -61,7 +62,7 @@ mod checked {
         storage::BackingPackageStore,
         transaction::{Argument, CallArg, ObjectArg},
     };
-    use sui_types::{error::command_argument_error, execution_status::CommandArgumentError};
+    use iota_types::{error::command_argument_error, execution_status::CommandArgumentError};
     use tracing::instrument;
 
     /// Maintains all runtime state specific to programmable transactions
@@ -83,7 +84,7 @@ mod checked {
         /// The gas charger used for metering
         pub gas_charger: &'a mut GasCharger,
         /// Additional transfers not from the Move runtime
-        additional_transfers: Vec<(/* new owner */ SuiAddress, ObjectValue)>,
+        additional_transfers: Vec<(/* new owner */ IotaAddress, ObjectValue)>,
         /// Newly published packages
         new_packages: Vec<MovePackage>,
         /// User events are claimed after each Move call
@@ -128,7 +129,7 @@ mod checked {
         where
             'a: 'state,
         {
-            let mut linkage_view = LinkageView::new(Box::new(state_view.as_sui_resolver()));
+            let mut linkage_view = LinkageView::new(Box::new(state_view.as_iota_resolver()));
             let mut input_object_map = BTreeMap::new();
             let inputs = inputs
                 .into_iter()
@@ -529,7 +530,7 @@ mod checked {
         pub fn transfer_object(
             &mut self,
             obj: ObjectValue,
-            addr: SuiAddress,
+            addr: IotaAddress,
         ) -> Result<(), ExecutionError> {
             self.additional_transfers.push((addr, obj));
             Ok(())
@@ -874,7 +875,7 @@ mod checked {
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
             use move_core_types::vm_status::StatusCode;
-            use sui_types::execution_status::TypeArgumentError;
+            use iota_types::execution_status::TypeArgumentError;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {
                     ExecutionErrorKind::TypeArityMismatch.into()
@@ -965,7 +966,7 @@ mod checked {
             args: Vec<impl Borrow<[u8]>>,
         ) -> VMResult<SerializedReturnValues> {
             let gas_status = self.gas_charger.move_gas_status_mut();
-            let mut data_store = SuiDataStore::new(&self.linkage_view, &self.new_packages);
+            let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);
             self.vm.get_runtime().execute_function_bypass_visibility(
                 module,
                 function_name,
@@ -983,7 +984,7 @@ mod checked {
             function_name: &IdentStr,
             type_arguments: &[Type],
         ) -> VMResult<LoadedFunctionInstantiation> {
-            let mut data_store = SuiDataStore::new(&self.linkage_view, &self.new_packages);
+            let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);
             self.vm.get_runtime().load_function(
                 module_id,
                 function_name,
@@ -1018,7 +1019,7 @@ mod checked {
         ) -> VMResult<()> {
             // TODO: publish_module_bundle() currently doesn't charge gas.
             // Do we want to charge there?
-            let mut data_store = SuiDataStore::new(&self.linkage_view, &self.new_packages);
+            let mut data_store = IotaDataStore::new(&self.linkage_view, &self.new_packages);
             self.vm.get_runtime().publish_module_bundle(
                 modules,
                 sender,
@@ -1091,7 +1092,7 @@ mod checked {
             })?;
 
         let runtime_id = ModuleId::new(original_address, module.clone());
-        let data_store = SuiDataStore::new(linkage_view, new_packages);
+        let data_store = IotaDataStore::new(linkage_view, new_packages);
         let res = vm.get_runtime().load_type(&runtime_id, name, &data_store);
         linkage_view.reset_linkage();
         let (idx, struct_type) = res?;
@@ -1466,12 +1467,12 @@ mod checked {
     // resolution when executing module init.
     // It may be created with an empty slice of packages either when no publish/upgrade
     // are performed or when a type is requested not during execution.
-    pub(crate) struct SuiDataStore<'state, 'a> {
+    pub(crate) struct IotaDataStore<'state, 'a> {
         linkage_view: &'a LinkageView<'state>,
         new_packages: &'a [MovePackage],
     }
 
-    impl<'state, 'a> SuiDataStore<'state, 'a> {
+    impl<'state, 'a> IotaDataStore<'state, 'a> {
         pub(crate) fn new(
             linkage_view: &'a LinkageView<'state>,
             new_packages: &'a [MovePackage],
@@ -1495,7 +1496,7 @@ mod checked {
 
     // TODO: `DataStore` will be reworked and this is likely to disappear.
     //       Leaving this comment around until then as testament to better days to come...
-    impl<'state, 'a> DataStore for SuiDataStore<'state, 'a> {
+    impl<'state, 'a> DataStore for IotaDataStore<'state, 'a> {
         fn link_context(&self) -> AccountAddress {
             self.linkage_view.link_context()
         }

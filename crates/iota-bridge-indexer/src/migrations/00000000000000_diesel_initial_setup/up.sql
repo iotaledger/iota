@@ -40,7 +40,7 @@ CREATE TABLE progress_store
     checkpoint                  BIGINT        NOT NULL
 );
 
-CREATE TABLE sui_progress_store
+CREATE TABLE iota_progress_store
 (
     id                           INT          PRIMARY KEY, -- dummy value
     txn_digest                   bytea        NOT NULL

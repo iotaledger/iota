@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { SVGProps } from 'react';
 
-const SvgSuiCustomRpc = (props: SVGProps<SVGSVGElement>) => (
+const SvgIotaCustomRpc = (props: SVGProps<SVGSVGElement>) => (
 	<svg
 		xmlns="http://www.w3.org/2000/svg"
 		width="1em"
@@ -19,4 +20,4 @@ const SvgSuiCustomRpc = (props: SVGProps<SVGSVGElement>) => (
 		/>
 	</svg>
 );
-export default SvgSuiCustomRpc;
+export default SvgIotaCustomRpc;

@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { coinWithBalance } from '@mysten/sui/transactions';
-import type { Transaction } from '@mysten/sui/transactions';
+import { coinWithBalance } from '@iota/iota-sdk/transactions';
+import type { Transaction } from '@iota/iota-sdk/transactions';
 
 import type { DeepBookConfig } from '../utils/config.js';
 

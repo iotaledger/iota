@@ -1,19 +1,20 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use std::path::Path;
-use sui_data_ingestion_core::Worker;
-use sui_types::SYSTEM_PACKAGE_ADDRESSES;
+use iota_data_ingestion_core::Worker;
+use iota_types::SYSTEM_PACKAGE_ADDRESSES;
 use tokio::sync::Mutex;
 
-use sui_json_rpc_types::SuiMoveStruct;
-use sui_package_resolver::Resolver;
-use sui_rpc_api::{CheckpointData, CheckpointTransaction};
-use sui_types::base_types::ObjectID;
-use sui_types::effects::TransactionEffects;
-use sui_types::object::Object;
+use iota_json_rpc_types::IotaMoveStruct;
+use iota_package_resolver::Resolver;
+use iota_rpc_api::{CheckpointData, CheckpointTransaction};
+use iota_types::base_types::ObjectID;
+use iota_types::effects::TransactionEffects;
+use iota_types::object::Object;
 
 use crate::handlers::{
     get_move_struct, get_owner_address, get_owner_type, initial_shared_version, AnalyticsHandler,
@@ -174,10 +175,10 @@ impl ObjectHandler {
         } else {
             None
         };
-        let (struct_tag, sui_move_struct) = if let Some(move_struct) = move_struct {
+        let (struct_tag, iota_move_struct) = if let Some(move_struct) = move_struct {
             match move_struct.into() {
-                SuiMoveStruct::WithTypes { type_, fields } => {
-                    (Some(type_), Some(SuiMoveStruct::WithFields(fields)))
+                IotaMoveStruct::WithTypes { type_, fields } => {
+                    (Some(type_), Some(IotaMoveStruct::WithFields(fields)))
                 }
                 fields => (object.struct_tag(), Some(fields)),
             }
@@ -228,7 +229,7 @@ impl ObjectHandler {
                 None
             },
             struct_tag: struct_tag.map(|x| x.to_string()),
-            object_json: sui_move_struct.map(|x| x.to_json_value().to_string()),
+            object_json: iota_move_struct.map(|x| x.to_json_value().to_string()),
         };
         state.objects.push(entry);
         Ok(())

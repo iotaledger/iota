@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// A basic lottery game that depends on user-provided randomness which is processed by a verifiable
@@ -22,7 +23,7 @@
 module vdf::lottery;
 
 use std::hash::sha2_256;
-use sui::{clock::Clock, vdf::{hash_to_input, vdf_verify}};
+use iota::{clock::Clock, vdf::{hash_to_input, vdf_verify}};
 
 // === Receiver Functions ===
 

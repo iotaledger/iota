@@ -1,5 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use bcs;
@@ -26,38 +27,38 @@ use std::fs;
 use std::str::FromStr;
 use std::{convert::TryInto, env};
 
-use sui_json_rpc_types::{
-    SuiArgument, SuiExecutionResult, SuiExecutionStatus, SuiTransactionBlockEffectsAPI, SuiTypeTag,
+use iota_json_rpc_types::{
+    IotaArgument, IotaExecutionResult, IotaExecutionStatus, IotaTransactionBlockEffectsAPI, IotaTypeTag,
 };
-use sui_macros::sim_test;
-use sui_protocol_config::{Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
-use sui_types::digests::Digest;
-use sui_types::dynamic_field::DynamicFieldType;
-use sui_types::effects::TransactionEffects;
-use sui_types::epoch_data::EpochData;
-use sui_types::error::UserInputError;
-use sui_types::execution::SharedInput;
-use sui_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
-use sui_types::gas_coin::GasCoin;
-use sui_types::messages_consensus::{
+use iota_macros::sim_test;
+use iota_protocol_config::{Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion};
+use iota_types::digests::Digest;
+use iota_types::dynamic_field::DynamicFieldType;
+use iota_types::effects::TransactionEffects;
+use iota_types::epoch_data::EpochData;
+use iota_types::error::UserInputError;
+use iota_types::execution::SharedInput;
+use iota_types::execution_status::{ExecutionFailureStatus, ExecutionStatus};
+use iota_types::gas_coin::GasCoin;
+use iota_types::messages_consensus::{
     AuthorityCapabilitiesV2, ConsensusDeterminedVersionAssignments,
 };
-use sui_types::object::Data;
-use sui_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
-use sui_types::randomness_state::get_randomness_state_obj_initial_shared_version;
-use sui_types::storage::GetSharedLocks;
-use sui_types::sui_system_state::SuiSystemStateWrapper;
-use sui_types::supported_protocol_versions::SupportedProtocolVersions;
-use sui_types::utils::{
+use iota_types::object::Data;
+use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
+use iota_types::randomness_state::get_randomness_state_obj_initial_shared_version;
+use iota_types::storage::GetSharedLocks;
+use iota_types::iota_system_state::IotaSystemStateWrapper;
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
+use iota_types::utils::{
     to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
 };
-use sui_types::{
+use iota_types::{
     base_types::dbg_addr,
     crypto::{get_key_pair, Signature},
     crypto::{AccountKeyPair, AuthorityKeyPair},
     object::{Owner, GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION},
-    MOVE_STDLIB_PACKAGE_ID, SUI_AUTHENTICATOR_STATE_OBJECT_ID, SUI_CLOCK_OBJECT_ID,
-    SUI_FRAMEWORK_PACKAGE_ID, SUI_RANDOMNESS_STATE_OBJECT_ID, SUI_SYSTEM_STATE_OBJECT_ID,
+    MOVE_STDLIB_PACKAGE_ID, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID,
+    IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID,
 };
 
 use crate::authority::authority_store_tables::AuthorityPerpetualTables;
@@ -232,7 +233,7 @@ async fn test_dry_run_transaction_block() {
         )
         .await
         .unwrap();
-    assert_eq!(*response.effects.status(), SuiExecutionStatus::Success);
+    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
     let gas_usage = response.effects.gas_cost_summary();
 
     // Make sure that objects are not mutated after dry run.
@@ -258,7 +259,7 @@ async fn test_dry_run_transaction_block() {
         .await
         .unwrap();
     let gas_usage_no_gas = response.effects.gas_cost_summary();
-    assert_eq!(*response.effects.status(), SuiExecutionStatus::Success);
+    assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
     assert_eq!(gas_usage, gas_usage_no_gas);
 }
 
@@ -272,7 +273,7 @@ async fn test_dry_run_no_gas_big_transfer() {
 
     let amount = 1_000_000_000u64;
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.transfer_sui(recipient, Some(amount));
+    builder.transfer_iota(recipient, Some(amount));
     let pt = builder.finish();
     let data = TransactionData::new_programmable(
         sender,
@@ -291,7 +292,7 @@ async fn test_dry_run_no_gas_big_transfer() {
         )
         .await
         .unwrap();
-    assert_eq!(*dry_run_res.effects.status(), SuiExecutionStatus::Success);
+    assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -326,7 +327,7 @@ async fn test_dev_inspect_object_by_bytes() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = exec_results;
@@ -391,7 +392,7 @@ async fn test_dev_inspect_object_by_bytes() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = exec_results;
@@ -487,7 +488,7 @@ async fn test_dev_inspect_unowned_object() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = exec_results;
@@ -595,7 +596,7 @@ async fn test_dev_inspect_dynamic_field() {
     assert!(effects.gas_cost_summary().computation_cost > 0);
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = exec_results;
@@ -654,7 +655,7 @@ async fn test_dev_inspect_return_values() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         mut return_values,
     } = exec_results;
@@ -681,7 +682,7 @@ async fn test_dev_inspect_return_values() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         mut return_values,
     } = exec_results;
@@ -708,7 +709,7 @@ async fn test_dev_inspect_return_values() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         mut return_values,
     } = exec_results;
@@ -762,7 +763,7 @@ async fn test_dev_inspect_return_values() {
     let mut results = results.unwrap();
     assert_eq!(results.len(), 1);
     let exec_results = results.pop().unwrap();
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         mut return_values,
     } = exec_results;
@@ -786,12 +787,12 @@ async fn test_dev_inspect_gas_coin_argument() {
     let epoch_store = validator.epoch_store_for_testing();
     let protocol_config = epoch_store.protocol_config();
 
-    let sender = SuiAddress::random_for_testing_only();
-    let recipient = SuiAddress::random_for_testing_only();
+    let sender = IotaAddress::random_for_testing_only();
+    let recipient = IotaAddress::random_for_testing_only();
     let amount = 500;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_sui(vec![recipient], vec![amount]).unwrap();
+        builder.pay_iota(vec![recipient], vec![amount]).unwrap();
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -803,14 +804,14 @@ async fn test_dev_inspect_gas_coin_argument() {
         .unwrap();
     assert_eq!(results.len(), 2);
     // Split results
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = &results[0];
     // check argument is the gas coin updated
     assert_eq!(mutable_reference_outputs.len(), 1);
     let (arg, arg_value, arg_type) = &mutable_reference_outputs[0];
-    assert_eq!(arg, &SuiArgument::GasCoin);
+    assert_eq!(arg, &IotaArgument::GasCoin);
     check_coin_value(
         arg_value,
         arg_type,
@@ -822,7 +823,7 @@ async fn test_dev_inspect_gas_coin_argument() {
     check_coin_value(ret_value, ret_type, amount);
 
     // Transfer results
-    let SuiExecutionResult {
+    let IotaExecutionResult {
         mutable_reference_outputs,
         return_values,
     } = &results[1];
@@ -835,12 +836,12 @@ async fn test_dev_inspect_gas_price() {
     let (_, fullnode, _object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
 
-    let sender = SuiAddress::random_for_testing_only();
-    let recipient = SuiAddress::random_for_testing_only();
+    let sender = IotaAddress::random_for_testing_only();
+    let recipient = IotaAddress::random_for_testing_only();
     let amount = 500;
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
-        builder.pay_sui(vec![recipient], vec![amount]).unwrap();
+        builder.pay_iota(vec![recipient], vec![amount]).unwrap();
         builder.finish()
     };
     let kind = TransactionKind::programmable(pt);
@@ -881,7 +882,7 @@ async fn test_dev_inspect_gas_price() {
     );
 }
 
-fn check_coin_value(actual_value: &[u8], actual_type: &SuiTypeTag, expected_value: u64) {
+fn check_coin_value(actual_value: &[u8], actual_type: &IotaTypeTag, expected_value: u64) {
     let actual_type: TypeTag = actual_type.clone().try_into().unwrap();
     assert_eq!(actual_type, TypeTag::Struct(Box::new(GasCoin::type_())));
     let actual_coin: GasCoin = bcs::from_bytes(actual_value).unwrap();
@@ -1119,7 +1120,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
         .dev_inspect_transaction_block(sender, kind, Some(rgp + 100), None, None, None, None, None)
         .await
         .unwrap();
-    assert_eq!(effects.status(), &SuiExecutionStatus::Success);
+    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 
     // dry run
     let data = TransactionData::new_programmable(
@@ -1133,7 +1134,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let digest = *transaction.digest();
     let DryRunTransactionBlockResponse { effects, .. } =
         fullnode.dry_exec_transaction(data, digest).await.unwrap().0;
-    assert_eq!(effects.status(), &SuiExecutionStatus::Success);
+    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 }
 
 #[tokio::test]
@@ -1542,7 +1543,7 @@ async fn test_transfer_package() {
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let gas_object = authority_state.get_object(&object_id).await.unwrap();
     let package_object_ref = authority_state
-        .get_sui_system_package_object_ref()
+        .get_iota_system_package_object_ref()
         .await
         .unwrap();
     // We are trying to transfer the genesis package object, which is immutable.
@@ -1613,7 +1614,7 @@ async fn test_objected_owned_gas() {
         .insert_genesis_object(child_object.clone())
         .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_transfer_sui(
+    let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -1964,7 +1965,7 @@ async fn test_conflicting_transactions() {
             (second.unwrap(), first.unwrap_err())
         };
 
-        assert!(matches!(err, SuiError::ObjectLockConflict { .. }));
+        assert!(matches!(err, IotaError::ObjectLockConflict { .. }));
 
         let object_info = authority_state
             .handle_object_info_request(ObjectInfoRequest::latest_object_info_request(
@@ -2046,14 +2047,14 @@ async fn test_handle_transfer_transaction_double_spend() {
 }
 
 #[tokio::test]
-async fn test_handle_transfer_sui_with_amount_insufficient_gas() {
+async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectID::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let object = authority_state.get_object(&object_id).await.unwrap();
-    let data = TransactionData::new_transfer_sui(
+    let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         Some(GAS_VALUE_FOR_TESTING),
@@ -2863,7 +2864,7 @@ async fn test_invalid_mutable_clock_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpectedError {
-            object_id: SUI_CLOCK_OBJECT_ID
+            object_id: IOTA_CLOCK_OBJECT_ID
         }
     );
 }
@@ -2907,7 +2908,7 @@ async fn test_invalid_authenticator_state_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::InaccessibleSystemObject {
-            object_id: SUI_AUTHENTICATOR_STATE_OBJECT_ID
+            object_id: IOTA_AUTHENTICATOR_STATE_OBJECT_ID
         }
     );
 }
@@ -2927,7 +2928,7 @@ async fn test_invalid_randomness_parameter() {
             .unwrap()
             .unwrap();
     let random_mut = CallArg::Object(ObjectArg::SharedObject {
-        id: SUI_RANDOMNESS_STATE_OBJECT_ID,
+        id: IOTA_RANDOMNESS_STATE_OBJECT_ID,
         initial_shared_version: init_random_version,
         mutable: true,
     });
@@ -2960,7 +2961,7 @@ async fn test_invalid_randomness_parameter() {
     assert_eq!(
         UserInputError::try_from(e).unwrap(),
         UserInputError::ImmutableParameterExpectedError {
-            object_id: SUI_RANDOMNESS_STATE_OBJECT_ID
+            object_id: IOTA_RANDOMNESS_STATE_OBJECT_ID
         }
     );
 }
@@ -3044,24 +3045,24 @@ async fn test_valid_immutable_clock_parameter() {
 }
 
 #[tokio::test]
-async fn test_genesis_sui_system_state_object() {
-    // This test verifies that we can read the genesis SuiSystemState object.
+async fn test_genesis_iota_system_state_object() {
+    // This test verifies that we can read the genesis IotaSystemState object.
     // And its Move layout matches the definition in Rust (so that we can deserialize it).
     let authority_state = TestAuthorityBuilder::new().build().await;
     let wrapper = authority_state
-        .get_object(&SUI_SYSTEM_STATE_OBJECT_ID)
+        .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
         .await
         .unwrap();
     assert_eq!(wrapper.version(), SequenceNumber::from(1));
     let move_object = wrapper.data.try_as_move().unwrap();
-    let _sui_system_state =
-        bcs::from_bytes::<SuiSystemStateWrapper>(move_object.contents()).unwrap();
-    assert!(move_object.type_().is(&SuiSystemStateWrapper::type_()));
-    let sui_system_state = authority_state
-        .get_sui_system_state_object_for_testing()
+    let _iota_system_state =
+        bcs::from_bytes::<IotaSystemStateWrapper>(move_object.contents()).unwrap();
+    assert!(move_object.type_().is(&IotaSystemStateWrapper::type_()));
+    let iota_system_state = authority_state
+        .get_iota_system_state_object_for_testing()
         .unwrap();
     assert_eq!(
-        &sui_system_state
+        &iota_system_state
             .get_current_epoch_committee()
             .committee()
             .clone(),
@@ -3073,19 +3074,19 @@ async fn test_genesis_sui_system_state_object() {
 }
 
 #[tokio::test]
-async fn test_transfer_sui_no_amount() {
+async fn test_transfer_iota_no_amount() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectID::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let init_balance = sui_types::gas::get_gas_balance(&gas_object).unwrap();
+    let init_balance = iota_types::gas::get_gas_balance(&gas_object).unwrap();
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
 
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = epoch_store.reference_gas_price();
 
     let gas_ref = gas_object.compute_object_reference();
-    let tx_data = TransactionData::new_transfer_sui(
+    let tx_data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -3114,7 +3115,7 @@ async fn test_transfer_sui_no_amount() {
     assert!(gas_ref.1 < effects.gas_object().0 .1);
     assert_eq!(effects.gas_object().1, Owner::AddressOwner(recipient));
     let new_balance =
-        sui_types::gas::get_gas_balance(&authority_state.get_object(&gas_object_id).await.unwrap())
+        iota_types::gas::get_gas_balance(&authority_state.get_object(&gas_object_id).await.unwrap())
             .unwrap();
     assert_eq!(
         new_balance as i64 + effects.gas_cost_summary().net_gas_usage(),
@@ -3123,17 +3124,17 @@ async fn test_transfer_sui_no_amount() {
 }
 
 #[tokio::test]
-async fn test_transfer_sui_with_amount() {
+async fn test_transfer_iota_with_amount() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectID::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-    let init_balance = sui_types::gas::get_gas_balance(&gas_object).unwrap();
+    let init_balance = iota_types::gas::get_gas_balance(&gas_object).unwrap();
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let gas_ref = gas_object.compute_object_reference();
-    let tx_data = TransactionData::new_transfer_sui(
+    let tx_data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         Some(500),
@@ -3157,11 +3158,11 @@ async fn test_transfer_sui_with_amount() {
         .get_object(&effects.created()[0].0 .0)
         .await
         .unwrap();
-    assert_eq!(sui_types::gas::get_gas_balance(&new_gas).unwrap(), 500);
+    assert_eq!(iota_types::gas::get_gas_balance(&new_gas).unwrap(), 500);
     assert!(gas_ref.1 < effects.gas_object().0 .1);
     assert_eq!(effects.gas_object().1, Owner::AddressOwner(sender));
     let new_balance =
-        sui_types::gas::get_gas_balance(&authority_state.get_object(&gas_object_id).await.unwrap())
+        iota_types::gas::get_gas_balance(&authority_state.get_object(&gas_object_id).await.unwrap())
             .unwrap();
     assert_eq!(
         new_balance as i64 + effects.gas_cost_summary().net_gas_usage() + 500,
@@ -3170,8 +3171,8 @@ async fn test_transfer_sui_with_amount() {
 }
 
 #[tokio::test]
-async fn test_store_revert_transfer_sui() {
-    // This test checks the correctness of revert_state_update in SuiDataStore.
+async fn test_store_revert_transfer_iota() {
+    // This test checks the correctness of revert_state_update in IotaDataStore.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let (recipient, _sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectID::random();
@@ -3180,7 +3181,7 @@ async fn test_store_revert_transfer_sui() {
     let authority_state = init_state_with_objects(vec![gas_object.clone()]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
-    let tx_data = TransactionData::new_transfer_sui(
+    let tx_data = TransactionData::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -3415,7 +3416,7 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(TypeTag::Bool, fields[0].name.type_)
 }
 
-async fn create_and_retrieve_df_info(function: &IdentStr) -> (SuiAddress, Vec<DynamicFieldInfo>) {
+async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<DynamicFieldInfo>) {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectID::random();
     let (authority_state, object_basics) =
@@ -4031,7 +4032,7 @@ pub async fn init_state_with_objects_and_object_basics<I: IntoIterator<Item = Ob
 
 #[cfg(test)]
 pub async fn init_state_with_ids_and_object_basics<
-    I: IntoIterator<Item = (SuiAddress, ObjectID)>,
+    I: IntoIterator<Item = (IotaAddress, ObjectID)>,
 >(
     objects: I,
 ) -> (Arc<AuthorityState>, ObjectRef) {
@@ -4044,7 +4045,7 @@ pub async fn init_state_with_ids_and_object_basics<
 }
 
 pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<AuthorityState>, ObjectRef) {
-    use sui_move_build::BuildConfig;
+    use iota_move_build::BuildConfig;
 
     // add object_basics package object to genesis, since lots of test use it
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -4069,11 +4070,11 @@ pub async fn publish_object_basics(state: Arc<AuthorityState>) -> (Arc<Authority
 
 #[cfg(test)]
 pub async fn init_state_with_ids_and_object_basics_with_fullnode<
-    I: IntoIterator<Item = (SuiAddress, ObjectID)>,
+    I: IntoIterator<Item = (IotaAddress, ObjectID)>,
 >(
     objects: I,
 ) -> (Arc<AuthorityState>, Arc<AuthorityState>, ObjectRef) {
-    use sui_move_build::BuildConfig;
+    use iota_move_build::BuildConfig;
 
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
     for (address, object_id) in objects {
@@ -4107,14 +4108,14 @@ pub async fn init_state_with_ids_and_object_basics_with_fullnode<
 pub async fn call_move(
     authority: &AuthorityState,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     package: &ObjectID,
     module: &'_ str,
     function: &'_ str,
     type_args: Vec<TypeTag>,
     test_args: Vec<TestCallArg>,
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     call_move_(
         authority,
         None,
@@ -4135,7 +4136,7 @@ pub async fn call_move_(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     package: &ObjectID,
     module: &'_ str,
@@ -4143,7 +4144,7 @@ pub async fn call_move_(
     type_args: Vec<TypeTag>,
     test_args: Vec<TestCallArg>,
     with_shared: bool, // Move call includes shared objects
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let mut builder = ProgrammableTransactionBuilder::new();
@@ -4178,11 +4179,11 @@ pub async fn call_move_(
 pub async fn execute_programmable_transaction(
     authority: &AuthorityState,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     gas_unit: u64,
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     execute_programmable_transaction_(
         authority,
         None,
@@ -4199,11 +4200,11 @@ pub async fn execute_programmable_transaction(
 pub async fn execute_programmable_transaction_with_shared(
     authority: &AuthorityState,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     gas_unit: u64,
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     execute_programmable_transaction_(
         authority,
         None,
@@ -4220,11 +4221,11 @@ pub async fn execute_programmable_transaction_with_shared(
 pub async fn build_programmable_transaction(
     authority: &AuthorityState,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     gas_unit: u64,
-) -> SuiResult<Transaction> {
+) -> IotaResult<Transaction> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
@@ -4238,12 +4239,12 @@ async fn execute_programmable_transaction_(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     pt: ProgrammableTransaction,
     with_shared: bool, // Move call includes shared objects
     gas_unit: u64,
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
@@ -4263,7 +4264,7 @@ async fn call_move_with_gas_coins(
     fullnode: Option<&AuthorityState>,
     gas_object_ids: &[ObjectID],
     gas_budget: u64,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     package: &ObjectID,
     module: &'_ str,
@@ -4271,7 +4272,7 @@ async fn call_move_with_gas_coins(
     type_args: Vec<TypeTag>,
     test_args: Vec<TestCallArg>,
     with_shared: bool, // Move call includes shared objects
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     let mut gas_object_refs = vec![];
     for obj_id in gas_object_ids {
         let gas_object = authority.get_object(obj_id).await;
@@ -4311,9 +4312,9 @@ pub async fn create_move_object(
     package_id: &ObjectID,
     authority: &AuthorityState,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     call_move(
         authority,
         gas_object_id,
@@ -4336,9 +4337,9 @@ async fn create_move_object_with_gas_coins(
     authority: &AuthorityState,
     gas_object_ids: &[ObjectID],
     gas_budget: u64,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     call_move_with_gas_coins(
         authority,
         None,
@@ -4364,9 +4365,9 @@ pub async fn wrap_object(
     authority: &AuthorityState,
     object_id: &ObjectID,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     call_move(
         authority,
         gas_object_id,
@@ -4387,9 +4388,9 @@ pub async fn add_ofield(
     outer_object_id: &ObjectID,
     inner_object_id: &ObjectID,
     gas_object_id: &ObjectID,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
-) -> SuiResult<TransactionEffects> {
+) -> IotaResult<TransactionEffects> {
     call_move(
         authority,
         gas_object_id,
@@ -4409,13 +4410,13 @@ pub async fn add_ofield(
 
 pub async fn call_dev_inspect(
     authority: &AuthorityState,
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     package: &ObjectID,
     module: &str,
     function: &str,
     type_arguments: Vec<TypeTag>,
     test_args: Vec<TestCallArg>,
-) -> SuiResult<DevInspectResults> {
+) -> IotaResult<DevInspectResults> {
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut arguments = Vec::with_capacity(test_args.len());
     for a in test_args {
@@ -4442,7 +4443,7 @@ pub async fn call_dev_inspect(
 /// but gas is still charged. Depending on what we want to test, this may be fine.
 #[cfg(test)]
 async fn make_test_transaction(
-    sender: &SuiAddress,
+    sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     owned_objects: &[Object],
     shared_objects: &[(ObjectID, SequenceNumber, bool)],
@@ -4463,7 +4464,7 @@ async fn make_test_transaction(
         .unwrap();
     let data = TransactionData::new_move_call(
         *sender,
-        SUI_FRAMEWORK_PACKAGE_ID,
+        IOTA_FRAMEWORK_PACKAGE_ID,
         ident_str!(module).to_owned(),
         ident_str!(function).to_owned(),
         /* type_args */ vec![],
@@ -4694,7 +4695,7 @@ async fn test_consensus_commit_prologue_generation() {
             .expect("locks should be set")
             .iter()
             .filter_map(|(id, seq)| {
-                if id == &SUI_CLOCK_OBJECT_ID {
+                if id == &IOTA_CLOCK_OBJECT_ID {
                     Some(*seq)
                 } else {
                     None
@@ -4720,7 +4721,7 @@ async fn test_consensus_message_processed() {
 
     let shared_object_id = ObjectID::random();
     let shared_object = {
-        use sui_types::object::MoveObject;
+        use iota_types::object::MoveObject;
         let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
         let owner = Owner::Shared {
             initial_shared_version: obj.version(),
@@ -4730,7 +4731,7 @@ async fn test_consensus_message_processed() {
     let initial_shared_version = shared_object.version();
 
     let dir = tempfile::TempDir::new().unwrap();
-    let network_config = sui_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
+    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
         .committee_size(2.try_into().unwrap())
         .with_objects(vec![gas_object.clone(), shared_object.clone()])
         .build();
@@ -5130,7 +5131,7 @@ fn test_choose_next_system_packages() {
 async fn test_gas_smashing() {
     // run a create move object transaction with a given set o gas coins and a budget
     async fn create_obj(
-        sender: SuiAddress,
+        sender: IotaAddress,
         sender_key: AccountKeyPair,
         gas_coins: Vec<Object>,
         gas_budget: u64,
@@ -5151,7 +5152,7 @@ async fn test_gas_smashing() {
     }
 
     // make a `coin_num` coins distributing `gas_amount` across them
-    fn make_gas_coins(owner: SuiAddress, gas_amount: u64, coin_num: u64) -> Vec<Object> {
+    fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Object> {
         let mut objects = vec![];
         let coin_balance = gas_amount / coin_num;
         for _ in 1..coin_num {
@@ -5208,7 +5209,7 @@ async fn test_gas_smashing() {
         }
         // balance on first coin is correct
         let balance =
-            sui_types::gas::get_gas_balance(&state.get_object(&gas_coin_ids[0]).await.unwrap())
+            iota_types::gas::get_gas_balance(&state.get_object(&gas_coin_ids[0]).await.unwrap())
                 .unwrap();
         let gas_used = effects.gas_cost_summary().gas_used();
         assert!(reference_gas_used > balance);
@@ -5235,7 +5236,7 @@ async fn test_gas_smashing() {
 
 #[tokio::test]
 async fn test_for_inc_201_dev_inspect() {
-    use sui_move_build::BuildConfig;
+    use iota_move_build::BuildConfig;
 
     let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectID::random();
@@ -5280,7 +5281,7 @@ async fn test_for_inc_201_dev_inspect() {
 
 #[tokio::test]
 async fn test_for_inc_201_dry_run() {
-    use sui_move_build::BuildConfig;
+    use iota_move_build::BuildConfig;
 
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas_object_id = ObjectID::random();
@@ -5323,7 +5324,7 @@ async fn test_for_inc_201_dry_run() {
         )
         .await
         .unwrap();
-    assert_eq!(effects.status(), &SuiExecutionStatus::Success);
+    assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 
     assert_eq!(1, events.data.len());
     assert_eq!(
@@ -5335,7 +5336,7 @@ async fn test_for_inc_201_dry_run() {
 
 #[tokio::test]
 async fn test_publish_transitive_dependencies_ok() {
-    use sui_move_build::BuildConfig;
+    use iota_move_build::BuildConfig;
 
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let gas_id = ObjectID::random();
@@ -5508,7 +5509,7 @@ async fn test_publish_transitive_dependencies_ok() {
 
 #[tokio::test]
 async fn test_publish_missing_dependency() {
-    use sui_move_build::BuildConfig;
+    use iota_move_build::BuildConfig;
 
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let gas_id = ObjectID::random();
@@ -5528,7 +5529,7 @@ async fn test_publish_missing_dependency() {
         .get_package_bytes(/* with_unpublished_deps */ false);
 
     let mut builder = ProgrammableTransactionBuilder::new();
-    builder.publish_immutable(modules, vec![SUI_FRAMEWORK_PACKAGE_ID]);
+    builder.publish_immutable(modules, vec![IOTA_FRAMEWORK_PACKAGE_ID]);
     let kind = TransactionKind::programmable(builder.finish());
 
     let rgp = state.reference_gas_price_for_testing().unwrap();
@@ -5557,7 +5558,7 @@ async fn test_publish_missing_dependency() {
 
 #[tokio::test]
 async fn test_publish_missing_transitive_dependency() {
-    use sui_move_build::BuildConfig;
+    use iota_move_build::BuildConfig;
 
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let gas_id = ObjectID::random();
@@ -5606,7 +5607,7 @@ async fn test_publish_missing_transitive_dependency() {
 
 #[tokio::test]
 async fn test_publish_not_a_package_dependency() {
-    use sui_move_build::BuildConfig;
+    use iota_move_build::BuildConfig;
 
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let gas_id = ObjectID::random();
@@ -5628,7 +5629,7 @@ async fn test_publish_not_a_package_dependency() {
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut deps = BuiltInFramework::all_package_ids();
     // One of these things is not like the others
-    deps.push(SUI_SYSTEM_STATE_OBJECT_ID);
+    deps.push(IOTA_SYSTEM_STATE_OBJECT_ID);
     builder.publish_immutable(modules, deps);
     let kind = TransactionKind::programmable(builder.finish());
 
@@ -5647,16 +5648,16 @@ async fn test_publish_not_a_package_dependency() {
         .unwrap_err();
 
     assert_eq!(
-        SuiError::UserInputError {
+        IotaError::UserInputError {
             error: UserInputError::MoveObjectAsPackage {
-                object_id: SUI_SYSTEM_STATE_OBJECT_ID
+                object_id: IOTA_SYSTEM_STATE_OBJECT_ID
             }
         },
         failure,
     )
 }
 
-pub fn create_gas_objects(num: u32, owner: SuiAddress) -> Vec<Object> {
+pub fn create_gas_objects(num: u32, owner: IotaAddress) -> Vec<Object> {
     let mut objects = vec![];
     for _ in 0..num {
         let gas_object_id = ObjectID::random();

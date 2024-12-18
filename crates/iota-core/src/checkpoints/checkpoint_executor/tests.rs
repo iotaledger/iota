@@ -1,26 +1,27 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use sui_config::node::ExpensiveSafetyCheckConfig;
-use sui_types::gas::GasCostSummary;
+use iota_config::node::ExpensiveSafetyCheckConfig;
+use iota_types::gas::GasCostSummary;
 use tempfile::tempdir;
 
 use std::{sync::Arc, time::Duration};
 
 use crate::authority::epoch_start_configuration::{EpochFlag, EpochStartConfiguration};
 use broadcast::{Receiver, Sender};
-use sui_types::committee::ProtocolVersion;
-use sui_types::messages_checkpoint::{ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint};
-use sui_types::supported_protocol_versions::SupportedProtocolVersions;
+use iota_types::committee::ProtocolVersion;
+use iota_types::messages_checkpoint::{ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint};
+use iota_types::supported_protocol_versions::SupportedProtocolVersions;
 use tokio::{sync::broadcast, time::timeout};
 
 use crate::authority::test_authority_builder::TestAuthorityBuilder;
 use crate::{
     authority::AuthorityState, checkpoints::CheckpointStore, state_accumulator::StateAccumulator,
 };
-use sui_swarm_config::test_utils::{empty_contents, CommitteeFixture};
-use sui_types::sui_system_state::epoch_start_sui_system_state::EpochStartSystemState;
+use iota_swarm_config::test_utils::{empty_contents, CommitteeFixture};
+use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemState;
 use typed_store::Map;
 
 /// Test checkpoint executor happy path, test that checkpoint executor correctly
@@ -383,7 +384,7 @@ async fn init_executor_test(
     CommitteeFixture,
 ) {
     let network_config =
-        sui_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+        iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
     let state = TestAuthorityBuilder::new()
         .with_network_config(&network_config, 0)
         .build()

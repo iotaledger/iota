@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -7,9 +8,9 @@ use std::{
 };
 
 use move_core_types::language_storage::StructTag;
-use sui_json_rpc::name_service::{Domain, NameRecord, SubDomainRegistration};
-use sui_types::{
-    base_types::{ObjectID, SuiAddress},
+use iota_json_rpc::name_service::{Domain, NameRecord, SubDomainRegistration};
+use iota_types::{
+    base_types::{ObjectID, IotaAddress},
     dynamic_field::Field,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
@@ -27,13 +28,13 @@ const SUBDOMAIN_REGISTRATION_TYPE: &str =
 #[derive(Debug, Clone)]
 pub struct NameRecordChange(Field<Domain, NameRecord>);
 
-pub struct SuinsIndexer {
-    registry_table_id: SuiAddress,
+pub struct IotaNSIndexer {
+    registry_table_id: IotaAddress,
     subdomain_wrapper_type: StructTag,
     name_record_type: StructTag,
 }
 
-impl std::default::Default for SuinsIndexer {
+impl std::default::Default for IotaNSIndexer {
     fn default() -> Self {
         Self::new(
             REGISTRY_TABLE_ID.to_owned(),
@@ -43,11 +44,11 @@ impl std::default::Default for SuinsIndexer {
     }
 }
 
-impl SuinsIndexer {
+impl IotaNSIndexer {
     /// Create a new config by passing the table ID + subdomain wrapper type.
     /// Useful for testing or custom environments.
     pub fn new(registry_address: String, wrapper_type: String, record_type: String) -> Self {
-        let registry_table_id = SuiAddress::from_str(&registry_address).unwrap();
+        let registry_table_id = IotaAddress::from_str(&registry_address).unwrap();
         let name_record_type = StructTag::from_str(&record_type).unwrap();
         let subdomain_wrapper_type = StructTag::from_str(&wrapper_type).unwrap();
 
@@ -87,7 +88,7 @@ impl SuinsIndexer {
     /// - `Vec<VerifiedDomain>`: A list of NameRecord updates for the database (including sequence number)
     /// - `Vec<String>`: A list of IDs to be deleted from the database (`field_id` is the matching column)
     pub fn process_checkpoint(&self, data: &CheckpointData) -> (Vec<VerifiedDomain>, Vec<String>) {
-        let mut checkpoint = SuinsIndexerCheckpoint::new(data.checkpoint_summary.sequence_number);
+        let mut checkpoint = IotaNSIndexerCheckpoint::new(data.checkpoint_summary.sequence_number);
 
         // loop through all the transactions in the checkpoint
         // Since the transactions are sequenced inside the checkpoint, we can safely assume
@@ -114,7 +115,7 @@ impl SuinsIndexer {
     }
 }
 
-pub struct SuinsIndexerCheckpoint {
+pub struct IotaNSIndexerCheckpoint {
     /// A list of name records that have been updated in the checkpoint.
     name_records: HashMap<ObjectID, NameRecordChange>,
     /// A list of subdomain wrappers that have been created in the checkpoint.
@@ -125,7 +126,7 @@ pub struct SuinsIndexerCheckpoint {
     checkpoint_sequence_number: u64,
 }
 
-impl SuinsIndexerCheckpoint {
+impl IotaNSIndexerCheckpoint {
     pub fn new(checkpoint_sequence_number: u64) -> Self {
         Self {
             name_records: HashMap::new(),
@@ -139,7 +140,7 @@ impl SuinsIndexerCheckpoint {
     /// and pushes them into the supplied vector + hashmap.
     ///
     /// It is implemented in a way to do just a single iteration over the objects.
-    pub fn parse_record_changes(&mut self, config: &SuinsIndexer, objects: &[Object]) {
+    pub fn parse_record_changes(&mut self, config: &IotaNSIndexer, objects: &[Object]) {
         for object in objects {
             // Parse all the changes to a `NameRecord`
             if config.is_name_record(object) {
@@ -174,7 +175,7 @@ impl SuinsIndexerCheckpoint {
     /// Also removes any name records from the updates, if they ended up being deleted in the same checkpoint.
     pub fn parse_record_deletions(
         &mut self,
-        config: &SuinsIndexer,
+        config: &IotaNSIndexer,
         transaction: &CheckpointTransaction,
     ) {
         // a list of all the deleted objects in the transaction.
@@ -216,7 +217,7 @@ impl SuinsIndexerCheckpoint {
                 expiration_timestamp_ms: name_record.value.expiration_timestamp_ms as i64,
                 nft_id,
                 target_address: if name_record.value.target_address.is_some() {
-                    Some(SuiAddress::to_string(
+                    Some(IotaAddress::to_string(
                         &name_record.value.target_address.unwrap(),
                     ))
                 } else {
@@ -236,7 +237,7 @@ impl SuinsIndexerCheckpoint {
     }
 }
 
-/// Allows us to format a SuiNS specific query for updating the DB entries
+/// Allows us to format a IotaNS specific query for updating the DB entries
 /// only if the checkpoint is newer than the last checkpoint we have in the DB.
 /// Doing that, we do not care about the order of execution and we can use multiple threads
 /// to commit from later checkpoints to the DB.

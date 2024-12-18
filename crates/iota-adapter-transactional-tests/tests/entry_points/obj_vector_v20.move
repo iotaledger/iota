@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests vector of objects
@@ -38,7 +39,7 @@ module Test::M {
     }
 
     public entry fun mint_child(v: u64, parent: &mut Obj, ctx: &mut TxContext) {
-        sui::dynamic_object_field::add(
+        iota::dynamic_object_field::add(
             &mut parent.id, 0,
             Obj {
                 id: object::new(ctx),

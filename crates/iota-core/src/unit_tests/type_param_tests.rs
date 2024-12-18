@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
@@ -10,8 +11,8 @@ use crate::authority::{
 
 use move_core_types::language_storage::TypeTag;
 
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::{
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::{
     base_types::ObjectID,
     crypto::{get_key_pair, AccountKeyPair},
 };

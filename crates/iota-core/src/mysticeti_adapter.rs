@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::Duration};
 
 use arc_swap::{ArcSwapOption, Guard};
 use consensus_core::{ClientError, TransactionClient};
-use sui_types::{
-    error::{SuiError, SuiResult},
+use iota_types::{
+    error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
 use tap::prelude::*;
@@ -80,7 +81,7 @@ impl ConsensusClient for LazyMysticetiClient {
         &self,
         transactions: &[ConsensusTransaction],
         _epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> SuiResult<BlockStatusReceiver> {
+    ) -> IotaResult<BlockStatusReceiver> {
         // TODO(mysticeti): confirm comment is still true
         // The retrieved TransactionClient can be from the past epoch. Submit would fail after
         // Mysticeti shuts down, so there should be no correctness issue.
@@ -112,7 +113,7 @@ impl ConsensusClient for LazyMysticetiClient {
                     }
                 };
             })
-            .map_err(|err| SuiError::FailedToSubmitToConsensus(err.to_string()))?;
+            .map_err(|err| IotaError::FailedToSubmitToConsensus(err.to_string()))?;
 
         let is_soft_bundle = transactions.len() > 1;
 

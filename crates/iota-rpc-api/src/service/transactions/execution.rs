@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::rest::transactions::SimulateTransactionQueryParameters;
@@ -9,15 +10,15 @@ use crate::types::ExecuteTransactionResponse;
 use crate::Result;
 use crate::RpcService;
 use crate::RpcServiceError;
-use sui_sdk_types::types::framework::Coin;
-use sui_sdk_types::types::Address;
-use sui_sdk_types::types::BalanceChange;
-use sui_sdk_types::types::Object;
-use sui_sdk_types::types::Owner;
-use sui_sdk_types::types::SignedTransaction;
-use sui_sdk_types::types::Transaction;
-use sui_sdk_types::types::TransactionEffects;
-use sui_types::transaction_executor::SimulateTransactionResult;
+use iota_sdk_types::types::framework::Coin;
+use iota_sdk_types::types::Address;
+use iota_sdk_types::types::BalanceChange;
+use iota_sdk_types::types::Object;
+use iota_sdk_types::types::Owner;
+use iota_sdk_types::types::SignedTransaction;
+use iota_sdk_types::types::Transaction;
+use iota_sdk_types::types::TransactionEffects;
+use iota_types::transaction_executor::SimulateTransactionResult;
 use tap::Pipe;
 
 impl RpcService {
@@ -32,7 +33,7 @@ impl RpcService {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No Transaction Executor"))?;
 
-        let request = sui_types::quorum_driver_types::ExecuteTransactionRequestV3 {
+        let request = iota_types::quorum_driver_types::ExecuteTransactionRequestV3 {
             transaction: signed_transaction.try_into()?,
             include_events: options.include_events(),
             include_input_objects: options.include_input_objects()
@@ -42,7 +43,7 @@ impl RpcService {
             include_auxiliary_data: false,
         };
 
-        let sui_types::quorum_driver_types::ExecuteTransactionResponseV3 {
+        let iota_types::quorum_driver_types::ExecuteTransactionResponseV3 {
             effects,
             events,
             input_objects,
@@ -53,21 +54,21 @@ impl RpcService {
             .await?;
 
         let (effects, finality) = {
-            let sui_types::quorum_driver_types::FinalizedEffects {
+            let iota_types::quorum_driver_types::FinalizedEffects {
                 effects,
                 finality_info,
             } = effects;
             let finality = match finality_info {
-                sui_types::quorum_driver_types::EffectsFinalityInfo::Certified(sig) => {
+                iota_types::quorum_driver_types::EffectsFinalityInfo::Certified(sig) => {
                     EffectsFinality::Certified {
                         signature: sig.into(),
                     }
                 }
-                sui_types::quorum_driver_types::EffectsFinalityInfo::Checkpointed(
+                iota_types::quorum_driver_types::EffectsFinalityInfo::Checkpointed(
                     _epoch,
                     checkpoint,
                 ) => EffectsFinality::Checkpointed { checkpoint },
-                sui_types::quorum_driver_types::EffectsFinalityInfo::QuorumExecuted(_) => {
+                iota_types::quorum_driver_types::EffectsFinalityInfo::QuorumExecuted(_) => {
                     EffectsFinality::QuorumExecuted
                 }
             };

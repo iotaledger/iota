@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use self::{
@@ -53,8 +54,8 @@ use move_vm_types::{
     values::{Struct, Value},
 };
 use std::sync::Arc;
-use sui_protocol_config::ProtocolConfig;
-use sui_types::{MOVE_STDLIB_ADDRESS, SUI_FRAMEWORK_ADDRESS, SUI_SYSTEM_ADDRESS};
+use iota_protocol_config::ProtocolConfig;
+use iota_types::{MOVE_STDLIB_ADDRESS, IOTA_FRAMEWORK_ADDRESS, IOTA_SYSTEM_ADDRESS};
 use transfer::TransferReceiveObjectInternalCostParams;
 
 mod address;
@@ -504,7 +505,7 @@ impl NativesCostTable {
 }
 
 pub fn all_natives(silent: bool) -> NativeFunctionTable {
-    let sui_framework_natives: &[(&str, &str, NativeFunction)] = &[
+    let iota_framework_natives: &[(&str, &str, NativeFunction)] = &[
         ("address", "from_bytes", make_native!(address::from_bytes)),
         ("address", "to_u256", make_native!(address::to_u256)),
         ("address", "from_u256", make_native!(address::from_u256)),
@@ -707,35 +708,35 @@ pub fn all_natives(silent: bool) -> NativeFunctionTable {
             make_native!(zklogin::check_zklogin_issuer_internal),
         ),
     ];
-    let sui_framework_natives_iter =
-        sui_framework_natives
+    let iota_framework_natives_iter =
+        iota_framework_natives
             .iter()
             .cloned()
             .map(|(module_name, func_name, func)| {
                 (
-                    SUI_FRAMEWORK_ADDRESS,
+                    IOTA_FRAMEWORK_ADDRESS,
                     Identifier::new(module_name).unwrap(),
                     Identifier::new(func_name).unwrap(),
                     func,
                 )
             });
-    let sui_system_natives: &[(&str, &str, NativeFunction)] = &[(
+    let iota_system_natives: &[(&str, &str, NativeFunction)] = &[(
         "validator",
         "validate_metadata_bcs",
         make_native!(validator::validate_metadata_bcs),
     )];
-    sui_system_natives
+    iota_system_natives
         .iter()
         .cloned()
         .map(|(module_name, func_name, func)| {
             (
-                SUI_SYSTEM_ADDRESS,
+                IOTA_SYSTEM_ADDRESS,
                 Identifier::new(module_name).unwrap(),
                 Identifier::new(func_name).unwrap(),
                 func,
             )
         })
-        .chain(sui_framework_natives_iter)
+        .chain(iota_framework_natives_iter)
         .chain(move_stdlib_natives::all_natives(
             MOVE_STDLIB_ADDRESS,
             // TODO: tune gas params
@@ -786,7 +787,7 @@ pub(crate) fn get_tag_and_layouts(
         _ => {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message("Sui verifier guarantees this is a struct".to_string()),
+                    .with_message("Iota verifier guarantees this is a struct".to_string()),
             )
         }
     };

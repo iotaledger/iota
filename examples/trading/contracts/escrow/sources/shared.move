@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// An escrow for atomic swap of objects using shared objects without a trusted
@@ -29,7 +30,7 @@
 module escrow::shared;
 
 use escrow::lock::{Locked, Key};
-use sui::{dynamic_object_field as dof, event};
+use iota::{dynamic_object_field as dof, event};
 
 /// The `name` of the DOF that holds the Escrowed object.
 /// Allows easy discoverability for the escrowed object.
@@ -164,11 +165,11 @@ public struct EscrowCancelled has copy, drop {
 
 // === Tests ===
 #[test_only]
-use sui::coin::{Self, Coin};
+use iota::coin::{Self, Coin};
 #[test_only]
-use sui::sui::SUI;
+use iota::iota::IOTA;
 #[test_only]
-use sui::test_scenario::{Self as ts, Scenario};
+use iota::test_scenario::{Self as ts, Scenario};
 
 #[test_only]
 use escrow::lock;
@@ -181,8 +182,8 @@ const BOB: address = @0xB;
 const DIANE: address = @0xD;
 
 #[test_only]
-fun test_coin(ts: &mut Scenario): Coin<SUI> {
-    coin::mint_for_testing<SUI>(42, ts.ctx())
+fun test_coin(ts: &mut Scenario): Coin<IOTA> {
+    coin::mint_for_testing<IOTA>(42, ts.ctx())
 }
 
 //docs::#test
@@ -219,9 +220,9 @@ fun test_successful_swap() {
     // docs::#bob
     {
         ts.next_tx(BOB);
-        let escrow: Escrow<Coin<SUI>> = ts.take_shared();
+        let escrow: Escrow<Coin<IOTA>> = ts.take_shared();
         let k2: Key = ts.take_from_sender();
-        let l2: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l2: Locked<Coin<IOTA>> = ts.take_from_sender();
         let c = escrow.swap(k2, l2, ts.ctx());
 
         transfer::public_transfer(c, BOB);
@@ -234,13 +235,13 @@ fun test_successful_swap() {
 
     // Alice gets the object from Bob
     {
-        let c: Coin<SUI> = ts.take_from_address_by_id(ALICE, i2);
+        let c: Coin<IOTA> = ts.take_from_address_by_id(ALICE, i2);
         ts::return_to_address(ALICE, c);
     };
 
     // Bob gets the object from Alice
     {
-        let c: Coin<SUI> = ts.take_from_address_by_id(BOB, i1);
+        let c: Coin<IOTA> = ts.take_from_address_by_id(BOB, i1);
         ts::return_to_address(BOB, c);
     };
     // docs::/#finish
@@ -275,9 +276,9 @@ fun test_mismatch_sender() {
     // But Diane is the one who attempts the swap
     {
         ts.next_tx(DIANE);
-        let escrow: Escrow<Coin<SUI>> = ts.take_shared();
+        let escrow: Escrow<Coin<IOTA>> = ts.take_shared();
         let k2: Key = ts.take_from_sender();
-        let l2: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l2: Locked<Coin<IOTA>> = ts.take_from_sender();
         let c = escrow.swap(k2, l2, ts.ctx());
 
         transfer::public_transfer(c, DIANE);
@@ -312,9 +313,9 @@ fun test_mismatch_object() {
     // cannot meet Alice's requirements.
     {
         ts.next_tx(BOB);
-        let escrow: Escrow<Coin<SUI>> = ts.take_shared();
+        let escrow: Escrow<Coin<IOTA>> = ts.take_shared();
         let k2: Key = ts.take_from_sender();
-        let l2: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l2: Locked<Coin<IOTA>> = ts.take_from_sender();
         let c = escrow.swap(k2, l2, ts.ctx());
 
         transfer::public_transfer(c, BOB);
@@ -352,12 +353,12 @@ fun test_object_tamper() {
     {
         ts.next_tx(BOB);
         let k: Key = ts.take_from_sender();
-        let l: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l: Locked<Coin<IOTA>> = ts.take_from_sender();
         let mut c = lock::unlock(l, k);
 
         let _dust = c.split(1, ts.ctx());
         let (l, k) = lock::lock(c, ts.ctx());
-        let escrow: Escrow<Coin<SUI>> = ts.take_shared();
+        let escrow: Escrow<Coin<IOTA>> = ts.take_shared();
         let c = escrow.swap(k, l, ts.ctx());
 
         transfer::public_transfer(c, BOB);
@@ -383,7 +384,7 @@ fun test_return_to_sender() {
     // ...but has a change of heart and takes it back
     {
         ts.next_tx(ALICE);
-        let escrow: Escrow<Coin<SUI>> = ts.take_shared();
+        let escrow: Escrow<Coin<IOTA>> = ts.take_shared();
         let c = escrow.return_to_sender(ts.ctx());
 
         transfer::public_transfer(c, ALICE);
@@ -393,7 +394,7 @@ fun test_return_to_sender() {
 
     // Alice can then access it.
     {
-        let c: Coin<SUI> = ts.take_from_address_by_id(ALICE, cid);
+        let c: Coin<IOTA> = ts.take_from_address_by_id(ALICE, cid);
         ts::return_to_address(ALICE, c)
     };
 
@@ -427,7 +428,7 @@ fun test_return_to_sender_failed_swap() {
     // ...but then has a change of heart
     {
         ts.next_tx(ALICE);
-        let escrow: Escrow<Coin<SUI>> = ts.take_shared();
+        let escrow: Escrow<Coin<IOTA>> = ts.take_shared();
         let c = escrow.return_to_sender(ts.ctx());
         transfer::public_transfer(c, ALICE);
     };
@@ -435,9 +436,9 @@ fun test_return_to_sender_failed_swap() {
     // Bob's attempt to complete the swap will now fail.
     {
         ts.next_tx(BOB);
-        let escrow: Escrow<Coin<SUI>> = ts.take_shared();
+        let escrow: Escrow<Coin<IOTA>> = ts.take_shared();
         let k2: Key = ts.take_from_sender();
-        let l2: Locked<Coin<SUI>> = ts.take_from_sender();
+        let l2: Locked<Coin<IOTA>> = ts.take_from_sender();
         let c = escrow.swap(k2, l2, ts.ctx());
 
         transfer::public_transfer(c, BOB);

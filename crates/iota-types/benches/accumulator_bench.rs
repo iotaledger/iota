@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::hash::MultisetHash;
-use sui_types::accumulator::Accumulator;
-use sui_types::base_types::ObjectDigest;
+use iota_types::accumulator::Accumulator;
+use iota_types::base_types::ObjectDigest;
 
 use criterion::*;
 

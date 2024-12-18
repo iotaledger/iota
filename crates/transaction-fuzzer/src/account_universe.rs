@@ -1,14 +1,16 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Copyright (c) The Diem Core Contributors
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::executor::{ExecutionResult, Executor};
 use once_cell::sync::Lazy;
 use proptest::{prelude::*, strategy::Union};
 use std::{fmt, sync::Arc};
-use sui_types::{storage::ObjectStore, transaction::Transaction};
+use iota_types::{storage::ObjectStore, transaction::Transaction};
 
 mod account;
 mod helpers;
@@ -136,15 +138,15 @@ pub fn assert_accounts_match(
     for (idx, account) in universe.accounts().iter().enumerate() {
         for (balance_idx, acc_object) in account.current_coins.iter().enumerate() {
             let object = object_store.get_object(&acc_object.id()).unwrap();
-            let total_sui_value =
-                object.get_total_sui(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
+            let total_iota_value =
+                object.get_total_iota(layout_resolver.as_mut()).unwrap() - object.storage_rebate;
             let account_balance_i = account.current_balances[balance_idx];
             prop_assert_eq!(
                 account_balance_i,
-                total_sui_value,
+                total_iota_value,
                 "account {} should have correct balance {} for object {} but got {}",
                 idx,
-                total_sui_value,
+                total_iota_value,
                 acc_object.id(),
                 account_balance_i
             );

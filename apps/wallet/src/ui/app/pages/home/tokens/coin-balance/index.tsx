@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useIsWalletDefiEnabled } from '_app/hooks/useIsWalletDefiEnabled';
 import { useAppSelector } from '_hooks';
 import { API_ENV } from '_shared/api-env';
 import { Heading } from '_src/ui/app/shared/heading';
 import { Text } from '_src/ui/app/shared/text';
-import { useBalanceInUSD, useFormatCoin } from '@mysten/core';
-import { SUI_TYPE_ARG } from '@mysten/sui/utils';
+import { useBalanceInUSD, useFormatCoin } from '@iota/core';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
 
 export type CoinProps = {
@@ -16,7 +17,7 @@ export type CoinProps = {
 
 function WalletBalanceUsd({ amount: walletBalance }: { amount: bigint }) {
 	const isDefiWalletEnabled = useIsWalletDefiEnabled();
-	const formattedWalletBalance = useBalanceInUSD(SUI_TYPE_ARG, walletBalance);
+	const formattedWalletBalance = useBalanceInUSD(IOTA_TYPE_ARG, walletBalance);
 
 	const walletBalanceInUsd = useMemo(() => {
 		if (!formattedWalletBalance) return null;

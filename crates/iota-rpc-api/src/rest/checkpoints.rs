@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::Query;
 use axum::extract::{Path, State};
 use axum::Json;
-use sui_sdk_types::types::{CheckpointSequenceNumber, SignedCheckpointSummary};
-use sui_types::storage::ReadStore;
+use iota_sdk_types::types::{CheckpointSequenceNumber, SignedCheckpointSummary};
+use iota_types::storage::ReadStore;
 use tap::Pipe;
 
 use crate::reader::StateReader;
@@ -125,7 +126,7 @@ impl ApiEndpoint<RpcService> for ListCheckpoints {
                 ResponseBuilder::new()
                     .json_content::<Vec<CheckpointResponse>>(generator)
                     .bcs_content()
-                    .header::<String>(crate::types::X_SUI_CURSOR, generator)
+                    .header::<String>(crate::types::X_IOTA_CURSOR, generator)
                     .build(),
             )
             .response(410, ResponseBuilder::new().build())
@@ -307,7 +308,7 @@ async fn get_full_checkpoint(
     Path(checkpoint_id): Path<CheckpointId>,
     accept: AcceptFormat,
     State(state): State<StateReader>,
-) -> Result<Bcs<sui_types::full_checkpoint_content::CheckpointData>> {
+) -> Result<Bcs<iota_types::full_checkpoint_content::CheckpointData>> {
     match accept {
         AcceptFormat::Bcs => {}
         _ => {

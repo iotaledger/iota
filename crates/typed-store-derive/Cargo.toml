@@ -2,7 +2,7 @@
 name = "typed-store-derive"
 version = "0.3.0"
 license = "Apache-2.0"
-authors = ["Ade A. <ade@mystenlabs.com>"]
+authors = ["Ade A. <ade@iota.org>"]
 description = "macros for the typed-store crate"
 repository = "https://github.com/mystenlabs/mysten-infra"
 edition = "2021"

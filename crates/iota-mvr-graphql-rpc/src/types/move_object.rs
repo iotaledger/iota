@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use super::balance::{self, Balance};
@@ -13,9 +14,9 @@ use super::move_type::MoveType;
 use super::move_value::MoveValue;
 use super::object::{self, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus};
 use super::owner::OwnerImpl;
-use super::stake::StakedSuiDowncastError;
-use super::sui_address::SuiAddress;
-use super::suins_registration::{DomainFormat, SuinsRegistration, SuinsRegistrationDowncastError};
+use super::stake::StakedIotaDowncastError;
+use super::iota_address::IotaAddress;
+use super::iotans_registration::{DomainFormat, IotaNSRegistration, IotaNSRegistrationDowncastError};
 use super::transaction_block::{self, TransactionBlock, TransactionBlockFilter};
 use super::type_filter::ExactTypeFilter;
 use super::uint53::UInt53;
@@ -23,12 +24,12 @@ use super::{coin::Coin, object::Object};
 use crate::connection::ScanConnection;
 use crate::data::Db;
 use crate::error::Error;
-use crate::types::stake::StakedSui;
+use crate::types::stake::StakedIota;
 use async_graphql::connection::Connection;
 use async_graphql::*;
-use sui_json_rpc::name_service::NameServiceConfig;
-use sui_types::object::{Data, MoveObject as NativeMoveObject};
-use sui_types::TypeTag;
+use iota_json_rpc::name_service::NameServiceConfig;
+use iota_types::object::{Data, MoveObject as NativeMoveObject};
+use iota_types::TypeTag;
 
 #[derive(Clone)]
 pub(crate) struct MoveObject {
@@ -65,7 +66,7 @@ pub(crate) enum MoveObjectDowncastError {
         name = "has_public_transfer",
         ty = "bool",
         desc = "Determines whether a transaction can transfer this object, using the \
-                TransferObjects transaction command or `sui::transfer::public_transfer`, both of \
+                TransferObjects transaction command or `iota::transfer::public_transfer`, both of \
                 which require the object to have the `key` and `store` abilities."
     ),
     field(
@@ -113,15 +114,15 @@ pub(crate) enum IMoveObject {
     MoveObject(MoveObject),
     Coin(Coin),
     CoinMetadata(CoinMetadata),
-    StakedSui(StakedSui),
-    SuinsRegistration(SuinsRegistration),
+    StakedIota(StakedIota),
+    IotaNSRegistration(IotaNSRegistration),
 }
 
 /// The representation of an object as a Move Object, which exposes additional information
 /// (content, module that governs it, version, is transferrable, etc.) about this object.
 #[Object]
 impl MoveObject {
-    pub(crate) async fn address(&self) -> SuiAddress {
+    pub(crate) async fn address(&self) -> IotaAddress {
         OwnerImpl::from(&self.super_).address().await
     }
 
@@ -141,7 +142,7 @@ impl MoveObject {
     }
 
     /// Total balance of all coins with marker type owned by this object. If type is not supplied,
-    /// it defaults to `0x2::sui::SUI`.
+    /// it defaults to `0x2::iota::IOTA`.
     pub(crate) async fn balance(
         &self,
         ctx: &Context<'_>,
@@ -166,7 +167,7 @@ impl MoveObject {
 
     /// The coin objects for this object.
     ///
-    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::sui::SUI`.
+    ///`type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
     pub(crate) async fn coins(
         &self,
         ctx: &Context<'_>,
@@ -181,43 +182,43 @@ impl MoveObject {
             .await
     }
 
-    /// The `0x3::staking_pool::StakedSui` objects owned by this object.
-    pub(crate) async fn staked_suis(
+    /// The `0x3::staking_pool::StakedIota` objects owned by this object.
+    pub(crate) async fn staked_iotas(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, StakedSui>> {
+    ) -> Result<Connection<String, StakedIota>> {
         OwnerImpl::from(&self.super_)
-            .staked_suis(ctx, first, after, last, before)
+            .staked_iotas(ctx, first, after, last, before)
             .await
     }
 
     /// The domain explicitly configured as the default domain pointing to this object.
-    pub(crate) async fn default_suins_name(
+    pub(crate) async fn default_iotans_name(
         &self,
         ctx: &Context<'_>,
         format: Option<DomainFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_)
-            .default_suins_name(ctx, format)
+            .default_iotans_name(ctx, format)
             .await
     }
 
-    /// The SuinsRegistration NFTs owned by this object. These grant the owner the capability to
+    /// The IotaNSRegistration NFTs owned by this object. These grant the owner the capability to
     /// manage the associated domain.
-    pub(crate) async fn suins_registrations(
+    pub(crate) async fn iotans_registrations(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, SuinsRegistration>> {
+    ) -> Result<Connection<String, IotaNSRegistration>> {
         OwnerImpl::from(&self.super_)
-            .suins_registrations(ctx, first, after, last, before)
+            .iotans_registrations(ctx, first, after, last, before)
             .await
     }
 
@@ -256,7 +257,7 @@ impl MoveObject {
             .await
     }
 
-    /// The amount of SUI we would rebate if this object gets deleted or mutated. This number is
+    /// The amount of IOTA we would rebate if this object gets deleted or mutated. This number is
     /// recalculated based on the present storage gas price.
     pub(crate) async fn storage_rebate(&self) -> Option<BigInt> {
         ObjectImpl(&self.super_).storage_rebate().await
@@ -310,7 +311,7 @@ impl MoveObject {
     }
 
     /// Determines whether a transaction can transfer this object, using the TransferObjects
-    /// transaction command or `sui::transfer::public_transfer`, both of which require the object to
+    /// transaction command or `iota::transfer::public_transfer`, both of which require the object to
     /// have the `key` and `store` abilities.
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         MoveObjectImpl(self).has_public_transfer(ctx).await
@@ -384,13 +385,13 @@ impl MoveObject {
         }
     }
 
-    /// Attempts to convert the Move object into a `0x3::staking_pool::StakedSui`.
-    async fn as_staked_sui(&self) -> Result<Option<StakedSui>> {
-        match StakedSui::try_from(self) {
+    /// Attempts to convert the Move object into a `0x3::staking_pool::StakedIota`.
+    async fn as_staked_iota(&self) -> Result<Option<StakedIota>> {
+        match StakedIota::try_from(self) {
             Ok(coin) => Ok(Some(coin)),
-            Err(StakedSuiDowncastError::NotAStakedSui) => Ok(None),
-            Err(StakedSuiDowncastError::Bcs(e)) => Err(Error::Internal(format!(
-                "Failed to deserialize StakedSui: {e}"
+            Err(StakedIotaDowncastError::NotAStakedIota) => Ok(None),
+            Err(StakedIotaDowncastError::Bcs(e)) => Err(Error::Internal(format!(
+                "Failed to deserialize StakedIota: {e}"
             )))
             .extend(),
         }
@@ -408,16 +409,16 @@ impl MoveObject {
         }
     }
 
-    /// Attempts to convert the Move object into a `SuinsRegistration` object.
-    async fn as_suins_registration(&self, ctx: &Context<'_>) -> Result<Option<SuinsRegistration>> {
+    /// Attempts to convert the Move object into a `IotaNSRegistration` object.
+    async fn as_iotans_registration(&self, ctx: &Context<'_>) -> Result<Option<IotaNSRegistration>> {
         let cfg: &NameServiceConfig = ctx.data_unchecked();
-        let tag = SuinsRegistration::type_(cfg.package_address.into());
+        let tag = IotaNSRegistration::type_(cfg.package_address.into());
 
-        match SuinsRegistration::try_from(self, &tag) {
+        match IotaNSRegistration::try_from(self, &tag) {
             Ok(registration) => Ok(Some(registration)),
-            Err(SuinsRegistrationDowncastError::NotASuinsRegistration) => Ok(None),
-            Err(SuinsRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
-                "Failed to deserialize SuinsRegistration: {e}",
+            Err(IotaNSRegistrationDowncastError::NotAnIotaNSRegistration) => Ok(None),
+            Err(IotaNSRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
+                "Failed to deserialize IotaNSRegistration: {e}",
             )))
             .extend(),
         }
@@ -440,7 +441,7 @@ impl MoveObjectImpl<'_> {
 impl MoveObject {
     pub(crate) async fn query(
         ctx: &Context<'_>,
-        address: SuiAddress,
+        address: IotaAddress,
         key: ObjectLookup,
     ) -> Result<Option<Self>, Error> {
         let Some(object) = Object::query(ctx, address, key).await? else {

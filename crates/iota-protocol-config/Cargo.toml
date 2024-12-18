@@ -1,7 +1,7 @@
 [package]
-name = "sui-protocol-config"
+name = "iota-protocol-config"
 version = "0.1.0"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -13,7 +13,7 @@ workspace = true
 serde.workspace = true
 tracing.workspace = true
 serde_with.workspace = true
-sui-protocol-config-macros.workspace = true
+iota-protocol-config-macros.workspace = true
 schemars.workspace = true
 insta.workspace = true
 clap.workspace = true

@@ -24,7 +24,7 @@ validator_config_info:
   p2p_address: /dns/validator1/udp/8084
   stake: 20000000000000000
   genesis:
-    genesis-file-location: /opt/sui/genesis.blob
+    genesis-file-location: /opt/iota/genesis.blob
 - commission_rate: 0
   consensus_address: /ip4/127.0.0.1/tcp/8083/http
   gas_price: 1000

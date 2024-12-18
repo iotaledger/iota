@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 module oracle::simple_oracle {
@@ -6,10 +7,10 @@ module oracle::simple_oracle {
     use std::string::String;
 
     use oracle::data::{Self, Data};
-    use sui::clock::{Self, Clock};
-    use sui::dynamic_field as df;
-    use sui::table;
-    use sui::table::Table;
+    use iota::clock::{Self, Clock};
+    use iota::dynamic_field as df;
+    use iota::table;
+    use iota::table::Table;
 
     const ESenderNotOracle: u64 = 0;
     const ETickerNotExists: u64 = 1;

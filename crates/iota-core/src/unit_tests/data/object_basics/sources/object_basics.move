@@ -1,16 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Test CTURD object basics (create, transfer, update, read, delete)
 module examples::object_basics {
-    use sui::clock::Clock;
-    use sui::authenticator_state::AuthenticatorState;
-    use sui::random::Random;
-    use sui::dynamic_object_field as ofield;
-    use sui::event;
-    use sui::object::{Self, UID, ID};
-    use sui::tx_context::{Self, TxContext};
-    use sui::transfer;
+    use iota::clock::Clock;
+    use iota::authenticator_state::AuthenticatorState;
+    use iota::random::Random;
+    use iota::dynamic_object_field as ofield;
+    use iota::event;
+    use iota::object::{Self, UID, ID};
+    use iota::tx_context::{Self, TxContext};
+    use iota::transfer;
 
     public struct Object has key, store {
         id: UID,
@@ -103,12 +104,12 @@ module examples::object_basics {
     }
 
     public entry fun add_field(o: &mut Object, v: Object) {
-        sui::dynamic_field::add(&mut o.id, true, v);
+        iota::dynamic_field::add(&mut o.id, true, v);
     }
 
     public entry fun remove_field(o: &mut Object, ctx: &mut TxContext) {
         transfer::public_transfer(
-            sui::dynamic_field::remove<bool, Object>(&mut o.id, true),
+            iota::dynamic_field::remove<bool, Object>(&mut o.id, true),
             tx_context::sender(ctx),
         );
     }
@@ -118,7 +119,7 @@ module examples::object_basics {
     }
 
     public entry fun add_field_with_struct_name(o: &mut Object, v: Object) {
-        sui::dynamic_field::add(&mut o.id, Name {name_str: std::string::utf8(b"Test Name")}, v);
+        iota::dynamic_field::add(&mut o.id, Name {name_str: std::string::utf8(b"Test Name")}, v);
     }
 
     public entry fun add_ofield_with_struct_name(o: &mut Object, v: Object) {
@@ -126,7 +127,7 @@ module examples::object_basics {
     }
 
     public entry fun add_field_with_bytearray_name(o: &mut Object, v: Object) {
-        sui::dynamic_field::add(&mut o.id,b"Test Name", v);
+        iota::dynamic_field::add(&mut o.id,b"Test Name", v);
     }
 
     public entry fun add_ofield_with_bytearray_name(o: &mut Object, v: Object) {
@@ -134,7 +135,7 @@ module examples::object_basics {
     }
 
     public entry fun add_field_with_address_name(o: &mut Object, v: Object,  ctx: &mut TxContext) {
-        sui::dynamic_field::add(&mut o.id,tx_context::sender(ctx), v);
+        iota::dynamic_field::add(&mut o.id,tx_context::sender(ctx), v);
     }
 
     public entry fun add_ofield_with_address_name(o: &mut Object, v: Object,  ctx: &mut TxContext) {

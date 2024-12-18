@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::quorum_driver::reconfig_observer::DummyReconfigObserver;
@@ -7,23 +8,23 @@ use crate::quorum_driver::{
 };
 use crate::test_authority_clients::LocalAuthorityClient;
 use crate::test_authority_clients::LocalAuthorityClientFaultConfig;
-use crate::test_utils::make_transfer_sui_transaction;
+use crate::test_utils::make_transfer_iota_transaction;
 use crate::{quorum_driver::QuorumDriverMetrics, test_utils::init_local_authorities};
-use mysten_common::sync::notify_read::{NotifyRead, Registration};
+use iota_common::sync::notify_read::{NotifyRead, Registration};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use sui_macros::{register_fail_point, sim_test};
-use sui_types::base_types::SuiAddress;
-use sui_types::base_types::TransactionDigest;
-use sui_types::crypto::{deterministic_random_account_key, get_key_pair, AccountKeyPair};
-use sui_types::effects::TransactionEffectsAPI;
-use sui_types::object::{generate_test_gas_objects, Object};
-use sui_types::quorum_driver_types::{
+use iota_macros::{register_fail_point, sim_test};
+use iota_types::base_types::IotaAddress;
+use iota_types::base_types::TransactionDigest;
+use iota_types::crypto::{deterministic_random_account_key, get_key_pair, AccountKeyPair};
+use iota_types::effects::TransactionEffectsAPI;
+use iota_types::object::{generate_test_gas_objects, Object};
+use iota_types::quorum_driver_types::{
     ExecuteTransactionRequestV3, QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
 };
-use sui_types::transaction::Transaction;
+use iota_types::transaction::Transaction;
 use tokio::time::timeout;
 
 async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
@@ -48,13 +49,13 @@ async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
 
 fn make_tx(
     gas: &Object,
-    sender: SuiAddress,
+    sender: IotaAddress,
     keypair: &AccountKeyPair,
     gas_price: u64,
 ) -> Transaction {
-    make_transfer_sui_transaction(
+    make_transfer_iota_transaction(
         gas.compute_object_reference(),
-        SuiAddress::random_for_testing_only(),
+        IotaAddress::random_for_testing_only(),
         None,
         sender,
         keypair,
@@ -229,7 +230,7 @@ async fn test_quorum_driver_update_validators_and_max_retry_times() {
 #[tokio::test]
 async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let gas_objects = generate_test_gas_objects();
-    let (sender, keypair): (SuiAddress, AccountKeyPair) = deterministic_random_account_key();
+    let (sender, keypair): (IotaAddress, AccountKeyPair) = deterministic_random_account_key();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
     let (aggregator, authorities, genesis, _) =

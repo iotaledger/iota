@@ -1,29 +1,30 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::str::FromStr;
 use std::{path::PathBuf, time::Duration};
 
-use sui_graphql_rpc_client::simple_client::SimpleClient;
-use sui_json_rpc::name_service::{Domain, DomainFormat};
-use sui_json_rpc_types::ObjectChange;
-use sui_move_build::BuildConfig;
-use sui_mvr_graphql_rpc::{
+use iota_graphql_rpc_client::simple_client::SimpleClient;
+use iota_json_rpc::name_service::{Domain, DomainFormat};
+use iota_json_rpc_types::ObjectChange;
+use iota_move_build::BuildConfig;
+use iota_mvr_graphql_rpc::{
     config::{ConnectionConfig, ServiceConfig},
     test_infra::cluster::{
         start_graphql_server_with_fn_rpc, start_network_cluster,
         wait_for_graphql_checkpoint_catchup, wait_for_graphql_server, NetworkCluster,
     },
 };
-use sui_pg_temp_db::get_available_port;
-use sui_types::{
+use iota_pg_temp_db::get_available_port;
+use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::ObjectDigest,
     move_package::UpgradePolicy,
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, ObjectArg},
-    Identifier, SUI_FRAMEWORK_PACKAGE_ID,
+    Identifier, IOTA_FRAMEWORK_PACKAGE_ID,
 };
 const DOT_MOVE_PKG: &str = "tests/move_registry/move_registry/";
 const DEMO_PKG: &str = "tests/move_registry/demo/";
@@ -44,7 +45,7 @@ async fn test_move_registry_e2e() {
     let external_network_chain_id = network_cluster
         .validator_fullnode_handle
         .fullnode_handle
-        .sui_client
+        .iota_client
         .read_api()
         .get_chain_identifier()
         .await
@@ -58,7 +59,7 @@ async fn test_move_registry_e2e() {
     let (v1, v2, v3) = publish_demo_pkg(&network_cluster).await;
 
     let name = "app".to_string();
-    let org = "org.sui".to_string();
+    let org = "org.iota".to_string();
 
     // Register the package: First, for the "base" chain state.
     register_pkg(
@@ -120,7 +121,7 @@ async fn test_move_registry_e2e() {
     let latest_checkpoint = network_cluster
         .validator_fullnode_handle
         .fullnode_handle
-        .sui_node
+        .iota_node
         .inner()
         .state()
         .get_latest_checkpoint_sequence_number()
@@ -390,7 +391,7 @@ async fn upgrade_pkg(
     let digest = builder.pure(digest.to_vec()).unwrap();
 
     let ticket = builder.programmable_move_call(
-        SUI_FRAMEWORK_PACKAGE_ID,
+        IOTA_FRAMEWORK_PACKAGE_ID,
         Identifier::new("package").unwrap(),
         Identifier::new("authorize_upgrade").unwrap(),
         vec![],
@@ -400,7 +401,7 @@ async fn upgrade_pkg(
     let receipt = builder.upgrade(current_package_object_id, ticket, dependencies, modules);
 
     builder.programmable_move_call(
-        SUI_FRAMEWORK_PACKAGE_ID,
+        IOTA_FRAMEWORK_PACKAGE_ID,
         Identifier::new("package").unwrap(),
         Identifier::new("commit_upgrade").unwrap(),
         vec![],

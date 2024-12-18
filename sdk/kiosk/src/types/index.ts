@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SuiClient } from '@mysten/sui/client';
-import type { TransactionObjectArgument } from '@mysten/sui/transactions';
+import type { IotaClient } from '@iota/iota-sdk/client';
+import type { TransactionObjectArgument } from '@iota/iota-sdk/transactions';
 
 import type { BaseRulePackageIds } from '../constants.js';
 
@@ -29,7 +30,7 @@ export enum Network {
  * The Client Options for Both KioskClient & TransferPolicyManager.
  */
 export type KioskClientOptions = {
-	client: SuiClient;
+	client: IotaClient;
 	network: Network;
 	packageIds?: BaseRulePackageIds;
 };

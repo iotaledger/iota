@@ -1,7 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toHex } from '@mysten/bcs';
+import { toHex } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
 
 import type { TypeTag } from '../bcs/bcs.js';

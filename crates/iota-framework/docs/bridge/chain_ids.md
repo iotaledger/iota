@@ -6,9 +6,9 @@ title: Module `0xb::chain_ids`
 
 -  [Struct `BridgeRoute`](#0xb_chain_ids_BridgeRoute)
 -  [Constants](#@Constants_0)
--  [Function `sui_mainnet`](#0xb_chain_ids_sui_mainnet)
--  [Function `sui_testnet`](#0xb_chain_ids_sui_testnet)
--  [Function `sui_custom`](#0xb_chain_ids_sui_custom)
+-  [Function `iota_mainnet`](#0xb_chain_ids_iota_mainnet)
+-  [Function `iota_testnet`](#0xb_chain_ids_iota_testnet)
+-  [Function `iota_custom`](#0xb_chain_ids_iota_custom)
 -  [Function `eth_mainnet`](#0xb_chain_ids_eth_mainnet)
 -  [Function `eth_sepolia`](#0xb_chain_ids_eth_sepolia)
 -  [Function `eth_custom`](#0xb_chain_ids_eth_custom)
@@ -99,40 +99,40 @@ title: Module `0xb::chain_ids`
 
 
 
-<a name="0xb_chain_ids_SuiCustom"></a>
+<a name="0xb_chain_ids_IotaCustom"></a>
 
 
 
-<pre><code><b>const</b> <a href="chain_ids.md#0xb_chain_ids_SuiCustom">SuiCustom</a>: u8 = 2;
+<pre><code><b>const</b> <a href="chain_ids.md#0xb_chain_ids_IotaCustom">IotaCustom</a>: u8 = 2;
 </code></pre>
 
 
 
-<a name="0xb_chain_ids_SuiMainnet"></a>
+<a name="0xb_chain_ids_IotaMainnet"></a>
 
 
 
-<pre><code><b>const</b> <a href="chain_ids.md#0xb_chain_ids_SuiMainnet">SuiMainnet</a>: u8 = 0;
+<pre><code><b>const</b> <a href="chain_ids.md#0xb_chain_ids_IotaMainnet">IotaMainnet</a>: u8 = 0;
 </code></pre>
 
 
 
-<a name="0xb_chain_ids_SuiTestnet"></a>
+<a name="0xb_chain_ids_IotaTestnet"></a>
 
 
 
-<pre><code><b>const</b> <a href="chain_ids.md#0xb_chain_ids_SuiTestnet">SuiTestnet</a>: u8 = 1;
+<pre><code><b>const</b> <a href="chain_ids.md#0xb_chain_ids_IotaTestnet">IotaTestnet</a>: u8 = 1;
 </code></pre>
 
 
 
-<a name="0xb_chain_ids_sui_mainnet"></a>
+<a name="0xb_chain_ids_iota_mainnet"></a>
 
-## Function `sui_mainnet`
+## Function `iota_mainnet`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_sui_mainnet">sui_mainnet</a>(): u8
+<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_iota_mainnet">iota_mainnet</a>(): u8
 </code></pre>
 
 
@@ -141,20 +141,20 @@ title: Module `0xb::chain_ids`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_sui_mainnet">sui_mainnet</a>(): u8 { <a href="chain_ids.md#0xb_chain_ids_SuiMainnet">SuiMainnet</a> }
+<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_iota_mainnet">iota_mainnet</a>(): u8 { <a href="chain_ids.md#0xb_chain_ids_IotaMainnet">IotaMainnet</a> }
 </code></pre>
 
 
 
 </details>
 
-<a name="0xb_chain_ids_sui_testnet"></a>
+<a name="0xb_chain_ids_iota_testnet"></a>
 
-## Function `sui_testnet`
+## Function `iota_testnet`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_sui_testnet">sui_testnet</a>(): u8
+<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_iota_testnet">iota_testnet</a>(): u8
 </code></pre>
 
 
@@ -163,20 +163,20 @@ title: Module `0xb::chain_ids`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_sui_testnet">sui_testnet</a>(): u8 { <a href="chain_ids.md#0xb_chain_ids_SuiTestnet">SuiTestnet</a> }
+<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_iota_testnet">iota_testnet</a>(): u8 { <a href="chain_ids.md#0xb_chain_ids_IotaTestnet">IotaTestnet</a> }
 </code></pre>
 
 
 
 </details>
 
-<a name="0xb_chain_ids_sui_custom"></a>
+<a name="0xb_chain_ids_iota_custom"></a>
 
-## Function `sui_custom`
+## Function `iota_custom`
 
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_sui_custom">sui_custom</a>(): u8
+<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_iota_custom">iota_custom</a>(): u8
 </code></pre>
 
 
@@ -185,7 +185,7 @@ title: Module `0xb::chain_ids`
 <summary>Implementation</summary>
 
 
-<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_sui_custom">sui_custom</a>(): u8 { <a href="chain_ids.md#0xb_chain_ids_SuiCustom">SuiCustom</a> }
+<pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_iota_custom">iota_custom</a>(): u8 { <a href="chain_ids.md#0xb_chain_ids_IotaCustom">IotaCustom</a> }
 </code></pre>
 
 
@@ -323,9 +323,9 @@ title: Module `0xb::chain_ids`
 
 <pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_assert_valid_chain_id">assert_valid_chain_id</a>(id: u8) {
     <b>assert</b>!(
-        id == <a href="chain_ids.md#0xb_chain_ids_SuiMainnet">SuiMainnet</a> ||
-        id == <a href="chain_ids.md#0xb_chain_ids_SuiTestnet">SuiTestnet</a> ||
-        id == <a href="chain_ids.md#0xb_chain_ids_SuiCustom">SuiCustom</a> ||
+        id == <a href="chain_ids.md#0xb_chain_ids_IotaMainnet">IotaMainnet</a> ||
+        id == <a href="chain_ids.md#0xb_chain_ids_IotaTestnet">IotaTestnet</a> ||
+        id == <a href="chain_ids.md#0xb_chain_ids_IotaCustom">IotaCustom</a> ||
         id == <a href="chain_ids.md#0xb_chain_ids_EthMainnet">EthMainnet</a> ||
         id == <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a> ||
         id == <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a>,
@@ -355,17 +355,17 @@ title: Module `0xb::chain_ids`
 
 <pre><code><b>public</b> <b>fun</b> <a href="chain_ids.md#0xb_chain_ids_valid_routes">valid_routes</a>(): <a href="../move-stdlib/vector.md#0x1_vector">vector</a>&lt;<a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a>&gt; {
     <a href="../move-stdlib/vector.md#0x1_vector">vector</a>[
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_SuiMainnet">SuiMainnet</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthMainnet">EthMainnet</a> },
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthMainnet">EthMainnet</a>, destination: <a href="chain_ids.md#0xb_chain_ids_SuiMainnet">SuiMainnet</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_IotaMainnet">IotaMainnet</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthMainnet">EthMainnet</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthMainnet">EthMainnet</a>, destination: <a href="chain_ids.md#0xb_chain_ids_IotaMainnet">IotaMainnet</a> },
 
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_SuiTestnet">SuiTestnet</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a> },
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_SuiTestnet">SuiTestnet</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a> },
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_SuiCustom">SuiCustom</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a> },
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_SuiCustom">SuiCustom</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a> },
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a>, destination: <a href="chain_ids.md#0xb_chain_ids_SuiTestnet">SuiTestnet</a> },
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a>, destination: <a href="chain_ids.md#0xb_chain_ids_SuiCustom">SuiCustom</a> },
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a>, destination: <a href="chain_ids.md#0xb_chain_ids_SuiTestnet">SuiTestnet</a> },
-        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a>, destination: <a href="chain_ids.md#0xb_chain_ids_SuiCustom">SuiCustom</a> }
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_IotaTestnet">IotaTestnet</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_IotaTestnet">IotaTestnet</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_IotaCustom">IotaCustom</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_IotaCustom">IotaCustom</a>, destination: <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a>, destination: <a href="chain_ids.md#0xb_chain_ids_IotaTestnet">IotaTestnet</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthSepolia">EthSepolia</a>, destination: <a href="chain_ids.md#0xb_chain_ids_IotaCustom">IotaCustom</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a>, destination: <a href="chain_ids.md#0xb_chain_ids_IotaTestnet">IotaTestnet</a> },
+        <a href="chain_ids.md#0xb_chain_ids_BridgeRoute">BridgeRoute</a> { source: <a href="chain_ids.md#0xb_chain_ids_EthCustom">EthCustom</a>, destination: <a href="chain_ids.md#0xb_chain_ids_IotaCustom">IotaCustom</a> }
     ]
 }
 </code></pre>

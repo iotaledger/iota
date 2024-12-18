@@ -1,7 +1,7 @@
 // invalid, wrong one-time witness type name
 
 module a::m {
-    use sui::tx_context;
+    use iota::tx_context;
 
     struct OneTimeWitness has drop { dummy: bool }
 
@@ -9,6 +9,6 @@ module a::m {
     }
 }
 
-module sui::tx_context {
+module iota::tx_context {
     struct TxContext has drop {}
 }

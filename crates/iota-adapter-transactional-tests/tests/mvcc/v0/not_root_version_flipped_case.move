@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // tests accessing version of the input parent, not the runtime parent
@@ -8,7 +9,7 @@
 //# publish
 
 module test::m {
-    use sui::dynamic_field as field;
+    use iota::dynamic_field as field;
 
     public struct A has key, store {
         id: UID,

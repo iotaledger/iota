@@ -1,8 +1,9 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isSerializedBcs } from '@mysten/bcs';
-import type { BcsType, SerializedBcs } from '@mysten/bcs';
+import { isSerializedBcs } from '@iota/bcs';
+import type { BcsType, SerializedBcs } from '@iota/bcs';
 
 import { bcs } from '../bcs/index.js';
 import type { Argument } from './data/internal.js';

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // chkpt1: create parent and child @ version 2
@@ -11,8 +12,8 @@
 
 //# publish
 module Test::M1 {
-    use sui::dynamic_object_field as ofield;
-    use sui::dynamic_field as field;
+    use iota::dynamic_object_field as ofield;
+    use iota::dynamic_field as field;
     use std::string::{String, utf8};
 
     public struct Parent has key, store {

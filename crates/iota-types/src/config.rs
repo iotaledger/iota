@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::base_types::EpochId;
@@ -10,14 +11,14 @@ use move_core_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{id::UID, MoveTypeTagTrait, SUI_FRAMEWORK_ADDRESS};
+use crate::{id::UID, MoveTypeTagTrait, IOTA_FRAMEWORK_ADDRESS};
 
 pub const CONFIG_MODULE_NAME: &IdentStr = ident_str!("config");
 pub const CONFIG_STRUCT_NAME: &IdentStr = ident_str!("Config");
 pub const SETTING_STRUCT_NAME: &IdentStr = ident_str!("Setting");
 pub const SETTING_DATA_STRUCT_NAME: &IdentStr = ident_str!("SettingData");
-pub const RESOLVED_SUI_CONFIG: (&AccountAddress, &IdentStr, &IdentStr) = (
-    &SUI_FRAMEWORK_ADDRESS,
+pub const RESOLVED_IOTA_CONFIG: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &IOTA_FRAMEWORK_ADDRESS,
     CONFIG_MODULE_NAME,
     CONFIG_STRUCT_NAME,
 );
@@ -45,7 +46,7 @@ pub struct SettingData<V> {
 impl Config {
     pub fn type_() -> StructTag {
         StructTag {
-            address: SUI_FRAMEWORK_ADDRESS,
+            address: IOTA_FRAMEWORK_ADDRESS,
             module: CONFIG_MODULE_NAME.to_owned(),
             name: CONFIG_STRUCT_NAME.to_owned(),
             type_params: vec![],
@@ -55,7 +56,7 @@ impl Config {
 
 pub fn setting_type(value_tag: TypeTag) -> StructTag {
     StructTag {
-        address: SUI_FRAMEWORK_ADDRESS,
+        address: IOTA_FRAMEWORK_ADDRESS,
         module: CONFIG_MODULE_NAME.to_owned(),
         name: SETTING_STRUCT_NAME.to_owned(),
         type_params: vec![value_tag],
@@ -81,7 +82,7 @@ pub fn is_setting(tag: &StructTag) -> bool {
         name,
         type_params,
     } = tag;
-    *address == SUI_FRAMEWORK_ADDRESS
+    *address == IOTA_FRAMEWORK_ADDRESS
         && module.as_ident_str() == CONFIG_MODULE_NAME
         && name.as_ident_str() == SETTING_STRUCT_NAME
         && type_params.len() == 1

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::command::Component;
@@ -13,20 +14,20 @@ use futures::StreamExt;
 use std::collections::{BTreeMap, HashMap};
 use std::ops::Deref;
 use std::sync::Arc;
-use sui_config::node::RunWithRange;
-use sui_test_transaction_builder::PublishData;
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::effects::{TransactionEffects, TransactionEffectsAPI};
-use sui_types::messages_grpc::HandleTransactionResponse;
-use sui_types::mock_checkpoint_builder::ValidatorKeypairProvider;
-use sui_types::transaction::{
+use iota_config::node::RunWithRange;
+use iota_test_transaction_builder::PublishData;
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress};
+use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+use iota_types::messages_grpc::HandleTransactionResponse;
+use iota_types::mock_checkpoint_builder::ValidatorKeypairProvider;
+use iota_types::transaction::{
     CertifiedTransaction, SignedTransaction, Transaction, VerifiedTransaction,
 };
 use tracing::info;
 
 pub struct BenchmarkContext {
     validator: SingleValidator,
-    user_accounts: BTreeMap<SuiAddress, Account>,
+    user_accounts: BTreeMap<IotaAddress, Account>,
     admin_account: Account,
     benchmark_component: Component,
 }
@@ -92,7 +93,7 @@ impl BenchmarkContext {
         &mut self,
         move_package: ObjectID,
         num_dynamic_fields: u64,
-    ) -> HashMap<SuiAddress, ObjectRef> {
+    ) -> HashMap<IotaAddress, ObjectRef> {
         let mut root_objects = HashMap::new();
 
         if num_dynamic_fields == 0 {

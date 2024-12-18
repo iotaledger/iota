@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use indexmap::IndexSet;
@@ -10,15 +11,15 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
-use sui_json_rpc_types::{SuiTransactionBlockEffects, SuiTransactionBlockEffectsAPI};
-use sui_move_build::BuildConfig;
-use sui_protocol_config::{Chain, ProtocolConfig};
-use sui_types::base_types::{ObjectID, ObjectRef, SequenceNumber, SuiAddress};
-use sui_types::execution_config_utils::to_binary_config;
-use sui_types::object::{Object, Owner};
-use sui_types::storage::WriteKind;
-use sui_types::transaction::{CallArg, ObjectArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH};
-use sui_types::{Identifier, SUI_FRAMEWORK_ADDRESS};
+use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
+use iota_move_build::BuildConfig;
+use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_types::base_types::{ObjectID, ObjectRef, SequenceNumber, IotaAddress};
+use iota_types::execution_config_utils::to_binary_config;
+use iota_types::object::{Object, Owner};
+use iota_types::storage::WriteKind;
+use iota_types::transaction::{CallArg, ObjectArg, TransactionData, TEST_ONLY_GAS_UNIT_FOR_PUBLISH};
+use iota_types::{Identifier, IOTA_FRAMEWORK_ADDRESS};
 use test_cluster::TestCluster;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};
@@ -108,7 +109,7 @@ pub struct SurferState {
     pub cluster: Arc<TestCluster>,
     pub rng: StdRng,
 
-    pub address: SuiAddress,
+    pub address: IotaAddress,
     pub gas_object: ObjectRef,
     pub owned_objects: OwnedObjects,
     pub immutable_objects: ImmObjects,
@@ -123,7 +124,7 @@ impl SurferState {
         id: usize,
         cluster: Arc<TestCluster>,
         rng: StdRng,
-        address: SuiAddress,
+        address: IotaAddress,
         gas_object: ObjectRef,
         owned_objects: OwnedObjects,
         immutable_objects: ImmObjects,
@@ -206,7 +207,7 @@ impl SurferState {
     }
 
     #[tracing::instrument(skip_all, fields(surfer_id = self.id))]
-    async fn process_tx_effects(&mut self, effects: &SuiTransactionBlockEffects) {
+    async fn process_tx_effects(&mut self, effects: &IotaTransactionBlockEffects) {
         for (owned_ref, write_kind) in effects.all_changed_objects() {
             if matches!(owned_ref.owner, Owner::ObjectOwner(_)) {
                 // For object owned objects, we don't need to do anything.
@@ -246,7 +247,7 @@ impl SurferState {
                 Owner::Shared {
                     initial_shared_version,
                 }
-                // TODO: Implement full support for ConsensusV2 objects in sui-surfer.
+                // TODO: Implement full support for ConsensusV2 objects in iota-surfer.
                 | Owner::ConsensusV2 {
                     start_version: initial_shared_version,
                     ..
@@ -409,7 +410,7 @@ fn is_type_tx_context(ty: &Type) -> bool {
                 name,
                 type_arguments,
             } => {
-                address == &SUI_FRAMEWORK_ADDRESS
+                address == &IOTA_FRAMEWORK_ADDRESS
                     && module == &Identifier::new("tx_context").unwrap()
                     && name == &Identifier::new("TxContext").unwrap()
                     && type_arguments.is_empty()

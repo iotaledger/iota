@@ -1,6 +1,6 @@
 // not allowed since C is not packed with a fresh UID
 module a::a {
-    use sui::object::UID;
+    use iota::object::UID;
 
     struct A has key {
         id: UID
@@ -8,7 +8,7 @@ module a::a {
 }
 
 module b::b {
-    use sui::object::UID;
+    use iota::object::UID;
     use a::a::A;
 
     struct B has key {
@@ -20,7 +20,7 @@ module b::b {
     }
 }
 
-module sui::object {
+module iota::object {
     struct UID has store {
         id: address,
     }

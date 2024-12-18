@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[allow(unused_field)]
 module d::m {
-    use sui::object::UID;
+    use iota::object::UID;
 
     public struct O<T, phantom U> has key, store {
         id: UID,

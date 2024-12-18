@@ -1,7 +1,7 @@
 [package]
-name = "sui-oracle"
+name = "iota-oracle"
 version.workspace = true
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 edition = "2021"
@@ -21,16 +21,16 @@ chrono.workspace = true
 tap.workspace = true
 bcs.workspace = true
 
-sui-config = { path = "../sui-config" }
-sui-json-rpc-types = { path = "../sui-json-rpc-types" }
-sui-sdk = { path = "../sui-sdk" }
-sui-types = { path = "../sui-types" }
-mysten-metrics = { path = "../mysten-metrics" }
+iota-config = { path = "../iota-config" }
+iota-json-rpc-types = { path = "../iota-json-rpc-types" }
+iota-sdk = { path = "../iota-sdk" }
+iota-types = { path = "../iota-types" }
+iota-metrics = { path = "../iota-metrics" }
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
-sui-keys = { path = "../sui-keys" }
-sui-move-build = { path = "../sui-move-build" }
+iota-keys = { path = "../iota-keys" }
+iota-move-build = { path = "../iota-move-build" }
 shared-crypto = { path = "../shared-crypto" }
 bcs = "0.1.5"
 rand = "0.8.5"

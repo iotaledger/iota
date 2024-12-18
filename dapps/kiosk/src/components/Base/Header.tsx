@@ -1,18 +1,19 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useSuiClientContext } from '@mysten/dapp-kit';
+import { useIotaClientContext } from '@iota/dapp-kit';
 import classNames from 'clsx';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import FindKiosk from '../Kiosk/FindKiosk';
 import { Button } from './Button';
-import { SuiConnectButton } from './SuiConnectButton';
+import { IotaConnectButton } from './IotaConnectButton';
 
 export function Header() {
 	const navigate = useNavigate();
 
-	const { network, networks, selectNetwork } = useSuiClientContext();
+	const { network, networks, selectNetwork } = useIotaClientContext();
 
 	const location = useLocation();
 	const isHome = location.pathname === '/';
@@ -62,7 +63,7 @@ export function Header() {
 							</option>
 						))}
 					</select>
-					<SuiConnectButton></SuiConnectButton>
+					<IotaConnectButton></IotaConnectButton>
 				</div>
 			</div>
 		</div>

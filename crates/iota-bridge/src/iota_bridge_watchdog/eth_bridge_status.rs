@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! The EthBridgeStatus observable monitors whether the Eth Bridge is paused.
 
-use crate::abi::EthSuiBridge;
+use crate::abi::EthIotaBridge;
 use crate::metered_eth_provider::MeteredEthHttpProvier;
-use crate::sui_bridge_watchdog::Observable;
+use crate::iota_bridge_watchdog::Observable;
 use async_trait::async_trait;
 use ethers::providers::Provider;
 use ethers::types::Address as EthAddress;
@@ -15,7 +16,7 @@ use tokio::time::Duration;
 use tracing::{error, info};
 
 pub struct EthBridgeStatus {
-    bridge_contract: EthSuiBridge<Provider<MeteredEthHttpProvier>>,
+    bridge_contract: EthIotaBridge<Provider<MeteredEthHttpProvier>>,
     metric: IntGauge,
 }
 
@@ -25,7 +26,7 @@ impl EthBridgeStatus {
         bridge_address: EthAddress,
         metric: IntGauge,
     ) -> Self {
-        let bridge_contract = EthSuiBridge::new(bridge_address, provider.clone());
+        let bridge_contract = EthIotaBridge::new(bridge_address, provider.clone());
         Self {
             bridge_contract,
             metric,

@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, sync::Arc};
@@ -217,8 +218,8 @@ fn move_ready_checkpoints<H: Handler>(
 
 #[cfg(test)]
 mod tests {
-    use sui_field_count::FieldCount;
-    use sui_types::full_checkpoint_content::CheckpointData;
+    use iota_field_count::FieldCount;
+    use iota_types::full_checkpoint_content::CheckpointData;
 
     use crate::{db, pipeline::Processor};
 

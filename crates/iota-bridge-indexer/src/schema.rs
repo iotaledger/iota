@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 // @generated automatically by Diesel CLI.
 
@@ -12,14 +13,14 @@ diesel::table! {
 }
 
 diesel::table! {
-    sui_progress_store (id) {
+    iota_progress_store (id) {
         id -> Int4,
         txn_digest -> Bytea,
     }
 }
 
 diesel::table! {
-    sui_error_transactions (txn_digest) {
+    iota_error_transactions (txn_digest) {
         txn_digest -> Bytea,
         sender_address -> Bytea,
         timestamp_ms -> Int8,
@@ -74,9 +75,9 @@ diesel::table! {
 
 diesel::allow_tables_to_appear_in_same_query!(
     progress_store,
-    sui_error_transactions,
+    iota_error_transactions,
     governance_actions,
-    sui_progress_store,
+    iota_progress_store,
     token_transfer,
     token_transfer_data,
 );

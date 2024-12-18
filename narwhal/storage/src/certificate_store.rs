@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 use fastcrypto::hash::Hash;
 use lru::LruCache;
@@ -8,13 +9,13 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::{cmp::Ordering, collections::BTreeMap, iter};
-use sui_macros::fail_point;
+use iota_macros::fail_point;
 use tap::Tap;
 
 use crate::StoreResult;
 use config::AuthorityIdentifier;
-use mysten_common::sync::notify_read::NotifyRead;
-use mysten_metrics::{RegistryID, RegistryService};
+use iota_common::sync::notify_read::NotifyRead;
+use iota_metrics::{RegistryID, RegistryService};
 use store::{rocks::DBMap, Map, TypedStoreError::RocksDBError};
 use types::{Certificate, CertificateDigest, Round};
 

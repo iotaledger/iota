@@ -1,36 +1,37 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use crate::authority::authority_store::{ExecutionLockWriteGuard, SuiLockResult};
+use crate::authority::authority_store::{ExecutionLockWriteGuard, IotaLockResult};
 use crate::authority::epoch_start_configuration::EpochStartConfiguration;
 use crate::authority::epoch_start_configuration::{EpochFlag, EpochStartConfigTrait};
 use crate::authority::AuthorityStore;
 use crate::state_accumulator::AccumulatorStore;
 use crate::transaction_outputs::TransactionOutputs;
-use mysten_common::fatal;
-use sui_types::bridge::Bridge;
+use iota_common::fatal;
+use iota_types::bridge::Bridge;
 
 use futures::{future::BoxFuture, FutureExt};
 use prometheus::Registry;
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
-use sui_config::ExecutionCacheConfig;
-use sui_protocol_config::ProtocolVersion;
-use sui_types::base_types::VerifiedExecutionData;
-use sui_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
-use sui_types::effects::{TransactionEffects, TransactionEvents};
-use sui_types::error::{SuiError, SuiResult, UserInputError};
-use sui_types::messages_checkpoint::CheckpointSequenceNumber;
-use sui_types::object::Object;
-use sui_types::storage::{
+use iota_config::ExecutionCacheConfig;
+use iota_protocol_config::ProtocolVersion;
+use iota_types::base_types::VerifiedExecutionData;
+use iota_types::digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest};
+use iota_types::effects::{TransactionEffects, TransactionEvents};
+use iota_types::error::{IotaError, IotaResult, UserInputError};
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use iota_types::object::Object;
+use iota_types::storage::{
     BackingPackageStore, BackingStore, ChildObjectResolver, MarkerValue, ObjectKey,
     ObjectOrTombstone, ObjectStore, PackageObject, ParentSync,
 };
-use sui_types::sui_system_state::SuiSystemState;
-use sui_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
-use sui_types::{
+use iota_types::iota_system_state::IotaSystemState;
+use iota_types::transaction::{VerifiedSignedTransaction, VerifiedTransaction};
+use iota_types::{
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber},
     object::Owner,
     storage::InputKey,
@@ -138,7 +139,7 @@ pub fn build_execution_cache(
     }
 }
 
-/// Should only be used for sui-tool or tests. Nodes must use build_execution_cache which
+/// Should only be used for iota-tool or tests. Nodes must use build_execution_cache which
 /// uses the epoch_start_config to prevent cache impl from switching except at epoch boundaries.
 pub fn build_execution_cache_from_env(
     prometheus_registry: &Registry,
@@ -181,7 +182,7 @@ pub trait ExecutionCacheCommit: Send + Sync {
 }
 
 pub trait ObjectCacheRead: Send + Sync {
-    fn get_package_object(&self, id: &ObjectID) -> SuiResult<Option<PackageObject>>;
+    fn get_package_object(&self, id: &ObjectID) -> IotaResult<Option<PackageObject>>;
     fn force_reload_system_packages(&self, system_package_ids: &[ObjectID]);
 
     fn get_object(&self, id: &ObjectID) -> Option<Object>;
@@ -219,7 +220,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn multi_get_objects_with_more_accurate_error_return(
         &self,
         object_refs: &[ObjectRef],
-    ) -> Result<Vec<Object>, SuiError> {
+    ) -> Result<Vec<Object>, IotaError> {
         let objects = self
             .multi_get_objects_by_key(&object_refs.iter().map(ObjectKey::from).collect::<Vec<_>>());
         let mut result = Vec::new();
@@ -238,7 +239,7 @@ pub trait ObjectCacheRead: Send + Sync {
                             version: Some(object_ref.1),
                         }
                     };
-                    return Err(SuiError::UserInputError { error });
+                    return Err(IotaError::UserInputError { error });
                 }
                 Some(object) => {
                     result.push(object);
@@ -343,18 +344,18 @@ pub trait ObjectCacheRead: Send + Sync {
         version: SequenceNumber,
     ) -> Option<Object>;
 
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> SuiLockResult;
+    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult;
 
     // This method is considered "private" - only used by multi_get_objects_with_more_accurate_error_return
-    fn _get_live_objref(&self, object_id: ObjectID) -> SuiResult<ObjectRef>;
+    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef>;
 
     // Check that the given set of objects are live at the given version. This is used as a
     // safety check before execution, and could potentially be deleted or changed to a debug_assert
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> SuiResult;
+    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
 
-    fn get_sui_system_state_object_unsafe(&self) -> SuiResult<SuiSystemState>;
+    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState>;
 
-    fn get_bridge_object_unsafe(&self) -> SuiResult<Bridge>;
+    fn get_bridge_object_unsafe(&self) -> IotaResult<Bridge>;
 
     // Marker methods
 
@@ -445,7 +446,7 @@ pub trait TransactionCacheRead: Send + Sync {
     fn get_transactions_and_serialized_sizes(
         &self,
         digests: &[TransactionDigest],
-    ) -> SuiResult<Vec<Option<(VerifiedTransaction, usize)>>> {
+    ) -> IotaResult<Vec<Option<(VerifiedTransaction, usize)>>> {
         let txns = self.multi_get_transaction_blocks(digests);
         txns.into_iter()
             .map(|txn| {
@@ -589,7 +590,7 @@ pub trait ExecutionCacheWrite: Send + Sync {
         owned_input_objects: &'a [ObjectRef],
         tx_digest: TransactionDigest,
         signed_transaction: Option<VerifiedSignedTransaction>,
-    ) -> BoxFuture<'a, SuiResult>;
+    ) -> BoxFuture<'a, IotaResult>;
 }
 
 pub trait CheckpointCache: Send + Sync {
@@ -626,12 +627,12 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 
     fn clear_state_end_of_epoch(&self, execution_guard: &ExecutionLockWriteGuard<'_>);
 
-    fn expensive_check_sui_conservation(
+    fn expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,
-    ) -> SuiResult;
+    ) -> IotaResult;
 
-    fn checkpoint_db(&self, path: &Path) -> SuiResult;
+    fn checkpoint_db(&self, path: &Path) -> IotaResult;
 
     /// This is a temporary method to be used when we enable simplified_unwrap_then_delete.
     /// It re-accumulates state hash for the new epoch if simplified_unwrap_then_delete is enabled.
@@ -680,7 +681,7 @@ macro_rules! implement_storage_traits {
             fn get_object_by_key(
                 &self,
                 object_id: &ObjectID,
-                version: sui_types::base_types::VersionNumber,
+                version: iota_types::base_types::VersionNumber,
             ) -> Option<Object> {
                 ObjectCacheRead::get_object_by_key(self, object_id, version)
             }
@@ -692,7 +693,7 @@ macro_rules! implement_storage_traits {
                 parent: &ObjectID,
                 child: &ObjectID,
                 child_version_upper_bound: SequenceNumber,
-            ) -> SuiResult<Option<Object>> {
+            ) -> IotaResult<Option<Object>> {
                 let Some(child_object) =
                     self.find_object_lt_or_eq_version(*child, child_version_upper_bound)
                 else {
@@ -701,7 +702,7 @@ macro_rules! implement_storage_traits {
 
                 let parent = *parent;
                 if child_object.owner != Owner::ObjectOwner(parent.into()) {
-                    return Err(SuiError::InvalidChildObjectAccess {
+                    return Err(IotaError::InvalidChildObjectAccess {
                         object: *child,
                         given_parent: parent,
                         actual_owner: child_object.owner.clone(),
@@ -716,7 +717,7 @@ macro_rules! implement_storage_traits {
                 receiving_object_id: &ObjectID,
                 receive_object_at_version: SequenceNumber,
                 epoch_id: EpochId,
-            ) -> SuiResult<Option<Object>> {
+            ) -> IotaResult<Option<Object>> {
                 let Some(recv_object) = ObjectCacheRead::get_object_by_key(
                     self,
                     receiving_object_id,
@@ -748,7 +749,7 @@ macro_rules! implement_storage_traits {
             fn get_package_object(
                 &self,
                 package_id: &ObjectID,
-            ) -> SuiResult<Option<PackageObject>> {
+            ) -> IotaResult<Option<PackageObject>> {
                 ObjectCacheRead::get_package_object(self, package_id)
             }
         }
@@ -825,15 +826,15 @@ macro_rules! implement_passthrough_traits {
                 self.clear_state_end_of_epoch_impl(execution_guard)
             }
 
-            fn expensive_check_sui_conservation(
+            fn expensive_check_iota_conservation(
                 &self,
                 old_epoch_store: &AuthorityPerEpochStore,
-            ) -> SuiResult {
+            ) -> IotaResult {
                 self.store
-                    .expensive_check_sui_conservation(self, old_epoch_store)
+                    .expensive_check_iota_conservation(self, old_epoch_store)
             }
 
-            fn checkpoint_db(&self, path: &std::path::Path) -> SuiResult {
+            fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
                 self.store.perpetual_tables.checkpoint_db(path)
             }
 

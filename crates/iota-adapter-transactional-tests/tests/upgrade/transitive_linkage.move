@@ -1,11 +1,12 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //# init --addresses Test_V3=0x0 Test_V2=0x0 Test_V1=0x0 Test_DepV1=0x0 Test_DepV2=0x0 Test_DepV3=0x0 --accounts A
 
 //# publish --upgradeable --sender A
 module Test_DepV1::DepM1 {
-    public struct DepObj has key, store { id: sui::object::UID, v: u64 }
+    public struct DepObj has key, store { id: iota::object::UID, v: u64 }
     public fun mod_obj(o: &mut DepObj) {
         o.v = 0;
     }
@@ -14,7 +15,7 @@ module Test_DepV1::DepM1 {
 
 //# upgrade --package Test_DepV1 --upgrade-capability 1,1 --sender A
 module Test_DepV2::DepM1 {
-    public struct DepObj has key, store { id: sui::object::UID, v: u64 }
+    public struct DepObj has key, store { id: iota::object::UID, v: u64 }
     public fun mod_obj(o: &mut DepObj) {
         o.v = 0;
     }
@@ -22,7 +23,7 @@ module Test_DepV2::DepM1 {
 
 //# upgrade --package Test_DepV2 --upgrade-capability 1,1 --sender A
 module Test_DepV3::DepM1 {
-    public struct DepObj has key, store { id: sui::object::UID, v: u64 }
+    public struct DepObj has key, store { id: iota::object::UID, v: u64 }
     public fun mod_obj(o: &mut DepObj) {
         o.v = 0;
     }

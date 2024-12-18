@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -9,20 +10,20 @@ use std::{
 };
 
 use lru::LruCache;
-use mysten_common::fatal;
-use mysten_metrics::monitored_scope;
+use iota_common::fatal;
+use iota_metrics::monitored_scope;
 use parking_lot::RwLock;
-use sui_types::{
+use iota_types::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     committee::EpochId,
     digests::TransactionEffectsDigest,
-    error::{SuiError, SuiResult},
+    error::{IotaError, IotaResult},
     fp_ensure,
     message_envelope::Message,
     storage::InputKey,
     transaction::{TransactionDataAPI, VerifiedCertificate},
 };
-use sui_types::{executable_transaction::VerifiedExecutableTransaction, fp_bail};
+use iota_types::{executable_transaction::VerifiedExecutableTransaction, fp_bail};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Instant;
 use tracing::{error, info, instrument, trace, warn};
@@ -31,8 +32,8 @@ use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore, execution_cache::ObjectCacheRead,
 };
 use crate::{authority::AuthorityMetrics, execution_cache::TransactionCacheRead};
-use sui_config::node::AuthorityOverloadConfig;
-use sui_types::transaction::SenderSignedData;
+use iota_config::node::AuthorityOverloadConfig;
+use iota_types::transaction::SenderSignedData;
 use tap::TapOptional;
 
 #[cfg(test)]
@@ -822,12 +823,12 @@ impl TransactionManager {
         &self,
         overload_config: &AuthorityOverloadConfig,
         tx_data: &SenderSignedData,
-    ) -> SuiResult {
+    ) -> IotaResult {
         // Too many transactions are pending execution.
         let inflight_queue_len = self.inflight_queue_len();
         fp_ensure!(
             inflight_queue_len < overload_config.max_transaction_manager_queue_length,
-            SuiError::TooManyTransactionsPendingExecution {
+            IotaError::TooManyTransactionsPendingExecution {
                 queue_len: inflight_queue_len,
                 threshold: overload_config.max_transaction_manager_queue_length,
             }
@@ -848,7 +849,7 @@ impl TransactionManager {
                     "Overload detected on object {:?} with {} pending transactions",
                     object_id, queue_len
                 );
-                fp_bail!(SuiError::TooManyTransactionsPendingOnObject {
+                fp_bail!(IotaError::TooManyTransactionsPendingOnObject {
                     object_id,
                     queue_len,
                     threshold: overload_config.max_transaction_manager_per_object_queue_length,
@@ -862,7 +863,7 @@ impl TransactionManager {
                         object_id,
                         age.as_millis()
                     );
-                    fp_bail!(SuiError::TooOldTransactionPendingOnObject {
+                    fp_bail!(IotaError::TooOldTransactionPendingOnObject {
                         object_id,
                         txn_age_sec: age.as_secs(),
                         threshold: overload_config.max_txn_age_in_queue.as_secs(),

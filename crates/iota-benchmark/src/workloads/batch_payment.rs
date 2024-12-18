@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::drivers::Interval;
@@ -12,24 +13,24 @@ use crate::{ExecutionEffects, ValidatorProxy};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
-use sui_core::test_utils::make_pay_sui_transaction;
-use sui_types::base_types::{ObjectID, SequenceNumber};
-use sui_types::digests::ObjectDigest;
-use sui_types::gas_coin::MIST_PER_SUI;
-use sui_types::object::Owner;
-use sui_types::{
-    base_types::{ObjectRef, SuiAddress},
+use iota_core::test_utils::make_pay_iota_transaction;
+use iota_types::base_types::{ObjectID, SequenceNumber};
+use iota_types::digests::ObjectDigest;
+use iota_types::gas_coin::NANOS_PER_IOTA;
+use iota_types::object::Owner;
+use iota_types::{
+    base_types::{ObjectRef, IotaAddress},
     crypto::get_key_pair,
     transaction::Transaction,
 };
 use tracing::{debug, error};
 
-/// Value of each address's "primary coin" in mist. The first transaction gives
+/// Value of each address's "primary coin" in nanos. The first transaction gives
 /// each address a coin worth PRIMARY_COIN_VALUE, and all subsequent transfers
 /// send TRANSFER_AMOUNT coins each time
-const PRIMARY_COIN_VALUE: u64 = 100 * MIST_PER_SUI;
+const PRIMARY_COIN_VALUE: u64 = 100 * NANOS_PER_IOTA;
 
-/// Number of mist sent to each address on each batch transfer
+/// Number of nanos sent to each address on each batch transfer
 const BATCH_TRANSFER_AMOUNT: u64 = 1;
 
 const DUMMY_GAS: ObjectRef = (ObjectID::ZERO, SequenceNumber::MIN, ObjectDigest::MIN);
@@ -41,7 +42,7 @@ pub struct BatchPaymentTestPayload {
     num_payments: usize,
     /// address of the first sender. important because in the beginning, only one address has any coins.
     /// after the first tx, any address can send
-    first_sender: SuiAddress,
+    first_sender: IotaAddress,
     system_state_observer: Arc<SystemStateObserver>,
 }
 
@@ -72,7 +73,7 @@ impl Payload for BatchPaymentTestPayload {
     }
 
     fn make_transaction(&mut self) -> Transaction {
-        let addrs = self.state.addresses().cloned().collect::<Vec<SuiAddress>>();
+        let addrs = self.state.addresses().cloned().collect::<Vec<IotaAddress>>();
         let num_recipients = addrs.len();
         let sender = if self.num_payments == 0 {
             // first tx--use the address that has gas
@@ -102,7 +103,7 @@ impl Payload for BatchPaymentTestPayload {
         let coins = Vec::new();
         // create a sender -> all transfer, using all of the sender's coins
         // TODO: use a larger amount, fewer input coins?
-        make_pay_sui_transaction(
+        make_pay_iota_transaction(
             *gas_obj,
             coins,
             addrs,
@@ -224,7 +225,7 @@ impl Workload<dyn Payload> for BatchPaymentWorkload {
         _proxy: Arc<dyn ValidatorProxy + Sync + Send>,
         system_state_observer: Arc<SystemStateObserver>,
     ) -> Vec<Box<dyn Payload>> {
-        let mut gas_by_address: HashMap<SuiAddress, Vec<Gas>> = HashMap::new();
+        let mut gas_by_address: HashMap<IotaAddress, Vec<Gas>> = HashMap::new();
         debug!(
             "Making test payloads with {} payload gas...",
             self.payload_gas.len()

@@ -1,17 +1,18 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use serde_with::Bytes;
-use sui_types::base_types::MoveObjectType;
-use sui_types::base_types::{ObjectDigest, SequenceNumber, TransactionDigest};
-use sui_types::coin::Coin;
-use sui_types::crypto::{default_hash, Signable};
-use sui_types::error::SuiError;
-use sui_types::move_package::MovePackage;
-use sui_types::object::{Data, MoveObject, Object, ObjectInner, Owner};
-use sui_types::storage::ObjectKey;
+use iota_types::base_types::MoveObjectType;
+use iota_types::base_types::{ObjectDigest, SequenceNumber, TransactionDigest};
+use iota_types::coin::Coin;
+use iota_types::crypto::{default_hash, Signable};
+use iota_types::error::IotaError;
+use iota_types::move_package::MovePackage;
+use iota_types::object::{Data, MoveObject, Object, ObjectInner, Owner};
+use iota_types::storage::ObjectKey;
 
 pub type ObjectContentDigest = ObjectDigest;
 
@@ -89,7 +90,7 @@ pub enum StoreObjectV1 {
     Wrapped,
 }
 
-/// Forked version of [`sui_types::object::Object`]
+/// Forked version of [`iota_types::object::Object`]
 /// Used for efficient storing of move objects in the database
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub struct StoreObjectValue {
@@ -99,7 +100,7 @@ pub struct StoreObjectValue {
     pub storage_rebate: u64,
 }
 
-/// Forked version of [`sui_types::object::Data`]
+/// Forked version of [`iota_types::object::Data`]
 /// Adds extra enum value `IndirectObject`, which represents a reference to an object stored separately
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
 pub enum StoreData {
@@ -244,7 +245,7 @@ pub(crate) fn try_construct_object(
     object_key: &ObjectKey,
     store_object: StoreObjectValue,
     indirect_object: Option<StoreMoveObject>,
-) -> Result<Object, SuiError> {
+) -> Result<Object, IotaError> {
     let data = match (store_object.data, indirect_object) {
         (StoreData::Move(object), None) => Data::Move(object),
         (StoreData::Package(package), None) => Data::Package(package),
@@ -268,7 +269,7 @@ pub(crate) fn try_construct_object(
             )?)
         },
         _ => {
-            return Err(SuiError::Storage(
+            return Err(IotaError::Storage(
                 "corrupted field: inconsistent object representation".to_string(),
             ))
         }

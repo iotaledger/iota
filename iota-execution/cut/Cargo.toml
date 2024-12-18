@@ -1,8 +1,8 @@
 [package]
-name = "sui-execution-cut"
+name = "iota-execution-cut"
 version = "0.1.0"
 edition = "2021"
-authors = ["Mysten Labs <build@mystenlabs.com>"]
+authors = ["IOTA Foundation <info@iota.org>"]
 license = "Apache-2.0"
 publish = false
 

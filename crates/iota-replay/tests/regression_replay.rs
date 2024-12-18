@@ -1,9 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
-use sui_replay::execute_replay_command;
-use sui_replay::ReplayToolCommand;
+use iota_replay::execute_replay_command;
+use iota_replay::ReplayToolCommand;
 
 #[tokio::test]
 async fn replay_sandboxes() {

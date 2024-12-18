@@ -1,13 +1,14 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use diesel::data_types::PgTimestamp;
 use diesel::{Identifiable, Insertable, Queryable, Selectable};
 
-use sui_indexer_builder::{Task, LIVE_TASK_TARGET_CHECKPOINT};
+use iota_indexer_builder::{Task, LIVE_TASK_TARGET_CHECKPOINT};
 
 use crate::schema::{
-    governance_actions, progress_store, sui_error_transactions, sui_progress_store, token_transfer,
+    governance_actions, progress_store, iota_error_transactions, iota_progress_store, token_transfer,
     token_transfer_data,
 };
 
@@ -34,8 +35,8 @@ impl From<ProgressStore> for Task {
 }
 
 #[derive(Queryable, Selectable, Insertable, Identifiable, Debug)]
-#[diesel(table_name = sui_progress_store, primary_key(txn_digest))]
-pub struct SuiProgressStore {
+#[diesel(table_name = iota_progress_store, primary_key(txn_digest))]
+pub struct IotaProgressStore {
     pub id: i32, // Dummy value
     pub txn_digest: Vec<u8>,
 }
@@ -72,8 +73,8 @@ pub struct TokenTransferData {
 }
 
 #[derive(Queryable, Selectable, Insertable, Identifiable, Debug)]
-#[diesel(table_name = sui_error_transactions, primary_key(txn_digest))]
-pub struct SuiErrorTransactions {
+#[diesel(table_name = iota_error_transactions, primary_key(txn_digest))]
+pub struct IotaErrorTransactions {
     pub txn_digest: Vec<u8>,
     pub sender_address: Vec<u8>,
     pub timestamp_ms: i64,

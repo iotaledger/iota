@@ -1,12 +1,13 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module sui::display_tests {
-    use sui::test_scenario as test;
+module iota::display_tests {
+    use iota::test_scenario as test;
     use std::string::String;
-    use sui::package;
-    use sui::display;
+    use iota::package;
+    use iota::display;
 
     #[allow(unused_field)]
     /// An example object.

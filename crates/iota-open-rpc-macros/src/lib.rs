@@ -1,4 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro::TokenStream;
@@ -18,7 +19,7 @@ use syn::{
 };
 use unescape::unescape;
 
-const SUI_RPC_ATTRS: [&str; 2] = ["deprecated", "version"];
+const IOTA_RPC_ATTRS: [&str; 2] = ["deprecated", "version"];
 
 /// Add a [Service name]OpenRpc struct and implementation providing access to Open RPC doc builder.
 /// This proc macro must be use in conjunction with `jsonrpsee_proc_macro::rpc`
@@ -73,14 +74,14 @@ pub fn open_rpc(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         if method.is_pubsub {
             Some(quote! {
-                let mut inputs: Vec<sui_open_rpc::ContentDescriptor> = Vec::new();
+                let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
                 #(#inputs)*
                 let result = #returns_ty
                 builder.add_subscription(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
             })
         } else {
             Some(quote! {
-                let mut inputs: Vec<sui_open_rpc::ContentDescriptor> = Vec::new();
+                let mut inputs: Vec<iota_open_rpc::ContentDescriptor> = Vec::new();
                 #(#inputs)*
                 let result = #returns_ty
                 builder.add_method(#namespace, #name, inputs, result, #doc, #tag, #deprecated);
@@ -108,8 +109,8 @@ pub fn open_rpc(attr: TokenStream, item: TokenStream) -> TokenStream {
         #trait_data
         pub struct #open_rpc_name;
         impl #open_rpc_name {
-            pub fn module_doc() -> sui_open_rpc::Module{
-                let mut builder = sui_open_rpc::RpcModuleDocBuilder::default();
+            pub fn module_doc() -> iota_open_rpc::Module{
+                let mut builder = iota_open_rpc::RpcModuleDocBuilder::default();
                 #(#methods)*
                 #(#routes)*
                 builder.build()
@@ -220,11 +221,11 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                             name.value
                                 .replace(LitStr::new(&route_to, Span::call_site()));
                         }
-                        attr.tokens = remove_sui_rpc_attributes(attributes);
+                        attr.tokens = remove_iota_rpc_attributes(attributes);
                         continue;
                     }
                 }
-                attr.tokens = remove_sui_rpc_attributes(attributes);
+                attr.tokens = remove_iota_rpc_attributes(attributes);
                 (method_name, returns, false, deprecated)
             } else if let Some(attr) = find_attr(&mut method.attrs, "subscription") {
                 let token: TokenStream = attr.tokens.clone().into();
@@ -237,7 +238,7 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
                     .clone()
                     .expect("[item] attribute should have a value");
                 let deprecated = attributes.find("deprecated").is_some();
-                attr.tokens = remove_sui_rpc_attributes(attributes);
+                attr.tokens = remove_iota_rpc_attributes(attributes);
                 (name, Some(type_), true, deprecated)
             } else {
                 panic!("Unknown method name")
@@ -259,12 +260,12 @@ fn parse_rpc_method(trait_data: &mut syn::ItemTrait) -> Result<RpcDefinition, sy
         version_routing,
     })
 }
-// Remove Sui rpc specific attributes.
-fn remove_sui_rpc_attributes(attributes: Attributes) -> TokenStream2 {
+// Remove Iota rpc specific attributes.
+fn remove_iota_rpc_attributes(attributes: Attributes) -> TokenStream2 {
     let attrs = attributes
         .attrs
         .into_iter()
-        .filter(|r| !SUI_RPC_ATTRS.contains(&r.key.to_string().as_str()))
+        .filter(|r| !IOTA_RPC_ATTRS.contains(&r.key.to_string().as_str()))
         .collect::<Punctuated<Attr, Comma>>();
     quote! {(#attrs)}
 }
