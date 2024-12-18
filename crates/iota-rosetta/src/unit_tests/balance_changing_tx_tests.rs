@@ -139,7 +139,7 @@ async fn test_transfer_object() {
     .await;
 }
 
-mod example {
+mod move_tests {
     use super::*;
 
     #[tokio::test]

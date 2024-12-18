@@ -298,7 +298,7 @@ async fn execute_shared_on_first_three_authorities(
     (cert, effects)
 }
 
-mod example {
+mod move_tests {
     use super::*;
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]

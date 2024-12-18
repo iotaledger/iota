@@ -30,7 +30,7 @@ jobs:
           'package(iota-framework-tests)
           or (package(iota-core) and test(quorum_driver::))
           or package(iota-benchmark)
-          or test(example::)'
+          or test(move_tests::)'
 
   move-simtest:
     timeout-minutes: 10
@@ -46,4 +46,4 @@ jobs:
           'package(iota-framework-tests)
           or (package(iota-core) and test(quorum_driver::))
           or package(iota-benchmark)
-          or test(example::)'
+          or test(move_tests::)'

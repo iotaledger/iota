@@ -423,7 +423,7 @@ fn test_basic_args_linter_pure_args_good() {
     }
 }
 
-mod example {
+mod move_tests {
     use super::*;
 
     #[test]

@@ -1487,7 +1487,7 @@ async fn try_get_past_object_version_not_found() {
     assert!(at_least_one_version_not_found)
 }
 
-mod example {
+mod move_tests {
     use super::*;
 
     #[sim_test]

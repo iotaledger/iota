@@ -298,7 +298,7 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-mod example {
+mod move_tests {
     use super::*;
 
     #[sim_test]

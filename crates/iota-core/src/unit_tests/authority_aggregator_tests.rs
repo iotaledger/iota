@@ -345,7 +345,7 @@ fn effects_with_tx(digest: TransactionDigest) -> TransactionEffects {
     effects
 }
 
-mod example {
+mod move_tests {
     use super::*;
 
     /// The intent of this is to test whether client side timeouts

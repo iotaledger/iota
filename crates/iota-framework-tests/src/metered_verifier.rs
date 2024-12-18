@@ -26,7 +26,7 @@ fn build(path: &Path) -> IotaResult<CompiledPackage> {
     config.build(path)
 }
 
-mod example {
+mod move_tests {
     use super::*;
 
     #[test]
