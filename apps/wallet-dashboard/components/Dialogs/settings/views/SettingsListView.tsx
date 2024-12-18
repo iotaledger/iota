@@ -41,8 +41,8 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
         <DialogLayout>
             <Header title="Settings" onClose={handleClose} onBack={handleClose} titleCentered />
             <DialogLayoutBody>
-            <div className="flex flex-col content-stretch h-full">
-                <div className="flex w-full flex-col gap-md h-full">
+                <div className="flex h-full flex-col content-stretch">
+                    <div className="flex h-full w-full flex-col gap-md">
                         {MENU_ITEMS.map((item, index) => (
                             <Card key={index} type={CardType.Default} onClick={item.onClick}>
                                 <CardImage type={ImageType.BgSolid}>

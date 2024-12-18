@@ -4,7 +4,6 @@
 import { execSync } from 'child_process';
 const NEXT_PUBLIC_DASHBOARD_REV = execSync('git rev-parse HEAD').toString().trim().toString();
 
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     async redirects() {
@@ -21,8 +20,8 @@ const nextConfig = {
         domains: ['d315pvdvxi2gex.cloudfront.net'],
     },
     env: {
-        NEXT_PUBLIC_DASHBOARD_REV
-    }
+        NEXT_PUBLIC_DASHBOARD_REV,
+    },
 };
 
 export default nextConfig;
