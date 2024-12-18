@@ -6,8 +6,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import MigratePopup from '@/components/Popup/Popups/MigratePopup';
-import { useGetStardustMigratableObjects, usePopups } from '@/hooks';
+import { useGetStardustMigratableObjects } from '@/hooks';
 import { summarizeMigratableObjectValues, summarizeTimelockedObjectValues } from '@/lib/utils';
 import {
     Button,
@@ -25,15 +24,14 @@ import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
-import { MigrationObjectsPanel } from '@/components';
+import { MigrationObjectsPanel, MigrationDialog } from '@/components';
 
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
-    const { openPopup, closePopup } = usePopups();
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
-
+    const [isMigrationDialogOpen, setIsMigrationDialogOpen] = useState(false);
     const [selectedStardustObjectsCategory, setSelectedStardustObjectsCategory] = useState<
         StardustOutputMigrationStatus | undefined
     >(undefined);
@@ -133,15 +131,8 @@ function MigrationDashboardPage(): JSX.Element {
         return [];
     }, [selectedStardustObjectsCategory, stardustMigrationObjects]);
 
-    function openMigratePopup(): void {
-        openPopup(
-            <MigratePopup
-                basicOutputObjects={migratableBasicOutputs}
-                nftOutputObjects={migratableNftOutputs}
-                closePopup={closePopup}
-                onSuccess={handleOnSuccess}
-            />,
-        );
+    function openMigrationDialog(): void {
+        setIsMigrationDialogOpen(true);
     }
 
     function handleCloseDetailsPanel() {
@@ -157,6 +148,19 @@ function MigrationDashboardPage(): JSX.Element {
                 )}
             >
                 <div className="flex w-1/3 flex-col gap-md--rs">
+                    {isMigrationDialogOpen && (
+                        <MigrationDialog
+                            basicOutputObjects={migratableBasicOutputs}
+                            nftOutputObjects={migratableNftOutputs}
+                            onSuccess={handleOnSuccess}
+                            open={isMigrationDialogOpen}
+                            setOpen={setIsMigrationDialogOpen}
+                            isTimelocked={
+                                selectedStardustObjectsCategory ===
+                                StardustOutputMigrationStatus.TimeLocked
+                            }
+                        />
+                    )}
                     <Panel>
                         <Title
                             title="Migration"
@@ -164,7 +168,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 <Button
                                     text="Migrate All"
                                     disabled={!hasMigratableObjects}
-                                    onClick={openMigratePopup}
+                                    onClick={openMigrationDialog}
                                     size={ButtonSize.Small}
                                 />
                             }
