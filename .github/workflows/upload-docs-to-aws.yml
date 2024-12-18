@@ -29,7 +29,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v3
         with:
-          node-version: '22.x'
+          node-version: "22.x"
 
       - name: Install pnpm
         run: corepack enable && corepack prepare pnpm@latest --activate
@@ -42,7 +42,7 @@ jobs:
 
       - name: Generate TypeScript docs
         run: pnpm generate-ts-docs
-      
+
       - name: Generate GraphQl docs
         run: pnpm generate-graphql-docs
 
@@ -52,7 +52,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1    # Change if needed
+          aws-region: us-east-1 # Change if needed
 
       # ----------- Upload Docs to S3 -----------
       - name: Upload Rust docs to S3
