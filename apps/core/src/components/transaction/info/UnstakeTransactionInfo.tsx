@@ -26,21 +26,21 @@ export function UnstakeTransactionInfo({
     renderExplorerLink,
 }: UnstakeTransactionInfoProps) {
     const json = event.parsedJson as {
-        principal_amount?: number;
-        reward_amount?: number;
+        principal_amount?: string;
+        reward_amount?: string;
         validator_address?: string;
     };
-    const principalAmount = json?.principal_amount || 0;
-    const rewardAmount = json?.reward_amount || 0;
+    const principalAmount = json?.principal_amount || '0';
+    const rewardAmount = json?.reward_amount || '0';
     const validatorAddress = json?.validator_address;
-    const totalAmount = Number(principalAmount) + Number(rewardAmount);
+    const totalAmount = BigInt(principalAmount) + BigInt(rewardAmount);
     const [formatPrinciple, symbol] = useFormatCoin(principalAmount, IOTA_TYPE_ARG);
     const [formatRewards] = useFormatCoin(rewardAmount || 0, IOTA_TYPE_ARG);
 
     return (
         <div className="flex flex-col gap-y-md">
             {validatorAddress && <Validator address={validatorAddress} type={CardType.Filled} />}
-            {totalAmount && (
+            {totalAmount !== 0n && (
                 <TransactionAmount amount={totalAmount} coinType={IOTA_TYPE_ARG} subtitle="Total" />
             )}
             <Panel hasBorder>
