@@ -96,7 +96,7 @@ pub struct StoredTxKind {
     pub tx_sequence_number: i64,
 }
 
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 impl TxIndex {
     pub fn split(
         self: TxIndex,

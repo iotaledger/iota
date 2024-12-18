@@ -28,14 +28,14 @@ pub mod checked {
     /// All the information about gas is stored in this object.
     /// The objective here is two-fold:
     /// 1- Isolate al version info into a single entry point. This file and the
-    /// other gas    related files are the only one that check for gas
+    /// other gas related files are the only one that check for gas
     /// version. 2- Isolate all gas accounting into a single implementation.
-    /// Gas objects are not    passed around, and they are retrieved from
+    /// Gas objects are not passed around, and they are retrieved from
     /// this instance.
-    #[allow(dead_code)]
     #[derive(Debug)]
     pub struct GasCharger {
         tx_digest: TransactionDigest,
+        #[expect(unused)]
         gas_model_version: u64,
         gas_coins: Vec<ObjectRef>,
         // this is the first gas coin in `gas_coins` and the one that all others will

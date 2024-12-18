@@ -58,7 +58,6 @@ const developer = [
                 label: 'Typescript SDK',
                 href: '/references/ts-sdk/typescript',
             },
-            'developer/iota-101/using-events',
         ],
     },
     {
@@ -71,6 +70,8 @@ const developer = [
             'developer/iota-101/move-overview/init',
             'developer/iota-101/move-overview/visibility',
             'developer/iota-101/move-overview/entry-functions',
+            'developer/iota-101/using-events',
+            'developer/iota-101/access-time',
             {
                 type: 'category',
                 label: 'Structs and Abilities',
@@ -108,7 +109,6 @@ const developer = [
                     'developer/iota-101/move-overview/patterns/id-pointer',
                 ],
             },
-            'developer/iota-101/access-time',
             'developer/iota-101/move-overview/conventions',
         ],
     },
