@@ -21,10 +21,6 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
         label: 'Other',
         value: AssetCategory.Other,
     },
-    {
-        label: 'Hidden',
-        value: AssetCategory.Hidden,
-    },
 ];
 
 export default function AssetsDashboardPage(): React.JSX.Element {
@@ -38,7 +34,6 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         hasNextPage,
     } = useGetNFTs(account?.address);
 
-    console.log('ownedAssets', ownedAssets);
     const assets: IotaObjectData[] = (ownedAssets?.[selectedCategory] || []).filter((asset) => {
         if (selectedCategory === AssetCategory.Visual) {
             return hasDisplayData({ data: asset });
@@ -56,7 +51,6 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         if (
             (selectedCategory === AssetCategory.Visual && ownedAssets?.visual.length === 0) ||
             (selectedCategory === AssetCategory.Other && ownedAssets?.other.length === 0) ||
-            (selectedCategory === AssetCategory.Hidden && ownedAssets?.hidden.length === 0) ||
             !selectedCategory
         ) {
             computeSelectedCategory = true;
@@ -67,9 +61,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     ? AssetCategory.Visual
                     : ownedAssets.other.length > 0
                       ? AssetCategory.Other
-                      : ownedAssets.hidden.length > 0
-                        ? AssetCategory.Hidden
-                        : AssetCategory.Visual;
+                      : AssetCategory.Visual;
             setSelectedCategory(defaultCategory);
         }
     }, [ownedAssets]);
