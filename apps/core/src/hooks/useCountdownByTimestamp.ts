@@ -36,8 +36,15 @@ export function useCountdownByTimestamp(
     return formattedCountdown;
 }
 
-function formatCountdown(totalMilliseconds: number, { showSeconds = true, showMinutes = true, showHours = true, showDays = true }: FormatCountdownOptions = {}) {
-
+function formatCountdown(
+    totalMilliseconds: number,
+    {
+        showSeconds = true,
+        showMinutes = true,
+        showHours = true,
+        showDays = true,
+    }: FormatCountdownOptions = {},
+) {
     const days = Math.floor(totalMilliseconds / MILLISECONDS_PER_DAY);
     const hours = Math.floor((totalMilliseconds % MILLISECONDS_PER_DAY) / MILLISECONDS_PER_HOUR);
     const minutes = Math.floor(
