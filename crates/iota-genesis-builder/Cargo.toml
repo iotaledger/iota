@@ -2,9 +2,9 @@
 name = "iota-genesis-builder"
 version = "0.0.0"
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [lints]
 workspace = true
@@ -16,21 +16,21 @@ camino.workspace = true
 fastcrypto.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
+prometheus.workspace = true
 rand.workspace = true
 serde.workspace = true
 serde_with.workspace = true
 serde_yaml.workspace = true
 tempfile.workspace = true
 tracing.workspace = true
-prometheus.workspace = true
 
-shared-crypto.workspace = true
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-framework.workspace = true
 iota-framework-snapshot.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
+shared-crypto.workspace = true
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
 

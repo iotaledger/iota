@@ -1,28 +1,28 @@
 [package]
 name = "iota-edge-proxy"
 version = "0.1.0"
-edition = "2021"
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
 
 [dependencies]
+anyhow.workspace = true
 axum.workspace = true
 axum-extra.workspace = true
 axum-server.workspace = true
-anyhow.workspace = true
+bin-version.workspace = true
 bytes.workspace = true
 clap.workspace = true
 futures.workspace = true
-url.workspace = true
-tokio = { workspace = true, features = ["full"] }
-tracing.workspace = true
-serde.workspace = true
-serde_with.workspace = true
-serde_json.workspace = true
-serde_yaml.workspace = true
-bin-version.workspace = true
-reqwest.workspace = true
 iota-metrics.workspace = true
 prometheus.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+serde_yaml.workspace = true
 telemetry-subscribers.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+url.workspace = true

@@ -7,5 +7,5 @@ edition = "2024.beta"
 MoveStdlib = { local = "../../../../iota-framework/packages/move-stdlib" }
 
 [addresses]
-base =  "0x0"
-std =  "0x1"
+base = "0x0"
+std = "0x1"

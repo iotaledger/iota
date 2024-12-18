@@ -24,6 +24,7 @@ This document is focused on running the Iota Node software as a Validator.
 ## Requirements
 
 To run a Iota Validator a machine with the following is required:
+
 - CPU: 24 physical cores (or 48 virtual cores)
 - Memory: 128 GB
 - Storage: 4 TB NVME
@@ -116,12 +117,12 @@ sudo rm -rf /opt/iota/db/authorities_db /opt/iota/db/consensus_db
 
 The following keys are used by Iota Node:
 
-| key          | scheme   | purpose                         |
-| ------------ | -------- | ------------------------------- |
-| protocol.key | bls12381 | transactions, narwhal consensus |
-| account.key  | ed25519  | controls assets for staking     |
+| key          | scheme   | purpose                          |
+| ------------ | -------- | -------------------------------- |
+| protocol.key | bls12381 | transactions, narwhal consensus  |
+| account.key  | ed25519  | controls assets for staking      |
 | network.key  | ed25519  | narwhal primary, iota state sync |
-| worker.key   | ed25519  | validate narwhal workers        |
+| worker.key   | ed25519  | validate narwhal workers         |
 
 These are configured in the [Iota Node configuration file](#configuration).
 

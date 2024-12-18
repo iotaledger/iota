@@ -8,10 +8,10 @@ NFT renting is a mechanism that allows individuals without ownership or possessi
 
 - Enable a lender to offer their assets for renting for a specified period of time (List for renting)
 - Enable a lender to define the rental duration.
-    - Borrower has to comply with the renting period.
+  - Borrower has to comply with the renting period.
 - Borrower can gain mutable or immutable access to the NFT.
-    - Immutable access is read only.
-    - Mutable, the lender should consider downgrade and upgrade operations and include them in the renting fee.
+  - Immutable access is read only.
+  - Mutable, the lender should consider downgrade and upgrade operations and include them in the renting fee.
 - After the renting period has finished the item can be sold normally.
 - Royalties
-    - Creator defined royalties are respected by encompassing Transfer Policy rules.
+  - Creator defined royalties are respected by encompassing Transfer Policy rules.

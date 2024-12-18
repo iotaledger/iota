@@ -1,9 +1,9 @@
-  [package]
-  name = "tracing_unit_tests"
-  edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
-  
-  [dependencies]
-  MoveStdlib = { local = "../../../../move-stdlib" }
+[package]
+name = "tracing_unit_tests"
+edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
 
-  [addresses]
-  std = "0x1"
+[dependencies]
+MoveStdlib = { local = "../../../../move-stdlib" }
+
+[addresses]
+std = "0x1"

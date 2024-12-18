@@ -1,10 +1,10 @@
 [package]
 name = "test-cluster"
-authors = ["IOTA Foundation <info@iota.org>"]
 version = "0.1.0"
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [lints]
 workspace = true
@@ -14,29 +14,29 @@ anyhow.workspace = true
 bcs.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
-tracing.workspace = true
-jsonrpsee.workspace = true
-tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
-tokio-util.workspace = true
-rand.workspace = true
-tempfile.workspace = true
 iota-config.workspace = true
 iota-core.workspace = true
 iota-framework.workspace = true
-iota-swarm-config.workspace = true
 iota-indexer.workspace = true
 iota-json-rpc.workspace = true
-iota-json-rpc-types.workspace = true
 iota-json-rpc-api.workspace = true
+iota-json-rpc-types.workspace = true
+iota-keys.workspace = true
 iota-node.workspace = true
 iota-pg-temp-db.workspace = true
 iota-protocol-config.workspace = true
-iota-swarm.workspace = true
-iota-types.workspace = true
-prometheus.workspace = true
-iota-keys.workspace = true
 iota-sdk.workspace = true
+iota-swarm.workspace = true
+iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
+iota-types.workspace = true
+jsonrpsee.workspace = true
+prometheus.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["full", "tracing", "test-util"] }
+tokio-util.workspace = true
+tracing.workspace = true
 
 move-binary-format.workspace = true
 

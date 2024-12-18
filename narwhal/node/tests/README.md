@@ -1,4 +1,4 @@
-## What this test is about 
+## What this test is about
 
 This repository checks the conformance of our code to a BCS-compatible manifest of our serialized data formats.
 
@@ -7,8 +7,9 @@ It does this by running a manifest generator from the code (using serde-reflecti
 If it has in a legitimate fashion (e.g. we update one of our main types), all that's left to do is to re-run the generator and check in the change.
 
 Here are the references to the software above:
-* https://github.com/diem/bcs
-* https://github.com/zefchain/serde-reflection
+
+- https://github.com/diem/bcs
+- https://github.com/zefchain/serde-reflection
 
 ## Examples
 
@@ -45,8 +46,8 @@ narwhal/node(main)» cd node                                                    
 narwhal/node(main)» cargo -q run --example narwhal-generate-format -- print > tests/staged/narwhal.yaml
 ```
 
-
 Let's check that we pass the test again:
+
 ```
 narwhal/node(main)» cargo test -- format 2>&1 |tail -n 40                                                                                                      [14:13:47]
 
@@ -94,4 +95,4 @@ narwhal/node(main)» git status -s                                              
  M ../primary/src/primary.rs
  M ../worker/src/synchronizer.rs
  M ../worker/src/tests/synchronizer_tests.rs
- ```
+```

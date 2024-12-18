@@ -100,9 +100,9 @@ updated = update_constants(
 );
 ```
 
-After updating the bytecode, refer to the 
-[Asset Tokenization](https://docs.iota.org/guides/developer/nft/asset-tokenization#closer-view-of-the-template-module) 
-guide to deploy the contract. 
+After updating the bytecode, refer to the
+[Asset Tokenization](https://docs.iota.org/guides/developer/nft/asset-tokenization#closer-view-of-the-template-module)
+guide to deploy the contract.
 
 ## Usage in Web applications
 

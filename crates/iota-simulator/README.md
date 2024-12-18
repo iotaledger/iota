@@ -1,4 +1,3 @@
-
 # Iota Simulation Testing
 
 This document outlines what the simulator used by `cargo simtest` enables, how it works, how to write sim tests,
@@ -23,39 +22,38 @@ The code for the simulator itself lives in the https://github.com/iotaledger/iot
 It has the following main components:
 
 1. A [runtime](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/runtime/mod.rs) which provides:
-    - A "node" context for all running tasks. The node is a simulated machine, which can be killed, restarted, or paused.
-    - A randomized but deterministic executor.
-    - Simulated clock facilities, including timers, sleep(), etc.
-    - A global, seeded PRNG used to provide all random behavior throughout the simulator.
+   - A "node" context for all running tasks. The node is a simulated machine, which can be killed, restarted, or paused.
+   - A randomized but deterministic executor.
+   - Simulated clock facilities, including timers, sleep(), etc.
+   - A global, seeded PRNG used to provide all random behavior throughout the simulator.
 
 1. A network simulator, which delivers network messages between nodes, and can inject latency and packet loss.
 
 1. An API-compatible replacement for tokio.
-    - Most facilities from `tokio::runtime` and `tokio::time` are delegated back to the simulator runtime.
-    - Custom implementations of the `tokio::net::Tcp*` structs are provided to interface with the network simulator.
-    - Most other pieces of tokio (e.g. `sync`) did not need to be re-implemented because they don't interface with the runtime or the network. These are simply re-exported as is.
-    - A minimal [fork of tokio](https://github.com/mystenmark/tokio-madsim-fork) is required in order to expose certain internals to the simulator. This fork has very few modifications, which were written to be easily rebaseable when new tokio releases come out.
+   - Most facilities from `tokio::runtime` and `tokio::time` are delegated back to the simulator runtime.
+   - Custom implementations of the `tokio::net::Tcp*` structs are provided to interface with the network simulator.
+   - Most other pieces of tokio (e.g. `sync`) did not need to be re-implemented because they don't interface with the runtime or the network. These are simply re-exported as is.
+   - A minimal [fork of tokio](https://github.com/mystenmark/tokio-madsim-fork) is required in order to expose certain internals to the simulator. This fork has very few modifications, which were written to be easily rebaseable when new tokio releases come out.
 
 1. A library of interceptor functions which intercept various posix API calls in order to enforce determinism throughout the test. These include:
-    - `getrandom()`, `getentropy()` - intercepted and delegated to the simulator PRNG.
-    - Various [socket api calls](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/mod.rs#L195), which intercept networking operations and route them through the network simulator. It was necessary to do this at a very low level because [Quinn](https://github.com/quinn-rs/quinn) does its UDP I/O via direct `libc::` calls rather than using `tokio::net::UdpSocket`.
-    - `mach_absolute_time()`, `clock_gettime()`: Intercepted to provide deterministic high-resolution timing behavior.
-    - TODO: `gettimeofday()`: We would like to intercept this to provide deterministic wall-clock operations (e.g. on dates, etc). However, intercepting this currently breaks RocksDB.
+   - `getrandom()`, `getentropy()` - intercepted and delegated to the simulator PRNG.
+   - Various [socket api calls](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/net/mod.rs#L195), which intercept networking operations and route them through the network simulator. It was necessary to do this at a very low level because [Quinn](https://github.com/quinn-rs/quinn) does its UDP I/O via direct `libc::` calls rather than using `tokio::net::UdpSocket`.
+   - `mach_absolute_time()`, `clock_gettime()`: Intercepted to provide deterministic high-resolution timing behavior.
+   - TODO: `gettimeofday()`: We would like to intercept this to provide deterministic wall-clock operations (e.g. on dates, etc). However, intercepting this currently breaks RocksDB.
 
-    This interception behavior is in effect only in threads that have explicitly enabled it, which generally includes the main test thread only. In other threads, the interceptors delegate the call to the system library implementation via `dlsym()`. See implementation [here](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/intercept.rs#L34-L48).
+   This interception behavior is in effect only in threads that have explicitly enabled it, which generally includes the main test thread only. In other threads, the interceptors delegate the call to the system library implementation via `dlsym()`. See implementation [here](https://github.com/iotaledger/iota-sim/blob/main/msim/src/sim/intercept.rs#L34-L48).
 
 1. Procedural macros that replace `#[tokio::test]` and run test code inside a testing environment. These are `#[iota_test]` and `#[sim_test]` and are documented below. The test harness created by these macros initializes the simulator runtime with a starting seed, generates the simulator configuration, and runs the test inside a newly created thread. The test must be run in its own thread in order to provide each test case with fresh thread local storage.
-
 
 ## How to run sim tests
 
 First, you'll have to install the `simtest` sub-command by running:
 
-     $ ./scripts/simtest/install.sh
+    $ ./scripts/simtest/install.sh
 
 You can then run tests by doing:
 
-     $ cargo simtest
+    $ cargo simtest
 
 The simtest command calls `cargo nextest`, so you can add any valid `nextest` option to the command line.
 
@@ -65,20 +63,19 @@ The simtest command calls `cargo nextest`, so you can add any valid `nextest` op
 
 - `MSIM_TEST_NUM` - the number of times to repeat each test. Each repetition of a test is done with a different random seed, starting from the value of `MSIM_TEST_SEED` for the first repetition. The next seed is computed using the following function:
 
-        fn next_seed(seed: u64) -> u64 {
-            use rand::Rng;
-            rand::GlobalRng::new_with_seed(seed).gen::<u64>()
-        }
+      fn next_seed(seed: u64) -> u64 {
+          use rand::Rng;
+          rand::GlobalRng::new_with_seed(seed).gen::<u64>()
+      }
 
-    This means that if you run these two commands:
+  This means that if you run these two commands:
 
-        $ MSIM_TEST_SEED=1 MSIM_TEST_NUM=10 cargo simtest
-        $ MSIM_TEST_SEED=2 MSIM_TEST_NUM=10 cargo simtest
+      $ MSIM_TEST_SEED=1 MSIM_TEST_NUM=10 cargo simtest
+      $ MSIM_TEST_SEED=2 MSIM_TEST_NUM=10 cargo simtest
 
-    No two iterations will have the same seed (with very high probability).
+  No two iterations will have the same seed (with very high probability).
 
-- `MSIM_TEST_CHECK_DETERMINISM` - if set, the specified tests will be run twice, and the framework will verify that the test executes identically in both runs. (This check can also be done by defining a test case with: `#[sim_test(check_determinism)]`.). *Note: Many existing tests in iota do not pass this check, which runs the test case twice in the same process, although those same tests do execute identically if run twice in separate processes. This is a bug, is most likely due to tests sharing static storage or on-disk state, and will hopefully be fixed shortly.*
-
+- `MSIM_TEST_CHECK_DETERMINISM` - if set, the specified tests will be run twice, and the framework will verify that the test executes identically in both runs. (This check can also be done by defining a test case with: `#[sim_test(check_determinism)]`.). _Note: Many existing tests in iota do not pass this check, which runs the test case twice in the same process, although those same tests do execute identically if run twice in separate processes. This is a bug, is most likely due to tests sharing static storage or on-disk state, and will hopefully be fixed shortly._
 
 ## How to write simulation tests:
 
@@ -124,17 +121,17 @@ To address this, most such test code launches validators via the `spawn_test_aut
 `IotaNodeHandle` hides the `IotaNode` from the test code.
 It can only be accessed as follows:
 
-        handle.with(|node| {
-            let state = node.state();
-            do_stuff_to_state(state);
-        });
+    handle.with(|node| {
+        let state = node.state();
+        do_stuff_to_state(state);
+    });
 
 Or in the case of async code:
 
-        handle.with_async(|node| async move {
-            let state = node.state();
-            do_async_stuff_to_state(state).await;
-        }).await;
+    handle.with_async(|node| async move {
+        let state = node.state();
+        do_async_stuff_to_state(state).await;
+    }).await;
 
 (`with_mut` and `with_mut_async` are also available).
 
@@ -206,7 +203,7 @@ For these situations, the `nondeterministic!` macro is provided.
 It can be used to evaluate any expression in another thread, in which the system interceptor functions (e.g. `getrandom()`) are disabled.
 For example:
 
-        let path = dir.join(format!("DB_{:?}", nondeterministic!(ObjectID::random())));
+    let path = dir.join(format!("DB_{:?}", nondeterministic!(ObjectID::random())));
 
 Without the `nondeterministic!` macro, this code could generate the same path in two different tests (each test is started with the same seed).
 
@@ -235,15 +232,14 @@ The good news is that because the system is deterministic, the flaky test can us
 If you find a flaky test, here are some tips on how to start.
 First, ascertain that the test fails repeatedly when run in isolation, e.g.:
 
-      $ cargo simtest my_flaky_test
+    $ cargo simtest my_flaky_test
 
-If it fails when run *en masse*, but passes when run individually (or vice versa) then there may be a test isolation failure.
+If it fails when run _en masse_, but passes when run individually (or vice versa) then there may be a test isolation failure.
 Test isolation failures are often due to filesystem or static memory access, or may be simulator bugs.
 
 Assuming that the test does fail repeatably in isolation, you can try the test with several different seeds:
 
-
-      $ MSIM_TEST_SEED=XXX cargo simtest my_flaky_test
+    $ MSIM_TEST_SEED=XXX cargo simtest my_flaky_test
 
 And see how often if passes/fails.
 Note which seeds cause the test to pass, and which cause it to fail - it may be helpful to compare log output from passing and failing runs to see how they differ, and between pairs of passing or failing runs to see how they are alike.
@@ -256,7 +252,7 @@ It's impossible to list every possible cause of flakiness in a document, but the
 n t
 Once you have found the bug or the source of the flakiness, you can validator your fix by running:
 
-      $ MSIM_TEST_NUM=20 cargo simtest my_flaky_test
+    $ MSIM_TEST_NUM=20 cargo simtest my_flaky_test
 
 This will run your test 20 times with different seeds.
 Feel free to increase this number - theoretically working code should work no matter how many times you repeat the test, but you probably don't have time for more than a few dozen iterations.
@@ -272,6 +268,6 @@ In normal CI runs, this seed should always be `1` (the default value).
 However, when a test is run with a higher iteration count, the reported seed will be some large random number.
 Ideally you should be able to immediately reproduce the failure by running a single iteration of the test with the given seed.
 
-*Currently, this feature is in progress due to some isolation failures in the simulator framework that I am trying to track down.*
+_Currently, this feature is in progress due to some isolation failures in the simulator framework that I am trying to track down._
 
 **Linux vs Mac**: There is one big caveat here, which is that we don't have identical execution across different platforms. This may be impossible to achieve due to `#[cfg(target_os = xxx)]` attributes in our dependencies. Therefore, even once test re-execution is fully supported, it may be necessary to use linux (perhaps via a local docker container) to reproduce failures found on our CI machines.

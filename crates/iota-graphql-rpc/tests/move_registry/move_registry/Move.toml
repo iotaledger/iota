@@ -7,4 +7,3 @@ Iota = { local = "../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
 move_registry = "0x0"
-

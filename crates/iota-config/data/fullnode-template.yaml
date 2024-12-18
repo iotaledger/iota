@@ -23,7 +23,7 @@ authority-store-pruning-config:
 state-archive-read-config:
   - object-store-config:
       object-store: "S3"
-      # Use iota-testnet-archives for testnet 
+      # Use iota-testnet-archives for testnet
       # Use iota-mainnet-archives for mainnet
       bucket: "iota-<testnet|mainnet>-archives"
       # you can either provide your own aws credentials via "aws-secret-access-key" and
@@ -31,7 +31,7 @@ state-archive-read-config:
       no-sign-request: true
       aws-region: "us-west-2"
       object-store-connection-limit: 20
-    # How many objects to read ahead when catching up  
+    # How many objects to read ahead when catching up
     concurrency: 5
     # Whether to prune local state based on latest checkpoint in archive.
     # This should stay false for most use cases

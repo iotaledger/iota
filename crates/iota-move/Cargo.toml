@@ -2,20 +2,20 @@
 name = "iota-move"
 version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
+bin-version.workspace = true
 clap.workspace = true
 colored.workspace = true
 once_cell = { workspace = true, optional = true }
+prometheus.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 tracing.workspace = true
-prometheus.workspace = true
-bin-version.workspace = true
 
 move-binary-format.workspace = true
 move-cli.workspace = true
@@ -28,13 +28,13 @@ move-unit-test.workspace = true
 telemetry-subscribers.workspace = true
 tokio = { workspace = true, features = ["full"] }
 
-move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
 iota-move-natives = { path = "../../iota-execution/latest/iota-move-natives", package = "iota-move-natives-latest" }
+move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
 
+better_any = "0.1.1"
 iota-move-build.workspace = true
 iota-protocol-config.workspace = true
 iota-types.workspace = true
-better_any = "0.1.1"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemalloc-ctl.workspace = true
@@ -48,9 +48,9 @@ tempfile.workspace = true
 
 move-package.workspace = true
 
-iota-metrics.workspace = true
 iota-core.workspace = true
 iota-macros.workspace = true
+iota-metrics.workspace = true
 iota-node.workspace = true
 iota-simulator.workspace = true
 

@@ -2,9 +2,9 @@
 name = "iota-proc-macros"
 version = "0.7.0"
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [lints]
 workspace = true
@@ -13,10 +13,10 @@ workspace = true
 proc-macro = true
 
 [dependencies]
+iota-enum-compat-util.workspace = true
+proc-macro2.workspace = true
 quote.workspace = true
 syn = { version = "2", features = ["full", "fold", "extra-traits"] }
-proc-macro2.workspace = true
-iota-enum-compat-util.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 msim-macros.workspace = true

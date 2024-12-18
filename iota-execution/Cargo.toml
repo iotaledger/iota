@@ -2,10 +2,10 @@
 name = "iota-execution"
 version = "0.1.0"
 authors = ["IOTA Foundation <info@iota.org>"]
-description = "Multiplexer to choose between multiple versions of iota and move execution crates."
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
+description = "Multiplexer to choose between multiple versions of iota and move execution crates."
 
 [dependencies]
 iota-protocol-config.workspace = true
@@ -52,15 +52,15 @@ petgraph = "0.5.1"
 [features]
 default = []
 tracing = [
-    "iota-adapter-latest/tracing",
-    "iota-adapter-v0/tracing",
-    "iota-adapter-v1/tracing",
+  "iota-adapter-latest/tracing",
+  "iota-adapter-v0/tracing",
+  "iota-adapter-v1/tracing",
   "iota-adapter-v2/tracing",
-#   "iota-adapter-$CUT/tracing",
-    "move-vm-runtime-v0/tracing",
-    "move-vm-runtime-v1/tracing",
-    "move-vm-runtime-latest/tracing",
+  #   "iota-adapter-$CUT/tracing",
+  "move-vm-runtime-v0/tracing",
+  "move-vm-runtime-v1/tracing",
+  "move-vm-runtime-latest/tracing",
   "move-vm-runtime-v2/tracing",
-#   "move-vm-runtime-$CUT/tracing",
-    "move-vm-config/tracing",
+  #   "move-vm-runtime-$CUT/tracing",
+  "move-vm-config/tracing",
 ]

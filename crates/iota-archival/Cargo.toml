@@ -1,42 +1,42 @@
 [package]
 name = "iota-archival"
 version.workspace = true
-edition = "2021"
-publish = false
-license = "Apache-2.0"
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
 
 [dependencies]
-indicatif.workspace = true
 anyhow.workspace = true
-serde.workspace = true
 byteorder.workspace = true
-tracing.workspace = true
 bytes.workspace = true
-num_enum.workspace = true
+fastcrypto = { workspace = true, features = ["copy_key"] }
 futures.workspace = true
-rand.workspace = true
+indicatif.workspace = true
+iota-config.workspace = true
+iota-storage.workspace = true
+iota-types.workspace = true
+num_enum.workspace = true
 object_store.workspace = true
 prometheus.workspace = true
-iota-config.workspace = true
-iota-types.workspace = true
-iota-storage.workspace = true
-fastcrypto = { workspace = true, features = ["copy_key"] }
-tokio = { workspace = true, features = ["full"] }
+rand.workspace = true
+serde.workspace = true
 serde_json = "1.0.95"
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
+ed25519-consensus.workspace = true
+fastcrypto.workspace = true
+iota-macros.workspace = true
+iota-swarm-config.workspace = true
 more-asserts.workspace = true
-telemetry-subscribers.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
+telemetry-subscribers.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
-ed25519-consensus.workspace = true
-fastcrypto.workspace = true
-iota-swarm-config.workspace = true
-iota-macros.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

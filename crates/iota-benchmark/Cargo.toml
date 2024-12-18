@@ -2,54 +2,54 @@
 name = "iota-benchmark"
 version = "0.0.0"
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [lints]
 workspace = true
 
 [dependencies]
-async-trait.workspace = true
 anyhow = { workspace = true, features = ["backtrace"] }
-futures.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-itertools.workspace = true
-tokio = { workspace = true, features = ["full"] }
-strum.workspace = true
-strum_macros.workspace = true
-tracing.workspace = true
+async-trait.workspace = true
+bcs.workspace = true
 clap.workspace = true
+comfy-table.workspace = true
+duration-str.workspace = true
+fastcrypto-zkp.workspace = true
+futures.workspace = true
+hdrhistogram.workspace = true
+indicatif.workspace = true
+iota-config.workspace = true
+iota-core.workspace = true
+iota-json-rpc-types.workspace = true
+iota-keys.workspace = true
+iota-network.workspace = true
+iota-protocol-config.workspace = true
+iota-sdk.workspace = true
+iota-storage.workspace = true
+iota-surfer.workspace = true
+iota-swarm-config.workspace = true
+iota-test-transaction-builder.workspace = true
+iota-types.workspace = true
+itertools.workspace = true
 prometheus.workspace = true
 rand.workspace = true
-indicatif.workspace = true
-duration-str.workspace = true
-hdrhistogram.workspace = true
-comfy-table.workspace = true
-bcs.workspace = true
-tokio-util.workspace = true
-iota-core.workspace = true
-iota-config.workspace = true
-iota-network.workspace = true
-iota-storage.workspace = true
-iota-types.workspace = true
-iota-sdk.workspace = true
-iota-keys.workspace = true
-iota-json-rpc-types.workspace = true
-iota-protocol-config.workspace = true
-iota-test-transaction-builder.workspace = true
-iota-swarm-config.workspace = true
-iota-surfer.workspace = true
-telemetry-subscribers.workspace = true
-roaring.workspace = true
 regex.workspace = true
-fastcrypto-zkp.workspace = true
+roaring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+telemetry-subscribers.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-util.workspace = true
+tracing.workspace = true
 
-move-core-types.workspace = true
 iota-metrics.workspace = true
-test-cluster.workspace = true
+move-core-types.workspace = true
 sysinfo.workspace = true
+test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-framework.workspace = true

@@ -2,36 +2,36 @@
 name = "iota-oracle"
 version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0.64", features = ["backtrace"] }
+bcs.workspace = true
+chrono.workspace = true
 clap.workspace = true
-prometheus = "0.13.3"
-tokio = { workspace = true, features = ["full"] }
-tracing = "0.1.36"
+jsonpath_lib = "0.3.0"
 once_cell.workspace = true
+prometheus = "0.13.3"
 reqwest.workspace = true
 serde = { version = "1.0.144", features = ["derive", "rc"] }
 serde_json = { version = "1.0.1" }
-jsonpath_lib = "0.3.0"
-chrono.workspace = true
 tap.workspace = true
-bcs.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing = "0.1.36"
 
 iota-config = { path = "../iota-config" }
 iota-json-rpc-types = { path = "../iota-json-rpc-types" }
+iota-metrics = { path = "../iota-metrics" }
 iota-sdk = { path = "../iota-sdk" }
 iota-types = { path = "../iota-types" }
-iota-metrics = { path = "../iota-metrics" }
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
+bcs = "0.1.5"
+dirs = "4.0.0"
 iota-keys = { path = "../iota-keys" }
 iota-move-build = { path = "../iota-move-build" }
-shared-crypto = { path = "../shared-crypto" }
-bcs = "0.1.5"
 rand = "0.8.5"
-dirs = "4.0.0"
+shared-crypto = { path = "../shared-crypto" }

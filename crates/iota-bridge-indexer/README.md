@@ -16,7 +16,6 @@ The pre-built Docker image for Bridge Indexer can be found in `iotaledger/iota-t
 bridge-indexer --config-path config.yaml
 ```
 
-
 ## Config
 
 ```yaml
@@ -36,6 +35,4 @@ iota_bridge_genesis_checkpoint: 55455583 # <-- mainnet, 43917829 for testnet
 eth_bridge_genesis_block: 20811249 # <-- mainnet, 5997013 for testnet
 
 eth_ws_url: {eth websocket url}
-
 ```
-

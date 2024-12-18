@@ -1,9 +1,9 @@
 [package]
 name = "narwhal-types"
 version = "0.1.0"
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
-authors = ["IOTA Foundation <info@iota.org>"]
 publish = false
 
 [dependencies]
@@ -28,19 +28,19 @@ tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tonic.workspace = true
 tracing.workspace = true
 
+anemo.workspace = true
 anyhow.workspace = true
 config = { path = "../config", package = "narwhal-config" }
-fastcrypto.workspace = true
 crypto = { path = "../crypto", package = "narwhal-crypto" }
-anemo.workspace = true
+fastcrypto.workspace = true
 iota-protocol-config.workspace = true
 once_cell.workspace = true
 
-store = { path = "../../crates/typed-store", package = "typed-store" }
-iota-metrics.workspace = true
 iota-common.workspace = true
+iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-util-mem.workspace = true
+store = { path = "../../crates/typed-store", package = "typed-store" }
 
 [dev-dependencies]
 criterion.workspace = true

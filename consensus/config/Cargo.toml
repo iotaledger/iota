@@ -1,9 +1,9 @@
 [package]
 name = "consensus-config"
 version = "0.1.0"
-license = "Apache-2.0"
 authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
 publish = false
 
 [lints]

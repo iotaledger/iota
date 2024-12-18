@@ -2,14 +2,13 @@
 name = "iota-telemetry"
 version = "0.1.0"
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
-serde.workspace = true
 reqwest.workspace = true
+serde.workspace = true
 tracing.workspace = true
 
 iota-core.workspace = true
-

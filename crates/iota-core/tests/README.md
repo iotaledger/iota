@@ -1,4 +1,4 @@
-## What this test is about 
+## What this test is about
 
 This repository checks the conformance of our code to a BCS-compatible manifest of our serialized data formats.
 
@@ -40,8 +40,8 @@ huitseeker@Garillots-MBP.localdomain➜~/tmp/iota(main✗)» cd iota_core       
 huitseeker@Garillots-MBP.localdomain➜tmp/iota/iota_core(main✗)» cargo -q run --example generate-format -- print > tests/staged/iota.yaml
 ```
 
-
 Let's check that we pass the test again:
+
 ```
 huitseeker@Garillots-MBP.localdomain➜tmp/iota/iota_core(main✗)» cargo test format 2>&1 |tail -n 40                                                                                                                                                                                                                                                                                                                                                                                      [8:47:22]
     Finished test [unoptimized + debuginfo] target(s) in 0.35s
@@ -63,4 +63,4 @@ huitseeker@Garillots-MBP.localdomain➜tmp/iota/iota_core(main✗)» git status 
  M tests/staged/iota.yaml
  M ../iota_types/src/error.rs
  M ../iota_types/src/messages.rs
- ```
+```

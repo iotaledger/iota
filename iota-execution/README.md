@@ -1,7 +1,7 @@
 # Iota Execution
 
 The `iota-execution` crate is responsible for abstracting access to the
-execution layer.  It allows us to isolate big changes to the execution
+execution layer. It allows us to isolate big changes to the execution
 layer that need to be gated behind protocol config changes, to
 minimise the risk of inadvertently changing behaviour that is relevant
 for state sync (which would cause a fork).
@@ -22,7 +22,6 @@ The specific versions of crates in the execution layer are found in:
   crates).
 - `./external-crates/move` (the latest versions of move-specific
   crates).
-
 
 ## Accessing the Execution Layer
 
@@ -47,7 +46,6 @@ is hardcoded in their binary (and may change from release-to-release).
 `iota-execution tests::test_encapsulation` is a test that detects
 potential breaches of this property.
 
-
 ## Kinds of Cut
 
 There are three kinds of cut:
@@ -57,7 +55,6 @@ There are three kinds of cut:
   preserve old behaviour.
 - "feature" cuts, where in-progress features are staged, typically
   named for that feature.
-
 
 ### The `latest` cut
 
@@ -79,7 +76,6 @@ Large changes to execution that are difficult to feature gate warrant
 **their own execution version**, see "Making a Cut" below for details
 on creating such a cut.
 
-
 ### Version Snapshots
 
 Versioned snapshots, such as `v0`, found at:
@@ -87,39 +83,38 @@ Versioned snapshots, such as `v0`, found at:
 - `./iota-execution/v0`
 - `./external-crates/move/move-execution/v0`
 
-preserve the existing behaviour of execution.  These should generally
+preserve the existing behaviour of execution. These should generally
 not be modified, because doing so risks changing the effects produced
-by existing transactions (which would result in a fork).  Legitimate
+by existing transactions (which would result in a fork). Legitimate
 reasons to change these crates include:
 
-**Fixing a non-deterministic bug.**  There may be bugs that cause a
+**Fixing a non-deterministic bug.** There may be bugs that cause a
 fullnode to behave differently during state sync than the network did
-during execution.  The only way to fix these bugs is to update the
+during execution. The only way to fix these bugs is to update the
 version of execution that the fullnode will use, which may be a
-versioned snapshot.  Note that if there is an existing bug but it is
+versioned snapshot. Note that if there is an existing bug but it is
 not deterministic, it should **not** be fixed in older versions.
 
-**Updating interfaces.**  Not all crates that are used by the
+**Updating interfaces.** Not all crates that are used by the
 execution layer are versioned: Base crates such as
-`./crates/iota-types` are shared across all versions.  Changes to
+`./crates/iota-types` are shared across all versions. Changes to
 interfaces of base crates will warrant a change to versioned snapshots
-to fix their use of those interfaces.  The aim of those changes should
+to fix their use of those interfaces. The aim of those changes should
 always be to preserve existing behaviour.
-
 
 ### Feature Cuts
 
 It can be worthwhile to develop large features that warrant their own
-execution version in a separate cut (i.e. not `latest`).  This allows
+execution version in a separate cut (i.e. not `latest`). This allows
 `latest` to continue shipping to networks uninterrupted while the new
 feature is developed.
 
 **Feature cuts should only be used to process transactions on devnet**
 as their behaviour may change from release to release, and only devnet
-is wiped regularly enough to accommodate that.  This is done using the
+is wiped regularly enough to accommodate that. This is done using the
 `Chain` parameter of `ProtocolConfig::get_for_version`:
 
-``` rust
+```rust
 impl ProtocolConfig {
     /* ... */
     fn get_for_version_impl(version: ProtocolVersion, chain: Chain) -> Self {
@@ -147,30 +142,28 @@ To use this flow:
   from `latest` to preserve its existing behaviour, merge your feature
   into the new `latest`, and delete your feature.
 
-
 ## Making a Cut
 
 Cuts are always made from `latest`, with the process automated by a
-script: `./scripts/execution_layer.py`.  To copy the relevant crates
+script: `./scripts/execution_layer.py`. To copy the relevant crates
 for a new cut, call:
 
-``` shell
+```shell
 ./scripts/execution_layer.py cut <FEATURE>
 ```
 
-Where `<FEATURE>` is the new feature name.  For a versioned snapshot
+Where `<FEATURE>` is the new feature name. For a versioned snapshot
 this is `vX` where `X` is the current version assigned to `latest`,
 whereas for feature cuts, it is the feature's name.
 
 The script can be called with `--dry-run` to print a summary of what
 it will do, without actually doing it.
 
-
 ## `iota-execution/src/lib.rs`
 
 The entry-point to the execution crate -- `iota-execution/src/lib.rs`
--- is **automatically generated**.  CI tests will confirm that it has
-not been modified manually.  Any modifications should be made in one
+-- is **automatically generated**. CI tests will confirm that it has
+not been modified manually. Any modifications should be made in one
 of two places:
 
 - `iota-execution/src/lib.template.rs` -- a template file with
@@ -178,22 +171,19 @@ of two places:
 - function `generate_lib` in `scripts/execution_layer.py`, which fills
   them in based on the execution modules in the crate.
 
-
 ## Rebasing Cuts
 
 A cut can be `rebase`-d against `latest` using the following command:
 
 ```shell
 ./scripts/execution_layer.py rebase <FEATURE>
-
 ```
 
 This saves all the changes that were made to the cut after it was
-made, and replays them on a fresh cut from `latest`.  As a precaution,
+made, and replays them on a fresh cut from `latest`. As a precaution,
 it will not run if the working directory is not clean (because if it
 goes wrong, it will be harder to recover), but this can be overridden
 with `--force`.
-
 
 ## Merging Cuts
 
@@ -205,8 +195,8 @@ Cuts support a rudimentary form of `merge`, using patch files:
 
 The `merge` command attempts to merge the changes from `<FEATURE>`
 onto the cut at `<BASE>` (It modifies `<BASE>` and leaves `<FEATURE>`
-untouched).  Because it operates using patch files, any conflicts
-result in a failure to apply the patch.  This can be resolved in two
+untouched). Because it operates using patch files, any conflicts
+result in a failure to apply the patch. This can be resolved in two
 ways:
 
 - (Recommended) If merging into `latest`, `rebase` the `<FEATURE>`

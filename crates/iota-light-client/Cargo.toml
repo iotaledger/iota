@@ -2,9 +2,9 @@
 name = "iota-light-client"
 version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [lib]
 path = "src/lib.rs"
@@ -19,20 +19,20 @@ async-trait.workspace = true
 bcs.workspace = true
 bytes.workspace = true
 clap.workspace = true
-move-core-types.workspace = true
-serde.workspace = true
-tokio = { workspace = true, features = ["full"] }
-serde_yaml.workspace = true
-serde_json.workspace = true
-iota-types.workspace = true
+env_logger = "0.11.5"
 iota-config.workspace = true
-iota-rpc-api.workspace = true
-iota-sdk.workspace = true
-move-binary-format.workspace = true
 iota-json-rpc-types.workspace = true
 iota-package-resolver.workspace = true
-url.workspace = true
-reqwest.workspace = true
-object_store.workspace = true
-env_logger = "0.11.5"
+iota-rpc-api.workspace = true
+iota-sdk.workspace = true
+iota-types.workspace = true
 log = "0.4.22"
+move-binary-format.workspace = true
+move-core-types.workspace = true
+object_store.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tokio = { workspace = true, features = ["full"] }
+url.workspace = true

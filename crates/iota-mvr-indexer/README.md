@@ -1,21 +1,25 @@
 The MVR indexer is a spin-off of the Iota indexer. It has a subset of the full indexer schema, limited to just the tables needed to support MVR. The required tables are `epochs`, `checkpoints`, `packages`, `objects_snapshot`, and `objects_history`. This enables the custom indexer to support the `package_by_name` and `type_by_name` queries on GraphQL.
 
 # Running this indexer
+
 ## Start the Postgres Service
 
-Postgres must run as a service in the background for other tools to communicate with.  If it was installed using homebrew, it can be started as a service with:
+Postgres must run as a service in the background for other tools to communicate with. If it was installed using homebrew, it can be started as a service with:
 
-``` sh
+```sh
 brew services start postgresql@version
 ```
 
 ## DB reset
+
 When making db-related changes, you may find yourself having to run migrations and reset dbs often. The commands below are how you can invoke these actions.
+
 ```sh
 cargo run --bin iota-mvr-indexer -- --database-url "<DATABASE_URL>" reset-database --force
 ```
 
 ## Start the indexer
+
 ```SH
 cargo run --bin iota-mvr-indexer -- --db-url "<DATABASE_URL>" indexer --rpc-client-url "https://fullnode.devnet.iota.io:443" --remote-store-url  http://lax-iotafn-t99eb.devnet.iota.io:9000/rest
 ```

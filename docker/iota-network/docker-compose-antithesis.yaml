@@ -22,7 +22,7 @@ services:
       - ./dbs/validator1:/opt/iota/db:rw
       - ./logs/validator1:/opt/iota/logs
     command:
-        "bash -c '/usr/local/bin/iota-node-inst --config-path /opt/iota/config/validator.yaml >> /opt/iota/logs/full_logs.log 2>&1'"
+      "bash -c '/usr/local/bin/iota-node-inst --config-path /opt/iota/config/validator.yaml >> /opt/iota/logs/full_logs.log 2>&1'"
     restart: on-failure
     logging:
       driver: "json-file"
@@ -50,7 +50,7 @@ services:
       - ./dbs/validator2:/opt/iota/db:rw
       - ./logs/validator2:/opt/iota/logs
     command:
-        "bash -c '/usr/local/bin/iota-node-inst --config-path /opt/iota/config/validator.yaml >> /opt/iota/logs/full_logs.log 2>&1'"
+      "bash -c '/usr/local/bin/iota-node-inst --config-path /opt/iota/config/validator.yaml >> /opt/iota/logs/full_logs.log 2>&1'"
     restart: on-failure
     logging:
       driver: "json-file"
@@ -78,7 +78,7 @@ services:
       - ./dbs/validator3:/opt/iota/db:rw
       - ./logs/validator3:/opt/iota/logs
     command:
-        "bash -c '/usr/local/bin/iota-node-inst --config-path /opt/iota/config/validator.yaml >> /opt/iota/logs/full_logs.log 2>&1'"
+      "bash -c '/usr/local/bin/iota-node-inst --config-path /opt/iota/config/validator.yaml >> /opt/iota/logs/full_logs.log 2>&1'"
     restart: on-failure
     logging:
       driver: "json-file"
@@ -106,7 +106,7 @@ services:
       - ./dbs/validator4:/opt/iota/db:rw
       - ./logs/validator4:/opt/iota/logs
     command:
-        "bash -c '/usr/local/bin/iota-node-inst --config-path /opt/iota/config/validator.yaml >> /opt/iota/logs/full_logs.log 2>&1'"
+      "bash -c '/usr/local/bin/iota-node-inst --config-path /opt/iota/config/validator.yaml >> /opt/iota/logs/full_logs.log 2>&1'"
     restart: on-failure
     logging:
       driver: "json-file"
@@ -182,4 +182,4 @@ networks:
     driver: bridge
     ipam:
       config:
-      - subnet: 10.0.0.0/24
+        - subnet: 10.0.0.0/24

@@ -1,10 +1,10 @@
 [package]
 name = "iota-data-ingestion"
+version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
@@ -18,22 +18,22 @@ bcs.workspace = true
 byteorder.workspace = true
 bytes.workspace = true
 futures.workspace = true
+iota-archival.workspace = true
+iota-data-ingestion-core.workspace = true
+iota-kvstore.workspace = true
 iota-metrics.workspace = true
+iota-storage.workspace = true
+iota-types.workspace = true
 notify.workspace = true
 object_store.workspace = true
+prometheus.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-prometheus.workspace = true
 telemetry-subscribers.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tracing.workspace = true
-iota-archival.workspace = true
-iota-storage.workspace = true
-iota-data-ingestion-core.workspace = true
-iota-kvstore.workspace = true
-iota-types.workspace = true
-tempfile.workspace = true
 url.workspace = true
 
 [dev-dependencies]

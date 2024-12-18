@@ -2,14 +2,13 @@
 name = "iota-mvr-graphql-rpc"
 version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
-
 
 [dependencies]
 anyhow.workspace = true
-async-graphql = {workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
+async-graphql = { workspace = true, features = ["dataloader", "apollo_tracing", "tracing", "opentelemetry"] }
 async-graphql-axum.workspace = true
 async-graphql-value.workspace = true
 async-trait.workspace = true
@@ -21,6 +20,7 @@ clap.workspace = true
 const-str.workspace = true
 diesel = { workspace = true, features = ["i-implement-a-third-party-backend-and-opt-into-breaking-changes"] }
 diesel-async = { workspace = true, features = ["postgres"] }
+downcast = "0.11.0"
 either.workspace = true
 fastcrypto = { workspace = true, features = ["copy_key"] }
 fastcrypto-zkp.workspace = true
@@ -28,14 +28,18 @@ futures.workspace = true
 hex.workspace = true
 http.workspace = true
 hyper.workspace = true
+im.workspace = true
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
+iota-pg-temp-db.workspace = true
+iota-sdk.workspace = true
+iota-types.workspace = true
 itertools.workspace = true
 lru.workspace = true
 move-binary-format.workspace = true
+move-core-types.workspace = true
 move-disassembler.workspace = true
 move-ir-types.workspace = true
-iota-metrics.workspace = true
-iota-network-stack.workspace = true
-move-core-types.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 rand.workspace = true # todo: cleanup test only deps
@@ -47,51 +51,45 @@ serde_with.workspace = true
 serde_yaml.workspace = true
 shared-crypto.workspace = true
 similar.workspace = true
-iota-pg-temp-db.workspace = true
-iota-sdk.workspace = true
-iota-types.workspace = true
 tap.workspace = true
 telemetry-subscribers.workspace = true
 tempfile.workspace = true
-tracing.workspace = true
+thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-util = { workspace = true, features = ["rt"] }
 toml.workspace = true
 tower.workspace = true
 tower-http.workspace = true
-thiserror.workspace = true
+tracing.workspace = true
 uuid.workspace = true
-im.workspace = true
-downcast = "0.11.0"
 
 iota-default-config.workspace = true
-iota-graphql-rpc-headers.workspace = true
 iota-graphql-rpc-client.workspace = true
-
+iota-graphql-rpc-headers.workspace = true
 
 # TODO: put these behind feature flag to prevent leakage
 # Used for dummy data
 bcs.workspace = true
-simulacrum.workspace = true  # todo: cleanup test only deps
+iota-indexer.workspace = true
 iota-json-rpc.workspace = true
 iota-json-rpc-types.workspace = true
-iota-indexer.workspace = true
+iota-package-resolver.workspace = true
+iota-protocol-config.workspace = true
 iota-rpc-api.workspace = true
 iota-swarm-config.workspace = true
-test-cluster.workspace = true
-iota-protocol-config.workspace = true
 move-bytecode-utils.workspace = true
-iota-package-resolver.workspace = true
+simulacrum.workspace = true # todo: cleanup test only deps
+test-cluster.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true
 hyper.workspace = true
 insta.workspace = true
-serde_json.workspace = true
 iota-framework.workspace = true
-tower.workspace = true
-iota-test-transaction-builder.workspace = true
 iota-move-build.workspace = true
+iota-test-transaction-builder.workspace = true
+serde_json.workspace = true
+tower.workspace = true
 
 [features]
 staging = []

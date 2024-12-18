@@ -11,4 +11,3 @@ IotaSystem = { local = "../iota-system" }
 
 [addresses]
 bridge = "0xb"
-

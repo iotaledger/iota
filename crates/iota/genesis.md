@@ -2,7 +2,7 @@
 
 This document lays out the step-by-step process for orchestrating a Iota Genesis Ceremony.
 
-## Prerequisites 
+## Prerequisites
 
 Each validator participating in the ceremony will need the following:
 
@@ -15,8 +15,9 @@ Each validator participating in the ceremony will need the following:
 - Narwhal_consensus_address network address // LAN
 
 Note:
+
 - Network addresses should be Multiaddrs in the form of `/dns/{dns name}/tcp/{port}/http` and
-only the addresses marked WAN need to be publicly accessible by the wider internet.
+  only the addresses marked WAN need to be publicly accessible by the wider internet.
 - An Ed25519 key can be created using `iota keytool generate`
 
 ## Ceremony

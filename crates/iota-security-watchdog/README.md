@@ -1,14 +1,19 @@
 # Security Watchdog Service
 
 ## Overview
+
 The Analytics Watchdog Service is designed to monitor and analyze data changes over time. It achieves this by periodically downloading a specified GitHub repository, parsing configuration files for SQL queries, and executing these queries on a set schedule. Results are then used to update Prometheus metrics, providing real-time insights into data trends.
 
 ## Running the Service
+
 Execute the compiled binary to start the service:
+
 ```shell
 cargo run --release -p iota-security-watchdog
 ```
+
 ## Usage
+
 The service will automatically start downloading the configured GitHub repository, parsing the configuration file, and scheduling SQL queries as specified. Metrics will be updated in Prometheus according to the results of these queries.
 The config file allows setting up time based schedule for expected results. For example, when periodically checking total iota in the network we want it to be an exact value i.e 10B whereas when periodically checking balance of an account
 which has time based token unlocks, we want it to compare against a lower bound (balance of the account should never drop below a certain number before a given date), etc.

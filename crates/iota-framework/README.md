@@ -1,7 +1,7 @@
 # To add a new native Move function
 
 1. Add a new `./iota-framework/{name}.move` file or find an appropriate `.move`.
-2. Add the signature of the function you are adding in `{name}.move`. 
+2. Add the signature of the function you are adding in `{name}.move`.
 3. Add the rust implementation of the function under `./iota-framework/src/natives` with name `{name}.rs`.
 4. Link the move interface with the native function in [all_natives](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/src/natives/mod.rs#L23)
 5. Write some tests in `{name}_tests.move` and pass `run_framework_move_unit_tests`.

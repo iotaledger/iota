@@ -2,13 +2,21 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-args: ["--db-url", "$(DB_URL)", "--rpc-client-url", "https://public-rpc.mainnet.iota.io", "--remote-store-url", "https://checkpoints.mainnet.iota.io", "--fullnode-sync-worker"]
+args: [
+  "--db-url",
+  "$(DB_URL)",
+  "--rpc-client-url",
+  "https://public-rpc.mainnet.iota.io",
+  "--remote-store-url",
+  "https://checkpoints.mainnet.iota.io",
+  "--fullnode-sync-worker",
+]
 
 # only 1 writer needed
 replicaCount: 1
 
 podAnnotations:
-    app: iota-indexer-writer
+  app: iota-indexer-writer
 
 env:
   RUST_BACKTRACE:
@@ -29,15 +37,14 @@ env:
         name: "indexer-writer-db-url-secret"
         key: "db-url"
 
-resources: 
+resources:
   limits:
-     cpu: 3
-     memory: 10Gi
+    cpu: 3
+    memory: 10Gi
   requests:
-     cpu: 2
-     memory: 8Gi
+    cpu: 2
+    memory: 8Gi
 
 # writer does not need ingress, no api exists
 ingress:
   enabled: false
-

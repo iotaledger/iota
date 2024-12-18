@@ -145,10 +145,10 @@ Normally, we would be stuck having to call it as `double(&c)` because `b::exampl
 `Cup`, but instead we can use a `use fun` alias
 
 ```move
-    fun double_double(c: Cup<u64>): (Cup<u64>, Cup<u64>) {
-        use fun b::example::double as Cup.dub;
-        (c.dub(), c.dub()) // resolves to b::example::double in both calls
-    }
+fun double_double(c: Cup<u64>): (Cup<u64>, Cup<u64>) {
+    use fun b::example::double as Cup.dub;
+    (c.dub(), c.dub()) // resolves to b::example::double in both calls
+}
 ```
 
 While `use fun` can be made in any scope, the target `<function>` of the `use fun` must have a first

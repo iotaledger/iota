@@ -10,10 +10,10 @@
 
 Iota offers the following benefits and capabilities:
 
- * Unmatched scalability, instant settlement
- * A safe smart contract language accessible to mainstream developers
- * Ability to define rich and composable on-chain assets
- * Better user experience for web3 apps
+- Unmatched scalability, instant settlement
+- A safe smart contract language accessible to mainstream developers
+- Ability to define rich and composable on-chain assets
+- Better user experience for web3 apps
 
 Iota is the only blockchain today that can scale with the growth of web3 while achieving industry-leading performance, cost, programmability, and usability. As Iota approaches Mainnet launch, it will demonstrate capacity beyond the transaction processing capabilities of established systems – traditional and blockchain alike. Iota is the first internet-scale programmable blockchain platform, a foundational layer for web3.
 
@@ -52,7 +52,7 @@ Iota is supported by several cutting-edge [peer-reviewed studies](https://github
 
 Use the following links to learn more about Iota and the Iota ecosystem:
 
- * Learn more about working with Iota in the [Iota Documentation](https://docs.iota.org/).
- * Join the Iota community on [Iota Discord](https://discord.gg/iota).
- * Find out more about the Iota ecosystem on the [Iota Resources](https://iota.org/resources/) page.
- * Review information about Iota governance, [decentralization](https://iota.org/decentralization), and [Developer Grants Program](https://iota.org/grants-hub) on the [Iota Foundation](https://iota.org/) site.
+- Learn more about working with Iota in the [Iota Documentation](https://docs.iota.org/).
+- Join the Iota community on [Iota Discord](https://discord.gg/iota).
+- Find out more about the Iota ecosystem on the [Iota Resources](https://iota.org/resources/) page.
+- Review information about Iota governance, [decentralization](https://iota.org/decentralization), and [Developer Grants Program](https://iota.org/grants-hub) on the [Iota Foundation](https://iota.org/) site.

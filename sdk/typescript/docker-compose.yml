@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   db:
@@ -9,4 +9,4 @@ services:
       POSTGRES_PASSWORD: postgrespw
       POSTGRES_DB: iota_indexer_v2
     ports:
-      - '5435:5432'
+      - "5435:5432"

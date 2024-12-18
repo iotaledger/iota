@@ -162,4 +162,3 @@ WorkerSynchronizeMessage:
     - target:
         TYPENAME: AuthorityIdentifier
     - is_certified: BOOL
-

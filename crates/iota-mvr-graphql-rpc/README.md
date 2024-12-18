@@ -1,7 +1,9 @@
 # iota-mvr-graphql-rpc
 
 ## Maintaining parity with iota-graphql-rpc crate
+
 Generates a series of patch files from the named commit to the current HEAD, and rewrites the paths to the destination crate.
+
 ```
 # Create patch with stripped paths
 git format-patch <commit-hash>..HEAD --stdout -- ./crates/iota-mvr-graphql-rpc | sed 's|crates/iota-mvr-graphql-rpc/|crates/iota-graphql-rpc/|g' > patches.diff
@@ -11,14 +13,18 @@ git apply patches.diff
 ```
 
 ## Dev setup
+
 Note that we use compilation flags to determine the backend for Diesel. If you're using VS Code, make sure to update settings.json with the appropriate features - there should at least be a "pg_backend" (or other backend.)
+
 ```
 "rust-analyzer.cargo.features": ["pg_backend"]
 ```
+
 Consequently, you'll also need to specify the backend when running cargo commands:
-```cargo run --features "pg_backend" --bin iota-mvr-graphql-rpc start-server --db-url <DB_URL>```
+`cargo run --features "pg_backend" --bin iota-mvr-graphql-rpc start-server --db-url <DB_URL>`
 
 The order is important:
+
 1. --features "pg_backend": This part tells Cargo to enable the pg_backend feature.
 2. --bin iota-mvr-graphql-rpc: This specifies which binary to run.
 3. start-server --db-url: These are arguments to the binary.
@@ -30,6 +36,7 @@ The order is important:
 The graphql service is backed by a db based on the db schema in [iota-indexer](../iota-indexer/src/schema.rs). To spin up a local db, follow the instructions at [iota-indexer](../iota-indexer/README.md) until "Running standalone indexer".
 
 If you have not created a db yet, you can do so as follows:
+
 ```sh
 psql -U postgres
 CREATE DATABASE iota_indexer_v2;
@@ -46,9 +53,11 @@ diesel migration run --database-url="<DATABASE_URL>" --migration-dir=migrations
 ```
 
 ### Launching the server
+
 See [src/commands.rs](src/commands.rs) for all CLI options.
 
 Example `.toml` config:
+
 ```toml
 [limits]
 max-query-depth = 15
@@ -65,15 +74,17 @@ max-type-nodes = 256
 max-move-value-depth = 128
 
 [background-tasks]
-watermark-update-ms=500
+watermark-update-ms = 500
 ```
 
 This will build iota-mvr-graphql-rpc and start an IDE:
+
 ```
 cargo run --bin iota-mvr-graphql-rpc start-server [--rpc-url] [--db-url] [--port] [--host] [--config]
 ```
 
 ### Launching the server w/ indexer
+
 For local dev, it might be useful to spin up an indexer as well. Instructions are at [Running standalone indexer](../iota-indexer/README.md#running-standalone-indexer).
 
 ## Compatibility with json-rpc
@@ -83,6 +94,7 @@ For local dev, it might be useful to spin up an indexer as well. Instructions ar
 `pnpm --filter @iota/graphql-transport test:e2e`
 
 ## Testing
+
 The full gamut of graphql-specific tests are listed in the [rust.yml](../../.github/workflows/rust.yml).
 
 To run the tests in `iota-mvr-graphql-rpc`, you will need to have postgres running locally.

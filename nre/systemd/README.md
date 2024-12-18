@@ -1,6 +1,7 @@
 # Run a Iota Node using Systemd
 
 Tested using:
+
 - Ubuntu 20.04 (linux/amd64) on bare metal
 - Ubuntu 22.04 (linux/amd64) on bare metal
 
@@ -18,9 +19,9 @@ sudo chown -R iota:iota /opt/iota
 ```
 
 2. Install the Iota Node (iota-node) binary, two options:
-    
+
 - Pre-built binary stored in Amazon S3:
-        
+
 ```shell
 wget https://releases.iota.io/$IOTA_SHA/iota-node
 chmod +x iota-node
@@ -36,7 +37,7 @@ cargo build --release --bin iota-node
 mv ./target/release/iota-node /opt/iota/bin/iota-node
 ```
 
-3. Copy your key-pairs into `/opt/iota/key-pairs/` 
+3. Copy your key-pairs into `/opt/iota/key-pairs/`
 
 If generated during the Genesis ceremony these will be at `IotaExternal.git/iota-testnet-wave3/genesis/key-pairs/`
 
@@ -44,7 +45,7 @@ Make sure when you copy them they retain `iota` user permissions. To be safe you
 
 4. Update the node configuration file and place it in the `/opt/iota/config/` directory.
 
-Add the paths to your private keys to validator.yaml. If you chose to put them in `/opt/iota/key-pairs`, you can use the following example: 
+Add the paths to your private keys to validator.yaml. If you chose to put them in `/opt/iota/key-pairs`, you can use the following example:
 
 ```
 protocol-key-pair: 
@@ -57,7 +58,7 @@ network-key-pair:
 
 5. Place genesis.blob in `/opt/iota/config/` (should be available after the Genesis ceremony)
 
-6. Copy the iota-node systemd service unit file 
+6. Copy the iota-node systemd service unit file
 
 File: [iota-node.service](./iota-node.service)
 

@@ -5,7 +5,7 @@ title: Iota Bridge Testnet Incentive Program FAQ
 # Iota Bridge Testnet Incentive Program FAQ
 
 **Q: How long will the Incentive Program last?**\
-**A:** The program will run for a minimum of two (2) weeks. The exact end date is *TBD* but will be announced when it is decided.
+**A:** The program will run for a minimum of two (2) weeks. The exact end date is _TBD_ but will be announced when it is decided.
 
 **Q: What's the total amount of rewards for this program?**\
 **A:** 100k Iota.

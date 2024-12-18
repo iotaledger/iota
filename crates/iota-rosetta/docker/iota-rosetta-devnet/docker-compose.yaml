@@ -14,8 +14,8 @@ services:
       - /bin/bash
       - -c
       - |
-        /usr/local/bin/iota-rosetta generate-rosetta-cli-config --env devnet &
-        /usr/local/bin/iota-rosetta start-online-server --env devnet --node-config fullnode.yaml
+          /usr/local/bin/iota-rosetta generate-rosetta-cli-config --env devnet &
+          /usr/local/bin/iota-rosetta start-online-server --env devnet --node-config fullnode.yaml
     stdin_open: true
     tty: true
   rosetta-offline:
@@ -29,7 +29,7 @@ services:
       - /bin/bash
       - -c
       - |
-        /usr/local/bin/iota-rosetta start-offline-server --env devnet
+          /usr/local/bin/iota-rosetta start-offline-server --env devnet
     stdin_open: true
     tty: true
 volumes:

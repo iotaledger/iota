@@ -2,25 +2,25 @@
 name = "iota-json"
 version = "0.0.0"
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
 bcs.workspace = true
+schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-schemars.workspace = true
 
 iota-types.workspace = true
 
+fastcrypto.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
-fastcrypto.workspace = true
 
 [dev-dependencies]
-test-fuzz.workspace = true
-iota-move-build.workspace = true
 iota-framework.workspace = true
+iota-move-build.workspace = true
+test-fuzz.workspace = true

@@ -399,7 +399,6 @@ module a::n {
         //                               ^ valid the function is public
     }
 }
-
 ```
 
 ## Ownership

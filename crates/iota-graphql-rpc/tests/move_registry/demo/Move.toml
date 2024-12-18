@@ -7,4 +7,3 @@ Iota = { local = "../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
 demo = "0x0"
-

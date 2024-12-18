@@ -165,7 +165,7 @@ produce that value as the final function result.
 ### Using `continue` Inside of `loop` Expressions
 
 As you might expect, `continue` can also be used inside a `loop`. Here is the previous `sum_even`
-function rewritten using `loop` with `break `and` continue` instead of `while`.
+function rewritten using `loop` with `break`and`continue` instead of `while`.
 
 ```move
 fun sum_even(values: &vector<u64>): u64 {

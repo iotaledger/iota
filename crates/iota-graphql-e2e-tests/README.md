@@ -11,7 +11,7 @@ installed using `brew`:
    for pre-requisites and starting the Postgres service.
 
 2. When postgres is initially installed, it creates a role for your current
-   user.  We need to use that role to create the role that will access the
+   user. We need to use that role to create the role that will access the
    database:
 
 ```sh
@@ -32,12 +32,13 @@ $ psql "postgres://postgres:postgrespw@localhost:5432/postgres" \
    effect.
 
 Mac
+
 ```sh
 brew services restart postgresql@15
-
 ```
 
 Linux
+
 ```sh
 /etc/init.d/postgresql restart
 ```

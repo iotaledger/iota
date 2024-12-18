@@ -7,4 +7,4 @@ edition = "2024.beta"
 Iota = { local = "../../../../../../iota-framework/packages/iota-framework" }
 
 [addresses]
-base_addr =  "0x0"
+base_addr = "0x0"

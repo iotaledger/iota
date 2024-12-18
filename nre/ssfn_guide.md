@@ -1,6 +1,4 @@
-
 State sync fullnodes are in essence just regular fullnodes, with a few tweaks.
-
 
 I won't detail setting up a Iota fullnode here, just the ways in which state sync fullnodes differ:
 
@@ -36,6 +34,7 @@ $ vim /opt/iota/config/iota-node.yaml #on validator host
 2. State sync fullnodes should have indexing disabled, run with pruning, and push metrics to IOTA's metric proxy
 
 This is a simple change, just add the following configs to your fullnode:
+
 ```
 enable-index-processing: false
 
@@ -55,7 +54,4 @@ metrics:
 
 This coupled with starting your node from a formal snapshot should mean a very small database footprint for ssfns
 
-
 ![ssfn diagram](nre/ssfn-diagram.png)
-
-

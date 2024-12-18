@@ -7,4 +7,4 @@ edition = "2024.beta"
 Iota = { local = "../../../crates/iota-framework/packages/iota-framework", override = true }
 
 [addresses]
-reviews_rating =  "0x0"
+reviews_rating = "0x0"

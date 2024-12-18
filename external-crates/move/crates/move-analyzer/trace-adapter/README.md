@@ -5,6 +5,7 @@ Implements [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-pr
 # Features
 
 The feature set currently includes (new features upcoming!):
+
 - forward "step" action: step to next expression and into a regular Move function call
 - "step out" action: step out of the current function call into the outer one
 - "next" action: step over a function call (instead of steppig into it)

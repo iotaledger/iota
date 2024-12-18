@@ -1,20 +1,20 @@
 [package]
 name = "iota-move-natives-v0"
 version = "0.1.0"
-edition = "2021"
 authors = ["IOTA Foundation <info@iota.org>"]
-description = "Move framework for iota platform"
+edition = "2021"
 license = "Apache-2.0"
 publish = false
+description = "Move framework for iota platform"
 
 [dependencies]
-better_any.workspace = true
 bcs.workspace = true
+better_any.workspace = true
 linked-hash-map = "0.5.6"
 smallvec.workspace = true
 
-fastcrypto-zkp.workspace = true
 fastcrypto.workspace = true
+fastcrypto-zkp.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
 move-vm-types.workspace = true

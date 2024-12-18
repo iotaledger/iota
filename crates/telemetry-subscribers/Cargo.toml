@@ -1,37 +1,37 @@
 [package]
 name = "telemetry-subscribers"
 version = "0.2.0"
-license = "Apache-2.0"
 authors = ["Evan Chan <echan@iota.org>"]
-description = "Library for common telemetry and observability functionality"
-repository = "https://github.com/mystenlabs/mysten-infra"
 edition = "2021"
+license = "Apache-2.0"
 publish = false
+repository = "https://github.com/mystenlabs/mysten-infra"
+description = "Library for common telemetry and observability functionality"
 
 [dependencies]
 atomic_float.workspace = true
-console-subscriber = { workspace = true, optional = true }
-crossterm.workspace = true
-once_cell.workspace = true
-prometheus.workspace = true
-tracing.workspace = true
-tracing-appender.workspace = true
-tracing-subscriber.workspace = true
-opentelemetry = { version = "0.25.0", optional = true }
-opentelemetry_sdk = { version = "0.25.0", features = ["rt-tokio"], optional = true }
-opentelemetry-otlp = { version = "0.25.0", features = ["grpc-tonic"], optional = true }
-tracing-opentelemetry = { version = "0.26.0", optional = true }
-opentelemetry-proto = { version = "0.25", optional = true }
-tokio = { workspace = true, features = ["full"] }
-futures.workspace = true
-clap.workspace = true
 bytes.workspace = true
 bytes-varint = { version = "1" }
+clap.workspace = true
+console-subscriber = { workspace = true, optional = true }
+crossterm.workspace = true
+futures.workspace = true
+once_cell.workspace = true
+opentelemetry = { version = "0.25.0", optional = true }
+opentelemetry-otlp = { version = "0.25.0", features = ["grpc-tonic"], optional = true }
+opentelemetry-proto = { version = "0.25", optional = true }
+opentelemetry_sdk = { version = "0.25.0", features = ["rt-tokio"], optional = true }
+prometheus.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-opentelemetry = { version = "0.26.0", optional = true }
+tracing-subscriber.workspace = true
 
 # must use same version as opentelemetry for tonic and prost, so we can't use from
 # workspace
-tonic = { version = "0.12.3" }
 prost = "0.13"
+tonic = { version = "0.12.3" }
 
 [features]
 default = ["otlp"]
@@ -41,7 +41,7 @@ otlp = [
   "opentelemetry",
   "opentelemetry-otlp",
   "opentelemetry-proto",
-  "opentelemetry_sdk"
+  "opentelemetry_sdk",
 ]
 
 [dev-dependencies]

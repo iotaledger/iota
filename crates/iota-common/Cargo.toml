@@ -1,21 +1,21 @@
 [package]
 name = "iota-common"
-authors = ["IOTA Foundation <info@iota.org>"]
-license = "Apache-2.0"
 version = "0.1.0"
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]
-snap.workspace = true
-tokio.workspace = true
-futures.workspace = true
-parking_lot.workspace = true
-reqwest.workspace = true
+anyhow.workspace = true
 fastcrypto.workspace = true
+futures.workspace = true
 iota-metrics.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
-tracing.workspace = true
+parking_lot.workspace = true
 prometheus.workspace = true
-anyhow.workspace = true
+reqwest.workspace = true
+snap.workspace = true
+tokio.workspace = true
+tracing.workspace = true

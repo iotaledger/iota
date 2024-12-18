@@ -2,36 +2,36 @@
 name = "iota-aws-orchestrator"
 version = "0.0.1"
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [dependencies]
+async-trait.workspace = true
+aws-config.workspace = true
 aws-sdk-ec2.workspace = true
 aws-smithy-http.workspace = true
 aws-smithy-runtime-api.workspace = true
+clap.workspace = true
+color-eyre.workspace = true
+crossterm.workspace = true
+eyre.workspace = true
+futures.workspace = true
+prettytable-rs.workspace = true
+prometheus-parse.workspace = true
+reqwest.workspace = true
 russh.workspace = true
 russh-keys.workspace = true
-aws-config.workspace = true
-color-eyre.workspace = true
-clap.workspace = true
-eyre.workspace = true
-prettytable-rs.workspace = true
-serde_json.workspace = true
-futures.workspace = true
-thiserror.workspace = true
-reqwest.workspace = true
-async-trait.workspace = true
-crossterm.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
-prometheus-parse.workspace = true
 
-iota-metrics.workspace = true
 iota-config = { path = "../iota-config" }
-narwhal-config.workspace = true
-iota-types = { path = "../iota-types" }
+iota-metrics.workspace = true
 iota-swarm-config = { path = "../iota-swarm-config" }
+iota-types = { path = "../iota-types" }
+narwhal-config.workspace = true
 
 [dev-dependencies]
 tempfile = "3.6.0"

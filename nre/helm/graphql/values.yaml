@@ -2,18 +2,31 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-
 # DB_URL could contain sensitive info so create a k8s secret outside of this helm chart. This helm chart will expect the secret to be loaded as an env var.
 # Example: kubectl create secret generic db_url --from-literal=password=<actual db url> --namespace graphql
 #
 # RPC_URL is also expected to be an env var so the command properly populates
-command: ["/opt/iota/bin/iota-graphql-rpc", "start-server","--host","0.0.0.0","--port","8001","--db-url","$DB_URL","--node-rpc-url", "$RPC_URL","--config","/opt/iota/config/graphql.toml","--ide-title","Iota RPC2.0 GraphQL"]
-
+command: [
+  "/opt/iota/bin/iota-graphql-rpc",
+  "start-server",
+  "--host",
+  "0.0.0.0",
+  "--port",
+  "8001",
+  "--db-url",
+  "$DB_URL",
+  "--node-rpc-url",
+  "$RPC_URL",
+  "--config",
+  "/opt/iota/config/graphql.toml",
+  "--ide-title",
+  "Iota RPC2.0 GraphQL",
+]
 
 env:
   RUST_BACKTRACE:
     value: "1"
-  RPC_URL: 
+  RPC_URL:
     value: "https://public-rpc.mainnet.iota.io" # you will want to point this to a local fullnode instance like http://<servicename>.<namespace>.svc.cluster.local:900
   DB_URL:
     valueFrom:
@@ -24,19 +37,19 @@ env:
 configMapName: graphql-toml
 # Additional volumes on the output Deployment definition.
 volumes:
- - name: graphql-toml-volume
-   configMap:
-    name: graphql-toml
-    items:
-      - key: graphql.toml
-        path: graphql.toml 
+  - name: graphql-toml-volume
+    configMap:
+      name: graphql-toml
+      items:
+        - key: graphql.toml
+          path: graphql.toml
 
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts:
- - name: graphql-toml-volume
-   mountPath: "/opt/iota/config/graphql.toml"
-   subPath: "graphql.toml"
-   readOnly: true
+  - name: graphql-toml-volume
+    mountPath: "/opt/iota/config/graphql.toml"
+    subPath: "graphql.toml"
+    readOnly: true
 
 replicaCount: 3
 
@@ -51,13 +64,11 @@ serviceAccount:
   # If not set and create is true, a name is generated using the fullname template
   name: "default"
 
-
 image:
   repository: "iotaledger/iota-graphql-rpc"
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: "iota-graphql-rpc-v2024.4.0-release"
-
 
 imagePullSecrets: []
 nameOverride: ""
@@ -72,15 +83,15 @@ podLabels:
   app: "graphql"
 
 podSecurityContext: {}
-  # fsGroup: 2000
+# fsGroup: 2000
 
 securityContext: {}
-  # capabilities:
-  #   drop:
-  #   - ALL
-  # readOnlyRootFilesystem: true
-  # runAsNonRoot: true
-  # runAsUser: 1000
+# capabilities:
+#   drop:
+#   - ALL
+# readOnlyRootFilesystem: true
+# runAsNonRoot: true
+# runAsUser: 1000
 
 service:
   type: ClusterIP
@@ -90,7 +101,7 @@ ingress:
   enabled: false
   className: ""
   annotations:
-        # kubernetes.io/tls-acme: "true"
+  # kubernetes.io/tls-acme: "true"
   hosts:
     - host: chart-example.local
       paths:
@@ -102,16 +113,16 @@ ingress:
   #      - chart-example.local
 
 resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+# We usually recommend not to specify default resources and to leave this as a conscious
+# choice for the user. This also increases chances charts run on environments with little
+# resources, such as Minikube. If you do want to specify resources, uncomment the following
+# lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+# limits:
+#   cpu: 100m
+#   memory: 128Mi
+# requests:
+#   cpu: 100m
+#   memory: 128Mi
 
 #livenessProbe:
 #  httpGet:

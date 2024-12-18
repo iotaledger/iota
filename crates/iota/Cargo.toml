@@ -2,9 +2,9 @@
 name = "iota"
 version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [lints]
 workspace = true
@@ -36,9 +36,9 @@ regex.workspace = true
 reqwest.workspace = true
 rusoto_core.workspace = true
 rusoto_kms.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
-serde.workspace = true
 shlex.workspace = true
 signature.workspace = true
 tabled.workspace = true
@@ -48,74 +48,74 @@ tokio = { workspace = true, features = ["full"] }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
-uuid.workspace = true
 url.workspace = true
+uuid.workspace = true
 
-iota-config.workspace = true
 iota-bridge.workspace = true
 iota-cluster-test.workspace = true
+iota-config.workspace = true
 iota-execution = { path = "../../iota-execution" }
 iota-faucet.workspace = true
-iota-swarm-config.workspace = true
+iota-genesis-builder.workspace = true
 iota-graphql-rpc.workspace = true
 iota-indexer.workspace = true
-iota-genesis-builder.workspace = true
-iota-types.workspace = true
 iota-json.workspace = true
-iota-swarm.workspace = true
 iota-json-rpc-types.workspace = true
-iota-sdk.workspace = true
 iota-keys.workspace = true
-iota-source-validation.workspace = true
 iota-move = { workspace = true, features = ["all"] }
 iota-move-build.workspace = true
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true
-shared-crypto.workspace = true
 iota-replay.workspace = true
+iota-sdk.workspace = true
+iota-source-validation.workspace = true
+iota-swarm.workspace = true
+iota-swarm-config.workspace = true
 iota-transaction-builder.workspace = true
+iota-types.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
+shared-crypto.workspace = true
 test-cluster.workspace = true
 
 fastcrypto.workspace = true
 fastcrypto-zkp.workspace = true
 
+colored.workspace = true
 rustyline.workspace = true
 rustyline-derive.workspace = true
-colored.workspace = true
-unescape.workspace = true
 shell-words.workspace = true
+unescape.workspace = true
 
-tempfile.workspace = true
 telemetry-subscribers.workspace = true
+tempfile.workspace = true
 
+csv.workspace = true
 move-analyzer.workspace = true
 move-bytecode-verifier-meter.workspace = true
-move-core-types.workspace = true
-move-package.workspace = true
-move-compiler.workspace = true
-csv.workspace = true
-move-vm-profiler.workspace = true
-move-vm-config.workspace = true
-move-ir-types.workspace = true
 move-command-line-common.workspace = true
+move-compiler.workspace = true
+move-core-types.workspace = true
+move-ir-types.workspace = true
+move-package.workspace = true
+move-vm-config.workspace = true
+move-vm-profiler.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 jemalloc-ctl.workspace = true
 
 [dev-dependencies]
-prometheus.workspace = true
-fs_extra.workspace = true
-expect-test.workspace = true
 assert_cmd.workspace = true
+expect-test.workspace = true
+fs_extra.workspace = true
+prometheus.workspace = true
 toml.workspace = true
 
-test-cluster.workspace = true
 iota-macros.workspace = true
 iota-simulator.workspace = true
 iota-test-transaction-builder.workspace = true
 serde_json.workspace = true
+test-cluster.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 msim.workspace = true
@@ -134,6 +134,6 @@ harness = false
 
 [features]
 tracing = [
-    "iota-types/tracing",
-    "iota-execution/tracing",
+  "iota-types/tracing",
+  "iota-execution/tracing",
 ]

@@ -1,6 +1,6 @@
 # Node and Network Reliability Engineering
 
------
+---
 
 This repo contains:
 
@@ -10,6 +10,6 @@ This repo contains:
 
 - `config/` - Iota Node configuration templates.
 
-- `docker/` - A docker compose configuration for standing up your node. You can use this or just consult the steps when provisioning your node. 
+- `docker/` - A docker compose configuration for standing up your node. You can use this or just consult the steps when provisioning your node.
 
-- `systemd/` - Steps to setup your node as a systemd service. You can use this or reference the steps when provisioning your node. 
+- `systemd/` - Steps to setup your node as a systemd service. You can use this or reference the steps when provisioning your node.

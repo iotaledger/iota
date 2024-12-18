@@ -11,7 +11,7 @@ services:
       - /bin/bash
       - -c
       - |
-        /usr/local/bin/iota start
+          /usr/local/bin/iota start
   rosetta-online:
     image: iotaledger/iota-rosetta-local
     ports:
@@ -23,8 +23,8 @@ services:
       - /bin/bash
       - -c
       - |
-        /usr/local/bin/iota-rosetta generate-rosetta-cli-config &
-        /usr/local/bin/iota-rosetta start-online-remote-server --full-node-url http://iota-network:9000
+          /usr/local/bin/iota-rosetta generate-rosetta-cli-config &
+          /usr/local/bin/iota-rosetta start-online-remote-server --full-node-url http://iota-network:9000
     stdin_open: true
     tty: true
   rosetta-offline:
@@ -37,4 +37,4 @@ services:
       - /bin/bash
       - -c
       - |
-        /usr/local/bin/iota-rosetta start-offline-server
+          /usr/local/bin/iota-rosetta start-offline-server

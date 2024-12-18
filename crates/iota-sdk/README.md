@@ -5,7 +5,7 @@ This crate provides the Iota Rust SDK, containing APIs to interact with the Iota
 Add the `iota-sdk` dependency as following:
 
 ```toml
-iota_sdk = { git = "https://github.com/iotaledger/iota", package = "iota-sdk"}
+iota_sdk = { git = "https://github.com/iotaledger/iota", package = "iota-sdk" }
 tokio = { version = "1.2", features = ["full"] }
 anyhow = "1.0"
 ```
@@ -29,7 +29,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
-
 ```
 
 ## Documentation for iota-sdk crate
@@ -58,19 +57,21 @@ Unless otherwise specified, most of these examples assume `Rust` and `cargo` are
 
 ### Running the existing examples
 
-In the root folder of the `iota` repository (or in the `iota-sdk` crate folder), you can individually run examples using the command  `cargo run --example filename` (without `.rs` extension). For example:
-* `cargo run --example iota_client` -- this one requires a local Iota network running (see [here](#Connecting to Iota Network
-)). If you do not have a local Iota network running, please skip this example.
-* `cargo run --example coin_read_api`
-* `cargo run --example event_api` -- note that this will subscribe to a stream and thus the program will not terminate unless forced (Ctrl+C)
-* `cargo run --example governance_api`
-* `cargo run --example read_api`
-* `cargo run --example programmable_transactions_api`
-* `cargo run --example sign_tx_guide`
+In the root folder of the `iota` repository (or in the `iota-sdk` crate folder), you can individually run examples using the command `cargo run --example filename` (without `.rs` extension). For example:
+
+- `cargo run --example iota_client` -- this one requires a local Iota network running (see [here](#Connecting to Iota Network
+  )). If you do not have a local Iota network running, please skip this example.
+- `cargo run --example coin_read_api`
+- `cargo run --example event_api` -- note that this will subscribe to a stream and thus the program will not terminate unless forced (Ctrl+C)
+- `cargo run --example governance_api`
+- `cargo run --example read_api`
+- `cargo run --example programmable_transactions_api`
+- `cargo run --example sign_tx_guide`
 
 ### Basic Examples
 
 #### Connecting to Iota Network
+
 The `IotaClientBuilder` struct provides a connection to the JSON-RPC server that you use for all read-only operations. The default URLs to connect to the Iota network are:
 
 - Local: http://127.0.0.1:9000
@@ -81,7 +82,6 @@ The `IotaClientBuilder` struct provides a connection to the JSON-RPC server that
 For all available servers, see [here](https://iota.org/networkinfo).
 
 For running a local Iota network, please follow [this guide](https://docs.iota.org/build/iota-local-network) for installing Iota and [this guide](https://docs.iota.org/build/iota-local-network#start-the-local-network) for starting the local Iota network.
-
 
 ```rust
 use iota_sdk::IotaClientBuilder;
@@ -110,6 +110,7 @@ async fn main() -> Result<(), anyhow::Error> {
 ```
 
 #### Read the total coin balance for each coin type owned by this address
+
 ```rust
 use std::str::FromStr;
 use iota_sdk::types::base_types::IotaAddress;

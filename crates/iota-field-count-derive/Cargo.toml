@@ -2,13 +2,13 @@
 name = "iota-field-count-derive"
 version.workspace = true
 authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
 license = "Apache-2.0"
 publish = false
-edition = "2021"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn.workspace = true
 quote.workspace = true
+syn.workspace = true
