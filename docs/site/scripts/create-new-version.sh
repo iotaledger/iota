@@ -23,7 +23,7 @@ fi
 
 CLI_PARAM="$1"
 SRC_DIR="../../content"
-DST_DIR="../versioned-docs/version-$CLI_PARAM"
+DST_DIR="../versioned_docs/version-$CLI_PARAM"
 
 
 # # Create the target directory if it doesn't exist
@@ -52,4 +52,5 @@ find "$SRC_DIR" -type f | while read -r file; do
     ln -s "$file" "$DST_DIR/$rel_path"
 done
 
-# echo "Done! The versioned docs are located at: $DST_DIR"
+chmod -R 777 "$DST_DIR"
+echo "Done! The versioned docs are located at: $DST_DIR"

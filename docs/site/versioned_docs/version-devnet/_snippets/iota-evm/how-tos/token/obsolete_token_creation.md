@@ -1,5 +1,1 @@
-:::caution
-
-This method is now obsolete, use the new [`createNativeTokenFoundry`](../../../../developer/iota-evm/how-tos/core-contracts/token/create-native-token.mdx) method instead.
-
-:::
+/home/lucas/iota/docs/content/_snippets/iota-evm/how-tos/token/obsolete_token_creation.md
