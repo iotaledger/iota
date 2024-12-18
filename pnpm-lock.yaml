@@ -25991,7 +25991,7 @@ snapshots:
       serialize-javascript: 6.0.2
       webpack: 5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))
 
-  copy-webpack-plugin@11.0.0(webpack@5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))):
+  copy-webpack-plugin@11.0.0(webpack@5.95.0):
     dependencies:
       fast-glob: 3.3.2
       glob-parent: 6.0.2
@@ -26152,7 +26152,7 @@ snapshots:
     optionalDependencies:
       webpack: 5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))
 
-  css-loader@6.11.0(webpack@5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))):
+  css-loader@6.11.0(webpack@5.95.0):
     dependencies:
       icss-utils: 5.1.0(postcss@8.4.47)
       postcss: 8.4.47
@@ -28601,7 +28601,7 @@ snapshots:
     optionalDependencies:
       webpack: 5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))
 
-  html-webpack-plugin@5.6.0(webpack@5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))):
+  html-webpack-plugin@5.6.0(webpack@5.95.0):
     dependencies:
       '@types/html-minifier-terser': 6.1.0
       html-minifier-terser: 6.1.0
@@ -30822,7 +30822,7 @@ snapshots:
       tapable: 2.2.1
       webpack: 5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))
 
-  mini-css-extract-plugin@2.9.1(webpack@5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))):
+  mini-css-extract-plugin@2.9.1(webpack@5.95.0):
     dependencies:
       schema-utils: 4.2.0
       tapable: 2.2.1
@@ -31789,7 +31789,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  postcss-loader@7.3.4(postcss@8.4.47)(typescript@5.6.2)(webpack@5.95.0(@swc/core@1.7.28(@swc/helpers@0.5.5))):
+  postcss-loader@7.3.4(postcss@8.4.47)(typescript@5.6.2)(webpack@5.95.0):
     dependencies:
       cosmiconfig: 8.3.6(typescript@5.6.2)
       jiti: 1.21.6
