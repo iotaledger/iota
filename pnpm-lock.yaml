@@ -259,6 +259,9 @@ importers:
       formik:
         specifier: ^2.4.2
         version: 2.4.6(react@18.3.1)
+      idb-keyval:
+        specifier: ^6.2.1
+        version: 6.2.1
       qrcode.react:
         specifier: ^4.0.1
         version: 4.0.1(react@18.3.1)

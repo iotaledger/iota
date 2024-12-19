@@ -13,13 +13,12 @@ import {
 } from '@iota/apps-ui-kit';
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Loading, NoData, PageTemplate } from '_components';
-import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import HiddenAssets from './HiddenAssets';
 import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
 import { Warning } from '@iota/ui-icons';
-import { useOnScreen } from '@iota/core';
+import { useOnScreen, useGetNFTs, useHiddenAssets } from '@iota/core';
 
 enum AssetCategory {
     Visual = 'Visual',
@@ -48,6 +47,7 @@ function NftsPage() {
     const { isIntersecting } = useOnScreen(observerElem);
 
     const accountAddress = useActiveAddress();
+    const { hiddenAssets } = useHiddenAssets();
     const {
         data: ownedAssets,
         hasNextPage,
@@ -57,7 +57,13 @@ function NftsPage() {
         error,
         isPending,
         isError,
-    } = useGetNFTs(accountAddress);
+    } = useGetNFTs(
+        accountAddress,
+        {
+            MatchNone: [{ StructType: '0x2::coin::Coin' }],
+        },
+        hiddenAssets,
+    );
 
     const isAssetsLoaded = !!ownedAssets;
 

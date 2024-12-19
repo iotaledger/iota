@@ -4,15 +4,13 @@
 'use client';
 
 import { Panel, Title, Chip, TitleSize } from '@iota/apps-ui-kit';
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { hasDisplayData, useGetNFTs } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
 import { AssetDialog } from '@/components/Dialogs/Assets';
-
-const OBJECTS_PER_REQ = 50;
 
 const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
     {
@@ -27,33 +25,45 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
 
 export default function AssetsDashboardPage(): React.JSX.Element {
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
-    const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
+    const [selectedCategory, setSelectedCategory] = useState<AssetCategory | null>(null);
     const account = useCurrentAccount();
-    const { data, isFetching, fetchNextPage, hasNextPage, refetch } = useGetOwnedObjects(
-        account?.address,
-        undefined,
-        OBJECTS_PER_REQ,
-    );
+    const {
+        data: ownedAssets,
+        isFetching,
+        fetchNextPage,
+        hasNextPage,
+        refetch,
+    } = useGetNFTs(account?.address);
 
-    const assets: IotaObjectData[] = [];
+    const assets: IotaObjectData[] = (() => {
+        if (selectedCategory === null) return [] as IotaObjectData[];
 
-    for (const page of data?.pages || []) {
-        for (const asset of page.data) {
-            if (asset.data && asset.data.objectId) {
-                if (selectedCategory == AssetCategory.Visual) {
-                    if (hasDisplayData(asset)) {
-                        assets.push(asset.data);
-                    }
-                } else if (selectedCategory == AssetCategory.Other) {
-                    assets.push(asset.data);
-                }
+        const assetsList = ownedAssets ? ownedAssets[selectedCategory] : [];
+        return assetsList.filter((asset) => {
+            if (selectedCategory === AssetCategory.Visual) {
+                return hasDisplayData({ data: asset });
             }
-        }
-    }
+            return true;
+        });
+    })();
 
     function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
     }
+
+    useEffect(() => {
+        if (!ownedAssets || selectedCategory !== null) {
+            return;
+        }
+
+        const defaultCategory =
+            ownedAssets.visual.length > 0
+                ? AssetCategory.Visual
+                : ownedAssets.other.length > 0
+                  ? AssetCategory.Other
+                  : AssetCategory.Visual;
+        setSelectedCategory(defaultCategory);
+    }, [ownedAssets, selectedCategory]);
 
     return (
         <Panel>
@@ -69,15 +79,16 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                         />
                     ))}
                 </div>
-
-                <AssetList
-                    assets={assets}
-                    selectedCategory={selectedCategory}
-                    onClick={onAssetClick}
-                    hasNextPage={hasNextPage}
-                    isFetchingNextPage={isFetching}
-                    fetchNextPage={fetchNextPage}
-                />
+                {selectedCategory && (
+                    <AssetList
+                        assets={assets}
+                        selectedCategory={selectedCategory}
+                        onClick={onAssetClick}
+                        hasNextPage={hasNextPage}
+                        isFetchingNextPage={isFetching}
+                        fetchNextPage={fetchNextPage}
+                    />
+                )}
                 {selectedAsset && (
                     <AssetDialog
                         onClose={() => setSelectedAsset(null)}
