@@ -206,9 +206,6 @@ You can use a local IOTA Wallet to test with your local network.
 
 #### Configure the Wallet
 
-Before you start the IOTA Wallet app, update its default environment to point to your local network. First,
-make a copy of `iota/apps/wallet/configs/environment/.env.defaults` and rename it to `.env` in the same directory. In
-your `.env` file, edit the first line to read `API_ENV=local` and then save the file.
 
 Run the following command from the `iota` root folder to start the IOTA Wallet on your local network:
 
@@ -264,7 +261,7 @@ In your local checkout of the [IOTA repository](../advanced/iota-repository.mdx)
 ```bash
 pnpm install && pnpm build
 ```
- to compile the SDK.
+in the `<PATH_TO_YOUR_REPO>/iota/sdk/typescript` folder to compile the SDK.
 
 To use the local built SDK in your project go to your project folder and execute
 
