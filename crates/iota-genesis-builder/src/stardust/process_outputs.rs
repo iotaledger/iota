@@ -12,6 +12,7 @@ use iota_sdk::types::{
         output::{
             AliasOutputBuilder, BasicOutputBuilder, FoundryOutputBuilder, NftOutputBuilder, Output,
             OutputId,
+            feature::{IssuerFeature, SenderFeature},
             unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
         },
     },
@@ -300,9 +301,17 @@ where
         if let Ok((header, inner)) = &mut output {
             if is_participation_output(inner) {
                 self.participation_outputs.push(header.output_id());
+                let basic_output = inner.as_basic();
                 // replace the inner output
-                *inner = BasicOutputBuilder::from(inner.as_basic())
-                    .clear_features()
+                *inner = BasicOutputBuilder::from(basic_output)
+                    .with_features(
+                        vec![
+                            basic_output.features().get(SenderFeature::KIND).cloned(),
+                            basic_output.features().get(IssuerFeature::KIND).cloned(),
+                        ]
+                        .into_iter()
+                        .filter_map(|opt| opt),
+                    )
                     .finish()
                     .expect("should be able to create a basic output")
                     .into()
