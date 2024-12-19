@@ -37,7 +37,6 @@ impl<T: R2D2Connection> core::fmt::Debug for TransactionBuilderApi<T> {
 }
 
 impl<T: R2D2Connection> TransactionBuilderApi<T> {
-    #[expect(clippy::new_ret_no_self)]
     pub fn new(inner: IndexerReader<T>) -> IotaTransactionBuilderApi<TransactionBuilderApi<T>> {
         IotaTransactionBuilderApi::new_with_data_reader(Self { inner })
     }
