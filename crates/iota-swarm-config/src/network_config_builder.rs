@@ -438,6 +438,11 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
 
             builder = builder.with_token_distribution_schedule(token_distribution_schedule);
 
+            // Add delegator to genesis builder.
+            if let Some(delegator) = genesis_config.delegator {
+                builder = builder.with_delegator(delegator);
+            }
+
             for validator in &validators {
                 builder = builder.add_validator_signature(&validator.authority_key_pair);
             }
