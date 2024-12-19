@@ -1,0 +1,95 @@
+import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
+
+export const handleChallengeSubmit = async ({
+    inputText,
+    expectedObjectType,
+    nftName,
+    challengeNumber,
+    wallets,
+    mutate,
+    signAndExecuteTransaction,
+    setLoading,
+    setCoins,
+    setError,
+    setShowPopup,
+}: any) => {
+    setLoading(true);
+    setError({
+        status: 'success',
+        description: '',
+        title: '',
+    });
+    setCoins(null);
+
+    try {
+        const NETWORKS = {
+            testnet: { url: getFullnodeUrl('testnet') },
+        };
+        const NFTPackageAddress = "0x61b31360fb89cae585b8cb593edde20dfc690a3f260c12693bbb8b33ebf4707d"
+        const client = new IotaClient({ url: NETWORKS.testnet.url });
+        const result = await client.getObject({ id: inputText, options: { showType: true } });
+
+        if (result.data.type === expectedObjectType) {
+            const message = 'Congratulations! You have successfully completed this level!';
+            const wallet = wallets[0];
+
+            mutate(
+                { wallet },
+                {
+                    onSuccess: () => {
+                        const tx = () => {
+                            const tx = new Transaction();
+                            const arg0 = new TextEncoder().encode(`Challenge_${challengeNumber}_${nftName}_NFT`);
+                            const arg1 = new TextEncoder().encode('NFT Reward for completing challenge');
+                            tx.setGasBudget(50000000);
+                            tx.moveCall({
+                                target: `${NFTPackageAddress}::CTF_NFT::mint_to_sender`,
+                                arguments: [tx.pure.vector('u8', arg0), tx.pure.vector('u8', arg1)],
+                            });
+                            return tx;
+                        };
+
+                        signAndExecuteTransaction(
+                            {
+                                transaction: tx(),
+                            },
+                            {
+                                onSuccess: ({ digest }: any) => {
+                                    client.waitForTransaction({ digest, options: { showEffects: true } }).then(() => {
+                                        setError({
+                                            status: 'success',
+                                            description: 'An NFT reward is minted to your IOTA wallet address upon completing the challenge.',
+                                            title: 'NFT Minted',
+                                        });
+                                        setCoins(message);
+                                        setLoading(false);
+                                        setShowPopup(true);
+                                    });
+                                },
+                                onError: (error: any) => {
+                                    setError({
+                                        status: 'error',
+                                        description: `Failed to execute transaction : ${error}`,
+                                        title: 'Submission failed',
+                                    });
+                                    setLoading(false);
+                                    setShowPopup(true);
+                                },
+                            }
+                        );
+                    },
+                }
+            );
+        } else {
+            setCoins('Invalid Flag Object Id. Please try again.');
+        }
+    } catch (err: any) {
+        setError({
+            status: 'error',
+            description: err.message || 'An error occurred. Please try again.',
+            title: 'Submission failed',
+        });
+        setLoading(false);
+    }
+};
