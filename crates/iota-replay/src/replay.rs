@@ -512,7 +512,7 @@ impl LocalExec {
     }
 
     // TODO: remove this after `futures::executor::block_on` is removed.
-    #[allow(clippy::disallowed_methods)]
+    #[expect(clippy::disallowed_methods)]
     pub fn download_object(
         &self,
         object_id: &ObjectID,
@@ -557,7 +557,7 @@ impl LocalExec {
     }
 
     // TODO: remove this after `futures::executor::block_on` is removed.
-    #[allow(clippy::disallowed_methods)]
+    #[expect(clippy::disallowed_methods)]
     pub fn download_latest_object(
         &self,
         object_id: &ObjectID,
@@ -593,7 +593,7 @@ impl LocalExec {
         }
     }
 
-    #[allow(clippy::disallowed_methods)]
+    #[expect(clippy::disallowed_methods)]
     pub fn download_object_by_upper_bound(
         &self,
         object_id: &ObjectID,

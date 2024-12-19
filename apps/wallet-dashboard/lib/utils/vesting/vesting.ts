@@ -53,7 +53,7 @@ export function getLatestOrEarliestSupplyIncreaseVestingPayout(
 }
 
 function addVestingPayoutToSupplyIncreaseMap(
-    value: number,
+    value: bigint,
     expirationTimestampMs: number,
     supplyIncreaseMap: Map<number, SupplyIncreaseVestingPayout>,
 ) {
@@ -85,7 +85,7 @@ function supplyIncreaseVestingObjectsToPayoutMap(
                 expirationToVestingPayout,
             );
         } else if (isTimelockedStakedIota(vestingObject)) {
-            const objectValue = Number(vestingObject.principal);
+            const objectValue = BigInt(vestingObject.principal);
             const expirationTimestampMs = Number(vestingObject.expirationTimestampMs);
             addVestingPayoutToSupplyIncreaseMap(
                 objectValue,
@@ -149,52 +149,61 @@ export function getVestingOverview(
 
     if (vestingObjects.length === 0 || !latestPayout) {
         return {
-            totalVested: 0,
-            totalUnlocked: 0,
-            totalLocked: 0,
-            totalStaked: 0,
-            availableClaiming: 0,
-            availableStaking: 0,
+            totalVested: 0n,
+            totalUnlocked: 0n,
+            totalLocked: 0n,
+            totalStaked: 0n,
+            totalEarned: 0n,
+            availableClaiming: 0n,
+            availableStaking: 0n,
         };
     }
 
     const userType = getSupplyIncreaseVestingUserType([latestPayout]);
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
-    const totalVestedAmount = (vestingPayoutsCount * latestPayout.amount) / 0.9;
+    const totalVestedAmount = (BigInt(vestingPayoutsCount) * latestPayout.amount * 10n) / 9n;
     const vestingPortfolio = buildSupplyIncreaseVestingSchedule(
         latestPayout,
         currentEpochTimestamp,
     );
     const totalLockedAmount = vestingPortfolio.reduce(
         (acc, current) =>
-            current.expirationTimestampMs > currentEpochTimestamp ? acc + current.amount : acc,
-        0,
+            current.expirationTimestampMs > currentEpochTimestamp
+                ? acc + BigInt(current.amount)
+                : acc,
+        0n,
     );
     const totalUnlockedVestedAmount = totalVestedAmount - totalLockedAmount;
 
     const timelockedStakedObjects = vestingObjects.filter(isTimelockedStakedIota);
     const totalStaked = timelockedStakedObjects.reduce(
-        (acc, current) => acc + Number(current.principal),
-        0,
+        (acc, current) => acc + BigInt(current.principal),
+        0n,
     );
+
+    const totalEarned = timelockedStakedObjects
+        .filter((t) => t.status === 'Active')
+        .reduce((acc, current) => {
+            return acc + BigInt(current.estimatedReward);
+        }, 0n);
 
     const timelockedObjects = vestingObjects.filter(isTimelockedObject);
 
     const totalAvailableClaimingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs <= currentEpochTimestamp
-                ? acc + current.locked.value
+                ? acc + BigInt(current.locked.value)
                 : acc,
-        0,
+        0n,
     );
     const totalAvailableStakingAmount = timelockedObjects.reduce(
         (acc, current) =>
             current.expirationTimestampMs > currentEpochTimestamp &&
             current.locked.value >= MIN_STAKING_THRESHOLD
-                ? acc + current.locked.value
+                ? acc + BigInt(current.locked.value)
                 : acc,
-        0,
+        0n,
     );
 
     return {
@@ -202,6 +211,7 @@ export function getVestingOverview(
         totalUnlocked: totalUnlockedVestedAmount,
         totalLocked: totalLockedAmount,
         totalStaked: totalStaked,
+        totalEarned: totalEarned,
         availableClaiming: totalAvailableClaimingAmount,
         availableStaking: totalAvailableStakingAmount,
     };
@@ -316,7 +326,7 @@ export function prepareObjectsForTimelockedStakingTransaction(
     targetAmount: bigint,
     currentEpochMs: string,
 ): GroupedTimelockObject[] {
-    if (Number(targetAmount) === 0) {
+    if (targetAmount === 0n) {
         return [];
     }
     const timelockedMapped = mapTimelockObjects(timelockedObjects);
@@ -358,7 +368,7 @@ export function prepareObjectsForTimelockedStakingTransaction(
     const remainingAmount = totalLocked - targetAmount;
 
     // Add splitAmount property to the vesting objects that need to be split
-    if (remainingAmount > 0) {
+    if (remainingAmount > 0n) {
         selectedGroupedTimelockObjects = adjustSplitAmountsInGroupedTimelockObjects(
             selectedGroupedTimelockObjects,
             remainingAmount,

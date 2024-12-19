@@ -46,5 +46,7 @@ export * from './useNFTBasicData';
 export * from './useOwnedNFT';
 export * from './useNftDetails';
 export * from './useCountdownByTimestamp';
+export * from './useStakeRewardStatus';
+export * from './useRecognizedPackages';
 
 export * from './stake';

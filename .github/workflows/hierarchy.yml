@@ -20,6 +20,7 @@ jobs:
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isMove: ${{ steps.diff.outputs.isMove }}
+      isRosetta: ${{ steps.diff.outputs.isRosetta }}
       isDoc: ${{ steps.diff.outputs.isDoc }}
       isReleaseNotesEligible: ${{ steps.diff.outputs.isReleaseNotesEligible }}
       isExternalCrates: ${{ steps.diff.outputs.isExternalCrates }}
@@ -102,6 +103,17 @@ jobs:
       - typos
     if: needs.diff.outputs.isRust == 'true'
     uses: ./.github/workflows/_rust.yml
+
+  rosetta:
+    needs:
+      - diff
+      - dprint-format
+      - license-check
+      - typos
+    if: |
+      !cancelled() && !failure() &&
+      (needs.diff.outputs.isRosetta == 'true' || needs.diff.outputs.isRust == 'true')
+    uses: ./.github/workflows/_rosetta.yml
 
   e2e:
     if: (!github.event.pull_request.draft || github.ref_name == 'develop')

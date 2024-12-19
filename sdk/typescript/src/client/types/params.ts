@@ -326,7 +326,8 @@ export interface GetValidatorsApyParams {}
 /** Return list of events for a specified query criteria. */
 export interface QueryEventsParams {
     /**
-     * The event query criteria. See [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters)
+     * The event query criteria. See
+     * [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters)
      * documentation for examples.
      */
     query: RpcTypes.IotaEventFilter;
@@ -353,7 +354,8 @@ export type QueryTransactionBlocksParams = {
 export interface SubscribeEventParams {
     /**
      * The filter criteria of the event stream. See
-     * [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters) documentation for examples.
+     * [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters)
+     * documentation for examples.
      */
     filter: RpcTypes.IotaEventFilter;
 }
