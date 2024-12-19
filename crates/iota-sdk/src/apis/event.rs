@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// Defines methods to fetch, query, or subscribe to events on the Iota network.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EventApi {
     api: Arc<RpcClient>,
 }

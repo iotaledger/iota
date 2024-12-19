@@ -33,7 +33,7 @@ use crate::{
 };
 
 /// Defines methods for retrieving data about objects and transactions.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ReadApi {
     api: Arc<RpcClient>,
 }
