@@ -112,7 +112,7 @@ export function ConfirmMigrationView({
                                     <Title size={TitleSize.Small} title="Assets to Migrate" />
                                 )}
                             >
-                                <div className="h-[600px] pb-md--rs">
+                                <div className="h-[500px] pb-md--rs xl:h-[600px]">
                                     <VirtualList
                                         heightClassName="h-full"
                                         overflowClassName="overflow-y-auto"
