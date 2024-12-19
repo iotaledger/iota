@@ -1,0 +1,61 @@
+[package]
+name = "iota-proxy"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+# external dependencies
+anyhow.workspace = true
+axum.workspace = true
+axum-extra.workspace = true
+axum-server.workspace = true
+bytes.workspace = true
+clap.workspace = true
+const-str.workspace = true
+fastcrypto.workspace = true
+futures.workspace = true
+git-version.workspace = true
+hex.workspace = true
+hyper.workspace = true
+itertools.workspace = true
+multiaddr = "0.17.0"
+once_cell.workspace = true
+prometheus.workspace = true
+prost.workspace = true
+protobuf.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+rustls-pemfile = "2.1.2"
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+serde_yaml.workspace = true
+snap.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+# internal dependencies
+iota-metrics.workspace = true
+iota-tls.workspace = true
+iota-types.workspace = true
+telemetry-subscribers.workspace = true
+
+[dev-dependencies]
+# external dependencies
+axum-server.workspace = true
+mime = "0.3"
+serde_json.workspace = true
+tower.workspace = true
+
+# internal dependencies
+iota-types = { workspace = true, features = ["test-utils"] }
+
+[build-dependencies]
+prost-build = "0.13.1"
