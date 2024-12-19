@@ -310,7 +310,7 @@ where
                             basic_output.features().get(IssuerFeature::KIND).cloned(),
                         ]
                         .into_iter()
-                        .filter_map(|opt| opt),
+                        .flatten(),
                     )
                     .finish()
                     .expect("should be able to create a basic output")
