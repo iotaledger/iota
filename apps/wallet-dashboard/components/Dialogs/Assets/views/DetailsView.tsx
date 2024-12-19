@@ -13,7 +13,7 @@ import {
 } from '@iota/apps-ui-kit';
 import Link from 'next/link';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
+import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { ExplorerLink } from '@/components/ExplorerLink';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -55,7 +55,7 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
     }
 
     return (
-        <DialogLayout>
+        <>
             <Header title="Asset" onClose={onClose} titleCentered />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
@@ -195,6 +195,6 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                     )}
                 </div>
             </DialogLayoutFooter>
-        </DialogLayout>
+        </>
     );
 }

@@ -27,11 +27,11 @@ export function StakedTimelockObject({
     // TODO probably we could calculate estimated reward on grouping stage.
     const summary = timelockedStakedObject.stakes.reduce(
         (acc, stake) => {
-            const estimatedReward = stake.status === 'Active' ? stake.estimatedReward : 0;
+            const estimatedReward = stake.status === 'Active' ? BigInt(stake.estimatedReward) : 0n;
 
             return {
                 principal: BigInt(stake.principal) + acc.principal,
-                estimatedReward: BigInt(estimatedReward) + acc.estimatedReward,
+                estimatedReward: estimatedReward + acc.estimatedReward,
                 stakeRequestEpoch: stake.stakeRequestEpoch,
             };
         },

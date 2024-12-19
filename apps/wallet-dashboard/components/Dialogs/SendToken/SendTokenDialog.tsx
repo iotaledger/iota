@@ -13,7 +13,7 @@ import { INITIAL_VALUES } from './constants';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useTransferTransactionMutation } from '@/hooks';
 
-interface SendCoinPopupProps {
+interface SendCoinDialogProps {
     coin: CoinBalance;
     activeAddress: string;
     setOpen: (bool: boolean) => void;
@@ -30,7 +30,7 @@ function SendTokenDialogBody({
     coin,
     activeAddress,
     setOpen,
-}: SendCoinPopupProps): React.JSX.Element {
+}: SendCoinDialogProps): React.JSX.Element {
     const [step, setStep] = useState<FormStep>(FormStep.EnterValues);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>(coin);
     const [formData, setFormData] = useState<FormDataValues>(INITIAL_VALUES);
@@ -125,7 +125,7 @@ function SendTokenDialogBody({
     );
 }
 
-export function SendTokenDialog(props: SendCoinPopupProps) {
+export function SendTokenDialog(props: SendCoinDialogProps) {
     return (
         <Dialog open={props.open} onOpenChange={props.setOpen}>
             <DialogContent containerId="overlay-portal-container" position={DialogPosition.Right}>

@@ -9,7 +9,17 @@ import {
     MILLISECONDS_PER_SECOND,
 } from '../constants';
 
-export function useCountdownByTimestamp(initialTimestamp: number | null): string {
+interface FormatCountdownOptions {
+    showSeconds?: boolean;
+    showMinutes?: boolean;
+    showHours?: boolean;
+    showDays?: boolean;
+}
+
+export function useCountdownByTimestamp(
+    initialTimestamp: number | null,
+    options?: FormatCountdownOptions,
+): string {
     const [timeRemainingMs, setTimeRemainingMs] = useState<number>(0);
 
     useEffect(() => {
@@ -22,11 +32,19 @@ export function useCountdownByTimestamp(initialTimestamp: number | null): string
 
         return () => clearInterval(interval);
     }, [initialTimestamp]);
-    const formattedCountdown = formatCountdown(timeRemainingMs);
+    const formattedCountdown = formatCountdown(timeRemainingMs, options);
     return formattedCountdown;
 }
 
-function formatCountdown(totalMilliseconds: number) {
+function formatCountdown(
+    totalMilliseconds: number,
+    {
+        showSeconds = true,
+        showMinutes = true,
+        showHours = true,
+        showDays = true,
+    }: FormatCountdownOptions = {},
+) {
     const days = Math.floor(totalMilliseconds / MILLISECONDS_PER_DAY);
     const hours = Math.floor((totalMilliseconds % MILLISECONDS_PER_DAY) / MILLISECONDS_PER_HOUR);
     const minutes = Math.floor(
@@ -36,11 +54,11 @@ function formatCountdown(totalMilliseconds: number) {
         (totalMilliseconds % MILLISECONDS_PER_MINUTE) / MILLISECONDS_PER_SECOND,
     );
 
-    const timeUnits = [];
-    if (days > 0) timeUnits.push(`${days}d`);
-    if (hours > 0) timeUnits.push(`${hours}h`);
-    if (minutes > 0) timeUnits.push(`${minutes}m`);
-    if (seconds > 0 || timeUnits.length === 0) timeUnits.push(`${seconds}s`);
+    const timeUnits: string[] = [];
+    if (showDays && days > 0) timeUnits.push(`${days}d`);
+    if (showHours && hours > 0) timeUnits.push(`${hours}h`);
+    if (showMinutes && minutes > 0) timeUnits.push(`${minutes}m`);
+    if (showSeconds && (seconds > 0 || timeUnits.length === 0)) timeUnits.push(`${seconds}s`);
 
     return timeUnits.join(' ');
 }
