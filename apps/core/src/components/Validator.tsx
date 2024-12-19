@@ -1,6 +1,8 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ImageIcon, ImageIconSize, formatPercentageDisplay, useValidatorInfo } from '@iota/core';
+import React from 'react';
+import { ImageIcon, ImageIconSize, formatPercentageDisplay, useValidatorInfo } from '../';
 import {
     Card,
     CardBody,
@@ -10,21 +12,27 @@ import {
     CardType,
     Badge,
     BadgeType,
+    ImageShape,
+    Skeleton,
 } from '@iota/apps-ui-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface ValidatorProps {
-    isSelected: boolean;
+    isSelected?: boolean;
     address: string;
+    type?: CardType;
+    showApy?: boolean;
     showActiveStatus?: boolean;
-    onClick?: (address: string) => void;
+    onClick?: () => void;
     showAction?: boolean;
     activeEpoch?: string;
 }
 
 export function Validator({
     address,
-    showActiveStatus,
+    type,
+    showApy,
+    showActiveStatus = false,
     onClick,
     isSelected,
     showAction = true,
@@ -38,10 +46,27 @@ export function Validator({
         isApyApproxZero,
         validatorSummary,
         system,
+        isPendingValidators,
     } = useValidatorInfo({
         validatorAddress: address,
     });
 
+    if (isPendingValidators) {
+        return (
+            <Card>
+                <CardImage shape={ImageShape.Rounded}>
+                    <Skeleton widthClass="w-10" heightClass="h-10" />
+                </CardImage>
+                <div className="flex flex-col gap-y-xs">
+                    <Skeleton widthClass="w-40" heightClass="h-3.5" />
+                    <Skeleton widthClass="w-32" heightClass="h-3" hasSecondaryColors />
+                </div>
+                <div className="ml-auto flex flex-col gap-y-xs">
+                    <Skeleton widthClass="w-20" heightClass="h-3.5" />
+                </div>
+            </Card>
+        );
+    }
     // for inactive validators, show the epoch number
     const fallBackText = activeEpoch
         ? `Staked ${Number(system?.epoch) - Number(activeEpoch)} epochs ago`
@@ -58,11 +83,8 @@ export function Validator({
     ) : (
         formatAddress(address)
     );
-
-    const handleClick = onClick ? () => onClick(address) : undefined;
-
     return (
-        <Card type={isSelected ? CardType.Filled : CardType.Default} onClick={handleClick}>
+        <Card type={type || isSelected ? CardType.Filled : CardType.Default} onClick={onClick}>
             <CardImage>
                 <ImageIcon
                     src={validatorSummary?.imageUrl ?? null}
@@ -72,6 +94,12 @@ export function Validator({
                 />
             </CardImage>
             <CardBody title={validatorDisplayName} subtitle={subtitle} isTextTruncated />
+            {showApy && (
+                <CardAction
+                    type={CardActionType.SupportingText}
+                    title={formatPercentageDisplay(apy, '-', isApyApproxZero)}
+                />
+            )}
             {showAction && (
                 <CardAction
                     type={CardActionType.SupportingText}
