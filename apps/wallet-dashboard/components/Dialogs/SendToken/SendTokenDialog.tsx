@@ -4,14 +4,14 @@
 import React, { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
-import { useSendCoinTransaction, useNotifications } from '@/hooks';
-import { NotificationType } from '@/stores/notificationStore';
+import { useSendCoinTransaction } from '@/hooks';
 import { CoinFormat, useFormatCoin, useGetAllCoins } from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 import { FormDataValues } from './interfaces';
 import { INITIAL_VALUES } from './constants';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useTransferTransactionMutation } from '@/hooks';
+import toast from 'react-hot-toast';
 
 interface SendCoinDialogProps {
     coin: CoinBalance;
@@ -37,7 +37,6 @@ function SendTokenDialogBody({
     const [fullAmount] = useFormatCoin(formData.amount, selectedCoin.coinType, CoinFormat.FULL);
     const { data: coinsData } = useGetAllCoins(selectedCoin.coinType, activeAddress);
 
-    const { addNotification } = useNotifications();
     const isPayAllIota =
         selectedCoin.totalBalance === formData.amount && selectedCoin.coinType === IOTA_TYPE_ARG;
 
@@ -58,18 +57,18 @@ function SendTokenDialogBody({
 
     async function handleTransfer() {
         if (!transaction) {
-            addNotification('There was an error with the transaction', NotificationType.Error);
+            toast.error('There was an error with the transaction');
             return;
         }
 
         transfer(transaction, {
             onSuccess: () => {
                 setStep(FormStep.TransactionDetails);
-                addNotification('Transfer transaction has been sent', NotificationType.Success);
+                toast.success('Transfer transaction has been sent');
             },
             onError: () => {
                 setOpen(false);
-                addNotification('Transfer transaction failed', NotificationType.Error);
+                toast.error('Transfer transaction failed');
             },
         });
     }
