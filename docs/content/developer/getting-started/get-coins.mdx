@@ -4,6 +4,7 @@ tags: [how-to, cli, typescript, sdk, faucet]
 ---
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/get-coins.json';
+import {Networks} from '@site/src/components/constant'
 
 # Get Test Tokens
 
@@ -36,7 +37,7 @@ curl --location --request POST 'https://faucet.testnet.iota.cafe/gas' \
 
 :::tip Test tokens on a local network
 
-If you're working with a local network, replace `'https://faucet.devnet.iota.cafe/gas'` with the appropriate value based on which package runs your network:
+If you're working with a local network, replace <code>{Networks.iota_move_devnet.faucetUrl}</code> with the appropriate value based on which package runs your network:
 
 - `iota-faucet`: `http://127.0.0.1:5003/gas`
 - `iota start`: `http://127.0.0.1:9123/gas`
