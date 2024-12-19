@@ -4,7 +4,7 @@
  *  - Wrap the docs with QueryClientProvider, IotaClientProvider and WalletProvider
  */
 import React, { useMemo } from 'react';
-import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
+import { darkTheme, IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
 import { getDefaultNetwork, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -21,7 +21,7 @@ export default function Root({ children }) {
     return (
         <QueryClientProvider client={queryClient}>
             <IotaClientProvider networks={NETWORKS}>
-                <WalletProvider>
+                <WalletProvider theme={darkTheme}>
                     {children}
                 </WalletProvider>
             </IotaClientProvider>
