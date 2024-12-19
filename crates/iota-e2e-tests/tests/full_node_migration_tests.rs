@@ -1,11 +1,24 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+    path::PathBuf,
+    str::FromStr,
+};
 
 use anyhow::anyhow;
 use bip32::DerivationPath;
-use iota_genesis_builder::SnapshotSource;
+use iota_genesis_builder::{
+    SnapshotSource,
+    stardust::{
+        migration::{Migration, MigrationTargetNetwork},
+        parse::HornetSnapshotParser,
+        process_outputs::scale_amount_for_iota,
+        types::address_swap_map::AddressSwapMap,
+    },
+};
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponseQuery,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
@@ -21,7 +34,7 @@ use iota_types::{
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    stardust::output::NftOutput,
+    stardust::{coin_type::CoinType, output::NftOutput},
     transaction::{Argument, ObjectArg, Transaction, TransactionData},
 };
 use move_core_types::ident_str;
@@ -29,7 +42,10 @@ use shared_crypto::intent::Intent;
 use tempfile::tempdir;
 use test_cluster::TestClusterBuilder;
 
-const MIGRATION_DATA_PATH: &str = "tests/migration/stardust_object_snapshot.bin";
+const HORNET_SNAPSHOT_PATH: &str = "tests/migration/test_hornet_full_snapshot.bin";
+const ADDRESS_SWAP_MAP_PATH: &str = "tests/migration/address_swap.csv";
+const TEST_TARGET_NETWORK: &str = "alphanet-test";
+const MIGRATION_DATA_FILE_NAME: &str = "stardust_object_snapshot.bin";
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -39,23 +55,64 @@ const SPONSOR_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash
 #[sim_test]
 async fn test_full_node_load_migration_data() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
-    let snapshot_source = SnapshotSource::Local(PathBuf::from_str(MIGRATION_DATA_PATH).unwrap());
+
+    // Setup the temporary dir and create the writer for the stardust object
+    // snapshot
+    let dir = tempdir()?;
+    let stardudst_object_snapshot_file_path = dir.path().join(MIGRATION_DATA_FILE_NAME);
+    let object_snapshot_writer =
+        BufWriter::new(File::create(&stardudst_object_snapshot_file_path)?);
+
+    // Generate the stardust object snapshot
+    genesis_builder_snapshot_generation(object_snapshot_writer)?;
+    // Then load it
+    let snapshot_source = SnapshotSource::Local(stardudst_object_snapshot_file_path);
+
+    // A new test cluster can be spawn with the stardust object snapshot
     let test_cluster = TestClusterBuilder::new()
         .with_migration_data(vec![snapshot_source])
         .build()
         .await;
 
+    // Use a client to issue a test transaction
     let client = test_cluster.wallet.get_client().await.unwrap();
-
     let tx_response = address_unlock_condition(client).await?;
-
     let IotaTransactionBlockResponse {
         confirmed_local_execution,
         errors,
         ..
     } = tx_response;
+
+    // The transaction must be successful
     assert!(confirmed_local_execution.unwrap());
     assert!(errors.is_empty());
+    Ok(())
+}
+
+fn genesis_builder_snapshot_generation(
+    object_snapshot_writer: impl Write,
+) -> Result<(), anyhow::Error> {
+    let mut snapshot_parser =
+        HornetSnapshotParser::new::<false>(File::open(HORNET_SNAPSHOT_PATH)?)?;
+    let total_supply = scale_amount_for_iota(snapshot_parser.total_supply()?)?;
+    let target_network = MigrationTargetNetwork::from_str(TEST_TARGET_NETWORK)?;
+    let coin_type = CoinType::Iota;
+    let address_swap_map = AddressSwapMap::from_csv(ADDRESS_SWAP_MAP_PATH)?;
+
+    // Migrate using the parser output stream
+    Migration::new(
+        snapshot_parser.target_milestone_timestamp(),
+        total_supply,
+        target_network,
+        coin_type,
+        address_swap_map,
+    )?
+    .run_for_iota(
+        snapshot_parser.target_milestone_timestamp(),
+        snapshot_parser.outputs(),
+        object_snapshot_writer,
+    )?;
+
     Ok(())
 }
 

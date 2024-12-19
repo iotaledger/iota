@@ -8,6 +8,7 @@
 pub mod migration;
 pub mod native_token;
 pub mod parse;
+pub mod process_outputs;
 #[cfg(feature = "test-outputs")]
 pub mod test_outputs;
 pub mod types;
