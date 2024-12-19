@@ -10,14 +10,13 @@ import { STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '../../constants'
 import { StakeTransactionDetails } from './details';
 import { UnstakeTransactionInfo } from './info';
 import { TransactionSummary } from './summary';
-import { RenderExplorerLink, RenderValidatorLogo } from '../../types';
+import { RenderExplorerLink } from '../../types';
 import { GasFees } from '../gas';
 
 interface TransactionReceiptProps {
     txn: IotaTransactionBlockResponse;
     activeAddress: string | null;
     summary: Exclude<ReturnType<typeof useTransactionSummary>, null>;
-    renderValidatorLogo: RenderValidatorLogo;
     renderExplorerLink: RenderExplorerLink;
 }
 
@@ -25,7 +24,6 @@ export function TransactionReceipt({
     txn,
     activeAddress,
     summary,
-    renderValidatorLogo,
     renderExplorerLink,
 }: TransactionReceiptProps) {
     const { events } = txn;
@@ -49,7 +47,6 @@ export function TransactionReceipt({
                             activeAddress={activeAddress}
                             event={stakeTypeTransaction}
                             gasSummary={summary?.gas}
-                            renderValidatorLogo={renderValidatorLogo}
                             renderExplorerLink={renderExplorerLink}
                         />
                     ) : null}
@@ -60,7 +57,6 @@ export function TransactionReceipt({
                             event={unstakeTypeTransaction}
                             gasSummary={summary?.gas}
                             renderExplorerLink={renderExplorerLink}
-                            renderValidatorLogo={renderValidatorLogo}
                         />
                     ) : null}
                 </>
