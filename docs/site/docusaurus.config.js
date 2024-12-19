@@ -98,7 +98,7 @@ const config = {
           "../../sdk/typescript/src/verify"
         ],
         plugin: ["typedoc-plugin-markdown"],
-        out: "../../docs/content/references/ts-sdk/api/",
+        out: "../../docs/content/ts-sdk/api/",
         githubPages: false,
         readme: "none",
         hideGenerator: true,
@@ -108,6 +108,30 @@ const config = {
         disableSources: true,
         hideBreadcrumbs: true,
         intentionallyNotExported: [],
+      },
+    ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        createRedirects(existingPath) {
+          const redirects = [
+            {
+              from: '/references/ts-sdk/*',
+              to: '/ts-sdk/*',
+            },
+          ];
+          let paths = [];
+          for (const redirect of redirects) {
+            const fromBase = redirect.from.replace('/*', '');
+            const toBase = redirect.to.replace('/*', '');
+            
+            if (existingPath.startsWith(toBase)) {
+              const newPath = existingPath.replace(toBase, fromBase);
+              paths.push(newPath);
+            }
+          }
+          return paths.length > 0 ? paths : undefined;
+        },
       },
     ],
     'plugin-image-zoom'
@@ -243,7 +267,7 @@ const config = {
           },
           {
             label: "TS SDK",
-            to: "references/ts-sdk/typescript/",
+            to: "ts-sdk/typescript/",
           },
           {
             label: "IOTA Identity",

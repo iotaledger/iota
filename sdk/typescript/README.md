@@ -1,7 +1,7 @@
 # Docs site
 
 For more complete docs, visit the
-[IOTA TypeScript SDK docs](https://docs.iota.org/references/ts-sdk/typescript/)
+[IOTA TypeScript SDK docs](https://docs.iota.org/ts-sdk/typescript/)
 
 # IOTA TypeScript SDK
 
@@ -176,7 +176,7 @@ await requestIotaFromFaucetV0({
 ## Writing APIs
 
 For a primer for building transactions, refer to
-[this guide](https://docs.iota.org/references/ts-sdk/typescript/transaction-building/basics).
+[this guide](https://docs.iota.org/ts-sdk/typescript/transaction-building/basics).
 
 ### Transfer Object
 

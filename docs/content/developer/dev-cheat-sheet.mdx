@@ -36,7 +36,7 @@ Quick reference on best practices for IOTA Network developers.
 
 | **Topic** | **Description** |
 |-|-|
-| **Optimal performance** | For optimal performance and data consistency, apps should use the wallet's [`signTransactionBlock`](../references/ts-sdk/dapp-kit/index.mdx) API to sign transactions and then submit them via [`execute_transactionBlock`](/iota-api-ref#iota_executetransactionblock) on the app's full node. This ensures immediate read-after-write consistency, as the app's full node reflects writes instantly, avoiding delays from checkpointing. |
+| **Optimal performance** | For optimal performance and data consistency, apps should use the wallet's [`signTransactionBlock`](../ts-sdk/dapp-kit/index.mdx) API to sign transactions and then submit them via [`execute_transactionBlock`](/iota-api-ref#iota_executetransactionblock) on the app's full node. This ensures immediate read-after-write consistency, as the app's full node reflects writes instantly, avoiding delays from checkpointing. |
 | **Lower latency** | For lower latency, use [`executeTransactionBlock`](/iota-api-ref#iota_executetransactionblock) with `"showEffects": false` and `"showEvents": false` if your app only needs confirmation of a transaction without immediate access to its effects or events.|
 | **Local cache** | Apps should implement a local cache for frequently read data rather than over-fetching from the full node. |
 | **Transaction cache**| Whenever possible,use programmable transaction blocks to compose on-chain functionality instead of deploying new contracts, enabling batching and lowering gas fees. |

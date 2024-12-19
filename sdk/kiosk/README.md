@@ -7,7 +7,7 @@
 This Kiosk SDK library provides different utilities to interact/create/manage a
 [Kiosk](https://github.com/iotaledger/iota/tree/develop/kiosk).
 
-[You can read the documentation and see examples by clicking here.](https://docs.iota.org/references/ts-sdk/kiosk)
+[You can read the documentation and see examples by clicking here.](https://docs.iota.org/ts-sdk/kiosk)
 
 ## Install
 

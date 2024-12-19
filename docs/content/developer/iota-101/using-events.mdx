@@ -82,7 +82,7 @@ curl -X POST https://api.testnet.iota.cafe:443 \
 ```
 
 The TypeScript SDK provides a wrapper for the `iotax_queryEvents` method:
-[`client.queryEvents`](../../references/ts-sdk/api/client/classes/IotaClient#queryevents).
+[`client.queryEvents`](../../ts-sdk/api/client/classes/IotaClient#queryevents).
 
 </TabItem>
 <TabItem value="rs" label="Rust">
@@ -144,7 +144,7 @@ You can use GraphQL to query events instead of JSON RPC. The following example q
 
 :::tip
 
-The [TypeScript SDK](../../references/ts-sdk/api/graphql/classes/IotaGraphQLClient) provides functionality to
+The [TypeScript SDK](../../ts-sdk/api/graphql/classes/IotaGraphQLClient) provides functionality to
 interact with the IOTA GraphQL service.
 
 :::
@@ -184,7 +184,7 @@ async fn main() -> Result<()> {
 </TabItem>
 <TabItem value="ts" label="TypeScript">
 
-To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
+To create the event subscription, you can use a basic Node.js app. You need the [IOTA TypeScript SDK](../../ts-sdk/typescript/index.mdx), so install the module using `npm install @iota/iota-sdk` at the root of your project. In your TypeScript code, import `JsonRpcProvider` and a connection from the library.
 
 ```ts
 

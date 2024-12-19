@@ -31,7 +31,7 @@ you including:
 - [Vite](https://vitejs.dev/)
 - [Radix UI](https://www.radix-ui.com/)
 - [ESLint](https://eslint.org/)
-- [`@iota/dapp-kit`](https://docs.iota.org/references/ts-sdk/dapp-kit)
+- [`@iota/dapp-kit`](https://docs.iota.org/ts-sdk/dapp-kit)
 
 These templates are still new, and would love to get feedback and suggestions for improvements or
 future templates. Please open an issue on GitHub if you have any feedback.
