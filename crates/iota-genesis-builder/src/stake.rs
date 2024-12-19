@@ -172,7 +172,7 @@ impl GenesisStake {
         // Then, try to create new token allocations for each validator using the
         // objects fetched above
         for validator_allocation in validators_allocations {
-            // The validaotr address
+            // The validator address
             let validator = validator_allocation.validator;
             // The target amount of nanos to be staked, either with timelock or gas objects
             let mut target_stake = validator_allocation.amount_nanos_to_stake;
@@ -253,7 +253,7 @@ impl GenesisStake {
             self.timelocks_to_split
                 .push((surplus_timelock, surplus_nanos, delegator));
         }
-        // In the case a the gas coin, it must be burned and the surplus re-allocated to
+        // In the case of a gas coin, it must be burned and the surplus re-allocated to
         // the delegator (no split)
         if let (Some(surplus_gas_coin), surplus_nanos) = gas_surplus.take() {
             self.gas_coins_to_burn.push(surplus_gas_coin);
