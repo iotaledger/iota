@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["event_senders","event_sequence_number","sender","tx_sequence_number"]};

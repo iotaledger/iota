@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["all_columns"],"mod":["columns","dsl"],"struct":["checkpoint","cumulative_active_addresses","cumulative_addresses","daily_active_addresses","epoch","star","table","timestamp_ms"],"type":["BoxedQuery","SqlType"]};

@@ -1,0 +1,1 @@
+searchState.loadedDescShard("docs_examples", 0, "A set of utility functions for the examples.\nDeletes the temporary keystore.\nUtility function for funding an address using the transfer …\nUtility function for publishing a custom NFT package found …\nCreates a temporary keystore.")

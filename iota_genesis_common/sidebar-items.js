@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["execute_genesis_transaction","get_genesis_protocol_config","prepare_and_execute_genesis_transaction"]};

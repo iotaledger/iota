@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"attr":["init_static_initializers","iota_test","sim_test","with_checked_arithmetic"],"derive":["EnumVariantOrder"],"macro":["checked_arithmetic"]};
