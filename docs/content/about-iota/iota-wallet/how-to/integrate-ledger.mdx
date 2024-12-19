@@ -17,7 +17,10 @@ Before connecting your Ledger device to IOTA Wallet, ensure the following:
 
 ## Install the IOTA Rebased App on Your Ledger Device
 
-To use IOTA Wallet with Ledger, install the IOTA Rebased app on your device through Ledger Live.
+To use IOTA Wallet with Ledger, install the IOTA Rebased app on your device through Ledger Live or manually.
+Ledger Live is preferred, but you need to install the app manually for deprecated devices like the Ledger Nano S.
+
+### Ledger Live (preferred)
 
 1. Unlock your Ledger device.
 2. Open Ledger Live and navigate to **My Ledger** in the left panel.
@@ -25,6 +28,25 @@ To use IOTA Wallet with Ledger, install the IOTA Rebased app on your device thro
 4. In the App Catalog, search for **IOTA Rebased**.
 5. Click **Install** to download the IOTA Rebased app to your device.
 6. Your device will show the installation progress.
+
+### Manually (for deprecated devices such as Ledger Nano S)
+
+:::warning
+
+Make sure you have enough space left for an additional app on your device.
+
+:::
+
+1. Go to the latest release on https://github.com/iotaledger/ledger-app-iota/releases.
+2. Download the archive matching your device, e.g. `nanos.tar.gz` for the Ledger Nano S.
+3. Verify that the checksum (`shasum -a 256 nanos.tar.gz`) matches the one from the release.
+4. Extract the archive `tar -xvzf nanos.tar.gz`.
+5. Move to the app folder `cd nanos`.
+6. Follow the steps on https://github.com/LedgerHQ/ledgerctl to install `ledgerctl`.
+7. Install the app on your device `ledgerctl install -f app_nanos.json`.
+8. Accept `Allow unsafe manager` on your device.
+9. Accept `Perform installation` on your device.
+10. Enter your pin on your device.
 
 ## Import Accounts from Your Ledger Device
 
