@@ -56,7 +56,6 @@ pub struct ValidatorWithFullnode {
     pub kv_store: Arc<TransactionKeyValueStore>,
 }
 
-#[allow(unused_variables)]
 /// TODO: better name?
 #[async_trait::async_trait]
 pub trait TransactionalAdapter: Send + Sync + ReadStore {

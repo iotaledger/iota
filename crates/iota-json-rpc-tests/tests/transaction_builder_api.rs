@@ -298,49 +298,53 @@ async fn test_pay_all_iota() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[sim_test]
-async fn test_publish() -> Result<(), anyhow::Error> {
-    let cluster = TestClusterBuilder::new().build().await;
-    let http_client = cluster.rpc_client();
-    let address = cluster.get_address_0();
+mod move_tests {
+    use super::*;
 
-    let objects = http_client
-        .get_owned_objects(
-            address,
-            Some(IotaObjectResponseQuery::new_with_options(
-                IotaObjectDataOptions::new()
-                    .with_type()
-                    .with_owner()
-                    .with_previous_transaction(),
-            )),
-            None,
-            None,
-        )
-        .await?;
-    let gas = objects.data.first().unwrap().object().unwrap();
+    #[sim_test]
+    async fn test_publish() -> Result<(), anyhow::Error> {
+        let cluster = TestClusterBuilder::new().build().await;
+        let http_client = cluster.rpc_client();
+        let address = cluster.get_address_0();
 
-    let compiled_package =
-        BuildConfig::new_for_testing().build(Path::new("../../examples/move/basics"))?;
-    let compiled_modules_bytes =
-        compiled_package.get_package_base64(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_storage_package_ids();
+        let objects = http_client
+            .get_owned_objects(
+                address,
+                Some(IotaObjectResponseQuery::new_with_options(
+                    IotaObjectDataOptions::new()
+                        .with_type()
+                        .with_owner()
+                        .with_previous_transaction(),
+                )),
+                None,
+                None,
+            )
+            .await?;
+        let gas = objects.data.first().unwrap().object().unwrap();
 
-    let transaction_bytes: TransactionBlockBytes = http_client
-        .publish(
-            address,
-            compiled_modules_bytes,
-            dependencies,
-            Some(gas.object_id),
-            100_000_000.into(),
-        )
-        .await?;
+        let compiled_package =
+            BuildConfig::new_for_testing().build(Path::new("../../examples/move/basics"))?;
+        let compiled_modules_bytes =
+            compiled_package.get_package_base64(/* with_unpublished_deps */ false);
+        let dependencies = compiled_package.get_dependency_storage_package_ids();
 
-    let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
-        .await
-        .unwrap();
+        let transaction_bytes: TransactionBlockBytes = http_client
+            .publish(
+                address,
+                compiled_modules_bytes,
+                dependencies,
+                Some(gas.object_id),
+                100_000_000.into(),
+            )
+            .await?;
 
-    matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 6);
-    Ok(())
+        let tx_response = execute_tx(&cluster, http_client, transaction_bytes)
+            .await
+            .unwrap();
+
+        matches!(tx_response, IotaTransactionBlockResponse {effects, ..} if effects.as_ref().unwrap().created().len() == 6);
+        Ok(())
+    }
 }
 
 #[sim_test]

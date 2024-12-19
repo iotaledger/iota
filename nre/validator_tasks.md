@@ -27,7 +27,6 @@ This document focuses on running the Iota Node software as a Validator.
 - [Chain Operations](#chain-operations)
   - [Updating On-chain Metadata](#updating-on-chain-metadata)
   - [Operation Cap](#operation-cap)
-  - [Updating the Gas Price Survey Quote](#updating-the-gas-price-survey-quote)
   - [Reporting/Un-reporting Validators](#reportingun-reporting-validators)
   - [Joining the Validator Set](#joining-the-validator-set)
   - [Leaving the Validator Set](#leaving-the-validator-set)
@@ -91,7 +90,7 @@ Iota Node uses the following ports by default:
 | protocol/port | reachability     | purpose                           |
 | ------------- | ---------------- | --------------------------------- |
 | TCP/8080      | inbound          | protocol/transaction interface    |
-| UDP/8081      | inbound/outbound | primary interface                 |
+| TCP/8081      | inbound/outbound | primary interface                 |
 | UDP/8084      | inbound/outbound | peer to peer state sync interface |
 | TCP/8443      | outbound         | metrics pushing                   |
 | TCP/9184      | localhost        | metrics scraping                  |
@@ -363,16 +362,6 @@ setting the holder as the active address.
 
 <!-- Will be fixed by issue 1867. -->
 <!-- Or go to the [explorer](https://explorer.rebased.iota.org/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
-
-### Updating the Gas Price Survey Quote
-
-To update the Gas Price Survey Quote of a validator, which is used to calculate the Reference Gas Price at the end of
-the epoch, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the
-validator itself, or a trusted delegatee. To do so, call `iota_system::request_set_gas_price`:
-
-```shell
-iota client call --package 0x3 --module iota_system --function request_set_gas_price --args 0x5 {cap_object_id} {new_gas_price} --gas-budget 10000
-```
 
 ### Reporting/Un-reporting Validators
 

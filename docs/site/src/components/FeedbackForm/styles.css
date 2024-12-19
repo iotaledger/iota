@@ -1,5 +1,15 @@
 .feedback-container {
-  /* margin: 20px; */
+  background-color: #0000001a;
+  padding-top: 0.25rem;
+  padding-left: 2rem;
+  padding-right: 2rem;
+  padding-bottom: 1.25rem;
+  margin-top: 1rem;
+  border-radius: 0.5rem;
+}
+
+[data-theme="dark"] .feedback-container {
+  background-color: #1e1e1e;
 }
 
 .feedback-header {

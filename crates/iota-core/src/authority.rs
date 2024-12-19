@@ -784,7 +784,7 @@ pub struct AuthorityState {
     transaction_manager: Arc<TransactionManager>,
 
     /// Shuts down the execution task. Used only in testing.
-    #[allow(unused)]
+    #[cfg_attr(not(test), expect(unused))]
     tx_execution_shutdown: Mutex<Option<oneshot::Sender<()>>>,
 
     pub metrics: Arc<AuthorityMetrics>,
@@ -1603,7 +1603,7 @@ impl AuthorityState {
         let transaction_data = &certificate.data().intent_message().value;
         let (kind, signer, gas) = transaction_data.execution_parts();
 
-        #[allow(unused_mut)]
+        #[expect(unused_mut)]
         let (inner_temp_store, _, mut effects, execution_error_opt) =
             epoch_store.executor().execute_transaction_to_effects(
                 self.get_backing_store().as_ref(),
@@ -1870,7 +1870,6 @@ impl AuthorityState {
     }
 
     /// The object ID for gas can be any object ID, even for an uncreated object
-    #[allow(clippy::collapsible_else_if)]
     pub async fn dev_inspect_transaction_block(
         &self,
         sender: IotaAddress,
@@ -2620,7 +2619,7 @@ impl AuthorityState {
         }
     }
 
-    #[allow(clippy::disallowed_methods)] // allow unbounded_channel()
+    #[expect(clippy::disallowed_methods)] // allow unbounded_channel()
     pub async fn new(
         name: AuthorityName,
         secret: StableSyncAuthoritySigner,
