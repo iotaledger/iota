@@ -351,7 +351,7 @@ impl RocksDB {
         fail_point!("delete-cf-before");
         let ret = delegate_call!(self.delete_cf_opt(cf, key, writeopts));
         fail_point!("delete-cf-after");
-        #[allow(clippy::let_and_return)]
+        #[expect(clippy::let_and_return)]
         ret
     }
 
@@ -373,7 +373,7 @@ impl RocksDB {
         fail_point!("put-cf-before");
         let ret = delegate_call!(self.put_cf_opt(cf, key, value, writeopts));
         fail_point!("put-cf-after");
-        #[allow(clippy::let_and_return)]
+        #[expect(clippy::let_and_return)]
         ret
     }
 
@@ -414,7 +414,7 @@ impl RocksDB {
             )),
         };
         fail_point!("batch-write-after");
-        #[allow(clippy::let_and_return)]
+        #[expect(clippy::let_and_return)]
         ret
     }
 
@@ -1795,7 +1795,7 @@ pub enum RocksDBRawIter<'a> {
     ),
 }
 
-impl<'a> RocksDBRawIter<'a> {
+impl RocksDBRawIter<'_> {
     pub fn valid(&self) -> bool {
         delegate_iter_call!(self.valid())
     }
@@ -1835,7 +1835,7 @@ pub enum RocksDBIter<'a> {
     ),
 }
 
-impl<'a> Iterator for RocksDBIter<'a> {
+impl Iterator for RocksDBIter<'_> {
     type Item = Result<(Box<[u8]>, Box<[u8]>), Error>;
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -2837,7 +2837,7 @@ fn is_max(v: &[u8]) -> bool {
     v.iter().all(|&x| x == u8::MAX)
 }
 
-#[allow(clippy::assign_op_pattern)]
+#[expect(clippy::assign_op_pattern)]
 #[test]
 fn test_helpers() {
     let v = vec![];

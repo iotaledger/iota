@@ -152,7 +152,7 @@ pub fn verify_proof_of_possession(
 /// * accounts to interact with Iota.
 /// * Currently we support eddsa and ecdsa on Iota.
 
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant)]
 #[derive(Debug, From, PartialEq, Eq)]
 pub enum IotaKeyPair {
     Ed25519(Ed25519KeyPair),
