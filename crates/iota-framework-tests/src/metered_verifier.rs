@@ -26,205 +26,201 @@ fn build(path: &Path) -> IotaResult<CompiledPackage> {
     config.build(path)
 }
 
-mod move_tests {
-    use super::*;
+#[test]
+#[cfg_attr(msim, ignore)]
+fn test_metered_move_bytecode_verifier() {
+    move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../iota-framework/packages/iota-framework");
+    let compiled_package = build(&path).unwrap();
+    let compiled_modules: Vec<_> = compiled_package.get_modules().cloned().collect();
 
-    #[test]
-    #[cfg_attr(msim, ignore)]
-    fn test_metered_move_bytecode_verifier() {
-        move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../iota-framework/packages/iota-framework");
-        let compiled_package = build(&path).unwrap();
-        let compiled_modules: Vec<_> = compiled_package.get_modules().cloned().collect();
+    let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let mut verifier_config = protocol_config.verifier_config(/* for_signing */ true);
+    let mut meter_config = protocol_config.meter_config_for_signing();
+    let registry = &Registry::new();
+    let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
+    let mut meter = IotaVerifierMeter::new(meter_config.clone());
+    let timer_start = Instant::now();
+    // Default case should pass
+    let r = run_metered_move_bytecode_verifier(
+        &compiled_modules,
+        &verifier_config,
+        &mut meter,
+        &bytecode_verifier_metrics,
+    );
+    let elapsed = timer_start.elapsed().as_micros() as f64 / (1000.0 * 1000.0);
+    assert!(r.is_ok());
 
-        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        let mut verifier_config = protocol_config.verifier_config(/* for_signing */ true);
-        let mut meter_config = protocol_config.meter_config_for_signing();
-        let registry = &Registry::new();
-        let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(registry));
-        let mut meter = IotaVerifierMeter::new(meter_config.clone());
-        let timer_start = Instant::now();
-        // Default case should pass
-        let r = run_metered_move_bytecode_verifier(
-            &compiled_modules,
+    // Ensure metrics worked as expected
+
+    // The number of module success samples must equal the number of modules
+    assert_eq!(
+        compiled_modules.len() as u64,
+        bytecode_verifier_metrics
+            .verifier_runtime_per_module_success_latency
+            .get_sample_count(),
+    );
+
+    // Others must be zero
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_runtime_per_module_timeout_latency
+            .get_sample_count(),
+    );
+
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_runtime_per_ptb_success_latency
+            .get_sample_count(),
+    );
+
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_runtime_per_ptb_timeout_latency
+            .get_sample_count(),
+    );
+
+    // Each success timer must be non zero and less than our elapsed time
+    let module_success_latency = bytecode_verifier_metrics
+        .verifier_runtime_per_module_success_latency
+        .get_sample_sum();
+    assert!(0.0 <= module_success_latency && module_success_latency < elapsed);
+
+    // No failures expected in counter
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_timeout_metrics
+            .with_label_values(&[
+                BytecodeVerifierMetrics::OVERALL_TAG,
+                BytecodeVerifierMetrics::TIMEOUT_TAG,
+            ])
+            .get(),
+    );
+
+    // Counter must equal number of modules
+    assert_eq!(
+        compiled_modules.len() as u64,
+        bytecode_verifier_metrics
+            .verifier_timeout_metrics
+            .with_label_values(&[
+                BytecodeVerifierMetrics::OVERALL_TAG,
+                BytecodeVerifierMetrics::SUCCESS_TAG,
+            ])
+            .get(),
+    );
+
+    // Use low limits. Should fail
+    verifier_config.max_back_edges_per_function = Some(100);
+    verifier_config.max_back_edges_per_module = Some(1_000);
+    meter_config.max_per_mod_meter_units = Some(10_000);
+    meter_config.max_per_fun_meter_units = Some(10_000);
+
+    let mut meter = IotaVerifierMeter::new(meter_config);
+    let timer_start = Instant::now();
+    let r = run_metered_move_bytecode_verifier(
+        &compiled_modules,
+        &verifier_config,
+        &mut meter,
+        &bytecode_verifier_metrics,
+    );
+    let elapsed = timer_start.elapsed().as_micros() as f64 / (1000.0 * 1000.0);
+
+    assert!(matches!(
+        r.unwrap_err(),
+        IotaError::ModuleVerificationFailure { .. }
+    ));
+
+    // Some new modules might have passed
+    let module_success_samples = bytecode_verifier_metrics
+        .verifier_runtime_per_module_success_latency
+        .get_sample_count();
+    let module_timeout_samples = bytecode_verifier_metrics
+        .verifier_runtime_per_module_timeout_latency
+        .get_sample_count();
+    assert!(module_success_samples >= compiled_modules.len() as u64);
+    assert!(module_success_samples < 2 * compiled_modules.len() as u64);
+    assert!(module_timeout_samples > 0);
+
+    // Others must be zero
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_runtime_per_ptb_success_latency
+            .get_sample_count(),
+    );
+    assert_eq!(
+        0,
+        bytecode_verifier_metrics
+            .verifier_runtime_per_ptb_timeout_latency
+            .get_sample_count(),
+    );
+
+    // Each success timer must be non zero and less than our elapsed time
+    let module_timeout_latency = bytecode_verifier_metrics
+        .verifier_runtime_per_module_timeout_latency
+        .get_sample_sum();
+    assert!(0.0 <= module_timeout_latency && module_timeout_latency < elapsed);
+
+    // One failure
+    assert_eq!(
+        1,
+        bytecode_verifier_metrics
+            .verifier_timeout_metrics
+            .with_label_values(&[
+                BytecodeVerifierMetrics::OVERALL_TAG,
+                BytecodeVerifierMetrics::TIMEOUT_TAG,
+            ])
+            .get(),
+    );
+
+    // This should be slightly higher as some modules passed
+    assert!(
+        bytecode_verifier_metrics
+            .verifier_timeout_metrics
+            .with_label_values(&[
+                BytecodeVerifierMetrics::OVERALL_TAG,
+                BytecodeVerifierMetrics::SUCCESS_TAG,
+            ])
+            .get()
+            > compiled_modules.len() as u64
+    );
+
+    // Check shared meter logic works across all publish in PT
+    let mut packages = vec![];
+    let with_unpublished_deps = false;
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
+    let package = build(&path).unwrap();
+    packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
+    packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
+
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/coin");
+    let package = build(&path).unwrap();
+    packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
+
+    let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
+    let verifier_config = protocol_config.verifier_config(/* for_signing */ true);
+    let meter_config = protocol_config.meter_config_for_signing();
+
+    // Check if the same meter is indeed used multiple invocations of the verifier
+    let mut meter = IotaVerifierMeter::new(meter_config);
+    for modules in &packages {
+        let prev_meter = meter.get_usage(Scope::Package);
+
+        run_metered_move_bytecode_verifier(
+            modules,
             &verifier_config,
             &mut meter,
             &bytecode_verifier_metrics,
-        );
-        let elapsed = timer_start.elapsed().as_micros() as f64 / (1000.0 * 1000.0);
-        assert!(r.is_ok());
+        )
+        .expect("Verification should not timeout");
 
-        // Ensure metrics worked as expected
-
-        // The number of module success samples must equal the number of modules
-        assert_eq!(
-            compiled_modules.len() as u64,
-            bytecode_verifier_metrics
-                .verifier_runtime_per_module_success_latency
-                .get_sample_count(),
-        );
-
-        // Others must be zero
-        assert_eq!(
-            0,
-            bytecode_verifier_metrics
-                .verifier_runtime_per_module_timeout_latency
-                .get_sample_count(),
-        );
-
-        assert_eq!(
-            0,
-            bytecode_verifier_metrics
-                .verifier_runtime_per_ptb_success_latency
-                .get_sample_count(),
-        );
-
-        assert_eq!(
-            0,
-            bytecode_verifier_metrics
-                .verifier_runtime_per_ptb_timeout_latency
-                .get_sample_count(),
-        );
-
-        // Each success timer must be non zero and less than our elapsed time
-        let module_success_latency = bytecode_verifier_metrics
-            .verifier_runtime_per_module_success_latency
-            .get_sample_sum();
-        assert!(0.0 <= module_success_latency && module_success_latency < elapsed);
-
-        // No failures expected in counter
-        assert_eq!(
-            0,
-            bytecode_verifier_metrics
-                .verifier_timeout_metrics
-                .with_label_values(&[
-                    BytecodeVerifierMetrics::OVERALL_TAG,
-                    BytecodeVerifierMetrics::TIMEOUT_TAG,
-                ])
-                .get(),
-        );
-
-        // Counter must equal number of modules
-        assert_eq!(
-            compiled_modules.len() as u64,
-            bytecode_verifier_metrics
-                .verifier_timeout_metrics
-                .with_label_values(&[
-                    BytecodeVerifierMetrics::OVERALL_TAG,
-                    BytecodeVerifierMetrics::SUCCESS_TAG,
-                ])
-                .get(),
-        );
-
-        // Use low limits. Should fail
-        verifier_config.max_back_edges_per_function = Some(100);
-        verifier_config.max_back_edges_per_module = Some(1_000);
-        meter_config.max_per_mod_meter_units = Some(10_000);
-        meter_config.max_per_fun_meter_units = Some(10_000);
-
-        let mut meter = IotaVerifierMeter::new(meter_config);
-        let timer_start = Instant::now();
-        let r = run_metered_move_bytecode_verifier(
-            &compiled_modules,
-            &verifier_config,
-            &mut meter,
-            &bytecode_verifier_metrics,
-        );
-        let elapsed = timer_start.elapsed().as_micros() as f64 / (1000.0 * 1000.0);
-
-        assert!(matches!(
-            r.unwrap_err(),
-            IotaError::ModuleVerificationFailure { .. }
-        ));
-
-        // Some new modules might have passed
-        let module_success_samples = bytecode_verifier_metrics
-            .verifier_runtime_per_module_success_latency
-            .get_sample_count();
-        let module_timeout_samples = bytecode_verifier_metrics
-            .verifier_runtime_per_module_timeout_latency
-            .get_sample_count();
-        assert!(module_success_samples >= compiled_modules.len() as u64);
-        assert!(module_success_samples < 2 * compiled_modules.len() as u64);
-        assert!(module_timeout_samples > 0);
-
-        // Others must be zero
-        assert_eq!(
-            0,
-            bytecode_verifier_metrics
-                .verifier_runtime_per_ptb_success_latency
-                .get_sample_count(),
-        );
-        assert_eq!(
-            0,
-            bytecode_verifier_metrics
-                .verifier_runtime_per_ptb_timeout_latency
-                .get_sample_count(),
-        );
-
-        // Each success timer must be non zero and less than our elapsed time
-        let module_timeout_latency = bytecode_verifier_metrics
-            .verifier_runtime_per_module_timeout_latency
-            .get_sample_sum();
-        assert!(0.0 <= module_timeout_latency && module_timeout_latency < elapsed);
-
-        // One failure
-        assert_eq!(
-            1,
-            bytecode_verifier_metrics
-                .verifier_timeout_metrics
-                .with_label_values(&[
-                    BytecodeVerifierMetrics::OVERALL_TAG,
-                    BytecodeVerifierMetrics::TIMEOUT_TAG,
-                ])
-                .get(),
-        );
-
-        // This should be slightly higher as some modules passed
-        assert!(
-            bytecode_verifier_metrics
-                .verifier_timeout_metrics
-                .with_label_values(&[
-                    BytecodeVerifierMetrics::OVERALL_TAG,
-                    BytecodeVerifierMetrics::SUCCESS_TAG,
-                ])
-                .get()
-                > compiled_modules.len() as u64
-        );
-
-        // Check shared meter logic works across all publish in PT
-        let mut packages = vec![];
-        let with_unpublished_deps = false;
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/basics");
-        let package = build(&path).unwrap();
-        packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
-        packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
-
-        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/move/coin");
-        let package = build(&path).unwrap();
-        packages.push(package.get_dependency_sorted_modules(with_unpublished_deps));
-
-        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        let verifier_config = protocol_config.verifier_config(/* for_signing */ true);
-        let meter_config = protocol_config.meter_config_for_signing();
-
-        // Check if the same meter is indeed used multiple invocations of the verifier
-        let mut meter = IotaVerifierMeter::new(meter_config);
-        for modules in &packages {
-            let prev_meter = meter.get_usage(Scope::Package);
-
-            run_metered_move_bytecode_verifier(
-                modules,
-                &verifier_config,
-                &mut meter,
-                &bytecode_verifier_metrics,
-            )
-            .expect("Verification should not timeout");
-
-            let curr_meter = meter.get_usage(Scope::Package);
-            assert!(curr_meter > prev_meter);
-        }
+        let curr_meter = meter.get_usage(Scope::Package);
+        assert!(curr_meter > prev_meter);
     }
 }
 
