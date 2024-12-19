@@ -13,7 +13,6 @@ export * from './PaginationOptions';
 
 export * from './account-balance/AccountBalance';
 export * from './coins';
-export * from './Popup';
 export * from './AppList';
 export * from './Cards';
 export * from './Buttons';
@@ -28,4 +27,5 @@ export * from './Toaster';
 export * from './Banner';
 export * from './StakeRewardsPanel';
 export * from './MigrationOverview';
+export * from './SupplyIncreaseVestingOverview';
 export * from './staked-timelock-object';
