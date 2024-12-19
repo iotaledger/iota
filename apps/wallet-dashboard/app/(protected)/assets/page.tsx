@@ -31,21 +31,22 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data, isFetching, fetchNextPage, hasNextPage, refetch } = useGetOwnedObjects(
         account?.address,
-        undefined,
+        {
+            MatchNone: [{ StructType: '0x2::coin::Coin' }],
+        },
         OBJECTS_PER_REQ,
     );
 
-    const assets: IotaObjectData[] = [];
+    const visualAssets: IotaObjectData[] = [];
+    const otherAssets: IotaObjectData[] = [];
 
     for (const page of data?.pages || []) {
         for (const asset of page.data) {
             if (asset.data && asset.data.objectId) {
-                if (selectedCategory == AssetCategory.Visual) {
-                    if (hasDisplayData(asset)) {
-                        assets.push(asset.data);
-                    }
-                } else if (selectedCategory == AssetCategory.Other) {
-                    assets.push(asset.data);
+                if (hasDisplayData(asset)) {
+                    visualAssets.push(asset.data);
+                } else {
+                    otherAssets.push(asset.data);
                 }
             }
         }
@@ -71,7 +72,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 </div>
 
                 <AssetList
-                    assets={assets}
+                    assets={selectedCategory == AssetCategory.Visual ? visualAssets : otherAssets}
                     selectedCategory={selectedCategory}
                     onClick={onAssetClick}
                     hasNextPage={hasNextPage}
