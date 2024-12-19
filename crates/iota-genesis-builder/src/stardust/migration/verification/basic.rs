@@ -24,10 +24,10 @@ use crate::stardust::{
         verification::{
             created_objects::CreatedObjects,
             util::{
-                verify_address_owner, verify_coin, verify_expiration_unlock_condition,
-                verify_metadata_feature, verify_native_tokens, verify_parent,
-                verify_sender_feature, verify_storage_deposit_unlock_condition, verify_tag_feature,
-                verify_timelock_unlock_condition,
+                TokensAmountCounter, verify_address_owner, verify_coin,
+                verify_expiration_unlock_condition, verify_metadata_feature, verify_native_tokens,
+                verify_parent, verify_sender_feature, verify_storage_deposit_unlock_condition,
+                verify_tag_feature, verify_timelock_unlock_condition,
             },
         },
     },
@@ -41,7 +41,7 @@ pub(super) fn verify_basic_output(
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     target_milestone_timestamp: u32,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
     address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     // If this is a timelocked vested reward, a `Timelock<Balance>` is created.
@@ -73,7 +73,7 @@ pub(super) fn verify_basic_output(
             created_timelock.locked().value(),
             output.amount()
         );
-        *total_value += created_timelock.locked().value();
+        tokens_counter.update_total_value_for_iota(created_timelock.locked().value());
 
         // Label
         let label = created_timelock
@@ -139,7 +139,7 @@ pub(super) fn verify_basic_output(
             created_output.balance.value(),
             output.amount()
         );
-        *total_value += created_output.balance.value();
+        tokens_counter.update_total_value_for_iota(created_output.balance.value());
 
         // Native Tokens
         verify_native_tokens::<Field<String, Balance>>(
@@ -148,6 +148,7 @@ pub(super) fn verify_basic_output(
             created_output.native_tokens,
             created_objects.native_tokens().ok(),
             storage,
+            tokens_counter,
         )?;
 
         // Storage Deposit Return Unlock Condition
@@ -202,7 +203,7 @@ pub(super) fn verify_basic_output(
 
         verify_address_owner(output.address(), created_coin_obj, "coin", address_swap_map)?;
         verify_coin(output.amount(), &created_coin)?;
-        *total_value += created_coin.value();
+        tokens_counter.update_total_value_for_iota(created_coin.value());
 
         // Native Tokens
         verify_native_tokens::<(TypeTag, Coin)>(
@@ -211,6 +212,7 @@ pub(super) fn verify_basic_output(
             None,
             created_objects.native_tokens().ok(),
             storage,
+            tokens_counter,
         )?;
     }
 

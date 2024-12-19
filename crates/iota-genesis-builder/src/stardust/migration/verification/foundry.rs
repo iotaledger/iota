@@ -17,8 +17,8 @@ use crate::stardust::{
         verification::{
             CreatedObjects,
             util::{
-                truncate_to_max_allowed_u64_supply, verify_address_owner, verify_coin,
-                verify_parent, verify_shared_object,
+                TokensAmountCounter, truncate_to_max_allowed_u64_supply, verify_address_owner,
+                verify_coin, verify_parent, verify_shared_object,
             },
         },
     },
@@ -32,7 +32,7 @@ pub(super) fn verify_foundry_output(
     created_objects: &CreatedObjects,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     storage: &InMemoryStorage,
-    total_value: &mut u64,
+    tokens_counter: &mut TokensAmountCounter,
     address_swap_map: &AddressSwapMap,
 ) -> Result<()> {
     let foundry_data = foundry_data
@@ -57,7 +57,7 @@ pub(super) fn verify_foundry_output(
 
     verify_address_owner(alias_address, created_coin_obj, "coin", address_swap_map)?;
     verify_coin(output.amount(), &created_coin)?;
-    *total_value += created_coin.value();
+    tokens_counter.update_total_value_for_iota(created_coin.value());
 
     // Native token coin value
     let native_token_coin_id = created_objects.native_token_coin()?;
@@ -234,6 +234,8 @@ pub(super) fn verify_foundry_output(
         coin_manager.treasury_cap.total_supply.value,
         circulating_supply
     );
+    tokens_counter
+        .update_total_value_max(&foundry_data.to_canonical_string(false), circulating_supply);
 
     // Alias Address Unlock Condition
     verify_address_owner(

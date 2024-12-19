@@ -32,12 +32,58 @@ use crate::stardust::{
     types::{address_swap_map::AddressSwapMap, token_scheme::MAX_ALLOWED_U64_SUPPLY},
 };
 
+pub const BASE_TOKEN_KEY: &str = "base_token";
+
+/// Counter used to count the generated tokens amounts.
+pub(super) struct TokensAmountCounter {
+    // A map of token type -> (real_generated_supply, expected_circulating_supply)
+    inner: HashMap<String, (u64, u64)>,
+}
+
+impl TokensAmountCounter {
+    /// Setup the tokens amount counter.
+    pub(super) fn new(initial_iota_supply: u64) -> Self {
+        let mut res = TokensAmountCounter {
+            inner: HashMap::new(),
+        };
+        res.update_total_value_max_for_iota(initial_iota_supply);
+        res
+    }
+
+    pub(super) fn into_inner(self) -> impl IntoIterator<Item = (String, (u64, u64))> {
+        self.inner
+    }
+
+    pub(super) fn update_total_value_for_iota(&mut self, value: u64) {
+        self.update_total_value(BASE_TOKEN_KEY, value);
+    }
+
+    fn update_total_value_max_for_iota(&mut self, max: u64) {
+        self.update_total_value_max(BASE_TOKEN_KEY, max);
+    }
+
+    pub(super) fn update_total_value(&mut self, key: &str, value: u64) {
+        self.inner
+            .entry(key.to_string())
+            .and_modify(|v| v.0 += value)
+            .or_insert((value, 0));
+    }
+
+    pub(super) fn update_total_value_max(&mut self, key: &str, max: u64) {
+        self.inner
+            .entry(key.to_string())
+            .and_modify(|v| v.1 = max)
+            .or_insert((0, max));
+    }
+}
+
 pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
     native_tokens: &NativeTokens,
     foundry_data: &HashMap<TokenId, FoundryLedgerData>,
     native_tokens_bag: impl Into<Option<Bag>>,
     created_native_tokens: Option<&[ObjectID]>,
     storage: &InMemoryStorage,
+    tokens_counter: &mut TokensAmountCounter,
 ) -> Result<()> {
     // Token types should be unique as the token ID is guaranteed unique within
     // NativeTokens
@@ -83,11 +129,12 @@ pub(super) fn verify_native_tokens<NtKind: NativeTokenKind>(
             .token_scheme_u64
             .adjust_tokens(native_token.amount());
 
-        if let Some(created_value) = created_native_tokens.get(&expected_bag_key) {
+        if let Some(&created_value) = created_native_tokens.get(&expected_bag_key) {
             ensure!(
-                *created_value == reduced_amount,
+                created_value == reduced_amount,
                 "created token amount mismatch: found {created_value}, expected {reduced_amount}"
             );
+            tokens_counter.update_total_value(&expected_bag_key, created_value);
         } else {
             bail!(
                 "native token object was not created for token: {}",
