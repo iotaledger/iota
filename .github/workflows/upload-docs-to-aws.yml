@@ -37,17 +37,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Switch to Docs dir
-        run: cd docs/site
+      - name: Build SDK and BCS
+        run: pnpm sdk build && pnpm bcs build
 
       - name: Generate TypeScript docs
-        run: pnpm generate-ts-docs
+        run: pnpm --filter iota-docs generate-ts-docs
 
       - name: Generate GraphQl docs
-        run: pnpm generate-graphql-docs
-
-      - name: Switch to Root Dir
-        run: cd ../../
+        run: pnpm --filter iota-docs generate-graphql-docs
 
       - name: Compress generated docs
         run: |
