@@ -21,18 +21,19 @@ use tracing::debug;
 
 use super::types::output_header::OutputHeader;
 
-/// Processes outputs from a Hornet snapshot considering 3 filters:
-/// - the `ScaleIotaAmountFilter` scales balances of IOTA Tokens from micro to
+/// Processes an iterator of outputs coming from a Hornet snapshot chaining 3
+/// filters:
+/// - the `ScaleIotaAmountIterator` scales balances of IOTA Tokens from micro to
 ///   nano
-/// - the `UnlockedVestingOutputFilter` takes vesting outputs that can be
-///   unlocked and merges them into a unique basic output.
+/// - the `UnlockedVestingIterator` takes vesting outputs that can be unlocked
+///   and merges them into a unique basic output.
 /// - the `ParticipationOutputFilter` removes all features from the basic
 ///   outputs with a participation tag.
 pub fn process_outputs_for_iota<'a>(
     target_milestone_timestamp: u32,
     outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
 ) -> impl Iterator<Item = Result<(OutputHeader, Output), anyhow::Error>> + 'a {
-    // Create the iterator with the filters
+    // Create the iterator with the filters needed for an IOTA snapshot
     outputs
         .scale_iota_amount()
         .filter_unlocked_vesting_outputs(target_milestone_timestamp)
@@ -41,6 +42,28 @@ pub fn process_outputs_for_iota<'a>(
             let (header, output) = res?;
             Ok((header, output))
         })
+}
+
+/// Take an `amount` and scale it by a multiplier defined for the IOTA token.
+pub fn scale_amount_for_iota(amount: u64) -> Result<u64> {
+    const IOTA_MULTIPLIER: u64 = 1000;
+
+    amount
+        .checked_mul(IOTA_MULTIPLIER)
+        .ok_or_else(|| anyhow!("overflow multiplying amount {amount} by {IOTA_MULTIPLIER}"))
+}
+
+// Check if the output is basic and has a feature Tag using the Participation
+// Tag: https://github.com/iota-community/treasury/blob/main/specifications/hornet-participation-plugin.md
+pub fn is_participation_output(output: &Output) -> bool {
+    if let Some(feat) = output.features() {
+        if output.is_basic() && !feat.is_empty() {
+            if let Some(tag) = feat.tag() {
+                return tag.to_string() == Hex::encode_with_format(PARTICIPATION_TAG);
+            };
+        }
+    };
+    false
 }
 
 struct OutputHeaderWithBalance {
@@ -71,6 +94,8 @@ where
 {
     type Item = I::Item;
 
+    /// Get the next from the chained self.outputs iterator and always apply the
+    /// scaling (only an Output::Treasury kind is left out)
     fn next(&mut self) -> Option<Self::Item> {
         let mut output = self.outputs.next()?;
         if let Ok((_, inner)) = &mut output {
@@ -196,8 +221,9 @@ where
 {
     type Item = I::Item;
 
+    /// Get the next from the chained self.outputs iterator and apply the
+    /// processing only if the output is an unlocked vesting one
     fn next(&mut self) -> Option<Self::Item> {
-        // First iterate the outputs
         for output in self.outputs.by_ref() {
             if let Ok((header, inner)) = &output {
                 if let Some(address) =
@@ -267,6 +293,8 @@ where
 {
     type Item = I::Item;
 
+    /// Get the next from the chained self.outputs iterator and apply the
+    /// processing only if the output has a participation tag
     fn next(&mut self) -> Option<Self::Item> {
         let mut output = self.outputs.next()?;
         if let Ok((header, inner)) = &mut output {
@@ -294,7 +322,12 @@ impl<I> Drop for ParticipationOutputIterator<I> {
     }
 }
 
-/// Extension trait that allows simpler methods for chaining filter iterators.
+/// Extension trait that provides convenient methods for chaining and filtering
+/// iterator operations.
+///
+/// The iterators produced by this trait are designed to chain such that,
+/// calling `next()` on the last iterator will recursively invoke `next()` on
+/// the preceding iterators, maintaining the expected behavior.
 trait IteratorExt: Iterator<Item = Result<(OutputHeader, Output)>> + Sized {
     fn scale_iota_amount(self) -> ScaleIotaAmountIterator<Self> {
         ScaleIotaAmountIterator::new(self)
@@ -334,26 +367,4 @@ fn get_address_if_vesting_output(
             uc.address().map(|a| *a.address())
         }
     })
-}
-
-/// Take an `amount` and scale it by a multiplier defined for the IOTA token.
-pub fn scale_amount_for_iota(amount: u64) -> Result<u64> {
-    const IOTA_MULTIPLIER: u64 = 1000;
-
-    amount
-        .checked_mul(IOTA_MULTIPLIER)
-        .ok_or_else(|| anyhow!("overflow multiplying amount {amount} by {IOTA_MULTIPLIER}"))
-}
-
-// Check if the output is basic and has a feature Tag using the Participation
-// Tag: https://github.com/iota-community/treasury/blob/main/specifications/hornet-participation-plugin.md
-pub fn is_participation_output(output: &Output) -> bool {
-    if let Some(feat) = output.features() {
-        if output.is_basic() && !feat.is_empty() {
-            if let Some(tag) = feat.tag() {
-                return tag.to_string() == Hex::encode_with_format(PARTICIPATION_TAG);
-            };
-        }
-    };
-    false
 }
