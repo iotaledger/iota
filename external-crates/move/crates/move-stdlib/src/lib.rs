@@ -6,10 +6,8 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use log::LevelFilter;
-use move_command_line_common::{
-    address::NumericalAddress,
-    files::{extension_equals, find_filenames, MOVE_EXTENSION},
-};
+use move_command_line_common::files::{MOVE_EXTENSION, extension_equals, find_filenames};
+use move_core_types::parsing::address::NumericalAddress;
 
 #[cfg(test)]
 mod tests;

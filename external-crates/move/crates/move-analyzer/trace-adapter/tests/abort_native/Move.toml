@@ -1,0 +1,10 @@
+[package]
+name = "abort_native"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/mainnet" }
+
+[addresses]
+abort_native = "0x0"
+Iota = "0x2"

@@ -31,13 +31,14 @@ use std::{
 use codespan::{ByteIndex, ByteOffset, ColumnOffset, FileId, Files, LineOffset, Location, Span};
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label, Severity},
-    term::{emit, termcolor::WriteColor, Config},
+    term::{Config, emit, termcolor::WriteColor},
 };
 use itertools::Itertools;
 #[allow(unused_imports)]
 use log::{info, warn};
 pub use move_binary_format::file_format::{AbilitySet, Visibility as FunctionVisibility};
 use move_binary_format::{
+    CompiledModule,
     file_format::{
         AddressIdentifierIndex, Bytecode, Constant as VMConstant, ConstantPoolIndex,
         DatatypeHandleIndex, EnumDefinitionIndex, FunctionDefinition, FunctionDefinitionIndex,
@@ -45,14 +46,14 @@ use move_binary_format::{
         StructDefinitionIndex, StructFieldInformation, VariantJumpTable, Visibility,
     },
     normalized::{FunctionRef, Type as MType},
-    CompiledModule,
 };
 use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
-use move_command_line_common::{address::NumericalAddress, files::FileHash};
+use move_command_line_common::files::FileHash;
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
     language_storage,
+    parsing::address::NumericalAddress,
     runtime_value::MoveValue,
 };
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
@@ -965,12 +966,14 @@ impl GlobalEnv {
         loc: Loc,
         typ: Type,
         value: Value,
+        attributes: Vec<Attribute>,
     ) -> NamedConstantData {
         NamedConstantData {
             name,
             loc,
             typ,
             value,
+            attributes,
         }
     }
 
@@ -1074,15 +1077,12 @@ impl GlobalEnv {
                 None => Loc::default(),
                 Some(smap) => self.to_loc(&smap.variants[tag].0.1),
             };
-            variant_data.insert(
-                VariantId(variant_name),
-                VariantData {
-                    name: variant_name,
-                    loc,
-                    tag,
-                    field_data,
-                },
-            );
+            variant_data.insert(VariantId(variant_name), VariantData {
+                name: variant_name,
+                loc,
+                tag,
+                field_data,
+            });
         }
 
         EnumData {
@@ -2177,6 +2177,7 @@ impl<'env> ModuleEnv<'env> {
                 print_code: true,
                 print_basic_blocks: true,
                 print_locals: true,
+                max_output_size: None,
             },
         );
         disas
@@ -3056,6 +3057,9 @@ pub struct NamedConstantData {
 
     /// The value of this constant
     value: Value,
+
+    /// Attributes attached to this constant
+    attributes: Vec<Attribute>,
 }
 
 #[derive(Debug)]
@@ -3095,6 +3099,11 @@ impl<'env> NamedConstantEnv<'env> {
     /// Returns the value of this constant
     pub fn get_value(&self) -> Value {
         self.data.value.clone()
+    }
+
+    /// Returns the attributes attached to this constant
+    pub fn get_attributes(&self) -> &[Attribute] {
+        &self.data.attributes
     }
 }
 
@@ -3721,11 +3730,10 @@ impl<'env> FunctionEnv<'env> {
                         type_parameters,
                     } = module.function_instantiation_at(*fi_idx);
                     let f_ref = FunctionRef::from_idx(module, handle);
-                    if is_framework_function(
-                        &f_ref,
-                        "transfer",
-                        vec!["share_object", "public_share_object"],
-                    ) {
+                    if is_framework_function(&f_ref, "transfer", vec![
+                        "share_object",
+                        "public_share_object",
+                    ]) {
                         let type_params = module.signature_at(*type_parameters);
                         shared.insert(self.module_env.globalize_signature(&type_params.0[0]));
                     }
@@ -3757,11 +3765,10 @@ impl<'env> FunctionEnv<'env> {
                         type_parameters,
                     } = module.function_instantiation_at(*fi_idx);
                     let f_ref = FunctionRef::from_idx(module, handle);
-                    if is_framework_function(
-                        &f_ref,
+                    if is_framework_function(&f_ref, "transfer", vec![
                         "transfer",
-                        vec!["transfer", "public_transfer"],
-                    ) {
+                        "public_transfer",
+                    ]) {
                         let type_params = module.signature_at(*type_parameters);
                         transferred.insert(self.module_env.globalize_signature(&type_params.0[0]));
                     }
@@ -3793,11 +3800,10 @@ impl<'env> FunctionEnv<'env> {
                         type_parameters,
                     } = module.function_instantiation_at(*fi_idx);
                     let f_ref = FunctionRef::from_idx(module, handle);
-                    if is_framework_function(
-                        &f_ref,
-                        "transfer",
-                        vec!["freeze_object", "public_freeze_object"],
-                    ) {
+                    if is_framework_function(&f_ref, "transfer", vec![
+                        "freeze_object",
+                        "public_freeze_object",
+                    ]) {
                         let type_params = module.signature_at(*type_parameters);
                         frozen.insert(self.module_env.globalize_signature(&type_params.0[0]));
                     }

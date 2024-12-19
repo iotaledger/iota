@@ -1006,6 +1006,9 @@ impl TypeInstantiationDerivation {
     /// But in anyway, these type parameters no longer participate in type
     /// unification anymore.
     ///
+    /// But in anyway, these type parameters no longer participate in type
+    /// unification anymore.
+    ///
     /// If `target_lhs` is True, derive instantiations for the type parameter
     /// with `target_param_index` on the `lhs_types`. Otherwise, target the
     /// `rhs_types`.
@@ -1071,6 +1074,9 @@ impl TypeInstantiationDerivation {
     ///       (`inst_param_2`)
     ///     - for each instantiation in `inst_param_2`,
     ///       - ......
+    ///
+    /// The process continues until all type parameters are analyzed (i.e.,
+    /// reaching the type parameter at index `N`).
     ///
     /// The process continues until all type parameters are analyzed (i.e.,
     /// reaching the type parameter at index `N`).

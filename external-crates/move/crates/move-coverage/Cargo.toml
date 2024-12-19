@@ -17,6 +17,7 @@ serde.workspace = true
 
 bcs.workspace = true
 
+indexmap.workspace = true
 move-abstract-interpreter.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true

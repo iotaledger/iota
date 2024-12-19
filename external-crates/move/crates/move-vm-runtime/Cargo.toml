@@ -21,6 +21,7 @@ tracing.workspace = true
 move-binary-format.workspace = true
 move-bytecode-verifier = { path = "../move-bytecode-verifier" }
 move-core-types.workspace = true
+move-trace-format.workspace = true
 move-vm-config.workspace = true
 move-vm-profiler.workspace = true
 move-vm-types.workspace = true
@@ -36,12 +37,9 @@ move-binary-format = { workspace = true, features = ["fuzzing"] }
 default = []
 fuzzing = ["move-vm-types/fuzzing"]
 failpoints = ["fail/failpoints"]
-# Enable tracing and debugging also for release builds. By default, it is only enabled for debug builds.
-debugging = []
 testing = []
 lazy_natives = []
-gas-profiler = [
-  "move-vm-config/gas-profiler",
-  "move-vm-types/gas-profiler",
-  "move-vm-profiler/gas-profiler",
+tracing = [
+  "move-vm-config/tracing",
+  "move-vm-profiler/tracing",
 ]

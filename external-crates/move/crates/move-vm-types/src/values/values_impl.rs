@@ -3,29 +3,32 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    loaded_data::runtime_types::Type,
-    views::{ValueView, ValueVisitor},
-};
-use move_binary_format::{
-    errors::*,
-    file_format::{Constant, SignatureToken, VariantTag},
-};
-use move_core_types::{
-    account_address::AccountAddress,
-    effects::Op,
-    gas_algebra::AbstractMemorySize,
-    runtime_value::{MoveEnumLayout, MoveStructLayout, MoveTypeLayout},
-    u256,
-    vm_status::{sub_status::NFE_VECTOR_ERROR_BASE, StatusCode},
-    VARIANT_COUNT_MAX,
-};
 use std::{
     cell::RefCell,
     fmt::{self, Debug, Display},
     iter,
     ops::Add,
     rc::Rc,
+};
+
+use move_binary_format::{
+    errors::*,
+    file_format::{Constant, SignatureToken, VariantTag},
+};
+use move_core_types::{
+    VARIANT_COUNT_MAX,
+    account_address::AccountAddress,
+    annotated_value as A,
+    effects::Op,
+    gas_algebra::AbstractMemorySize,
+    runtime_value::{MoveEnumLayout, MoveStructLayout, MoveTypeLayout},
+    u256,
+    vm_status::{StatusCode, sub_status::NFE_VECTOR_ERROR_BASE},
+};
+
+use crate::{
+    loaded_data::runtime_types::Type,
+    views::{ValueView, ValueVisitor},
 };
 
 /// ****************************************************************************
@@ -233,13 +236,15 @@ pub struct Variant {
 #[derive(Debug)]
 pub struct VariantRef(ContainerRef);
 
-/***************************************************************************************
- *
- * Misc
- *
- *   Miscellaneous helper functions.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Misc
+///
+///   Miscellaneous helper functions.
+///
+/// ****************************************************************************
+/// *******
 
 impl Container {
     fn len(&self) -> usize {
@@ -883,7 +888,7 @@ impl ContainerRef {
                             )
                             .with_message(
                                 "failed to write_ref: container type mismatch".to_string(),
-                            ))
+                            ));
                         }
                     },
                     Container::Vec(r) => assign!(r, Vec),
@@ -1141,15 +1146,13 @@ impl VariantRef {
                         }),
                         x @ (ValueImpl::ContainerRef(_)
                         | ValueImpl::IndexedRef(_)
-                        | ValueImpl::Invalid) => {
-                            return Err(PartialVMError::new(
-                                StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
-                            )
-                            .with_message(format!(
+                        | ValueImpl::Invalid) => return Err(PartialVMError::new(
+                            StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR,
+                        )
+                        .with_message(format!(
                             "cannot unpack a reference value {:?} held inside a variant ref {:?}",
                             x, self
-                        )))
-                        }
+                        ))),
                     };
                     res.push(Value(ref_));
                 }
@@ -1403,7 +1406,8 @@ impl Value {
         ))))
     }
 
-    // TODO: consider whether we want to replace these with fn vector(v: Vec<Value>).
+    // TODO: consider whether we want to replace these with fn vector(v:
+    // Vec<Value>).
     pub fn vector_u8(it: impl IntoIterator<Item = u8>) -> Self {
         Self(ValueImpl::Container(Container::VecU8(Rc::new(
             RefCell::new(it.into_iter().collect()),
@@ -2763,13 +2767,15 @@ impl Struct {
     }
 }
 
-/***************************************************************************************
- *
- * Variant Operations
- *
- *   Public APIs for Enums.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Variant Operations
+///
+///   Public APIs for Enums.
+///
+/// ****************************************************************************
+/// *******
 impl Variant {
     pub fn pack<I: IntoIterator<Item = Value>>(tag: VariantTag, vals: I) -> Self {
         Self {
@@ -2792,15 +2798,18 @@ impl Variant {
     }
 }
 
-/***************************************************************************************
- *
- * Global Value Operations
- *
- *   Public APIs for GlobalValue. They allow global values to be created from external
- *   source (a.k.a. storage), and references to be taken from them. At the end of the
- *   transaction execution the dirty ones can be identified and wrote back to storage.
- *
- **************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Global Value Operations
+///
+///   Public APIs for GlobalValue. They allow global values to be created from
+/// external   source (a.k.a. storage), and references to be taken from them. At
+/// the end of the   transaction execution the dirty ones can be identified and
+/// wrote back to storage.
+///
+/// ****************************************************************************
+/// *******
 #[allow(clippy::unnecessary_wraps)]
 impl GlobalValueImpl {
     fn cached(
@@ -3312,9 +3321,9 @@ pub mod debug {
 /// ****************************************************************************
 /// *******
 use serde::{
+    Deserialize,
     de::Error as DeError,
     ser::{Error as SerError, SerializeSeq, SerializeTuple},
-    Deserialize,
 };
 
 impl Value {
@@ -3356,7 +3365,7 @@ impl<'a, 'b> serde::Serialize for AnnotatedValue<'a, 'b, MoveTypeLayout, ValueIm
 
             (MoveTypeLayout::Struct(struct_layout), ValueImpl::Container(Container::Struct(r))) => {
                 (AnnotatedValue {
-                    layout: struct_layout,
+                    layout: &**struct_layout,
                     val: &*r.borrow(),
                 })
                 .serialize(serializer)
@@ -3364,7 +3373,7 @@ impl<'a, 'b> serde::Serialize for AnnotatedValue<'a, 'b, MoveTypeLayout, ValueIm
 
             (MoveTypeLayout::Enum(enum_layout), ValueImpl::Container(Container::Variant(r))) => {
                 (AnnotatedValue {
-                    layout: enum_layout,
+                    layout: &**enum_layout,
                     val: &*r.borrow(),
                 })
                 .serialize(serializer)
@@ -3533,12 +3542,12 @@ impl<'d> serde::de::DeserializeSeed<'d> for SeedWrapper<&MoveTypeLayout> {
             L::Signer => AccountAddress::deserialize(deserializer).map(Value::signer),
 
             L::Struct(struct_layout) => Ok(SeedWrapper {
-                layout: struct_layout,
+                layout: &**struct_layout,
             }
             .deserialize(deserializer)?),
 
             L::Enum(enum_layout) => Ok(SeedWrapper {
-                layout: enum_layout,
+                layout: &**enum_layout,
             }
             .deserialize(deserializer)?),
 
@@ -3673,7 +3682,7 @@ impl<'d, 'a> serde::de::Visitor<'d> for EnumFieldVisitor<'a> {
                 return Err(A::Error::invalid_type(
                     serde::de::Unexpected::Other(&format!("{val:?}")),
                     &self,
-                ))
+                ));
             }
             None => return Err(A::Error::invalid_length(0, &self)),
         };
@@ -3704,13 +3713,15 @@ impl<'d, 'a> serde::de::DeserializeSeed<'d> for &MoveRuntimeVariantFieldLayout<'
     }
 }
 
-/***************************************************************************************
-*
-* Constants
-*
-*   Implementation of deserialization of constant data into a runtime value
-*
-**************************************************************************************/
+/// ****************************************************************************
+/// *********
+///
+/// Constants
+///
+///   Implementation of deserialization of constant data into a runtime value
+///
+/// ****************************************************************************
+/// *******
 
 impl Value {
     fn constant_sig_token_to_layout(constant_signature: &SignatureToken) -> Option<MoveTypeLayout> {
@@ -3955,7 +3966,8 @@ impl ValueView for VariantRef {
     }
 }
 
-// Note: We may want to add more helpers to retrieve value views behind references here.
+// Note: We may want to add more helpers to retrieve value views behind
+// references here.
 
 impl Struct {
     #[allow(clippy::needless_lifetimes)]
@@ -4169,7 +4181,7 @@ pub mod prop {
             prop_oneof![
                 1 => inner.clone().prop_map(|layout| L::Vector(Box::new(layout))),
                 1 => vec(inner, 0..1).prop_map(|f_layouts| {
-                     L::Struct(MoveStructLayout::new(f_layouts))}),
+                     L::Struct(Box::new(MoveStructLayout::new(f_layouts)))}),
             ]
         })
     }
@@ -4198,10 +4210,11 @@ impl ValueImpl {
             (L::Bool, ValueImpl::Bool(x)) => MoveValue::Bool(*x),
             (L::Address, ValueImpl::Address(x)) => MoveValue::Address(*x),
 
-            (L::Enum(MoveEnumLayout(variants)), ValueImpl::Container(Container::Variant(r))) => {
+            (L::Enum(enum_layout), ValueImpl::Container(Container::Variant(r))) => {
+                let MoveEnumLayout(variants) = &**enum_layout;
                 let (tag, values) = &*r.borrow();
                 let tag = *tag;
-                let field_layouts = &variants[tag as usize];
+                let field_layouts = &variants.as_slice()[tag as usize];
                 let mut fields = vec![];
                 for (v, field_layout) in values.iter().zip(field_layouts) {
                     fields.push(v.as_move_value(field_layout));
@@ -4261,5 +4274,142 @@ impl ValueImpl {
 impl Value {
     pub fn as_move_value(&self, layout: &MoveTypeLayout) -> MoveValue {
         self.0.as_move_value(layout)
+    }
+
+    pub fn as_annotated_move_value_for_tracing_only(
+        &self,
+        layout: &A::MoveTypeLayout,
+    ) -> Option<A::MoveValue> {
+        self.0.as_annotated_move_value(layout)
+    }
+}
+
+impl ValueImpl {
+    /// Converts the value to an annotated move value. This is only needed for
+    /// tracing and care should be taken when using this function as it can
+    /// possibly inflate the size of the value.
+    fn as_annotated_move_value(&self, layout: &A::MoveTypeLayout) -> Option<A::MoveValue> {
+        use move_core_types::annotated_value::{MoveTypeLayout as L, MoveValue};
+        Some(match (layout, self) {
+            (L::U8, ValueImpl::U8(x)) => MoveValue::U8(*x),
+            (L::U16, ValueImpl::U16(x)) => MoveValue::U16(*x),
+            (L::U32, ValueImpl::U32(x)) => MoveValue::U32(*x),
+            (L::U64, ValueImpl::U64(x)) => MoveValue::U64(*x),
+            (L::U128, ValueImpl::U128(x)) => MoveValue::U128(*x),
+            (L::U256, ValueImpl::U256(x)) => MoveValue::U256(*x),
+            (L::Bool, ValueImpl::Bool(x)) => MoveValue::Bool(*x),
+            (L::Address, ValueImpl::Address(x)) => MoveValue::Address(*x),
+            (l, ValueImpl::Container(c)) => return c.as_annotated_move_value(l),
+            (
+                _,
+                ValueImpl::ContainerRef(
+                    ContainerRef::Local(c) | ContainerRef::Global { container: c, .. },
+                ),
+            ) => return c.as_annotated_move_value(layout),
+            (
+                _,
+                ValueImpl::IndexedRef(IndexedRef {
+                    container_ref:
+                        ContainerRef::Local(c) | ContainerRef::Global { container: c, .. },
+                    idx,
+                }),
+            ) => {
+                use Container::*;
+                let idx = *idx;
+                let res = match c {
+                    Locals(r) | Vec(r) | Struct(r) => r.borrow()[idx].copy_value().unwrap(),
+                    Variant(r) => r.borrow().1[idx].copy_value().unwrap(),
+                    VecU8(r) => ValueImpl::U8(r.borrow()[idx]),
+                    VecU16(r) => ValueImpl::U16(r.borrow()[idx]),
+                    VecU32(r) => ValueImpl::U32(r.borrow()[idx]),
+                    VecU64(r) => ValueImpl::U64(r.borrow()[idx]),
+                    VecU128(r) => ValueImpl::U128(r.borrow()[idx]),
+                    VecU256(r) => ValueImpl::U256(r.borrow()[idx]),
+                    VecBool(r) => ValueImpl::Bool(r.borrow()[idx]),
+                    VecAddress(r) => ValueImpl::Address(r.borrow()[idx]),
+                };
+                return res.as_annotated_move_value(layout);
+            }
+            (_layout, _val) => return None,
+        })
+    }
+}
+
+impl Container {
+    fn as_annotated_move_value(&self, layout: &A::MoveTypeLayout) -> Option<A::MoveValue> {
+        use move_core_types::annotated_value::MoveTypeLayout as L;
+        Some(match (layout, self) {
+            (L::Enum(e_layout), Container::Variant(r)) => {
+                let A::MoveEnumLayout { type_, variants } = e_layout.as_ref();
+                let (tag, values) = &*r.borrow();
+                let tag = *tag;
+                let ((name, _), field_layouts) =
+                    variants.iter().find(|((_, t), _)| *t == tag).unwrap();
+                let mut fields = vec![];
+                for (v, field_layout) in values.iter().zip(field_layouts) {
+                    fields.push((
+                        field_layout.name.clone(),
+                        v.as_annotated_move_value(&field_layout.layout)?,
+                    ));
+                }
+                A::MoveValue::Variant(A::MoveVariant {
+                    tag,
+                    fields,
+                    type_: type_.clone(),
+                    variant_name: name.clone(),
+                })
+            }
+            (L::Struct(struct_layout), Container::Struct(r)) => {
+                let mut fields = vec![];
+                for (v, field_layout) in r.borrow().iter().zip(struct_layout.fields.iter()) {
+                    fields.push((
+                        field_layout.name.clone(),
+                        v.as_annotated_move_value(&field_layout.layout)?,
+                    ));
+                }
+                A::MoveValue::Struct(A::MoveStruct::new(struct_layout.type_.clone(), fields))
+            }
+
+            (L::Vector(inner_layout), c) => A::MoveValue::Vector(match c {
+                Container::VecU8(r) => r.borrow().iter().map(|u| A::MoveValue::U8(*u)).collect(),
+                Container::VecU16(r) => r.borrow().iter().map(|u| A::MoveValue::U16(*u)).collect(),
+                Container::VecU32(r) => r.borrow().iter().map(|u| A::MoveValue::U32(*u)).collect(),
+                Container::VecU64(r) => r.borrow().iter().map(|u| A::MoveValue::U64(*u)).collect(),
+                Container::VecU128(r) => {
+                    r.borrow().iter().map(|u| A::MoveValue::U128(*u)).collect()
+                }
+                Container::VecU256(r) => {
+                    r.borrow().iter().map(|u| A::MoveValue::U256(*u)).collect()
+                }
+                Container::VecBool(r) => {
+                    r.borrow().iter().map(|u| A::MoveValue::Bool(*u)).collect()
+                }
+                Container::VecAddress(r) => r
+                    .borrow()
+                    .iter()
+                    .map(|u| A::MoveValue::Address(*u))
+                    .collect(),
+                Container::Vec(r) => r
+                    .borrow()
+                    .iter()
+                    .map(|v| v.as_annotated_move_value(inner_layout))
+                    .collect::<Option<_>>()?,
+                Container::Struct(_) | Container::Variant { .. } | Container::Locals(_) => {
+                    return None;
+                }
+            }),
+
+            (L::Signer, Container::Struct(r)) => {
+                let v = r.borrow();
+                if v.len() != 1 {
+                    return None;
+                }
+                match &v[0] {
+                    ValueImpl::Address(a) => A::MoveValue::Signer(*a),
+                    _ => return None,
+                }
+            }
+            (_layout, _val) => return None,
+        })
     }
 }

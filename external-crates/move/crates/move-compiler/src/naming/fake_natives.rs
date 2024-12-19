@@ -14,15 +14,16 @@ use move_symbol_pool::symbol;
 
 use crate::{
     diag,
+    diagnostics::DiagnosticReporter,
     expansion::ast::{Address, ModuleIdent, ModuleIdent_},
     naming::ast as N,
     parser::ast::FunctionName,
-    shared::{known_attributes::NativeAttribute, CompilationEnv, Identifier},
+    shared::{known_attributes::NativeAttribute, Identifier},
 };
 
 /// verify fake native attribute usage usage
 pub fn function(
-    env: &mut CompilationEnv,
+    reporter: &DiagnosticReporter,
     module: ModuleIdent,
     function_name: FunctionName,
     function: &N::Function,
@@ -48,7 +49,7 @@ pub fn function(
             (loc, attr_msg),
             (function_name.loc(), name_msg),
         );
-        env.add_diag(diag);
+        reporter.add_diag(diag);
     }
     match &function.body.value {
         N::FunctionBody_::Native => (),
@@ -58,7 +59,7 @@ pub fn function(
                 NativeAttribute::BYTECODE_INSTRUCTION
             );
             let diag = diag!(Attributes::InvalidBytecodeInst, (loc, attr_msg));
-            env.add_diag(diag);
+            reporter.add_diag(diag);
         }
     }
 }

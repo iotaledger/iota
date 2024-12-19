@@ -7,14 +7,14 @@ use move_core_types::{
     account_address::AccountAddress,
     identifier::Identifier,
     language_storage::ModuleId,
-    runtime_value::{serialize_values, MoveValue},
+    runtime_value::{MoveValue, serialize_values},
     vm_status::StatusType,
 };
 use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::{BlankStorage, InMemoryStorage};
 use move_vm_types::gas::UnmeteredGasMeter;
 
-use crate::compiler::{as_module, compile_units};
+use crate::compiler::{as_module, compile_units, serialize_module_at_max_version};
 
 const TEST_ADDR: AccountAddress = AccountAddress::new([42; AccountAddress::LENGTH]);
 
@@ -50,7 +50,7 @@ fn call_non_existent_function() {
     let mut units = compile_units(&code).unwrap();
     let m = as_module(units.pop().unwrap());
     let mut blob = vec![];
-    m.serialize(&mut blob).unwrap();
+    serialize_module_at_max_version(&m, &mut blob).unwrap();
 
     let mut storage = InMemoryStorage::new();
     let module_id = ModuleId::new(TEST_ADDR, Identifier::new("M").unwrap());

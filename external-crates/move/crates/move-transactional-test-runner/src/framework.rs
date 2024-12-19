@@ -14,30 +14,32 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use clap::Parser;
 use move_binary_format::file_format::CompiledModule;
 use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
 use move_command_line_common::{
-    address::ParsedAddress,
     env::read_bool_env_var,
     files::{MOVE_EXTENSION, MOVE_IR_EXTENSION},
-    testing::{add_update_baseline_fix, format_diff, read_env_update_baseline, EXP_EXT},
-    types::ParsedType,
-    values::{ParsableValue, ParsedValue},
+    testing::{EXP_EXT, add_update_baseline_fix, format_diff, read_env_update_baseline},
 };
 use move_compiler::{
-    compiled_unit::AnnotatedCompiledUnit,
-    diagnostics::{Diagnostics, WarningFilters},
-    editions::{Edition, Flavor},
-    shared::{files::MappedFiles, NumericalAddress, PackageConfig},
     FullyCompiledProgram,
+    compiled_unit::AnnotatedCompiledUnit,
+    diagnostics::{Diagnostics, warning_filters::WarningFiltersBuilder},
+    editions::{Edition, Flavor},
+    shared::{NumericalAddress, PackageConfig, files::MappedFiles},
 };
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, TypeTag},
+    parsing::{
+        address::ParsedAddress,
+        types::ParsedType,
+        values::{ParsableValue, ParsedValue},
+    },
 };
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
 use move_ir_types::location::Spanned;
@@ -46,8 +48,8 @@ use move_vm_runtime::session::SerializedReturnValues;
 use tempfile::NamedTempFile;
 
 use crate::tasks::{
-    taskify, InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice,
-    TaskCommand, TaskInput,
+    InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice, TaskCommand,
+    TaskInput, taskify,
 };
 
 pub struct CompiledState {
@@ -660,7 +662,7 @@ pub fn compile_source_units(
     // struct types on purpose and generating warnings for all of them does not
     // make much sense (and there would be a lot of them!) so let's suppress
     // them function warnings, so let's suppress these
-    let warning_filter = WarningFilters::unused_warnings_filter_for_test();
+    let warning_filter = WarningFiltersBuilder::unused_warnings_filter_for_test();
     let (mut files, comments_and_compiler_res) = move_compiler::Compiler::from_files(
         None,
         vec![file_name.as_ref().to_str().unwrap().to_owned()],

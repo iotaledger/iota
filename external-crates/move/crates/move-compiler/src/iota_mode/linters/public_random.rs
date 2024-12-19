@@ -6,24 +6,17 @@
 //! public functions.
 
 use super::{
-    LinterDiagnosticCategory, LinterDiagnosticCode, IOTA_PKG_NAME, LINT_WARNING_PREFIX,
+    LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode,
     RANDOM_GENERATOR_STRUCT_NAME, RANDOM_MOD_NAME, RANDOM_STRUCT_NAME,
 };
 use crate::{
     diag,
-    diagnostics::{
-        codes::{custom, DiagnosticInfo, Severity},
-        WarningFilters,
-    },
+    diagnostics::codes::{DiagnosticInfo, Severity, custom},
     expansion::ast::{ModuleIdent, Visibility},
-    iota_mode::IOTA_ADDR_NAME,
+    iota_mode::{IOTA_ADDR_NAME, IOTA_ADDR_VALUE},
     naming::ast as N,
     parser::ast::FunctionName,
-    shared::CompilationEnv,
-    typing::{
-        ast as T,
-        visitor::{TypingVisitorConstructor, TypingVisitorContext},
-    },
+    typing::{ast as T, visitor::simple_visitor},
 };
 
 const PUBLIC_RANDOM_DIAG: DiagnosticInfo = custom(
@@ -34,38 +27,17 @@ const PUBLIC_RANDOM_DIAG: DiagnosticInfo = custom(
     "Risky use of 'iota::random'",
 );
 
-pub struct PublicRandomVisitor;
-pub struct Context<'a> {
-    env: &'a mut CompilationEnv,
-}
-
-impl TypingVisitorConstructor for PublicRandomVisitor {
-    type Context<'a> = Context<'a>;
-
-    fn context<'a>(env: &'a mut CompilationEnv, _program: &T::Program) -> Self::Context<'a> {
-        Context { env }
-    }
-}
-
-impl TypingVisitorContext for Context<'_> {
-    fn add_warning_filter_scope(&mut self, filter: WarningFilters) {
-        self.env.add_warning_filter_scope(filter)
-    }
-
-    fn pop_warning_filter_scope(&mut self) {
-        self.env.pop_warning_filter_scope()
-    }
-
-    fn visit_module_custom(&mut self, ident: ModuleIdent, mdef: &mut T::ModuleDefinition) -> bool {
+simple_visitor!(
+    PublicRandomVisitor,
+    fn visit_module_custom(&mut self, ident: ModuleIdent, mdef: &T::ModuleDefinition) -> bool {
         // skips if true
-        mdef.attributes.is_test_or_test_only() || ident.value.address.is(IOTA_ADDR_NAME)
-    }
-
+        mdef.attributes.is_test_or_test_only() || ident.value.address.is(&IOTA_ADDR_VALUE)
+    },
     fn visit_function_custom(
         &mut self,
         _module: ModuleIdent,
         fname: FunctionName,
-        fdef: &mut T::Function,
+        fdef: &T::Function,
     ) -> bool {
         if fdef.attributes.is_test_or_test_only()
             || !matches!(fdef.visibility, Visibility::Public(_))
@@ -80,25 +52,29 @@ impl TypingVisitorContext for Context<'_> {
                 let mut d = diag!(PUBLIC_RANDOM_DIAG, (tloc, msg));
                 let note = format!(
                     "Functions that accept '{}::{}::{}' as a parameter might be abused by attackers by inspecting the results of randomness",
-                    IOTA_PKG_NAME, RANDOM_MOD_NAME, struct_name
+                    IOTA_ADDR_NAME, RANDOM_MOD_NAME, struct_name
                 );
                 d.add_note(note);
                 d.add_note("Non-public functions are preferred");
-                self.env.add_diag(d);
+                self.add_diag(d);
             }
         }
         true
     }
-}
+);
 
 fn is_random_or_random_generator(sp!(_, t): &N::Type) -> Option<&str> {
     use N::Type_ as T;
     match t {
         T::Ref(_, inner_t) => is_random_or_random_generator(inner_t),
         T::Apply(_, sp!(_, tname), _) => {
-            if tname.is(IOTA_PKG_NAME, RANDOM_MOD_NAME, RANDOM_STRUCT_NAME) {
+            if tname.is(&IOTA_ADDR_VALUE, RANDOM_MOD_NAME, RANDOM_STRUCT_NAME) {
                 Some(RANDOM_STRUCT_NAME)
-            } else if tname.is(IOTA_PKG_NAME, RANDOM_MOD_NAME, RANDOM_GENERATOR_STRUCT_NAME) {
+            } else if tname.is(
+                &IOTA_ADDR_VALUE,
+                RANDOM_MOD_NAME,
+                RANDOM_GENERATOR_STRUCT_NAME,
+            ) {
                 Some(RANDOM_GENERATOR_STRUCT_NAME)
             } else {
                 None

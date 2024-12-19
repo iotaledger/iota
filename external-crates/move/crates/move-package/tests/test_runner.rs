@@ -20,7 +20,7 @@ use move_package::{
     package_hooks,
     package_hooks::{PackageHooks, PackageIdentifier},
     resolution::resolution_graph::Package,
-    source_package::parsed_manifest::{CustomDepInfo, PackageDigest, SourceManifest},
+    source_package::parsed_manifest::{OnChainInfo, PackageDigest, SourceManifest},
     BuildConfig, ModelConfig,
 };
 use move_symbol_pool::Symbol;
@@ -204,23 +204,12 @@ impl PackageHooks for TestHooks {
         vec!["test_hooks_field".to_owned(), "version".to_owned()]
     }
 
-    fn custom_dependency_key(&self) -> Option<String> {
-        Some("custom".to_owned())
-    }
-
-    fn resolve_custom_dependency(
+    fn resolve_on_chain_dependency(
         &self,
         dep_name: Symbol,
-        info: &CustomDepInfo,
+        info: &OnChainInfo,
     ) -> anyhow::Result<()> {
-        bail!(
-            "TestHooks resolve dep {:?} = {:?} {:?} {:?} {:?}",
-            dep_name,
-            info.node_url,
-            info.package_name,
-            info.package_address,
-            info.subdir.to_string_lossy(),
-        )
+        bail!("TestHooks resolve dep {:?} = {:?}", dep_name, info.id,)
     }
 
     fn custom_resolve_pkg_id(

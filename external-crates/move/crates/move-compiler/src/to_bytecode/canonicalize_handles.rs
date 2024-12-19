@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use move_binary_format::{
+    CompiledModule,
     file_format::{
         Bytecode, CodeUnit, DatatypeHandleIndex, EnumDefinition, EnumDefinitionIndex,
         FunctionDefinition, FunctionDefinitionIndex, FunctionHandleIndex, IdentifierIndex,
@@ -12,7 +13,6 @@ use move_binary_format::{
         StructFieldInformation, TableIndex,
     },
     internals::ModuleIndex,
-    CompiledModule,
 };
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;

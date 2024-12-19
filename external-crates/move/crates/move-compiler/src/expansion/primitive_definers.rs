@@ -4,30 +4,30 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use super::ast::Attribute_;
 use crate::{
-    diag,
-    expansion::ast::{ModuleDefinition, ModuleIdent},
+    FullyCompiledProgram, diag,
+    diagnostics::DiagnosticReporter,
+    expansion::ast::{Attribute_, ModuleDefinition, ModuleIdent},
     naming::ast::BuiltinTypeName_,
     shared::{
+        CompilationEnv,
         known_attributes::{DefinesPrimitive, KnownAttribute},
         unique_map::UniqueMap,
-        CompilationEnv,
     },
-    FullyCompiledProgram,
 };
 
 /// Gather primitive defines from module declarations, erroring on duplicates
 /// for a given base type or for unknown base types.
 pub fn modules(
-    env: &mut CompilationEnv,
+    env: &CompilationEnv,
     pre_compiled_lib_opt: Option<Arc<FullyCompiledProgram>>,
     modules: &UniqueMap<ModuleIdent, ModuleDefinition>,
 ) {
+    let reporter = env.diagnostic_reporter_at_top_level();
     let mut definers = BTreeMap::new();
     for (mident, m) in modules.key_cloned_iter() {
         check_prim_definer(
-            env,
+            &reporter,
             // allow shadowing
             false,
             &mut definers,
@@ -38,7 +38,7 @@ pub fn modules(
     if let Some(pre_compiled_lib) = pre_compiled_lib_opt {
         for (mident, m) in pre_compiled_lib.expansion.modules.key_cloned_iter() {
             check_prim_definer(
-                env,
+                &reporter,
                 // allow shadowing
                 true,
                 &mut definers,
@@ -51,7 +51,7 @@ pub fn modules(
 }
 
 fn check_prim_definer(
-    env: &mut CompilationEnv,
+    reporter: &DiagnosticReporter,
     allow_shadowing: bool,
     definers: &mut BTreeMap<BuiltinTypeName_, crate::expansion::ast::ModuleIdent>,
     mident: ModuleIdent,
@@ -68,7 +68,7 @@ fn check_prim_definer(
             "Expected a primitive type parameterization, e.g. '{}(<type>)'",
             DefinesPrimitive::DEFINES_PRIM
         );
-        env.add_diag(diag!(Attributes::InvalidUsage, (*attr_loc, msg)));
+        reporter.add_diag(diag!(Attributes::InvalidUsage, (*attr_loc, msg)));
         return;
     };
     if params.len() != 1 {
@@ -76,7 +76,7 @@ fn check_prim_definer(
             "Expected a single primitive type parameterization, e.g. '{}(<type>)'",
             DefinesPrimitive::DEFINES_PRIM
         );
-        env.add_diag(diag!(Attributes::InvalidUsage, (*attr_loc, msg)));
+        reporter.add_diag(diag!(Attributes::InvalidUsage, (*attr_loc, msg)));
         return;
     }
     let (_, _, sp!(param_loc, param_)) = params.into_iter().next().unwrap();
@@ -85,7 +85,7 @@ fn check_prim_definer(
             "Expected a primitive type parameterization, e.g. '{}(<type>)'",
             DefinesPrimitive::DEFINES_PRIM
         );
-        env.add_diag(diag!(Attributes::InvalidUsage, (*param_loc, msg)));
+        reporter.add_diag(diag!(Attributes::InvalidUsage, (*param_loc, msg)));
         return;
     };
     let Some(prim) = BuiltinTypeName_::resolve(name.value.as_str()) else {
@@ -94,14 +94,14 @@ fn check_prim_definer(
             DefinesPrimitive::DEFINES_PRIM,
             name,
         );
-        env.add_diag(diag!(Attributes::InvalidUsage, (name.loc, msg)));
+        reporter.add_diag(diag!(Attributes::InvalidUsage, (name.loc, msg)));
         return;
     };
 
     if let Some(prev) = definers.get(&prim) {
         if !allow_shadowing {
             let msg = format!("Duplicate definer annotated for primitive type '{}'", prim);
-            env.add_diag(diag!(
+            reporter.add_diag(diag!(
                 Attributes::InvalidUsage,
                 (*attr_loc, msg),
                 (prev.loc, "Previously declared here")
