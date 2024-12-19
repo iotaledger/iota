@@ -17,31 +17,9 @@ use iota_sdk::types::{
     },
 };
 use iota_types::timelock::timelock::is_vested_reward;
-use tracing::info;
+use tracing::debug;
 
 use super::types::output_header::OutputHeader;
-
-/// Take an `amount` and scale it by a multiplier defined for the IOTA token.
-pub fn scale_amount_for_iota(amount: u64) -> Result<u64> {
-    const IOTA_MULTIPLIER: u64 = 1000;
-
-    amount
-        .checked_mul(IOTA_MULTIPLIER)
-        .ok_or_else(|| anyhow!("overflow multiplying amount {amount} by {IOTA_MULTIPLIER}"))
-}
-
-// Check if the output is basic and has a feature Tag using the Participation
-// Tag: https://github.com/iota-community/treasury/blob/main/specifications/hornet-participation-plugin.md
-pub fn is_participation_output(output: &Output) -> bool {
-    if let Some(feat) = output.features() {
-        if output.is_basic() && !feat.is_empty() {
-            if let Some(tag) = feat.tag() {
-                return tag.to_string() == Hex::encode_with_format(PARTICIPATION_TAG);
-            };
-        }
-    };
-    false
-}
 
 /// Processes outputs from a Hornet snapshot considering 3 filters:
 /// - the `ScaleIotaAmountFilter` scales balances of IOTA Tokens from micro to
@@ -53,24 +31,16 @@ pub fn is_participation_output(output: &Output) -> bool {
 pub fn process_outputs_for_iota<'a>(
     target_milestone_timestamp: u32,
     outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
-    with_metrics: bool,
 ) -> impl Iterator<Item = Result<(OutputHeader, Output), anyhow::Error>> + 'a {
-    let scale_amount_filter = Box::new(ScaleIotaAmountFilter::new(with_metrics));
-    let vesting_filter = Box::new(UnlockedVestingOutputFilter::new(
-        target_milestone_timestamp,
-        with_metrics,
-    ));
-    let participation_filter = Box::new(ParticipationOutputFilter::new(with_metrics));
-
     // Create the iterator with the filters
-    HornetFilterIterator::new(
-        vec![scale_amount_filter, vesting_filter, participation_filter],
-        outputs,
-    )
-    .map(|res| {
-        let (header, output) = res?;
-        Ok((header, output))
-    })
+    outputs
+        .scale_iota_amount()
+        .filter_unlocked_vesting_outputs(target_milestone_timestamp)
+        .filter_participation_outputs()
+        .map(|res| {
+            let (header, output) = res?;
+            Ok((header, output))
+        })
 }
 
 struct OutputHeaderWithBalance {
@@ -78,110 +48,34 @@ struct OutputHeaderWithBalance {
     balance: u64,
 }
 
-// Define the trait for filtering logic
-trait HornetFilter<Item> {
-    /// Filters the given output based on custom criteria. It returns Some if
-    /// the output is modified in place or left as it is, but nonetheless
-    /// finalized. It returns None if the output requires other modifications
-    /// before being finalized (e.g., to be merged with other outputs).
-    fn process(&mut self, output: Item) -> Option<Item>;
-    /// Pop an output processed during the filtering process that was not
-    /// finalized.
-    fn pop_processed(&mut self) -> Option<Item>;
-    /// Print the metrics of the filtering process.
-    fn print_metrics(&self);
-}
-
-/// An iterator that processes outputs based on some filters.
-struct HornetFilterIterator<I, Item>
-where
-    I: Iterator<Item = Item>,
-{
-    /// The vector of filters.
-    filters: Vec<Box<dyn HornetFilter<Item>>>,
+/// Iterator that modifies the amount of IOTA tokens for any output, scaling the
+/// amount from micros to nanos.
+struct ScaleIotaAmountIterator<I> {
     /// Iterator over `(OutputHeader, Output)` pairs.
     outputs: I,
+    num_scaled_outputs: u64,
 }
 
-impl<I, Item> HornetFilterIterator<I, Item>
-where
-    I: Iterator<Item = Item>,
-{
-    fn new(filters: Vec<Box<dyn HornetFilter<Item>>>, outputs: I) -> Self {
-        Self { filters, outputs }
-    }
-
-    fn maybe_print_metrics(&self) {
-        for filter in &self.filters {
-            filter.print_metrics();
+impl<I> ScaleIotaAmountIterator<I> {
+    fn new(outputs: I) -> Self {
+        Self {
+            outputs,
+            num_scaled_outputs: 0,
         }
     }
 }
 
-impl<I> Iterator for HornetFilterIterator<I, Result<(OutputHeader, Output)>>
+impl<I> Iterator for ScaleIotaAmountIterator<I>
 where
     I: Iterator<Item = Result<(OutputHeader, Output)>>,
 {
     type Item = I::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // For each output result, try to apply all the filters. If a filter returns
-        // None, then continue the loop. Else, if all filters have acted, then break the
-        // loop and return the output.
-        'main: for mut output in self.outputs.by_ref() {
-            for filter in &mut self.filters {
-                if let Some(res) = filter.process(output) {
-                    output = res; // Update output with the result of the filter
-                } else {
-                    continue 'main;
-                }
-            }
-            return Some(output);
-        }
-
-        // Now that we are out of the loop we collect the processed outputs from the
-        // filters
-        for filter in &mut self.filters {
-            if let Some(processed_output) = filter.pop_processed() {
-                return Some(processed_output);
-            }
-        }
-
-        // Iteration has finished
-        self.maybe_print_metrics();
-        None
-    }
-}
-
-/// Filter that modifies the amount of IOTA tokens for any output, scaling the
-/// amount from micros to nanos. Operates in place during the iteration.
-#[derive(Default)]
-struct ScaleIotaAmountFilter {
-    number_of_modified_outputs: u64,
-    /// Flag to enable metrics
-    with_metrics: bool,
-}
-
-impl ScaleIotaAmountFilter {
-    fn new(with_metrics: bool) -> Self {
-        Self {
-            number_of_modified_outputs: 0,
-            with_metrics,
-        }
-    }
-}
-
-impl HornetFilter<Result<(OutputHeader, Output)>> for ScaleIotaAmountFilter {
-    fn process(
-        &mut self,
-        output: Result<(OutputHeader, Output)>,
-    ) -> Option<Result<(OutputHeader, Output)>> {
-        // continue filtering
-        Some(output.map(|(header, inner)| {
-            if self.with_metrics {
-                self.number_of_modified_outputs += 1;
-            }
-            (header, match inner {
+        let mut output = self.outputs.next()?;
+        if let Ok((_, inner)) = &mut output {
+            self.num_scaled_outputs += 1;
+            match inner {
                 Output::Basic(ref basic_output) => {
                     // Update amount
                     let mut builder = BasicOutputBuilder::from(basic_output).with_amount(
@@ -204,27 +98,31 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for ScaleIotaAmountFilter {
                             .unwrap(),
                         );
                     };
-                    builder
+                    *inner = builder
                         .finish()
                         .expect("should be able to create a basic output")
                         .into()
                 }
-                Output::Alias(ref alias_output) => AliasOutputBuilder::from(alias_output)
-                    .with_amount(
-                        scale_amount_for_iota(alias_output.amount())
-                            .expect("should scale the amount for iota"),
-                    )
-                    .finish()
-                    .expect("should be able to create an alias output")
-                    .into(),
-                Output::Foundry(ref foundry_output) => FoundryOutputBuilder::from(foundry_output)
-                    .with_amount(
-                        scale_amount_for_iota(foundry_output.amount())
-                            .expect("should scale the amount for iota"),
-                    )
-                    .finish()
-                    .expect("should be able to create a foundry output")
-                    .into(),
+                Output::Alias(ref alias_output) => {
+                    *inner = AliasOutputBuilder::from(alias_output)
+                        .with_amount(
+                            scale_amount_for_iota(alias_output.amount())
+                                .expect("should scale the amount for iota"),
+                        )
+                        .finish()
+                        .expect("should be able to create an alias output")
+                        .into()
+                }
+                Output::Foundry(ref foundry_output) => {
+                    *inner = FoundryOutputBuilder::from(foundry_output)
+                        .with_amount(
+                            scale_amount_for_iota(foundry_output.amount())
+                                .expect("should scale the amount for iota"),
+                        )
+                        .finish()
+                        .expect("should be able to create a foundry output")
+                        .into()
+                }
                 Output::Nft(ref nft_output) => {
                     // Update amount
                     let mut builder = NftOutputBuilder::from(nft_output).with_amount(
@@ -247,187 +145,173 @@ impl HornetFilter<Result<(OutputHeader, Output)>> for ScaleIotaAmountFilter {
                             .unwrap(),
                         );
                     };
-                    builder
+                    *inner = builder
                         .finish()
                         .expect("should be able to create an nft output")
-                        .into()
+                        .into();
                 }
-                Output::Treasury(_) => inner,
-            })
-        }))
-    }
-
-    fn pop_processed(&mut self) -> Option<Result<(OutputHeader, Output)>> {
-        None
-    }
-
-    fn print_metrics(&self) {
-        if self.with_metrics {
-            info!(
-                "Number of ScaleIotaAmountFilter modified outputs: {}",
-                self.number_of_modified_outputs
-            );
+                Output::Treasury(_) => (),
+            }
         }
+        Some(output)
     }
 }
 
-/// Filter that looks for vesting outputs that can be unlocked and stores them
-/// during the iteration. At the end of the iteration it merges all vesting
-/// outputs owned by a single address into a unique basic output.
-#[derive(Default)]
-struct UnlockedVestingOutputFilter {
+impl<I> Drop for ScaleIotaAmountIterator<I> {
+    fn drop(&mut self) {
+        debug!("Number of scaled outputs: {}", self.num_scaled_outputs);
+    }
+}
+
+/// Filtering iterator that looks for vesting outputs that can be unlocked and
+/// stores them during the iteration. At the end of the iteration it merges all
+/// vesting outputs owned by a single address into a unique basic output.
+struct UnlockedVestingIterator<I> {
+    /// Iterator over `(OutputHeader, Output)` pairs.
+    outputs: I,
     /// Stores aggregated balances for eligible addresses.
     unlocked_address_balances: BTreeMap<Address, OutputHeaderWithBalance>,
     /// Timestamp used to evaluate timelock conditions.
     snapshot_timestamp_s: u32,
     /// Output picked to be merged
-    modified_outputs: Vec<OutputId>,
-    /// Number of modified outputs after merge
-    number_of_outcome_outputs: u64,
-    /// Flag to enable metrics
-    with_metrics: bool,
+    vesting_outputs: Vec<OutputId>,
+    num_vesting_outputs: u64,
 }
 
-impl UnlockedVestingOutputFilter {
-    fn new(snapshot_timestamp_s: u32, with_metrics: bool) -> Self {
+impl<I> UnlockedVestingIterator<I> {
+    fn new(outputs: I, snapshot_timestamp_s: u32) -> Self {
         Self {
-            unlocked_address_balances: BTreeMap::new(),
+            outputs,
+            unlocked_address_balances: Default::default(),
             snapshot_timestamp_s,
-            modified_outputs: vec![],
-            number_of_outcome_outputs: 0,
-            with_metrics,
+            vesting_outputs: Default::default(),
+            num_vesting_outputs: Default::default(),
         }
     }
 }
 
-impl HornetFilter<Result<(OutputHeader, Output)>> for UnlockedVestingOutputFilter {
-    fn process(
-        &mut self,
-        output: Result<(OutputHeader, Output)>,
-    ) -> Option<Result<(OutputHeader, Output)>> {
-        if let Ok((header, inner)) = output {
-            if let Some(address) =
-                get_address_if_vesting_output(&header, &inner, self.snapshot_timestamp_s)
-            {
-                if self.with_metrics {
-                    self.modified_outputs.push(header.output_id());
+impl<I> Iterator for UnlockedVestingIterator<I>
+where
+    I: Iterator<Item = Result<(OutputHeader, Output)>>,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // First iterate the outputs
+        for output in self.outputs.by_ref() {
+            if let Ok((header, inner)) = &output {
+                if let Some(address) =
+                    get_address_if_vesting_output(header, inner, self.snapshot_timestamp_s)
+                {
+                    self.vesting_outputs.push(header.output_id());
+                    self.unlocked_address_balances
+                        .entry(address)
+                        .and_modify(|x| x.balance += inner.amount())
+                        .or_insert(OutputHeaderWithBalance {
+                            output_header: header.clone(),
+                            balance: inner.amount(),
+                        });
+                    continue;
                 }
-                self.unlocked_address_balances
-                    .entry(address)
-                    .and_modify(|x| x.balance += inner.amount())
-                    .or_insert(OutputHeaderWithBalance {
-                        output_header: header.clone(),
-                        balance: inner.amount(),
-                    });
-                // stop filtering
-                None
-            } else {
-                // continue filtering
-                Some(Ok((header, inner)))
+                return Some(output);
             }
-        } else {
-            // continue filtering
-            Some(output)
         }
-    }
+        // Now that we are out of the loop we collect the processed outputs from the
+        // filters
+        let (address, output_header_with_balance) = self.unlocked_address_balances.pop_first()?;
+        self.num_vesting_outputs += 1;
+        // create a new basic output which holds the aggregated balance from
+        // unlocked vesting outputs for this address
+        let basic = BasicOutputBuilder::new_with_amount(output_header_with_balance.balance)
+            .add_unlock_condition(AddressUnlockCondition::new(address))
+            .finish()
+            .expect("should be able to create a basic output");
 
-    fn pop_processed(&mut self) -> Option<Result<(OutputHeader, Output)>> {
-        self.unlocked_address_balances
-            .pop_first()
-            .map(|(address, output_header_with_balance)| {
-                if self.with_metrics {
-                    self.number_of_outcome_outputs += 1;
-                }
-                // create a new basic output which holds the aggregated balance from
-                // unlocked vesting outputs for this address
-                let basic = BasicOutputBuilder::new_with_amount(output_header_with_balance.balance)
-                    .add_unlock_condition(AddressUnlockCondition::new(address))
-                    .finish()
-                    .expect("should be able to create a basic output");
-
-                Ok((output_header_with_balance.output_header, basic.into()))
-            })
-    }
-
-    fn print_metrics(&self) {
-        if self.with_metrics {
-            info!(
-                "Number of UnlockedVestingOutputFilter modified outputs: {}",
-                self.modified_outputs.len()
-            );
-            info!(
-                "Number of UnlockedVestingOutputFilter outcome outputs: {}",
-                self.number_of_outcome_outputs
-            );
-        }
+        Some(Ok((output_header_with_balance.output_header, basic.into())))
     }
 }
 
-/// Filter that looks for basic outputs having a tag being the Participation Tag
-/// and removes all features from the basic output. Operates in place during the
-/// iteration.
-#[derive(Default)]
-struct ParticipationOutputFilter {
-    /// Outputs where features were removed
-    modified_outputs: Vec<OutputId>,
-    /// Flag to enable metrics
-    with_metrics: bool,
+impl<I> Drop for UnlockedVestingIterator<I> {
+    fn drop(&mut self) {
+        debug!(
+            "Number of vesting outputs before merge: {}",
+            self.vesting_outputs.len()
+        );
+        debug!(
+            "Number of vesting outputs after merging: {}",
+            self.num_vesting_outputs
+        );
+    }
 }
 
-impl ParticipationOutputFilter {
-    fn new(with_metrics: bool) -> Self {
+/// Iterator that looks for basic outputs having a tag being the Participation
+/// Tag and removes all features from the basic output.
+struct ParticipationOutputIterator<I> {
+    /// Iterator over `(OutputHeader, Output)` pairs.
+    outputs: I,
+    participation_outputs: Vec<OutputId>,
+}
+
+impl<I> ParticipationOutputIterator<I> {
+    fn new(outputs: I) -> Self {
         Self {
-            modified_outputs: vec![],
-            with_metrics,
+            outputs,
+            participation_outputs: Default::default(),
         }
     }
 }
 
-impl HornetFilter<Result<(OutputHeader, Output)>> for ParticipationOutputFilter {
-    fn process(
-        &mut self,
-        output: Result<(OutputHeader, Output)>,
-    ) -> Option<Result<(OutputHeader, Output)>> {
-        // continue filtering
-        Some(output.map(|(header, inner)| {
-            let output_id = header.output_id();
-            (
-                header,
-                if is_participation_output(&inner) {
-                    if self.with_metrics {
-                        self.modified_outputs.push(output_id);
-                    }
-                    // replace the inner output
-                    BasicOutputBuilder::from(inner.as_basic())
-                        .clear_features()
-                        .finish()
-                        .expect("should be able to create a basic output")
-                        .into()
-                } else {
-                    // do NOT replace
-                    inner
-                },
-            )
-        }))
-    }
+impl<I> Iterator for ParticipationOutputIterator<I>
+where
+    I: Iterator<Item = Result<(OutputHeader, Output)>>,
+{
+    type Item = I::Item;
 
-    fn pop_processed(&mut self) -> Option<Result<(OutputHeader, Output)>> {
-        None
-    }
-
-    fn print_metrics(&self) {
-        if self.with_metrics {
-            info!(
-                "Number of ParticipationOutputFilter modified outputs: {}",
-                self.modified_outputs.len()
-            );
-            info!(
-                "ParticipationOutputFilter modified outputs ids: {:?}",
-                self.modified_outputs
-            );
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut output = self.outputs.next()?;
+        if let Ok((header, inner)) = &mut output {
+            if is_participation_output(inner) {
+                self.participation_outputs.push(header.output_id());
+                // replace the inner output
+                *inner = BasicOutputBuilder::from(inner.as_basic())
+                    .clear_features()
+                    .finish()
+                    .expect("should be able to create a basic output")
+                    .into()
+            }
         }
+        Some(output)
     }
 }
+
+impl<I> Drop for ParticipationOutputIterator<I> {
+    fn drop(&mut self) {
+        debug!(
+            "Number of participation outputs: {}",
+            self.participation_outputs.len()
+        );
+        debug!("Participation outputs: {:?}", self.participation_outputs);
+    }
+}
+
+/// Extension trait that allows simpler methods for chaining filter iterators.
+trait IteratorExt: Iterator<Item = Result<(OutputHeader, Output)>> + Sized {
+    fn scale_iota_amount(self) -> ScaleIotaAmountIterator<Self> {
+        ScaleIotaAmountIterator::new(self)
+    }
+
+    fn filter_unlocked_vesting_outputs(
+        self,
+        snapshot_timestamp_s: u32,
+    ) -> UnlockedVestingIterator<Self> {
+        UnlockedVestingIterator::new(self, snapshot_timestamp_s)
+    }
+
+    fn filter_participation_outputs(self) -> ParticipationOutputIterator<Self> {
+        ParticipationOutputIterator::new(self)
+    }
+}
+impl<T: Iterator<Item = Result<(OutputHeader, Output)>>> IteratorExt for T {}
 
 // Skip all outputs that are not basic or not vesting. For vesting (basic)
 // outputs, extract and return the address from their address unlock condition.
@@ -450,4 +334,26 @@ fn get_address_if_vesting_output(
             uc.address().map(|a| *a.address())
         }
     })
+}
+
+/// Take an `amount` and scale it by a multiplier defined for the IOTA token.
+pub fn scale_amount_for_iota(amount: u64) -> Result<u64> {
+    const IOTA_MULTIPLIER: u64 = 1000;
+
+    amount
+        .checked_mul(IOTA_MULTIPLIER)
+        .ok_or_else(|| anyhow!("overflow multiplying amount {amount} by {IOTA_MULTIPLIER}"))
+}
+
+// Check if the output is basic and has a feature Tag using the Participation
+// Tag: https://github.com/iota-community/treasury/blob/main/specifications/hornet-participation-plugin.md
+pub fn is_participation_output(output: &Output) -> bool {
+    if let Some(feat) = output.features() {
+        if output.is_basic() && !feat.is_empty() {
+            if let Some(tag) = feat.tag() {
+                return tag.to_string() == Hex::encode_with_format(PARTICIPATION_TAG);
+            };
+        }
+    };
+    false
 }

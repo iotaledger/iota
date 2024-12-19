@@ -98,7 +98,6 @@ fn main() -> Result<()> {
                 snapshot_parser.target_milestone_timestamp(),
                 snapshot_parser.outputs(),
                 object_snapshot_writer,
-                true, // with metrics
             )?;
         }
     }

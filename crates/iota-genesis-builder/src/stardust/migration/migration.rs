@@ -171,10 +171,9 @@ impl Migration {
         target_milestone_timestamp: u32,
         outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
         writer: impl Write,
-        with_metrics: bool,
     ) -> Result<()> {
         itertools::process_results(
-            process_outputs_for_iota(target_milestone_timestamp, outputs, with_metrics),
+            process_outputs_for_iota(target_milestone_timestamp, outputs),
             |outputs| self.run(outputs, writer),
         )?
     }
