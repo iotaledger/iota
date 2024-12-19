@@ -28,7 +28,7 @@ export function TxnAmount({ amount, coinType, subtitle, approximation }: TxnAmou
     return Number(amount) !== 0 ? (
         <Card type={CardType.Filled}>
             <CardImage type={ImageType.BgSolid}>
-                <CoinIcon coinType={coinType} rounded size={ImageIconSize.Large} hasCoinWrapper />
+                <CoinIcon coinType={coinType} rounded size={ImageIconSize.Small} />
             </CardImage>
             <CardBody
                 title={`${approximation ? '~' : ''}${formatAmount} ${symbol}`}
