@@ -64,7 +64,7 @@ function SendTokenDialogBody({
         transfer(transaction, {
             onSuccess: () => {
                 setStep(FormStep.TransactionDetails);
-                toast.success('Transfer transaction successful');
+                toast.success('Transfer transaction has been sent');
             },
             onError: () => {
                 setOpen(false);
