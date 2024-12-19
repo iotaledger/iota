@@ -4,6 +4,7 @@
 
 use std::fmt::Formatter;
 
+use anyhow::{Result, anyhow};
 use iota_types::{
     BRIDGE_PACKAGE_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_PACKAGE_ID, MOVE_STDLIB_PACKAGE_ID,
     STARDUST_PACKAGE_ID,
@@ -22,7 +23,6 @@ use move_binary_format::{
 use move_core_types::gas_algebra::InternalGas;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use tracing::error;
 
 /// Represents a system package in the framework, that's built from the source
 /// code inside iota-framework.
@@ -174,32 +174,29 @@ pub async fn compare_system_package<S: ObjectStore>(
     modules: &[CompiledModule],
     dependencies: Vec<ObjectID>,
     binary_config: &BinaryConfig,
-) -> Option<ObjectRef> {
+) -> Result<ObjectRef> {
     let cur_object = match object_store.get_object(id) {
         Ok(Some(cur_object)) => cur_object,
 
         Ok(None) => {
             // creating a new framework package--nothing to check
-            return Some(
-                Object::new_system_package(
-                    modules,
-                    // note: execution_engine assumes any system package with version
-                    // OBJECT_START_VERSION is freshly created rather than
-                    // upgraded
-                    OBJECT_START_VERSION,
-                    dependencies,
-                    // Genesis is fine here, we only use it to calculate an object ref that we can
-                    // use for all validators to commit to the same bytes in
-                    // the update
-                    TransactionDigest::genesis_marker(),
-                )
-                .compute_object_reference(),
-            );
+            return Ok(Object::new_system_package(
+                modules,
+                // note: execution_engine assumes any system package with version
+                // OBJECT_START_VERSION is freshly created rather than
+                // upgraded
+                OBJECT_START_VERSION,
+                dependencies,
+                // Genesis is fine here, we only use it to calculate an object ref that we can
+                // use for all validators to commit to the same bytes in
+                // the update
+                TransactionDigest::genesis_marker(),
+            )
+            .compute_object_reference());
         }
 
         Err(e) => {
-            error!("Error loading framework object at {id}: {e:?}");
-            return None;
+            return Err(anyhow!("Error loading framework object at {id}: {e:?}"));
         }
     };
 
@@ -219,7 +216,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     );
 
     if cur_ref == new_object.compute_object_reference() {
-        return Some(cur_ref);
+        return Ok(cur_ref);
     }
 
     let compatibility = Compatibility {
@@ -248,21 +245,21 @@ pub async fn compare_system_package<S: ObjectStore>(
     let cur_normalized = match cur_pkg.normalize(binary_config) {
         Ok(v) => v,
         Err(e) => {
-            error!("Could not normalize existing package: {e:?}");
-            return None;
+            return Err(anyhow!("Could not normalize existing package: {e:?}"));
         }
     };
-    let mut new_normalized = new_pkg.normalize(binary_config).ok()?;
+    let mut new_normalized = new_pkg.normalize(binary_config)?;
 
     for (name, cur_module) in cur_normalized {
-        let new_module = new_normalized.remove(&name)?;
+        let new_module = new_normalized
+            .remove(&name)
+            .ok_or_else(|| anyhow!("failed to remove module"))?;
 
         if let Err(e) = compatibility.check(&cur_module, &new_module) {
-            error!("Compatibility check failed, for new version of {id}::{name}: {e:?}");
-            return None;
+            return Err(anyhow!("Compatibility check failed, for new version: {e}"));
         }
     }
 
     new_pkg.increment_version();
-    Some(new_object.compute_object_reference())
+    Ok(new_object.compute_object_reference())
 }
