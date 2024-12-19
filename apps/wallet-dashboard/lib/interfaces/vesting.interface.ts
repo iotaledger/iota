@@ -7,7 +7,7 @@ export enum SupplyIncreaseUserType {
 }
 
 export interface SupplyIncreaseVestingPayout {
-    amount: number;
+    amount: bigint;
     expirationTimestampMs: number;
 }
 

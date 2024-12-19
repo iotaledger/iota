@@ -29,7 +29,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<AssetCategory>(AssetCategory.Visual);
     const account = useCurrentAccount();
-    const { data, isFetching, fetchNextPage, hasNextPage } = useGetOwnedObjects(
+    const { data, isFetching, fetchNextPage, hasNextPage, refetch } = useGetOwnedObjects(
         account?.address,
         undefined,
         OBJECTS_PER_REQ,
@@ -79,7 +79,11 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     fetchNextPage={fetchNextPage}
                 />
                 {selectedAsset && (
-                    <AssetDialog onClose={() => setSelectedAsset(null)} asset={selectedAsset} />
+                    <AssetDialog
+                        onClose={() => setSelectedAsset(null)}
+                        asset={selectedAsset}
+                        refetchAssets={refetch}
+                    />
                 )}
             </div>
         </Panel>

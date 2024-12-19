@@ -284,9 +284,9 @@ object_store = { version = "0.10", features = ["aws", "gcp", "azure", "http"] }
 once_cell = "1.18.0"
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 parking_lot = "0.12.1"
-passkey-authenticator = { version = "0.2.0" }
-passkey-client = { version = "0.2.0" }
-passkey-types = { version = "0.2.0" }
+passkey-authenticator = "0.4.0"
+passkey-client = "0.4.0"
+passkey-types = "0.4.0"
 pretty_assertions = "1.3.0"
 proc-macro2 = "1.0.47"
 prometheus = "0.13.3"

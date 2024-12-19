@@ -37,7 +37,7 @@ export function StakedCard({
 
     // For inactive validator, show principal + rewards
     const [principalStaked, symbol] = useFormatCoin(
-        inactiveValidator ? principal + rewards : principal,
+        inactiveValidator ? BigInt(principal) + rewards : principal,
         IOTA_TYPE_ARG,
     );
 

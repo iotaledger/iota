@@ -21,10 +21,6 @@ import {
 
 const MOCKED_CURRENT_EPOCH_TIMESTAMP = Date.now() + MILLISECONDS_PER_HOUR * 6; // 6 hours later
 
-function bigIntRound(n: number) {
-    return BigInt(Math.floor(n));
-}
-
 describe('get last supply increase vesting payout', () => {
     it('should get the object with highest expirationTimestampMs', () => {
         const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
@@ -48,7 +44,7 @@ describe('get last supply increase vesting payout', () => {
 describe('get supply increase user type', () => {
     it('should return staker, if last payout is two years away from vesting starting year (2023)', () => {
         const vestingPayout: SupplyIncreaseVestingPayout = {
-            amount: 1000,
+            amount: 1000n,
             expirationTimestampMs: 1735689661000, // Wednesday, 1 January 2025 00:01:01
         };
         const userType = getSupplyIncreaseVestingUserType([vestingPayout]);
@@ -57,7 +53,7 @@ describe('get supply increase user type', () => {
 
     it('should return entity, if last payout is more than two years away from vesting starting year (2023)', () => {
         const vestingPayout: SupplyIncreaseVestingPayout = {
-            amount: 1000,
+            amount: 1000n,
             expirationTimestampMs: 1798761661000, // Friday, 1 January 2027 00:01:01
         };
         const userType = getSupplyIncreaseVestingUserType([vestingPayout]);
@@ -125,12 +121,12 @@ describe('vesting overview', () => {
     it('should get correct vesting overview data with timelocked objects', () => {
         const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
         const lastPayout = timelockedObjects[timelockedObjects.length - 1];
-        const totalAmount = bigIntRound(
-            (SUPPLY_INCREASE_STAKER_VESTING_DURATION *
-                SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
+        const totalAmount =
+            (BigInt(SUPPLY_INCREASE_STAKER_VESTING_DURATION) *
+                BigInt(SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR) *
+                10n *
                 lastPayout.locked.value) /
-                0.9,
-        );
+            9n;
 
         const vestingOverview = getVestingOverview(timelockedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
@@ -145,9 +141,7 @@ describe('vesting overview', () => {
 
         const lockedAmount = vestingPortfolio.reduce(
             (acc, current) =>
-                current.expirationTimestampMs > Date.now()
-                    ? acc + bigIntRound(current.amount)
-                    : acc,
+                current.expirationTimestampMs > Date.now() ? acc + current.amount : acc,
             0n,
         );
 
@@ -159,16 +153,12 @@ describe('vesting overview', () => {
 
         const lockedObjectsAmount = timelockedObjects.reduce(
             (acc, current) =>
-                current.expirationTimestampMs > Date.now()
-                    ? acc + bigIntRound(current.locked.value)
-                    : acc,
+                current.expirationTimestampMs > Date.now() ? acc + current.locked.value : acc,
             0n,
         );
         const unlockedObjectsAmount = timelockedObjects.reduce(
             (acc, current) =>
-                current.expirationTimestampMs <= Date.now()
-                    ? acc + bigIntRound(current.locked.value)
-                    : acc,
+                current.expirationTimestampMs <= Date.now() ? acc + current.locked.value : acc,
             0n,
         );
 
@@ -182,20 +172,20 @@ describe('vesting overview', () => {
             formatDelegatedTimelockedStake(timelockedStakedObjects);
         const lastPayout =
             extendedTimelockedStakedObjects[extendedTimelockedStakedObjects.length - 1];
-        const lastPayoutValue = Number(lastPayout.principal);
-        const totalAmount = bigIntRound(
-            (SUPPLY_INCREASE_STAKER_VESTING_DURATION *
-                SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
-                lastPayoutValue) /
-                0.9,
-        );
+        const lastPayoutValue = BigInt(lastPayout.principal);
+        const totalAmount =
+            (BigInt(SUPPLY_INCREASE_STAKER_VESTING_DURATION) *
+                BigInt(SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR) *
+                lastPayoutValue *
+                10n) /
+            9n;
 
         const vestingOverview = getVestingOverview(extendedTimelockedStakedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
 
         const vestingPortfolio = buildVestingPortfolio(
             {
-                amount: lastPayoutValue,
+                amount: BigInt(lastPayoutValue),
                 expirationTimestampMs: Number(lastPayout.expirationTimestampMs),
             },
             Date.now(),
@@ -203,9 +193,7 @@ describe('vesting overview', () => {
 
         const lockedAmount = vestingPortfolio.reduce(
             (acc, current) =>
-                current.expirationTimestampMs > Date.now()
-                    ? acc + bigIntRound(current.amount)
-                    : acc,
+                current.expirationTimestampMs > Date.now() ? acc + current.amount : acc,
             0n,
         );
 
@@ -215,7 +203,7 @@ describe('vesting overview', () => {
         let totalStaked = 0n;
         for (const timelockedStakedObject of timelockedStakedObjects) {
             const stakesAmount = timelockedStakedObject.stakes.reduce(
-                (acc, current) => acc + bigIntRound(Number(current.principal)),
+                (acc, current) => acc + BigInt(current.principal),
                 0n,
             );
             totalStaked += stakesAmount;
@@ -239,12 +227,12 @@ describe('vesting overview', () => {
             mixedObjects,
             MOCKED_CURRENT_EPOCH_TIMESTAMP,
         )!;
-        const totalAmount = bigIntRound(
-            (SUPPLY_INCREASE_STAKER_VESTING_DURATION *
-                SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR *
+        const totalAmount =
+            (BigInt(SUPPLY_INCREASE_STAKER_VESTING_DURATION) *
+                BigInt(SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR) *
+                10n *
                 lastPayout.amount) /
-                0.9,
-        );
+            9n;
 
         const vestingOverview = getVestingOverview(mixedObjects, Date.now());
         expect(vestingOverview.totalVested).toEqual(totalAmount);
@@ -259,9 +247,7 @@ describe('vesting overview', () => {
 
         const lockedAmount = vestingPortfolio.reduce(
             (acc, current) =>
-                current.expirationTimestampMs > Date.now()
-                    ? acc + bigIntRound(current.amount)
-                    : acc,
+                current.expirationTimestampMs > Date.now() ? acc + current.amount : acc,
             0n,
         );
 
@@ -269,7 +255,7 @@ describe('vesting overview', () => {
         expect(vestingOverview.totalUnlocked).toEqual(totalAmount - lockedAmount);
 
         const totalStaked = extendedTimelockedStakedObjects.reduce(
-            (acc, current) => acc + bigIntRound(Number(current.principal)),
+            (acc, current) => acc + BigInt(current.principal),
             0n,
         );
 
@@ -278,16 +264,12 @@ describe('vesting overview', () => {
         const timelockObjects = mixedObjects.filter(isTimelockedObject);
         const availableClaiming = timelockObjects.reduce(
             (acc, current) =>
-                current.expirationTimestampMs <= Date.now()
-                    ? acc + bigIntRound(current.locked.value)
-                    : acc,
+                current.expirationTimestampMs <= Date.now() ? acc + current.locked.value : acc,
             0n,
         );
         const availableStaking = timelockObjects.reduce(
             (acc, current) =>
-                current.expirationTimestampMs > Date.now()
-                    ? acc + bigIntRound(current.locked.value)
-                    : acc,
+                current.expirationTimestampMs > Date.now() ? acc + current.locked.value : acc,
             0n,
         );
         expect(vestingOverview.availableClaiming).toEqual(availableClaiming);

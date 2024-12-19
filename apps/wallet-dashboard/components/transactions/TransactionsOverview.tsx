@@ -9,7 +9,7 @@ function TransactionsOverview() {
     return (
         <Panel>
             <Title title="Activity" />
-            <div className="px-sm pb-md pt-sm">
+            <div className="h-full overflow-y-auto px-sm pb-md pt-sm">
                 <TransactionsList />
             </div>
         </Panel>

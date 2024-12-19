@@ -11,11 +11,11 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use p256::pkcs8::DecodePublicKey;
-use passkey_authenticator::{Authenticator, UserValidationMethod};
+use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
 use passkey_client::Client;
 use passkey_types::{
     Bytes, Passkey,
-    ctap2::Aaguid,
+    ctap2::{Aaguid, Ctap2Error},
     rand::random_vec,
     webauthn::{
         AttestationConveyancePreference, CredentialCreationOptions, CredentialRequestOptions,
@@ -41,15 +41,10 @@ use crate::{
 
 /// Helper struct to initialize passkey client.
 pub struct MyUserValidationMethod {}
+
 #[async_trait::async_trait]
 impl UserValidationMethod for MyUserValidationMethod {
-    async fn check_user_presence(&self) -> bool {
-        true
-    }
-
-    async fn check_user_verification(&self) -> bool {
-        true
-    }
+    type PasskeyItem = Passkey;
 
     fn is_verification_enabled(&self) -> Option<bool> {
         Some(true)
@@ -57,6 +52,18 @@ impl UserValidationMethod for MyUserValidationMethod {
 
     fn is_presence_enabled(&self) -> bool {
         true
+    }
+
+    async fn check_user<'a>(
+        &self,
+        _credential: Option<&'a Self::PasskeyItem>,
+        _presence: bool,
+        _verification: bool,
+    ) -> Result<UserCheck, Ctap2Error> {
+        Ok(UserCheck {
+            presence: true,
+            verification: true,
+        })
     }
 }
 

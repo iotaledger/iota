@@ -63,8 +63,10 @@ function HomeDashboardPage(): JSX.Element {
                                 <ConnectButton connectText="Connect" />
                             </div>
                         </div>
-                        <div className="text-body-lg text-neutral-60">
+                        <div className="text-center text-body-lg text-neutral-60">
                             &copy; IOTA Foundation {CURRENT_YEAR}
+                            <br />
+                            {process.env.NEXT_PUBLIC_DASHBOARD_REV}
                         </div>
                     </div>
                 </>

@@ -6,7 +6,7 @@ export interface UID {
 }
 
 export interface Balance {
-    value: number;
+    value: bigint;
 }
 
 export interface TimelockedObject {

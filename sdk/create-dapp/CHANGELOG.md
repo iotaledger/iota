@@ -1,5 +1,12 @@
 # @iota/create-dapp
 
+## 0.3.0
+
+### Minor Changes
+
+-   8c3a220: Update some outdated eslint dependencies of the `@iota/create-dapp` templates, to their
+    eslint v9-compatible versions
+
 ## 0.2.2
 
 ### Patch Changes

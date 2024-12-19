@@ -6,7 +6,7 @@
 import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
 import {
     STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
-    STARDUST_UNMIGRATABLE_OBJECTS_FILTER_LIST,
+    STARDUST_TIMELOCKED_OBJECTS_FILTER_LIST,
 } from '@/lib/constants';
 import { StardustOutputDetailsFilter } from '@/lib/enums';
 import {
@@ -33,7 +33,7 @@ import { filterMigrationObjects } from '@/lib/utils';
 
 const FILTERS = {
     migratable: STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
-    unmigratable: STARDUST_UNMIGRATABLE_OBJECTS_FILTER_LIST,
+    timelocked: STARDUST_TIMELOCKED_OBJECTS_FILTER_LIST,
 };
 
 interface MigrationObjectsPanelProps {
@@ -58,7 +58,7 @@ export function MigrationObjectsPanel({
 
     const filteredObjects = filterMigrationObjects(resolvedObjects, stardustOutputDetailsFilter);
 
-    const filters = isTimelocked ? FILTERS.unmigratable : FILTERS.migratable;
+    const filters = isTimelocked ? FILTERS.timelocked : FILTERS.migratable;
     const isHidden = selectedObjects.length === 0;
 
     return (

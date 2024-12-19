@@ -6,7 +6,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 
 export type StardustMigrationGroupedObjects = {
     migratable: IotaObjectData[];
-    unmigratable: IotaObjectData[];
+    timelocked: IotaObjectData[];
 };
 
 export function groupStardustObjectsByMigrationStatus(
@@ -15,12 +15,20 @@ export function groupStardustObjectsByMigrationStatus(
     address: string,
 ): StardustMigrationGroupedObjects {
     const migratable: IotaObjectData[] = [];
-    const unmigratable: IotaObjectData[] = [];
+    const timelocked: IotaObjectData[] = [];
 
     const epochUnix = epochTimestampMs / MILLISECONDS_PER_SECOND;
 
     for (const outputObject of stardustOutputObjects) {
         const outputObjectFields = extractMigrationOutputFields(outputObject);
+
+        if (
+            outputObjectFields.timelock_uc &&
+            outputObjectFields.timelock_uc.fields.unix_time > epochUnix
+        ) {
+            timelocked.push(outputObject);
+            continue;
+        }
 
         if (outputObjectFields.expiration_uc) {
             const unlockableAddress =
@@ -29,29 +37,21 @@ export function groupStardustObjectsByMigrationStatus(
                     : outputObjectFields.expiration_uc.fields.owner;
 
             if (unlockableAddress !== address) {
-                unmigratable.push(outputObject);
                 continue;
             }
-        }
-
-        if (
-            outputObjectFields.timelock_uc &&
-            outputObjectFields.timelock_uc.fields.unix_time > epochUnix
-        ) {
-            unmigratable.push(outputObject);
-            continue;
         }
 
         migratable.push(outputObject);
     }
 
-    return { migratable, unmigratable };
+    return { migratable, timelocked };
 }
 
 interface MigratableObjectsData {
     totalNativeTokens: number;
     totalVisualAssets: number;
     totalIotaAmount: bigint;
+    totalNotOwnedStorageDepositReturnAmount: bigint;
 }
 
 interface SummarizeMigrationObjectParams {
@@ -67,6 +67,7 @@ export function summarizeMigratableObjectValues({
 }: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
     let totalIotaAmount: bigint = 0n;
+    let totalNotOwnedStorageDepositReturnAmount: bigint = 0n;
 
     const totalVisualAssets = nftOutputs.length;
     const outputObjects = [...basicOutputs, ...nftOutputs];
@@ -76,17 +77,25 @@ export function summarizeMigratableObjectValues({
 
         totalIotaAmount += BigInt(outputObjectFields.balance);
         totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
-        totalIotaAmount += extractStorageDepositReturnAmount(outputObjectFields, address) || 0n;
+        totalIotaAmount +=
+            extractOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
+        totalNotOwnedStorageDepositReturnAmount +=
+            extractNotOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
     }
 
-    return { totalNativeTokens, totalVisualAssets, totalIotaAmount };
+    return {
+        totalNativeTokens,
+        totalVisualAssets,
+        totalIotaAmount,
+        totalNotOwnedStorageDepositReturnAmount,
+    };
 }
 
 interface UnmmigratableObjectsData {
-    totalUnmigratableObjects: number;
+    totalTimelockedObjects: number;
 }
 
-export function summarizeUnmigratableObjectValues({
+export function summarizeTimelockedObjectValues({
     basicOutputs = [],
     nftOutputs = [],
 }: Omit<SummarizeMigrationObjectParams, 'address'>): UnmmigratableObjectsData {
@@ -100,12 +109,12 @@ export function summarizeUnmigratableObjectValues({
         nativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
     }
 
-    const totalUnmigratableObjects = basicObjects + nativeTokens + nftObjects;
+    const totalTimelockedObjects = basicObjects + nativeTokens + nftObjects;
 
-    return { totalUnmigratableObjects };
+    return { totalTimelockedObjects };
 }
 
-export function extractStorageDepositReturnAmount(
+export function extractOwnedStorageDepositReturnAmount(
     { storage_deposit_return_uc }: CommonOutputObjectWithUc,
     address: string,
 ): bigint | null {
@@ -126,4 +135,17 @@ export function extractMigrationOutputFields(
             fields: CommonOutputObjectWithUc;
         }
     ).fields;
+}
+
+export function extractNotOwnedStorageDepositReturnAmount(
+    { storage_deposit_return_uc }: CommonOutputObjectWithUc,
+    address: string,
+): bigint | null {
+    if (
+        storage_deposit_return_uc?.fields &&
+        storage_deposit_return_uc?.fields.return_address !== address
+    ) {
+        return BigInt(storage_deposit_return_uc?.fields.return_amount);
+    }
+    return null;
 }

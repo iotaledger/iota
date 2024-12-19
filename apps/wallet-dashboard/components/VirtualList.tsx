@@ -27,7 +27,7 @@ function VirtualList<T>({
     estimateSize,
     render,
     onClick,
-    heightClassName = 'h-full',
+    heightClassName = 'h-fit',
     overflowClassName,
 }: VirtualListProps<T>): JSX.Element {
     const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -56,14 +56,7 @@ function VirtualList<T>({
         if (lastItem.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
             fetchNextPage();
         }
-    }, [
-        hasNextPage,
-        fetchNextPage,
-        items.length,
-        isFetchingNextPage,
-        virtualizer,
-        virtualizer.getVirtualItems(),
-    ]);
+    }, [hasNextPage, fetchNextPage, items.length, isFetchingNextPage, virtualizer, virtualItems]);
 
     return (
         <div

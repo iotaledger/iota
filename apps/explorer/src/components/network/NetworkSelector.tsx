@@ -99,11 +99,12 @@ export function NetworkSelector(): JSX.Element {
                                 key={idx}
                                 onClick={() => handleNetworkSwitch(network.id)}
                                 hideBottomBorder
+                                isHighlighted={network === selectedNetwork}
                             >
                                 <div className="flex items-center gap-2">
                                     <CheckmarkFilled
                                         className={cx('flex-shrink-0', {
-                                            'text-success': network === selectedNetwork,
+                                            'text-primary-30': network === selectedNetwork,
                                             'text-gray-45': network !== selectedNetwork,
                                         })}
                                     />

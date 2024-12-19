@@ -31,17 +31,17 @@ export function useGetStardustMigratableObjects(address: string) {
         queryFn: () => {
             const epochMs = Number(currentEpochMs) || 0;
 
-            const { migratable: migratableBasicOutputs, unmigratable: unmigratableBasicOutputs } =
+            const { migratable: migratableBasicOutputs, timelocked: timelockedBasicOutputs } =
                 groupStardustObjectsByMigrationStatus(basicOutputObjects ?? [], epochMs, address);
 
-            const { migratable: migratableNftOutputs, unmigratable: unmigratableNftOutputs } =
+            const { migratable: migratableNftOutputs, timelocked: timelockedNftOutputs } =
                 groupStardustObjectsByMigrationStatus(nftOutputObjects ?? [], epochMs, address);
 
             return {
                 migratableBasicOutputs,
-                unmigratableBasicOutputs,
+                timelockedBasicOutputs,
                 migratableNftOutputs,
-                unmigratableNftOutputs,
+                timelockedNftOutputs,
             };
         },
         enabled:
@@ -52,9 +52,9 @@ export function useGetStardustMigratableObjects(address: string) {
         staleTime: TimeUnit.ONE_SECOND * TimeUnit.ONE_MINUTE * 5,
         placeholderData: {
             migratableBasicOutputs: [],
-            unmigratableBasicOutputs: [],
+            timelockedBasicOutputs: [],
             migratableNftOutputs: [],
-            unmigratableNftOutputs: [],
+            timelockedNftOutputs: [],
         },
     });
 }
