@@ -2,15 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeSet;
+
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+
 use crate::{
     diag,
     diagnostics::{Diagnostic, DiagnosticReporter},
-    parser::ast::{self as P, ModuleName, Var, MACRO_MODIFIER},
+    parser::ast::{self as P, MACRO_MODIFIER, ModuleName, Var},
     shared::*,
 };
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use std::collections::BTreeSet;
 
 // Implicit aliases for the Move Stdlib:
 // use std::vector;
@@ -126,8 +128,7 @@ pub fn check_valid_function_parameter_name(
     is_macro: Option<Loc>,
     v: &Var,
 ) {
-    const SYNTAX_IDENTIFIER_NOTE: &str =
-        "'macro' parameters start with '$' to indicate that their arguments are not evaluated \
+    const SYNTAX_IDENTIFIER_NOTE: &str = "'macro' parameters start with '$' to indicate that their arguments are not evaluated \
         before the macro is expanded, meaning the entire expression is substituted. \
         This is different from regular function parameters that are evaluated before the \
         function is called.";
@@ -370,7 +371,7 @@ pub fn check_restricted_name_all_cases(
             if Var::is_syntax_identifier_name(n.value) {
                 let msg = format!(
                     "Invalid {} name '{}'. Identifiers starting with '$' can be used only for \
-                    parameters and type paramters",
+                    parameters and type parameters",
                     case.name(),
                     n,
                 );

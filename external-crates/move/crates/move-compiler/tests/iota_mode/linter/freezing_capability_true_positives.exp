@@ -1,5 +1,5 @@
 warning[Lint W99008]: freezing potential capability
-   ┌─ tests/iota_mode/linter/freezing_capability_true_positives.move:21:9
+   ┌─ tests/iota_mode/linter/freezing_capability_true_positives.move:22:9
    │
 22 │         transfer::public_freeze_object(w);
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ The type 'a::test_true_positives::AdminCap' is potentially a capability based on its name
@@ -8,7 +8,7 @@ warning[Lint W99008]: freezing potential capability
    = This warning can be suppressed with '#[allow(lint(freezing_capability))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99008]: freezing potential capability
-   ┌─ tests/iota_mode/linter/freezing_capability_true_positives.move:25:9
+   ┌─ tests/iota_mode/linter/freezing_capability_true_positives.move:26:9
    │
 26 │         transfer::public_freeze_object(w);
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ The type 'a::test_true_positives::UserCapability' is potentially a capability based on its name
@@ -17,7 +17,7 @@ warning[Lint W99008]: freezing potential capability
    = This warning can be suppressed with '#[allow(lint(freezing_capability))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99008]: freezing potential capability
-   ┌─ tests/iota_mode/linter/freezing_capability_true_positives.move:29:9
+   ┌─ tests/iota_mode/linter/freezing_capability_true_positives.move:30:9
    │
 30 │         transfer::public_freeze_object(w);
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ The type 'a::test_true_positives::OwnerCapV2' is potentially a capability based on its name

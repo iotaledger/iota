@@ -19,10 +19,10 @@ warning[Lint W99000]: possible owned object share
    ┌─ tests/iota_mode/linter/false_positive_share_owned.move:42:9
    │
 30 │     fun make_obj(o: Obj2, ctx: &mut iota::tx_context::TxContext): Obj {
-   │                                                                  --- A potentially owned object coming from here
+   │                                                                   --- A potentially owned object coming from here
    ·
 37 │         transfer::transfer(o, iota::tx_context::sender(ctx));
-   │         --------------------------------------------------- Transferred as an owned object here
+   │         ---------------------------------------------------- Transferred as an owned object here
    ·
 42 │         transfer::share_object(o);
    │         ^^^^^^^^^^^^^^^^^^^^^^^^^

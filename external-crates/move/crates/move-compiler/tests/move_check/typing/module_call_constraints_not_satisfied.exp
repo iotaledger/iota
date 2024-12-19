@@ -26,7 +26,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^^^
    │         │    │
    │         │    The type '0x8675309::M::S' does not have the ability 'key'
-   │         'key' constraint not satisifed
+   │         'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:29:9
@@ -53,7 +53,7 @@ error[E05001]: ability constraint not satisfied
    │         ^^^^^^^^^^^^^^^
    │         │    │
    │         │    The type 'u64' does not have the ability 'key'
-   │         'key' constraint not satisifed
+   │         'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:33:9
@@ -83,7 +83,7 @@ error[E05001]: ability constraint not satisfied
    │                 --- 'key' constraint declared here
    ·
 33 │         both(new_box<C>(), new_box<R>())
-   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 'key' constraint not satisifed
+   │         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 'key' constraint not satisfied
 
 error[E05001]: ability constraint not satisfied
    ┌─ tests/move_check/typing/module_call_constraints_not_satisfied.move:37:9

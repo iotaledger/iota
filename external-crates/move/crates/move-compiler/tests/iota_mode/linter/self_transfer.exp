@@ -1,5 +1,5 @@
 warning[Lint W99001]: non-composable transfer to sender
-   ┌─ tests/iota_mode/linter/self_transfer.move:23:9
+   ┌─ tests/iota_mode/linter/self_transfer.move:24:9
    │
 23 │     public fun public_transfer_bad(ctx: &mut TxContext) {
    │                ------------------- Returning an object from a function, allows a caller to use the object and enables composability via programmable transactions.
@@ -12,7 +12,7 @@ warning[Lint W99001]: non-composable transfer to sender
    = This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99001]: non-composable transfer to sender
-   ┌─ tests/iota_mode/linter/self_transfer.move:27:9
+   ┌─ tests/iota_mode/linter/self_transfer.move:28:9
    │
 27 │     public fun private_transfer_bad(ctx: &mut TxContext) {
    │                -------------------- Returning an object from a function, allows a caller to use the object and enables composability via programmable transactions.
@@ -25,7 +25,7 @@ warning[Lint W99001]: non-composable transfer to sender
    = This warning can be suppressed with '#[allow(lint(self_transfer))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
 
 warning[Lint W99001]: non-composable transfer to sender
-   ┌─ tests/iota_mode/linter/self_transfer.move:39:9
+   ┌─ tests/iota_mode/linter/self_transfer.move:40:9
    │
 37 │     public fun transfer_through_assigns_bad(ctx: &mut TxContext) {
    │                ---------------------------- Returning an object from a function, allows a caller to use the object and enables composability via programmable transactions.
