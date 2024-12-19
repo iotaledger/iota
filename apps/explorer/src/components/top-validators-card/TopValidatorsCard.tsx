@@ -19,6 +19,8 @@ type TopValidatorsCardProps = {
 export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
 
+    const topActiveValidators = data?.activeValidators.slice(0, limit || NUMBER_OF_VALIDATORS) ?? [];
+
     const tableColumns = generateValidatorsTableColumns({
         atRiskValidators: [],
         validatorEvents: [],
@@ -56,7 +58,7 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
                 {isSuccess && (
                     <ErrorBoundary>
                         <TableCard
-                            data={data.activeValidators}
+                            data={topActiveValidators}
                             columns={tableColumns}
                             viewAll="/validators"
                         />
