@@ -4,17 +4,20 @@
 import React, { useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
-import { useCurrentAccount } from '@iota/dapp-kit';
+import { useIotaClient, useCurrentAccount } from '@iota/dapp-kit';
 import { createNftSendValidationSchema } from '@iota/core';
 import { DetailsView, SendView } from './views';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
 import { useCreateSendAssetTransaction, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
+import { TransactionDetailsView } from '../SendToken';
+import { DialogLayout } from '../layout';
 
 interface AssetsDialogProps {
     onClose: () => void;
     asset: IotaObjectData;
+    refetchAssets: () => void;
 }
 
 interface FormValues {
@@ -25,12 +28,14 @@ const INITIAL_VALUES: FormValues = {
     to: '',
 };
 
-export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element {
+export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps): JSX.Element {
     const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
     const account = useCurrentAccount();
+    const [digest, setDigest] = useState<string>('');
     const activeAddress = account?.address ?? '';
     const objectId = asset?.objectId ?? '';
     const { addNotification } = useNotifications();
+    const iotaClient = useIotaClient();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
 
     const { mutation: sendAsset } = useCreateSendAssetTransaction(objectId);
@@ -44,10 +49,16 @@ export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element 
 
     async function onSubmit(values: FormValues) {
         try {
-            await sendAsset.mutateAsync(values.to);
+            const executed = await sendAsset.mutateAsync(values.to);
+
+            const tx = await iotaClient.waitForTransaction({
+                digest: executed.digest,
+            });
+
+            setDigest(tx.digest);
+            refetchAssets();
             addNotification('Transfer transaction successful', NotificationType.Success);
-            onClose();
-            setView(AssetsDialogView.Details);
+            setView(AssetsDialogView.TransactionDetails);
         } catch {
             addNotification('Transfer transaction failed', NotificationType.Error);
         }
@@ -66,16 +77,26 @@ export function AssetDialog({ onClose, asset }: AssetsDialogProps): JSX.Element 
     }
     return (
         <Dialog open onOpenChange={onOpenChange}>
-            <FormikProvider value={formik}>
+            <DialogLayout>
                 <>
                     {view === AssetsDialogView.Details && (
                         <DetailsView asset={asset} onClose={onOpenChange} onSend={onDetailsSend} />
                     )}
                     {view === AssetsDialogView.Send && (
-                        <SendView asset={asset} onClose={onOpenChange} onBack={onSendViewBack} />
+                        <FormikProvider value={formik}>
+                            <SendView
+                                asset={asset}
+                                onClose={onOpenChange}
+                                onBack={onSendViewBack}
+                            />
+                        </FormikProvider>
                     )}
+
+                    {view === AssetsDialogView.TransactionDetails && !!digest ? (
+                        <TransactionDetailsView digest={digest} onClose={onOpenChange} />
+                    ) : null}
                 </>
-            </FormikProvider>
+            </DialogLayout>
         </Dialog>
     );
 }

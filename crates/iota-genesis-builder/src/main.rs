@@ -40,7 +40,7 @@ enum Snapshot {
             long,
             help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an IotaAddress present in the Hornet full-snapshot and in the second column an IotaAddress that will be used for the swap."
         )]
-        address_swap_map_path: String,
+        address_swap_map_path: Option<String>,
         #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
         target_network: MigrationTargetNetwork,
     },
@@ -78,7 +78,11 @@ fn main() -> Result<()> {
         CoinType::Iota => scale_amount_for_iota(snapshot_parser.total_supply()?)?,
     };
 
-    let address_swap_map = AddressSwapMap::from_csv(&address_swap_map_path)?;
+    let address_swap_map = if let Some(address_swap_map_path) = address_swap_map_path {
+        AddressSwapMap::from_csv(&address_swap_map_path)?
+    } else {
+        AddressSwapMap::default()
+    };
     // Prepare the migration using the parser output stream
     let migration = Migration::new(
         snapshot_parser.target_milestone_timestamp(),
