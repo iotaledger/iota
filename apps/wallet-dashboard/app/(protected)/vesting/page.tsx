@@ -13,17 +13,8 @@ import {
 } from '@/components';
 import { UnstakeDialogView } from '@/components/Dialogs/unstake/enums';
 import { useUnstakeDialog } from '@/components/Dialogs/unstake/hooks';
-import { useGetCurrentEpochStartTimestamp, useNotifications } from '@/hooks';
-import {
-    buildSupplyIncreaseVestingSchedule,
-    formatDelegatedTimelockedStake,
-    getLatestOrEarliestSupplyIncreaseVestingPayout,
-    getVestingOverview,
-    groupTimelockedStakedObjects,
-    isTimelockedUnlockable,
-    mapTimelockObjects,
-    TimelockedStakedObjectsGrouped,
-} from '@/lib/utils';
+import { useGetSupplyIncreaseVestingObjects, useNotifications } from '@/hooks';
+import { groupTimelockedStakedObjects, TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { NotificationType } from '@/stores/notificationStore';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
@@ -46,13 +37,9 @@ import {
 } from '@iota/apps-ui-kit';
 import {
     Theme,
-    TIMELOCK_IOTA_TYPE,
     useFormatCoin,
     useGetActiveValidatorsInfo,
-    useGetAllOwnedObjects,
-    useGetTimelockedStakedObjects,
     useTheme,
-    useUnlockTimelockedObjectsTransaction,
     useCountdownByTimestamp,
     Feature,
 } from '@iota/core';
@@ -74,24 +61,13 @@ export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
         useState<TimelockedStakedObjectsGrouped | null>(null);
     const account = useCurrentAccount();
+    const address = account?.address || '';
     const iotaClient = useIotaClient();
     const router = useRouter();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
     const { addNotification } = useNotifications();
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
     const { data: activeValidators } = useGetActiveValidatorsInfo();
-    const { data: timelockedObjects, refetch: refetchGetAllOwnedObjects } = useGetAllOwnedObjects(
-        account?.address || '',
-        {
-            StructType: TIMELOCK_IOTA_TYPE,
-        },
-    );
-    const {
-        data: timelockedStakedObjects,
-        isLoading: istimelockedStakedObjectsLoading,
-        refetch: refetchTimelockedStakedObjects,
-    } = useGetTimelockedStakedObjects(account?.address || '');
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
 
@@ -102,16 +78,19 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
 
-    const timelockedMapped = mapTimelockObjects(timelockedObjects || []);
-    const timelockedstakedMapped = formatDelegatedTimelockedStake(timelockedStakedObjects || []);
+    const {
+        nextPayout,
+        supplyIncreaseVestingPortfolio,
+        supplyIncreaseVestingSchedule,
+        supplyIncreaseVestingMapped,
+        supplyIncreaseVestingStakedMapped,
+        isTimelockedStakedObjectsLoading,
+        unlockAllSupplyIncreaseVesting,
+        refreshStakeList,
+    } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
-        groupTimelockedStakedObjects(timelockedstakedMapped || []);
-
-    const vestingSchedule = getVestingOverview(
-        [...timelockedMapped, ...timelockedstakedMapped],
-        Number(currentEpochMs),
-    );
+        groupTimelockedStakedObjects(supplyIncreaseVestingStakedMapped || []);
 
     const {
         isDialogStakeOpen,
@@ -132,37 +111,22 @@ export default function VestingDashboardPage(): JSX.Element {
         setView: setUnstakeDialogView,
     } = useUnstakeDialog();
 
-    const nextPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
-        [...timelockedMapped, ...timelockedstakedMapped],
-        Number(currentEpochMs),
-        false,
-    );
-
-    const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
-        [...timelockedMapped, ...timelockedstakedMapped],
-        Number(currentEpochMs),
-        true,
-    );
-
-    const vestingPortfolio =
-        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, Number(currentEpochMs));
-
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(
         Number(nextPayout?.expirationTimestampMs),
     );
 
     const [formattedTotalVested, vestedSymbol] = useFormatCoin(
-        vestingSchedule.totalVested,
+        supplyIncreaseVestingSchedule.totalVested,
         IOTA_TYPE_ARG,
     );
 
     const [formattedTotalLocked, lockedSymbol] = useFormatCoin(
-        vestingSchedule.totalLocked,
+        supplyIncreaseVestingSchedule.totalLocked,
         IOTA_TYPE_ARG,
     );
 
     const [formattedAvailableClaiming, availableClaimingSymbol] = useFormatCoin(
-        vestingSchedule.availableClaiming,
+        supplyIncreaseVestingSchedule.availableClaiming,
         IOTA_TYPE_ARG,
     );
 
@@ -178,29 +142,14 @@ export default function VestingDashboardPage(): JSX.Element {
     }
 
     const [totalStakedFormatted, totalStakedSymbol] = useFormatCoin(
-        vestingSchedule.totalStaked,
+        supplyIncreaseVestingSchedule.totalStaked,
         IOTA_TYPE_ARG,
     );
 
     const [totalEarnedFormatted, totalEarnedSymbol] = useFormatCoin(
-        vestingSchedule.totalEarned,
+        supplyIncreaseVestingSchedule.totalEarned,
         IOTA_TYPE_ARG,
     );
-
-    const unlockedTimelockedObjects = timelockedMapped?.filter((timelockedObject) =>
-        isTimelockedUnlockable(timelockedObject, Number(currentEpochMs)),
-    );
-    const unlockedTimelockedObjectIds: string[] =
-        unlockedTimelockedObjects.map((timelocked) => timelocked.id.id) || [];
-    const { data: unlockAllTimelockedObjects } = useUnlockTimelockedObjectsTransaction(
-        account?.address || '',
-        unlockedTimelockedObjectIds,
-    );
-
-    function refreshStakeList() {
-        refetchTimelockedStakedObjects();
-        refetchGetAllOwnedObjects();
-    }
 
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);
@@ -213,13 +162,13 @@ export default function VestingDashboardPage(): JSX.Element {
     }
 
     const handleCollect = () => {
-        if (!unlockAllTimelockedObjects?.transactionBlock) {
+        if (!unlockAllSupplyIncreaseVesting?.transactionBlock) {
             addNotification('Failed to create a Transaction', NotificationType.Error);
             return;
         }
         signAndExecuteTransaction(
             {
-                transaction: unlockAllTimelockedObjects.transactionBlock,
+                transaction: unlockAllSupplyIncreaseVesting.transactionBlock,
             },
             {
                 onSuccess: (tx) => {
@@ -258,7 +207,7 @@ export default function VestingDashboardPage(): JSX.Element {
         }
     }, [router, supplyIncreaseVestingEnabled]);
 
-    if (istimelockedStakedObjectsLoading) {
+    if (isTimelockedStakedObjectsLoading) {
         return (
             <div className="flex w-full max-w-4xl items-start justify-center justify-self-center">
                 <LoadingIndicator />
@@ -304,8 +253,8 @@ export default function VestingDashboardPage(): JSX.Element {
                                     title="Collect"
                                     buttonType={ButtonType.Primary}
                                     buttonDisabled={
-                                        !vestingSchedule.availableClaiming ||
-                                        vestingSchedule.availableClaiming === 0n
+                                        !supplyIncreaseVestingSchedule.availableClaiming ||
+                                        supplyIncreaseVestingSchedule.availableClaiming === 0n
                                     }
                                 />
                             </Card>
@@ -329,20 +278,20 @@ export default function VestingDashboardPage(): JSX.Element {
                                     onClick={openReceiveTokenDialog}
                                     title="See All"
                                     buttonType={ButtonType.Secondary}
-                                    buttonDisabled={!vestingPortfolio}
+                                    buttonDisabled={!supplyIncreaseVestingPortfolio}
                                 />
                             </Card>
-                            {vestingPortfolio && (
+                            {supplyIncreaseVestingPortfolio && (
                                 <VestingScheduleDialog
                                     open={isVestingScheduleDialogOpen}
                                     setOpen={setIsVestingScheduleDialogOpen}
-                                    vestingPortfolio={vestingPortfolio}
+                                    vestingPortfolio={supplyIncreaseVestingPortfolio}
                                 />
                             )}
                         </div>
                     </Panel>
 
-                    {timelockedstakedMapped.length === 0 ? (
+                    {supplyIncreaseVestingMapped.length === 0 ? (
                         <Banner
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"
@@ -353,7 +302,7 @@ export default function VestingDashboardPage(): JSX.Element {
                     ) : null}
                 </div>
 
-                {timelockedstakedMapped.length !== 0 ? (
+                {supplyIncreaseVestingMapped.length !== 0 ? (
                     <div className="flex w-full md:w-1/2">
                         <Panel>
                             <Title
@@ -362,7 +311,9 @@ export default function VestingDashboardPage(): JSX.Element {
                                     <Button
                                         type={ButtonType.Primary}
                                         text="Stake"
-                                        disabled={vestingSchedule.availableStaking === 0n}
+                                        disabled={
+                                            supplyIncreaseVestingSchedule.availableStaking === 0n
+                                        }
                                         onClick={() => {
                                             setStakeDialogView(StakeDialogView.SelectValidator);
                                         }}
@@ -422,8 +373,9 @@ export default function VestingDashboardPage(): JSX.Element {
                         setView={setStakeDialogView}
                         selectedValidator={selectedValidator}
                         setSelectedValidator={setSelectedValidator}
-                        maxStakableTimelockedAmount={BigInt(vestingSchedule.availableStaking)}
-                        onUnstakeClick={openUnstakeDialog}
+                        maxStakableTimelockedAmount={BigInt(
+                            supplyIncreaseVestingSchedule.availableStaking,
+                        )}
                     />
                 )}
 
