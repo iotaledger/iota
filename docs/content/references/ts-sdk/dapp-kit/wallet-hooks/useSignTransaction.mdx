@@ -2,39 +2,7 @@
 
 Use the `useSignTransaction` hook to prompt the user to sign a transaction with their wallet.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        mainnet: { url: getFullnodeUrl('mainnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
+```ts live
 function UseSignTransactionExample() {
     const { mutateAsync: signTransaction } = useSignTransaction();
     const [signature, setSignature] = useState('');
@@ -43,7 +11,6 @@ function UseSignTransactionExample() {
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             {currentAccount && (
                 <>
                     <div>
@@ -76,9 +43,7 @@ function UseSignTransactionExample() {
         </div>
     );
 }
-render(<UseSignTransactionExample/>)
 ```
-
 
 ## Arguments
 
