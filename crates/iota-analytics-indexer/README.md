@@ -95,11 +95,6 @@ In general, the data flow is as follows:
 Here is a graph summarizing the data flow:
 
 ```mermaid
----
-config:
-  look: handDrawn
-  theme: neutral
----
 flowchart TD
     FNODE["Fullnode/Indexer"] <-->|JSON RPC| CPREADER["`IndexerExecutor/CheckpointReader from the **iota_data_ingestion_core** package`"];
     subgraph "`**iota-analytics-indexer**`"
