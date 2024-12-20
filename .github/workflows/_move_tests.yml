@@ -26,4 +26,24 @@ jobs:
           tool: nextest
       - name: Run move tests
         run: |
-          cargo nextest run -p iota-framework-tests -- unit_tests::
+          cargo nextest run -E
+          'package(iota-framework-tests)
+          or (package(iota-core) and test(quorum_driver::))
+          or package(iota-benchmark)
+          or test(move_tests::)'
+
+  move-simtest:
+    timeout-minutes: 10
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+      - uses: taiki-e/install-action@375e0c7f08a66b8c2ba7e7eef31a6f91043a81b0 # v2.44.38
+        with:
+          tool: nextest
+      - name: Run move tests
+        run: |
+          scripts/simtest/cargo-simtest simtest --profile ci -E
+          'package(iota-framework-tests)
+          or (package(iota-core) and test(quorum_driver::))
+          or package(iota-benchmark)
+          or test(move_tests::)'

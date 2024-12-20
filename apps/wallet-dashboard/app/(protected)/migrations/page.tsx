@@ -25,12 +25,14 @@ import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } f
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
+import { useRouter } from 'next/navigation';
 
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
+    const router = useRouter();
     const [isMigrationDialogOpen, setIsMigrationDialogOpen] = useState(false);
     const [selectedStardustObjectsCategory, setSelectedStardustObjectsCategory] = useState<
         StardustOutputMigrationStatus | undefined
@@ -139,6 +141,11 @@ function MigrationDashboardPage(): JSX.Element {
         setSelectedStardustObjectsCategory(undefined);
     }
 
+    function handleMigrationDialogClose() {
+        setIsMigrationDialogOpen(false);
+        router.push('/');
+    }
+
     return (
         <div className="flex h-full w-full flex-wrap items-center justify-center space-y-4">
             <div
@@ -159,6 +166,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 selectedStardustObjectsCategory ===
                                 StardustOutputMigrationStatus.TimeLocked
                             }
+                            handleClose={handleMigrationDialogClose}
                         />
                     )}
                     <Panel>
