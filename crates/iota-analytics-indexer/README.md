@@ -107,7 +107,7 @@ flowchart TD
         BQSF -->|"Every 5 minutes max processed checkpoint number is read from the tables"| METRICS[Analytics Indexer Prometheus Metrics]
     end
 
-linkStyle 6 color:red;
+linkStyle 6 stroke:red,stroke-width:2px,stroke-dasharray:3;
 ```
 
 ## **Metrics**
