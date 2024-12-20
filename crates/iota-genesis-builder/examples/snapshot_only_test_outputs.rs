@@ -7,15 +7,14 @@
 use std::{fs::File, path::Path};
 
 use clap::{Parser, Subcommand};
-use iota_genesis_builder::{
-    IF_STARDUST_ADDRESS,
-    stardust::{
-        parse::HornetSnapshotParser,
-        test_outputs::{add_snapshot_test_outputs, to_nanos},
-    },
+use iota_genesis_builder::stardust::{
+    parse::HornetSnapshotParser,
+    test_outputs::{add_snapshot_test_outputs, to_nanos},
 };
-use iota_sdk::types::block::address::Address;
-use iota_types::{gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType};
+use iota_sdk::types::block::address::Ed25519Address;
+use iota_types::{
+    base_types::IotaAddress, gas_coin::STARDUST_TOTAL_SUPPLY_IOTA, stardust::coin_type::CoinType,
+};
 
 const WITH_SAMPLING: bool = false;
 
@@ -32,6 +31,8 @@ enum Snapshot {
     Iota {
         #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
         snapshot_path: String,
+        #[clap(long, help = "Specify the delegator address")]
+        delegator: IotaAddress,
     },
 }
 
@@ -62,8 +63,11 @@ fn parse_snapshot<const VERIFY: bool>(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let (current_path, coin_type) = match cli.snapshot {
-        Snapshot::Iota { snapshot_path } => (snapshot_path, CoinType::Iota),
+    let (current_path, delegator, coin_type) = match cli.snapshot {
+        Snapshot::Iota {
+            snapshot_path,
+            delegator,
+        } => (snapshot_path, delegator, CoinType::Iota),
     };
     let mut new_path = String::from("test-");
     // prepend "test-" before the file name
@@ -80,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
     let (randomness_seed, delegator_address) = match coin_type {
         CoinType::Iota => {
             // IOTA coin type values
-            (0, IF_STARDUST_ADDRESS)
+            (0, delegator)
         }
     };
 
@@ -89,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
         &new_path,
         coin_type,
         randomness_seed,
-        *Address::try_from_bech32(delegator_address)?.as_ed25519(),
+        Ed25519Address::from(delegator_address.to_inner()),
         WITH_SAMPLING,
     )
     .await?;

@@ -10,7 +10,7 @@ use clap::Parser;
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     IOTA_GENESIS_FILENAME,
-    genesis::{TokenDistributionScheduleBuilder, UnsignedGenesis},
+    genesis::{Delegations, TokenDistributionScheduleBuilder, UnsignedGenesis},
 };
 use iota_genesis_builder::{
     Builder, GENESIS_BUILDER_PARAMETERS_FILE, SnapshotSource, SnapshotUrl,
@@ -106,6 +106,11 @@ pub enum CeremonyCommand {
     },
     /// List the current validators in the Genesis builder.
     ListValidators,
+    /// Initialize the validator delegations.
+    InitDelegations {
+        #[clap(long, help = "Path to the delegations file.", name = "delegations.csv")]
+        delegations_path: PathBuf,
+    },
     /// Build the Genesis checkpoint.
     BuildUnsignedCheckpoint {
         #[clap(
@@ -256,6 +261,14 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             }
         }
 
+        CeremonyCommand::InitDelegations { delegations_path } => {
+            let mut builder = Builder::load(&dir).await?;
+            let file = File::open(delegations_path)?;
+            let delegations = Delegations::from_csv(file)?;
+            builder = builder.with_delegations(delegations);
+            builder.save(dir)?;
+        }
+
         CeremonyCommand::BuildUnsignedCheckpoint {
             local_migration_snapshots,
             remote_migration_snapshots,
@@ -271,6 +284,7 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
             for source in local_snapshots.chain(remote_snapshots) {
                 builder = builder.add_migration_source(source);
             }
+
             tokio::task::spawn_blocking(move || {
                 let UnsignedGenesis { checkpoint, .. } = builder.get_or_build_unsigned_genesis();
                 println!(
