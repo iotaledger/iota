@@ -30,14 +30,14 @@ import {
 } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/ui-icons';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { Layout, LayoutFooter, LayoutBody } from './Layout';
+import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 
 interface StakeDialogProps {
+    handleClose: () => void;
+    handleStake: () => void;
     stakedDetails: ExtendedDelegatedStake;
     showActiveStatus?: boolean;
-    handleClose: () => void;
-    handleUnstake: () => void;
-    handleStake: () => void;
+    handleUnstake?: () => void;
 }
 
 export function DetailsView({
@@ -101,9 +101,9 @@ export function DetailsView({
     }
 
     return (
-        <Layout>
+        <DialogLayout>
             <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
-            <LayoutBody>
+            <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
                     <Card type={CardType.Filled}>
                         <CardImage>
@@ -144,8 +144,8 @@ export function DetailsView({
                         </div>
                     </Panel>
                 </div>
-            </LayoutBody>
-            <LayoutFooter>
+            </DialogLayoutBody>
+            <DialogLayoutFooter>
                 <div className="flex w-full gap-sm">
                     <Button
                         type={ButtonType.Secondary}
@@ -160,7 +160,7 @@ export function DetailsView({
                         fullWidth
                     />
                 </div>
-            </LayoutFooter>
-        </Layout>
+            </DialogLayoutFooter>
+        </DialogLayout>
     );
 }

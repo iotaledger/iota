@@ -280,7 +280,7 @@ impl ConsensusAdapter {
         // be a big deal but can be optimized
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
-        #[allow(clippy::collapsible_if)] // This if can be collapsed but it will be ugly
+        #[expect(clippy::collapsible_if)] // This if can be collapsed but it will be ugly
         if epoch_store
             .get_reconfig_state_read_lock_guard()
             .is_reject_user_certs()
@@ -592,7 +592,6 @@ impl ConsensusAdapter {
         // care about it
     }
 
-    #[allow(clippy::option_map_unit_fn)]
     async fn submit_and_wait_inner(
         self: Arc<Self>,
         transactions: Vec<ConsensusTransaction>,
@@ -963,7 +962,7 @@ impl<'a> InflightDropGuard<'a> {
     }
 }
 
-impl<'a> Drop for InflightDropGuard<'a> {
+impl Drop for InflightDropGuard<'_> {
     fn drop(&mut self) {
         self.adapter
             .num_inflight_transactions

@@ -4,7 +4,7 @@
 import React from 'react';
 import { AddressInput, useNftDetails } from '@iota/core';
 import { useFormikContext } from 'formik';
-import { Layout, LayoutBody, LayoutFooter } from '../../Staking/views/Layout';
+import { DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import {
     Button,
     ButtonHtmlType,
@@ -33,9 +33,9 @@ export function SendView({ asset, onClose, onBack }: SendViewProps) {
 
     const { nftName, nftImageUrl } = useNftDetails(objectId, senderAddress);
     return (
-        <Layout>
+        <>
             <Header title="Send asset" onClose={onClose} titleCentered onBack={onBack} />
-            <LayoutBody>
+            <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
                         <VisualAssetCard
@@ -53,8 +53,8 @@ export function SendView({ asset, onClose, onBack }: SendViewProps) {
                         <AddressInput name="to" placeholder="Enter Address" />
                     </div>
                 </div>
-            </LayoutBody>
-            <LayoutFooter>
+            </DialogLayoutBody>
+            <DialogLayoutFooter>
                 <Button
                     fullWidth
                     htmlType={ButtonHtmlType.Submit}
@@ -64,7 +64,7 @@ export function SendView({ asset, onClose, onBack }: SendViewProps) {
                     iconAfterText
                     onClick={submitForm}
                 />
-            </LayoutFooter>
-        </Layout>
+            </DialogLayoutFooter>
+        </>
     );
 }

@@ -10,6 +10,8 @@ import codeImport from "remark-code-import";
 
 require("dotenv").config();
 
+const jargonConfig = require('./config/jargon.js');
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "IOTA Documentation",
@@ -158,7 +160,10 @@ const config = {
             ],
             [codeImport, { rootDir: path.resolve(__dirname, `../../`) }],
           ],
-          rehypePlugins: [katex],
+          rehypePlugins: [
+            katex,
+            [require('rehype-jargon'), { jargon: jargonConfig}]
+          ],
         },
         theme: {
           customCss: [
@@ -186,28 +191,15 @@ const config = {
       type: "text/css",
     },
   ],
-  themes: ["@docusaurus/theme-live-codeblock", "@docusaurus/theme-mermaid", 'docusaurus-theme-search-typesense'],
+  themes: ["@docusaurus/theme-mermaid",
+    '@saucelabs/theme-github-codeblock', '@docusaurus/theme-live-codeblock'],
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      typesense: {
-        // Replace this with the name of your index/collection.
-        // It should match the "index_name" entry in the scraper's "config.json" file.
-        typesenseCollectionName: 'IOTADocs',
-        typesenseServerConfig: {
-          nodes: [
-            {
-              host: 'docs-search.iota.org',
-              port: '',
-              protocol: 'https',
-            },
-          ],
-          apiKey: 'C!jA3iCujG*PjK!eUVWFBxnU',
-        },
-        // Optional: Typesense search parameters: https://typesense.org/docs/0.24.0/api/search.html#search-parameters
-        typesenseSearchParameters: {},
-        // Optional
-        contextualSearch: true,
+      algolia: {
+        apiKey: '24b141ea7e65db2181463e44dbe564a5',
+        appId: '9PMBZGRP3B',
+        indexName: 'iota',
       },
       image: "img/iota-doc-og.png",
       docs: {
@@ -242,16 +234,20 @@ const config = {
             to: "developer",
           },
           {
-            label: "TS SDK",
-            to: "references/ts-sdk/typescript/",
-          },
-          {
             label: "Node Operators",
             to: "operator",
           },
           {
             label: "References",
             to: "references",
+          },
+          {
+            label: "TS SDK",
+            to: "references/ts-sdk/typescript/",
+          },
+          {
+            label: "IOTA Identity",
+            to: "iota-identity",
           },
         ],
       },

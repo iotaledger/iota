@@ -3,7 +3,6 @@
 
 'use client';
 
-import { StartStaking } from '@/components/staking-overview/StartStaking';
 import {
     Button,
     ButtonSize,
@@ -16,8 +15,15 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { StakeDialog } from '@/components';
-import { StakeDialogView } from '@/components/Dialogs/Staking/StakeDialog';
+import {
+    StakeDialog,
+    StakeDialogView,
+    UnstakeDialog,
+    useUnstakeDialog,
+    UnstakeDialogView,
+    useStakeDialog,
+    StartStaking,
+} from '@/components';
 import {
     ExtendedDelegatedStake,
     formatDelegatedStake,
@@ -29,17 +35,18 @@ import {
     StakedCard,
     useFormatCoin,
 } from '@iota/core';
-import { useCurrentAccount, useIotaClientQuery } from '@iota/dapp-kit';
+import { useCurrentAccount, useIotaClient, useIotaClientQuery } from '@iota/dapp-kit';
 import { IotaSystemStateSummary } from '@iota/iota-sdk/client';
 import { Info } from '@iota/ui-icons';
 import { useMemo } from 'react';
-import { useStakeDialog } from '@/components/Dialogs/Staking/hooks/useStakeDialog';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 
-function StakingDashboardPage(): JSX.Element {
+function StakingDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const activeValidators = (system as IotaSystemStateSummary)?.activeValidators;
+    const iotaClient = useIotaClient();
 
     const {
         isDialogStakeOpen,
@@ -52,8 +59,16 @@ function StakingDashboardPage(): JSX.Element {
         handleCloseStakeDialog,
         handleNewStake,
     } = useStakeDialog();
+    const {
+        isOpen: isUnstakeDialogOpen,
+        openUnstakeDialog,
+        defaultDialogProps,
+        handleClose: handleCloseUnstakeDialog,
+        setView: setUnstakeDialogView,
+        setTxDigest,
+    } = useUnstakeDialog();
 
-    const { data: delegatedStakeData } = useGetDelegatedStake({
+    const { data: delegatedStakeData, refetch: refetchDelegatedStakes } = useGetDelegatedStake({
         address: account?.address || '',
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
         refetchInterval: DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -91,6 +106,42 @@ function StakingDashboardPage(): JSX.Element {
         setStakeDialogView(StakeDialogView.Details);
         setSelectedStake(extendedStake);
     };
+
+    function handleOnStakeSuccess(digest: string): void {
+        iotaClient
+            .waitForTransaction({
+                digest,
+            })
+            .then(() => refetchDelegatedStakes());
+    }
+
+    function handleUnstakeClick() {
+        setStakeDialogView(undefined);
+        openUnstakeDialog();
+    }
+
+    function handleUnstakeDialogBack() {
+        setStakeDialogView(StakeDialogView.Details);
+        handleCloseUnstakeDialog();
+    }
+
+    function handleOnUnstakeBack(view: UnstakeDialogView): (() => void) | undefined {
+        if (view === UnstakeDialogView.Unstake) {
+            return handleUnstakeDialogBack;
+        }
+    }
+
+    function handleOnUnstakeSuccess(tx: IotaSignAndExecuteTransactionOutput): void {
+        setUnstakeDialogView(UnstakeDialogView.TransactionDetails);
+        iotaClient
+            .waitForTransaction({
+                digest: tx.digest,
+            })
+            .then((tx) => {
+                refetchDelegatedStakes();
+                setTxDigest(tx.digest);
+            });
+    }
 
     return (
         <div className="flex justify-center">
@@ -163,15 +214,27 @@ function StakingDashboardPage(): JSX.Element {
                                 </div>
                             </div>
                         </div>
-                        <StakeDialog
-                            stakedDetails={selectedStake}
-                            isOpen={isDialogStakeOpen}
-                            handleClose={handleCloseStakeDialog}
-                            view={stakeDialogView}
-                            setView={setStakeDialogView}
-                            selectedValidator={selectedValidator}
-                            setSelectedValidator={setSelectedValidator}
-                        />
+                        {isDialogStakeOpen && (
+                            <StakeDialog
+                                stakedDetails={selectedStake}
+                                onSuccess={handleOnStakeSuccess}
+                                handleClose={handleCloseStakeDialog}
+                                view={stakeDialogView}
+                                setView={setStakeDialogView}
+                                selectedValidator={selectedValidator}
+                                setSelectedValidator={setSelectedValidator}
+                                onUnstakeClick={handleUnstakeClick}
+                            />
+                        )}
+
+                        {isUnstakeDialogOpen && selectedStake && (
+                            <UnstakeDialog
+                                extendedStake={selectedStake}
+                                onBack={handleOnUnstakeBack}
+                                onSuccess={handleOnUnstakeSuccess}
+                                {...defaultDialogProps}
+                            />
+                        )}
                     </Panel>
                 ) : (
                     <div className="flex h-[270px] p-lg">

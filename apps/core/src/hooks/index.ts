@@ -30,7 +30,6 @@ export * from './useTokenPrice';
 export * from './useKioskClient';
 export * from './useQueryTransactionsByAddress';
 export * from './useGetTransaction';
-export * from './useExtendedTransactionSummary';
 export * from './useSortedCoinsByCategories';
 export * from './useGetNFTDisplay';
 export * from './useIotaAddressValidation';
@@ -47,5 +46,7 @@ export * from './useNFTBasicData';
 export * from './useOwnedNFT';
 export * from './useNftDetails';
 export * from './useCountdownByTimestamp';
+export * from './useStakeRewardStatus';
+export * from './useRecognizedPackages';
 
 export * from './stake';

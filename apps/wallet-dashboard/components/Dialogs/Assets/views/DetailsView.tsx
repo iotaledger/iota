@@ -13,7 +13,7 @@ import {
 } from '@iota/apps-ui-kit';
 import Link from 'next/link';
 import { formatAddress } from '@iota/iota-sdk/utils';
-import { Layout, LayoutBody, LayoutFooter } from '../../Staking/views/Layout';
+import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { ExplorerLink } from '@/components/ExplorerLink';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -55,9 +55,9 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
     }
 
     return (
-        <Layout>
+        <>
             <Header title="Asset" onClose={onClose} titleCentered />
-            <LayoutBody>
+            <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
                         <VisualAssetCard
@@ -169,8 +169,8 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                         ) : null}
                     </div>
                 </div>
-            </LayoutBody>
-            <LayoutFooter>
+            </DialogLayoutBody>
+            <DialogLayoutFooter>
                 <div className="flex flex-col">
                     {isContainedInKiosk && kioskItem?.isLocked ? (
                         <div className="flex flex-col gap-2">
@@ -194,7 +194,7 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                         />
                     )}
                 </div>
-            </LayoutFooter>
-        </Layout>
+            </DialogLayoutFooter>
+        </>
     );
 }
