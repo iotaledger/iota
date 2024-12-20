@@ -338,7 +338,7 @@ module iota_system::validator_tests {
         {
             validator.update_next_epoch_network_address(b"/ip4/192.168.1.1/tcp/80");
             validator.update_next_epoch_p2p_address(b"/ip4/192.168.1.1/udp/80");
-            validator.update_next_epoch_primary_address(b"/ip4/192.168.1.1/udp/80");
+            validator.update_next_epoch_primary_address(b"/ip4/192.168.1.1/tcp/80");
             validator.update_next_epoch_authority_pubkey(new_authority_pub_key, new_pop);
             validator.update_next_epoch_protocol_pubkey(new_protocol_pub_key);
             validator.update_next_epoch_network_pubkey(new_network_pub_key);
@@ -367,7 +367,7 @@ module iota_system::validator_tests {
             // Next epoch
             assert!(validator.next_epoch_network_address() == &option::some(b"/ip4/192.168.1.1/tcp/80".to_string()));
             assert!(validator.next_epoch_p2p_address() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
-            assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/192.168.1.1/udp/80".to_string()));
+            assert!(validator.next_epoch_primary_address() == &option::some(b"/ip4/192.168.1.1/tcp/80".to_string()));
             assert!(
                 validator.next_epoch_authority_pubkey_bytes() == &option::some(new_authority_pub_key),
                 0
