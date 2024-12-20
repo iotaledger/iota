@@ -7,4 +7,4 @@ export * from './Staking';
 export * from './unstake';
 export * from './vesting';
 export * from './settings';
-export * from './MigrationDialog';
+export * from './migration';
