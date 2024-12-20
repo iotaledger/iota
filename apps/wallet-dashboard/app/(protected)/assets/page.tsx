@@ -37,16 +37,17 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         OBJECTS_PER_REQ,
     );
 
-    const visualAssets: IotaObjectData[] = [];
-    const otherAssets: IotaObjectData[] = [];
+    const assets = new Map<string, IotaObjectData[]>(
+        ASSET_CATEGORIES.map((tab) => [tab.value, []]),
+    );
 
     for (const page of data?.pages || []) {
         for (const asset of page.data) {
             if (asset.data && asset.data.objectId) {
                 if (hasDisplayData(asset)) {
-                    visualAssets.push(asset.data);
+                    assets.get(AssetCategory.Visual)?.push(asset.data);
                 } else {
-                    otherAssets.push(asset.data);
+                    assets.get(AssetCategory.Other)?.push(asset.data);
                 }
             }
         }
@@ -72,7 +73,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 </div>
 
                 <AssetList
-                    assets={selectedCategory == AssetCategory.Visual ? visualAssets : otherAssets}
+                    assets={assets.get(selectedCategory) ?? []}
                     selectedCategory={selectedCategory}
                     onClick={onAssetClick}
                     hasNextPage={hasNextPage}
