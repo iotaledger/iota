@@ -20,35 +20,38 @@ interface VisualAssetsProps {
 }
 
 export default function VisualAssets({ items }: VisualAssetsProps) {
-    const { hideAsset, undoHideAsset } = useHiddenAssets();
+    const { hideAsset, showAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
 
-    function handleHideAsset(event: React.MouseEvent<HTMLButtonElement>, object: IotaObjectData) {
+    async function handleHideAsset(
+        event: React.MouseEvent<HTMLButtonElement>,
+        object: IotaObjectData,
+    ) {
         event.preventDefault();
         event.stopPropagation();
         ampli.clickedHideAsset({
             objectId: object.objectId,
             collectibleType: object.type!,
         });
-        hideAsset(object.objectId).then(() => {
-            toast.success(
-                (t) => (
-                    <MovedAssetNotification
-                        t={t}
-                        destination="Hidden Assets"
-                        onUndo={() =>
-                            undoHideAsset(object.objectId).catch(() => {
-                                // Handle any error that occurred during the unhide process
-                                toast.error('Failed to unhide asset.');
-                            })
-                        }
-                    />
-                ),
-                {
-                    duration: 4000,
-                },
-            );
-        });
+
+        await hideAsset(object.objectId);
+        console.log('hidden');
+        toast.success(
+            (t) => (
+                <MovedAssetNotification
+                    t={t}
+                    destination="Hidden Assets"
+                    onUndo={() =>
+                        (async () => {
+                            await showAsset(object.objectId);
+                        })()
+                    }
+                />
+            ),
+            {
+                duration: 4000,
+            },
+        );
     }
 
     return (
