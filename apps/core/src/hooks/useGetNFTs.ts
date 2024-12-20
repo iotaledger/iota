@@ -2,10 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { hasDisplayData, isKioskOwnerToken, useGetOwnedObjects, useKioskClient } from '@iota/core';
-import { type IotaObjectData } from '@iota/iota-sdk/client';
+import {
+    hasDisplayData,
+    isKioskOwnerToken,
+    useGetOwnedObjects,
+    useKioskClient,
+    HiddenAssets,
+} from '../../';
+import { type IotaObjectData, IotaObjectDataFilter } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
-import { useHiddenAssets } from '../pages/home/assets/HiddenAssetsProvider';
 
 type OwnedAssets = {
     visual: IotaObjectData[];
@@ -18,10 +23,17 @@ export enum AssetFilterTypes {
     Other = 'other',
 }
 
-export function useGetNFTs(address?: string | null) {
+const OBJECTS_PER_REQ = 50;
+
+export function useGetNFTs(
+    address?: string | null,
+    filter?: IotaObjectDataFilter,
+    hiddenAssets?: HiddenAssets,
+) {
     const kioskClient = useKioskClient();
     const {
         data,
+        isFetching,
         isPending,
         error,
         isError,
@@ -29,14 +41,8 @@ export function useGetNFTs(address?: string | null) {
         hasNextPage,
         fetchNextPage,
         isLoading,
-    } = useGetOwnedObjects(
-        address,
-        {
-            MatchNone: [{ StructType: '0x2::coin::Coin' }],
-        },
-        50,
-    );
-    const { hiddenAssets } = useHiddenAssets();
+        refetch,
+    } = useGetOwnedObjects(address, filter, OBJECTS_PER_REQ);
 
     const assets = useMemo(() => {
         const ownedAssets: OwnedAssets = {
@@ -45,13 +51,16 @@ export function useGetNFTs(address?: string | null) {
             hidden: [],
         };
 
-        if (hiddenAssets.type === 'loading') {
+        if (hiddenAssets?.type === 'loading') {
             return ownedAssets;
         } else {
             const groupedAssets = data?.pages
                 .flatMap((page) => page.data)
                 .reduce((acc, curr) => {
-                    if (curr.data?.objectId && hiddenAssets.assetIds.includes(curr.data?.objectId))
+                    if (
+                        curr.data?.objectId &&
+                        hiddenAssets?.assetIds?.includes(curr.data?.objectId)
+                    )
                         acc.hidden.push(curr.data as IotaObjectData);
                     else if (hasDisplayData(curr) || isKioskOwnerToken(kioskClient.network, curr))
                         acc.visual.push(curr.data as IotaObjectData);
@@ -64,6 +73,7 @@ export function useGetNFTs(address?: string | null) {
 
     return {
         data: assets,
+        isFetching,
         isLoading,
         hasNextPage,
         isFetchingNextPage,
@@ -71,5 +81,6 @@ export function useGetNFTs(address?: string | null) {
         isPending: isPending,
         isError: isError,
         error,
+        refetch,
     };
 }
