@@ -7,7 +7,10 @@ const identity = [
         type: 'category',
         label: 'Getting Started',
         collapsed: false,
-        items: ['iota-identity/getting-started/rust'],
+        items: [
+            'iota-identity/getting-started/rust',
+            'iota-identity/getting-started/universal-resolver'
+        ],
     },
     {
         type: 'category',

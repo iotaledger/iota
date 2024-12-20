@@ -1,0 +1,94 @@
+---
+sidebar_label: Universal Resolver
+description: Getting started with the IOTA Universal Resolver.
+image: /img/identity/icon.png
+tags:
+  - identity
+  - did
+  - setup
+  - install
+  - getting-started
+---
+
+# Universal Resolver for IOTA DIDs
+
+The IOTA Identity framework includes a Universal Resolver driver that supports the `did:iota` method. This driver is part of the [Universal Resolver](https://github.com/decentralized-identity/universal-resolver/) infrastructure, which provides a unified interface for resolving DIDs across different methods.
+
+## Example DIDs
+
+You can resolve IOTA DIDs like this example:
+```
+did:iota:0xf4d6f08f5a1b80dd578da7dc1b49c886d580acd4cf7d48119dfeb82b538ad88a
+```
+
+## Quick Start with Docker
+
+The fastest way to get started is using our Docker image:
+
+```bash
+# Pull and run the Docker image
+docker run -p 8080:8080 iotaledger/uni-resolver-driver-iota
+```
+
+Once running, you can resolve DIDs using a simple HTTP request:
+
+```bash
+curl -X GET localhost:8080/1.0/identifiers/<did>
+```
+
+## Building from Source
+
+If you prefer to build from source using Rust:
+
+```bash
+cargo run --release
+```
+
+## Network Configuration
+
+The resolver supports three network types:
+- Testnet
+- Devnet
+- Custom networks
+
+:::note
+Mainnet support is coming soon.
+:::
+
+### Environment Variables
+
+Configure the network using these environment variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NETWORK` | Yes | Network type: `"testnet"`, `"devnet"`, or `"custom"` |
+| `IOTA_CUSTOM_NODE_ENDPOINT` | Only for custom network | The URL of your custom node |
+| `IOTA_CUSTOM_IDENTITY_PKG_ID` | Only for custom network | The identity package ID for your custom network |
+
+### Configuration Examples
+
+#### Single Network
+```bash
+NETWORK=testnet
+```
+
+#### Multiple Networks
+```bash
+NETWORK=testnet,devnet
+```
+
+#### Custom Network
+```bash
+NETWORK=custom
+IOTA_CUSTOM_NODE_ENDPOINT=https://your-custom-node-endpoint.com
+IOTA_CUSTOM_IDENTITY_PKG_ID=0x4bbd377239914fced5c1207a28443064050e880a1234858904e0ce31a5a9768c
+```
+
+## Specifications
+
+For detailed information about the IOTA DID method, refer to the [IOTA DID Method Specification](../../references/iota-identity/iota-did-method-spec.mdx).
+
+## Additional Resources
+
+- [Universal Resolver GitHub Repository](https://github.com/decentralized-identity/universal-resolver/)
+- [IOTA Identity Documentation](https://wiki.iota.org/identity.rs/introduction)
