@@ -4,7 +4,7 @@
 'use client';
 
 import { Panel, Title, Chip, TitleSize } from '@iota/apps-ui-kit';
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { COIN_TYPE, hasDisplayData, useGetOwnedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useState } from 'react';
@@ -32,22 +32,24 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const { data, isFetching, fetchNextPage, hasNextPage, refetch } = useGetOwnedObjects(
         account?.address,
         {
-            MatchNone: [{ StructType: '0x2::coin::Coin' }],
+            MatchNone: [{ StructType: COIN_TYPE }],
         },
         OBJECTS_PER_REQ,
     );
 
-    const assets = new Map<string, IotaObjectData[]>(
-        ASSET_CATEGORIES.map((tab) => [tab.value, []]),
-    );
+    const assets: IotaObjectData[] = [];
 
     for (const page of data?.pages || []) {
         for (const asset of page.data) {
             if (asset.data && asset.data.objectId) {
-                if (hasDisplayData(asset)) {
-                    assets.get(AssetCategory.Visual)?.push(asset.data);
-                } else {
-                    assets.get(AssetCategory.Other)?.push(asset.data);
+                if (selectedCategory == AssetCategory.Visual) {
+                    if (hasDisplayData(asset)) {
+                        assets.push(asset.data);
+                    }
+                } else if (selectedCategory == AssetCategory.Other) {
+                    if (!hasDisplayData(asset)) {
+                        assets.push(asset.data);
+                    }
                 }
             }
         }
@@ -73,7 +75,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                 </div>
 
                 <AssetList
-                    assets={assets.get(selectedCategory) ?? []}
+                    assets={assets}
                     selectedCategory={selectedCategory}
                     onClick={onAssetClick}
                     hasNextPage={hasNextPage}
