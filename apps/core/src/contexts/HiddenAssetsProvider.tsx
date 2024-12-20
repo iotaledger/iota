@@ -26,18 +26,16 @@ export type HiddenAssets =
 
 interface HiddenAssetContext {
     hiddenAssets: HiddenAssets;
-    setHiddenAssetIds: (hiddenAssetIds: string[]) => void;
-    hideAsset: (assetId: string) => Promise<string | void>;
-    showAsset: (assetId: string) => Promise<string | void>;
+    hideAsset: (assetId: string) => string | void;
+    showAsset: (assetId: string) => string | void;
 }
 
 export const HiddenAssetsContext = createContext<HiddenAssetContext>({
     hiddenAssets: {
         type: 'loading',
     },
-    setHiddenAssetIds: () => {},
-    hideAsset: async () => {},
-    showAsset: async () => {},
+    hideAsset: () => {},
+    showAsset: () => {},
 });
 
 export const HiddenAssetsProvider = ({ children }: PropsWithChildren) => {
@@ -46,13 +44,16 @@ export const HiddenAssetsProvider = ({ children }: PropsWithChildren) => {
     });
     const hiddenAssetIdsRef = useRef<string[]>([]);
 
-    const hiddenAssetIds = hiddenAssets.type === 'loaded' ? hiddenAssets.assetIds : [];
-
     useEffect(() => {
         (async () => {
-            const hiddenAssetsFromStorage = (await get<string[]>(HIDDEN_ASSET_IDS)) ?? [];
-            hiddenAssetIdsRef.current = hiddenAssetsFromStorage;
-            setHiddenAssetIds(hiddenAssetsFromStorage);
+            try {
+                const hiddenAssetsFromStorage = (await get<string[]>(HIDDEN_ASSET_IDS)) ?? [];
+                hiddenAssetIdsRef.current = hiddenAssetsFromStorage;
+                setHiddenAssetIds(hiddenAssetsFromStorage);
+            } catch (error) {
+                console.error('Failed to load hidden assets from storage:', error);
+                setHiddenAssetIds([]);
+            }
         })();
     }, []);
 
@@ -74,45 +75,31 @@ export const HiddenAssetsProvider = ({ children }: PropsWithChildren) => {
         }
     }, []);
 
-    const hideAssetId = useCallback(
-        async (newAssetId: string) => {
-            const prevIds = [...hiddenAssetIdsRef.current];
-            const newHiddenAssetIds = Array.from(
-                new Set([...hiddenAssetIdsRef.current, newAssetId]),
-            );
-            setHiddenAssetIds(newHiddenAssetIds);
-            syncIdb(newHiddenAssetIds, prevIds);
-            return newAssetId;
-        },
-        [hiddenAssetIds],
-    );
+    const hideAsset = useCallback((assetId: string) => {
+        const prevIds = [...hiddenAssetIdsRef.current];
+        const newHiddenAssetIds = Array.from(new Set([...hiddenAssetIdsRef.current, assetId]));
+        setHiddenAssetIds(newHiddenAssetIds);
+        syncIdb(newHiddenAssetIds, prevIds);
+        return assetId;
+    }, []);
 
-    const showAssetId = useCallback(
-        async (newAssetId: string) => {
-            // Ensure the asset exists in the hidden list
-            if (!hiddenAssetIdsRef.current.includes(newAssetId)) return;
+    const showAsset = useCallback((assetId: string) => {
+        // Ensure the asset exists in the hidden list
+        if (!hiddenAssetIdsRef.current.includes(assetId)) return;
 
-            const prevIds = [...hiddenAssetIdsRef.current];
-            // Compute the new list of hidden assets
-            const updatedHiddenAssetIds = hiddenAssetIdsRef.current.filter(
-                (id) => id !== newAssetId,
-            );
-            setHiddenAssetIds(updatedHiddenAssetIds);
-            syncIdb(updatedHiddenAssetIds, prevIds);
-        },
-        [hiddenAssetIds],
-    );
+        const prevIds = [...hiddenAssetIdsRef.current];
+        // Compute the new list of hidden assets
+        const updatedHiddenAssetIds = hiddenAssetIdsRef.current.filter((id) => id !== assetId);
+        setHiddenAssetIds(updatedHiddenAssetIds);
+        syncIdb(updatedHiddenAssetIds, prevIds);
+    }, []);
 
     return (
         <HiddenAssetsContext.Provider
             value={{
-                hiddenAssets:
-                    hiddenAssets.type === 'loaded'
-                        ? { ...hiddenAssets, assetIds: Array.from(new Set(hiddenAssetIds)) }
-                        : { type: 'loading' },
-                setHiddenAssetIds,
-                hideAsset: hideAssetId,
-                showAsset: showAssetId,
+                hiddenAssets,
+                hideAsset,
+                showAsset,
             }}
         >
             {children}

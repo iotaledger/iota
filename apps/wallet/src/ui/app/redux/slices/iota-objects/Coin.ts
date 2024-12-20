@@ -4,7 +4,7 @@
 
 import type { IotaMoveObject, IotaObjectData } from '@iota/iota-sdk/client';
 
-const COIN_TYPE = '0x2::coin::Coin';
+export const COIN_TYPE = '0x2::coin::Coin';
 const COIN_TYPE_ARG_REGEX = /^0x2::coin::Coin<(.+)>$/;
 
 export const IOTA_BIP44_COIN_TYPE = 4218;

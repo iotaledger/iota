@@ -19,6 +19,7 @@ import NonVisualAssets from './NonVisualAssets';
 import VisualAssets from './VisualAssets';
 import { Warning } from '@iota/ui-icons';
 import { useOnScreen, useGetNFTs, useHiddenAssets } from '@iota/core';
+import { COIN_TYPE } from '_src/ui/app/redux/slices/iota-objects/Coin';
 
 enum AssetCategory {
     Visual = 'Visual',
@@ -60,7 +61,7 @@ function NftsPage() {
     } = useGetNFTs(
         accountAddress,
         {
-            MatchNone: [{ StructType: '0x2::coin::Coin' }],
+            MatchNone: [{ StructType: COIN_TYPE }],
         },
         hiddenAssets,
     );

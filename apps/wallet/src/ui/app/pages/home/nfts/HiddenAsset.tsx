@@ -67,25 +67,20 @@ export default function HiddenAsset(item: HiddenAssetProps) {
         });
     }
 
-    async function handleShowAsset() {
-        try {
-            await showAsset(objectId);
-            toast.success(
-                (t) => (
-                    <MovedAssetNotification
-                        t={t}
-                        destination="Visual Assets"
-                        onUndo={() => hideAsset(objectId)}
-                    />
-                ),
-                {
-                    duration: 4000,
-                },
-            );
-        } catch {
-            // Handle any error that occurred during the unhide process
-            toast.error('Failed to show asset.');
-        }
+    function handleShowAsset() {
+        showAsset(objectId);
+        toast.success(
+            (t) => (
+                <MovedAssetNotification
+                    t={t}
+                    destination="Visual Assets"
+                    onUndo={() => hideAsset(objectId)}
+                />
+            ),
+            {
+                duration: 4000,
+            },
+        );
     }
 
     return (
