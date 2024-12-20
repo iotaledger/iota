@@ -28,9 +28,7 @@ interface HiddenAssetContext {
     hiddenAssets: HiddenAssets;
     setHiddenAssetIds: (hiddenAssetIds: string[]) => void;
     hideAsset: (assetId: string) => Promise<string | void>;
-    undoHideAsset: (assetId: string) => Promise<void>;
     showAsset: (assetId: string) => Promise<string | void>;
-    undoShowAsset: (assetId: string) => Promise<void>;
 }
 
 export const HiddenAssetsContext = createContext<HiddenAssetContext>({
@@ -39,9 +37,7 @@ export const HiddenAssetsContext = createContext<HiddenAssetContext>({
     },
     setHiddenAssetIds: () => {},
     hideAsset: async () => {},
-    undoHideAsset: async () => {},
     showAsset: async () => {},
-    undoShowAsset: async () => {},
 });
 
 export const HiddenAssetsProvider = ({ children }: PropsWithChildren) => {
@@ -68,76 +64,44 @@ export const HiddenAssetsProvider = ({ children }: PropsWithChildren) => {
         });
     }
 
+    const syncIdb = useCallback(async (nextState: string[], prevState: string[]) => {
+        try {
+            await set(HIDDEN_ASSET_IDS, nextState);
+        } catch (error) {
+            console.error('Error syncing with IndexedDB:', error);
+            // Revert to the previous state on failure
+            setHiddenAssetIds(prevState);
+        }
+    }, []);
+
     const hideAssetId = useCallback(
         async (newAssetId: string) => {
+            const prevIds = [...hiddenAssetIdsRef.current];
             const newHiddenAssetIds = Array.from(
                 new Set([...hiddenAssetIdsRef.current, newAssetId]),
             );
             setHiddenAssetIds(newHiddenAssetIds);
-            await set(HIDDEN_ASSET_IDS, newHiddenAssetIds);
+            syncIdb(newHiddenAssetIds, prevIds);
             return newAssetId;
         },
         [hiddenAssetIds],
     );
-
-    const undoHideAsset = async (assetId: string) => {
-        try {
-            let updatedHiddenAssetIds;
-            setHiddenAssets((previous) => {
-                const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
-                updatedHiddenAssetIds = previousIds.filter((id) => id !== assetId);
-                return {
-                    type: 'loaded',
-                    assetIds: updatedHiddenAssetIds,
-                };
-            });
-            await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
-        } catch (error) {
-            // Restore the asset ID back to the hidden asset IDs list
-            setHiddenAssetIds([...hiddenAssetIds, assetId]);
-            await set(HIDDEN_ASSET_IDS, hiddenAssetIds);
-        }
-    };
 
     const showAssetId = useCallback(
         async (newAssetId: string) => {
             // Ensure the asset exists in the hidden list
             if (!hiddenAssetIdsRef.current.includes(newAssetId)) return;
 
+            const prevIds = [...hiddenAssetIdsRef.current];
             // Compute the new list of hidden assets
             const updatedHiddenAssetIds = hiddenAssetIdsRef.current.filter(
                 (id) => id !== newAssetId,
             );
-            // Update the ref and state
-            hiddenAssetIdsRef.current = updatedHiddenAssetIds;
-
-            await set(HIDDEN_ASSET_IDS, updatedHiddenAssetIds);
             setHiddenAssetIds(updatedHiddenAssetIds);
-
-            // try {
-            //     const updatedHiddenAssetIds = hiddenAssetIds.filter((id) => id !== newAssetId);
-            //     return newAssetId;
-            // } catch (error) {
-            //     // Restore the asset ID back to the hidden asset IDs list
-            //     await set(HIDDEN_ASSET_IDS, hiddenAssetIds);
-            //     setHiddenAssetIds([...hiddenAssetIds, newAssetId]);
-            // }
+            syncIdb(updatedHiddenAssetIds, prevIds);
         },
         [hiddenAssetIds],
     );
-
-    const undoShowAsset = async (assetId: string) => {
-        let newHiddenAssetIds;
-        setHiddenAssets((previous) => {
-            const previousIds = previous.type === 'loaded' ? previous.assetIds : [];
-            newHiddenAssetIds = [...previousIds, assetId];
-            return {
-                type: 'loaded',
-                assetIds: newHiddenAssetIds,
-            };
-        });
-        await set(HIDDEN_ASSET_IDS, newHiddenAssetIds);
-    };
 
     return (
         <HiddenAssetsContext.Provider
@@ -148,9 +112,7 @@ export const HiddenAssetsProvider = ({ children }: PropsWithChildren) => {
                         : { type: 'loading' },
                 setHiddenAssetIds,
                 hideAsset: hideAssetId,
-                undoHideAsset: undoHideAsset,
                 showAsset: showAssetId,
-                undoShowAsset: undoShowAsset,
             }}
         >
             {children}

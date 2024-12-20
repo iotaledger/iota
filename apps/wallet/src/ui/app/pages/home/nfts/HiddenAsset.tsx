@@ -40,7 +40,7 @@ export interface HiddenAssetProps {
 }
 
 export default function HiddenAsset(item: HiddenAssetProps) {
-    const { showAsset, undoShowAsset } = useHiddenAssets();
+    const { showAsset, hideAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
     const navigate = useNavigate();
     const { objectId, type } = item.data!;
@@ -75,7 +75,7 @@ export default function HiddenAsset(item: HiddenAssetProps) {
                     <MovedAssetNotification
                         t={t}
                         destination="Visual Assets"
-                        onUndo={() => undoShowAsset(objectId)}
+                        onUndo={() => hideAsset(objectId)}
                     />
                 ),
                 {

@@ -35,17 +35,13 @@ export default function VisualAssets({ items }: VisualAssetsProps) {
         });
 
         await hideAsset(object.objectId);
-        console.log('hidden');
+
         toast.success(
             (t) => (
                 <MovedAssetNotification
                     t={t}
                     destination="Hidden Assets"
-                    onUndo={() =>
-                        (async () => {
-                            await showAsset(object.objectId);
-                        })()
-                    }
+                    onUndo={() => showAsset(object.objectId)}
                 />
             ),
             {
