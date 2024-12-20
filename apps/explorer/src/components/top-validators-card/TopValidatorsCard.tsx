@@ -3,9 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { PlaceholderTable, TableCard } from '~/components/ui';
+import { Link, PlaceholderTable, TableCard } from '~/components/ui';
 import { generateValidatorsTableColumns } from '~/lib/ui';
-import { InfoBox, InfoBoxStyle, InfoBoxType, Panel, Title } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonSize,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    Panel,
+    Title,
+} from '@iota/apps-ui-kit';
 import { ErrorBoundary } from '../error-boundary/ErrorBoundary';
 import { Warning } from '@iota/ui-icons';
 
@@ -45,26 +54,33 @@ export function TopValidatorsCard({ limit, showIcon }: TopValidatorsCardProps): 
 
     return (
         <Panel>
-            <Title title="Top Validators" />
-
-            <div className="p-md">
-                {isPending && (
-                    <PlaceholderTable
-                        rowCount={limit || NUMBER_OF_VALIDATORS}
-                        rowHeight="13px"
-                        colHeadings={['Name', 'Address', 'Stake']}
-                    />
-                )}
-
-                {isSuccess && (
-                    <ErrorBoundary>
-                        <TableCard
-                            data={topActiveValidators}
-                            columns={tableColumns}
-                            viewAll="/validators"
+            <div className="relative">
+                <div className="absolute right-0 mr-4 mt-2">
+                    <Link to="/validators">
+                        <Button
+                            type={ButtonType.Secondary}
+                            size={ButtonSize.Small}
+                            text="View All"
                         />
-                    </ErrorBoundary>
-                )}
+                    </Link>
+                </div>
+                <Title title="Top Validators" />
+
+                <div className="p-md">
+                    {isPending && (
+                        <PlaceholderTable
+                            rowCount={limit || NUMBER_OF_VALIDATORS}
+                            rowHeight="13px"
+                            colHeadings={['Name', 'Address', 'Stake']}
+                        />
+                    )}
+
+                    {isSuccess && (
+                        <ErrorBoundary>
+                            <TableCard data={topActiveValidators} columns={tableColumns} />
+                        </ErrorBoundary>
+                    )}
+                </div>
             </div>
         </Panel>
     );
