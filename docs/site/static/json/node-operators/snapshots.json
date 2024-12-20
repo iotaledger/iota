@@ -9,7 +9,7 @@
         ]
     },
     {
-        "questionText": "Which command is used to restore a Full node from a RocksDB snapshot?",
+        "questionText": "Which command is used to restore a full node from a RocksDB snapshot?",
         "answerOptions": [
             { "answerText": "iota-tool download-db-snapshot", "isCorrect": true },
             { "answerText": "iota-tool restore-snapshot", "isCorrect": false },
@@ -18,7 +18,7 @@
         ]
     },
     {
-        "questionText": "What must be done before restoring a Full node using a formal snapshot?",
+        "questionText": "What must be done before restoring a full node using a formal snapshot?",
         "answerOptions": [
             { "answerText": "Ensure the node is running with the latest software.", "isCorrect": false },
             { "answerText": "Stop the node if it's currently running.", "isCorrect": true },

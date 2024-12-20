@@ -1,6 +1,6 @@
 ---
 title: Checkpoint Verification
-description: On the IOTA network, checkpoints define the history of the blockchain. Checkpoint verification is how Full nodes and other clients guarantee their state is exactly the same as the IOTA network.
+description: On the IOTA network, checkpoints define the history of the blockchain. Checkpoint verification is how full nodes and other clients guarantee their state is exactly the same as the IOTA network.
 ---
 
 import Quiz from '@site/src/components/Quiz';
@@ -14,15 +14,15 @@ Checkpoints contain:
 - A list of all the transaction digests (and the corresponding transaction effects digests) that are included in the checkpoint.
 - A set of signatures from a quorum (more than 2/3rds) of the validators that formed the committee at the time the checkpoint was created.
 
-Both validators and Full nodes consume checkpoints to remain synchronized with the network.
+Both validators and full nodes consume checkpoints to remain synchronized with the network.
 
 ## Checkpoint verification
 
-For Full nodes and validators to trust a checkpoint, they must first verify it. Verification ensures that the checkpoint is a true checkpoint that the IOTA validator committee created.
+For full nodes and validators to trust a checkpoint, they must first verify it. Verification ensures that the checkpoint is a true checkpoint that the IOTA validator committee created.
 
 Checkpoint verification requires two interdependent pieces:
 
-1. Assuming that the Full node (or other client) has the public keys of the validator committee that created the checkpoint, it can check the signatures on the checkpoint for validity.
+1. Assuming that the full node (or other client) has the public keys of the validator committee that created the checkpoint, it can check the signatures on the checkpoint for validity.
 
     Checkpoints are signed by the aggregated BLS signatures of a quorum of the committee.
     If the signatures are valid, the client now knows that the checkpoint was created by the validator committee, and not by some other party.
@@ -46,11 +46,11 @@ This allows the client to eventually verify all checkpoints up to the present ti
 
 After a client verifies a checkpoint, what can it do with that information?
 
-As mentioned earlier, a checkpoint contains a list of transactions so a Full node, for instance, can begin fetching and executing those transactions. Because the transactions are identified by their digest (a cryptographic hash), the client can be sure that the transactions it executes have not been altered.
+As mentioned earlier, a checkpoint contains a list of transactions so a full node, for instance, can begin fetching and executing those transactions. Because the transactions are identified by their digest (a cryptographic hash), the client can be sure that the transactions it executes have not been altered.
 
 Additionally, the checkpoint contains the effects digests of each transaction. The effects digest is the cryptographic hash of the `TransactionEffects`, which is itself a structure that lists all of the inputs and outputs of a transaction. It includes the digests of all objects that were written by the transaction.
-This allows a Full node to verify that it has obtained the same execution results as those that the validators attested to when signing the checkpoint.
+This allows a full node to verify that it has obtained the same execution results as those that the validators attested to when signing the checkpoint.
 
-By executing checkpoints, and verifying transaction outputs, a Full node can build up the entire state of the IOTA network (that is, the collection of objects in the network) and trust that every byte of every object is correct.
+By executing checkpoints, and verifying transaction outputs, a full node can build up the entire state of the IOTA network (that is, the collection of objects in the network) and trust that every byte of every object is correct.
 
 <Quiz questions={questions} />

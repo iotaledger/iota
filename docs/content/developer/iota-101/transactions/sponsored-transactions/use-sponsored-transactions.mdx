@@ -26,7 +26,7 @@ To set up a user-initiated sponsored transaction, follow these steps:
 2. **User sends `GasLessTransactionData` to the sponsor**: The user forwards the transaction data to the sponsor.
 3. **Sponsor validates and signs**: The sponsor reviews the transaction, constructs `TransactionData` with gas fees, and signs it.
 4. **Sponsor returns signed transaction**: The sponsor sends the signed `TransactionData` and their `Signature` back to the user.
-5. **User verifies and signs**: The user verifies the transaction, signs the `TransactionData`, and submits the dual-signed transaction to the IOTA network via a Full node or through the sponsor.
+5. **User verifies and signs**: The user verifies the transaction, signs the `TransactionData`, and submits the dual-signed transaction to the IOTA network via a full node or through the sponsor.
 
 ### Understanding `GasLessTransactionData`
 
@@ -96,7 +96,7 @@ Use the API endpoint to receive dual-signed `SenderSignedData` and return the tr
 pub fn submit_dual_signed_transaction(dual_signed_data: SenderSignedData) -> Result<(Transaction, CertifiedTransactionEffects), Error>;
 ```
 
-For user and sponsor-initiated transactions, users can submit the dual-signed transaction either through the sponsor or directly to a Full node.
+For user and sponsor-initiated transactions, users can submit the dual-signed transaction either through the sponsor or directly to a full node.
 
 #### Data Structures for Sponsored Transactions
 

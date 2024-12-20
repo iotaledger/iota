@@ -11,7 +11,7 @@
   {
     "questionText": "In a user-initiated sponsored transaction, what step happens after the sponsor signs the TransactionData?",
     "answerOptions": [
-      { "answerText": "The user submits the signed transaction directly to a Full node", "isCorrect": false },
+      { "answerText": "The user submits the signed transaction directly to a full node", "isCorrect": false },
       { "answerText": "The sponsor sends the TransactionData and Signature back to the user", "isCorrect": true },
       { "answerText": "The transaction is broadcast to the network", "isCorrect": false },
       { "answerText": "The user constructs the GasData object", "isCorrect": false }
