@@ -112,6 +112,8 @@ iota-protocol-config:
   - "crates/iota-protocol-config/**"
 iota-protocol-config-macros:
   - "crates/iota-protocol-config-macros/**"
+iota-proxy:
+  - "crates/iota-proxy/**"
 iota-replay:
   - "crates/iota-replay/**"
 iota-rest-api:
