@@ -127,6 +127,20 @@ function NftsPage() {
         }
     }, [ownedAssets]);
 
+    useEffect(() => {
+        // Fetch the next page if there are no visual assets, other + hidden assets are present in multiples of 50, and there are more pages to fetch
+        if (
+            hasNextPage &&
+            ownedAssets?.visual.length === 0 &&
+            ownedAssets?.other.length + ownedAssets?.hidden.length > 0 &&
+            (ownedAssets.other.length + ownedAssets.hidden.length) % 50 === 0 &&
+            !isFetchingNextPage
+        ) {
+            fetchNextPage();
+            setSelectedAssetCategory(null);
+        }
+    }, [hasNextPage, ownedAssets, isFetchingNextPage]);
+
     if (isLoading) {
         return (
             <div className="mt-1 flex w-full justify-center">
