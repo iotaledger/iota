@@ -1,0 +1,1 @@
+searchState.loadedDescShard("iota_authority_aggregation", 0, "Returns the argument unchanged.\nCalls <code>U::from(self)</code>.\nThis function takes an initial state, than executes an …")

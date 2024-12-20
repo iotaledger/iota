@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["address_metrics","checkpoints","display","epoch","event_indices","events","move_call_metrics","network_metrics","obj_indices","objects","packages","transactions","tx_count_metrics","tx_indices"]};

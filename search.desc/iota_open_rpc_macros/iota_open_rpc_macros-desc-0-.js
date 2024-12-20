@@ -1,0 +1,1 @@
+searchState.loadedDescShard("iota_open_rpc_macros", 0, "Add a [Service name]OpenRpc struct and implementation …")

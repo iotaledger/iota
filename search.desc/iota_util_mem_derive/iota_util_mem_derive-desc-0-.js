@@ -1,0 +1,1 @@
+searchState.loadedDescShard("iota_util_mem_derive", 0, "A crate for deriving the MallocSizeOf trait.")

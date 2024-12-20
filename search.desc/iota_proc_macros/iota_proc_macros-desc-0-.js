@@ -1,0 +1,1 @@
+searchState.loadedDescShard("iota_proc_macros", 0, "This proc macro generates a function <code>order_to_variant_map</code> …\nThe iota_test macro will invoke either <code>#[msim::test]</code> or …\nThe <code>sim_test</code> macro will invoke <code>#[msim::test]</code> if the …")

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["all_columns"],"mod":["columns","dsl"],"struct":["checkpoint_sequence_number","epoch","move_function","move_module","move_package","star","table","transaction_sequence_number"],"type":["BoxedQuery","SqlType"]};

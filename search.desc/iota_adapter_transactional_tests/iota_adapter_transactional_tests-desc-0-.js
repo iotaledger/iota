@@ -1,0 +1,1 @@
+searchState.loadedDescShard("iota_adapter_transactional_tests", 0, "")
