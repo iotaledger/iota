@@ -51,9 +51,19 @@ WORKDIR "$WORKDIR"
 # Install runtime dependencies and tools
 RUN apt update && apt install -y libpq5 ca-certificates curl
 
-# Install jemalloc as the default allocator
-RUN apt install -y libjemalloc-dev
-ENV LD_PRELOAD /usr/lib/x86_64-linux-gnu/libjemalloc.so
+# Install jemalloc as the default allocator used for memory profiling on supported
+# architectures and create a symlink for the correct version based on the architecture
+RUN ARCH=$(dpkg --print-architecture) && \
+  if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "arm64" ]; then \
+    apt update && apt install -y libjemalloc-dev; \
+    ln -sf $(ldconfig -p | grep jemalloc | awk '{print $4}' | sort -u | head -n 1) /usr/lib/libjemalloc.so; \
+  else \
+    echo "Unsupported architecture: $ARCH. Only amd64 and arm64 are supported."; \
+  exit 1; \
+fi
+
+# Set LD_PRELOAD to the symlinked path
+ENV LD_PRELOAD=/usr/lib/libjemalloc.so
 
 COPY --from=builder /iota/iota-node /usr/local/bin
 
