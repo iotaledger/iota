@@ -4,7 +4,7 @@
 'use client';
 
 import { Panel, Title, Chip, TitleSize } from '@iota/apps-ui-kit';
-import { hasDisplayData, useGetOwnedObjects } from '@iota/core';
+import { COIN_TYPE, hasDisplayData, useGetOwnedObjects } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useState } from 'react';
@@ -31,25 +31,28 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const { data, isFetching, fetchNextPage, hasNextPage, refetch } = useGetOwnedObjects(
         account?.address,
-        undefined,
+        {
+            MatchNone: [{ StructType: COIN_TYPE }],
+        },
         OBJECTS_PER_REQ,
     );
 
-    const assets: IotaObjectData[] = [];
-
-    for (const page of data?.pages || []) {
-        for (const asset of page.data) {
-            if (asset.data && asset.data.objectId) {
-                if (selectedCategory == AssetCategory.Visual) {
-                    if (hasDisplayData(asset)) {
-                        assets.push(asset.data);
-                    }
-                } else if (selectedCategory == AssetCategory.Other) {
-                    assets.push(asset.data);
-                }
+    const assets = (data?.pages || [])
+        .flatMap((page) => page.data)
+        .filter((asset) => {
+            if (!asset.data || !asset.data.objectId) {
+                return false;
             }
-        }
-    }
+            if (selectedCategory === AssetCategory.Visual) {
+                return hasDisplayData(asset);
+            }
+            if (selectedCategory === AssetCategory.Other) {
+                return !hasDisplayData(asset);
+            }
+            return false;
+        })
+        .map((asset) => asset.data)
+        .filter((data): data is IotaObjectData => data !== null && data !== undefined);
 
     function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
