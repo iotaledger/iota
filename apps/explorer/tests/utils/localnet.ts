@@ -8,6 +8,7 @@ import { IotaClient, getFullnodeUrl } from '@iota/iota-sdk/client';
 import { type Keypair } from '@iota/iota-sdk/cryptography';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { COIN_TYPE } from '@iota/core';
 
 const addressToKeypair = new Map<string, Keypair>();
 
@@ -24,7 +25,7 @@ export async function split_coin(address: string) {
     const tx = new Transaction();
     tx.moveCall({
         target: '0x2::pay::split',
-        typeArguments: ['0x2::iota::IOTA'],
+        typeArguments: [COIN_TYPE],
         arguments: [tx.object(coin_id), tx.pure.u64(10)],
     });
 
