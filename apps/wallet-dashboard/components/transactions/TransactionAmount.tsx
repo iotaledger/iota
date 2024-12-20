@@ -5,7 +5,7 @@
 import { useFormatCoin } from '@iota/core';
 
 interface TransactionAmountProps {
-    amount: string | number;
+    amount: string | number | bigint;
     coinType: string;
     label: string;
     approximation?: boolean;

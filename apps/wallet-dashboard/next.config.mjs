@@ -1,6 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { execSync } from 'child_process';
+const NEXT_PUBLIC_DASHBOARD_REV = execSync('git rev-parse HEAD').toString().trim().toString();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     async redirects() {
@@ -15,6 +18,9 @@ const nextConfig = {
     images: {
         // Remove this domain when fetching data
         domains: ['d315pvdvxi2gex.cloudfront.net'],
+    },
+    env: {
+        NEXT_PUBLIC_DASHBOARD_REV,
     },
 };
 

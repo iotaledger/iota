@@ -1002,7 +1002,7 @@ fn extract_end_of_epoch_tx(
 // Given a checkpoint, filter out any already executed transactions, then return
 // the remaining execution digests, transaction digests, transactions to be
 // executed, and randomness rounds (if any) included in the checkpoint.
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 fn get_unexecuted_transactions(
     checkpoint: VerifiedCheckpoint,
     cache_reader: &dyn TransactionCacheRead,
