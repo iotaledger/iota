@@ -2,45 +2,12 @@
 
 The `useAccounts` hook retrieves a list of connected accounts the dApp authorizes.
 
-```ts live noInline
-function withProviders(
-    Component: React.FunctionComponent<object>,
-    walletProviderProps?: Omit<ComponentProps<typeof WalletProvider>, 'children'>,
-) {
-    // Work around server-side pre-rendering
-    const queryClient = new QueryClient();
-    const networks = {
-        testnet: { url: getFullnodeUrl('testnet') },
-    };
-
-    return () => {
-        const [shouldRender, setShouldRender] = useState(false);
-        useEffect(() => {
-            setShouldRender(true);
-        }, [setShouldRender]);
-
-        if (!shouldRender) {
-            return null;
-        }
-
-        return (
-            <QueryClientProvider client={queryClient}>
-                <IotaClientProvider networks={networks}>
-                    <WalletProvider {...walletProviderProps}>
-                        <Component />
-                    </WalletProvider>
-                </IotaClientProvider>
-            </QueryClientProvider>
-        );
-    };
-}
-
-const UseAccountsExample = withProviders(() => {
+```ts live
+function UseAccountsExample() {
     const accounts = useAccounts();
 
     return (
         <div style={{ padding: 20 }}>
-            <ConnectButton />
             <h2>Available accounts:</h2>
             {accounts.length === 0 && <div>No accounts detected</div>}
             <ul>
@@ -50,9 +17,7 @@ const UseAccountsExample = withProviders(() => {
             </ul>
         </div>
     );
-});
-
-render(<UseAccountsExample/>)
+}
 ```
 
 ## Account properties
