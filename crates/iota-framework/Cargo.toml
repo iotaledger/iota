@@ -9,6 +9,7 @@ description = "Move framework for iota platform"
 
 [dependencies]
 # external dependencies
+anyhow.workspace = true
 bcs.workspace = true
 once_cell.workspace = true
 serde.workspace = true

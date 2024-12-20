@@ -12,22 +12,22 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 2, lines 12-15:
 //# upgrade --package Test_V0 --upgrade-capability 1,1 --sender A
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: Some("error in module fake(1,0)::base: changed signature of public function f"), exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
 
 task 3, lines 17-20:
 //# upgrade --package Test_V0 --upgrade-capability 1,1 --sender A
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: Some("error in module fake(1,0)::base: changed signature of public function f"), exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
 
 task 4, lines 22-25:
 //# upgrade --package Test_V0 --upgrade-capability 1,1 --sender A
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: Some("error in module fake(1,0)::base: downgraded visibility of public function f"), exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
 
 task 5, lines 27-30:
 //# upgrade --package Test_V0 --upgrade-capability 1,1 --sender A
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: Some("error in module fake(1,0)::base: downgraded visibility of public function f"), exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
 
 task 6, lines 32-35:
 //# upgrade --package Test_V0 --upgrade-capability 1,1 --sender A
@@ -38,12 +38,12 @@ gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storag
 task 7, lines 37-40:
 //# upgrade --package Test_V1 --upgrade-capability 1,1 --sender A
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: Some("error in module Test_V0::base: changed signature of public function f"), exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
 
 task 8, lines 42-45:
 //# upgrade --package Test_V1 --upgrade-capability 1,1 --sender A
 Error: Transaction Effects Status: Invalid package upgrade. New package is incompatible with previous version
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: None, exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
+Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: PackageUpgradeError { upgrade_error: IncompatibleUpgrade }, source: Some(PartialVMError { major_status: BACKWARD_INCOMPATIBLE_MODULE_UPDATE, sub_status: None, message: Some("error in module Test_V0::base: changed signature of public function f"), exec_state: None, indices: [], offsets: [] }), command: Some(1) } }
 
 task 9, lines 47-50:
 //# upgrade --package Test_V1 --upgrade-capability 1,1 --sender A
