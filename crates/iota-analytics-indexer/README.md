@@ -9,7 +9,8 @@ The IOTA Analytics Indexer is a service that exports data from the main IOTA net
 * Exports data from the IOTA network to a remote big object store
 * Provides BigQuery and Snowflake schemas for the exported data
 
-> Note: BigQuery and Snowflake are cloud-based data warehousing solutions.
+> [!NOTE]
+> BigQuery and Snowflake are cloud-based data warehousing solutions.
 > After getting data there one can analyse it in the cloud using SQL queries.
 > 
 > BigQuery is part of Google Cloud Platform: [https://cloud.google.com/bigquery]
@@ -29,15 +30,15 @@ Currently iota-indexer is computing and storing analytical metrics about:
 
  Those metrics are computed by a separate analytical worker instance of the indexer, but it uses the main DB as the main indexer instance.
 
-It seems that some of the values stored in main indexer tables by iota-indexer's `fullnode_sync_worker` are only stored there for analytical purposes (move calls, tx recipients) and could potentially be not processed/stored if not for analytical reasons. 
+It seems that some of the values stored in main indexer tables by iota-indexer's `fullnode_sync_worker` are only stored there for analytical purposes (move calls, tx recipients) and could potentially be excluded from further processing if it was not for analytical reasons.
 
 ### iota-analytics-indexer
 
 The `iota-analytics-indexer` is not computing any analytical metrics directly.
 It is only exporting data for further processing via external tools (BigQuery/SnowFlake).
-Functionality from `iota-indexer` that is not required to serve user JSON RPC/GraphQL requests could potentially be moved away from `iota-indexer` and served by some other tool based on data exported by the `iota-analytics-indexer`.
-The sync logic in `iota-indexer` could be simplified a bit then to store only data that is needed to serve user requests.
 
+On this premise, the functionality in `iota-indexer` that is currently used for extracting analytics (and thus unrelated to the JSON-RPC/GraphQL service) could be moved out and delegated to another tool that processes data exported by `iota-analytics-indexer`.
+Then the sync logic in `iota-indexer` could be simplified as well to store only data that is needed for the purposes of the RPC APIs.
 
 
 **Schemas**
@@ -60,7 +61,8 @@ The tables covered by the schemas:
  - TRANSACTION
 
 
-> Note: The following rust structs currently do not have DB schemas prepared:
+> [!NOTE]
+> The following rust structs currently do not have DB schemas prepared:
 > - DynamicFieldEntry
 > - WrappedObjectEntry
 
@@ -90,7 +92,8 @@ In general, the data flow is as follows:
 * The `AnalyticsProcessor` syncs the objects from the local store to the remote store (S3/GCS/Azure, or also local, for testing purposes).
 * Every 5 minutes the last processed checkpoint ID is fetched from BigQuery/Snowflake and reported as a metric.
 
-**Note:** It is assumed that data from the big object store will be readable from BigQuery/Snowflake automatically, the indexer is not putting the data in BigQuery/Snowflake tables explicitly.
+> [!NOTE]
+> It is assumed that data from the big object store will be readable from BigQuery/Snowflake automatically, the indexer is not putting the data in BigQuery/Snowflake tables explicitly.
 
 Here is a graph summarizing the data flow:
 
