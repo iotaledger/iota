@@ -17,24 +17,24 @@ use crate::stardust::migration::{ExpirationTimestamp, MigrationObjects};
 #[derive(Default, Debug, Clone)]
 pub struct GenesisStake {
     token_allocation: Vec<TokenAllocation>,
-    gas_coins_to_burn: Vec<ObjectRef>,
-    timelocks_to_burn: Vec<ObjectRef>,
+    gas_coins_to_destroy: Vec<ObjectRef>,
+    timelocks_to_destroy: Vec<ObjectRef>,
     timelocks_to_split: Vec<(ObjectRef, u64, IotaAddress)>,
 }
 
 impl GenesisStake {
-    /// Take the inner gas-coin objects that must be burned.
+    /// Take the inner gas-coin objects that must be destroyed.
     ///
     /// This follows the semantics of [`std::mem::take`].
-    pub fn take_gas_coins_to_burn(&mut self) -> Vec<ObjectRef> {
-        std::mem::take(&mut self.gas_coins_to_burn)
+    pub fn take_gas_coins_to_destroy(&mut self) -> Vec<ObjectRef> {
+        std::mem::take(&mut self.gas_coins_to_destroy)
     }
 
-    /// Take the inner timelock objects that must be burned.
+    /// Take the inner timelock objects that must be destroyed.
     ///
     /// This follows the semantics of [`std::mem::take`].
-    pub fn take_timelocks_to_burn(&mut self) -> Vec<ObjectRef> {
-        std::mem::take(&mut self.timelocks_to_burn)
+    pub fn take_timelocks_to_destroy(&mut self) -> Vec<ObjectRef> {
+        std::mem::take(&mut self.timelocks_to_destroy)
     }
 
     /// Take the inner timelock objects that must be split.
@@ -46,8 +46,8 @@ impl GenesisStake {
 
     pub fn is_empty(&self) -> bool {
         self.token_allocation.is_empty()
-            && self.gas_coins_to_burn.is_empty()
-            && self.timelocks_to_burn.is_empty()
+            && self.gas_coins_to_destroy.is_empty()
+            && self.timelocks_to_destroy.is_empty()
     }
 
     /// Calculate the total amount of token allocations.
@@ -187,21 +187,21 @@ impl GenesisStake {
             // `timelock_surplus` can be used to reach or reduce the `target_stake_nanos`.
             // Then it iterates over the `timelocks_pool`. For each timelock object, its
             // balance is used to reduce the `target_stake_nanos` while its the object
-            // reference is placed into a vector `to_burn`. At the end, the
+            // reference is placed into a vector `to_destroy`. At the end, the
             // `pick_objects_for_allocation` method returns an `AllocationObjects` including
-            // the list of objects to burn, the list `staked_with_timelock` containing the
-            // information for creating token allocations with timestamps and a CoinSurplus
-            // (even empty).
+            // the list of objects to destroy, the list `staked_with_timelock` containing
+            // the information for creating token allocations with timestamps
+            // and a CoinSurplus (even empty).
             let mut timelock_allocation_objects = pick_objects_for_allocation(
                 timelocks_pool,
                 target_stake_nanos,
                 &mut timelock_surplus,
             );
-            if !timelock_allocation_objects.to_burn.is_empty() {
+            if !timelock_allocation_objects.to_destroy.is_empty() {
                 // Inside this block some timelock objects were picked from the pool; so we can
-                // save all the references to timelocks to burn
-                self.timelocks_to_burn
-                    .append(&mut timelock_allocation_objects.to_burn);
+                // save all the references to timelocks to destroy
+                self.timelocks_to_destroy
+                    .append(&mut timelock_allocation_objects.to_destroy);
                 // Finally we create some token allocations based on timelock_allocation_objects
                 timelock_allocation_objects
                     .staked_with_timelock
@@ -235,8 +235,9 @@ impl GenesisStake {
                 pick_objects_for_allocation(gas_coins_pool, target_gas_nanos, &mut gas_surplus);
             if gas_coin_objects.amount_nanos >= target_gas_nanos {
                 // Inside this block some gas coin objects were picked from the pool; so we can
-                // save all the references to gas coins to burn
-                self.gas_coins_to_burn.append(&mut gas_coin_objects.to_burn);
+                // save all the references to gas coins to destroy
+                self.gas_coins_to_destroy
+                    .append(&mut gas_coin_objects.to_destroy);
                 // Then
                 // Case 1. allocate gas stakes
                 if target_stake_nanos > 0 {
@@ -271,10 +272,10 @@ impl GenesisStake {
             self.timelocks_to_split
                 .push((surplus_timelock, surplus_nanos, delegator));
         }
-        // In the case of a gas coin, it must be burned and the surplus re-allocated to
-        // the delegator (no split)
+        // In the case of a gas coin, it must be destroyed and the surplus re-allocated
+        // to the delegator (no split)
         if let (Some(surplus_gas_coin), surplus_nanos) = gas_surplus.take() {
-            self.gas_coins_to_burn.push(surplus_gas_coin);
+            self.gas_coins_to_destroy.push(surplus_gas_coin);
             self.create_token_allocation(delegator, surplus_nanos, None, None);
         }
 
@@ -285,8 +286,8 @@ impl GenesisStake {
 /// The objects picked for token allocation during genesis
 #[derive(Default, Debug, Clone)]
 struct AllocationObjects {
-    /// The list of objects to burn for the allocations
-    to_burn: Vec<ObjectRef>,
+    /// The list of objects to destroy for the allocations
+    to_destroy: Vec<ObjectRef>,
     /// The total amount of nanos to be allocated from this
     /// collection of objects.
     amount_nanos: u64,
@@ -310,7 +311,7 @@ struct SurplusCoin {
 
 impl SurplusCoin {
     // Check if the current surplus can be reused.
-    // The surplus coin_object_ref is returned to be included in a `to_burn` list
+    // The surplus coin_object_ref is returned to be included in a `to_destroy` list
     // when surplus_nanos <= target_amount_nanos. Otherwise it means the
     // target_amount_nanos is completely reached, so we can still keep
     // coin_object_ref as surplus coin and only reduce the surplus_nanos value.
@@ -353,7 +354,7 @@ fn pick_objects_for_allocation<'obj>(
     let mut surplus_coin = SurplusCoin::default();
     // Will be left empty in the case of gas coins
     let mut staked_with_timelock = vec![];
-    let mut to_burn = vec![];
+    let mut to_destroy = vec![];
 
     if let (surplus_object_option, Some(surplus_nanos), timestamp) =
         previous_surplus_coin.maybe_reuse_surplus(target_amount_nanos)
@@ -368,9 +369,9 @@ fn pick_objects_for_allocation<'obj>(
             staked_with_timelock.push((surplus_nanos, timestamp));
         }
         // If the `surplus_object` is returned by `maybe_reuse_surplus`, then it means
-        // it used all its `surplus_nanos` and it can be burned.
+        // it used all its `surplus_nanos` and it can be destroyed.
         if let Some(surplus_object) = surplus_object_option {
-            to_burn.push(surplus_object);
+            to_destroy.push(surplus_object);
         }
         // Else, if the `surplus_object` was not completely drained, then we
         // don't need to continue. In this case `allocation_tot_amount_nanos ==
@@ -382,7 +383,7 @@ fn pick_objects_for_allocation<'obj>(
     // happen if the `surplus_coin` contained enough balance to cover for
     // `target_amount_nanos`.
     if allocation_tot_amount_nanos < target_amount_nanos {
-        to_burn.append(
+        to_destroy.append(
             &mut pool
                 .by_ref()
                 .map_while(|(object, timestamp)| {
@@ -397,7 +398,7 @@ fn pick_objects_for_allocation<'obj>(
                                 staked_with_timelock.push((object_balance, timestamp));
                             }
                             allocation_tot_amount_nanos += object_balance;
-                            // Place `obj_ref` in `to_burn` and continue
+                            // Place `obj_ref` in `to_destroy` and continue
                             Some(obj_ref)
                         } else {
                             surplus_coin = SurplusCoin {
@@ -409,7 +410,7 @@ fn pick_objects_for_allocation<'obj>(
                                 staked_with_timelock.push((difference_from_target, timestamp));
                             }
                             allocation_tot_amount_nanos += difference_from_target;
-                            // Do NOT place `obj_ref` in `to_burn` because it is reused in the
+                            // Do NOT place `obj_ref` in `to_destroy` because it is reused in the
                             // CoinSurplus and then break the map_while
                             None
                         }
@@ -426,7 +427,7 @@ fn pick_objects_for_allocation<'obj>(
     *previous_surplus_coin = surplus_coin;
 
     AllocationObjects {
-        to_burn,
+        to_destroy,
         amount_nanos: allocation_tot_amount_nanos,
         staked_with_timelock,
     }

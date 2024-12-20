@@ -1098,9 +1098,9 @@ fn build_unsigned_genesis_data<'info>(
         // migration data. These are either timelocked coins or gas coins. The token
         // distribution schedule logic assumes that these assets are indeed distributed
         // to some addresses and this happens above during the creation of the genesis
-        // objects. Here then we need to burn those assets from the original set of
+        // objects. Here then we need to destroy those assets from the original set of
         // migration objects.
-        let migration_objects = burn_staked_migration_objects(
+        let migration_objects = destroy_staked_migration_objects(
             &mut genesis_ctx,
             migration_objects.take_objects(),
             &genesis_objects,
@@ -1627,9 +1627,9 @@ pub fn generate_genesis_system_object(
 
 // Migration objects as input to this function were previously used to create a
 // genesis stake, that in turn helps to create a token distribution schedule for
-// the genesis. In this function the objects needed for the stake are burned
+// the genesis. In this function the objects needed for the stake are destroyed
 // (and, if needed, split) to provide a new set of migration object as output.
-fn burn_staked_migration_objects(
+fn destroy_staked_migration_objects(
     genesis_ctx: &mut TxContext,
     migration_objects: Vec<Object>,
     genesis_objects: &[Object],
@@ -1666,15 +1666,15 @@ fn burn_staked_migration_objects(
     // Extract objects from the store
     let mut intermediate_store = store.into_inner();
 
-    // Second operation: burn gas and timelocks objects.
-    // If the genesis stake was created, then burn gas and timelock objects that
+    // Second operation: destroy gas and timelocks objects.
+    // If the genesis stake was created, then destroy gas and timelock objects that
     // were added to the token distribution schedule, because they will be
     // created on the Move side during genesis. That means we need to prevent
     // cloning value by evicting these here.
-    for (id, _, _) in genesis_stake.take_gas_coins_to_burn() {
+    for (id, _, _) in genesis_stake.take_gas_coins_to_destroy() {
         intermediate_store.remove(&id);
     }
-    for (id, _, _) in genesis_stake.take_timelocks_to_burn() {
+    for (id, _, _) in genesis_stake.take_timelocks_to_destroy() {
         intermediate_store.remove(&id);
     }
 
