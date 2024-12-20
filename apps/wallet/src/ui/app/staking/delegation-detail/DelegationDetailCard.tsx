@@ -14,6 +14,7 @@ import {
     useFormatCoin,
     formatPercentageDisplay,
     MIN_NUMBER_IOTA_TO_STAKE,
+    Validator,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
@@ -35,7 +36,6 @@ import {
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
-import { ValidatorLogo } from '../validators/ValidatorLogo';
 import { Warning } from '@iota/ui-icons';
 
 interface DelegationDetailCardProps {
@@ -153,7 +153,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     return (
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
-                <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
+                <Validator address={validatorAddress} type={CardType.Filled} />
                 {hasInactiveValidatorDelegation ? (
                     <InfoBox
                         type={InfoBoxType.Error}
