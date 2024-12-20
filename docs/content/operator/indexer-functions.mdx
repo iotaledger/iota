@@ -10,7 +10,7 @@ The IOTA Indexer is a node data service that serves data from the IOTA protocol,
 ## Functions 
 
 The IOTA Indexer provides three main functionalities:
-- Ingest data from a Full node to a relational database. Data on Full nodes is stored as BCS bytes in an embedded RocksDB database, thus the query capabilities are very limited. The indexer pulls checkpoint blob data, schematizing them into various tables like objects, transactions, and so on, with proper indices.
+- Ingest data from a full node to a relational database. Data on full nodes is stored as BCS bytes in an embedded RocksDB database, thus the query capabilities are very limited. The indexer pulls checkpoint blob data, schematizing them into various tables like objects, transactions, and so on, with proper indices.
 - Serve online transaction processing (OLTP) RPC requests. With data in relational databases, IOTA indexer spins a stateless reader binary as JSON RPC server with an [interface](/references/iota-api).
 - Other than OLTP data ingestion and requests, the Indexer also supports some analytical data ingestion like transactions per second (TPS) and daily active user (DAU) metrics.
 

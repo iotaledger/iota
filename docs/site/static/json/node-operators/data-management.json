@@ -1,6 +1,6 @@
 [
     {
-        "questionText": "What is the main purpose of the state sync protocol in an IOTA Full node?",
+        "questionText": "What is the main purpose of the state sync protocol in an IOTA full node?",
         "answerOptions": [
             { "answerText": "To enable fast transaction submission.", "isCorrect": false },
             { "answerText": "To synchronize the local state with committed checkpoints from validators.", "isCorrect": true },
@@ -9,7 +9,7 @@
         ]
     },
     {
-        "questionText": "Which configuration option would you set to enable aggressive pruning in your IOTA Full node?",
+        "questionText": "Which configuration option would you set to enable aggressive pruning in your IOTA full node?",
         "answerOptions": [
             { "answerText": "num-epochs-to-retain: 0", "isCorrect": true },
             { "answerText": "num-epochs-to-retain: 10", "isCorrect": false },
@@ -18,7 +18,7 @@
         ]
     },
     {
-        "questionText": "What happens when an IOTA Full node cannot retrieve checkpoints from its peers?",
+        "questionText": "What happens when an IOTA full node cannot retrieve checkpoints from its peers?",
         "answerOptions": [
             { "answerText": "It stops processing new transactions.", "isCorrect": false },
             { "answerText": "It falls back to downloading missing checkpoints from a pre-configured archive.", "isCorrect": true },
