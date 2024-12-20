@@ -82,16 +82,22 @@ where
     package_obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
 }
 
-impl<T> Clone for IndexerReader<T>
-where
-    T: R2D2Connection,
-{
+impl<T: R2D2Connection> Clone for IndexerReader<T> {
     fn clone(&self) -> IndexerReader<T> {
         IndexerReader {
             pool: self.pool.clone(),
             package_resolver: self.package_resolver.clone(),
             package_obj_type_cache: self.package_obj_type_cache.clone(),
         }
+    }
+}
+
+impl<U: R2D2Connection> core::fmt::Debug for IndexerReader<U> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IndexerReader")
+            .field("pool", &self.pool)
+            .field("package_obj_type_cache", &self.package_obj_type_cache)
+            .finish()
     }
 }
 

@@ -16,9 +16,9 @@ use iota_types::{
 };
 use move_core_types::ident_str;
 
-use crate::TransactionBuilder;
+use crate::{DataReader, TransactionBuilder};
 
-impl TransactionBuilder {
+impl<R: DataReader + core::fmt::Debug + Clone + Send + Sync> TransactionBuilder<R> {
     /// Build a [`TransactionKind::ProgrammableTransaction`] that contains
     /// [`iota_types::transaction::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(

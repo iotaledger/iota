@@ -79,11 +79,7 @@ pub mod iota_client_config;
 pub mod json_rpc_error;
 pub mod wallet_context;
 
-use std::{
-    fmt::{Debug, Formatter},
-    sync::Arc,
-    time::Duration,
-};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use base64::Engine;
@@ -265,11 +261,10 @@ impl IotaClientBuilder {
             .request_timeout(self.request_timeout)
             .build(http)?;
 
-        let info = Self::get_server_info(&http, &ws).await?;
+        let info = Self::get_server_info(&http, ws.as_ref()).await?;
 
-        let rpc = RpcClient { http, ws, info };
-        let api = Arc::new(rpc);
-        let read_api = Arc::new(ReadApi::new(api.clone()));
+        let api = Arc::new(RpcClient { http, ws, info });
+        let read_api = ReadApi::new(api.clone());
         let quorum_driver_api = QuorumDriverApi::new(api.clone());
         let event_api = EventApi::new(api.clone());
         let transaction_builder = TransactionBuilder::new(read_api.clone());
@@ -359,7 +354,7 @@ impl IotaClientBuilder {
     /// Fails with an error if it cannot call the RPC discover.
     async fn get_server_info(
         http: &HttpClient,
-        ws: &Option<WsClient>,
+        ws: Option<&WsClient>,
     ) -> Result<ServerInfo, Error> {
         let rpc_spec: Value = http.request("rpc.discover", rpc_params![]).await?;
         let version = rpc_spec
@@ -439,32 +434,32 @@ impl IotaClientBuilder {
 #[derive(Clone)]
 pub struct IotaClient {
     api: Arc<RpcClient>,
-    transaction_builder: TransactionBuilder,
-    read_api: Arc<ReadApi>,
+    transaction_builder: TransactionBuilder<ReadApi>,
+    read_api: ReadApi,
     coin_read_api: CoinReadApi,
     event_api: EventApi,
     quorum_driver_api: QuorumDriverApi,
     governance_api: GovernanceApi,
 }
 
+impl core::fmt::Debug for IotaClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IotaClient")
+            .field("api", &self.api)
+            .finish()
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct RpcClient {
     http: HttpClient,
     ws: Option<WsClient>,
     info: ServerInfo,
 }
 
-impl Debug for RpcClient {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "RPC client. Http: {:?}, Websocket: {:?}",
-            self.http, self.ws
-        )
-    }
-}
-
 /// Contains all the useful information regarding the API version, the available
 /// RPC calls, and subscriptions.
+#[derive(Clone, Debug)]
 struct ServerInfo {
     rpc_methods: Vec<String>,
     subscriptions: Vec<String>,
@@ -533,7 +528,7 @@ impl IotaClient {
     }
 
     /// Return a reference to the transaction builder API.
-    pub fn transaction_builder(&self) -> &TransactionBuilder {
+    pub fn transaction_builder(&self) -> &TransactionBuilder<ReadApi> {
         &self.transaction_builder
     }
 

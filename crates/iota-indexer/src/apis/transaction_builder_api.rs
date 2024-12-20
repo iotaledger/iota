@@ -20,10 +20,25 @@ pub(crate) struct TransactionBuilderApi<T: R2D2Connection + 'static> {
     inner: IndexerReader<T>,
 }
 
+impl<T: R2D2Connection> Clone for TransactionBuilderApi<T> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<T: R2D2Connection> core::fmt::Debug for TransactionBuilderApi<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TransactionBuilderApi")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
 impl<T: R2D2Connection> TransactionBuilderApi<T> {
-    #[expect(clippy::new_ret_no_self)]
-    pub fn new(inner: IndexerReader<T>) -> IotaTransactionBuilderApi {
-        IotaTransactionBuilderApi::new_with_data_reader(std::sync::Arc::new(Self { inner }))
+    pub fn new(inner: IndexerReader<T>) -> IotaTransactionBuilderApi<TransactionBuilderApi<T>> {
+        IotaTransactionBuilderApi::new_with_data_reader(Self { inner })
     }
 }
 
