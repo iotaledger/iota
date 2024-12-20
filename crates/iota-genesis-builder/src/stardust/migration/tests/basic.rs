@@ -589,6 +589,6 @@ fn basic_migration_with_incorrect_total_supply() {
 
     assert_eq!(
         err.to_string(),
-        format!("total supply mismatch: found {total_value}, expected {total_supply}")
+        format!("base token total supply: found {total_value}, expected {total_supply}")
     );
 }
