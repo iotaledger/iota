@@ -234,7 +234,7 @@ validators:
         project_url: ""
         net_address: /ip4/127.0.0.1/tcp/80
         p2p_address: /ip4/127.0.0.1/udp/80
-        primary_address: /ip4/127.0.0.1/udp/80
+        primary_address: /ip4/127.0.0.1/tcp/80
         next_epoch_authority_pubkey_bytes: ~
         next_epoch_proof_of_possession: ~
         next_epoch_network_pubkey_bytes: ~
