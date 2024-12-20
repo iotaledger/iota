@@ -9,27 +9,29 @@ use std::{
     sync::Arc,
 };
 
+use move_core_types::parsing::address::NumericalAddress;
 use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
 use move_symbol_pool::Symbol;
 
 use crate::{
-    debug_display,
-    diagnostics::WarningFilters,
+    diagnostics::{
+        DiagnosticReporter,
+        warning_filters::{WarningFilters, WarningFiltersTable},
+    },
     expansion::ast::{
         Address, Attributes, Fields, Friend, ModuleIdent, Mutability, TargetKind, Value, Visibility,
     },
     ice,
     naming::ast::{
         BlockLabel, EnumDefinition, FunctionSignature, Neighbor, StructDefinition, SyntaxMethods,
-        Type, TypeName_, Type_, UseFuns, Var,
+        Type, Type_, UseFuns, Var,
     },
     parser::ast::{
-        BinOp, ConstantName, DatatypeName, Field, FunctionName, UnaryOp, VariantName,
-        ENTRY_MODIFIER, MACRO_MODIFIER, NATIVE_MODIFIER,
+        BinOp, ConstantName, DatatypeName, ENTRY_MODIFIER, Field, FunctionName, MACRO_MODIFIER,
+        NATIVE_MODIFIER, UnaryOp, VariantName,
     },
-    shared::{
-        ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap, CompilationEnv, Name,
-    },
+    shared::{Name, ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap},
 };
 
 //**************************************************************************************************
@@ -39,6 +41,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Program {
     pub info: Arc<TypingProgramInfo>,
+    /// Safety: This table should not be dropped as long as any `WarningFilters`
+    /// are alive
+    pub warning_filters_table: Arc<WarningFiltersTable>,
     pub modules: UniqueMap<ModuleIdent, ModuleDefinition>,
 }
 
@@ -87,6 +92,7 @@ pub struct Function {
     // index in the original order as defined in the source file
     pub index: usize,
     pub attributes: Attributes,
+    pub loc: Loc,
     /// The original, declared visibility as defined in the source file
     pub visibility: Visibility,
     /// We sometimes change the visibility of functions, e.g. `entry` is marked
@@ -195,7 +201,7 @@ pub enum UnannotatedExp_ {
     Builtin(Box<BuiltinFunction>, Box<Exp>),
     Vector(Loc, usize, Box<Type>, Box<Exp>),
 
-    IfElse(Box<Exp>, Box<Exp>, Box<Exp>),
+    IfElse(Box<Exp>, Box<Exp>, Option<Box<Exp>>),
     Match(Box<Exp>, Spanned<Vec<MatchArm>>),
     VariantMatch(
         Box<Exp>,
@@ -340,6 +346,37 @@ impl BuiltinFunction_ {
     }
 }
 
+impl Exp {
+    pub fn is_unit(&self, diags: &DiagnosticReporter) -> bool {
+        self.exp.value.is_unit(diags, self.exp.loc)
+    }
+}
+
+impl UnannotatedExp_ {
+    #[growing_stack]
+    pub fn is_unit(&self, diags: &DiagnosticReporter, loc: Loc) -> bool {
+        match &self {
+            Self::Unit { .. } => true,
+            Self::Annotate(inner, _) => inner.is_unit(diags),
+            Self::Block((_, seq)) if seq.is_empty() => {
+                diags.add_diag(ice!((loc, "Unexpected empty block without a value")));
+                false
+            }
+            Self::Block((_, seq)) if seq.len() == 1 => seq[0].value.is_unit(diags),
+            _ => false,
+        }
+    }
+}
+
+impl SequenceItem_ {
+    pub fn is_unit(&self, diags: &DiagnosticReporter) -> bool {
+        match &self {
+            Self::Seq(e) => e.is_unit(diags),
+            Self::Declare(_) | Self::Bind(_, _, _) => false,
+        }
+    }
+}
+
 pub fn explist(loc: Loc, mut es: Vec<Exp>) -> Exp {
     match es.len() {
         0 => {
@@ -366,22 +403,27 @@ pub fn single_item(e: Exp) -> ExpListItem {
     ExpListItem::Single(e, ty)
 }
 
-pub fn splat_item(env: &mut CompilationEnv, splat_loc: Loc, e: Exp) -> ExpListItem {
-    let ss = match &e.ty {
-        sp!(_, Type_::Unit) => vec![],
-        sp!(_, Type_::Apply(_, sp!(_, TypeName_::Multiple(_)), ss)) => ss.clone(),
-        _ => {
-            let mut diag = ice!((splat_loc, "ICE called `splat_item` on a non-list type"));
-            diag.add_note(format!("Expression: {}", debug_display!(e)));
-            env.add_diag(diag);
-            vec![]
-        }
-    };
-    ExpListItem::Splat(splat_loc, e, ss)
-}
-
 pub fn pat(ty: Type, pat: UnannotatedPat) -> MatchPattern {
     MatchPattern { ty, pat }
+}
+
+impl ModuleCall {
+    pub fn is<Addr>(
+        &self,
+        address: &Addr,
+        module: impl AsRef<str>,
+        function: impl AsRef<str>,
+    ) -> bool
+    where
+        NumericalAddress: PartialEq<Addr>,
+    {
+        let Self {
+            module: sp!(_, mident),
+            name: f,
+            ..
+        } = self;
+        mident.is(address, module) && f == function.as_ref()
+    }
 }
 
 //**************************************************************************************************
@@ -400,10 +442,14 @@ impl fmt::Display for BuiltinFunction_ {
 
 impl AstDebug for Program {
     fn ast_debug(&self, w: &mut AstWriter) {
-        let Program { modules, info: _ } = self;
+        let Program {
+            modules,
+            info: _,
+            warning_filters_table: _,
+        } = self;
 
         for (m, mdef) in modules.key_cloned_iter() {
-            w.write(&format!("module {}", m));
+            w.write(format!("module {}", m));
             w.block(|w| mdef.ast_debug(w));
             w.new_line();
         }
@@ -431,7 +477,7 @@ impl AstDebug for ModuleDefinition {
         } = self;
         warning_filter.ast_debug(w);
         if let Some(n) = package_name {
-            w.writeln(&format!("{}", n))
+            w.writeln(format!("{}", n))
         }
         attributes.ast_debug(w);
         w.writeln(match target_kind {
@@ -443,20 +489,20 @@ impl AstDebug for ModuleDefinition {
             } => "dependency module",
             TargetKind::External => "external module",
         });
-        w.writeln(&format!("dependency order #{}", dependency_order));
+        w.writeln(format!("dependency order #{}", dependency_order));
         for (mident, neighbor) in immediate_neighbors.key_cloned_iter() {
-            w.write(&format!("{mident} is"));
+            w.write(format!("{mident} is"));
             neighbor.ast_debug(w);
             w.writeln(";");
         }
         for addr in used_addresses {
-            w.write(&format!("uses address {};", addr));
+            w.write(format!("uses address {};", addr));
             w.new_line()
         }
         use_funs.ast_debug(w);
         syntax_methods.ast_debug(w);
         for (mident, _loc) in friends.key_cloned_iter() {
-            w.write(&format!("friend {};", mident));
+            w.write(format!("friend {};", mident));
             w.new_line();
         }
         for sdef in structs.key_cloned_iter() {
@@ -486,6 +532,7 @@ impl AstDebug for (FunctionName, &Function) {
                 warning_filter,
                 index,
                 attributes,
+                loc: _,
                 visibility,
                 compiled_visibility,
                 entry,
@@ -502,15 +549,15 @@ impl AstDebug for (FunctionName, &Function) {
         compiled_visibility.ast_debug(w);
         w.write(") ");
         if entry.is_some() {
-            w.write(&format!("{} ", ENTRY_MODIFIER));
+            w.write(format!("{} ", ENTRY_MODIFIER));
         }
         if macro_.is_some() {
-            w.write(&format!("{} ", MACRO_MODIFIER));
+            w.write(format!("{} ", MACRO_MODIFIER));
         }
         if let FunctionBody_::Native = &body.value {
-            w.write(&format!("{} ", NATIVE_MODIFIER));
+            w.write(format!("{} ", NATIVE_MODIFIER));
         }
-        w.write(&format!("fun#{index} {name}"));
+        w.write(format!("fun#{index} {name}"));
         signature.ast_debug(w);
         body.ast_debug(w);
     }
@@ -541,7 +588,7 @@ impl AstDebug for (ConstantName, &Constant) {
         ) = self;
         warning_filter.ast_debug(w);
         attributes.ast_debug(w);
-        w.write(&format!("const#{index} {name}:"));
+        w.write(format!("const#{index} {name}:"));
         signature.ast_debug(w);
         w.write(" = ");
         value.ast_debug(w);
@@ -622,7 +669,7 @@ impl AstDebug for UnannotatedExp_ {
                 w.write("use@");
                 v.ast_debug(w)
             }
-            E::Constant(m, c) => w.write(&format!("{}::{}", m, c)),
+            E::Constant(m, c) => w.write(format!("{}::{}", m, c)),
             E::ModuleCall(mcall) => {
                 mcall.ast_debug(w);
             }
@@ -642,14 +689,14 @@ impl AstDebug for UnannotatedExp_ {
                 w.write("]");
             }
             E::Pack(m, s, tys, fields) => {
-                w.write(&format!("{}::{}", m, s));
+                w.write(format!("{}::{}", m, s));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_e)| {
                     let (idx, (bt, e)) = idx_bt_e;
-                    w.write(&format!("({}#{}:", idx, f));
+                    w.write(format!("({}#{}:", idx, f));
                     bt.ast_debug(w);
                     w.write("): ");
                     e.ast_debug(w);
@@ -657,27 +704,29 @@ impl AstDebug for UnannotatedExp_ {
                 w.write("}");
             }
             E::PackVariant(m, e, v, tys, fields) => {
-                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write(format!("{}::{}::{}", m, e, v));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_e)| {
                     let (idx, (bt, e)) = idx_bt_e;
-                    w.write(&format!("({}#{}:", idx, f));
+                    w.write(format!("({}#{}:", idx, f));
                     bt.ast_debug(w);
                     w.write("): ");
                     e.ast_debug(w);
                 });
                 w.write("}");
             }
-            E::IfElse(b, t, f) => {
+            E::IfElse(b, t, f_opt) => {
                 w.write("if (");
                 b.ast_debug(w);
                 w.write(") ");
                 t.ast_debug(w);
-                w.write(" else ");
-                f.ast_debug(w);
+                if let Some(f) = f_opt {
+                    w.write(" else ");
+                    f.ast_debug(w);
+                }
             }
             E::Match(esubject, arms) => {
                 w.write("match (");
@@ -796,7 +845,7 @@ impl AstDebug for UnannotatedExp_ {
                     w.write("mut ");
                 }
                 e.ast_debug(w);
-                w.write(&format!(".{}", f));
+                w.write(format!(".{}", f));
             }
             E::TempBorrow(mut_, e) => {
                 w.write("&");
@@ -833,7 +882,7 @@ impl AstDebug for UnannotatedExp_ {
             } => {
                 w.write("ErrorConstant");
                 if let Some(c) = error_constant {
-                    w.write(&format!("({})", c))
+                    w.write(format!("({})", c))
                 }
             }
         }
@@ -857,7 +906,7 @@ impl AstDebug for ModuleCall {
             arguments,
             method_name: _,
         } = self;
-        w.write(&format!("{}::{}", module, name));
+        w.write(format!("{}::{}", module, name));
         if !parameter_types.is_empty() {
             w.write("[");
             if !parameter_types.is_empty() {
@@ -932,28 +981,28 @@ impl AstDebug for UnannotatedPat_ {
                 if *mut_ {
                     w.write("mut ");
                 }
-                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write(format!("{}::{}::{}", m, e, v));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_a)| {
                     let (idx, (bt, a)) = idx_bt_a;
-                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.annotate(|w| w.write(format!("{}#{}", idx, f)), bt);
                     w.write(": ");
                     a.ast_debug(w);
                 });
                 w.write("}");
             }
             UnannotatedPat_::Variant(m, e, v, tys, fields) => {
-                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write(format!("{}::{}::{}", m, e, v));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_a)| {
                     let (idx, (bt, a)) = idx_bt_a;
-                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.annotate(|w| w.write(format!("{}#{}", idx, f)), bt);
                     w.write(": ");
                     a.ast_debug(w);
                 });
@@ -964,35 +1013,35 @@ impl AstDebug for UnannotatedPat_ {
                 if *mut_ {
                     w.write("mut ");
                 }
-                w.write(&format!("{}::{}", m, s));
+                w.write(format!("{}::{}", m, s));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_a)| {
                     let (idx, (bt, a)) = idx_bt_a;
-                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.annotate(|w| w.write(format!("{}#{}", idx, f)), bt);
                     w.write(": ");
                     a.ast_debug(w);
                 });
                 w.write("}");
             }
             UnannotatedPat_::Struct(m, e, tys, fields) => {
-                w.write(&format!("{}::{}", m, e));
+                w.write(format!("{}::{}", m, e));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_a)| {
                     let (idx, (bt, a)) = idx_bt_a;
-                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.annotate(|w| w.write(format!("{}#{}", idx, f)), bt);
                     w.write(": ");
                     a.ast_debug(w);
                 });
                 w.write("}");
             }
             UnannotatedPat_::Constant(m, c) => {
-                w.write(&format!("{}::{}", m, c));
+                w.write(format!("{}::{}", m, c));
             }
             UnannotatedPat_::Or(lhs, rhs) => {
                 w.write("(");
@@ -1062,14 +1111,14 @@ impl AstDebug for LValue_ {
                 st,
             ),
             L::Unpack(m, s, tys, fields) => {
-                w.write(&format!("{}::{}", m, s));
+                w.write(format!("{}::{}", m, s));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_a)| {
                     let (idx, (bt, a)) = idx_bt_a;
-                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.annotate(|w| w.write(format!("{}#{}", idx, f)), bt);
                     w.write(": ");
                     a.ast_debug(w);
                 });
@@ -1080,28 +1129,28 @@ impl AstDebug for LValue_ {
                 if *mut_ {
                     w.write("mut ");
                 }
-                w.write(&format!("{}::{}", m, s));
+                w.write(format!("{}::{}", m, s));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_a)| {
                     let (idx, (bt, a)) = idx_bt_a;
-                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.annotate(|w| w.write(format!("{}#{}", idx, f)), bt);
                     w.write(": ");
                     a.ast_debug(w);
                 });
                 w.write("}");
             }
             L::UnpackVariant(m, e, v, tys, fields) => {
-                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write(format!("{}::{}::{}", m, e, v));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_a)| {
                     let (idx, (bt, a)) = idx_bt_a;
-                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.annotate(|w| w.write(format!("{}#{}", idx, f)), bt);
                     w.write(": ");
                     a.ast_debug(w);
                 });
@@ -1112,14 +1161,14 @@ impl AstDebug for LValue_ {
                 if *mut_ {
                     w.write("mut ");
                 }
-                w.write(&format!("{}::{}::{}", m, e, v));
+                w.write(format!("{}::{}::{}", m, e, v));
                 w.write("<");
                 tys.ast_debug(w);
                 w.write(">");
                 w.write("{");
                 w.comma(fields, |w, (_, f, idx_bt_a)| {
                     let (idx, (bt, a)) = idx_bt_a;
-                    w.annotate(|w| w.write(&format!("{}#{}", idx, f)), bt);
+                    w.annotate(|w| w.write(format!("{}#{}", idx, f)), bt);
                     w.write(": ");
                     a.ast_debug(w);
                 });

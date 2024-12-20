@@ -30,10 +30,10 @@ petgraph = "0.6"
 
 [features]
 default = []
-gas-profiler = [
-  "iota-adapter-latest/gas-profiler",
-  "move-vm-config/gas-profiler",
-  "move-vm-runtime-latest/gas-profiler",
-  # "iota-adapter-$CUT/gas-profiler",
-  # "move-vm-runtime-$CUT/gas-profiler",
+tracing = [
+  "iota-adapter-latest/tracing",
+  "move-vm-config/tracing",
+  "move-vm-runtime-latest/tracing",
+  # "iota-adapter-$CUT/tracing",
+  # "move-vm-runtime-$CUT/tracing",
 ]

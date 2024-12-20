@@ -37,10 +37,9 @@ move-vm-runtime = { path = "../../../external-crates/move/crates/move-vm-runtime
 move-vm-types.workspace = true
 
 [features]
-gas-profiler = [
-  "iota-types/gas-profiler",
-  "move-vm-config/gas-profiler",
-  "move-vm-profiler/gas-profiler",
-  "move-vm-runtime/gas-profiler",
-  "move-vm-types/gas-profiler",
+tracing = [
+  "iota-types/tracing",
+  "move-vm-config/tracing",
+  "move-vm-profiler/tracing",
+  "move-vm-runtime/tracing",
 ]

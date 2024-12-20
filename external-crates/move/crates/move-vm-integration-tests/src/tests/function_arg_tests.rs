@@ -16,7 +16,7 @@ use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
 
-use crate::compiler::{as_module, compile_units};
+use crate::compiler::{as_module, compile_units, serialize_module_at_max_version};
 
 const TEST_ADDR: AccountAddress = AccountAddress::new([42; AccountAddress::LENGTH]);
 
@@ -53,7 +53,7 @@ fn run(
     let mut units = compile_units(&code).unwrap();
     let m = as_module(units.pop().unwrap());
     let mut blob = vec![];
-    m.serialize(&mut blob).unwrap();
+    serialize_module_at_max_version(&m, &mut blob).unwrap();
 
     let mut storage = InMemoryStorage::new();
     let module_id = ModuleId::new(TEST_ADDR, Identifier::new("M").unwrap());
@@ -166,10 +166,9 @@ fn expected_u64_got_u64() {
 #[test]
 #[allow(non_snake_case)]
 fn expected_Foo_got_Foo() {
-    expect_ok(
-        &["Foo"],
-        vec![MoveValue::Struct(MoveStruct::new(vec![MoveValue::U64(0)]))],
-    )
+    expect_ok(&["Foo"], vec![MoveValue::Struct(MoveStruct::new(vec![
+        MoveValue::U64(0),
+    ]))])
 }
 
 #[test]
@@ -179,10 +178,10 @@ fn expected_signer_ref_got_signer() {
 
 #[test]
 fn expected_u64_signer_ref_got_u64_signer() {
-    expect_ok(
-        &["u64", "&signer"],
-        vec![MoveValue::U64(0), MoveValue::Signer(TEST_ADDR)],
-    )
+    expect_ok(&["u64", "&signer"], vec![
+        MoveValue::U64(0),
+        MoveValue::Signer(TEST_ADDR),
+    ])
 }
 
 #[test]
@@ -241,25 +240,17 @@ fn expected_A_B__A_u32_vector_B_got_u16_u256__u16_u32_vector_u256() {
 #[test]
 #[allow(non_snake_case)]
 fn expected_T__Bar_T_got_bool__Bar_bool() {
-    expect_ok_generic(
-        &["T"],
-        &["Bar<T>"],
-        vec![TypeTag::Bool],
-        vec![MoveValue::Struct(MoveStruct::new(vec![MoveValue::Bool(
-            false,
-        )]))],
-    )
+    expect_ok_generic(&["T"], &["Bar<T>"], vec![TypeTag::Bool], vec![
+        MoveValue::Struct(MoveStruct::new(vec![MoveValue::Bool(false)])),
+    ])
 }
 
 #[test]
 #[allow(non_snake_case)]
 fn expected_T__T_got_bool__bool() {
-    expect_ok_generic(
-        &["T"],
-        &["T"],
-        vec![TypeTag::Bool],
-        vec![MoveValue::Bool(false)],
-    )
+    expect_ok_generic(&["T"], &["T"], vec![TypeTag::Bool], vec![MoveValue::Bool(
+        false,
+    )])
 }
 
 #[test]

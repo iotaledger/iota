@@ -7,34 +7,36 @@
 
 use std::collections::BTreeMap;
 
+use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
 
 use super::{
-    type_abilities, LinterDiagnosticCategory, LinterDiagnosticCode,
-    INVALID_LOC, IOTA_PKG_NAME, LINT_WARNING_PREFIX, PUBLIC_TRANSFER_FUN,
-    TRANSFER_FUN, TRANSFER_MOD_NAME,
+    INVALID_LOC, LINT_WARNING_PREFIX, LinterDiagnosticCategory, LinterDiagnosticCode,
+    PUBLIC_TRANSFER_FUN, TRANSFER_FUN, TRANSFER_MOD_NAME, type_abilities,
 };
 use crate::{
     cfgir::{
-        absint::JoinResult,
-        visitor::{
-            LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain, SimpleExecutionContext,
-        },
         CFGContext, MemberName,
+        absint::JoinResult,
+        cfg::ImmForwardCFG,
+        visitor::{
+            LocalState, SimpleAbsInt, SimpleAbsIntConstructor, SimpleDomain,
+            SimpleExecutionContext, calls_special_function,
+        },
     },
     diag,
     diagnostics::{
-        codes::{custom, DiagnosticInfo, Severity},
         Diagnostic, Diagnostics,
+        codes::{DiagnosticInfo, Severity, custom},
     },
     hlir::ast::{Label, ModuleCall, Type, Type_, Var},
+    iota_mode::{IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME},
     parser::ast::Ability_,
-    shared::CompilationEnv,
 };
 
-const TRANSFER_FUNCTIONS: &[(&str, &str, &str)] = &[
-    (IOTA_PKG_NAME, TRANSFER_MOD_NAME, PUBLIC_TRANSFER_FUN),
-    (IOTA_PKG_NAME, TRANSFER_MOD_NAME, TRANSFER_FUN),
+const TRANSFER_FUNCTIONS: &[(AccountAddress, &str, &str)] = &[
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, PUBLIC_TRANSFER_FUN),
+    (IOTA_ADDR_VALUE, TRANSFER_MOD_NAME, TRANSFER_FUN),
 ];
 
 const SELF_TRANSFER_DIAG: DiagnosticInfo = custom(
@@ -80,8 +82,8 @@ impl SimpleAbsIntConstructor for SelfTransferVerifier {
     type AI<'a> = SelfTransferVerifierAI;
 
     fn new<'a>(
-        _env: &CompilationEnv,
         context: &'a CFGContext<'a>,
+        cfg: &ImmForwardCFG,
         _init_state: &mut <Self::AI<'a> as SimpleAbsInt>::State,
     ) -> Option<Self::AI<'a>> {
         let MemberName::Function(name) = context.member else {
@@ -105,6 +107,10 @@ impl SimpleAbsIntConstructor for SelfTransferVerifier {
             // do not lint module initializers, since they do not have the option of
             // returning values, and the entire purpose of this linter is to
             // encourage folks to return values instead of using transfer
+            return None;
+        }
+        if !calls_special_function(TRANSFER_FUNCTIONS, cfg) {
+            // skip if it does not use transfer functions
             return None;
         }
         Some(SelfTransferVerifierAI {
@@ -162,7 +168,7 @@ impl SimpleAbsInt for SelfTransferVerifierAI {
             }
             return Some(vec![]);
         }
-        if f.is("iota", "tx_context", "sender") {
+        if f.is(&IOTA_ADDR_VALUE, TX_CONTEXT_MODULE_NAME, "sender") {
             return Some(vec![Value::SenderAddress(*loc)]);
         }
         Some(match &return_ty.value {

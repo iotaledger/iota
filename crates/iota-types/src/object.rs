@@ -295,7 +295,7 @@ impl MoveObject {
             }
         })?;
         match layout {
-            MoveTypeLayout::Struct(l) => Ok(l),
+            MoveTypeLayout::Struct(l) => Ok(*l),
             _ => unreachable!(
                 "We called build_with_types on Struct type, should get a struct layout"
             ),

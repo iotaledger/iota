@@ -16,7 +16,11 @@ tempfile.workspace = true
 
 move-binary-format = { workspace = true, features = ["fuzzing"] }
 move-bytecode-verifier.workspace = true
+move-compiler.workspace = true
 move-core-types.workspace = true
+move-ir-to-bytecode.workspace = true
+move-stdlib.workspace = true
+move-stdlib-natives.workspace = true
 move-vm-config.workspace = true
 move-vm-profiler.workspace = true
 move-vm-runtime.workspace = true
@@ -26,19 +30,13 @@ move-vm-types.workspace = true
 [dev-dependencies]
 memory-stats = "1.0.0"
 
-move-compiler.workspace = true
-move-ir-to-bytecode.workspace = true
-move-stdlib.workspace = true
-move-stdlib-natives.workspace = true
-
 [features]
 default = []
-gas-profiler = [
-  "move-vm-config/gas-profiler",
-  "move-vm-runtime/gas-profiler",
-  "move-vm-profiler/gas-profiler",
-  "move-vm-types/gas-profiler",
-  "move-vm-test-utils/gas-profiler",
+tracing = [
+  "move-vm-config/tracing",
+  "move-vm-runtime/tracing",
+  "move-vm-profiler/tracing",
+  "move-vm-test-utils/tracing",
 ]
 
 [[bin]]

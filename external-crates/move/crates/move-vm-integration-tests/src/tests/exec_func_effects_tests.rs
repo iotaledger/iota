@@ -11,7 +11,7 @@ use move_core_types::{
     effects::ChangeSet,
     identifier::Identifier,
     language_storage::ModuleId,
-    runtime_value::{serialize_values, MoveValue},
+    runtime_value::{MoveValue, serialize_values},
     u256::U256,
     vm_status::StatusCode,
 };
@@ -19,7 +19,7 @@ use move_vm_runtime::{move_vm::MoveVM, session::SerializedReturnValues};
 use move_vm_test_utils::InMemoryStorage;
 use move_vm_types::gas::UnmeteredGasMeter;
 
-use crate::compiler::{as_module, compile_units};
+use crate::compiler::{as_module, compile_units, serialize_module_at_max_version};
 
 const TEST_ADDR: AccountAddress = AccountAddress::new([42; AccountAddress::LENGTH]);
 const TEST_MODULE_ID: &str = "M";
@@ -132,7 +132,7 @@ fn compile_module(storage: &mut InMemoryStorage, mod_id: &ModuleId, code: &str) 
     let mut units = compile_units(code).unwrap();
     let module = as_module(units.pop().unwrap());
     let mut blob = vec![];
-    module.serialize(&mut blob).unwrap();
+    serialize_module_at_max_version(&module, &mut blob).unwrap();
     storage.publish_or_overwrite_module(mod_id.clone(), blob);
 }
 

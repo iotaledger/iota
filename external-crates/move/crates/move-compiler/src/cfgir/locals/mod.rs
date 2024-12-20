@@ -9,26 +9,22 @@ use std::collections::BTreeMap;
 
 use move_ir_types::location::*;
 use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
 use state::*;
 
 use super::absint::*;
 use crate::{
+    cfgir::CFGContext,
     diag,
     diagnostics::{Diagnostic, Diagnostics},
     editions::Edition,
     expansion::ast::{AbilitySet, ModuleIdent, Mutability},
     hlir::{
         ast::*,
-        translate::{display_var, DisplayVar},
+        translate::{DisplayVar, display_var},
     },
     naming::ast::{self as N, TParam},
     parser::ast::{Ability_, DatatypeName},
-    shared::{
-        program_info::{DatatypeKind, TypingProgramInfo},
-        unique_map::UniqueMap,
-        *,
-    },
+    shared::{program_info::DatatypeKind, unique_map::UniqueMap},
 };
 
 //**************************************************************************************************
@@ -36,9 +32,7 @@ use crate::{
 //**************************************************************************************************
 
 struct LocalsSafety<'a> {
-    env: &'a CompilationEnv,
-    info: &'a TypingProgramInfo,
-    package: Option<Symbol>,
+    context: &'a CFGContext<'a>,
     local_types: &'a UniqueMap<Var, (Mutability, SingleType)>,
     signature: &'a FunctionSignature,
     unused_mut: BTreeMap<Var, Loc>,
@@ -46,9 +40,7 @@ struct LocalsSafety<'a> {
 
 impl<'a> LocalsSafety<'a> {
     fn new(
-        env: &'a CompilationEnv,
-        info: &'a TypingProgramInfo,
-        package: Option<Symbol>,
+        context: &'a CFGContext<'a>,
         local_types: &'a UniqueMap<Var, (Mutability, SingleType)>,
         signature: &'a FunctionSignature,
     ) -> Self {
@@ -63,9 +55,7 @@ impl<'a> LocalsSafety<'a> {
             })
             .collect();
         Self {
-            env,
-            info,
-            package,
+            context,
             local_types,
             signature,
             unused_mut,
@@ -74,9 +64,7 @@ impl<'a> LocalsSafety<'a> {
 }
 
 struct Context<'a, 'b> {
-    env: &'a CompilationEnv,
-    info: &'a TypingProgramInfo,
-    package: Option<Symbol>,
+    outer: &'a CFGContext<'a>,
     local_types: &'a UniqueMap<Var, (Mutability, SingleType)>,
     unused_mut: &'a mut BTreeMap<Var, Loc>,
     local_states: &'b mut LocalStates,
@@ -86,15 +74,12 @@ struct Context<'a, 'b> {
 
 impl<'a, 'b> Context<'a, 'b> {
     fn new(locals_safety: &'a mut LocalsSafety, local_states: &'b mut LocalStates) -> Self {
-        let env = locals_safety.env;
-        let info = locals_safety.info;
+        let outer = locals_safety.context;
         let local_types = locals_safety.local_types;
         let signature = locals_safety.signature;
         let unused_mut = &mut locals_safety.unused_mut;
         Self {
-            env,
-            info,
-            package: locals_safety.package,
+            outer,
             local_types,
             unused_mut,
             local_states,
@@ -157,18 +142,18 @@ impl<'a, 'b> Context<'a, 'b> {
     //     .unwrap();
 
     fn datatype_decl_loc(&self, m: &ModuleIdent, n: &DatatypeName) -> Loc {
-        let kind = self.info.datatype_kind(m, n);
+        let kind = self.outer.info.datatype_kind(m, n);
         match kind {
-            DatatypeKind::Struct => self.info.struct_declared_loc(m, n),
-            DatatypeKind::Enum => self.info.enum_declared_loc(m, n),
+            DatatypeKind::Struct => self.outer.info.struct_declared_loc(m, n),
+            DatatypeKind::Enum => self.outer.info.enum_declared_loc(m, n),
         }
     }
 
     fn datatype_declared_abilities(&self, m: &ModuleIdent, n: &DatatypeName) -> &'a AbilitySet {
-        let kind = self.info.datatype_kind(m, n);
+        let kind = self.outer.info.datatype_kind(m, n);
         match kind {
-            DatatypeKind::Struct => self.info.struct_declared_abilities(m, n),
-            DatatypeKind::Enum => self.info.enum_declared_abilities(m, n),
+            DatatypeKind::Struct => self.outer.info.struct_declared_abilities(m, n),
+            DatatypeKind::Enum => self.outer.info.enum_declared_abilities(m, n),
         }
     }
 }
@@ -192,7 +177,6 @@ impl<'a> TransferFunctions for LocalsSafety<'a> {
 impl<'a> AbstractInterpreter for LocalsSafety<'a> {}
 
 pub fn verify(
-    compilation_env: &mut CompilationEnv,
     context: &super::CFGContext,
     cfg: &super::cfg::MutForwardCFG,
 ) -> BTreeMap<Label, LocalStates> {
@@ -200,22 +184,16 @@ pub fn verify(
         signature, locals, ..
     } = context;
     let initial_state = LocalStates::initial(&signature.parameters, locals);
-    let mut locals_safety = LocalsSafety::new(
-        compilation_env,
-        context.info,
-        context.package,
-        locals,
-        signature,
-    );
+    let mut locals_safety = LocalsSafety::new(context, locals, signature);
     let (final_state, ds) = locals_safety.analyze_function(cfg, initial_state);
-    unused_let_muts(compilation_env, locals, locals_safety.unused_mut);
-    compilation_env.add_diags(ds);
+    unused_let_muts(context, locals, locals_safety.unused_mut);
+    context.add_diags(ds);
     final_state
 }
 
 /// Generates warnings for unused mut declarations
 fn unused_let_muts<T>(
-    env: &mut CompilationEnv,
+    context: &CFGContext,
     locals: &UniqueMap<Var, T>,
     unused_mut_locals: BTreeMap<Var, Loc>,
 ) {
@@ -229,7 +207,7 @@ fn unused_let_muts<T>(
             let decl_loc = *locals.get_loc(&v).unwrap();
             let decl_msg = format!("The variable '{vstr}' is never used mutably");
             let mut_msg = "Consider removing the 'mut' declaration here";
-            env.add_diag(diag!(
+            context.add_diag(diag!(
                 UnusedItem::MutModifier,
                 (decl_loc, decl_msg),
                 (mut_loc, mut_msg)
@@ -254,7 +232,7 @@ fn command(context: &mut Context, sp!(loc, cmd_): &Command) {
             exp(context, er);
             exp(context, el)
         }
-        C::Abort(e)
+        C::Abort(_, e)
         | C::IgnoreAndPop { exp: e, .. }
         | C::JumpIf { cond: e, .. }
         | C::VariantSwitch { subject: e, .. } => exp(context, e),
@@ -527,7 +505,7 @@ fn check_mutability(
         let usage_msg = format!("Invalid {usage} of immutable variable '{vstr}'");
         let decl_msg =
             format!("To use the variable mutably, it must be declared 'mut', e.g. 'mut {vstr}'");
-        if context.env.edition(context.package) == Edition::E2024_MIGRATION {
+        if context.outer.env.edition(context.outer.package) == Edition::E2024_MIGRATION {
             context.add_diag(diag!(Migration::NeedsLetMut, (decl_loc, decl_msg.clone())))
         } else {
             let mut diag = diag!(
@@ -555,7 +533,7 @@ fn check_mutability(
 //**************************************************************************************************
 
 fn add_drop_ability_tip(context: &Context, diag: &mut Diagnostic, st: SingleType) {
-    use N::{TypeName_ as TN, Type_ as T};
+    use N::{Type_ as T, TypeName_ as TN};
     let ty = single_type_to_naming_type(st);
     let owned_abilities;
     let (declared_loc_opt, declared_abilities, ty_args) = match &ty.value {
@@ -606,8 +584,8 @@ fn single_type_to_naming_type(sp!(loc, st_): SingleType) -> N::Type {
 }
 
 fn single_type_to_naming_type_(st_: SingleType_) -> N::Type_ {
-    use SingleType_ as S;
     use N::Type_ as T;
+    use SingleType_ as S;
     match st_ {
         S::Ref(mut_, b) => T::Ref(mut_, Box::new(base_type_to_naming_type(b))),
         S::Base(sp!(_, b_)) => base_type_to_naming_type_(b_),
@@ -638,8 +616,8 @@ fn type_name_to_naming_type_name(sp!(loc, tn_): TypeName) -> N::TypeName {
 }
 
 fn type_name_to_naming_type_name_(tn_: TypeName_) -> N::TypeName_ {
-    use TypeName_ as TN;
     use N::TypeName_ as NTN;
+    use TypeName_ as TN;
     match tn_ {
         TN::Builtin(b) => NTN::Builtin(b),
         TN::ModuleType(m, n) => NTN::ModuleType(m, n),

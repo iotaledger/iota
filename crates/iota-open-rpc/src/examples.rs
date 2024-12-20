@@ -1111,7 +1111,7 @@ impl RpcExampleProvider {
                     },
                     MoveStructLayout {
                         type_: struct_tag,
-                        fields: Vec::new(),
+                        fields: Box::new(Vec::new()),
                     },
                 )
                 .unwrap(),

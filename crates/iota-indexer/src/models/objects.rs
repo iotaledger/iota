@@ -316,7 +316,7 @@ impl StoredObject {
             )),
         }?;
 
-        Ok(ObjectRead::Exists(oref, object, Some(move_struct_layout)))
+        Ok(ObjectRead::Exists(oref, object, Some(*move_struct_layout)))
     }
 
     pub async fn try_into_expectant_dynamic_field_info(
