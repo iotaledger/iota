@@ -1,6 +1,6 @@
 ---
 title: Validator Committee
-description: IOTA has a committee of validators to verify on-chain transactions. Epochs, quorums, transactions, _certificate_s, and consensus are touch points for this committee.
+description: IOTA has a committee of validators to verify on-chain transactions. Epochs, quorums, transactions, _certificates_, and consensus are touch points for this committee.
 ---
 
 import Quiz from '@site/src/components/Quiz';
@@ -20,11 +20,11 @@ Operation of the IOTA network is temporally partitioned into non-overlapping, ap
 
 A quorum is a set of validators whose combined voting power is greater than two-thirds (>2/3) of the total during a particular epoch. For example, in an IOTA instance operated by four validators that all have the same voting power, any group containing three validators is a quorum.
 
-The quorum size of >2/3 ensures Byzantine fault tolerance (BFT). A validator commits a transaction (durably store the transaction and update its internal state with the effects of the transaction) only if it is accompanied by cryptographic signatures from a quorum. IOTA calls the combination of the transaction and the quorum signatures on its bytes a _certificate_. The policy of committing only _certificate_s ensures Byzantine fault tolerance: if >2/3 of the validators faithfully follow the protocol, they are guaranteed to eventually agree on both the set of committed _certificate_s and their effects.
+The quorum size of >2/3 ensures Byzantine fault tolerance (BFT). A validator commits a transaction (durably store the transaction and update its internal state with the effects of the transaction) only if it is accompanied by cryptographic signatures from a quorum. IOTA calls the combination of the transaction and the quorum signatures on its bytes a _certificate_. The policy of committing only _certificates_ ensures Byzantine fault tolerance: if >2/3 of the validators faithfully follow the protocol, they are guaranteed to eventually agree on both the set of committed _certificates_ and their effects.
 
 ## Write requests 
 
-A validator can handle two types of write requests: transactions and _certificate_s. At a high level, a client:
+A validator can handle two types of write requests: transactions and _certificates_. At a high level, a client:
 
 - Communicates a transaction to a quorum of validators to collect the signatures required to form a _certificate_.
 - Submits a _certificate_ to a validator to commit state changes on that validator.
@@ -33,7 +33,7 @@ A validator can handle two types of write requests: transactions and _certificat
 
 When a validator receives a transaction from a client, it first performs transaction validity checks (validity of the sender's signature). If the checks pass, the validator locks all owned-objects and signs the transaction bytes, then returns the signature to the client. The client repeats this process with multiple validators until it has collected signatures on its transaction from a quorum, thereby forming a _certificate_.
 
-The process of collecting validator signatures on a transaction into a _certificate_ and the process of submitting _certificate_s can be performed in parallel. The client can simultaneously multicast transactions/_certificate_s to an arbitrary number of validators. Alternatively, a client can outsource either or both of these tasks to a third-party service provider. This provider must be trusted for liveness (it can refuse to form a _certificate_), but not for safety (it cannot change the effects of the transaction, and does not need the user's secret key).
+The process of collecting validator signatures on a transaction into a _certificate_ and the process of submitting _certificates_ can be performed in parallel. The client can simultaneously multicast transactions/_certificates_ to an arbitrary number of validators. Alternatively, a client can outsource either or both of these tasks to a third-party service provider. This provider must be trusted for liveness (it can refuse to form a _certificate_), but not for safety (it cannot change the effects of the transaction, and does not need the user's secret key).
 
 ### Certificates
 
@@ -50,8 +50,8 @@ Narwhal enables the parallel ordering of transactions into batches that are coll
 - N/B operates in OX, rather than XO mode (O = order, X = execute); the execution occurs after the Narwhal/Bullshark ordering.
 - The output of N/B is therefore a sequence of transactions, with interdependencies stored in the transaction data itself.
 
-Consensus sequences _certificate_s of transactions. These represent transactions that have already been presented to 2/3 of validators that checked that all their owned objects are available to be operated on and signed the transaction. Upon a _certificate_ being sequenced, IOTA sets the lock of the shared objects at the next available version to map to the execution of that _certificate_. So for example if you have a shared object X at version 2, and you sequence _certificate_ T, IOTA stores T -> [(X, 2)]. That is all you do when IOTA reaches consensus, and as a result IOTA can ingest a lot of sequenced transactions.
+Consensus sequences _certificates_ of transactions. These represent transactions that have already been presented to 2/3 of validators that checked that all their owned objects are available to be operated on and signed the transaction. Upon a _certificate_ being sequenced, IOTA sets the lock of the shared objects at the next available version to map to the execution of that _certificate_. So for example if you have a shared object X at version 2, and you sequence _certificate_ T, IOTA stores T -> [(X, 2)]. That is all you do when IOTA reaches consensus, and as a result IOTA can ingest a lot of sequenced transactions.
 
-Now, after this is done IOTA can execute all _certificate_s that have their locks set, on one or multiple cores. Obviously, transactions for earlier versions of objects need to be processed first (causally), and that reduces the degree of concurrency. The read and write set of the transaction can be statically determined from its versioned object inputs--execution can only read/write an object that was an input to the transaction, or that was created by the transaction.
+Now, after this is done IOTA can execute all _certificates_ that have their locks set, on one or multiple cores. Obviously, transactions for earlier versions of objects need to be processed first (causally), and that reduces the degree of concurrency. The read and write set of the transaction can be statically determined from its versioned object inputs--execution can only read/write an object that was an input to the transaction, or that was created by the transaction.
 
 <Quiz questions={questions} />
