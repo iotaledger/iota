@@ -24,12 +24,14 @@ use miette::Severity;
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };
-use move_command_line_common::{
-    address::{NumericalAddress, ParsedAddress},
-    parser::NumberFormat,
-};
 use move_core_types::{
-    account_address::AccountAddress, annotated_value::MoveTypeLayout, ident_str,
+    account_address::AccountAddress,
+    annotated_value::MoveTypeLayout,
+    ident_str,
+    parsing::{
+        address::{NumericalAddress, ParsedAddress},
+        parser::NumberFormat,
+    },
 };
 use move_package::BuildConfig;
 
