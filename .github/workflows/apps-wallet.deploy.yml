@@ -1,0 +1,59 @@
+name: Deploy Wallet App
+
+# For testing purposes
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "apps/wallet/**"
+      - ".github/workflows/apps-wallet.deploy.yml"
+
+env:
+  DEFAULT_NETWORK: ${{ secrets.WALLET_NIGHTLY_BUILD_DEFAULT_NETWORK }}
+  IOTA_NETWORKS: ${{ secrets.WALLET_NIGHTLY_BUILD_IOTA_NETWORKS }}
+  APPS_BACKEND: ${{ secrets.WALLET_NIGHTLY_BUILD_APPS_BACKEND }}
+
+jobs:
+  wallet-build:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: [self-hosted]
+    steps:
+      - name: Create artifact name
+        shell: bash
+        run: |
+          export artifact_name="wallet-$(date -Idate)"
+          echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # pin@v4.0.0
+      - name: Install Nodejs
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # pin@v4.0.2
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Turbo Cache
+        id: turbo-cache
+        uses: actions/cache@v3
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+      - name: Build Wallet
+        run: pnpm wallet build
+      - name: Create extension zip
+        run:  pnpm --filter iota-wallet pack:zip
+        # run: zip -r wallet_extension.zip ./apps/wallet/dist
+
+      - name: Fetch and Filter PRs
+        run: |
+          npm install @octokit/rest
+          node fetch_prs.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
