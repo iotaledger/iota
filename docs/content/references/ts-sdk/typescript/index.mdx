@@ -34,39 +34,6 @@ To create a local IOTA network, you can refer to [Local Development](/developer/
 
 <NetworkInfo.Move {...Networks['iota_localnet']}/>
 
-## Migrate to version 0.38.0
-
-The IOTA TypeScript SDK was refactored beginning with version 0.38.0. If you are updating from an
-earlier version of the SDK, there are some changes you should consider when updating your code.
-
-### Module structure
-
-The IOTA TypeScript SDK is now divided into modular components. Before version 0.38.0, you imported
-the complete SDK module. Now, you upload the individual packages of the SDK module instead. See the
-[Module Packages section](#module-packages) for the list of packages.
-
-### Signing transactions
-
-Signing and sending transactions changes slightly with the deprecation of the `Signer`
-pattern. For an example of transaction signing, see the
-[IOTA Programmable Transaction Blocks Basics](./transaction-building/basics.mdx) topic.
-
-### Faucet requests
-
-The ability to request IOTA from a faucet is not part of `IotaClient` as it was with
-`JsonRpcProvider`. Instead, you must use the `requestIotaFromFaucetV0` method from
-`@iota/iota-sdk/faucet`. The `@iota/iota-sdk/faucet` import also provides a `getFaucetHost` method
-to retrieve the faucet URL for `localnet`, `testnet`, or `devnet` networks.
-
-```ts
-import { getFaucetHost, requestIotaFromFaucetV0 } from '@iota/iota-sdk/faucet';
-
-await requestIotaFromFaucetV0({
-    host: getFaucetHost('devnet'),
-    recipient: '<IOTA_ADDRESS>',
-});
-```
-
 ## Module packages
 
 The SDK contains a set of modular packages that you can use independently or together. Import just
