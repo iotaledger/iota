@@ -11,12 +11,12 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{Argument, CallArg, ObjectArg},
 };
-use move_command_line_common::{
-    parser::{Parser as MoveCLParser, parse_u64, parse_u256},
-    values::{ParsableValue, ParsedValue, ValueToken},
-};
 use move_compiler::editions::Flavor;
 use move_core_types::{
+    parsing::{
+        parser::{Parser as MoveCLParser, parse_u64, parse_u256},
+        values::{ParsableValue, ParsedValue, ValueToken},
+    },
     runtime_value::{MoveStruct, MoveValue},
     u256::U256,
 };

@@ -126,5 +126,5 @@ name = "ptb_files_tests"
 harness = false
 
 [features]
-gas-profiler = ["iota-types/gas-profiler", "iota-execution/gas-profiler"]
+tracing = ["iota-types/tracing", "iota-execution/tracing"]
 indexer = ["dep:diesel", "dep:iota-indexer", "dep:iota-graphql-rpc"]

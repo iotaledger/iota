@@ -227,7 +227,7 @@ impl IotaJsonValue {
                              with one field of address or u8 vector type"
                 ),
             },
-            MoveTypeLayout::Struct(MoveStructLayout { type_, .. }) if type_ == &ID::type_() => {
+            MoveTypeLayout::Struct(struct_layout) if struct_layout.type_ == ID::type_() => {
                 Ok(R::MoveValue::Struct(R::MoveStruct(vec![
                     Self::to_move_value(val, &inner_vec[0].layout.clone())?,
                 ])))
@@ -282,27 +282,27 @@ impl IotaJsonValue {
                 R::MoveValue::U256(convert_string_to_u256(s.as_str())?)
             }
             // For ascii and utf8 strings
-            (
-                JsonValue::String(s),
-                MoveTypeLayout::Struct(MoveStructLayout { type_, fields: _ }),
-            ) if is_move_string_type(type_) => {
+            (JsonValue::String(s), MoveTypeLayout::Struct(struct_layout))
+                if is_move_string_type(&struct_layout.type_) =>
+            {
                 R::MoveValue::Vector(s.as_bytes().iter().copied().map(R::MoveValue::U8).collect())
             }
             // For ID
-            (JsonValue::String(s), MoveTypeLayout::Struct(MoveStructLayout { type_, fields }))
-                if type_ == &ID::type_() =>
+            (JsonValue::String(s), MoveTypeLayout::Struct(struct_layout))
+                if struct_layout.type_ == ID::type_() =>
             {
-                if fields.len() != 1 {
+                if struct_layout.fields.len() != 1 {
                     bail!(
-                        "Cannot convert string arg {s} to {type_} which is expected to be a struct with one field"
+                        "Cannot convert string arg {s} to {} which is expected to be a struct with one field",
+                        struct_layout.type_
                     );
                 };
                 let addr = IotaAddress::from_str(s)?;
                 R::MoveValue::Address(addr.into())
             }
-            (JsonValue::Object(o), MoveTypeLayout::Struct(MoveStructLayout { fields, .. })) => {
+            (JsonValue::Object(o), MoveTypeLayout::Struct(struct_layout)) => {
                 let mut field_values = vec![];
-                for layout in fields {
+                for layout in struct_layout.fields.iter() {
                     let field = o
                         .get(layout.name.as_str())
                         .ok_or_else(|| anyhow!("Missing field {} for struct {ty}", layout.name))?;
@@ -311,10 +311,8 @@ impl IotaJsonValue {
                 R::MoveValue::Struct(R::MoveStruct(field_values))
             }
             // Unnest fields
-            (value, MoveTypeLayout::Struct(MoveStructLayout { fields, .. }))
-                if fields.len() == 1 =>
-            {
-                Self::to_move_value(value, &fields[0].layout)?
+            (value, MoveTypeLayout::Struct(struct_layout)) if struct_layout.fields.len() == 1 => {
+                Self::to_move_value(value, &struct_layout.fields[0].layout)?
             }
             (JsonValue::String(s), MoveTypeLayout::Vector(t)) => {
                 match &**t {
@@ -337,8 +335,8 @@ impl IotaJsonValue {
                         };
                         R::MoveValue::Vector(vec.iter().copied().map(R::MoveValue::U8).collect())
                     }
-                    MoveTypeLayout::Struct(MoveStructLayout { fields: inner, .. }) => {
-                        Self::handle_inner_struct_layout(inner, val, ty, s)?
+                    MoveTypeLayout::Struct(struct_layout) => {
+                        Self::handle_inner_struct_layout(&struct_layout.fields, val, ty, s)?
                     }
                     _ => bail!("Cannot convert string arg {s} to {ty}"),
                 }
@@ -606,37 +604,37 @@ pub fn primitive_type(
             if resolved_struct == RESOLVED_ASCII_STR {
                 (
                     true,
-                    Some(MoveTypeLayout::Struct(MoveStructLayout {
+                    Some(MoveTypeLayout::Struct(Box::new(MoveStructLayout {
                         type_: resolved_to_struct(RESOLVED_ASCII_STR),
-                        fields: vec![MoveFieldLayout::new(
+                        fields: Box::new(vec![MoveFieldLayout::new(
                             ident_str!("bytes").into(),
                             MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-                        )],
-                    })),
+                        )]),
+                    }))),
                 )
             } else if resolved_struct == RESOLVED_UTF8_STR {
                 // both structs structs representing strings have one field - a vector of type
                 // u8
                 (
                     true,
-                    Some(MoveTypeLayout::Struct(MoveStructLayout {
+                    Some(MoveTypeLayout::Struct(Box::new(MoveStructLayout {
                         type_: resolved_to_struct(RESOLVED_UTF8_STR),
-                        fields: vec![MoveFieldLayout::new(
+                        fields: Box::new(vec![MoveFieldLayout::new(
                             ident_str!("bytes").into(),
                             MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),
-                        )],
-                    })),
+                        )]),
+                    }))),
                 )
             } else if resolved_struct == RESOLVED_IOTA_ID {
                 (
                     true,
-                    Some(MoveTypeLayout::Struct(MoveStructLayout {
+                    Some(MoveTypeLayout::Struct(Box::new(MoveStructLayout {
                         type_: resolved_to_struct(RESOLVED_IOTA_ID),
-                        fields: vec![MoveFieldLayout::new(
+                        fields: Box::new(vec![MoveFieldLayout::new(
                             ident_str!("bytes").into(),
                             MoveTypeLayout::Address,
-                        )],
-                    })),
+                        )]),
+                    }))),
                 )
             } else {
                 (false, None)

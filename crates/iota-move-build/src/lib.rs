@@ -26,7 +26,7 @@ use move_binary_format::{
     CompiledModule,
     normalized::{self, Type},
 };
-use move_bytecode_utils::{layout::SerdeLayoutBuilder, module_cache::GetModule};
+use move_bytecode_utils::{Modules, layout::SerdeLayoutBuilder, module_cache::GetModule};
 use move_compiler::{
     compiled_unit::AnnotatedCompiledModule,
     diagnostics::{Diagnostics, report_diagnostics_to_buffer, report_warnings},
@@ -45,7 +45,7 @@ use move_package::{
     },
     package_hooks::{PackageHooks, PackageIdentifier},
     resolution::resolution_graph::{Package, ResolvedGraph},
-    source_package::parsed_manifest::{CustomDepInfo, SourceManifest},
+    source_package::parsed_manifest::{OnChainInfo, SourceManifest},
 };
 use move_symbol_pool::Symbol;
 use serde_reflection::Registry;
@@ -318,11 +318,10 @@ impl CompiledPackage {
         &self,
         with_unpublished_deps: bool,
     ) -> Vec<CompiledModule> {
-        let all_modules = self.package.all_modules_map();
-        let graph = all_modules.compute_dependency_graph();
+        let all_modules = Modules::new(self.get_modules_and_deps());
 
         // SAFETY: package built successfully
-        let modules = graph.compute_topological_order().unwrap();
+        let modules = all_modules.compute_topological_order().unwrap();
 
         if with_unpublished_deps {
             // For each transitive dependent module, if they are not to be published, they
@@ -602,14 +601,10 @@ impl PackageHooks for IotaPackageHooks {
         ]
     }
 
-    fn custom_dependency_key(&self) -> Option<String> {
-        None
-    }
-
-    fn resolve_custom_dependency(
+    fn resolve_on_chain_dependency(
         &self,
         _dep_name: move_symbol_pool::Symbol,
-        _info: &CustomDepInfo,
+        _info: &OnChainInfo,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -618,7 +613,9 @@ impl PackageHooks for IotaPackageHooks {
         &self,
         manifest: &SourceManifest,
     ) -> anyhow::Result<PackageIdentifier> {
-        if !cfg!(debug_assertions) && manifest.package.edition == Some(Edition::DEVELOPMENT) {
+        if (!cfg!(debug_assertions) || cfg!(test))
+            && manifest.package.edition == Some(Edition::DEVELOPMENT)
+        {
             return Err(Edition::DEVELOPMENT.unknown_edition_error());
         }
         Ok(manifest.package.name)
