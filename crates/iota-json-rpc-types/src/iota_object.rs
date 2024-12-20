@@ -209,7 +209,6 @@ pub struct IotaObjectData {
     /// The Display metadata for frontend UI rendering, default to be None
     /// unless IotaObjectDataOptions.showContent is set to true This can also
     /// be None if the struct type does not have Display defined
-    /// See more details in <https://forums.iota.io/t/nft-object-display-proposal/4872>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayFieldsResponse>,
     /// Move object content or package content, default to be None unless
