@@ -32,6 +32,7 @@ module leapFrog::leap_frog_nft {
         name: vector<u8>,
         description: vector<u8>,
         url: vector<u8>,
+        recipient: address,
         ctx: &mut TxContext
     ) {
         let sender = tx_context::sender(ctx);
@@ -48,7 +49,7 @@ module leapFrog::leap_frog_nft {
             name: nft.name,
         });
 
-        transfer::public_transfer(nft, sender);
+        transfer::public_transfer(nft, recipient);
     }
 
     public fun transfer(

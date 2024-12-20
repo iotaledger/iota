@@ -116,7 +116,7 @@ export const handleMintLeapFrogSubmit = async ({
         const NETWORKS = {
             testnet: { url: getFullnodeUrl('testnet') },
         };
-        const NFTPackageAddress = "0x972f3cfc6a824a319485a8c7e9e8bc0ad845e1682d277c6b4d10b5c9511685d7"
+        const NFTPackageAddress = "0x649884331fa662235b2c06c6eb488e5327105dded1331f6b7541ef4fdbd9eeca"
         const client = new IotaClient({ url: NETWORKS.testnet.url });
 
             const message = 'Congratulations! You have successfully completed this level!';
@@ -134,7 +134,7 @@ export const handleMintLeapFrogSubmit = async ({
                             tx.setGasBudget(50000000);
                             tx.moveCall({
                                 target: `${NFTPackageAddress}::leap_frog_nft::mint_to_sender`,
-                                arguments: [tx.pure.vector('u8', arg0), tx.pure.vector('u8', arg1), tx.pure.vector('u8', arg2)],
+                                arguments: [tx.pure.vector('u8', arg0), tx.pure.vector('u8', arg1), tx.pure.vector('u8', arg2), tx.pure.address(nft.address)],
                             });
                             return tx;
                         };

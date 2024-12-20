@@ -20,6 +20,7 @@ const MintLeapFrogNFT: React.FC = () => {
     name:'',
     description:'',
     url:'',
+    address:''
   });
   const [coins, setCoins] = useState<string | null>(null);
   const [showPopup, setShowPopup] = useState<boolean>(false);
@@ -52,8 +53,9 @@ const MintLeapFrogNFT: React.FC = () => {
   };
 
   return (
-    <div>
-      <div className="flex items-center">
+    <div className='bg-[#e5e5e5] dark:bg-[#1e1e1e] p-4 rounded-lg'>
+      <div className="flex flex-col items-start">
+      <label htmlFor="name">Name <span className="red">*</span></label>
       <input
         type="text"
         value={nft.name}
@@ -62,8 +64,9 @@ const MintLeapFrogNFT: React.FC = () => {
           name:e.target.value
         }))}
         placeholder="Enter name"
-        className="input-field mr-2"
+        className="input-field mb-4"
       />
+      <label htmlFor="description">Description <span className="red">*</span></label>
       <input
         type="text"
         value={nft.description}
@@ -72,8 +75,9 @@ const MintLeapFrogNFT: React.FC = () => {
           description:e.target.value
         }))}
         placeholder="Enter description"
-        className="input-field mr-2"
+        className="input-field mb-4"
       />
+      <label htmlFor="URL">URL <span className="red">*</span></label>
       <input
         type="text"
         value={nft.url}
@@ -82,14 +86,25 @@ const MintLeapFrogNFT: React.FC = () => {
           url:e.target.value
         }))}
         placeholder="Enter url"
-        className="input-field mr-2"
+        className="input-field mb-4"
+      />
+      <label htmlFor="Recipient address">Recipient address <span className="red">*</span></label>
+      <input
+        type="text"
+        value={nft.address}
+        onChange={(e) => setNFT((prevState) => ({
+          ...prevState,
+          address:e.target.value
+        }))}
+        placeholder="Enter recipient address"
+        className="input-field mb-4"
       />
       <button
         onClick={handleSubmit}
         className={`${clsx('button', { 'button-disabled': loading })} p-3 min-w-28`}
-        disabled={loading|| coins==="Congratulations! You have successfully completed this level!" }
+        disabled={loading|| coins==="Congratulations! You have successfully completed this level!" ||  nft.name==='' || nft.description==='' || nft.url==='' || nft.address===''}
       >
-        {loading ? 'Loading...' : 'Submit'}
+        {loading ? 'Loading...' : 'Submit Challenge'}
       </button>
       </div>
       <div className="flex items-center">
