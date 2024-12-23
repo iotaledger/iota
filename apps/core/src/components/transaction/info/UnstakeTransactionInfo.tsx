@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { CardType } from '@iota/apps-ui-kit';
 import { TransactionAmount } from '../amount';
 import type { IotaEvent } from '@iota/iota-sdk/client';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import type { GasSummaryType, RenderExplorerLink } from '../../../types';
 import { useFormatCoin } from '../../../hooks';
-import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
+import { Divider, KeyValueInfo, Panel, CardType } from '@iota/apps-ui-kit';
 import { GasSummary, Validator } from '../../..';
 
 interface UnstakeTransactionInfoProps {
