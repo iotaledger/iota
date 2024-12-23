@@ -54,6 +54,7 @@ const MintLeapFrogNFT: React.FC = () => {
 
   return (
     <div className='bg-[#e5e5e5] dark:bg-[#1e1e1e] p-4 rounded-lg'>
+      <h3>Claim you Leap Frog NFT</h3>
       <div className="flex flex-col items-start">
       <label htmlFor="name">Name <span className="red">*</span></label>
       <input
@@ -101,7 +102,7 @@ const MintLeapFrogNFT: React.FC = () => {
       />
       <button
         onClick={handleSubmit}
-        className={`${clsx('button', { 'button-disabled': loading })} p-3 min-w-28`}
+        className={`${clsx('button', { 'button-disabled': loading })} p-3 min-w-[12.5rem]`}
         disabled={loading|| coins==="Congratulations! You have successfully completed this level!" ||  nft.name==='' || nft.description==='' || nft.url==='' || nft.address===''}
       >
         {loading ? 'Loading...' : 'Submit Challenge'}
