@@ -26,7 +26,7 @@ jobs:
           tool: nextest
       - name: Run move tests
         run: >
-          cargo nextest run -E
+          cargo nextest run --profile ci -E
           'package(iota-framework-tests)
           or (package(iota-core) and test(quorum_driver::))
           or package(iota-benchmark)
