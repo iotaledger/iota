@@ -21,5 +21,3 @@ path = "local_reader.rs"
 [[bin]]
 name = "remote_reader"
 path = "remote_reader.rs"
-
-[workspace]
