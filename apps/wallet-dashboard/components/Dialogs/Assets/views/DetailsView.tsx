@@ -146,6 +146,8 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                                     {metaKeys.map((aKey, idx) => {
                                         const { value, valueLink } = formatMetaValue(
                                             metaValues[idx],
+                                            true,
+                                            false,
                                         );
                                         return (
                                             <KeyValueInfo
@@ -153,7 +155,7 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                                                 keyText={aKey}
                                                 value={
                                                     valueLink ? (
-                                                        <Link key={aKey} href={valueLink || ''}>
+                                                        <Link key={aKey} href={valueLink}>
                                                             {value}
                                                         </Link>
                                                     ) : (

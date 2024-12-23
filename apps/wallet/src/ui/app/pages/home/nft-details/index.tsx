@@ -154,18 +154,26 @@ function NFTDetailsPage() {
                                                 <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
                                                     {metaKeys.map((aKey, idx) => {
                                                         const { value, valueLink } =
-                                                            formatMetaValue(metaValues[idx]);
+                                                            formatMetaValue(
+                                                                metaValues[idx],
+                                                                true,
+                                                                false,
+                                                            );
                                                         return (
                                                             <KeyValueInfo
                                                                 key={idx}
                                                                 keyText={aKey}
                                                                 value={
-                                                                    <Link
-                                                                        key={aKey}
-                                                                        to={valueLink || ''}
-                                                                    >
-                                                                        {value}
-                                                                    </Link>
+                                                                    valueLink === undefined ? (
+                                                                        value
+                                                                    ) : (
+                                                                        <Link
+                                                                            key={aKey}
+                                                                            to={valueLink}
+                                                                        >
+                                                                            {value}
+                                                                        </Link>
+                                                                    )
                                                                 }
                                                                 fullwidth
                                                             />

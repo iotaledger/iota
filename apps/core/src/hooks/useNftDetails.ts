@@ -54,7 +54,11 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
             objectData.owner.AddressOwner) ||
         '';
 
-    function formatMetaValue(value: string | object) {
+    function formatMetaValue(
+        value: string | object,
+        disableLink: boolean = false,
+        truncateLink: boolean = true,
+    ) {
         if (typeof value === 'object') {
             return {
                 value: JSON.stringify(value),
@@ -64,9 +68,11 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
             if (value.includes('http')) {
                 return {
                     value: value.startsWith('http')
-                        ? truncateString(value, 20, 8)
+                        ? truncateLink
+                            ? truncateString(value, 20, 8)
+                            : value
                         : formatAddress(value),
-                    valueLink: value,
+                    valueLink: disableLink ? undefined : value,
                 };
             }
             return {
