@@ -18,4 +18,4 @@ ui-kit:
       - any-glob-to-any-file: apps/ui-kit/**/*
 apps-backend:
   - changed-files:
-      - any-glob-to-any-file: apps/backend/**/*
+      - any-glob-to-any-file: apps/apps-backend/**/*
