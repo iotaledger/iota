@@ -1,18 +1,19 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { getKioskIdFromOwnerCap, hasDisplayData, useGetKioskContents } from '@iota/core';
-import { type IotaObjectData, type IotaObjectResponse } from '@iota/iota-sdk/client';
+import { type IotaObjectData } from '@iota/iota-sdk/client';
+import { useCurrentAccount } from '@iota/dapp-kit';
 import { ButtonUnstyled, CardImage, ImageType, truncate } from '@iota/apps-ui-kit';
 import { PlaceholderReplace } from '@iota/ui-icons';
 
-interface KioskTileProps {
-    object: IotaObjectResponse | IotaObjectData;
-    address: string | null;
+interface KioskProps {
+    object: IotaObjectData;
 }
 
-export function KioskTile({ object, address }: KioskTileProps) {
-    const { data: kioskData, isPending } = useGetKioskContents(address);
+export function KioskTile({ object }: KioskProps) {
+    const account = useCurrentAccount();
+    const { data: kioskData, isPending } = useGetKioskContents(account?.address);
 
     const kioskId = getKioskIdFromOwnerCap(object);
     const kiosk = kioskData?.kiosks.get(kioskId!);
