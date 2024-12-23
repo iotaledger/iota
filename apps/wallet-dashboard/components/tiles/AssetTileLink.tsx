@@ -25,7 +25,7 @@ export function AssetTileLink({ asset, type, onClick }: AssetTileLinkProps): Rea
             {type === AssetCategory.Visual ? (
                 <VisualAssetTile asset={asset} icon={<VisibilityOff />} onClick={handleClick} />
             ) : (
-                <NonVisualAssetCard asset={asset} onClick={handleClick} />
+                <NonVisualAssetCard asset={asset} />
             )}
         </>
     );
