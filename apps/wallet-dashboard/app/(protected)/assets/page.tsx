@@ -4,7 +4,7 @@
 'use client';
 
 import { Panel, Title, Chip, TitleSize } from '@iota/apps-ui-kit';
-import { hasDisplayData, useGetNFTs } from '@iota/core';
+import { COIN_TYPE, hasDisplayData, useGetNFTs } from '@iota/core';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useState, useEffect } from 'react';
@@ -33,19 +33,26 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         fetchNextPage,
         hasNextPage,
         refetch,
-    } = useGetNFTs(account?.address);
+    } = useGetNFTs(account?.address, {
+        MatchNone: [{ StructType: COIN_TYPE }],
+    });
 
-    const assets: IotaObjectData[] = (() => {
-        if (selectedCategory === null) return [] as IotaObjectData[];
-
-        const assetsList = ownedAssets ? ownedAssets[selectedCategory] : [];
-        return assetsList.filter((asset) => {
+    const assets = (ownedAssets?.pages || [])
+        .flatMap((page) => page.data)
+        .filter((asset) => {
+            if (!asset.data || !asset.data.objectId) {
+                return false;
+            }
             if (selectedCategory === AssetCategory.Visual) {
                 return hasDisplayData({ data: asset });
             }
-            return true;
-        });
-    })();
+            if (selectedCategory === AssetCategory.Other) {
+                return !hasDisplayData({ data: asset });
+            }
+            return false;
+        })
+        .map((asset) => asset.data)
+        .filter((data): data is IotaObjectData => data !== null && data !== undefined);
 
     function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
