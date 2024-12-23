@@ -1,0 +1,117 @@
+# ConnectModal
+
+The `ConnectModal` component opens a modal that guides the user through connecting their wallet to
+the dApp.
+
+## Controlled example
+
+```tsx live noInline
+const NETWORKS = {
+  [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
+};
+
+function withProviders(Component: () => React.JSX.Element) {
+  return () => {
+
+    if(typeof window === 'undefined') {
+      return null
+    }
+
+    // Work around server-side pre-rendering
+    const queryClient = useMemo(() => new QueryClient(), []);
+
+    return (
+      <QueryClientProvider client={queryClient}>
+        <IotaClientProvider networks={NETWORKS}>
+          <WalletProvider>
+            <Component />
+          </WalletProvider>
+        </IotaClientProvider>
+      </QueryClientProvider>
+    );
+  };
+}
+
+const ControlledConnectModalExample = withProviders(() => {
+  const currentAccount = useCurrentAccount();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <ConnectModal
+      trigger={
+        <button disabled={!!currentAccount}>
+          {' '}
+          {currentAccount ? 'Connected' : 'Connect'}
+        </button>
+      }
+      open={open}
+      onOpenChange={(isOpen) => setOpen(isOpen)}
+    />
+  );
+});
+
+render(<ControlledConnectModalExample />);
+```
+
+Click **Connect** to connect your wallet and see the previous code in action
+
+## Uncontrolled example
+
+```tsx live noInline
+const NETWORKS = {
+  [getDefaultNetwork()]: { url: getFullnodeUrl(getDefaultNetwork()) },
+};
+
+function withProviders(Component: () => React.JSX.Element) {
+  return () => {
+
+    if(typeof window === 'undefined') {
+      return null
+    }
+
+    // Work around server-side pre-rendering
+    const queryClient = useMemo(() => new QueryClient(), []);
+
+    return (
+      <QueryClientProvider client={queryClient}>
+        <IotaClientProvider networks={NETWORKS}>
+          <WalletProvider>
+            <Component />
+          </WalletProvider>
+        </IotaClientProvider>
+      </QueryClientProvider>
+    );
+  };
+}
+
+const UncontrolledConnectModalExample = withProviders(() => {
+  const currentAccount = useCurrentAccount();
+
+  return (
+    <ConnectModal
+      trigger={
+        <button disabled={!!currentAccount}>
+          {' '}
+          {currentAccount ? 'Connected' : 'Connect'}
+        </button>
+      }
+    />
+  );
+});
+
+render(<UncontrolledConnectModalExample />);
+```
+
+Click **Connect** to connect your wallet and see the previous code in action
+
+## Controlled props
+
+-   `open` - The controlled open state of the dialog.
+-   `onOpenChange` - Event handler called when the open state of the dialog changes.
+-   `trigger` - The trigger button that opens the dialog.
+
+## Uncontrolled props
+
+-   `defaultOpen` - The open state of the dialog when it is initially rendered. Use when you do not
+    need to control its open state.
+-   `trigger` - The trigger button that opens the dialog.
