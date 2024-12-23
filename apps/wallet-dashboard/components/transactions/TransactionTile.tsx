@@ -43,10 +43,14 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
         currentAddress: account?.address,
         recognizedPackagesList: [],
     });
-    const [formatAmount, symbol] = useFormatCoin(
-        Math.abs(Number(address ? transactionSummary?.balanceChanges?.[address]?.[0]?.amount : 0)),
-        IOTA_TYPE_ARG,
-    );
+
+    const balanceChanges = transactionSummary?.balanceChanges;
+
+    const transactionAmount =
+        address && balanceChanges?.[address]?.[0]?.amount
+            ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
+            : 0;
+    const [formatAmount, symbol] = useFormatCoin(transactionAmount, IOTA_TYPE_ARG);
 
     function openDetailsDialog() {
         setOpen(true);
