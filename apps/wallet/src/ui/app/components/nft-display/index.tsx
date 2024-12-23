@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Loading, NftImage } from '_components';
+import { Loading } from '_components';
 import {
+    NftImage,
     isKioskOwnerToken,
     useGetNFTDisplay,
     useGetObject,

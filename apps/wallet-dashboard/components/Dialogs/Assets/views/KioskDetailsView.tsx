@@ -2,11 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { useGetKioskContents, getKioskIdFromOwnerCap, useNftDetails } from '@iota/core';
-import { Header, LoadingIndicator, VisualAssetCard, VisualAssetType } from '@iota/apps-ui-kit';
-import { DialogLayoutBody } from '../../layout';
+import {
+    useGetKioskContents,
+    getKioskIdFromOwnerCap,
+    useNftDetails,
+    NftImage,
+    Collapsible,
+    ExplorerLinkType,
+} from '@iota/core';
+import { Header, KeyValueInfo, LoadingIndicator } from '@iota/apps-ui-kit';
+import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useCurrentAccount } from '@iota/dapp-kit';
+import { ExplorerLink } from '@/components/ExplorerLink';
+import { formatAddress } from '@iota/iota-sdk/utils';
 
 interface DetailsViewProps {
     asset: IotaObjectData;
@@ -33,41 +42,38 @@ export function KioskDetailsView({ onClose, asset }: DetailsViewProps) {
         <>
             <Header title="Kiosk" onClose={onClose} titleCentered />
             <DialogLayoutBody>
-                {items?.map((item) => {
-                    return item.data?.objectId ? (
-                        <KioskItem
-                            key={item.data?.objectId}
-                            object={item.data}
-                            address={senderAddress}
-                        />
-                    ) : null;
-                })}
-            </DialogLayoutBody>
-            {/* <DialogLayoutFooter>
-                <div className="flex flex-col">
-                    {isContainedInKiosk && kioskItem?.isLocked ? (
-                        <div className="flex flex-col gap-2">
-                            <Button
-                                type={ButtonType.Secondary}
-                                onClick={handleMoreAboutKiosk}
-                                text="Learn more about Kiosks"
+                <div className="mb-auto grid grid-cols-3 items-center justify-center gap-3">
+                    {items?.map((item) => {
+                        return item.data?.objectId ? (
+                            <KioskItem
+                                key={item.data?.objectId}
+                                object={item.data}
+                                address={senderAddress}
                             />
-                            <Button
-                                type={ButtonType.Primary}
-                                onClick={handleMarketplace}
-                                text="Marketplace"
-                            />
-                        </div>
-                    ) : (
-                        <Button
-                            disabled={!isAssetTransferable}
-                            onClick={onSend}
-                            text="Send"
-                            fullWidth
-                        />
-                    )}
+                        ) : null;
+                    })}
                 </div>
-            </DialogLayoutFooter> */}
+            </DialogLayoutBody>
+            <DialogLayoutFooter>
+                <Collapsible defaultOpen title="Details">
+                    <div className="flex flex-col gap-y-sm px-md py-xs">
+                        <KeyValueInfo
+                            keyText="Number of Items"
+                            value={items?.length || '0'}
+                            fullwidth
+                        />
+                        <KeyValueInfo
+                            keyText="Kiosk ID"
+                            value={
+                                <ExplorerLink objectID={objectId!} type={ExplorerLinkType.Object}>
+                                    {formatAddress(objectId!)}
+                                </ExplorerLink>
+                            }
+                            fullwidth
+                        />
+                    </div>
+                </Collapsible>
+            </DialogLayoutFooter>
         </>
     );
 }
@@ -78,27 +84,7 @@ interface KioskItemProps {
 }
 
 function KioskItem({ object, address }: KioskItemProps) {
-    const {
-        nftName,
-        nftImageUrl,
-        // nftDisplayData,
-        // ownerAddress,
-        // isAssetTransferable,
-        // metaKeys,
-        // metaValues,
-        // formatMetaValue,
-        // isContainedInKiosk,
-        // kioskItem,
-        // objectData,
-    } = useNftDetails(object.objectId, address);
+    const { nftName, nftImageUrl } = useNftDetails(object.objectId, address);
 
-    return (
-        <VisualAssetCard
-            assetSrc={nftImageUrl}
-            assetTitle={nftName}
-            assetType={VisualAssetType.Image}
-            altText={nftName || 'NFT'}
-            isHoverable={false}
-        />
-    );
+    return <NftImage title={nftName} src={nftImageUrl} isHoverable />;
 }
