@@ -103,7 +103,7 @@ Mocha.suite('LSP', () => {
         assert.ok(hoverResult);
         assert.deepStrictEqual((hoverResult.contents as MarkupContent).value,
             // eslint-disable-next-line max-len
-            '```rust\nfun Symbols::M2::other_doc_struct(): Symbols::M3::OtherDocStruct\n```\n\nThis is a multiline docstring\n\nThis docstring has empty lines.\n\nIt uses the ** format instead of ///\n\n');
+            '```rust\nfun Symbols::M2::other_doc_struct(): Symbols::M3::OtherDocStruct\n```\n\n       This is a multiline docstring\n\n       This docstring has empty lines.\n\n       It uses the ** format instead of ///\n    ');
 
     });
 
@@ -143,7 +143,7 @@ Mocha.suite('LSP', () => {
         assert.ok(hoverResult);
         assert.deepStrictEqual((hoverResult.contents as MarkupContent).value,
             // eslint-disable-next-line max-len
-            '```rust\nstruct Symbols::M3::OtherDocStruct has drop {\n\tsome_field: u64\n}\n```\nDocumented struct in another module\n');
+            '```rust\nstruct Symbols::M3::OtherDocStruct has drop {\n\tsome_field: u64\n}\n```\n Documented struct in another module');
     });
 
     Mocha.test('textDocument/completion', async () => {
