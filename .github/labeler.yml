@@ -13,7 +13,7 @@ wallet-dashboard:
 ts-sdk:
   - changed-files:
       - any-glob-to-any-file: sdk/typescript/**/*
-ui-kit:
+apps-ui-kit:
   - changed-files:
       - any-glob-to-any-file: apps/ui-kit/**/*
 apps-backend:
