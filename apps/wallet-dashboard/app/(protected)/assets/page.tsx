@@ -37,22 +37,20 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         MatchNone: [{ StructType: COIN_TYPE }],
     });
 
-    const assets = (ownedAssets?.pages || [])
-        .flatMap((page) => page.data)
-        .filter((asset) => {
-            if (!asset.data || !asset.data.objectId) {
-                return false;
-            }
-            if (selectedCategory === AssetCategory.Visual) {
-                return hasDisplayData({ data: asset });
-            }
-            if (selectedCategory === AssetCategory.Other) {
-                return !hasDisplayData({ data: asset });
-            }
-            return false;
-        })
-        .map((asset) => asset.data)
-        .filter((data): data is IotaObjectData => data !== null && data !== undefined);
+    let assets: IotaObjectData[] = [];
+
+    if (selectedCategory === AssetCategory.Visual) {
+        assets = ownedAssets?.visual || [];
+    }
+
+    if (selectedCategory === AssetCategory.Other) {
+        assets =
+            ownedAssets?.other
+                .filter((asset) => {
+                    return !hasDisplayData({ data: asset });
+                })
+                .filter((asset) => asset !== null && asset !== undefined) || [];
+    }
 
     function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
