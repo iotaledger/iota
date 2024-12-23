@@ -47,6 +47,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({ expectedObjectTyp
 
   return (
     <div className='bg-[#0000001a] dark:bg-[#1e1e1e] p-5 rounded-lg'>
+      <h3>Claim your NFT reward</h3>
       <label >Flag Id <span className="red">*</span></label>
       <div className='flex flex-col flex-wrap items-start mt-1'>
         <input
