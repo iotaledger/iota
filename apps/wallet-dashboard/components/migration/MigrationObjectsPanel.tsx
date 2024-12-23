@@ -12,15 +12,11 @@ import { StardustOutputDetailsFilter } from '@/lib/enums';
 import {
     Button,
     ButtonType,
-    Card,
-    CardImage,
     Chip,
-    ImageShape,
     InfoBox,
     InfoBoxStyle,
     InfoBoxType,
     Panel,
-    Skeleton,
     Title,
 } from '@iota/apps-ui-kit';
 import type { IotaObjectData } from '@iota/iota-sdk/client';
@@ -30,6 +26,7 @@ import { useState } from 'react';
 import { MigrationObjectDetailsCard } from './migration-object-details-card';
 import VirtualList from '../VirtualList';
 import { filterMigrationObjects } from '@/lib/utils';
+import { MigrationObjectLoading } from './MigrationObjectLoading';
 
 const FILTERS = {
     migratable: STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
@@ -83,7 +80,7 @@ export function MigrationObjectsPanel({
                     </div>
                     <div className="flex min-h-0 flex-col py-sm">
                         <div className="h-full flex-1 overflow-auto">
-                            {isLoading && <LoadingPanel />}
+                            {isLoading && <MigrationObjectLoading />}
                             {isErrored && !isLoading && (
                                 <div className="flex h-full max-h-full w-full flex-col items-center">
                                     <InfoBox
@@ -113,29 +110,6 @@ export function MigrationObjectsPanel({
                     </div>
                 </div>
             </Panel>
-        </div>
-    );
-}
-
-function LoadingPanel() {
-    return (
-        <div className="flex h-full max-h-full w-full flex-col overflow-hidden">
-            {new Array(10).fill(0).map((_, index) => (
-                <Card key={index}>
-                    <CardImage shape={ImageShape.SquareRounded}>
-                        <div className="h-10 w-10 animate-pulse bg-neutral-90 dark:bg-neutral-12" />
-                        <Skeleton widthClass="w-10" heightClass="h-10" isRounded={false} />
-                    </CardImage>
-                    <div className="flex flex-col gap-y-xs">
-                        <Skeleton widthClass="w-40" heightClass="h-3.5" />
-                        <Skeleton widthClass="w-32" heightClass="h-3" hasSecondaryColors />
-                    </div>
-                    <div className="ml-auto flex flex-col gap-y-xs">
-                        <Skeleton widthClass="w-20" heightClass="h-3.5" />
-                        <Skeleton widthClass="w-16" heightClass="h-3" hasSecondaryColors />
-                    </div>
-                </Card>
-            ))}
         </div>
     );
 }
