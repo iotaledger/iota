@@ -17,6 +17,7 @@ import { DialogLayout } from '../layout';
 interface AssetsDialogProps {
     onClose: () => void;
     asset: IotaObjectData;
+    setSelectedAsset: (asset: IotaObjectData) => void;
     refetchAssets: () => void;
 }
 
@@ -28,7 +29,12 @@ const INITIAL_VALUES: FormValues = {
     to: '',
 };
 
-export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps): JSX.Element {
+export function AssetDialog({
+    onClose,
+    asset,
+    setSelectedAsset,
+    refetchAssets,
+}: AssetsDialogProps): JSX.Element {
     const kioskClient = useKioskClient();
     const isOwnerToken = isKioskOwnerToken(kioskClient.network, asset);
 
@@ -80,12 +86,22 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
         setView(AssetsDialogView.Details);
         onClose();
     }
+
+    function onKioskItemClick(item: IotaObjectData) {
+        setSelectedAsset(item);
+        setView(AssetsDialogView.Details);
+    }
+
     return (
         <Dialog open onOpenChange={onOpenChange}>
             <DialogLayout>
                 <>
                     {view === AssetsDialogView.KioskDetails && (
-                        <KioskDetailsView asset={asset} onClose={onOpenChange} />
+                        <KioskDetailsView
+                            asset={asset}
+                            onClose={onOpenChange}
+                            onItemClick={onKioskItemClick}
+                        />
                     )}
                     {view === AssetsDialogView.Details && (
                         <DetailsView asset={asset} onClose={onOpenChange} onSend={onDetailsSend} />

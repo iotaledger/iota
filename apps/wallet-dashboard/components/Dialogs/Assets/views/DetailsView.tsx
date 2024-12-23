@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from 'react';
-import { ExplorerLinkType, useNftDetails, Collapsible, useNFTBasicData } from '@iota/core';
 import {
-    Button,
-    ButtonType,
-    Header,
-    KeyValueInfo,
-    VisualAssetCard,
-    VisualAssetType,
-} from '@iota/apps-ui-kit';
+    ExplorerLinkType,
+    useNftDetails,
+    Collapsible,
+    useNFTBasicData,
+    NftImage,
+} from '@iota/core';
+import { Button, ButtonType, Header, KeyValueInfo } from '@iota/apps-ui-kit';
 import Link from 'next/link';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
@@ -43,7 +42,6 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
         kioskItem,
         objectData,
     } = useNftDetails(objectId, senderAddress);
-
     const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
     function handleMoreAboutKiosk() {
@@ -61,13 +59,7 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
             <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
                     <div className="w-[172px]">
-                        <VisualAssetCard
-                            assetSrc={nftImageUrl}
-                            assetTitle={nftName}
-                            assetType={VisualAssetType.Image}
-                            altText={nftName || 'NFT'}
-                            isHoverable={false}
-                        />
+                        <NftImage src={nftImageUrl} title={nftName || 'NFT'} isHoverable={false} />
                     </div>
                     <ExplorerLink type={ExplorerLinkType.Object} objectID={objectId}>
                         <Button type={ButtonType.Ghost} text="View on Explorer" />

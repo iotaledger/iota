@@ -20,9 +20,10 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 interface DetailsViewProps {
     asset: IotaObjectData;
     onClose: () => void;
+    onItemClick: (asset: IotaObjectData) => void;
 }
 
-export function KioskDetailsView({ onClose, asset }: DetailsViewProps) {
+export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewProps) {
     const account = useCurrentAccount();
     const senderAddress = account?.address ?? '';
     const objectId = getKioskIdFromOwnerCap(asset);
@@ -45,11 +46,14 @@ export function KioskDetailsView({ onClose, asset }: DetailsViewProps) {
                 <div className="mb-auto grid grid-cols-3 items-center justify-center gap-3">
                     {items?.map((item) => {
                         return item.data?.objectId ? (
-                            <KioskItem
+                            <div
+                                onClick={() => {
+                                    item.data && onItemClick(item.data);
+                                }}
                                 key={item.data?.objectId}
-                                object={item.data}
-                                address={senderAddress}
-                            />
+                            >
+                                <KioskItem object={item.data} address={senderAddress} />
+                            </div>
                         ) : null;
                     })}
                 </div>

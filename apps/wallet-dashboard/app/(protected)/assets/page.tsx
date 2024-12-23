@@ -53,7 +53,6 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     }
 
     function onAssetClick(asset: IotaObjectData) {
-        console.log(asset);
         setSelectedAsset(asset);
     }
 
@@ -99,6 +98,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     <AssetDialog
                         onClose={() => setSelectedAsset(null)}
                         asset={selectedAsset}
+                        setSelectedAsset={setSelectedAsset}
                         refetchAssets={refetch}
                     />
                 )}
