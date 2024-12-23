@@ -62,13 +62,13 @@ impl CompletionCommand {
         let mut cli = IotaCommand::command();
 
         if let Some(out_dir) = &out_dir {
-            std::fs::create_dir(&out_dir).ok();
+            std::fs::create_dir(out_dir).ok();
         }
 
         fn gen(shell: GenShell, out_dir: &Option<String>, cli: &mut Command) -> anyhow::Result<()> {
             match out_dir {
                 Some(out_dir) => {
-                    generate_to(shell, cli, env!("CARGO_PKG_NAME"), &out_dir)?;
+                    generate_to(shell, cli, env!("CARGO_PKG_NAME"), out_dir)?;
                 }
                 None => {
                     generate(shell, cli, env!("CARGO_PKG_NAME"), &mut std::io::stdout());
