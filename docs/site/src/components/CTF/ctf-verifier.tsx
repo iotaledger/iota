@@ -42,8 +42,8 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
 
   const wallets = useWallets();
   const { mutate } = useConnectWallet();
-  const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-
+  const { mutate: signAndExecuteTransaction} = useSignAndExecuteTransaction();
+  const [digest,setDigest] = useState<string>('');
   const handleSubmit = async () => {
    await handleChallengeSubmit({
       inputText,
@@ -57,6 +57,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
       setCoins,
       setError,
       setShowPopup,
+      setDigest
     });
   };
 
@@ -88,6 +89,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
           title={error.title}
           setShowPopup={setShowPopup}
           showPopup={showPopup}
+          digest={digest}
         />
       )}
     </div>
