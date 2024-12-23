@@ -43,6 +43,7 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
         kioskItem,
         objectData,
     } = useNftDetails(objectId, senderAddress);
+
     const { fileExtensionType, filePath } = useNFTBasicData(objectData);
 
     function handleMoreAboutKiosk() {

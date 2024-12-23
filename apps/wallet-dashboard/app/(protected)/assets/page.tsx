@@ -53,6 +53,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     }
 
     function onAssetClick(asset: IotaObjectData) {
+        console.log(asset);
         setSelectedAsset(asset);
     }
 

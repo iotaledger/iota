@@ -28,7 +28,7 @@ export function AssetTileLink({ asset, type, onClick }: AssetTileLinkProps): Rea
     return (
         <>
             {type === AssetCategory.Visual && isOwnerToken ? (
-                <KioskTile object={asset} address={account?.address} />
+                <KioskTile object={asset} address={account?.address} onClick={handleClick} />
             ) : type === AssetCategory.Visual ? (
                 <VisualAssetTile asset={asset} icon={<VisibilityOff />} onClick={handleClick} />
             ) : (

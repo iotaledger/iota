@@ -5,8 +5,8 @@ import React, { useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
 import { useIotaClient, useCurrentAccount } from '@iota/dapp-kit';
-import { createNftSendValidationSchema } from '@iota/core';
-import { DetailsView, SendView } from './views';
+import { createNftSendValidationSchema, isKioskOwnerToken, useKioskClient } from '@iota/core';
+import { DetailsView, SendView, KioskDetailsView } from './views';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
 import { useCreateSendAssetTransaction, useNotifications } from '@/hooks';
@@ -29,7 +29,12 @@ const INITIAL_VALUES: FormValues = {
 };
 
 export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps): JSX.Element {
-    const [view, setView] = useState<AssetsDialogView>(AssetsDialogView.Details);
+    const kioskClient = useKioskClient();
+    const isOwnerToken = isKioskOwnerToken(kioskClient.network, asset);
+
+    const initView = isOwnerToken ? AssetsDialogView.KioskDetails : AssetsDialogView.Details;
+    const [view, setView] = useState<AssetsDialogView>(initView);
+
     const account = useCurrentAccount();
     const [digest, setDigest] = useState<string>('');
     const activeAddress = account?.address ?? '';
@@ -79,6 +84,9 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
         <Dialog open onOpenChange={onOpenChange}>
             <DialogLayout>
                 <>
+                    {view === AssetsDialogView.KioskDetails && (
+                        <KioskDetailsView asset={asset} onClose={onOpenChange} />
+                    )}
                     {view === AssetsDialogView.Details && (
                         <DetailsView asset={asset} onClose={onOpenChange} onSend={onDetailsSend} />
                     )}
