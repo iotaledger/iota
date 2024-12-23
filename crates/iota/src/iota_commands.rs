@@ -363,6 +363,7 @@ pub enum IotaCommand {
     /// Invoke Iota's move-analyzer via CLI
     #[clap(name = "analyzer", hide = true)]
     Analyzer,
+    GenerateCompletions(crate::completions::CompletionCommand),
 }
 
 impl IotaCommand {
@@ -591,6 +592,7 @@ impl IotaCommand {
                 analyzer::run();
                 Ok(())
             }
+            IotaCommand::GenerateCompletions(cmd) => cmd.run(),
         }
     }
 }
