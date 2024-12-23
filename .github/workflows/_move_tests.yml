@@ -25,7 +25,7 @@ jobs:
         with:
           tool: nextest
       - name: Run move tests
-        run: |
+        run: >
           cargo nextest run -E
           'package(iota-framework-tests)
           or (package(iota-core) and test(quorum_driver::))
@@ -41,7 +41,7 @@ jobs:
         with:
           tool: nextest
       - name: Run move tests
-        run: |
+        run: >
           scripts/simtest/cargo-simtest simtest --profile ci -E
           'package(iota-framework-tests)
           or (package(iota-core) and test(quorum_driver::))
