@@ -4,4 +4,3 @@
 export * from './VisualAssetTile';
 export * from './NonVisualAssetTile';
 export * from './AssetTileLink';
-export * from './KioskTile';

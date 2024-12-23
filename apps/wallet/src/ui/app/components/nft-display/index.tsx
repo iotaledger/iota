@@ -3,12 +3,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading, NftImage } from '_components';
-import { isKioskOwnerToken, useGetNFTDisplay, useGetObject, useKioskClient } from '@iota/core';
+import {
+    isKioskOwnerToken,
+    useGetNFTDisplay,
+    useGetObject,
+    useKioskClient,
+    KioskTile,
+} from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
 import { useResolveVideo } from '../../hooks/useResolveVideo';
-import { KioskTile } from './Kiosk';
+
 import { useActiveAddress } from '../../hooks';
 
 const nftDisplayCardStyles = cva('flex flex-nowrap items-center h-full relative', {

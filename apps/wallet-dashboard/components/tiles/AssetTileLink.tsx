@@ -3,12 +3,13 @@
 
 'use client';
 
-import { isKioskOwnerToken, useKioskClient } from '@iota/core';
+import { isKioskOwnerToken, useKioskClient, KioskTile } from '@iota/core';
 import { AssetCategory } from '@/lib/enums';
 import { VisibilityOff } from '@iota/ui-icons';
-import { VisualAssetTile, KioskTile } from '.';
+import { VisualAssetTile } from '.';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { NonVisualAssetCard } from './NonVisualAssetTile';
+import { useCurrentAccount } from '@iota/dapp-kit';
 
 interface AssetTileLinkProps {
     asset: IotaObjectData;
@@ -17,6 +18,7 @@ interface AssetTileLinkProps {
 }
 
 export function AssetTileLink({ asset, type, onClick }: AssetTileLinkProps): React.JSX.Element {
+    const account = useCurrentAccount();
     const kioskClient = useKioskClient();
     const isOwnerToken = isKioskOwnerToken(kioskClient.network, asset);
     function handleClick() {
@@ -26,7 +28,7 @@ export function AssetTileLink({ asset, type, onClick }: AssetTileLinkProps): Rea
     return (
         <>
             {type === AssetCategory.Visual && isOwnerToken ? (
-                <KioskTile object={asset} />
+                <KioskTile object={asset} address={account?.address} />
             ) : type === AssetCategory.Visual ? (
                 <VisualAssetTile asset={asset} icon={<VisibilityOff />} onClick={handleClick} />
             ) : (
