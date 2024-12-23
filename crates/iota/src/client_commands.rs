@@ -1673,13 +1673,10 @@ impl IotaClientCommands {
             IotaClientCommands::ActiveEnv => {
                 IotaClientCommandResult::ActiveEnv(context.config().active_env().clone())
             }
-            IotaClientCommands::Envs => {
-                let a = IotaClientCommandResult::Envs(
-                    context.config().envs().clone(),
-                    context.config().active_env().clone(),
-                );
-                a
-            }
+            IotaClientCommands::Envs => IotaClientCommandResult::Envs(
+                context.config().envs().clone(),
+                context.config().active_env().clone(),
+            ),
             IotaClientCommands::VerifySource {
                 package_path,
                 build_config,
