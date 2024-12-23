@@ -6,7 +6,7 @@
 
 > **bytes**: `string`
 
-***
+---
 
 ### signature
 

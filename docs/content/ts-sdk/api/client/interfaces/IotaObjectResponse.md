@@ -6,7 +6,7 @@
 
 > `optional` **data**: `null` \| [`IotaObjectData`](IotaObjectData.md)
 
-***
+---
 
 ### error?
 

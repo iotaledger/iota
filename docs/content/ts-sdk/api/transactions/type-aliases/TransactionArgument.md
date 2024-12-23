@@ -1,3 +1,3 @@
 # Type Alias: TransactionArgument
 
-> **TransactionArgument**: `InferInput`\<*typeof* [`Argument`](../variables/Argument.md)\> \| (`tx`) => `InferInput`\<*typeof* [`Argument`](../variables/Argument.md)\>
+> **TransactionArgument**: `InferInput`\<_typeof_ [`Argument`](../variables/Argument.md)\> \| (`tx`) => `InferInput`\<_typeof_ [`Argument`](../variables/Argument.md)\>

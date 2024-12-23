@@ -10,7 +10,7 @@ The struct that contains signatures and public keys necessary for authenticating
 
 A bitmap that indicates the position of which public key the signature should be authenticated with.
 
-***
+---
 
 ### multisig\_pk
 
@@ -19,7 +19,7 @@ A bitmap that indicates the position of which public key the signature should be
 The public key encoded with each public key with its signature scheme used along with the
 corresponding weight.
 
-***
+---
 
 ### sigs
 

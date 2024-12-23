@@ -8,7 +8,7 @@
 
 The value of any arguments that were mutably borrowed. Non-mut borrowed values are not included
 
-***
+---
 
 ### returnValues?
 

@@ -8,13 +8,13 @@ Return a structured representation of Move struct
 
 > **package**: `string`
 
-***
+---
 
 ### module
 
 > **module**: `string`
 
-***
+---
 
 ### struct
 

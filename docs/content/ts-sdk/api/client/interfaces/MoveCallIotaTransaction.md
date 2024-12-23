@@ -11,7 +11,7 @@ cannot return references).
 
 The arguments to the function.
 
-***
+---
 
 ### function
 
@@ -19,7 +19,7 @@ The arguments to the function.
 
 The function to be called.
 
-***
+---
 
 ### module
 
@@ -27,7 +27,7 @@ The function to be called.
 
 The specific module in the package containing the function.
 
-***
+---
 
 ### package
 
@@ -35,7 +35,7 @@ The specific module in the package containing the function.
 
 The package containing the module and function.
 
-***
+---
 
 ### type\_arguments?
 

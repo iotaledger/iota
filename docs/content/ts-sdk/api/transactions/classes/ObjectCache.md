@@ -24,7 +24,7 @@
 
 [`TransactionPlugin`](../type-aliases/TransactionPlugin.md)
 
-***
+---
 
 ### clear()
 
@@ -34,7 +34,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### getMoveFunctionDefinition()
 
@@ -54,7 +54,7 @@
 
 `Promise`\<`null` \| `MoveFunctionCacheEntry`\>
 
-***
+---
 
 ### getObjects()
 
@@ -68,7 +68,7 @@
 
 `Promise`\<(`null` \| `ObjectCacheEntry`)[]\>
 
-***
+---
 
 ### deleteObjects()
 
@@ -82,7 +82,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### clearOwnedObjects()
 
@@ -92,7 +92,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### clearCustom()
 
@@ -102,7 +102,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### getCustom()
 
@@ -120,7 +120,7 @@
 
 `Promise`\<`null` \| `T`\>
 
-***
+---
 
 ### setCustom()
 
@@ -140,7 +140,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### deleteCustom()
 
@@ -154,7 +154,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### applyEffects()
 

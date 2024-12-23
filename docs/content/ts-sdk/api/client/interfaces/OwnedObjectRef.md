@@ -6,7 +6,7 @@
 
 > **owner**: [`ObjectOwner`](../type-aliases/ObjectOwner.md)
 
-***
+---
 
 ### reference
 

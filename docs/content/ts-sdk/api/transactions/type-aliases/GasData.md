@@ -1,3 +1,3 @@
 # Type Alias: GasData
 
-> **GasData**: `InferOutput`\<*typeof* [`GasData`](../variables/GasData.md)\>
+> **GasData**: `InferOutput`\<_typeof_ [`GasData`](../variables/GasData.md)\>

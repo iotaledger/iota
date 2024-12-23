@@ -31,7 +31,7 @@ TODO: Document
 
 `Promise`\<`Uint8Array`\>
 
-***
+---
 
 ### signWithIntent()
 
@@ -50,7 +50,7 @@ it ensures that a signed message is tied to a specific purpose and domain separa
 
 `Promise`\<[`SignatureWithBytes`](../interfaces/SignatureWithBytes.md)\>
 
-***
+---
 
 ### signTransaction()
 
@@ -66,7 +66,7 @@ Signs provided transaction by calling `signWithIntent()` with a `TransactionData
 
 `Promise`\<[`SignatureWithBytes`](../interfaces/SignatureWithBytes.md)\>
 
-***
+---
 
 ### signPersonalMessage()
 
@@ -90,7 +90,7 @@ Signs provided personal message by calling `signWithIntent()` with a `PersonalMe
 
 > **signature**: `string`
 
-***
+---
 
 ### toIotaAddress()
 
@@ -100,7 +100,7 @@ Signs provided personal message by calling `signWithIntent()` with a `PersonalMe
 
 `string`
 
-***
+---
 
 ### getKeyScheme()
 
@@ -112,7 +112,7 @@ Get the key scheme of the keypair: Secp256k1 or ED25519
 
 [`SignatureScheme`](../type-aliases/SignatureScheme.md)
 
-***
+---
 
 ### getPublicKey()
 

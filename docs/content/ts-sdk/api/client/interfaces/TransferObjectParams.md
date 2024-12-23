@@ -6,7 +6,7 @@
 
 > **objectId**: `string`
 
-***
+---
 
 ### recipient
 

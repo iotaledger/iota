@@ -6,7 +6,7 @@
 
 > **constraints**: [`IotaMoveAbilitySet`](IotaMoveAbilitySet.md)
 
-***
+---
 
 ### isPhantom
 

@@ -6,25 +6,25 @@
 
 > **isEntry**: `boolean`
 
-***
+---
 
 ### parameters
 
 > **parameters**: [`IotaMoveNormalizedType`](../type-aliases/IotaMoveNormalizedType.md)[]
 
-***
+---
 
 ### return
 
 > **return**: [`IotaMoveNormalizedType`](../type-aliases/IotaMoveNormalizedType.md)[]
 
-***
+---
 
 ### typeParameters
 
 > **typeParameters**: [`IotaMoveAbilitySet`](IotaMoveAbilitySet.md)[]
 
-***
+---
 
 ### visibility
 

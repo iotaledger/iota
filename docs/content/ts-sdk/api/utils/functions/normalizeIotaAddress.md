@@ -3,6 +3,7 @@
 > **normalizeIotaAddress**(`value`, `forceAdd0x`): `string`
 
 Perform the following operations:
+
 1. Make the address lower case
 2. Prepend `0x` if the string does not start with `0x`.
 3. Add more zeros if the length of the address(excluding `0x`) is less than `IOTA_ADDRESS_LENGTH`

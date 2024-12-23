@@ -2,7 +2,7 @@
 
 ## Type Parameters
 
-• **Queries** *extends* `Record`\<`string`, [`GraphQLDocument`](../type-aliases/GraphQLDocument.md)\>
+• **Queries** _extends_ `Record`\<`string`, [`GraphQLDocument`](../type-aliases/GraphQLDocument.md)\>
 
 ## Properties
 
@@ -10,7 +10,7 @@
 
 > **url**: `string`
 
-***
+---
 
 ### fetch()?
 
@@ -38,13 +38,13 @@
 
 `Promise`\<`Response`\>
 
-***
+---
 
 ### headers?
 
 > `optional` **headers**: `Record`\<`string`, `string`\>
 
-***
+---
 
 ### queries?
 

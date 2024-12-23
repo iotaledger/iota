@@ -168,7 +168,7 @@ Use `getData()` instead.
 
 > **transactions**: (`object` \| `object` \| `object` \| `object` \| `object` \| `object` \| `object`)[]
 
-***
+---
 
 ### pure
 
@@ -182,11 +182,11 @@ Use `getData()` instead.
 
 ###### Type Parameters
 
-• **T** *extends* `PureTypeName`
+• **T** _extends_ `PureTypeName`
 
 ###### Parameters
 
-• **type**: `T` *extends* `PureTypeName` ? `ValidPureTypeName`\<`T`\<`T`\>\> : `T`
+• **type**: `T` _extends_ `PureTypeName` ? `ValidPureTypeName`\<`T`\<`T`\>\> : `T`
 
 • **value**: `ShapeFromPureTypeName`\<`T`\>
 
@@ -311,7 +311,7 @@ is assumed to be raw bytes, and will be used directly.
 
 ###### Type Parameters
 
-• **Type** *extends* `PureTypeName`
+• **Type** _extends_ `PureTypeName`
 
 ###### Parameters
 
@@ -327,7 +327,7 @@ is assumed to be raw bytes, and will be used directly.
 
 ###### Type Parameters
 
-• **Type** *extends* `PureTypeName`
+• **Type** _extends_ `PureTypeName`
 
 ###### Parameters
 
@@ -339,7 +339,7 @@ is assumed to be raw bytes, and will be used directly.
 
 `object` \| `object` \| `object` \| `object` \| `object`
 
-***
+---
 
 ### gas
 
@@ -378,7 +378,7 @@ Supports either a byte array, or base64-encoded bytes.
 
 [`Transaction`](Transaction.md)
 
-***
+---
 
 ### from()
 
@@ -386,6 +386,7 @@ Supports either a byte array, or base64-encoded bytes.
 
 Converts from a serialized transaction format to a `Transaction` class.
 There are two supported serialized formats:
+
 - A string returned from `Transaction#serialize`. The serialized format must be compatible, or it will throw an error.
 - A byte array (or base64-encoded bytes) containing BCS transaction data.
 
@@ -397,7 +398,7 @@ There are two supported serialized formats:
 
 [`Transaction`](Transaction.md)
 
-***
+---
 
 ### registerGlobalSerializationPlugin()
 
@@ -411,7 +412,7 @@ There are two supported serialized formats:
 
 `void`
 
-***
+---
 
 ### registerGlobalBuildPlugin()
 
@@ -425,7 +426,7 @@ There are two supported serialized formats:
 
 `void`
 
-***
+---
 
 ### addSerializationPlugin()
 
@@ -439,7 +440,7 @@ There are two supported serialized formats:
 
 `void`
 
-***
+---
 
 ### addBuildPlugin()
 
@@ -453,7 +454,7 @@ There are two supported serialized formats:
 
 `void`
 
-***
+---
 
 ### addIntentResolver()
 
@@ -469,7 +470,7 @@ There are two supported serialized formats:
 
 `void`
 
-***
+---
 
 ### setSender()
 
@@ -483,7 +484,7 @@ There are two supported serialized formats:
 
 `void`
 
-***
+---
 
 ### setSenderIfNotSet()
 
@@ -500,7 +501,7 @@ This is useful for sponsored transaction flows where the sender may not be the s
 
 `void`
 
-***
+---
 
 ### setExpiration()
 
@@ -514,7 +515,7 @@ This is useful for sponsored transaction flows where the sender may not be the s
 
 `void`
 
-***
+---
 
 ### setGasPrice()
 
@@ -528,7 +529,7 @@ This is useful for sponsored transaction flows where the sender may not be the s
 
 `void`
 
-***
+---
 
 ### setGasBudget()
 
@@ -542,7 +543,7 @@ This is useful for sponsored transaction flows where the sender may not be the s
 
 `void`
 
-***
+---
 
 ### setGasBudgetIfNotSet()
 
@@ -556,7 +557,7 @@ This is useful for sponsored transaction flows where the sender may not be the s
 
 `void`
 
-***
+---
 
 ### setGasOwner()
 
@@ -570,7 +571,7 @@ This is useful for sponsored transaction flows where the sender may not be the s
 
 `void`
 
-***
+---
 
 ### setGasPayment()
 
@@ -584,7 +585,7 @@ This is useful for sponsored transaction flows where the sender may not be the s
 
 `void`
 
-***
+---
 
 ### getData()
 
@@ -636,7 +637,7 @@ Get a snapshot of the transaction data, in JSON form:
 
 > **commands**: `EnumOutputShapeWithKeys`\<`object`, `"MoveCall"` \| `"TransferObjects"` \| `"SplitCoins"` \| `"MergeCoins"` \| `"Publish"` \| `"MakeMoveVec"` \| `"Upgrade"` \| `"$Intent"`\>[]
 
-***
+---
 
 ### objectRef()
 
@@ -665,7 +666,7 @@ If you only have an object ID, use `builder.object(id)` instead.
 
 > `optional` **type**: `"object"`
 
-***
+---
 
 ### receivingRef()
 
@@ -694,7 +695,7 @@ If you only have an object ID, use `builder.object(id)` instead.
 
 > `optional` **type**: `"object"`
 
-***
+---
 
 ### sharedObjectRef()
 
@@ -723,7 +724,7 @@ If you only have an object ID, use `builder.object(id)` instead.
 
 > `optional` **type**: `"object"`
 
-***
+---
 
 ### add()
 
@@ -743,7 +744,7 @@ Add a transaction to the transaction
 
 `T`
 
-***
+---
 
 ### splitCoins()
 
@@ -759,7 +760,7 @@ Add a transaction to the transaction
 
 [`TransactionResult`](../type-aliases/TransactionResult.md)
 
-***
+---
 
 ### mergeCoins()
 
@@ -775,7 +776,7 @@ Add a transaction to the transaction
 
 [`TransactionResult`](../type-aliases/TransactionResult.md)
 
-***
+---
 
 ### publish()
 
@@ -793,7 +794,7 @@ Add a transaction to the transaction
 
 [`TransactionResult`](../type-aliases/TransactionResult.md)
 
-***
+---
 
 ### upgrade()
 
@@ -815,7 +816,7 @@ Add a transaction to the transaction
 
 [`TransactionResult`](../type-aliases/TransactionResult.md)
 
-***
+---
 
 ### moveCall()
 
@@ -829,7 +830,7 @@ Add a transaction to the transaction
 
 [`TransactionResult`](../type-aliases/TransactionResult.md)
 
-***
+---
 
 ### transferObjects()
 
@@ -845,7 +846,7 @@ Add a transaction to the transaction
 
 [`TransactionResult`](../type-aliases/TransactionResult.md)
 
-***
+---
 
 ### makeMoveVec()
 
@@ -863,7 +864,7 @@ Add a transaction to the transaction
 
 [`TransactionResult`](../type-aliases/TransactionResult.md)
 
-***
+---
 
 ### ~~serialize()~~
 
@@ -878,7 +879,7 @@ Add a transaction to the transaction
 Use toJSON instead.
 For synchronous serialization, you can use `getData()`
 
-***
+---
 
 ### toJSON()
 
@@ -892,7 +893,7 @@ For synchronous serialization, you can use `getData()`
 
 `Promise`\<`string`\>
 
-***
+---
 
 ### sign()
 
@@ -908,7 +909,7 @@ Build the transaction to BCS bytes, and sign it with the provided keypair.
 
 `Promise`\<[`SignatureWithBytes`](../../cryptography/interfaces/SignatureWithBytes.md)\>
 
-***
+---
 
 ### build()
 
@@ -924,7 +925,7 @@ Build the transaction to BCS bytes.
 
 `Promise`\<`Uint8Array`\>
 
-***
+---
 
 ### getDigest()
 
@@ -942,7 +943,7 @@ Derive transaction digest
 
 `Promise`\<`string`\>
 
-***
+---
 
 ### prepareForSerialization()
 

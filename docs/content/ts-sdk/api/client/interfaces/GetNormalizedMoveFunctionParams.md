@@ -8,13 +8,13 @@ Return a structured representation of Move function
 
 > **package**: `string`
 
-***
+---
 
 ### module
 
 > **module**: `string`
 
-***
+---
 
 ### function
 

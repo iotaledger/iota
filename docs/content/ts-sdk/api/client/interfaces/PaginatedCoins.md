@@ -10,13 +10,13 @@ item.
 
 > **data**: [`CoinStruct`](CoinStruct.md)[]
 
-***
+---
 
 ### hasNextPage
 
 > **hasNextPage**: `boolean`
 
-***
+---
 
 ### nextCursor?
 

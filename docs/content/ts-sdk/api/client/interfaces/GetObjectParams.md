@@ -10,7 +10,7 @@ Return the object information for a specified object
 
 the ID of the queried object
 
-***
+---
 
 ### options?
 

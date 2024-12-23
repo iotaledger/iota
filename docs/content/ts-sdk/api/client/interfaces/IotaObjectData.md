@@ -9,7 +9,7 @@
 Move object content or package content in BCS, default to be None unless
 IotaObjectDataOptions.showBcs is set to true
 
-***
+---
 
 ### content?
 
@@ -18,7 +18,7 @@ IotaObjectDataOptions.showBcs is set to true
 Move object content or package content, default to be None unless IotaObjectDataOptions.showContent
 is set to true
 
-***
+---
 
 ### digest
 
@@ -26,7 +26,7 @@ is set to true
 
 Base64 string representing the object digest
 
-***
+---
 
 ### display?
 
@@ -36,13 +36,13 @@ The Display metadata for frontend UI rendering, default to be None unless
 IotaObjectDataOptions.showContent is set to true This can also be None if the struct type does not
 have Display defined
 
-***
+---
 
 ### objectId
 
 > **objectId**: `string`
 
-***
+---
 
 ### owner?
 
@@ -50,7 +50,7 @@ have Display defined
 
 The owner of this object. Default to be None unless IotaObjectDataOptions.showOwner is set to true
 
-***
+---
 
 ### previousTransaction?
 
@@ -59,7 +59,7 @@ The owner of this object. Default to be None unless IotaObjectDataOptions.showOw
 The digest of the transaction that created or last mutated this object. Default to be None unless
 IotaObjectDataOptions. showPreviousTransaction is set to true
 
-***
+---
 
 ### storageRebate?
 
@@ -68,7 +68,7 @@ IotaObjectDataOptions. showPreviousTransaction is set to true
 The amount of IOTA we would rebate if this object gets deleted. This number is re-calculated each
 time the object is mutated based on the present storage gas price.
 
-***
+---
 
 ### type?
 
@@ -76,7 +76,7 @@ time the object is mutated based on the present storage gas price.
 
 The type of the object. Default to be None unless IotaObjectDataOptions.showType is set to true
 
-***
+---
 
 ### version
 

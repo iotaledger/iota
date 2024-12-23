@@ -1,3 +1,3 @@
 # Type Alias: TransactionData
 
-> **TransactionData**: `InferOutput`\<*typeof* [`TransactionData`](../variables/TransactionData.md)\>
+> **TransactionData**: `InferOutput`\<_typeof_ [`TransactionData`](../variables/TransactionData.md)\>

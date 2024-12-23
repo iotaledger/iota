@@ -12,7 +12,7 @@ on their pruning policies. Return the object information for a specified version
 
 a vector of object and versions to be queried
 
-***
+---
 
 ### options?
 

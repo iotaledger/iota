@@ -8,7 +8,7 @@
 
 Commitments to epoch specific state (e.g. live object set)
 
-***
+---
 
 ### epochSupplyChange
 
@@ -16,7 +16,7 @@ Commitments to epoch specific state (e.g. live object set)
 
 The number of tokens that were minted (if positive) or burnt (if negative) in this epoch.
 
-***
+---
 
 ### nextEpochCommittee
 
@@ -29,7 +29,7 @@ of transactions from genesis to the end of an epoch. The committee is stored as 
 validator pub key and stake pairs. The vector should be sorted based on the Committee data
 structure.
 
-***
+---
 
 ### nextEpochProtocolVersion
 

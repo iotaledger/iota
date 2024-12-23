@@ -10,7 +10,7 @@ Return all Coin objects owned by an address.
 
 the owner's Iota address
 
-***
+---
 
 ### cursor?
 
@@ -18,7 +18,7 @@ the owner's Iota address
 
 optional paging cursor
 
-***
+---
 
 ### limit?
 

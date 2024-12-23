@@ -10,7 +10,7 @@ Return the object data for a list of objects
 
 the IDs of the queried objects
 
-***
+---
 
 ### options?
 

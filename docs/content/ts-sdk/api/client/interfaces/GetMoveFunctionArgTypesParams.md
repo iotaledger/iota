@@ -8,13 +8,13 @@ Return the argument types of a Move function, based on normalized Type.
 
 > **package**: `string`
 
-***
+---
 
 ### module
 
 > **module**: `string`
 
-***
+---
 
 ### function
 

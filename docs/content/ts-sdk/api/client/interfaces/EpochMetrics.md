@@ -10,7 +10,7 @@ A light-weight version of `EpochInfo` for faster loading
 
 The end of epoch information.
 
-***
+---
 
 ### epoch
 
@@ -18,7 +18,7 @@ The end of epoch information.
 
 The current epoch ID.
 
-***
+---
 
 ### epochStartTimestamp
 
@@ -26,7 +26,7 @@ The current epoch ID.
 
 The timestamp when the epoch started.
 
-***
+---
 
 ### epochTotalTransactions
 
@@ -34,7 +34,7 @@ The timestamp when the epoch started.
 
 The total number of transactions in the epoch.
 
-***
+---
 
 ### firstCheckpointId
 

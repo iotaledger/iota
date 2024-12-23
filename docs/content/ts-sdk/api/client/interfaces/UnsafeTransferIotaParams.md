@@ -11,7 +11,7 @@ used as the gas object.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### iotaObjectId
 
@@ -19,7 +19,7 @@ the transaction signer's Iota address
 
 the Iota coin object to be used in this transaction
 
-***
+---
 
 ### gasBudget
 
@@ -27,7 +27,7 @@ the Iota coin object to be used in this transaction
 
 the gas budget, the transaction will fail if the gas cost exceed the budget
 
-***
+---
 
 ### recipient
 
@@ -35,7 +35,7 @@ the gas budget, the transaction will fail if the gas cost exceed the budget
 
 the recipient's Iota address
 
-***
+---
 
 ### amount?
 

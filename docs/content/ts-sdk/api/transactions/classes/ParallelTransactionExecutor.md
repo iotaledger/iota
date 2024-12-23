@@ -24,7 +24,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### waitForLastTransaction()
 
@@ -34,7 +34,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### executeTransaction()
 

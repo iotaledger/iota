@@ -10,7 +10,7 @@ Add stake to a validator's staking pool using multiple coins and amount.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### coins
 
@@ -18,7 +18,7 @@ the transaction signer's Iota address
 
 Coin<IOTA> object to stake
 
-***
+---
 
 ### amount?
 
@@ -26,7 +26,7 @@ Coin<IOTA> object to stake
 
 stake amount
 
-***
+---
 
 ### validator
 
@@ -34,7 +34,7 @@ stake amount
 
 the validator's Iota address
 
-***
+---
 
 ### gas?
 
@@ -43,7 +43,7 @@ the validator's Iota address
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 

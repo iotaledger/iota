@@ -12,7 +12,7 @@ The event query criteria. See
 [Event filter](https://docs.iota.org/developer/iota-101/using-events#applying-event-filters)
 documentation for examples.
 
-***
+---
 
 ### cursor?
 
@@ -20,7 +20,7 @@ documentation for examples.
 
 optional paging cursor
 
-***
+---
 
 ### limit?
 
@@ -28,7 +28,7 @@ optional paging cursor
 
 maximum number of items per page, default to [QUERY_MAX_RESULT_LIMIT] if not specified.
 
-***
+---
 
 ### order?
 

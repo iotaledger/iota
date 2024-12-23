@@ -10,11 +10,11 @@
 
 #### Type Parameters
 
-• **T** *extends* `PureTypeName`
+• **T** _extends_ `PureTypeName`
 
 #### Parameters
 
-• **type**: `T` *extends* `PureTypeName` ? `ValidPureTypeName`\<`T`\<`T`\>\> : `T`
+• **type**: `T` _extends_ `PureTypeName` ? `ValidPureTypeName`\<`T`\<`T`\>\> : `T`
 
 • **value**: `ShapeFromPureTypeName`\<`T`\>
 
@@ -219,7 +219,7 @@ is assumed to be raw bytes, and will be used directly.
 
 #### Type Parameters
 
-• **Type** *extends* `PureTypeName`
+• **Type** _extends_ `PureTypeName`
 
 #### Parameters
 
@@ -243,7 +243,7 @@ is assumed to be raw bytes, and will be used directly.
 
 #### Type Parameters
 
-• **Type** *extends* `PureTypeName`
+• **Type** _extends_ `PureTypeName`
 
 #### Parameters
 

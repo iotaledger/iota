@@ -10,7 +10,7 @@
 
 > `optional` **client**: [`IotaClient`](../../client/classes/IotaClient.md)
 
-***
+---
 
 ### onlyTransactionKind?
 

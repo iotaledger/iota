@@ -44,7 +44,7 @@ Return the base-64 representation of the public key
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`toBase64`](../../cryptography/classes/PublicKey.md#tobase64)
 
-***
+---
 
 ### toString()
 
@@ -58,7 +58,7 @@ Return the base-64 representation of the public key
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`toString`](../../cryptography/classes/PublicKey.md#tostring)
 
-***
+---
 
 ### toIotaPublicKey()
 
@@ -76,7 +76,7 @@ of the scheme flag with the raw bytes of the public key
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`toIotaPublicKey`](../../cryptography/classes/PublicKey.md#toiotapublickey)
 
-***
+---
 
 ### verifyWithIntent()
 
@@ -98,7 +98,7 @@ of the scheme flag with the raw bytes of the public key
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`verifyWithIntent`](../../cryptography/classes/PublicKey.md#verifywithintent)
 
-***
+---
 
 ### verifyPersonalMessage()
 
@@ -120,7 +120,7 @@ Verifies that the signature is valid for for the provided PersonalMessage
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`verifyPersonalMessage`](../../cryptography/classes/PublicKey.md#verifypersonalmessage)
 
-***
+---
 
 ### verifyTransaction()
 
@@ -142,7 +142,7 @@ Verifies that the signature is valid for for the provided Transaction
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`verifyTransaction`](../../cryptography/classes/PublicKey.md#verifytransaction)
 
-***
+---
 
 ### toIotaBytes()
 
@@ -159,7 +159,7 @@ prefixed with the signature scheme flag
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`toIotaBytes`](../../cryptography/classes/PublicKey.md#toiotabytes)
 
-***
+---
 
 ### toIotaBytesForAddress()
 
@@ -177,7 +177,7 @@ signature scheme is ED25519, no prefix is set.
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`toIotaBytesForAddress`](../../cryptography/classes/PublicKey.md#toiotabytesforaddress)
 
-***
+---
 
 ### fromPublicKeys()
 
@@ -197,7 +197,7 @@ A static method to create a new MultiSig publickey instance from a set of public
 
 [`MultiSigPublicKey`](MultiSigPublicKey.md)
 
-***
+---
 
 ### equals()
 
@@ -217,7 +217,7 @@ Checks if two MultiSig public keys are equal
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`equals`](../../cryptography/classes/PublicKey.md#equals)
 
-***
+---
 
 ### toRawBytes()
 
@@ -233,7 +233,7 @@ Return the byte array representation of the MultiSig public key
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`toRawBytes`](../../cryptography/classes/PublicKey.md#torawbytes)
 
-***
+---
 
 ### getPublicKeys()
 
@@ -243,7 +243,7 @@ Return the byte array representation of the MultiSig public key
 
 `object`[]
 
-***
+---
 
 ### getThreshold()
 
@@ -253,7 +253,7 @@ Return the byte array representation of the MultiSig public key
 
 `number`
 
-***
+---
 
 ### getSigner()
 
@@ -267,7 +267,7 @@ Return the byte array representation of the MultiSig public key
 
 [`MultiSigSigner`](MultiSigSigner.md)
 
-***
+---
 
 ### toIotaAddress()
 
@@ -283,7 +283,7 @@ Return the IOTA address associated with this MultiSig public key
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`toIotaAddress`](../../cryptography/classes/PublicKey.md#toiotaaddress)
 
-***
+---
 
 ### flag()
 
@@ -299,7 +299,7 @@ Return the IOTA address associated with this MultiSig public key
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`flag`](../../cryptography/classes/PublicKey.md#flag)
 
-***
+---
 
 ### verify()
 
@@ -321,7 +321,7 @@ Verifies that the signature is valid for for the provided message
 
 [`PublicKey`](../../cryptography/classes/PublicKey.md).[`verify`](../../cryptography/classes/PublicKey.md#verify)
 
-***
+---
 
 ### combinePartialSignatures()
 

@@ -1,3 +1,3 @@
 # Type Alias: SerializedTransactionDataV1
 
-> **SerializedTransactionDataV1**: `InferOutput`\<*typeof* [`SerializedTransactionDataV1`](../variables/SerializedTransactionDataV1.md)\>
+> **SerializedTransactionDataV1**: `InferOutput`\<_typeof_ [`SerializedTransactionDataV1`](../variables/SerializedTransactionDataV1.md)\>

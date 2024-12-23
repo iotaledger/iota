@@ -12,7 +12,7 @@ system state type.
 
 The list of active validators in the current epoch.
 
-***
+---
 
 ### atRiskValidators
 
@@ -20,7 +20,7 @@ The list of active validators in the current epoch.
 
 Map storing the number of epochs for which each validator has been below the low stake threshold.
 
-***
+---
 
 ### epoch
 
@@ -28,7 +28,7 @@ Map storing the number of epochs for which each validator has been below the low
 
 The current epoch ID, starting from 0.
 
-***
+---
 
 ### epochDurationMs
 
@@ -36,7 +36,7 @@ The current epoch ID, starting from 0.
 
 The duration of an epoch, in milliseconds.
 
-***
+---
 
 ### epochStartTimestampMs
 
@@ -44,7 +44,7 @@ The duration of an epoch, in milliseconds.
 
 Unix timestamp of the current epoch start
 
-***
+---
 
 ### inactivePoolsId
 
@@ -53,7 +53,7 @@ Unix timestamp of the current epoch start
 ID of the object that maps from a staking pool ID to the inactive validator that has that pool as
 its staking pool.
 
-***
+---
 
 ### inactivePoolsSize
 
@@ -61,7 +61,7 @@ its staking pool.
 
 Number of inactive staking pools.
 
-***
+---
 
 ### iotaTotalSupply
 
@@ -69,7 +69,7 @@ Number of inactive staking pools.
 
 The current IOTA supply.
 
-***
+---
 
 ### iotaTreasuryCapId
 
@@ -77,7 +77,7 @@ The current IOTA supply.
 
 The `TreasuryCap<IOTA>` object ID.
 
-***
+---
 
 ### maxValidatorCount
 
@@ -86,7 +86,7 @@ The `TreasuryCap<IOTA>` object ID.
 Maximum number of active validators at any moment. We do not allow the number of validators in any
 epoch to go above this.
 
-***
+---
 
 ### minValidatorCount
 
@@ -95,7 +95,7 @@ epoch to go above this.
 Minimum number of active validators at any moment. We do not allow the number of validators in any
 epoch to go under this.
 
-***
+---
 
 ### minValidatorJoiningStake
 
@@ -103,7 +103,7 @@ epoch to go under this.
 
 Lower-bound on the amount of stake required to become a validator.
 
-***
+---
 
 ### pendingActiveValidatorsId
 
@@ -111,7 +111,7 @@ Lower-bound on the amount of stake required to become a validator.
 
 ID of the object that contains the list of new validators that will join at the end of the epoch.
 
-***
+---
 
 ### pendingActiveValidatorsSize
 
@@ -119,7 +119,7 @@ ID of the object that contains the list of new validators that will join at the 
 
 Number of new validators that will join at the end of the epoch.
 
-***
+---
 
 ### pendingRemovals
 
@@ -127,7 +127,7 @@ Number of new validators that will join at the end of the epoch.
 
 Removal requests from the validators. Each element is an index pointing to `active_validators`.
 
-***
+---
 
 ### protocolVersion
 
@@ -135,7 +135,7 @@ Removal requests from the validators. Each element is an index pointing to `acti
 
 The current protocol version, starting from 1.
 
-***
+---
 
 ### referenceGasPrice
 
@@ -143,7 +143,7 @@ The current protocol version, starting from 1.
 
 The reference gas price for the current epoch.
 
-***
+---
 
 ### safeMode
 
@@ -153,7 +153,7 @@ Whether the system is running in a downgraded safe mode due to a non-recoverable
 whenever we failed to execute advance_epoch, and ended up executing advance_epoch_safe_mode. It can
 be reset once we are able to successfully execute advance_epoch.
 
-***
+---
 
 ### safeModeComputationRewards
 
@@ -161,7 +161,7 @@ be reset once we are able to successfully execute advance_epoch.
 
 Amount of computation rewards accumulated (and not yet distributed) during safe mode.
 
-***
+---
 
 ### safeModeNonRefundableStorageFee
 
@@ -169,7 +169,7 @@ Amount of computation rewards accumulated (and not yet distributed) during safe 
 
 Amount of non-refundable storage fee accumulated during safe mode.
 
-***
+---
 
 ### safeModeStorageCharges
 
@@ -177,7 +177,7 @@ Amount of non-refundable storage fee accumulated during safe mode.
 
 Amount of storage charges accumulated (and not yet distributed) during safe mode.
 
-***
+---
 
 ### safeModeStorageRebates
 
@@ -185,7 +185,7 @@ Amount of storage charges accumulated (and not yet distributed) during safe mode
 
 Amount of storage rebates accumulated (and not yet burned) during safe mode.
 
-***
+---
 
 ### stakingPoolMappingsId
 
@@ -193,7 +193,7 @@ Amount of storage rebates accumulated (and not yet burned) during safe mode.
 
 ID of the object that maps from staking pool's ID to the iota address of a validator.
 
-***
+---
 
 ### stakingPoolMappingsSize
 
@@ -201,7 +201,7 @@ ID of the object that maps from staking pool's ID to the iota address of a valid
 
 Number of staking pool mappings.
 
-***
+---
 
 ### storageFundNonRefundableBalance
 
@@ -210,7 +210,7 @@ Number of staking pool mappings.
 The non-refundable portion of the storage fund coming from non-refundable storage rebates and any
 leftover staking rewards.
 
-***
+---
 
 ### storageFundTotalObjectStorageRebates
 
@@ -218,7 +218,7 @@ leftover staking rewards.
 
 The storage rebates of all the objects on-chain stored in the storage fund.
 
-***
+---
 
 ### systemStateVersion
 
@@ -226,7 +226,7 @@ The storage rebates of all the objects on-chain stored in the storage fund.
 
 The current version of the system state data structure type.
 
-***
+---
 
 ### totalStake
 
@@ -234,7 +234,7 @@ The current version of the system state data structure type.
 
 Total amount of stake from all active validators at the beginning of the epoch.
 
-***
+---
 
 ### validatorCandidatesId
 
@@ -243,7 +243,7 @@ Total amount of stake from all active validators at the beginning of the epoch.
 ID of the object that stores preactive validators, mapping their addresses to their `Validator`
 structs.
 
-***
+---
 
 ### validatorCandidatesSize
 
@@ -251,7 +251,7 @@ structs.
 
 Number of preactive validators.
 
-***
+---
 
 ### validatorLowStakeGracePeriod
 
@@ -260,7 +260,7 @@ Number of preactive validators.
 A validator can have stake below `validator_low_stake_threshold` for this many epochs before being
 kicked out.
 
-***
+---
 
 ### validatorLowStakeThreshold
 
@@ -270,7 +270,7 @@ Validators with stake amount below `validator_low_stake_threshold` are considere
 and will be escorted out of the validator set after being below this threshold for more than
 `validator_low_stake_grace_period` number of epochs.
 
-***
+---
 
 ### validatorReportRecords
 
@@ -278,7 +278,7 @@ and will be escorted out of the validator set after being below this threshold f
 
 A map storing the records of validator reporting each other.
 
-***
+---
 
 ### validatorVeryLowStakeThreshold
 

@@ -8,7 +8,7 @@
 
 Number of decimal places the coin uses.
 
-***
+---
 
 ### description
 
@@ -16,7 +16,7 @@ Number of decimal places the coin uses.
 
 Description of the token
 
-***
+---
 
 ### iconUrl?
 
@@ -24,7 +24,7 @@ Description of the token
 
 URL for the token logo
 
-***
+---
 
 ### id?
 
@@ -32,7 +32,7 @@ URL for the token logo
 
 Object id for the CoinMetadata object
 
-***
+---
 
 ### name
 
@@ -40,7 +40,7 @@ Object id for the CoinMetadata object
 
 Name for the token
 
-***
+---
 
 ### symbol
 

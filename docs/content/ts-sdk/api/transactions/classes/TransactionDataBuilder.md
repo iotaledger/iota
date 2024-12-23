@@ -48,7 +48,7 @@
 
 `TransactionData.version`
 
-***
+---
 
 ### sender
 
@@ -58,7 +58,7 @@
 
 `TransactionData.sender`
 
-***
+---
 
 ### expiration
 
@@ -68,7 +68,7 @@
 
 `TransactionData.expiration`
 
-***
+---
 
 ### gasData
 
@@ -94,7 +94,7 @@
 
 `TransactionData.gasData`
 
-***
+---
 
 ### inputs
 
@@ -104,7 +104,7 @@
 
 `TransactionData.inputs`
 
-***
+---
 
 ### commands
 
@@ -176,7 +176,7 @@
 
 [`TransactionDataBuilder`](TransactionDataBuilder.md)
 
-***
+---
 
 ### fromBytes()
 
@@ -190,7 +190,7 @@
 
 [`TransactionDataBuilder`](TransactionDataBuilder.md)
 
-***
+---
 
 ### restore()
 
@@ -204,7 +204,7 @@
 
 [`TransactionDataBuilder`](TransactionDataBuilder.md)
 
-***
+---
 
 ### getDigestFromBytes()
 
@@ -224,7 +224,7 @@ BCS serialized transaction data
 
 transaction digest.
 
-***
+---
 
 ### build()
 
@@ -252,7 +252,7 @@ transaction digest.
 
 `Uint8Array`
 
-***
+---
 
 ### addInput()
 
@@ -260,7 +260,7 @@ transaction digest.
 
 #### Type Parameters
 
-• **T** *extends* `"object"` \| `"pure"`
+• **T** _extends_ `"object"` \| `"pure"`
 
 #### Parameters
 
@@ -284,7 +284,7 @@ transaction digest.
 
 > **$kind**: `"Input"`
 
-***
+---
 
 ### getInputUses()
 
@@ -300,7 +300,7 @@ transaction digest.
 
 `void`
 
-***
+---
 
 ### mapArguments()
 
@@ -314,7 +314,7 @@ transaction digest.
 
 `void`
 
-***
+---
 
 ### replaceCommand()
 
@@ -330,7 +330,7 @@ transaction digest.
 
 `void`
 
-***
+---
 
 ### getDigest()
 
@@ -340,7 +340,7 @@ transaction digest.
 
 `string`
 
-***
+---
 
 ### snapshot()
 

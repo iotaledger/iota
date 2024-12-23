@@ -10,19 +10,19 @@
 
 > **method**: `string`
 
-***
+---
 
 ### unsubscribe
 
 > **unsubscribe**: `string`
 
-***
+---
 
 ### params
 
 > **params**: `unknown`[]
 
-***
+---
 
 ### onMessage()
 

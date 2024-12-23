@@ -49,7 +49,7 @@ it ensures that a signed message is tied to a specific purpose and domain separa
 
 [`Signer`](../../cryptography/classes/Signer.md).[`signWithIntent`](../../cryptography/classes/Signer.md#signwithintent)
 
-***
+---
 
 ### toIotaAddress()
 
@@ -63,7 +63,7 @@ it ensures that a signed message is tied to a specific purpose and domain separa
 
 [`Signer`](../../cryptography/classes/Signer.md).[`toIotaAddress`](../../cryptography/classes/Signer.md#toiotaaddress)
 
-***
+---
 
 ### getKeyScheme()
 
@@ -79,7 +79,7 @@ Get the key scheme of the keypair: Secp256k1 or ED25519
 
 [`Signer`](../../cryptography/classes/Signer.md).[`getKeyScheme`](../../cryptography/classes/Signer.md#getkeyscheme)
 
-***
+---
 
 ### getPublicKey()
 
@@ -95,7 +95,7 @@ The public key for this keypair
 
 [`Signer`](../../cryptography/classes/Signer.md).[`getPublicKey`](../../cryptography/classes/Signer.md#getpublickey)
 
-***
+---
 
 ### sign()
 
@@ -113,7 +113,7 @@ The public key for this keypair
 
 [`Signer`](../../cryptography/classes/Signer.md).[`sign`](../../cryptography/classes/Signer.md#sign)
 
-***
+---
 
 ### signData()
 
@@ -127,7 +127,7 @@ The public key for this keypair
 
 `never`
 
-***
+---
 
 ### signTransaction()
 
@@ -155,7 +155,7 @@ Signs provided transaction by calling `signWithIntent()` with a `TransactionData
 
 [`Signer`](../../cryptography/classes/Signer.md).[`signTransaction`](../../cryptography/classes/Signer.md#signtransaction)
 
-***
+---
 
 ### signPersonalMessage()
 

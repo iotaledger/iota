@@ -16,7 +16,7 @@ than the first one are deleted.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### inputCoins
 
@@ -24,7 +24,7 @@ the transaction signer's Iota address
 
 the Iota coins to be used in this transaction, including the coin for gas payment.
 
-***
+---
 
 ### recipients
 
@@ -32,7 +32,7 @@ the Iota coins to be used in this transaction, including the coin for gas paymen
 
 the recipients' addresses, the length of this vector must be the same as amounts.
 
-***
+---
 
 ### amounts
 
@@ -40,7 +40,7 @@ the recipients' addresses, the length of this vector must be the same as amounts
 
 the amounts to be transferred to recipients, following the same order
 
-***
+---
 
 ### gasBudget
 

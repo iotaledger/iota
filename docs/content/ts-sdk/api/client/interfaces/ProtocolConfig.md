@@ -8,9 +8,9 @@
 
 #### Index Signature
 
- \[`key`: `string`\]: [`ProtocolConfigValue`](../type-aliases/ProtocolConfigValue.md) \| `null`
+\[`key`: `string`\]: [`ProtocolConfigValue`](../type-aliases/ProtocolConfigValue.md) \| `null`
 
-***
+---
 
 ### featureFlags
 
@@ -18,21 +18,21 @@
 
 #### Index Signature
 
- \[`key`: `string`\]: `boolean`
+\[`key`: `string`\]: `boolean`
 
-***
+---
 
 ### maxSupportedProtocolVersion
 
 > **maxSupportedProtocolVersion**: `string`
 
-***
+---
 
 ### minSupportedProtocolVersion
 
 > **minSupportedProtocolVersion**: `string`
 
-***
+---
 
 ### protocolVersion
 

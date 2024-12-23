@@ -26,7 +26,7 @@
 
 [`TypeTag`](../type-aliases/TypeTag.md)
 
-***
+---
 
 ### parseStructTypeArgs()
 
@@ -42,7 +42,7 @@
 
 [`TypeTag`](../type-aliases/TypeTag.md)[]
 
-***
+---
 
 ### tagToString()
 

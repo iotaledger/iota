@@ -12,7 +12,7 @@
 
 > `optional` **name**: `string`
 
-***
+---
 
 ### validate()?
 

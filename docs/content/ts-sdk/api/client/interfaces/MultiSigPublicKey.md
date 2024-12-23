@@ -10,7 +10,7 @@ The struct that contains the public key used for authenticating a MultiSig.
 
 A list of public key and its corresponding weight.
 
-***
+---
 
 ### threshold
 

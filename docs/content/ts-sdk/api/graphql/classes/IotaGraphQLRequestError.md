@@ -66,7 +66,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 `Error.prepareStackTrace`
 
-***
+---
 
 ### stackTraceLimit
 
@@ -76,7 +76,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 `Error.stackTraceLimit`
 
-***
+---
 
 ### cause?
 
@@ -86,7 +86,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 `Error.cause`
 
-***
+---
 
 ### name
 
@@ -96,7 +96,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 `Error.name`
 
-***
+---
 
 ### message
 
@@ -106,7 +106,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 `Error.message`
 
-***
+---
 
 ### stack?
 

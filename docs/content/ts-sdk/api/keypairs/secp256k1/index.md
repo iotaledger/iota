@@ -6,19 +6,19 @@
 
 Re-exports [DEFAULT_SECP256K1_DERIVATION_PATH](variables/DEFAULT_SECP256K1_DERIVATION_PATH.md)
 
-***
+---
 
 ### Secp256k1Keypair
 
 Re-exports [Secp256k1Keypair](classes/Secp256k1Keypair.md)
 
-***
+---
 
 ### Secp256k1KeypairData
 
 Re-exports [Secp256k1KeypairData](interfaces/Secp256k1KeypairData.md)
 
-***
+---
 
 ### Secp256k1PublicKey
 

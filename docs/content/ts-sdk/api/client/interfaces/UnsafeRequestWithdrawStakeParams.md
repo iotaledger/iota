@@ -10,7 +10,7 @@ Withdraw stake from a validator's staking pool.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### stakedIota
 
@@ -18,7 +18,7 @@ the transaction signer's Iota address
 
 StakedIota object ID
 
-***
+---
 
 ### gas?
 
@@ -27,7 +27,7 @@ StakedIota object ID
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 

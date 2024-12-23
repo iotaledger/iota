@@ -10,7 +10,7 @@ Provides metrics about the addresses.
 
 The checkpoint sequence number at which the metrics were computed.
 
-***
+---
 
 ### cumulativeActiveAddresses
 
@@ -18,7 +18,7 @@ The checkpoint sequence number at which the metrics were computed.
 
 The count of sender addresses.
 
-***
+---
 
 ### cumulativeAddresses
 
@@ -26,7 +26,7 @@ The count of sender addresses.
 
 The count of sender and recipient addresses.
 
-***
+---
 
 ### dailyActiveAddresses
 
@@ -34,7 +34,7 @@ The count of sender and recipient addresses.
 
 The count of daily unique sender addresses.
 
-***
+---
 
 ### epoch
 
@@ -42,7 +42,7 @@ The count of daily unique sender addresses.
 
 The epoch to which the checkpoint is assigned.
 
-***
+---
 
 ### timestampMs
 

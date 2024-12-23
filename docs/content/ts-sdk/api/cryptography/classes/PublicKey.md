@@ -34,7 +34,7 @@ Checks if two public keys are equal
 
 `boolean`
 
-***
+---
 
 ### toBase64()
 
@@ -46,7 +46,7 @@ Return the base-64 representation of the public key
 
 `string`
 
-***
+---
 
 ### toString()
 
@@ -56,7 +56,7 @@ Return the base-64 representation of the public key
 
 `never`
 
-***
+---
 
 ### toIotaPublicKey()
 
@@ -70,7 +70,7 @@ of the scheme flag with the raw bytes of the public key
 
 `string`
 
-***
+---
 
 ### verifyWithIntent()
 
@@ -88,7 +88,7 @@ of the scheme flag with the raw bytes of the public key
 
 `Promise`\<`boolean`\>
 
-***
+---
 
 ### verifyPersonalMessage()
 
@@ -106,7 +106,7 @@ Verifies that the signature is valid for for the provided PersonalMessage
 
 `Promise`\<`boolean`\>
 
-***
+---
 
 ### verifyTransaction()
 
@@ -124,7 +124,7 @@ Verifies that the signature is valid for for the provided Transaction
 
 `Promise`\<`boolean`\>
 
-***
+---
 
 ### toIotaBytes()
 
@@ -137,7 +137,7 @@ prefixed with the signature scheme flag
 
 `Uint8Array`
 
-***
+---
 
 ### toIotaBytesForAddress()
 
@@ -151,7 +151,7 @@ signature scheme is ED25519, no prefix is set.
 
 `Uint8Array`
 
-***
+---
 
 ### toIotaAddress()
 
@@ -163,7 +163,7 @@ Return the IOTA address associated with this Ed25519 public key
 
 `string`
 
-***
+---
 
 ### toRawBytes()
 
@@ -175,7 +175,7 @@ Return the byte array representation of the public key
 
 `Uint8Array`
 
-***
+---
 
 ### flag()
 
@@ -187,7 +187,7 @@ Return signature scheme flag of the public key
 
 `number`
 
-***
+---
 
 ### verify()
 

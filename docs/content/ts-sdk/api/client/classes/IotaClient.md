@@ -34,7 +34,7 @@ configuration options for the API Client
 
 `Promise`\<`undefined` \| `string`\>
 
-***
+---
 
 ### getCoins()
 
@@ -50,7 +50,7 @@ Get all Coin<`coin_type`> objects owned by an address.
 
 `Promise`\<[`PaginatedCoins`](../interfaces/PaginatedCoins.md)\>
 
-***
+---
 
 ### getAllCoins()
 
@@ -66,7 +66,7 @@ Get all Coin objects owned by an address.
 
 `Promise`\<[`PaginatedCoins`](../interfaces/PaginatedCoins.md)\>
 
-***
+---
 
 ### getBalance()
 
@@ -82,7 +82,7 @@ Get the total coin balance for one coin type, owned by the address owner.
 
 `Promise`\<[`CoinBalance`](../type-aliases/CoinBalance.md)\>
 
-***
+---
 
 ### getAllBalances()
 
@@ -98,7 +98,7 @@ Get the total coin balance for all coin types, owned by the address owner.
 
 `Promise`\<[`CoinBalance`](../type-aliases/CoinBalance.md)[]\>
 
-***
+---
 
 ### getCoinMetadata()
 
@@ -114,7 +114,7 @@ Fetch CoinMetadata for a given coin type
 
 `Promise`\<`null` \| [`CoinMetadata`](../interfaces/CoinMetadata.md)\>
 
-***
+---
 
 ### getTotalSupply()
 
@@ -130,7 +130,7 @@ Fetch total supply for a coin
 
 `Promise`\<[`CoinSupply`](../interfaces/CoinSupply.md)\>
 
-***
+---
 
 ### call()
 
@@ -154,7 +154,7 @@ the method to be invoked
 
 `Promise`\<`T`\>
 
-***
+---
 
 ### getMoveFunctionArgTypes()
 
@@ -170,7 +170,7 @@ Get Move function argument types like read, write and full access
 
 `Promise`\<[`IotaMoveFunctionArgType`](../type-aliases/IotaMoveFunctionArgType.md)[]\>
 
-***
+---
 
 ### getNormalizedMoveModulesByPackage()
 
@@ -187,7 +187,7 @@ structured representations of Move modules
 
 `Promise`\<[`IotaMoveNormalizedModules`](../type-aliases/IotaMoveNormalizedModules.md)\>
 
-***
+---
 
 ### getNormalizedMoveModule()
 
@@ -203,7 +203,7 @@ Get a structured representation of Move module
 
 `Promise`\<[`IotaMoveNormalizedModule`](../interfaces/IotaMoveNormalizedModule.md)\>
 
-***
+---
 
 ### getNormalizedMoveFunction()
 
@@ -219,7 +219,7 @@ Get a structured representation of Move function
 
 `Promise`\<[`IotaMoveNormalizedFunction`](../interfaces/IotaMoveNormalizedFunction.md)\>
 
-***
+---
 
 ### getNormalizedMoveStruct()
 
@@ -235,7 +235,7 @@ Get a structured representation of Move struct
 
 `Promise`\<[`IotaMoveNormalizedStruct`](../interfaces/IotaMoveNormalizedStruct.md)\>
 
-***
+---
 
 ### getOwnedObjects()
 
@@ -251,7 +251,7 @@ Get all objects owned by an address
 
 `Promise`\<[`PaginatedObjectsResponse`](../interfaces/PaginatedObjectsResponse.md)\>
 
-***
+---
 
 ### getObject()
 
@@ -267,7 +267,7 @@ Get details about an object
 
 `Promise`\<[`IotaObjectResponse`](../interfaces/IotaObjectResponse.md)\>
 
-***
+---
 
 ### tryGetPastObject()
 
@@ -281,7 +281,7 @@ Get details about an object
 
 `Promise`\<[`ObjectRead`](../type-aliases/ObjectRead.md)\>
 
-***
+---
 
 ### multiGetObjects()
 
@@ -297,7 +297,7 @@ Batch get details about a list of objects. If any of the object ids are duplicat
 
 `Promise`\<[`IotaObjectResponse`](../interfaces/IotaObjectResponse.md)[]\>
 
-***
+---
 
 ### queryTransactionBlocks()
 
@@ -313,7 +313,7 @@ Get transaction blocks for a given query criteria
 
 `Promise`\<[`PaginatedTransactionResponse`](../interfaces/PaginatedTransactionResponse.md)\>
 
-***
+---
 
 ### getTransactionBlock()
 
@@ -327,7 +327,7 @@ Get transaction blocks for a given query criteria
 
 `Promise`\<[`IotaTransactionBlockResponse`](../interfaces/IotaTransactionBlockResponse.md)\>
 
-***
+---
 
 ### multiGetTransactionBlocks()
 
@@ -341,7 +341,7 @@ Get transaction blocks for a given query criteria
 
 `Promise`\<[`IotaTransactionBlockResponse`](../interfaces/IotaTransactionBlockResponse.md)[]\>
 
-***
+---
 
 ### executeTransactionBlock()
 
@@ -355,7 +355,7 @@ Get transaction blocks for a given query criteria
 
 `Promise`\<[`IotaTransactionBlockResponse`](../interfaces/IotaTransactionBlockResponse.md)\>
 
-***
+---
 
 ### signAndExecuteTransaction()
 
@@ -369,7 +369,7 @@ Get transaction blocks for a given query criteria
 
 `Promise`\<[`IotaTransactionBlockResponse`](../interfaces/IotaTransactionBlockResponse.md)\>
 
-***
+---
 
 ### getTotalTransactionBlocks()
 
@@ -381,7 +381,7 @@ Get total number of transactions
 
 `Promise`\<`bigint`\>
 
-***
+---
 
 ### getReferenceGasPrice()
 
@@ -393,7 +393,7 @@ Getting the reference gas price for the network
 
 `Promise`\<`bigint`\>
 
-***
+---
 
 ### getStakes()
 
@@ -409,7 +409,7 @@ Return the delegated stakes for an address
 
 `Promise`\<[`DelegatedStake`](../interfaces/DelegatedStake.md)[]\>
 
-***
+---
 
 ### getTimelockedStakes()
 
@@ -425,7 +425,7 @@ Return the timelocked delegated stakes for an address
 
 `Promise`\<[`DelegatedTimelockedStake`](../interfaces/DelegatedTimelockedStake.md)[]\>
 
-***
+---
 
 ### getStakesByIds()
 
@@ -441,7 +441,7 @@ Return the delegated stakes queried by id.
 
 `Promise`\<[`DelegatedStake`](../interfaces/DelegatedStake.md)[]\>
 
-***
+---
 
 ### getTimelockedStakesByIds()
 
@@ -457,7 +457,7 @@ Return the timelocked delegated stakes queried by id.
 
 `Promise`\<[`DelegatedTimelockedStake`](../interfaces/DelegatedTimelockedStake.md)[]\>
 
-***
+---
 
 ### getLatestIotaSystemState()
 
@@ -469,7 +469,7 @@ Return the latest system state content.
 
 `Promise`\<[`IotaSystemStateSummary`](../interfaces/IotaSystemStateSummary.md)\>
 
-***
+---
 
 ### queryEvents()
 
@@ -485,7 +485,7 @@ Get events for a given query criteria
 
 `Promise`\<[`PaginatedEvents`](../interfaces/PaginatedEvents.md)\>
 
-***
+---
 
 ### ~~subscribeEvent()~~
 
@@ -503,7 +503,7 @@ Subscribe to get notifications whenever an event matching the filter occurs
 
 #### Deprecated
 
-***
+---
 
 ### ~~subscribeTransaction()~~
 
@@ -519,7 +519,7 @@ Subscribe to get notifications whenever an event matching the filter occurs
 
 #### Deprecated
 
-***
+---
 
 ### devInspectTransactionBlock()
 
@@ -537,7 +537,7 @@ provided, including both the transaction effects and any return values.
 
 `Promise`\<[`DevInspectResults`](../interfaces/DevInspectResults.md)\>
 
-***
+---
 
 ### dryRunTransactionBlock()
 
@@ -553,7 +553,7 @@ Dry run a transaction block and return the result.
 
 `Promise`\<[`DryRunTransactionBlockResponse`](../interfaces/DryRunTransactionBlockResponse.md)\>
 
-***
+---
 
 ### getDynamicFields()
 
@@ -569,7 +569,7 @@ Return the list of dynamic field objects owned by an object
 
 `Promise`\<[`DynamicFieldPage`](../type-aliases/DynamicFieldPage.md)\>
 
-***
+---
 
 ### getDynamicFieldObject()
 
@@ -585,7 +585,7 @@ Return the dynamic field object information for a specified object
 
 `Promise`\<[`IotaObjectResponse`](../interfaces/IotaObjectResponse.md)\>
 
-***
+---
 
 ### getLatestCheckpointSequenceNumber()
 
@@ -597,7 +597,7 @@ Get the sequence number of the latest checkpoint that has been executed
 
 `Promise`\<`string`\>
 
-***
+---
 
 ### getCheckpoint()
 
@@ -613,7 +613,7 @@ Returns information about a given checkpoint
 
 `Promise`\<[`Checkpoint`](../interfaces/Checkpoint.md)\>
 
-***
+---
 
 ### getCheckpoints()
 
@@ -629,7 +629,7 @@ Returns historical checkpoints paginated
 
 `Promise`\<[`CheckpointPage`](../type-aliases/CheckpointPage.md)\>
 
-***
+---
 
 ### getCommitteeInfo()
 
@@ -645,7 +645,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<[`CommitteeInfo`](../interfaces/CommitteeInfo.md)\>
 
-***
+---
 
 ### getNetworkMetrics()
 
@@ -655,7 +655,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<[`NetworkMetrics`](../interfaces/NetworkMetrics.md)\>
 
-***
+---
 
 ### getAddressMetrics()
 
@@ -665,7 +665,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<[`AddressMetrics`](../interfaces/AddressMetrics.md)\>
 
-***
+---
 
 ### getEpochMetrics()
 
@@ -679,7 +679,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<[`EpochMetricsPage`](../type-aliases/EpochMetricsPage.md)\>
 
-***
+---
 
 ### getAllEpochAddressMetrics()
 
@@ -695,7 +695,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<[`AllEpochsAddressMetrics`](../type-aliases/AllEpochsAddressMetrics.md)\>
 
-***
+---
 
 ### getCheckpointAddressMetrics()
 
@@ -711,7 +711,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<[`AddressMetrics`](../interfaces/AddressMetrics.md)\>
 
-***
+---
 
 ### getEpochs()
 
@@ -727,7 +727,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<[`EpochPage`](../type-aliases/EpochPage.md)\>
 
-***
+---
 
 ### getMoveCallMetrics()
 
@@ -739,7 +739,7 @@ Returns list of top move calls by usage
 
 `Promise`\<[`MoveCallMetrics`](../interfaces/MoveCallMetrics.md)\>
 
-***
+---
 
 ### getCurrentEpoch()
 
@@ -751,7 +751,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<[`EpochInfo`](../interfaces/EpochInfo.md)\>
 
-***
+---
 
 ### getTotalTransactions()
 
@@ -761,7 +761,7 @@ Return the committee information for the asked epoch
 
 `Promise`\<`string`\>
 
-***
+---
 
 ### getValidatorsApy()
 
@@ -773,7 +773,7 @@ Return the Validators APYs
 
 `Promise`\<[`ValidatorsApy`](../interfaces/ValidatorsApy.md)\>
 
-***
+---
 
 ### getChainIdentifier()
 
@@ -783,7 +783,7 @@ Return the Validators APYs
 
 `Promise`\<`string`\>
 
-***
+---
 
 ### getProtocolConfig()
 
@@ -797,7 +797,7 @@ Return the Validators APYs
 
 `Promise`\<[`ProtocolConfig`](../interfaces/ProtocolConfig.md)\>
 
-***
+---
 
 ### waitForTransaction()
 

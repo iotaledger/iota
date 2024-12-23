@@ -9,19 +9,19 @@ fields so that they are decoupled from the internal definitions.
 
 > **authorityPubkeyBytes**: `string`
 
-***
+---
 
 ### commissionRate
 
 > **commissionRate**: `string`
 
-***
+---
 
 ### description
 
 > **description**: `string`
 
-***
+---
 
 ### exchangeRatesId
 
@@ -29,7 +29,7 @@ fields so that they are decoupled from the internal definitions.
 
 ID of the exchange rate table object.
 
-***
+---
 
 ### exchangeRatesSize
 
@@ -37,115 +37,115 @@ ID of the exchange rate table object.
 
 Number of exchange rates in the table.
 
-***
+---
 
 ### gasPrice
 
 > **gasPrice**: `string`
 
-***
+---
 
 ### imageUrl
 
 > **imageUrl**: `string`
 
-***
+---
 
 ### iotaAddress
 
 > **iotaAddress**: `string`
 
-***
+---
 
 ### name
 
 > **name**: `string`
 
-***
+---
 
 ### netAddress
 
 > **netAddress**: `string`
 
-***
+---
 
 ### networkPubkeyBytes
 
 > **networkPubkeyBytes**: `string`
 
-***
+---
 
 ### nextEpochAuthorityPubkeyBytes?
 
 > `optional` **nextEpochAuthorityPubkeyBytes**: `null` \| `string`
 
-***
+---
 
 ### nextEpochCommissionRate
 
 > **nextEpochCommissionRate**: `string`
 
-***
+---
 
 ### nextEpochGasPrice
 
 > **nextEpochGasPrice**: `string`
 
-***
+---
 
 ### nextEpochNetAddress?
 
 > `optional` **nextEpochNetAddress**: `null` \| `string`
 
-***
+---
 
 ### nextEpochNetworkPubkeyBytes?
 
 > `optional` **nextEpochNetworkPubkeyBytes**: `null` \| `string`
 
-***
+---
 
 ### nextEpochP2pAddress?
 
 > `optional` **nextEpochP2pAddress**: `null` \| `string`
 
-***
+---
 
 ### nextEpochPrimaryAddress?
 
 > `optional` **nextEpochPrimaryAddress**: `null` \| `string`
 
-***
+---
 
 ### nextEpochProofOfPossession?
 
 > `optional` **nextEpochProofOfPossession**: `null` \| `string`
 
-***
+---
 
 ### nextEpochProtocolPubkeyBytes?
 
 > `optional` **nextEpochProtocolPubkeyBytes**: `null` \| `string`
 
-***
+---
 
 ### nextEpochStake
 
 > **nextEpochStake**: `string`
 
-***
+---
 
 ### operationCapId
 
 > **operationCapId**: `string`
 
-***
+---
 
 ### p2pAddress
 
 > **p2pAddress**: `string`
 
-***
+---
 
 ### pendingPoolTokenWithdraw
 
@@ -153,7 +153,7 @@ Number of exchange rates in the table.
 
 Pending pool token withdrawn during the current epoch, emptied at epoch boundaries.
 
-***
+---
 
 ### pendingStake
 
@@ -161,7 +161,7 @@ Pending pool token withdrawn during the current epoch, emptied at epoch boundari
 
 Pending stake amount for this epoch.
 
-***
+---
 
 ### pendingTotalIotaWithdraw
 
@@ -169,7 +169,7 @@ Pending stake amount for this epoch.
 
 Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
 
-***
+---
 
 ### poolTokenBalance
 
@@ -177,31 +177,31 @@ Pending stake withdrawn during the current epoch, emptied at epoch boundaries.
 
 Total number of pool tokens issued by the pool.
 
-***
+---
 
 ### primaryAddress
 
 > **primaryAddress**: `string`
 
-***
+---
 
 ### projectUrl
 
 > **projectUrl**: `string`
 
-***
+---
 
 ### proofOfPossessionBytes
 
 > **proofOfPossessionBytes**: `string`
 
-***
+---
 
 ### protocolPubkeyBytes
 
 > **protocolPubkeyBytes**: `string`
 
-***
+---
 
 ### rewardsPool
 
@@ -209,7 +209,7 @@ Total number of pool tokens issued by the pool.
 
 The epoch stake rewards will be added here at the end of each epoch.
 
-***
+---
 
 ### stakingPoolActivationEpoch?
 
@@ -217,7 +217,7 @@ The epoch stake rewards will be added here at the end of each epoch.
 
 The epoch at which this pool became active.
 
-***
+---
 
 ### stakingPoolDeactivationEpoch?
 
@@ -225,7 +225,7 @@ The epoch at which this pool became active.
 
 The epoch at which this staking pool ceased to be active. `None` = {pre-active, active},
 
-***
+---
 
 ### stakingPoolId
 
@@ -233,7 +233,7 @@ The epoch at which this staking pool ceased to be active. `None` = {pre-active, 
 
 ID of the staking pool object.
 
-***
+---
 
 ### stakingPoolIotaBalance
 
@@ -241,7 +241,7 @@ ID of the staking pool object.
 
 The total number of IOTA tokens in this pool.
 
-***
+---
 
 ### votingPower
 

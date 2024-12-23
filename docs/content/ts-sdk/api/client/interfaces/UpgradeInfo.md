@@ -10,7 +10,7 @@ Upgraded package info for the linkage table
 
 ID of the upgraded packages
 
-***
+---
 
 ### upgraded\_version
 

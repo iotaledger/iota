@@ -1,3 +1,3 @@
 # Type Alias: CallArg
 
-> **CallArg**: `InferOutput`\<*typeof* `CallArg`\>
+> **CallArg**: `InferOutput`\<_typeof_ `CallArg`\>

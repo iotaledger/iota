@@ -6,13 +6,13 @@
 
 > **coinObjectCount**: `number`
 
-***
+---
 
 ### coinType
 
 > **coinType**: `string`
 
-***
+---
 
 ### totalBalance
 

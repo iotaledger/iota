@@ -14,7 +14,7 @@
 
 [`BuildTransactionOptions`](BuildTransactionOptions.md).[`client`](BuildTransactionOptions.md#client)
 
-***
+---
 
 ### onlyTransactionKind?
 
@@ -24,7 +24,7 @@
 
 [`BuildTransactionOptions`](BuildTransactionOptions.md).[`onlyTransactionKind`](BuildTransactionOptions.md#onlytransactionkind)
 
-***
+---
 
 ### supportedIntents?
 

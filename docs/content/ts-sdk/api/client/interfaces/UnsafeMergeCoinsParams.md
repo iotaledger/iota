@@ -10,7 +10,7 @@ Create an unsigned transaction to merge multiple coins into one coin.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### primaryCoin
 
@@ -18,7 +18,7 @@ the transaction signer's Iota address
 
 the coin object to merge into, this coin will remain after the transaction
 
-***
+---
 
 ### coinToMerge
 
@@ -27,7 +27,7 @@ the coin object to merge into, this coin will remain after the transaction
 the coin object to be merged, this coin will be destroyed, the balance will be added to
 `primary_coin`
 
-***
+---
 
 ### gas?
 
@@ -36,7 +36,7 @@ the coin object to be merged, this coin will be destroyed, the balance will be a
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 

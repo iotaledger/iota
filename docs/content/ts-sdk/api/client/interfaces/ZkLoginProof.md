@@ -8,13 +8,13 @@ The struct for zk login proof.
 
 > **a**: `string`[]
 
-***
+---
 
 ### b
 
 > **b**: `string`[][]
 
-***
+---
 
 ### c
 

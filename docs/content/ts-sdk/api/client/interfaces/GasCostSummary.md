@@ -26,7 +26,7 @@ rate" such that:
 
 Cost of computation/execution
 
-***
+---
 
 ### computationCostBurned
 
@@ -34,7 +34,7 @@ Cost of computation/execution
 
 The burned component of the computation/execution costs
 
-***
+---
 
 ### nonRefundableStorageFee
 
@@ -42,7 +42,7 @@ The burned component of the computation/execution costs
 
 The fee for the rebate. The portion of the storage rebate kept by the system.
 
-***
+---
 
 ### storageCost
 
@@ -50,7 +50,7 @@ The fee for the rebate. The portion of the storage rebate kept by the system.
 
 Storage cost, it's the sum of all storage cost for all objects created or mutated.
 
-***
+---
 
 ### storageRebate
 

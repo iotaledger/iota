@@ -10,13 +10,13 @@ item.
 
 > **data**: [`DynamicFieldInfo`](DynamicFieldInfo.md)[]
 
-***
+---
 
 ### hasNextPage
 
 > **hasNextPage**: `boolean`
 
-***
+---
 
 ### nextCursor?
 

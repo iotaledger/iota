@@ -34,7 +34,7 @@
 
 `Promise`\<`Response`\>
 
-***
+---
 
 ### request()
 
@@ -56,7 +56,7 @@
 
 [`IotaTransport`](../interfaces/IotaTransport.md).[`request`](../interfaces/IotaTransport.md#request)
 
-***
+---
 
 ### subscribe()
 

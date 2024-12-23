@@ -9,7 +9,7 @@ local to this particular fullnode and will be different from other fullnode.
 
 > **eventSeq**: `string`
 
-***
+---
 
 ### txDigest
 

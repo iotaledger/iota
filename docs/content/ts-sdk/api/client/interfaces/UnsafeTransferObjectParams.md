@@ -11,7 +11,7 @@ must allow public transfers
 
 the transaction signer's Iota address
 
-***
+---
 
 ### objectId
 
@@ -19,7 +19,7 @@ the transaction signer's Iota address
 
 the ID of the object to be transferred
 
-***
+---
 
 ### gas?
 
@@ -28,7 +28,7 @@ the ID of the object to be transferred
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 
@@ -36,7 +36,7 @@ provided
 
 the gas budget, the transaction will fail if the gas cost exceed the budget
 
-***
+---
 
 ### recipient
 

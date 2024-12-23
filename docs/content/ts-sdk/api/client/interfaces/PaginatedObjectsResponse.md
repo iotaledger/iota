@@ -10,13 +10,13 @@ item.
 
 > **data**: [`IotaObjectResponse`](IotaObjectResponse.md)[]
 
-***
+---
 
 ### hasNextPage
 
 > **hasNextPage**: `boolean`
 
-***
+---
 
 ### nextCursor?
 

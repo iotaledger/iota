@@ -10,13 +10,13 @@ item.
 
 > **data**: [`Checkpoint`](Checkpoint.md)[]
 
-***
+---
 
 ### hasNextPage
 
 > **hasNextPage**: `boolean`
 
-***
+---
 
 ### nextCursor?
 

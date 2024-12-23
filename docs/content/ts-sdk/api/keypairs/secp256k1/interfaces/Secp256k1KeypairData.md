@@ -8,7 +8,7 @@ Secp256k1 Keypair data
 
 > **publicKey**: `Uint8Array`
 
-***
+---
 
 ### secretKey
 

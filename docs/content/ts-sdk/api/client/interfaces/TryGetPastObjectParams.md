@@ -12,7 +12,7 @@ on their pruning policies. Return the object information for a specified version
 
 the ID of the queried object
 
-***
+---
 
 ### version
 
@@ -20,7 +20,7 @@ the ID of the queried object
 
 the version of the queried object. If None, default to the latest known version
 
-***
+---
 
 ### options?
 

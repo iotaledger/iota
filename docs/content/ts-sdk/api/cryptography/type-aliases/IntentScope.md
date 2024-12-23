@@ -1,3 +1,3 @@
 # Type Alias: IntentScope
 
-> **IntentScope**: `Exclude`\<keyof *typeof* `bcs.IntentScope.$inferType`, `"$kind"`\>
+> **IntentScope**: `Exclude`\<keyof _typeof_ `bcs.IntentScope.$inferType`, `"$kind"`\>

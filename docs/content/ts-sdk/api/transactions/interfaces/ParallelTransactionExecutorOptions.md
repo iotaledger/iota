@@ -14,19 +14,19 @@
 
 `Omit.cache`
 
-***
+---
 
 ### client
 
 > **client**: [`IotaClient`](../../client/classes/IotaClient.md)
 
-***
+---
 
 ### signer
 
 > **signer**: [`Signer`](../../cryptography/classes/Signer.md)
 
-***
+---
 
 ### coinBatchSize?
 
@@ -34,7 +34,7 @@
 
 The number of coins to create in a batch when refilling the gas pool
 
-***
+---
 
 ### initialCoinBalance?
 
@@ -42,15 +42,15 @@ The number of coins to create in a batch when refilling the gas pool
 
 The initial balance of each coin created for the gas pool
 
-***
+---
 
 ### minimumCoinBalance?
 
 > `optional` **minimumCoinBalance**: `bigint`
 
-The minimum balance of a coin that can be reused for future transactions.  If the gasCoin is below this value, it will be used when refilling the gasPool
+The minimum balance of a coin that can be reused for future transactions. If the gasCoin is below this value, it will be used when refilling the gasPool
 
-***
+---
 
 ### defaultGasBudget?
 
@@ -58,7 +58,7 @@ The minimum balance of a coin that can be reused for future transactions.  If th
 
 The gasBudget to use if the transaction has not defined it's own gasBudget, defaults to `minimumCoinBalance`
 
-***
+---
 
 ### epochBoundaryWindow?
 
@@ -68,7 +68,7 @@ Time to wait before/after the expected epoch boundary before re-fetching the gas
 Building transactions will be paused for up to 2x this duration around each epoch boundary to ensure the
 gas price is up-to-date for the next epoch.
 
-***
+---
 
 ### maxPoolSize?
 
@@ -76,7 +76,7 @@ gas price is up-to-date for the next epoch.
 
 The maximum number of transactions that can be execute in parallel, this also determines the maximum number of gas coins that will be created
 
-***
+---
 
 ### sourceCoins?
 

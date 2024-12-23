@@ -8,7 +8,7 @@
 
 The end of epoch information.
 
-***
+---
 
 ### epoch
 
@@ -16,7 +16,7 @@ The end of epoch information.
 
 Epoch number
 
-***
+---
 
 ### epochStartTimestamp
 
@@ -24,7 +24,7 @@ Epoch number
 
 The timestamp when the epoch started.
 
-***
+---
 
 ### epochTotalTransactions
 
@@ -32,7 +32,7 @@ The timestamp when the epoch started.
 
 Count of tx in epoch
 
-***
+---
 
 ### firstCheckpointId
 
@@ -40,7 +40,7 @@ Count of tx in epoch
 
 First, last checkpoint sequence numbers
 
-***
+---
 
 ### referenceGasPrice?
 
@@ -48,7 +48,7 @@ First, last checkpoint sequence numbers
 
 The reference gas price for the given epoch.
 
-***
+---
 
 ### validators
 

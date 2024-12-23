@@ -11,7 +11,7 @@ function in the module of a given package.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### packageObjectId
 
@@ -19,7 +19,7 @@ the transaction signer's Iota address
 
 the Move package ID, e.g. `0x2`
 
-***
+---
 
 ### module
 
@@ -27,7 +27,7 @@ the Move package ID, e.g. `0x2`
 
 the Move module name, e.g. `pay`
 
-***
+---
 
 ### function
 
@@ -35,7 +35,7 @@ the Move module name, e.g. `pay`
 
 the move function name, e.g. `split`
 
-***
+---
 
 ### typeArguments
 
@@ -43,7 +43,7 @@ the move function name, e.g. `split`
 
 the type arguments of the Move function
 
-***
+---
 
 ### arguments
 
@@ -52,7 +52,7 @@ the type arguments of the Move function
 the arguments to be passed into the Move function, in
 [IotaJson](https://docs.iota.org/references/iota-api) format
 
-***
+---
 
 ### gas?
 
@@ -61,7 +61,7 @@ the arguments to be passed into the Move function, in
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 
@@ -69,7 +69,7 @@ provided
 
 the gas budget, the transaction will fail if the gas cost exceed the budget
 
-***
+---
 
 ### executionMode?
 

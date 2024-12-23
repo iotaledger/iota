@@ -28,7 +28,7 @@
 
 `Promise`\<`Response`\>
 
-***
+---
 
 ### WebSocketConstructor()?
 
@@ -64,13 +64,13 @@
 
 > `readonly` **CLOSED**: `3`
 
-***
+---
 
 ### url
 
 > **url**: `string`
 
-***
+---
 
 ### rpc?
 
@@ -84,7 +84,7 @@
 
 > `optional` **url**: `string`
 
-***
+---
 
 ### websocket?
 

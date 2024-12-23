@@ -13,7 +13,7 @@ An passkey authenticator with parsed fields. See field definition below. Can be 
 [Authenticator Data](https://www.w3.org/TR/webauthn-2/#sctn-authenticator-data) structure returned
 by the authenticator attestation response as is.
 
-***
+---
 
 ### client\_data\_json
 

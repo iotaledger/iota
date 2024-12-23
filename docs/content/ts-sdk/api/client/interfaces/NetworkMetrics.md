@@ -8,7 +8,7 @@
 
 Current checkpoint number
 
-***
+---
 
 ### currentEpoch
 
@@ -16,7 +16,7 @@ Current checkpoint number
 
 Current epoch number
 
-***
+---
 
 ### currentTps
 
@@ -24,7 +24,7 @@ Current epoch number
 
 Current TPS - Transaction Blocks per Second.
 
-***
+---
 
 ### totalAddresses
 
@@ -32,7 +32,7 @@ Current TPS - Transaction Blocks per Second.
 
 Total number of addresses seen in the network
 
-***
+---
 
 ### totalObjects
 
@@ -40,7 +40,7 @@ Total number of addresses seen in the network
 
 Total number of live objects in the network
 
-***
+---
 
 ### totalPackages
 
@@ -48,7 +48,7 @@ Total number of live objects in the network
 
 Total number of packages published in the network
 
-***
+---
 
 ### tps30Days
 

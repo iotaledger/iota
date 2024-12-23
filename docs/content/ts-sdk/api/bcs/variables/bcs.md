@@ -145,7 +145,6 @@ Creates a BcsType that can be used to read and write unsigned LEB encoded intege
 #### Example
 
 ```ts
-
 ```
 
 ### bytes()
@@ -154,7 +153,7 @@ Creates a BcsType representing a fixed length byte array
 
 #### Type Parameters
 
-• **T** *extends* `number`
+• **T** _extends_ `number`
 
 #### Parameters
 
@@ -176,7 +175,7 @@ bcs.bytes(3).serialize(new Uint8Array([1, 2, 3])).toBytes() // Uint8Array [1, 2,
 
 ### string()
 
-Creates a BcsType that can ser/de string values.  Strings will be UTF-8 encoded
+Creates a BcsType that can ser/de string values. Strings will be UTF-8 encoded
 
 #### Parameters
 
@@ -285,7 +284,7 @@ Creates a BcsType representing a tuple of a given set of types
 
 #### Type Parameters
 
-• **Types** *extends* readonly [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>[]
+• **Types** _extends_ readonly [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>[]
 
 #### Parameters
 
@@ -312,7 +311,7 @@ Creates a BcsType representing a struct of a given set of fields
 
 #### Type Parameters
 
-• **T** *extends* `Record`\<`string`, [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>\>
+• **T** _extends_ `Record`\<`string`, [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>\>
 
 #### Parameters
 
@@ -346,7 +345,7 @@ Creates a BcsType representing an enum of a given set of options
 
 #### Type Parameters
 
-• **T** *extends* `Record`\<`string`, `null` \| [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>\>
+• **T** _extends_ `Record`\<`string`, `null` \| [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>\>
 
 #### Parameters
 
@@ -419,7 +418,7 @@ Creates a BcsType that wraps another BcsType which is lazily evaluated. This is 
 
 #### Type Parameters
 
-• **T** *extends* [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>
+• **T** _extends_ [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>
 
 #### Parameters
 
@@ -577,7 +576,7 @@ A callback that returns the BcsType
 
 #### Type Parameters
 
-• **T** *extends* [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>
+• **T** _extends_ [`BcsType`](../classes/BcsType.md)\<`any`, `any`\>
 
 #### Parameters
 
@@ -639,7 +638,7 @@ A callback that returns the BcsType
 
 ##### value
 
-> **value**: `T` *extends* [`BcsType`](../classes/BcsType.md)\<`U`, `any`\> ? `U` : `never` = `T`
+> **value**: `T` _extends_ [`BcsType`](../classes/BcsType.md)\<`U`, `any`\> ? `U` : `never` = `T`
 
 ### IntentScope
 

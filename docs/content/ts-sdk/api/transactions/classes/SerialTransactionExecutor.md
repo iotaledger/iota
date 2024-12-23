@@ -64,7 +64,7 @@
 
 `Promise`\<[`void`, `void`]\>
 
-***
+---
 
 ### buildTransaction()
 
@@ -78,7 +78,7 @@
 
 `Promise`\<`Uint8Array`\>
 
-***
+---
 
 ### resetCache()
 
@@ -88,7 +88,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### waitForLastTransaction()
 
@@ -98,7 +98,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### executeTransaction()
 

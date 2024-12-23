@@ -10,7 +10,7 @@ Return all Coin<`coin_type`> objects owned by an address.
 
 the owner's Iota address
 
-***
+---
 
 ### coinType?
 
@@ -19,7 +19,7 @@ the owner's Iota address
 optional type name for the coin (e.g., 0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC),
 default to 0x2::iota::IOTA if not specified.
 
-***
+---
 
 ### cursor?
 
@@ -27,7 +27,7 @@ default to 0x2::iota::IOTA if not specified.
 
 optional paging cursor
 
-***
+---
 
 ### limit?
 

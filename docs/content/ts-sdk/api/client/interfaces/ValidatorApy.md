@@ -6,7 +6,7 @@
 
 > **address**: `string`
 
-***
+---
 
 ### apy
 

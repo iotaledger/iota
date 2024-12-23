@@ -12,7 +12,7 @@
 
 Optional paging cursor
 
-***
+---
 
 ### limit?
 

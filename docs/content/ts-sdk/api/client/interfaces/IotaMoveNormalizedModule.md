@@ -6,7 +6,7 @@
 
 > **address**: `string`
 
-***
+---
 
 ### exposedFunctions
 
@@ -14,27 +14,27 @@
 
 #### Index Signature
 
- \[`key`: `string`\]: [`IotaMoveNormalizedFunction`](IotaMoveNormalizedFunction.md)
+\[`key`: `string`\]: [`IotaMoveNormalizedFunction`](IotaMoveNormalizedFunction.md)
 
-***
+---
 
 ### fileFormatVersion
 
 > **fileFormatVersion**: `number`
 
-***
+---
 
 ### friends
 
 > **friends**: [`IotaMoveModuleId`](IotaMoveModuleId.md)[]
 
-***
+---
 
 ### name
 
 > **name**: `string`
 
-***
+---
 
 ### structs
 
@@ -42,4 +42,4 @@
 
 #### Index Signature
 
- \[`key`: `string`\]: [`IotaMoveNormalizedStruct`](IotaMoveNormalizedStruct.md)
+\[`key`: `string`\]: [`IotaMoveNormalizedStruct`](IotaMoveNormalizedStruct.md)

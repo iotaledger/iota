@@ -10,7 +10,7 @@ Withdraw timelocked stake from a validator's staking pool.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### timelockedStakedIota
 
@@ -18,7 +18,7 @@ the transaction signer's Iota address
 
 TimelockedStakedIota object ID
 
-***
+---
 
 ### gas
 
@@ -26,7 +26,7 @@ TimelockedStakedIota object ID
 
 gas object to be used in this transaction
 
-***
+---
 
 ### gasBudget
 

@@ -11,7 +11,7 @@ contains any duplicate or the input size exceeds QUERY_MAX_RESULT_LIMIT
 
 A list of transaction digests.
 
-***
+---
 
 ### options?
 

@@ -1,6 +1,6 @@
 # Type Alias: GraphQLQueryOptions\<Result, Variables\>
 
-> **GraphQLQueryOptions**\<`Result`, `Variables`\>: `object` & `Variables` *extends* `object` ? `object` : `object`
+> **GraphQLQueryOptions**\<`Result`, `Variables`\>: `object` & `Variables` _extends_ `object` ? `object` : `object`
 
 ## Type declaration
 

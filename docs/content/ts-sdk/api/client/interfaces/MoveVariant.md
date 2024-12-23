@@ -8,15 +8,15 @@
 
 #### Index Signature
 
- \[`key`: `string`\]: [`MoveValue`](../type-aliases/MoveValue.md)
+\[`key`: `string`\]: [`MoveValue`](../type-aliases/MoveValue.md)
 
-***
+---
 
 ### type
 
 > **type**: `string`
 
-***
+---
 
 ### variant
 

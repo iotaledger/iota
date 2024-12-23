@@ -8,7 +8,7 @@
 
 Whether to show the content in BCS format. Default to be False
 
-***
+---
 
 ### showContent?
 
@@ -17,7 +17,7 @@ Whether to show the content in BCS format. Default to be False
 Whether to show the content(i.e., package content or Move struct content) of the object. Default to
 be False
 
-***
+---
 
 ### showDisplay?
 
@@ -25,7 +25,7 @@ be False
 
 Whether to show the Display metadata of the object for frontend rendering. Default to be False
 
-***
+---
 
 ### showOwner?
 
@@ -33,7 +33,7 @@ Whether to show the Display metadata of the object for frontend rendering. Defau
 
 Whether to show the owner of the object. Default to be False
 
-***
+---
 
 ### showPreviousTransaction?
 
@@ -41,7 +41,7 @@ Whether to show the owner of the object. Default to be False
 
 Whether to show the previous transaction digest of the object. Default to be False
 
-***
+---
 
 ### showStorageRebate?
 
@@ -49,7 +49,7 @@ Whether to show the previous transaction digest of the object. Default to be Fal
 
 Whether to show the storage rebate of the object. Default to be False
 
-***
+---
 
 ### showType?
 

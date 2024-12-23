@@ -8,7 +8,7 @@ A claim consists of value and index_mod_4.
 
 > **indexMod4**: `number`
 
-***
+---
 
 ### value
 

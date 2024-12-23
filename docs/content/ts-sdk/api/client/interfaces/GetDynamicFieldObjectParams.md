@@ -10,7 +10,7 @@ Return the dynamic field object information for a specified object
 
 The ID of the queried parent object
 
-***
+---
 
 ### name
 

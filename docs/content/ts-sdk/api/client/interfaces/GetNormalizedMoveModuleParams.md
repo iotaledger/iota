@@ -8,7 +8,7 @@ Return a structured representation of Move module
 
 > **package**: `string`
 
-***
+---
 
 ### module
 

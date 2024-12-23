@@ -50,7 +50,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 [`IotaHTTPTransportError`](IotaHTTPTransportError.md).[`prepareStackTrace`](IotaHTTPTransportError.md#preparestacktrace)
 
-***
+---
 
 ### stackTraceLimit
 
@@ -60,7 +60,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 [`IotaHTTPTransportError`](IotaHTTPTransportError.md).[`stackTraceLimit`](IotaHTTPTransportError.md#stacktracelimit)
 
-***
+---
 
 ### cause?
 
@@ -70,7 +70,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 [`IotaHTTPTransportError`](IotaHTTPTransportError.md).[`cause`](IotaHTTPTransportError.md#cause)
 
-***
+---
 
 ### name
 
@@ -80,7 +80,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 [`IotaHTTPTransportError`](IotaHTTPTransportError.md).[`name`](IotaHTTPTransportError.md#name)
 
-***
+---
 
 ### message
 
@@ -90,7 +90,7 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 [`IotaHTTPTransportError`](IotaHTTPTransportError.md).[`message`](IotaHTTPTransportError.md#message)
 
-***
+---
 
 ### stack?
 
@@ -100,13 +100,13 @@ https://v8.dev/docs/stack-trace-api#customizing-stack-traces
 
 [`IotaHTTPTransportError`](IotaHTTPTransportError.md).[`stack`](IotaHTTPTransportError.md#stack)
 
-***
+---
 
 ### code
 
 > **code**: `number`
 
-***
+---
 
 ### type
 

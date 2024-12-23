@@ -2,7 +2,7 @@
 
 ## Type Parameters
 
-• **Queries** *extends* `Record`\<`string`, [`GraphQLDocument`](../type-aliases/GraphQLDocument.md)\> = `object`
+• **Queries** _extends_ `Record`\<`string`, [`GraphQLDocument`](../type-aliases/GraphQLDocument.md)\> = `object`
 
 ## Constructors
 
@@ -38,7 +38,7 @@
 
 `Promise`\<[`GraphQLQueryResult`](../type-aliases/GraphQLQueryResult.md)\<`Result`\>\>
 
-***
+---
 
 ### execute()
 
@@ -46,11 +46,11 @@
 
 #### Type Parameters
 
-• **Query** *extends* `string`
+• **Query** _extends_ `string`
 
-• **Result** = `Queries`\[`Query`\] *extends* [`GraphQLDocument`](../type-aliases/GraphQLDocument.md)\<`R`, `unknown`\> ? `R` : `Record`\<`string`, `unknown`\>
+• **Result** = `Queries`\[`Query`\] _extends_ [`GraphQLDocument`](../type-aliases/GraphQLDocument.md)\<`R`, `unknown`\> ? `R` : `Record`\<`string`, `unknown`\>
 
-• **Variables** = `Queries`\[`Query`\] *extends* [`GraphQLDocument`](../type-aliases/GraphQLDocument.md)\<`unknown`, `V`\> ? `V` : `Record`\<`string`, `unknown`\>
+• **Variables** = `Queries`\[`Query`\] _extends_ [`GraphQLDocument`](../type-aliases/GraphQLDocument.md)\<`unknown`, `V`\> ? `V` : `Record`\<`string`, `unknown`\>
 
 #### Parameters
 

@@ -14,7 +14,7 @@ sum(input_coins) - actual_gas_cost. 4. all other input coins other than the firs
 
 the transaction signer's Iota address
 
-***
+---
 
 ### inputCoins
 
@@ -22,7 +22,7 @@ the transaction signer's Iota address
 
 the Iota coins to be used in this transaction, including the coin for gas payment.
 
-***
+---
 
 ### recipient
 
@@ -30,7 +30,7 @@ the Iota coins to be used in this transaction, including the coin for gas paymen
 
 the recipient address,
 
-***
+---
 
 ### gasBudget
 

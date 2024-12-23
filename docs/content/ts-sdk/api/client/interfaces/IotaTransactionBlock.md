@@ -6,7 +6,7 @@
 
 > **data**: [`TransactionBlockData`](../type-aliases/TransactionBlockData.md)
 
-***
+---
 
 ### txSignatures
 

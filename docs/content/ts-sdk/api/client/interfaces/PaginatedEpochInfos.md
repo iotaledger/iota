@@ -10,13 +10,13 @@ item.
 
 > **data**: [`EpochInfo`](EpochInfo.md)[]
 
-***
+---
 
 ### hasNextPage
 
 > **hasNextPage**: `boolean`
 
-***
+---
 
 ### nextCursor?
 

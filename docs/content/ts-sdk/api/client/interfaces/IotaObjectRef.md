@@ -8,7 +8,7 @@
 
 Base64 string representing the object digest
 
-***
+---
 
 ### objectId
 
@@ -16,7 +16,7 @@ Base64 string representing the object digest
 
 Hex code as string representing the object id
 
-***
+---
 
 ### version
 

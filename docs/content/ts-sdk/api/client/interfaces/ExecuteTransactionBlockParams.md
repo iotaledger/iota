@@ -17,7 +17,7 @@ options.show_effects is true
 
 BCS serialized transaction data bytes without its type tag, as base-64 encoded string.
 
-***
+---
 
 ### signature
 
@@ -26,7 +26,7 @@ BCS serialized transaction data bytes without its type tag, as base-64 encoded s
 A list of signatures (`flag || signature || pubkey` bytes, as base-64 encoded string). Signature is
 committed to the intent message of the transaction data, as base-64 encoded string.
 
-***
+---
 
 ### options?
 
@@ -34,7 +34,7 @@ committed to the intent message of the transaction data, as base-64 encoded stri
 
 options for specifying the content to be returned
 
-***
+---
 
 ### ~~requestType?~~
 

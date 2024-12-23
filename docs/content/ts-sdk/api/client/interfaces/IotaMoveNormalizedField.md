@@ -6,7 +6,7 @@
 
 > **name**: `string`
 
-***
+---
 
 ### type
 

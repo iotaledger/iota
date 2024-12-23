@@ -6,7 +6,7 @@
 
 > **stakes**: [`StakeObject`](../type-aliases/StakeObject.md)[]
 
-***
+---
 
 ### stakingPool
 
@@ -14,7 +14,7 @@
 
 Staking pool object id.
 
-***
+---
 
 ### validatorAddress
 

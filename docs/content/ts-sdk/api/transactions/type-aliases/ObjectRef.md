@@ -1,3 +1,3 @@
 # Type Alias: ObjectRef
 
-> **ObjectRef**: `InferOutput`\<*typeof* [`ObjectRef`](../variables/ObjectRef.md)\>
+> **ObjectRef**: `InferOutput`\<_typeof_ [`ObjectRef`](../variables/ObjectRef.md)\>

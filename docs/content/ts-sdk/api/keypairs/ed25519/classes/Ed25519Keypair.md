@@ -52,7 +52,7 @@ it ensures that a signed message is tied to a specific purpose and domain separa
 
 [`Keypair`](../../../cryptography/classes/Keypair.md).[`signWithIntent`](../../../cryptography/classes/Keypair.md#signwithintent)
 
-***
+---
 
 ### signTransaction()
 
@@ -72,7 +72,7 @@ Signs provided transaction by calling `signWithIntent()` with a `TransactionData
 
 [`Keypair`](../../../cryptography/classes/Keypair.md).[`signTransaction`](../../../cryptography/classes/Keypair.md#signtransaction)
 
-***
+---
 
 ### signPersonalMessage()
 
@@ -100,7 +100,7 @@ Signs provided personal message by calling `signWithIntent()` with a `PersonalMe
 
 [`Keypair`](../../../cryptography/classes/Keypair.md).[`signPersonalMessage`](../../../cryptography/classes/Keypair.md#signpersonalmessage)
 
-***
+---
 
 ### toIotaAddress()
 
@@ -114,7 +114,7 @@ Signs provided personal message by calling `signWithIntent()` with a `PersonalMe
 
 [`Keypair`](../../../cryptography/classes/Keypair.md).[`toIotaAddress`](../../../cryptography/classes/Keypair.md#toiotaaddress)
 
-***
+---
 
 ### getKeyScheme()
 
@@ -130,7 +130,7 @@ Get the key scheme of the keypair ED25519
 
 [`Keypair`](../../../cryptography/classes/Keypair.md).[`getKeyScheme`](../../../cryptography/classes/Keypair.md#getkeyscheme)
 
-***
+---
 
 ### generate()
 
@@ -142,7 +142,7 @@ Generate a new random Ed25519 keypair
 
 [`Ed25519Keypair`](Ed25519Keypair.md)
 
-***
+---
 
 ### fromSecretKey()
 
@@ -170,7 +170,7 @@ secret key byte array
 
 error if the provided secret key is invalid and validation is not skipped.
 
-***
+---
 
 ### getPublicKey()
 
@@ -186,7 +186,7 @@ The public key for this Ed25519 keypair
 
 [`Keypair`](../../../cryptography/classes/Keypair.md).[`getPublicKey`](../../../cryptography/classes/Keypair.md#getpublickey)
 
-***
+---
 
 ### getSecretKey()
 
@@ -202,7 +202,7 @@ The Bech32 secret key string for this Ed25519 keypair
 
 [`Keypair`](../../../cryptography/classes/Keypair.md).[`getSecretKey`](../../../cryptography/classes/Keypair.md#getsecretkey)
 
-***
+---
 
 ### sign()
 
@@ -222,7 +222,7 @@ Return the signature for the provided data using Ed25519.
 
 [`Keypair`](../../../cryptography/classes/Keypair.md).[`sign`](../../../cryptography/classes/Keypair.md#sign)
 
-***
+---
 
 ### deriveKeypair()
 
@@ -244,7 +244,7 @@ be compliant to SLIP-0010 in form m/44'/4218'/{account_index}'/{change_index}'/{
 
 [`Ed25519Keypair`](Ed25519Keypair.md)
 
-***
+---
 
 ### deriveKeypairFromSeed()
 

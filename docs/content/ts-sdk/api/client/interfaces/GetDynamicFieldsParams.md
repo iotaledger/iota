@@ -10,7 +10,7 @@ Return the list of dynamic field objects owned by an object.
 
 The ID of the parent object
 
-***
+---
 
 ### cursor?
 
@@ -19,7 +19,7 @@ The ID of the parent object
 An optional paging cursor. If provided, the query will start from the next item after the specified
 cursor. Default to start from the first item if not specified.
 
-***
+---
 
 ### limit?
 

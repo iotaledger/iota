@@ -13,7 +13,7 @@ auto-select one.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### inputCoins
 
@@ -21,7 +21,7 @@ the transaction signer's Iota address
 
 the Iota coins to be used in this transaction
 
-***
+---
 
 ### recipients
 
@@ -29,7 +29,7 @@ the Iota coins to be used in this transaction
 
 the recipients' addresses, the length of this vector must be the same as amounts.
 
-***
+---
 
 ### amounts
 
@@ -37,7 +37,7 @@ the recipients' addresses, the length of this vector must be the same as amounts
 
 the amounts to be transferred to recipients, following the same order
 
-***
+---
 
 ### gas?
 
@@ -46,7 +46,7 @@ the amounts to be transferred to recipients, following the same order
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 

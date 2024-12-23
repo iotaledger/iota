@@ -10,7 +10,7 @@ Return a list of epoch info
 
 Optional paging cursor
 
-***
+---
 
 ### limit?
 
@@ -18,7 +18,7 @@ Optional paging cursor
 
 Maximum number of items per page
 
-***
+---
 
 ### descendingOrder?
 

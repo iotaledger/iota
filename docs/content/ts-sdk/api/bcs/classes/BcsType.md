@@ -2,9 +2,8 @@
 
 ## Type Parameters
 
-• **T**
-
-• **Input** = `T`
+- **T**
+- **Input** = `T`
 
 ## Constructors
 
@@ -14,7 +13,7 @@
 
 #### Parameters
 
-• **options**: `object` & [`BcsTypeOptions`](../interfaces/BcsTypeOptions.md)\<`T`, `Input`\>
+- **options**: `object` & [`BcsTypeOptions`](../interfaces/BcsTypeOptions.md)\<`T`, `Input`\>
 
 #### Returns
 
@@ -26,19 +25,19 @@
 
 > **$inferType**: `T`
 
-***
+---
 
 ### $inferInput
 
 > **$inferInput**: `Input`
 
-***
+---
 
 ### name
 
 > **name**: `string`
 
-***
+---
 
 ### read()
 
@@ -46,13 +45,13 @@
 
 #### Parameters
 
-• **reader**: `BcsReader`
+- **reader**: `BcsReader`
 
 #### Returns
 
 `T`
 
-***
+---
 
 ### serializedSize()
 
@@ -60,15 +59,14 @@
 
 #### Parameters
 
-• **value**: `Input`
-
-• **options?**: `BcsWriterOptions`
+- **value**: `Input`
+- **options?**: `BcsWriterOptions`
 
 #### Returns
 
 `null` \| `number`
 
-***
+---
 
 ### validate()
 
@@ -76,7 +74,7 @@
 
 #### Parameters
 
-• **value**: `Input`
+- **value**: `Input`
 
 #### Returns
 
@@ -90,15 +88,14 @@
 
 #### Parameters
 
-• **value**: `Input`
-
-• **writer**: `BcsWriter`
+- **value**: `Input`
+- **writer**: `BcsWriter`
 
 #### Returns
 
 `void`
 
-***
+---
 
 ### serialize()
 
@@ -106,15 +103,14 @@
 
 #### Parameters
 
-• **value**: `Input`
-
-• **options?**: `BcsWriterOptions`
+- **value**: `Input`
+- **options?**: `BcsWriterOptions`
 
 #### Returns
 
 `SerializedBcs`\<`T`, `Input`\>
 
-***
+---
 
 ### parse()
 
@@ -122,13 +118,13 @@
 
 #### Parameters
 
-• **bytes**: `Uint8Array`
+- **bytes**: `Uint8Array`
 
 #### Returns
 
 `T`
 
-***
+---
 
 ### fromHex()
 
@@ -136,13 +132,13 @@
 
 #### Parameters
 
-• **hex**: `string`
+- **hex**: `string`
 
 #### Returns
 
 `T`
 
-***
+---
 
 ### fromBase58()
 
@@ -150,13 +146,13 @@
 
 #### Parameters
 
-• **b64**: `string`
+- **b64**: `string`
 
 #### Returns
 
 `T`
 
-***
+---
 
 ### fromBase64()
 
@@ -164,13 +160,13 @@
 
 #### Parameters
 
-• **b64**: `string`
+- **b64**: `string`
 
 #### Returns
 
 `T`
 
-***
+---
 
 ### transform()
 
@@ -178,13 +174,12 @@
 
 #### Type Parameters
 
-• **T2**
-
-• **Input2**
+- **T2**
+- **Input2**
 
 #### Parameters
 
-• **\_\_namedParameters**: `object` & [`BcsTypeOptions`](../interfaces/BcsTypeOptions.md)\<`T2`, `Input2`\>
+- **\_\_namedParameters**: `object` & [`BcsTypeOptions`](../interfaces/BcsTypeOptions.md)\<`T2`, `Input2`\>
 
 #### Returns
 

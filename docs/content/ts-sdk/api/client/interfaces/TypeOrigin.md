@@ -8,13 +8,13 @@ Identifies a struct and the module it was defined in
 
 > **datatype\_name**: `string`
 
-***
+---
 
 ### module\_name
 
 > **module\_name**: `string`
 
-***
+---
 
 ### package
 

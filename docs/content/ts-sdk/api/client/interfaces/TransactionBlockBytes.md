@@ -8,7 +8,7 @@
 
 the gas objects to be used
 
-***
+---
 
 ### inputObjects
 
@@ -16,7 +16,7 @@ the gas objects to be used
 
 objects to be used in this transaction
 
-***
+---
 
 ### txBytes
 

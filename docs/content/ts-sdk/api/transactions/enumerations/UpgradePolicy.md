@@ -6,13 +6,13 @@
 
 > **COMPATIBLE**: `0`
 
-***
+---
 
 ### ADDITIVE
 
 > **ADDITIVE**: `128`
 
-***
+---
 
 ### DEP\_ONLY
 

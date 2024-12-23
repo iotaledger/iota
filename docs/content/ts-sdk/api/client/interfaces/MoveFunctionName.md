@@ -10,7 +10,7 @@ Identifies a Move function.
 
 The function name.
 
-***
+---
 
 ### module
 
@@ -18,7 +18,7 @@ The function name.
 
 The module name to which the function belongs.
 
-***
+---
 
 ### package
 

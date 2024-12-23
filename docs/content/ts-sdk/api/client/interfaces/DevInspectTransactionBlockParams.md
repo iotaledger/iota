@@ -10,7 +10,7 @@ return values.
 
 > **sender**: `string`
 
-***
+---
 
 ### transactionBlock
 
@@ -18,7 +18,7 @@ return values.
 
 BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)
 
-***
+---
 
 ### gasPrice?
 
@@ -26,7 +26,7 @@ BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudg
 
 Gas is not charged, but gas usage is still calculated. Default to use reference gas price
 
-***
+---
 
 ### epoch?
 
@@ -34,7 +34,7 @@ Gas is not charged, but gas usage is still calculated. Default to use reference 
 
 The epoch to perform the call. Will be set from the system state object if not provided
 
-***
+---
 
 ### additionalArgs?
 

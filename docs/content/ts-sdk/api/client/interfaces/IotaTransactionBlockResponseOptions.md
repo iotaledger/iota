@@ -8,7 +8,7 @@
 
 Whether to show balance_changes. Default to be False
 
-***
+---
 
 ### showEffects?
 
@@ -16,7 +16,7 @@ Whether to show balance_changes. Default to be False
 
 Whether to show transaction effects. Default to be False
 
-***
+---
 
 ### showEvents?
 
@@ -24,7 +24,7 @@ Whether to show transaction effects. Default to be False
 
 Whether to show transaction events. Default to be False
 
-***
+---
 
 ### showInput?
 
@@ -32,7 +32,7 @@ Whether to show transaction events. Default to be False
 
 Whether to show transaction input data. Default to be False
 
-***
+---
 
 ### showObjectChanges?
 
@@ -40,7 +40,7 @@ Whether to show transaction input data. Default to be False
 
 Whether to show object_changes. Default to be False
 
-***
+---
 
 ### showRawEffects?
 
@@ -48,7 +48,7 @@ Whether to show object_changes. Default to be False
 
 Whether to show raw transaction effects. Default to be False
 
-***
+---
 
 ### showRawInput?
 

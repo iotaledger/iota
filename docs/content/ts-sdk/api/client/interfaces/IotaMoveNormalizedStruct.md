@@ -6,13 +6,13 @@
 
 > **abilities**: [`IotaMoveAbilitySet`](IotaMoveAbilitySet.md)
 
-***
+---
 
 ### fields
 
 > **fields**: [`IotaMoveNormalizedField`](IotaMoveNormalizedField.md)[]
 
-***
+---
 
 ### typeParameters
 

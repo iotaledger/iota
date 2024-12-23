@@ -6,13 +6,13 @@
 
 > **epoch**: `string`
 
-***
+---
 
 ### jwk
 
 > **jwk**: [`IotaJWK`](IotaJWK.md)
 
-***
+---
 
 ### jwk\_id
 

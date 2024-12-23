@@ -8,7 +8,7 @@
 
 Commitments to checkpoint state
 
-***
+---
 
 ### digest
 
@@ -16,7 +16,7 @@ Commitments to checkpoint state
 
 Checkpoint digest
 
-***
+---
 
 ### endOfEpochData?
 
@@ -24,7 +24,7 @@ Checkpoint digest
 
 Present only on the final checkpoint of the epoch.
 
-***
+---
 
 ### epoch
 
@@ -32,7 +32,7 @@ Present only on the final checkpoint of the epoch.
 
 Checkpoint's epoch ID
 
-***
+---
 
 ### epochRollingGasCostSummary
 
@@ -41,7 +41,7 @@ Checkpoint's epoch ID
 The running total gas costs of all transactions included in the current epoch so far until this
 checkpoint.
 
-***
+---
 
 ### networkTotalTransactions
 
@@ -49,7 +49,7 @@ checkpoint.
 
 Total number of transactions committed since genesis, including those in this checkpoint.
 
-***
+---
 
 ### previousDigest?
 
@@ -57,7 +57,7 @@ Total number of transactions committed since genesis, including those in this ch
 
 Digest of the previous checkpoint
 
-***
+---
 
 ### sequenceNumber
 
@@ -65,7 +65,7 @@ Digest of the previous checkpoint
 
 Checkpoint sequence number
 
-***
+---
 
 ### timestampMs
 
@@ -75,7 +75,7 @@ Timestamp of the checkpoint - number of milliseconds from the Unix epoch Checkpo
 monotonic, but not strongly monotonic - subsequent checkpoints can have same timestamp if they
 originate from the same underlining consensus commit
 
-***
+---
 
 ### transactions
 
@@ -83,7 +83,7 @@ originate from the same underlining consensus commit
 
 Transaction digests
 
-***
+---
 
 ### validatorSignature
 

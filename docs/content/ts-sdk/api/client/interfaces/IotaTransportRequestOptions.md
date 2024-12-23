@@ -6,7 +6,7 @@
 
 > **method**: `string`
 
-***
+---
 
 ### params
 

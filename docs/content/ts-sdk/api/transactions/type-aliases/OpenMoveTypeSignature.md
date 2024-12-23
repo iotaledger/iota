@@ -1,3 +1,3 @@
 # Type Alias: OpenMoveTypeSignature
 
-> **OpenMoveTypeSignature**: `InferOutput`\<*typeof* [`OpenMoveTypeSignature`](../variables/OpenMoveTypeSignature.md)\>
+> **OpenMoveTypeSignature**: `InferOutput`\<_typeof_ [`OpenMoveTypeSignature`](../variables/OpenMoveTypeSignature.md)\>

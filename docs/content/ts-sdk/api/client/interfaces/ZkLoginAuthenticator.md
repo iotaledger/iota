@@ -8,13 +8,13 @@ An zk login authenticator with all the necessary fields.
 
 > **inputs**: [`ZkLoginInputs`](ZkLoginInputs.md)
 
-***
+---
 
 ### maxEpoch
 
 > **maxEpoch**: `string`
 
-***
+---
 
 ### userSignature
 

@@ -1,3 +1,3 @@
 # Type Alias: Argument
 
-> **Argument**: `InferOutput`\<*typeof* [`Argument`](../variables/Argument.md)\>
+> **Argument**: `InferOutput`\<_typeof_ [`Argument`](../variables/Argument.md)\>

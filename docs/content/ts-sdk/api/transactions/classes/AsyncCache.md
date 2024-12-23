@@ -18,7 +18,7 @@
 
 #### Type Parameters
 
-• **T** *extends* keyof `CacheEntryTypes`
+• **T** _extends_ keyof `CacheEntryTypes`
 
 #### Parameters
 
@@ -30,7 +30,7 @@
 
 `Promise`\<`null` \| `CacheEntryTypes`\[`T`\]\>
 
-***
+---
 
 ### set()
 
@@ -38,7 +38,7 @@
 
 #### Type Parameters
 
-• **T** *extends* keyof `CacheEntryTypes`
+• **T** _extends_ keyof `CacheEntryTypes`
 
 #### Parameters
 
@@ -52,7 +52,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### delete()
 
@@ -60,7 +60,7 @@
 
 #### Type Parameters
 
-• **T** *extends* keyof `CacheEntryTypes`
+• **T** _extends_ keyof `CacheEntryTypes`
 
 #### Parameters
 
@@ -72,7 +72,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### clear()
 
@@ -80,7 +80,7 @@
 
 #### Type Parameters
 
-• **T** *extends* keyof `CacheEntryTypes`
+• **T** _extends_ keyof `CacheEntryTypes`
 
 #### Parameters
 
@@ -90,7 +90,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### getObject()
 
@@ -104,7 +104,7 @@
 
 `Promise`\<`null` \| `ObjectCacheEntry`\>
 
-***
+---
 
 ### getObjects()
 
@@ -118,7 +118,7 @@
 
 `Promise`\<(`null` \| `ObjectCacheEntry`)[]\>
 
-***
+---
 
 ### addObject()
 
@@ -132,7 +132,7 @@
 
 `Promise`\<`ObjectCacheEntry`\>
 
-***
+---
 
 ### addObjects()
 
@@ -146,7 +146,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### deleteObject()
 
@@ -160,7 +160,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### deleteObjects()
 
@@ -174,7 +174,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### getMoveFunctionDefinition()
 
@@ -194,7 +194,7 @@
 
 `Promise`\<`null` \| `MoveFunctionCacheEntry`\>
 
-***
+---
 
 ### addMoveFunctionDefinition()
 
@@ -224,7 +224,7 @@
 
 > **package**: `string` = `pkg`
 
-***
+---
 
 ### deleteMoveFunctionDefinition()
 
@@ -244,7 +244,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### getCustom()
 
@@ -262,7 +262,7 @@
 
 `Promise`\<`null` \| `T`\>
 
-***
+---
 
 ### setCustom()
 
@@ -282,7 +282,7 @@
 
 `Promise`\<`void`\>
 
-***
+---
 
 ### deleteCustom()
 

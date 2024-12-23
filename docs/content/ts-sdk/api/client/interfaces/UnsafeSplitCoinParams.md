@@ -10,7 +10,7 @@ Create an unsigned transaction to split a coin object into multiple coins.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### coinObjectId
 
@@ -18,7 +18,7 @@ the transaction signer's Iota address
 
 the coin object to be spilt
 
-***
+---
 
 ### splitAmounts
 
@@ -26,7 +26,7 @@ the coin object to be spilt
 
 the amounts to split out from the coin
 
-***
+---
 
 ### gas?
 
@@ -35,7 +35,7 @@ the amounts to split out from the coin
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 

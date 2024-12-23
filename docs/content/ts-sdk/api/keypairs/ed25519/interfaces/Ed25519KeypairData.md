@@ -10,7 +10,7 @@ key and the last 32 bytes is the public key.
 
 > **publicKey**: `Uint8Array`
 
-***
+---
 
 ### secretKey
 

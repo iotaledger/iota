@@ -10,7 +10,7 @@ Return the transaction response object.
 
 the digest of the queried transaction
 
-***
+---
 
 ### options?
 

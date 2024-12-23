@@ -8,7 +8,7 @@
 
 the ID of the queried object
 
-***
+---
 
 ### version
 

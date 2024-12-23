@@ -10,7 +10,7 @@ Create an unsigned transaction to publish a Move package.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### compiledModules
 
@@ -18,7 +18,7 @@ the transaction signer's Iota address
 
 the compiled bytes of a Move package
 
-***
+---
 
 ### dependencies
 
@@ -26,7 +26,7 @@ the compiled bytes of a Move package
 
 a list of transitive dependency addresses that this set of modules depends on.
 
-***
+---
 
 ### gas?
 
@@ -35,7 +35,7 @@ a list of transitive dependency addresses that this set of modules depends on.
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 

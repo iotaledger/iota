@@ -12,7 +12,7 @@ Summary of effects that likely would be generated if the transaction is actually
 that not all dev-inspect transactions are actually usable as transactions so it might not be
 possible actually generate these effects from a normal transaction.
 
-***
+---
 
 ### error?
 
@@ -20,7 +20,7 @@ possible actually generate these effects from a normal transaction.
 
 Execution error from executing the transactions
 
-***
+---
 
 ### events
 
@@ -28,7 +28,7 @@ Execution error from executing the transactions
 
 Events that likely would be generated if the transaction is actually run.
 
-***
+---
 
 ### rawEffects?
 
@@ -36,7 +36,7 @@ Events that likely would be generated if the transaction is actually run.
 
 The raw effects of the transaction that was dev inspected.
 
-***
+---
 
 ### rawTxnData?
 
@@ -44,7 +44,7 @@ The raw effects of the transaction that was dev inspected.
 
 The raw transaction data that was dev inspected.
 
-***
+---
 
 ### results?
 

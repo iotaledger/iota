@@ -8,7 +8,7 @@
 
 The count of calls of each function in the last 30 days.
 
-***
+---
 
 ### rank3Days
 
@@ -16,7 +16,7 @@ The count of calls of each function in the last 30 days.
 
 The count of calls of each function in the last 3 days.
 
-***
+---
 
 ### rank7Days
 

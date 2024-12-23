@@ -6,13 +6,13 @@
 
 > **stakes**: [`TimelockedStake`](../type-aliases/TimelockedStake.md)[]
 
-***
+---
 
 ### stakingPool
 
 > **stakingPool**: `string`
 
-***
+---
 
 ### validatorAddress
 

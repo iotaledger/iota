@@ -10,7 +10,7 @@ Add timelocked stake to a validator's staking pool using multiple balances and a
 
 the transaction signer's Iota address
 
-***
+---
 
 ### lockedBalance
 
@@ -18,7 +18,7 @@ the transaction signer's Iota address
 
 TimeLock<Balance<IOTA>> object to stake
 
-***
+---
 
 ### validator
 
@@ -26,7 +26,7 @@ TimeLock<Balance<IOTA>> object to stake
 
 the validator's Iota address
 
-***
+---
 
 ### gas
 
@@ -34,7 +34,7 @@ the validator's Iota address
 
 gas object to be used in this transaction
 
-***
+---
 
 ### gasBudget
 

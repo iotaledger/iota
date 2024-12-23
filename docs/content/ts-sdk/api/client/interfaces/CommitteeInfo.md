@@ -8,7 +8,7 @@ RPC representation of the [Committee] type.
 
 > **epoch**: `string`
 
-***
+---
 
 ### validators
 

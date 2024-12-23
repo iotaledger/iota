@@ -10,13 +10,13 @@ item.
 
 > **data**: [`IotaEvent`](IotaEvent.md)[]
 
-***
+---
 
 ### hasNextPage
 
 > **hasNextPage**: `boolean`
 
-***
+---
 
 ### nextCursor?
 

@@ -10,7 +10,7 @@ Additional arguments supplied to dev inspect beyond what is allowed in today's A
 
 The gas budget for the transaction.
 
-***
+---
 
 ### gasObjects?
 
@@ -18,7 +18,7 @@ The gas budget for the transaction.
 
 The gas objects used to pay for the transaction.
 
-***
+---
 
 ### gasSponsor?
 
@@ -26,7 +26,7 @@ The gas objects used to pay for the transaction.
 
 The sponsor of the gas for the transaction, might be different from the sender.
 
-***
+---
 
 ### showRawTxnDataAndEffects?
 
@@ -34,7 +34,7 @@ The sponsor of the gas for the transaction, might be different from the sender.
 
 Whether to return the raw transaction data and effects.
 
-***
+---
 
 ### skipChecks?
 

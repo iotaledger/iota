@@ -6,7 +6,7 @@
 
 > **apys**: [`ValidatorApy`](ValidatorApy.md)[]
 
-***
+---
 
 ### epoch
 

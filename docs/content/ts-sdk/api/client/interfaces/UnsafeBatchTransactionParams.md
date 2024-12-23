@@ -10,7 +10,7 @@ Create an unsigned batched transaction.
 
 the transaction signer's Iota address
 
-***
+---
 
 ### singleTransactionParams
 
@@ -18,7 +18,7 @@ the transaction signer's Iota address
 
 list of transaction request parameters
 
-***
+---
 
 ### gas?
 
@@ -27,7 +27,7 @@ list of transaction request parameters
 gas object to be used in this transaction, node will pick one from the signer's possession if not
 provided
 
-***
+---
 
 ### gasBudget
 
@@ -35,7 +35,7 @@ provided
 
 the gas budget, the transaction will fail if the gas cost exceed the budget
 
-***
+---
 
 ### txnBuilderMode?
 

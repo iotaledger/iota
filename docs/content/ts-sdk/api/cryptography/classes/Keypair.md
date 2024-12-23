@@ -43,7 +43,7 @@ TODO: Document
 
 [`Signer`](Signer.md).[`sign`](Signer.md#sign)
 
-***
+---
 
 ### signWithIntent()
 
@@ -66,7 +66,7 @@ it ensures that a signed message is tied to a specific purpose and domain separa
 
 [`Signer`](Signer.md).[`signWithIntent`](Signer.md#signwithintent)
 
-***
+---
 
 ### signTransaction()
 
@@ -86,7 +86,7 @@ Signs provided transaction by calling `signWithIntent()` with a `TransactionData
 
 [`Signer`](Signer.md).[`signTransaction`](Signer.md#signtransaction)
 
-***
+---
 
 ### signPersonalMessage()
 
@@ -114,7 +114,7 @@ Signs provided personal message by calling `signWithIntent()` with a `PersonalMe
 
 [`Signer`](Signer.md).[`signPersonalMessage`](Signer.md#signpersonalmessage)
 
-***
+---
 
 ### toIotaAddress()
 
@@ -128,7 +128,7 @@ Signs provided personal message by calling `signWithIntent()` with a `PersonalMe
 
 [`Signer`](Signer.md).[`toIotaAddress`](Signer.md#toiotaaddress)
 
-***
+---
 
 ### getKeyScheme()
 
@@ -144,7 +144,7 @@ Get the key scheme of the keypair: Secp256k1 or ED25519
 
 [`Signer`](Signer.md).[`getKeyScheme`](Signer.md#getkeyscheme)
 
-***
+---
 
 ### getPublicKey()
 
@@ -160,7 +160,7 @@ The public key for this keypair
 
 [`Signer`](Signer.md).[`getPublicKey`](Signer.md#getpublickey)
 
-***
+---
 
 ### getSecretKey()
 
