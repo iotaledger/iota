@@ -6,7 +6,7 @@ import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import {
     formatDate,
     getBalanceChangeSummary,
-    getLabel,
+    getTransactionAction,
     useFormatCoin,
     useTransactionSummary,
 } from '@iota/core';
@@ -66,7 +66,7 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TxnIcon
                         txnFailed={executionStatus !== 'success' || !!error}
-                        variant={getLabel(txn, address)}
+                        variant={getTransactionAction(txn, address)}
                     />
                 </CardImage>
                 <CardBody

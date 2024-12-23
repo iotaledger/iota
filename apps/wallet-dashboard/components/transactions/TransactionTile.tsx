@@ -6,7 +6,6 @@
 import React, { useState } from 'react';
 import TransactionIcon from './TransactionIcon';
 import formatTimestamp from '@/lib/utils/time';
-import { ExtendedTransaction, TransactionState } from '@/lib/interfaces';
 import {
     Card,
     CardType,
@@ -18,7 +17,13 @@ import {
     CardActionType,
     Dialog,
 } from '@iota/apps-ui-kit';
-import { useFormatCoin, getLabel, useTransactionSummary } from '@iota/core';
+import {
+    useFormatCoin,
+    getTransactionAction,
+    useTransactionSummary,
+    ExtendedTransaction,
+    TransactionState,
+} from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../Dialogs/transaction/TransactionDetailsLayout';
@@ -55,7 +60,7 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
                     <TransactionIcon
                         txnFailed={transaction.state === TransactionState.Failed}
-                        variant={getLabel(transaction?.raw, address)}
+                        variant={getTransactionAction(transaction?.raw, address)}
                     />
                 </CardImage>
                 <CardBody
