@@ -3,6 +3,9 @@
 
 import { CommonOutputObjectWithUc, MILLISECONDS_PER_SECOND } from '@iota/core';
 import { IotaObjectData } from '@iota/iota-sdk/client';
+import { filterMigrationObjects } from './filterMigrationObjectDetails';
+import { CommonMigrationObjectType, StardustOutputDetailsFilter } from '@/lib/enums';
+import { ResolvedObjectTypes } from '@/lib/types';
 
 export type StardustMigrationGroupedObjects = {
     migratable: IotaObjectData[];
@@ -58,25 +61,35 @@ interface SummarizeMigrationObjectParams {
     basicOutputs: IotaObjectData[] | undefined;
     nftOutputs: IotaObjectData[] | undefined;
     address: string;
+    resolvedObjects?: ResolvedObjectTypes[];
 }
 
 export function summarizeMigratableObjectValues({
     basicOutputs = [],
     nftOutputs = [],
     address,
+    resolvedObjects,
 }: SummarizeMigrationObjectParams): MigratableObjectsData {
     let totalNativeTokens = 0;
     let totalIotaAmount: bigint = 0n;
     let totalNotOwnedStorageDepositReturnAmount: bigint = 0n;
+    let filteredObjects: ResolvedObjectTypes[] = [];
 
     const totalVisualAssets = nftOutputs.length;
     const outputObjects = [...basicOutputs, ...nftOutputs];
+
+    if (resolvedObjects) {
+        filteredObjects = filterMigrationObjects(
+            resolvedObjects,
+            StardustOutputDetailsFilter.NativeTokens,
+        );
+    }
+    totalNativeTokens = calculateTotalNativeTokensByName(filteredObjects);
 
     for (const output of outputObjects) {
         const outputObjectFields = extractMigrationOutputFields(output);
 
         totalIotaAmount += BigInt(outputObjectFields.balance);
-        totalNativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
         totalIotaAmount +=
             extractOwnedStorageDepositReturnAmount(outputObjectFields, address) || 0n;
         totalNotOwnedStorageDepositReturnAmount +=
@@ -148,4 +161,19 @@ export function extractNotOwnedStorageDepositReturnAmount(
         return BigInt(storage_deposit_return_uc?.fields.return_amount);
     }
     return null;
+}
+
+export function calculateTotalNativeTokensByName(objects: ResolvedObjectTypes[]): number {
+    const uniqueTokens: string[] = [];
+
+    return objects.reduce((total, obj) => {
+        if (
+            obj.commonObjectType === CommonMigrationObjectType.NativeToken &&
+            !uniqueTokens.includes(obj.name)
+        ) {
+            uniqueTokens.push(obj.name);
+            return total + 1;
+        }
+        return total;
+    }, 0);
 }

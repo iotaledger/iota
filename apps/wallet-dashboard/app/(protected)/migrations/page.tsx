@@ -6,8 +6,15 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { useGetStardustMigratableObjects } from '@/hooks';
-import { summarizeMigratableObjectValues, summarizeTimelockedObjectValues } from '@/lib/utils';
+import {
+    useGetStardustMigratableObjects,
+    useGroupedMigrationObjectsByExpirationDate,
+} from '@/hooks';
+import {
+    filterMigrationObjects,
+    summarizeMigratableObjectValues,
+    summarizeTimelockedObjectValues,
+} from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -23,7 +30,7 @@ import { Assets, Clock, IotaLogoMark, Tokens } from '@iota/ui-icons';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { StardustOutputMigrationStatus } from '@/lib/enums';
+import { StardustOutputDetailsFilter, StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
 import { useRouter } from 'next/navigation';
 
@@ -47,6 +54,16 @@ function MigrationDashboardPage(): JSX.Element {
         timelockedNftOutputs,
     } = stardustMigrationObjects || {};
 
+    const { data: resolvedObjects = [] } = useGroupedMigrationObjectsByExpirationDate(
+        [...(migratableBasicOutputs || []), ...(migratableNftOutputs || [])],
+        selectedStardustObjectsCategory === StardustOutputMigrationStatus.Migratable,
+    );
+
+    const filteredObjectsByNativeTokenFilter = filterMigrationObjects(
+        resolvedObjects,
+        StardustOutputDetailsFilter.NativeTokens,
+    );
+
     const {
         totalIotaAmount,
         totalNativeTokens: migratableNativeTokens,
@@ -55,6 +72,7 @@ function MigrationDashboardPage(): JSX.Element {
         basicOutputs: migratableBasicOutputs,
         nftOutputs: migratableNftOutputs,
         address,
+        resolvedObjects: filteredObjectsByNativeTokenFilter,
     });
     const { totalTimelockedObjects } = summarizeTimelockedObjectValues({
         basicOutputs: timelockedBasicOutputs,
