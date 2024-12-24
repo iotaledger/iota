@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { Header, RadioButton } from '@iota/apps-ui-kit';
 import { DialogLayout, DialogLayoutBody } from '../../layout';
 import { NetworkConfiguration } from '@iota/iota-sdk/client';

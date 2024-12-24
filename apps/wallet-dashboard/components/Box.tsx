@@ -1,10 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
+import { ReactNode } from 'react';
 
 interface BoxProps {
-    children: React.ReactNode;
+    children: ReactNode;
     title?: string;
 }
 
