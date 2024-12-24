@@ -6,6 +6,7 @@ import { useCoinMetadata, ImageIcon, ImageIconSize } from '../../';
 import { IotaLogoMark } from '@iota/ui-icons';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
+import React from 'react';
 
 interface NonIotaCoinProps {
     coinType: string;
