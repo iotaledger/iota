@@ -8,7 +8,7 @@ import { ErrorBoundary, PageLayout } from '~/components';
 import { PageHeader } from '~/components/ui';
 import { ObjectView } from '~/pages/object-result/views/ObjectView';
 import { translate, type DataType } from './ObjectResultType';
-import PkgView from './views/PkgView';
+import { PkgView } from './views/PkgView';
 import { TokenView } from './views/TokenView';
 import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/ui-icons';

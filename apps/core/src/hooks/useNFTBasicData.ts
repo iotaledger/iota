@@ -4,8 +4,8 @@
 
 import type { IotaObjectData } from '@iota/iota-sdk/client';
 
-import useFileExtensionType from './useFileExtensionType';
-import useMediaUrl from './useMediaUrl';
+import { useFileExtensionType } from './useFileExtensionType';
+import { useMediaUrl } from './useMediaUrl';
 
 export function useNFTBasicData(nftObj: IotaObjectData | null) {
     const nftObjectID = nftObj?.objectId || null;
