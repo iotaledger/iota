@@ -51,7 +51,6 @@ function NftsPage() {
     const {
         data: ownedAssets,
         hasNextPage,
-        isLoading,
         isFetchingNextPage,
         fetchNextPage,
         error,
@@ -126,14 +125,6 @@ function NftsPage() {
             setSelectedAssetCategory(defaultCategory);
         }
     }, [ownedAssets]);
-
-    if (isLoading) {
-        return (
-            <div className="mt-1 flex w-full justify-center">
-                <LoadingIndicator />
-            </div>
-        );
-    }
 
     return (
         <PageTemplate title="Assets" isTitleCentered>
