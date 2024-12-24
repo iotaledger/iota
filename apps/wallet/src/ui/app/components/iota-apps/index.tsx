@@ -74,5 +74,4 @@ export function AppsPlayGround() {
     );
 }
 
-export default AppsPlayGround;
-export { default as ConnectedAppsCard } from './ConnectedAppsCard';
+export * from './ConnectedAppsCard';

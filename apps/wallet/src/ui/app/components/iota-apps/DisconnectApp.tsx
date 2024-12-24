@@ -25,7 +25,7 @@ export interface DisconnectAppProps extends Omit<DAppEntry, 'description' | 'tag
     setShowDisconnectApp: (showModal: boolean) => void;
 }
 
-function DisconnectApp({
+export function DisconnectApp({
     name,
     icon,
     link,
@@ -137,5 +137,3 @@ function DisconnectApp({
         </Overlay>
     );
 }
-
-export default DisconnectApp;

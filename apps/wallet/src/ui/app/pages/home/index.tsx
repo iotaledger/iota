@@ -11,7 +11,7 @@ interface HomePageProps {
     disableNavigation?: boolean;
 }
 
-const HomePage = ({ disableNavigation }: HomePageProps) => {
+export const HomePage = ({ disableNavigation }: HomePageProps) => {
     const initChecking = useInitializedGuard(true);
     const guardChecking = initChecking;
 
@@ -29,15 +29,14 @@ const HomePage = ({ disableNavigation }: HomePageProps) => {
     );
 };
 
-export default HomePage;
-export { default as NftsPage } from './nfts';
-export { default as AssetsPage } from './assets';
-export { default as TokensPage } from './tokens';
-export { default as TransactionBlocksPage } from './transactions';
-export { default as TransferCoinPage } from './transfer-coin';
-export { default as NFTDetailsPage } from './nft-details';
-export { default as KioskDetailsPage } from './kiosk-details';
-export { default as NftTransferPage } from './nft-transfer';
-export { default as ReceiptPage } from './receipt';
-export { default as CoinsSelectorPage } from './transfer-coin/CoinSelector';
-export { default as AppsPage } from './apps';
+export * from './nfts';
+export * from './assets';
+export * from './tokens';
+export * from './transactions';
+export * from './transfer-coin';
+export * from './nft-details';
+export * from './kiosk-details';
+export * from './nft-transfer';
+export * from './receipt';
+export * from './transfer-coin/CoinSelector';
+export * from './apps';
