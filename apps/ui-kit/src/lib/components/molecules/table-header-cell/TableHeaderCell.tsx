@@ -1,11 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { useState } from 'react';
 import { SortByDown, SortByUp } from '@iota/ui-icons';
 import cx from 'classnames';
 import { Checkbox } from '@/lib';
 import { TableHeaderCellSortOrder } from './table-header-cell.enums';
-import { useState } from 'react';
 
 export interface TableHeaderCellProps {
     /**
