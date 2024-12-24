@@ -19,9 +19,9 @@ import {
 } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
-import EnterAmountDialogLayout from './EnterAmountDialogLayout';
+import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 
-export interface FormValues {
+interface FormValues {
     amount: string;
 }
 
@@ -35,7 +35,7 @@ interface EnterTimelockedAmountViewProps {
     onSuccess: (digest: string) => void;
 }
 
-function EnterTimelockedAmountView({
+export function EnterTimelockedAmountView({
     selectedValidator,
     maxStakableTimelockedAmount,
     amountWithoutDecimals,
@@ -124,5 +124,3 @@ function EnterTimelockedAmountView({
         />
     );
 }
-
-export default EnterTimelockedAmountView;

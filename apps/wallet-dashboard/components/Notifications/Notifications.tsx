@@ -52,7 +52,7 @@ function Notification(props: { notification: NotificationData }): JSX.Element {
     );
 }
 
-export default function Notifications(): JSX.Element {
+export function Notifications(): JSX.Element {
     const notifications = useNotificationStore((state) => state.notifications);
     return (
         <div className="fixed right-2 top-1 z-[99999]">

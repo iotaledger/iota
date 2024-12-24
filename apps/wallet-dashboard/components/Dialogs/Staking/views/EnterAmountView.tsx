@@ -8,7 +8,7 @@ import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { useNewStakeTransaction, useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
-import EnterAmountDialogLayout from './EnterAmountDialogLayout';
+import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 
 export interface FormValues {
     amount: string;
@@ -24,7 +24,7 @@ interface EnterAmountViewProps {
     onSuccess: (digest: string) => void;
 }
 
-function EnterAmountView({
+export function EnterAmountView({
     selectedValidator,
     onBack,
     handleClose,
@@ -100,5 +100,3 @@ function EnterAmountView({
         />
     );
 }
-
-export default EnterAmountView;
