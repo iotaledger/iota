@@ -11,7 +11,7 @@ import {
     createNftSendValidationSchema,
     AddressInput,
     useTransferAsset,
-    type DappKitExecuteFn,
+    type TransferAssetExecuteFn,
     type WalletExecuteFn,
 } from '@iota/core';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,7 +26,7 @@ interface TransferNFTFormProps {
     objectType?: string | null;
 }
 
-function normalizeToTransactionBlock(executeFn: WalletExecuteFn): DappKitExecuteFn {
+function normalizeWalletSignAndExecute(executeFn: WalletExecuteFn): TransferAssetExecuteFn {
     return ({ transaction, ...rest }) => executeFn({ transactionBlock: transaction, ...rest });
 }
 
@@ -43,7 +43,7 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
         objectId,
         objectType,
         executeFn: signer?.signAndExecuteTransaction
-            ? normalizeToTransactionBlock(signer.signAndExecuteTransaction)
+            ? normalizeWalletSignAndExecute(signer.signAndExecuteTransaction.bind(signer))
             : undefined,
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['object', objectId] });

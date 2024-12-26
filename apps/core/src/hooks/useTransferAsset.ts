@@ -1,6 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useGetKioskContents, DappKitExecuteFn } from '../';
+import { useGetKioskContents, TransferAssetExecuteFn } from '../';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
@@ -17,7 +17,7 @@ export function useTransferAsset({
     objectId: string;
     objectType?: string | null;
     activeAddress?: string | null;
-    executeFn?: DappKitExecuteFn;
+    executeFn?: TransferAssetExecuteFn;
     onSuccess?: (response: IotaTransactionBlockResponse, variables: string) => void;
     onError?: (error: Error) => void;
 }) {

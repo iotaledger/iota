@@ -10,7 +10,7 @@ import {
     useGetKioskContents,
     useGetObject,
     Feature,
-    DappKitExecuteFn,
+    TransferAssetExecuteFn,
 } from '../../';
 import { useIotaClient } from '@iota/dapp-kit';
 import { KioskTransaction } from '@iota/kiosk';
@@ -26,7 +26,7 @@ export function useTransferKioskItem({
 }: {
     objectId: string;
     objectType?: string | null;
-    executeFn?: DappKitExecuteFn;
+    executeFn?: TransferAssetExecuteFn;
     address?: string | null;
 }) {
     const client = useIotaClient();

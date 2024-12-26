@@ -4,12 +4,12 @@
 import React, { useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
-import { useIotaClient, useCurrentAccount } from '@iota/dapp-kit';
-import { createNftSendValidationSchema } from '@iota/core';
+import { useIotaClient, useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { createNftSendValidationSchema, useTransferAsset } from '@iota/core';
 import { DetailsView, SendView } from './views';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
-import { useCreateSendAssetTransaction, useNotifications } from '@/hooks';
+import { useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
 import { TransactionDetailsView } from '../SendToken';
 import { DialogLayout } from '../layout';
@@ -37,8 +37,13 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     const { addNotification } = useNotifications();
     const iotaClient = useIotaClient();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
-
-    const { mutation: sendAsset } = useCreateSendAssetTransaction(objectId);
+    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
+    const { mutateAsync } = useTransferAsset({
+        objectId,
+        activeAddress: activeAddress,
+        // @ts-expect-error wrong type
+        executeFn: signAndExecuteTransaction,
+    });
 
     const formik = useFormik<FormValues>({
         initialValues: INITIAL_VALUES,
@@ -49,7 +54,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
 
     async function onSubmit(values: FormValues) {
         try {
-            const executed = await sendAsset.mutateAsync(values.to);
+            const executed = await mutateAsync(values.to);
 
             const tx = await iotaClient.waitForTransaction({
                 digest: executed.digest,
