@@ -17,17 +17,33 @@ import { useNavigate } from 'react-router-dom';
 import { useTransferKioskItem } from './useTransferKioskItem';
 import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/ui-icons';
+import {
+    type IotaTransactionBlockResponse,
+    type IotaTransactionBlockResponseOptions,
+} from '@iota/iota-sdk/client';
 
 interface TransferNFTFormProps {
     objectId: string;
     objectType?: string | null;
 }
 
-export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
+type ExecuteFn = (input: {
+    transactionBlock: Uint8Array | Transaction;
+    options?: IotaTransactionBlockResponseOptions;
+}) => Promise<IotaTransactionBlockResponse>;
+
+// type ExecuteOnSuccessFn = (response: IotaTransactionBlockResponse) => void;
+
+function useTransferAsset({
+    objectId,
+    objectType,
+    executeFn,
+}: {
+    objectId: string;
+    objectType?: string | null;
+    executeFn?: ExecuteFn;
+}) {
     const activeAddress = useActiveAddress();
-    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
-    const activeAccount = useActiveAccount();
-    const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
     const { data: kiosk } = useGetKioskContents(activeAddress);
@@ -36,9 +52,9 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
         (kioskItem) => kioskItem.data?.objectId === objectId,
     );
 
-    const transferNFT = useMutation({
+    return useMutation({
         mutationFn: async (to: string) => {
-            if (!to || !signer) {
+            if (!to || !executeFn) {
                 throw new Error('Missing data');
             }
 
@@ -49,7 +65,7 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
             const tx = new Transaction();
             tx.transferObjects([tx.object(objectId)], to);
 
-            return signer.signAndExecuteTransaction({
+            return executeFn({
                 transactionBlock: tx,
                 options: {
                     showInput: true,
@@ -81,6 +97,19 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
                 </div>,
             );
         },
+    });
+}
+
+export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
+    const activeAddress = useActiveAddress();
+    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
+    const activeAccount = useActiveAccount();
+    const signer = useSigner(activeAccount);
+
+    const transferNFT = useTransferAsset({
+        objectId,
+        objectType,
+        executeFn: signer?.signAndExecuteTransaction,
     });
 
     return (
