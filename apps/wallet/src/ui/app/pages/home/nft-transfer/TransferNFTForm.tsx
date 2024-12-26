@@ -27,27 +27,37 @@ interface TransferNFTFormProps {
     objectType?: string | null;
 }
 
-type ExecuteFn = (input: {
+export type ExecuteFn = (input: {
     transactionBlock: Uint8Array | Transaction;
     options?: IotaTransactionBlockResponseOptions;
 }) => Promise<IotaTransactionBlockResponse>;
 
-// type ExecuteOnSuccessFn = (response: IotaTransactionBlockResponse) => void;
+type ExecuteOnSuccessFn = (response: IotaTransactionBlockResponse) => void;
+
+type ExecuteOnErrorFn = (error: Error) => void;
 
 function useTransferAsset({
     objectId,
     objectType,
+    activeAddress,
     executeFn,
+    onSuccess,
+    onError,
 }: {
     objectId: string;
     objectType?: string | null;
+    activeAddress?: string | null;
     executeFn?: ExecuteFn;
+    onSuccess?: ExecuteOnSuccessFn;
+    onError?: ExecuteOnErrorFn;
 }) {
-    const activeAddress = useActiveAddress();
-    const queryClient = useQueryClient();
-    const navigate = useNavigate();
     const { data: kiosk } = useGetKioskContents(activeAddress);
-    const transferKioskItem = useTransferKioskItem({ objectId, objectType });
+    const transferKioskItem = useTransferKioskItem({
+        objectId,
+        objectType,
+        executeFn,
+        address: activeAddress,
+    });
     const isContainedInKiosk = kiosk?.list.some(
         (kioskItem) => kioskItem.data?.objectId === objectId,
     );
@@ -74,6 +84,24 @@ function useTransferAsset({
                 },
             });
         },
+        onSuccess: onSuccess,
+        onError: onError,
+    });
+}
+
+export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
+    const activeAddress = useActiveAddress();
+    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
+    const activeAccount = useActiveAccount();
+    const signer = useSigner(activeAccount);
+    const queryClient = useQueryClient();
+    const navigate = useNavigate();
+
+    const transferNFT = useTransferAsset({
+        activeAddress,
+        objectId,
+        objectType,
+        executeFn: signer?.signAndExecuteTransaction,
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['object', objectId] });
             queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });
@@ -97,19 +125,6 @@ function useTransferAsset({
                 </div>,
             );
         },
-    });
-}
-
-export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
-    const activeAddress = useActiveAddress();
-    const validationSchema = createNftSendValidationSchema(activeAddress || '', objectId);
-    const activeAccount = useActiveAccount();
-    const signer = useSigner(activeAccount);
-
-    const transferNFT = useTransferAsset({
-        objectId,
-        objectType,
-        executeFn: signer?.signAndExecuteTransaction,
     });
 
     return (

@@ -1,8 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { useFeatureValue } from '@growthbook/growthbook-react';
 import {
     useKioskClient,
@@ -17,20 +15,21 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { KioskTransaction } from '@iota/kiosk';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
-
+import { type ExecuteFn } from './TransferNFTForm';
 const ORIGINBYTE_PACKAGE_ID = '0x083b02db943238dcea0ff0938a54a17d7575f5b48034506446e501e963391480';
 
 export function useTransferKioskItem({
     objectId,
     objectType,
+    executeFn,
+    address,
 }: {
     objectId: string;
     objectType?: string | null;
+    executeFn?: ExecuteFn;
+    address?: string | null;
 }) {
     const client = useIotaClient();
-    const activeAccount = useActiveAccount();
-    const signer = useSigner(activeAccount);
-    const address = activeAccount?.address;
     const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageid, ORIGINBYTE_PACKAGE_ID);
     const { data: kioskData } = useGetKioskContents(address); // show personal kiosks too
     const objectData = useGetObject(objectId);
@@ -38,7 +37,7 @@ export function useTransferKioskItem({
 
     return useMutation({
         mutationFn: async ({ to }: { to: string }) => {
-            if (!to || !signer || !objectType) {
+            if (!to || !executeFn || !objectType) {
                 throw new Error('Missing data');
             }
 
@@ -60,7 +59,7 @@ export function useTransferKioskItem({
                     })
                     .finalize();
 
-                return signer.signAndExecuteTransaction({
+                return executeFn({
                     transactionBlock: txb,
                     options: {
                         showInput: true,
@@ -99,7 +98,7 @@ export function useTransferKioskItem({
                         arguments: [tx.object(kioskId), tx.pure.address(to), tx.pure.id(objectId)],
                     });
                 }
-                return signer.signAndExecuteTransaction({
+                return executeFn({
                     transactionBlock: tx,
                     options: {
                         showInput: true,
