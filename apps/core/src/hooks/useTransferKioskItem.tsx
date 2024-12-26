@@ -10,12 +10,12 @@ import {
     useGetKioskContents,
     useGetObject,
     Feature,
-} from '@iota/core';
+    DappKitExecuteFn,
+} from '../../';
 import { useIotaClient } from '@iota/dapp-kit';
 import { KioskTransaction } from '@iota/kiosk';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
-import { type ExecuteFn } from './TransferNFTForm';
 const ORIGINBYTE_PACKAGE_ID = '0x083b02db943238dcea0ff0938a54a17d7575f5b48034506446e501e963391480';
 
 export function useTransferKioskItem({
@@ -26,7 +26,7 @@ export function useTransferKioskItem({
 }: {
     objectId: string;
     objectType?: string | null;
-    executeFn?: ExecuteFn;
+    executeFn?: DappKitExecuteFn;
     address?: string | null;
 }) {
     const client = useIotaClient();
@@ -60,7 +60,7 @@ export function useTransferKioskItem({
                     .finalize();
 
                 return executeFn({
-                    transactionBlock: txb,
+                    transaction: txb,
                     options: {
                         showInput: true,
                         showEffects: true,
@@ -99,7 +99,7 @@ export function useTransferKioskItem({
                     });
                 }
                 return executeFn({
-                    transactionBlock: tx,
+                    transaction: tx,
                     options: {
                         showInput: true,
                         showEffects: true,
