@@ -9,10 +9,10 @@ import { createNftSendValidationSchema } from '@iota/core';
 import { DetailsView, SendView } from './views';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
-import { useCreateSendAssetTransaction, useNotifications } from '@/hooks';
-import { NotificationType } from '@/stores/notificationStore';
+import { useCreateSendAssetTransaction } from '@/hooks';
 import { TransactionDetailsView } from '../SendToken';
 import { DialogLayout } from '../layout';
+import toast from 'react-hot-toast';
 
 interface AssetsDialogProps {
     onClose: () => void;
@@ -34,7 +34,6 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     const [digest, setDigest] = useState<string>('');
     const activeAddress = account?.address ?? '';
     const objectId = asset?.objectId ?? '';
-    const { addNotification } = useNotifications();
     const iotaClient = useIotaClient();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
 
@@ -57,10 +56,10 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
 
             setDigest(tx.digest);
             refetchAssets();
-            addNotification('Transfer transaction successful', NotificationType.Success);
+            toast.success('Transfer transaction successful');
             setView(AssetsDialogView.TransactionDetails);
         } catch {
-            addNotification('Transfer transaction failed', NotificationType.Error);
+            toast.error('Transfer transaction failed');
         }
     }
 

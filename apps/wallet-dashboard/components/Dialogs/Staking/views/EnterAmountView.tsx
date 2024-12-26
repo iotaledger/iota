@@ -5,9 +5,9 @@ import { useFormatCoin, useBalance, CoinFormat, parseAmount, useCoinMetadata } f
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { useNewStakeTransaction, useNotifications } from '@/hooks';
-import { NotificationType } from '@/stores/notificationStore';
+import { useNewStakeTransaction } from '@/hooks';
 import EnterAmountDialogLayout from './EnterAmountDialogLayout';
+import toast from 'react-hot-toast';
 
 export interface FormValues {
     amount: string;
@@ -31,7 +31,6 @@ function EnterAmountView({
     senderAddress,
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
-    const { addNotification } = useNotifications();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm } = useFormikContext<FormValues>();
 
@@ -64,7 +63,7 @@ function EnterAmountView({
 
     function handleStake(): void {
         if (!newStakeData?.transaction) {
-            addNotification('Stake transaction was not created', NotificationType.Error);
+            toast.error('Stake transaction was not created');
             return;
         }
         signAndExecuteTransaction(
@@ -74,11 +73,11 @@ function EnterAmountView({
             {
                 onSuccess: (tx) => {
                     onSuccess(tx.digest);
-                    addNotification('Stake transaction has been sent');
+                    toast.success('Stake transaction has been sent');
                     resetForm();
                 },
                 onError: () => {
-                    addNotification('Stake transaction was not sent', NotificationType.Error);
+                    toast.error('Stake transaction was not sent');
                 },
             },
         );
