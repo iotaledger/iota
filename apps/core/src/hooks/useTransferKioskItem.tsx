@@ -16,9 +16,10 @@ import { useIotaClient } from '@iota/dapp-kit';
 import { KioskTransaction } from '@iota/kiosk';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
+
 const ORIGINBYTE_PACKAGE_ID = '0x083b02db943238dcea0ff0938a54a17d7575f5b48034506446e501e963391480';
 
-export function useTransferKioskItem<T>({
+export function useTransferKioskItem({
     objectId,
     objectType,
     executeFn,
@@ -26,7 +27,7 @@ export function useTransferKioskItem<T>({
 }: {
     objectId: string;
     objectType?: string | null;
-    executeFn?: TransferAssetExecuteFn<T>;
+    executeFn?: TransferAssetExecuteFn;
     address?: string | null;
 }) {
     const client = useIotaClient();

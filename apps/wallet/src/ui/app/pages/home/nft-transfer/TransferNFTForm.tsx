@@ -20,16 +20,13 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/ui-icons';
-import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 interface TransferNFTFormProps {
     objectId: string;
     objectType?: string | null;
 }
 
-function normalizeWalletSignAndExecute(
-    executeFn: WalletExecuteFn,
-): TransferAssetExecuteFn<IotaTransactionBlockResponse> {
+function normalizeWalletSignAndExecute(executeFn: WalletExecuteFn): TransferAssetExecuteFn {
     return ({ transaction, ...rest }) => executeFn({ transactionBlock: transaction, ...rest });
 }
 
