@@ -7,10 +7,10 @@ import {
 } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 
-export type TransferAssetExecuteFn = (input: {
+export type TransferAssetExecuteFn<T> = (input: {
     transaction: Transaction;
     options?: IotaTransactionBlockResponseOptions;
-}) => Promise<IotaTransactionBlockResponse>;
+}) => Promise<T>;
 
 export type WalletExecuteFn = (input: {
     transactionBlock: Uint8Array | Transaction;
@@ -18,6 +18,6 @@ export type WalletExecuteFn = (input: {
 }) => Promise<IotaTransactionBlockResponse>;
 
 export type DappKitExecuteFn = (input: {
-    transactionBlock: Transaction | string;
+    transaction: Transaction | string;
     options?: IotaTransactionBlockResponseOptions;
 }) => Promise<IotaTransactionBlockResponse>;

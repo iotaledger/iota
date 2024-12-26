@@ -6,7 +6,7 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 import { useTransferKioskItem } from './useTransferKioskItem';
 
-export function useTransferAsset({
+export function useTransferAsset<T extends IotaTransactionBlockResponse>({
     objectId,
     objectType,
     activeAddress,
@@ -17,12 +17,12 @@ export function useTransferAsset({
     objectId: string;
     objectType?: string | null;
     activeAddress?: string | null;
-    executeFn?: TransferAssetExecuteFn;
+    executeFn?: TransferAssetExecuteFn<T>;
     onSuccess?: (response: IotaTransactionBlockResponse, variables: string) => void;
     onError?: (error: Error) => void;
 }) {
     const { data: kiosk } = useGetKioskContents(activeAddress);
-    const transferKioskItem = useTransferKioskItem({
+    const transferKioskItem = useTransferKioskItem<T>({
         objectId,
         objectType,
         executeFn,

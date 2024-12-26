@@ -7,7 +7,7 @@ import { FormikProvider, useFormik } from 'formik';
 import { useIotaClient, useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { createNftSendValidationSchema, useTransferAsset } from '@iota/core';
 import { DetailsView, SendView } from './views';
-import { IotaObjectData } from '@iota/iota-sdk/client';
+import { IotaObjectData, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
 import { useNotifications } from '@/hooks';
 import { NotificationType } from '@/stores/notificationStore';
@@ -37,11 +37,11 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
     const { addNotification } = useNotifications();
     const iotaClient = useIotaClient();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
-    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-    const { mutateAsync } = useTransferAsset({
+    const { mutateAsync: signAndExecuteTransaction } =
+        useSignAndExecuteTransaction<IotaTransactionBlockResponse>();
+    const { mutateAsync: sendAsset } = useTransferAsset({
         objectId,
         activeAddress: activeAddress,
-        // @ts-expect-error wrong type
         executeFn: signAndExecuteTransaction,
     });
 
@@ -54,7 +54,7 @@ export function AssetDialog({ onClose, asset, refetchAssets }: AssetsDialogProps
 
     async function onSubmit(values: FormValues) {
         try {
-            const executed = await mutateAsync(values.to);
+            const executed = await sendAsset(values.to);
 
             const tx = await iotaClient.waitForTransaction({
                 digest: executed.digest,

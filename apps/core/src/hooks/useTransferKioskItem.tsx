@@ -18,7 +18,7 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
 const ORIGINBYTE_PACKAGE_ID = '0x083b02db943238dcea0ff0938a54a17d7575f5b48034506446e501e963391480';
 
-export function useTransferKioskItem({
+export function useTransferKioskItem<T>({
     objectId,
     objectType,
     executeFn,
@@ -26,7 +26,7 @@ export function useTransferKioskItem({
 }: {
     objectId: string;
     objectType?: string | null;
-    executeFn?: TransferAssetExecuteFn;
+    executeFn?: TransferAssetExecuteFn<T>;
     address?: string | null;
 }) {
     const client = useIotaClient();
