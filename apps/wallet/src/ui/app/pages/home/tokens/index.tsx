@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Route, Routes } from 'react-router-dom';
-
 import { TokenDetailsPage } from './TokenDetailsPage';
 import { TokenDetails } from './TokensDetails';
 

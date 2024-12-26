@@ -69,7 +69,7 @@ const HIDDEN_MENU_PATHS = [
 
 const NOTIFY_USER_ACTIVE_INTERVAL = 5 * 1000; // 5 seconds
 
-export const App = () => {
+export function App() {
     const dispatch = useAppDispatch();
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     useEffect(() => {
@@ -216,4 +216,4 @@ export const App = () => {
             </Route>
         </Routes>
     );
-};
+}

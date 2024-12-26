@@ -11,7 +11,7 @@ interface HomePageProps {
     disableNavigation?: boolean;
 }
 
-export const HomePage = ({ disableNavigation }: HomePageProps) => {
+export function HomePage({ disableNavigation }: HomePageProps) {
     const initChecking = useInitializedGuard(true);
     const guardChecking = initChecking;
 
@@ -27,7 +27,7 @@ export const HomePage = ({ disableNavigation }: HomePageProps) => {
             </PageMainLayout>
         </Loading>
     );
-};
+}
 
 export * from './nfts';
 export * from './assets';
