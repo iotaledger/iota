@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { EnterAmountView, EnterTimelockedAmountView, SelectValidatorView } from './views';
 import {
     ExtendedDelegatedStake,

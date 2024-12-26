@@ -3,7 +3,7 @@
 'use client';
 
 import { Notifications } from '@/components/index';
-import React, { type PropsWithChildren } from 'react';
+import { type PropsWithChildren } from 'react';
 import { Sidebar, TopNav } from './components';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
