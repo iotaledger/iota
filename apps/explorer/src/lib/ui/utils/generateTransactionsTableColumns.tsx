@@ -89,11 +89,12 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
             accessorKey: 'timestampMs',
             cell: ({ getValue }) => {
                 const timestampMs = getValue();
+                const elapsedTime = timestampMs
+                    ? getElapsedTime(Number(timestampMs), Date.now())
+                    : '--';
                 return (
                     <TableCellBase>
-                        <TableCellText>
-                            {getElapsedTime(Number(timestampMs), Date.now()) || '--'}
-                        </TableCellText>
+                        <TableCellText>{elapsedTime}</TableCellText>
                     </TableCellBase>
                 );
             },

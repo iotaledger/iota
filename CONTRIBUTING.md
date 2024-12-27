@@ -4,7 +4,7 @@ Thanks for considering making a contribution to the IOTA network or its document
 
 ## Contribute to IOTA
 
-See [IOTA Environment Setup](https://github.com/iotaledger/iota/blob/main/docs/content/guides/developer/getting-started/iota-environment.mdx) for approach to submitting code fixes and enhancements.
+See [IOTA Environment Setup](https://github.com/iotaledger/iota/blob/main/docs/content/developer/getting-started/iota-environment.mdx) for approach to submitting code fixes and enhancements.
 
 Found a bug or security vulnerability? Create a [GitHub issue](https://github.com/iotaledger/iota/issues/new/choose).
 
