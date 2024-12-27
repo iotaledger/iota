@@ -222,7 +222,7 @@ async function extractNativeTokensFromObject(
             result.push({
                 name: tokenName,
                 balance,
-                coinType: nativeTokenFields.name,
+                coinType: `0x${nativeTokenFields.name}`,
                 unlockConditionTimestamp: expirationKey,
                 commonObjectType: CommonMigrationObjectType.NativeToken,
                 output: object,
