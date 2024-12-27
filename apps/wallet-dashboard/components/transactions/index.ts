@@ -4,6 +4,5 @@
 export { default as TransactionAmount } from './TransactionAmount';
 export { default as TransactionSummary } from './TransactionSummary';
 export * from './TransactionTile';
-export { default as TransactionIcon } from './TransactionIcon';
 export { default as TransactionsList } from './TransactionsList';
 export { default as TransactionsOverview } from './TransactionsOverview';

@@ -4,7 +4,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import TransactionIcon from './TransactionIcon';
 import formatTimestamp from '@/lib/utils/time';
 import {
     Card,
@@ -23,6 +22,7 @@ import {
     useTransactionSummary,
     ExtendedTransaction,
     TransactionState,
+    TransactionIcon,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';

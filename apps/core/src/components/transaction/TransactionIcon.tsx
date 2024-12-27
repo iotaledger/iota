@@ -1,5 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { LoadingIndicator } from '@iota/apps-ui-kit';
@@ -20,13 +19,15 @@ const icons = {
     Failed: <Info className={ICON_COLORS.error} />,
     Loading: <LoadingIndicator />,
     PersonalMessage: <Person className={ICON_COLORS.primary} />,
+    TimelockedStaked: <Stake className={ICON_COLORS.primary} />,
+    TimelockedUnstaked: <Stake className={ICON_COLORS.primary} />,
 };
 
-interface TxnItemIconProps {
+interface TransactionIconProps {
     txnFailed?: boolean;
     variant: keyof typeof icons;
 }
 
-export function TxnIcon({ txnFailed, variant }: TxnItemIconProps) {
+export function TransactionIcon({ txnFailed, variant }: TransactionIconProps) {
     return <div className="[&_svg]:h-5 [&_svg]:w-5">{icons[txnFailed ? 'Failed' : variant]}</div>;
 }
