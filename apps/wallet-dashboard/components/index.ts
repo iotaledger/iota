@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './RouteLink';
-export * from './Notifications/Notifications';
 export * from './Box';
 export * from './AmountBox';
 export * from './Input';
