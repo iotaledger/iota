@@ -5,6 +5,8 @@ description: You can build custom indexers using the IOTA micro-data ingestion f
 
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/advanced-topics/custom-indexer.json';
+import {Networks} from '@site/src/components/constant'
+import CodeBlock from '@theme/CodeBlock';
 
 You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from IOTA, one that you set up in your local environment, or a combination of the two.
 
@@ -31,10 +33,10 @@ Data ingestion for your indexer supports several checkpoint stream sources.
 
 The most straightforward stream source is to subscribe to a remote store of checkpoint contents. IOTA provides the following buckets:
 
-- Testnet: `https://indexer.testnet.iota.cafe`
-- Devnet: `https://indexer.devnet.iota.cafe`
+- Testnet: <CodeBlock>{Networks.iota_move_testnet.indexerRpc}</CodeBlock>
+- Devnet: <CodeBlock>{Networks.iota_move_devnet.indexerRpc}</CodeBlock> 
 
-The checkpoint files are stored in the following format: `https://indexer.testnet.iota.cafe/<checkpoint_id>.chk`. You can download the checkpoint file by sending an HTTP GET request to the relevant URL. Try it yourself for checkpoint 1 at [https://indexer.testnet.iota.cafe/1.chk](https://indexer.testnet.iota.cafe/1.chk).
+The checkpoint files are stored in the following format: <code>{Networks.iota_move_testnet.indexerRpc+`/<checkpoint_id>.chk`}</code>. You can download the checkpoint file by sending an HTTP GET request to the relevant URL. Try it yourself for checkpoint 1 at [{Networks.iota_move_testnet.indexerRpc}/1.chk](https://indexer.testnet.iota.cafe/1.chk).
 
 ```mermaid
 flowchart LR
