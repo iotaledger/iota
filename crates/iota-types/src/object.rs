@@ -375,7 +375,6 @@ impl MoveObject {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
-#[allow(clippy::large_enum_variant)]
 pub enum Data {
     /// An object whose governing logic lives in a published Move module
     Move(MoveObject),
@@ -1058,7 +1057,6 @@ pub fn generate_test_gas_objects() -> Vec<Object> {
     GAS_OBJECTS.with(|v| v.clone())
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "status", content = "details")]
 pub enum ObjectRead {
@@ -1117,7 +1115,6 @@ impl Display for ObjectRead {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "status", content = "details")]
 pub enum PastObjectRead {

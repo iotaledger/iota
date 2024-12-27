@@ -50,7 +50,6 @@ pub mod wallet_client;
 
 pub use iota_genesis_builder::SnapshotUrl as MigrationSnapshotUrl;
 
-#[allow(unused)]
 pub struct TestContext {
     /// Cluster handle that allows access to various components in a cluster
     cluster: Box<dyn Cluster + Sync + Send>,

@@ -5,7 +5,8 @@
 import { NetworkSelector } from '../network';
 import Search from '../search/Search';
 import { LinkWithQuery } from '~/components/ui';
-import { ThemeSwitcher, ThemedIotaLogo } from '~/components';
+import { ThemedIotaLogo } from '~/components';
+import { ThemeSwitcher } from '@iota/core';
 
 function Header(): JSX.Element {
     return (

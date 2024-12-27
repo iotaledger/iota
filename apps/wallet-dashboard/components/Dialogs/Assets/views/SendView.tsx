@@ -4,7 +4,7 @@
 import React from 'react';
 import { AddressInput, useNftDetails } from '@iota/core';
 import { useFormikContext } from 'formik';
-import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
+import { DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import {
     Button,
     ButtonHtmlType,
@@ -33,7 +33,7 @@ export function SendView({ asset, onClose, onBack }: SendViewProps) {
 
     const { nftName, nftImageUrl } = useNftDetails(objectId, senderAddress);
     return (
-        <DialogLayout>
+        <>
             <Header title="Send asset" onClose={onClose} titleCentered onBack={onBack} />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col items-center justify-center gap-xs">
@@ -65,6 +65,6 @@ export function SendView({ asset, onClose, onBack }: SendViewProps) {
                     onClick={submitForm}
                 />
             </DialogLayoutFooter>
-        </DialogLayout>
+        </>
     );
 }

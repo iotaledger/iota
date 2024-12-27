@@ -32,7 +32,8 @@ use crate::stardust::{
         verification::{created_objects::CreatedObjects, verify_outputs},
     },
     native_token::package_data::NativeTokenPackageData,
-    types::output_header::OutputHeader,
+    process_outputs::get_merged_outputs_for_iota,
+    types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
 };
 
 /// We fix the protocol version used in the migration.
@@ -74,6 +75,7 @@ pub struct Migration {
     /// The coin type to use in order to migrate outputs. Can only be equal to
     /// `Iota` at the moment. Is fixed for the entire migration process.
     coin_type: CoinType,
+    address_swap_map: AddressSwapMap,
 }
 
 impl Migration {
@@ -84,6 +86,7 @@ impl Migration {
         total_supply: u64,
         target_network: MigrationTargetNetwork,
         coin_type: CoinType,
+        address_swap_map: AddressSwapMap,
     ) -> Result<Self> {
         let executor = Executor::new(
             ProtocolVersion::new(MIGRATION_PROTOCOL_VERSION),
@@ -96,6 +99,7 @@ impl Migration {
             executor,
             output_objects_map: Default::default(),
             coin_type,
+            address_swap_map,
         })
     }
 
@@ -135,7 +139,7 @@ impl Migration {
             .collect::<Vec<_>>();
         info!("Verifying ledger state...");
         self.verify_ledger_state(&outputs)?;
-
+        self.address_swap_map.verify_all_addresses_swapped()?;
         Ok(())
     }
 
@@ -158,6 +162,20 @@ impl Migration {
         create_snapshot(self.into_objects(), writer)?;
         info!("Snapshot file written.");
         Ok(())
+    }
+
+    /// Run all stages of the migration coming from a Hornet snapshot with IOTA
+    /// coin type.
+    pub fn run_for_iota<'a>(
+        self,
+        target_milestone_timestamp: u32,
+        outputs: impl Iterator<Item = Result<(OutputHeader, Output)>> + 'a,
+        writer: impl Write,
+    ) -> Result<()> {
+        itertools::process_results(
+            get_merged_outputs_for_iota(target_milestone_timestamp, outputs),
+            |outputs| self.run(outputs, writer),
+        )?
     }
 
     /// The migration objects.
@@ -194,14 +212,18 @@ impl Migration {
     ) -> Result<()> {
         for (header, output) in outputs {
             let created = match output {
-                Output::Alias(alias) => {
-                    self.executor
-                        .create_alias_objects(header, alias, self.coin_type)?
-                }
-                Output::Nft(nft) => {
-                    self.executor
-                        .create_nft_objects(header, nft, self.coin_type)?
-                }
+                Output::Alias(alias) => self.executor.create_alias_objects(
+                    header,
+                    alias,
+                    self.coin_type,
+                    &mut self.address_swap_map,
+                )?,
+                Output::Nft(nft) => self.executor.create_nft_objects(
+                    header,
+                    nft,
+                    self.coin_type,
+                    &mut self.address_swap_map,
+                )?,
                 Output::Basic(basic) => {
                     // All timelocked vested rewards(basic outputs with the specific ID format)
                     // should be migrated as TimeLock<Balance<IOTA>> objects.
@@ -214,6 +236,7 @@ impl Migration {
                             header.output_id(),
                             basic,
                             self.target_milestone_timestamp_sec,
+                            &mut self.address_swap_map,
                         )?
                     } else {
                         self.executor.create_basic_objects(
@@ -221,6 +244,7 @@ impl Migration {
                             basic,
                             self.target_milestone_timestamp_sec,
                             &self.coin_type,
+                            &mut self.address_swap_map,
                         )?
                     }
                 }
@@ -244,6 +268,7 @@ impl Migration {
             self.target_milestone_timestamp_sec,
             self.total_supply,
             self.executor.store(),
+            &self.address_swap_map,
         )?;
         Ok(())
     }

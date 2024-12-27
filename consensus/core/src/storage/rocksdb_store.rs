@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque, ops::Bound::Included, time::Duration};
+use std::{ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
@@ -16,7 +16,7 @@ use typed_store::{
 
 use super::{CommitInfo, Store, WriteBatch};
 use crate::{
-    block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, Slot, VerifiedBlock},
+    block::{BlockAPI as _, BlockDigest, BlockRef, Round, SignedBlock, VerifiedBlock},
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
@@ -176,7 +176,7 @@ impl Store for RocksDBStore {
         Ok(exist)
     }
 
-    fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {
+    fn contains_block_at_slot(&self, slot: crate::block::Slot) -> ConsensusResult<bool> {
         let found = self
             .digests_by_authorities
             .safe_range_iter((
@@ -222,7 +222,7 @@ impl Store for RocksDBStore {
         before_round: Option<Round>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let before_round = before_round.unwrap_or(Round::MAX);
-        let mut refs = VecDeque::new();
+        let mut refs = std::collections::VecDeque::new();
         for kv in self
             .digests_by_authorities
             .safe_range_iter((

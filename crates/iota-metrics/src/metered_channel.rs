@@ -192,7 +192,7 @@ impl<'a, T> Permit<'a, T> {
     }
 }
 
-impl<'a, T> Drop for Permit<'a, T> {
+impl<T> Drop for Permit<'_, T> {
     /// Custom drop logic for the `Permit` to handle cases where the permit is
     /// dropped without sending a value. This ensures that the occupancy of
     /// the channel is correctly updated by decrementing the associated gauge

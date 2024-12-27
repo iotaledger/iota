@@ -172,7 +172,7 @@ struct TxnSummary {
 }
 
 #[async_trait]
-impl<'a> MoveTestAdapter<'a> for IotaTestAdapter {
+impl MoveTestAdapter<'_> for IotaTestAdapter {
     type ExtraPublishArgs = IotaPublishArgs;
     type ExtraRunArgs = IotaRunArgs;
     type ExtraInitArgs = IotaInitArgs;

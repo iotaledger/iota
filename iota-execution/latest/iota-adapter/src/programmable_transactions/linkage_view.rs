@@ -303,7 +303,7 @@ impl From<&MovePackage> for LinkageInfo {
     }
 }
 
-impl<'state> LinkageResolver for LinkageView<'state> {
+impl LinkageResolver for LinkageView<'_> {
     type Error = IotaError;
 
     fn link_context(&self) -> AccountAddress {
@@ -325,7 +325,7 @@ impl<'state> LinkageResolver for LinkageView<'state> {
 
 /// Remaining implementations delegated to state_view ************************
 
-impl<'state> ResourceResolver for LinkageView<'state> {
+impl ResourceResolver for LinkageView<'_> {
     type Error = IotaError;
 
     fn get_resource(
@@ -337,7 +337,7 @@ impl<'state> ResourceResolver for LinkageView<'state> {
     }
 }
 
-impl<'state> ModuleResolver for LinkageView<'state> {
+impl ModuleResolver for LinkageView<'_> {
     type Error = IotaError;
 
     fn get_module(&self, id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
@@ -345,7 +345,7 @@ impl<'state> ModuleResolver for LinkageView<'state> {
     }
 }
 
-impl<'state> BackingPackageStore for LinkageView<'state> {
+impl BackingPackageStore for LinkageView<'_> {
     fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.resolver.get_package_object(package_id)
     }

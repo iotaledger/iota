@@ -4,31 +4,19 @@
 import React, { useMemo, useState } from 'react';
 import { EnterAmountView, EnterTimelockedAmountView, SelectValidatorView } from './views';
 import {
-    useNotifications,
-    useNewStakeTransaction,
-    useGetCurrentEpochStartTimestamp,
-} from '@/hooks';
-import {
     ExtendedDelegatedStake,
-    GroupedTimelockObject,
     parseAmount,
-    TIMELOCK_IOTA_TYPE,
     useCoinMetadata,
-    useGetAllOwnedObjects,
     useGetValidatorsApy,
     useBalance,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
 } from '@iota/core';
 import { FormikProvider, useFormik } from 'formik';
-import type { FormikHelpers } from 'formik';
-import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import { useCurrentAccount } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { NotificationType } from '@/stores/notificationStore';
-import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
 import { Dialog } from '@iota/apps-ui-kit';
-import { DetailsView, UnstakeView } from './views';
-import { FormValues } from './views/EnterAmountView';
+import { DetailsView } from './views';
 import { TransactionDialogView } from '../TransactionDialog';
 import { StakeDialogView } from './enums/view.enums';
 
@@ -37,7 +25,6 @@ const INITIAL_VALUES = {
 };
 
 interface StakeDialogProps {
-    isOpen: boolean;
     handleClose: () => void;
     view: StakeDialogView | undefined;
     setView: (view: StakeDialogView) => void;
@@ -47,12 +34,12 @@ interface StakeDialogProps {
     onSuccess?: (digest: string) => void;
     selectedValidator?: string;
     setSelectedValidator?: (validator: string) => void;
+    onUnstakeClick?: () => void;
 }
 
 export function StakeDialog({
     onSuccess,
     isTimelockedStaking,
-    isOpen,
     handleClose,
     view,
     setView,
@@ -60,6 +47,7 @@ export function StakeDialog({
     maxStakableTimelockedAmount,
     selectedValidator = '',
     setSelectedValidator,
+    onUnstakeClick,
 }: StakeDialogProps): JSX.Element {
     const account = useCurrentAccount();
     const senderAddress = account?.address ?? '';
@@ -78,114 +66,69 @@ export function StakeDialog({
                 maxStakableTimelockedAmount ?? coinBalance,
                 coinSymbol,
                 coinDecimals,
-                view === StakeDialogView.Unstake,
+                false,
                 minimumStake,
             ),
-        [maxStakableTimelockedAmount, coinBalance, coinSymbol, coinDecimals, view, minimumStake],
+        [maxStakableTimelockedAmount, coinBalance, coinSymbol, coinDecimals, minimumStake],
     );
 
     const formik = useFormik({
         initialValues: INITIAL_VALUES,
         validationSchema: validationSchema,
-        onSubmit: onSubmit,
+        onSubmit: () => undefined,
         validateOnMount: true,
     });
 
     const amount = formik.values.amount || `${MIN_NUMBER_IOTA_TO_STAKE}`;
     const amountWithoutDecimals = parseAmount(amount, coinDecimals);
-    const { data: currentEpochMs } = useGetCurrentEpochStartTimestamp();
-    const { data: timelockedObjects } = useGetAllOwnedObjects(senderAddress, {
-        StructType: TIMELOCK_IOTA_TYPE,
-    });
-    let groupedTimelockObjects: GroupedTimelockObject[] = [];
-    if (isTimelockedStaking && timelockedObjects && currentEpochMs) {
-        groupedTimelockObjects = prepareObjectsForTimelockedStakingTransaction(
-            timelockedObjects,
-            amountWithoutDecimals,
-            currentEpochMs,
-        );
-    }
 
-    const { data: newStakeData, isLoading: isTransactionLoading } = useNewStakeTransaction(
-        selectedValidator,
-        amountWithoutDecimals,
-        senderAddress,
-        isTimelockedStaking,
-        groupedTimelockObjects,
-    );
-
-    const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-    const { addNotification } = useNotifications();
     const { data: rollingAverageApys } = useGetValidatorsApy();
 
     const validators = Object.keys(rollingAverageApys ?? {}) ?? [];
 
     function handleBack(): void {
-        setView?.(StakeDialogView.SelectValidator);
+        setView(StakeDialogView.SelectValidator);
     }
 
     function handleValidatorSelect(validator: string): void {
         setSelectedValidator?.(validator);
     }
 
-    function selectValidatorHandleNext(): void {
-        if (selectedValidator) {
-            setView?.(
-                isTimelockedStaking
-                    ? StakeDialogView.EnterTimelockedAmount
-                    : StakeDialogView.EnterAmount,
-            );
-        }
-    }
-
-    function detailsHandleUnstake() {
-        setView?.(StakeDialogView.Unstake);
-    }
-
-    function detailsHandleStake() {
-        setView?.(StakeDialogView.SelectValidator);
-    }
-
-    function handleStake(): void {
-        if (isTimelockedStaking && groupedTimelockObjects.length === 0) {
-            addNotification('Invalid stake amount. Please try again.', NotificationType.Error);
-            return;
-        }
-        if (!newStakeData?.transaction) {
-            addNotification('Stake transaction was not created', NotificationType.Error);
-            return;
-        }
-        signAndExecuteTransaction(
-            {
-                transaction: newStakeData?.transaction,
-            },
-            {
-                onSuccess: (tx) => {
-                    onSuccess?.(tx.digest);
-                    addNotification('Stake transaction has been sent');
-                    setTxDigest(tx.digest);
-                    setView?.(StakeDialogView.TransactionDetails);
-                },
-                onError: () => {
-                    addNotification('Stake transaction was not sent', NotificationType.Error);
-                },
-            },
+    function setViewBasedOnStakingType() {
+        setView(
+            isTimelockedStaking
+                ? StakeDialogView.EnterTimelockedAmount
+                : StakeDialogView.EnterAmount,
         );
     }
 
-    function onSubmit(_: FormValues, { resetForm }: FormikHelpers<FormValues>) {
-        handleStake();
-        resetForm();
+    function selectValidatorHandleNext(): void {
+        if (selectedValidator) {
+            setViewBasedOnStakingType();
+        }
+    }
+
+    function detailsHandleStake() {
+        if (stakedDetails) {
+            setSelectedValidator?.(stakedDetails.validatorAddress);
+            setViewBasedOnStakingType();
+        }
+    }
+
+    function handleTransactionSuccess(digest: string) {
+        onSuccess?.(digest);
+        setTxDigest(digest);
+        setView(StakeDialogView.TransactionDetails);
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={() => handleClose()}>
+        <Dialog open onOpenChange={() => handleClose()}>
             <FormikProvider value={formik}>
                 <>
                     {view === StakeDialogView.Details && stakedDetails && (
                         <DetailsView
                             handleStake={detailsHandleStake}
-                            handleUnstake={detailsHandleUnstake}
+                            handleUnstake={onUnstakeClick}
                             stakedDetails={stakedDetails}
                             handleClose={handleClose}
                         />
@@ -204,28 +147,20 @@ export function StakeDialog({
                             selectedValidator={selectedValidator}
                             handleClose={handleClose}
                             onBack={handleBack}
-                            onStake={handleStake}
-                            gasBudget={newStakeData?.gasBudget}
-                            isTransactionLoading={isTransactionLoading}
+                            amountWithoutDecimals={amountWithoutDecimals}
+                            senderAddress={senderAddress}
+                            onSuccess={handleTransactionSuccess}
                         />
                     )}
                     {view === StakeDialogView.EnterTimelockedAmount && (
                         <EnterTimelockedAmountView
                             selectedValidator={selectedValidator}
                             maxStakableTimelockedAmount={maxStakableTimelockedAmount ?? BigInt(0)}
-                            hasGroupedTimelockObjects={groupedTimelockObjects.length > 0}
                             handleClose={handleClose}
                             onBack={handleBack}
-                            onStake={handleStake}
-                            gasBudget={newStakeData?.gasBudget}
-                            isTransactionLoading={isTransactionLoading}
-                        />
-                    )}
-                    {view === StakeDialogView.Unstake && stakedDetails && (
-                        <UnstakeView
-                            extendedStake={stakedDetails}
-                            handleClose={handleClose}
-                            showActiveStatus
+                            senderAddress={senderAddress}
+                            onSuccess={handleTransactionSuccess}
+                            amountWithoutDecimals={amountWithoutDecimals}
                         />
                     )}
                     {view === StakeDialogView.TransactionDetails && (

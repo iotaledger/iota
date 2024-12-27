@@ -11,7 +11,6 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::{
     genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
 };
-use iota_macros::nondeterministic;
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
@@ -94,14 +93,12 @@ pub async fn send_and_confirm_transaction(
     Ok((certificate.into_inner(), result.into_inner()))
 }
 
-// note: clippy is confused about this being dead - it appears to only be used
-// in cfg(test), but adding #[cfg(test)] causes other targets to fail
-#[allow(dead_code)]
+#[cfg(test)]
 pub(crate) fn init_state_parameters_from_rng<R>(rng: &mut R) -> (Genesis, AuthorityKeyPair)
 where
     R: rand::CryptoRng + rand::RngCore,
 {
-    let dir = nondeterministic!(tempfile::TempDir::new().unwrap());
+    let dir = iota_macros::nondeterministic!(tempfile::TempDir::new().unwrap());
     let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
         .rng(rng)
         .build();
