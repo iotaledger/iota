@@ -84,7 +84,7 @@ export function summarizeMigratableObjectValues({
             StardustOutputDetailsFilter.NativeTokens,
         );
     }
-    totalNativeTokens = calculateTotalNativeTokensByName(filteredObjects);
+    totalNativeTokens = getUniqueNativeTokensByCoinType(filteredObjects);
 
     for (const output of outputObjects) {
         const outputObjectFields = extractMigrationOutputFields(output);
@@ -111,16 +111,20 @@ interface UnmmigratableObjectsData {
 export function summarizeTimelockedObjectValues({
     basicOutputs = [],
     nftOutputs = [],
+    resolvedObjects,
 }: Omit<SummarizeMigrationObjectParams, 'address'>): UnmmigratableObjectsData {
     const basicObjects = basicOutputs.length;
     const nftObjects = nftOutputs.length;
     let nativeTokens = 0;
+    let filteredObjects: ResolvedObjectTypes[] = [];
 
-    for (const output of [...basicOutputs, ...nftOutputs]) {
-        const outputObjectFields = extractMigrationOutputFields(output);
-
-        nativeTokens += parseInt(outputObjectFields.native_tokens.fields.size);
+    if (resolvedObjects) {
+        filteredObjects = filterMigrationObjects(
+            resolvedObjects,
+            StardustOutputDetailsFilter.NativeTokens,
+        );
     }
+    nativeTokens = getUniqueNativeTokensByCoinType(filteredObjects);
 
     const totalTimelockedObjects = basicObjects + nativeTokens + nftObjects;
 
@@ -163,17 +167,10 @@ export function extractNotOwnedStorageDepositReturnAmount(
     return null;
 }
 
-export function calculateTotalNativeTokensByName(objects: ResolvedObjectTypes[]): number {
-    const uniqueTokens: string[] = [];
-
-    return objects.reduce((total, obj) => {
-        if (
-            obj.commonObjectType === CommonMigrationObjectType.NativeToken &&
-            !uniqueTokens.includes(obj.name)
-        ) {
-            uniqueTokens.push(obj.name);
-            return total + 1;
-        }
-        return total;
-    }, 0);
+export function getUniqueNativeTokensByCoinType(objects: ResolvedObjectTypes[]): number {
+    return new Set(
+        objects
+            .filter((obj) => obj.commonObjectType === CommonMigrationObjectType.NativeToken)
+            .map((obj) => obj.coinType),
+    ).size;
 }
