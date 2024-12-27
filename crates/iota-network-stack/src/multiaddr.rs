@@ -8,7 +8,7 @@ use std::{
 };
 
 pub use ::multiaddr::{Error, Protocol};
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use tracing::error;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
