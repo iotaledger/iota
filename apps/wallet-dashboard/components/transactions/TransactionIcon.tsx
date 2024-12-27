@@ -19,6 +19,8 @@ const icons = {
     Failed: <Info className={ICON_COLORS.error} />,
     Loading: <LoadingIndicator />,
     PersonalMessage: <Person className={ICON_COLORS.primary} />,
+    TimelockedStaked: <Stake className={ICON_COLORS.primary} />,
+    TimelockedUnstaked: <Stake className={ICON_COLORS.primary} />,
 };
 
 interface TransactionIconProps {

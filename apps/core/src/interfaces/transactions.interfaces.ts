@@ -16,6 +16,8 @@ export enum TransactionAction {
     Transaction = 'Transaction',
     Staked = 'Staked',
     Unstaked = 'Unstaked',
+    TimelockedStaked = 'TimelockedStaked',
+    TimelockedUnstaked = 'TimelockedUnstaked',
     Rewards = 'Rewards',
     PersonalMessage = 'PersonalMessage',
 }
