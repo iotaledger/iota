@@ -932,8 +932,8 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
     }
 }
 
-/// Attempts to convert a multiaddr of the form `/[ip4,ip6,dns]/{}/[udp,tcp]/{port}`
-/// into a host:port string.
+/// Attempts to convert a multiaddr of the form
+/// `/[ip4,ip6,dns]/{}/[udp,tcp]/{port}` into a host:port string.
 fn to_host_port_str(addr: &Multiaddr) -> Result<String, &'static str> {
     let mut iter = addr.iter();
 
