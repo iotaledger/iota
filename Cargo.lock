@@ -6525,6 +6525,7 @@ dependencies = [
  "telemetry-subscribers",
  "tempfile",
  "tokio",
+ "tokio-util 0.7.12",
  "tracing",
  "url",
 ]
@@ -6552,6 +6553,7 @@ dependencies = [
  "tap",
  "tempfile",
  "tokio",
+ "tokio-util 0.7.12",
  "tracing",
  "url",
 ]
@@ -7007,6 +7009,7 @@ dependencies = [
  "prometheus",
  "telemetry-subscribers",
  "tokio",
+ "tokio-util 0.7.12",
  "tracing",
 ]
 
