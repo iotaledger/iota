@@ -146,12 +146,11 @@ pub fn verify_proof_of_possession(
     )
 }
 
-///////////////////////////////////////////////
-/// Account Keys
-///
-/// * The following section defines the keypairs that are used by
-/// * accounts to interact with Iota.
-/// * Currently we support eddsa and ecdsa on Iota.
+// Account Keys
+//
+// * The following section defines the keypairs that are used by
+// * accounts to interact with Iota.
+// * Currently we support eddsa and ecdsa on Iota.
 
 #[expect(clippy::large_enum_variant)]
 #[derive(Debug, From, PartialEq, Eq)]
