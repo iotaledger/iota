@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { MigrationObjectLoading, VirtualList } from '@/components';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
@@ -21,10 +20,11 @@ import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
 import { Loader, Warning } from '@iota/ui-icons';
 import { Collapsible, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { summarizeMigratableObjectValues } from '@/lib/utils';
+import { filterMigrationObjects, summarizeMigratableObjectValues } from '@/lib/utils';
 import { MigrationObjectDetailsCard } from '@/components/migration/migration-object-details-card';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
+import { StardustOutputDetailsFilter } from '@/lib/enums';
 
 interface ConfirmMigrationViewProps {
     basicOutputObjects: IotaObjectData[] | undefined;
@@ -65,21 +65,44 @@ export function ConfirmMigrationView({
         isTimelocked,
     );
 
-    const { totalNotOwnedStorageDepositReturnAmount } = summarizeMigratableObjectValues({
+    const {
+        totalIotaAmount,
+        totalNativeTokens: migratableNativeTokens,
+        totalVisualAssets: migratableVisualAssets,
+        totalNotOwnedStorageDepositReturnAmount,
+    } = summarizeMigratableObjectValues({
         basicOutputs: basicOutputObjects,
         nftOutputs: nftOutputObjects,
         address: account?.address || '',
     });
 
+    const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);
     const [gasFee, gasFeeSymbol] = useFormatCoin(migrateData?.gasBudget, IOTA_TYPE_ARG);
     const [totalStorageDepositReturnAmountFormatted, totalStorageDepositReturnAmountSymbol] =
         useFormatCoin(totalNotOwnedStorageDepositReturnAmount.toString(), IOTA_TYPE_ARG);
 
+    const filteredObjectsByIOTA = filterMigrationObjects(
+        resolvedObjects,
+        StardustOutputDetailsFilter.IOTA,
+    );
+    const filteredObjectsByVisualAssets = filterMigrationObjects(
+        resolvedObjects,
+        StardustOutputDetailsFilter.VisualAssets,
+    );
+    const filteredObjectsByNativeTokens = filterMigrationObjects(
+        resolvedObjects,
+        StardustOutputDetailsFilter.NativeTokens,
+    );
+    const filteredObjectsByExpiration = filterMigrationObjects(
+        resolvedObjects,
+        StardustOutputDetailsFilter.WithExpiration,
+    );
+
     return (
         <DialogLayout>
-            <Header title="Confirmation" onClose={() => setOpen(false)} titleCentered />
+            <Header title="Migrate Your Assets" onClose={() => setOpen(false)} titleCentered />
             <DialogLayoutBody>
-                <div className="flex h-full flex-col gap-y-md overflow-y-auto">
+                <div className="flex h-full flex-col gap-y-md">
                     {isGroupedMigrationError && !isLoading && (
                         <InfoBox
                             title="Error"
@@ -106,27 +129,112 @@ export function ConfirmMigrationView({
                         </>
                     ) : (
                         <>
-                            <Collapsible
-                                defaultOpen
-                                render={() => (
-                                    <Title size={TitleSize.Small} title="Assets to Migrate" />
-                                )}
-                            >
-                                <div className="h-[500px] pb-md--rs xl:h-[600px]">
-                                    <VirtualList
-                                        heightClassName="h-full"
-                                        overflowClassName="overflow-y-auto"
-                                        items={resolvedObjects}
-                                        estimateSize={() => 58}
-                                        render={(migrationObject) => (
-                                            <MigrationObjectDetailsCard
-                                                migrationObject={migrationObject}
-                                                isTimelocked={isTimelocked}
+                            <div className="flex flex-col gap-y-sm">
+                                {filteredObjectsByIOTA.length > 0 && (
+                                    <Collapsible
+                                        render={() => (
+                                            <Title
+                                                size={TitleSize.Small}
+                                                title="IOTA Tokens"
+                                                subtitle={`${timelockedIotaTokens} ${symbol}`}
                                             />
                                         )}
-                                    />
-                                </div>
-                            </Collapsible>
+                                    >
+                                        <div className="flex h-full max-h-[300px] flex-col gap-y-sm pb-sm">
+                                            <VirtualList
+                                                heightClassName="h-full"
+                                                overflowClassName="overflow-y-auto"
+                                                items={filteredObjectsByIOTA}
+                                                estimateSize={() => 58}
+                                                render={(migrationObject) => (
+                                                    <MigrationObjectDetailsCard
+                                                        migrationObject={migrationObject}
+                                                        isTimelocked={isTimelocked}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </Collapsible>
+                                )}
+                                {filteredObjectsByNativeTokens.length > 0 && (
+                                    <Collapsible
+                                        render={() => (
+                                            <Title
+                                                size={TitleSize.Small}
+                                                title="Native Tokens"
+                                                subtitle={`${migratableNativeTokens} Types`}
+                                            />
+                                        )}
+                                    >
+                                        <div className="flex h-full max-h-[300px] flex-col gap-y-sm pb-sm">
+                                            <VirtualList
+                                                heightClassName="h-full"
+                                                overflowClassName="overflow-y-auto"
+                                                items={filteredObjectsByNativeTokens}
+                                                estimateSize={() => 58}
+                                                render={(migrationObject) => (
+                                                    <MigrationObjectDetailsCard
+                                                        migrationObject={migrationObject}
+                                                        isTimelocked={isTimelocked}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </Collapsible>
+                                )}
+                                {filteredObjectsByVisualAssets.length > 0 && (
+                                    <Collapsible
+                                        render={() => (
+                                            <Title
+                                                size={TitleSize.Small}
+                                                title="Visual Assets"
+                                                subtitle={`${migratableVisualAssets} Assets`}
+                                            />
+                                        )}
+                                    >
+                                        <div className="flex h-full max-h-[300px] flex-col gap-y-sm pb-sm">
+                                            <VirtualList
+                                                heightClassName="h-full"
+                                                overflowClassName="overflow-y-auto"
+                                                items={filteredObjectsByVisualAssets}
+                                                estimateSize={() => 58}
+                                                render={(migrationObject) => (
+                                                    <MigrationObjectDetailsCard
+                                                        migrationObject={migrationObject}
+                                                        isTimelocked={isTimelocked}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </Collapsible>
+                                )}
+                                {filteredObjectsByExpiration.length > 0 && (
+                                    <Collapsible
+                                        render={() => (
+                                            <Title
+                                                size={TitleSize.Small}
+                                                title="With Expiration"
+                                                subtitle={`${filteredObjectsByExpiration.length} Objects`}
+                                            />
+                                        )}
+                                    >
+                                        <div className="flex h-full max-h-[300px] flex-col gap-y-sm pb-sm">
+                                            <VirtualList
+                                                heightClassName="h-full"
+                                                overflowClassName="overflow-y-auto"
+                                                items={filteredObjectsByExpiration}
+                                                estimateSize={() => 58}
+                                                render={(migrationObject) => (
+                                                    <MigrationObjectDetailsCard
+                                                        migrationObject={migrationObject}
+                                                        isTimelocked={isTimelocked}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </Collapsible>
+                                )}
+                            </div>
                             <Panel hasBorder>
                                 <div className="flex flex-col gap-y-sm p-md">
                                     <KeyValueInfo
