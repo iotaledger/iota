@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExternalImage } from '@/components';
-import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { useGetCurrentEpochEndTimestamp } from '@/hooks/useGetCurrentEpochEndTimestamp';
 import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
 import { CommonMigrationObjectType } from '@/lib/enums';
 import { ResolvedObjectTypes } from '@/lib/types';
 import { Card, CardBody, CardImage, ImageShape, LabelText, LabelTextSize } from '@iota/apps-ui-kit';
-import { MILLISECONDS_PER_SECOND, TimeUnit, useFormatCoin, useTimeAgo } from '@iota/core';
+import { MILLISECONDS_PER_SECOND, useCountdownByTimestamp, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Assets, DataStack, IotaLogoMark } from '@iota/ui-icons';
 import { useState } from 'react';
@@ -115,41 +114,30 @@ interface UnlockConditionLabelProps {
     isTimelocked: boolean;
 }
 function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockConditionLabelProps) {
-    const { data: currentEpochStartTimestampMs, isLoading: isLoadingEpochStart } =
-        useGetCurrentEpochStartTimestamp();
     const { data: currentEpochEndTimestampMs, isLoading: isLoadingEpochEnd } =
         useGetCurrentEpochEndTimestamp();
 
     const epochEndMs = currentEpochEndTimestampMs ?? 0;
-    const epochStartMs = currentEpochStartTimestampMs ?? '0';
-    const currentDateMs = Date.now();
-
     const unlockConditionTimestampMs = parseInt(groupKey) * MILLISECONDS_PER_SECOND;
-    const isFromPreviousEpoch =
-        !isLoadingEpochStart && unlockConditionTimestampMs < parseInt(epochStartMs);
     // TODO: https://github.com/iotaledger/iota/issues/4369
     const isInAFutureEpoch = !isLoadingEpochEnd && unlockConditionTimestampMs > epochEndMs;
-
     const outputTimestampMs = isInAFutureEpoch ? unlockConditionTimestampMs : epochEndMs;
 
-    const timeLabel = useTimeAgo({
-        timeFrom: outputTimestampMs,
-        shortedTimeLabel: true,
-        shouldEnd: true,
-        maxTimeUnit: TimeUnit.ONE_DAY,
+    const formattedLastPayoutExpirationTime = useCountdownByTimestamp(Number(outputTimestampMs), {
+        showSeconds: false,
     });
-
-    const showLabel = !isFromPreviousEpoch && outputTimestampMs > currentDateMs;
+    const currentDateMs = Date.now();
+    const showLabel = outputTimestampMs > currentDateMs;
 
     return (
-        <div className="ml-auto h-full whitespace-nowrap">
-            {showLabel && (
+        showLabel && (
+            <div className="h-full w-1/4 whitespace-nowrap">
                 <LabelText
                     size={LabelTextSize.Small}
-                    text={timeLabel}
+                    text={formattedLastPayoutExpirationTime}
                     label={isTimelocked ? 'Unlocks in' : 'Expires in'}
                 />
-            )}
-        </div>
+            </div>
+        )
     );
 }
