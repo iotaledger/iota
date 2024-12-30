@@ -69,7 +69,7 @@ mod crypto_tests;
 mod intent_tests;
 
 ////////////////////////////////////////////////////////////////////////
-/// Type aliases selecting the signature algorithm for the code base.
+// Type aliases selecting the signature algorithm for the code base.
 ////////////////////////////////////////////////////////////////////////
 // Here we select the types that are used by default in the code base.
 // The whole code base should only:
@@ -145,6 +145,7 @@ pub fn verify_proof_of_possession(
         authority_pubkey.into(),
     )
 }
+
 ///////////////////////////////////////////////
 /// Account Keys
 ///

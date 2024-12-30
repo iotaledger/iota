@@ -1358,8 +1358,8 @@ impl AuthorityPerEpochStore {
         Ok(result)
     }
 
-    /// `pending_certificates` table related methods. Should only be used from
-    /// TransactionManager.
+    // `pending_certificates` table related methods.
+    // Should only be used from TransactionManager.
 
     /// Gets all pending certificates. Used during recovery.
     pub fn all_pending_execution(&self) -> IotaResult<Vec<VerifiedExecutableTransaction>> {
