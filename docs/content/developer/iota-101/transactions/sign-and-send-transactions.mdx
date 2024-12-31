@@ -242,9 +242,9 @@ You can initialize a key in three ways:
 
 ```shell
 # generate randomly.
-iota client new-address ed25519
-iota client new-address secp256k1
-iota client new-address secp256r1
+iota client new-address --key-scheme ed25519
+iota client new-address --key-scheme secp256k1
+iota client new-address --key-scheme secp256r1
 
 # import the 32-byte private key to keystore.
 iota keytool import "0xd463e11c7915945e86ac2b72d88b8190cfad8ff7b48e7eb892c275a5cf0a3e82" ed25519

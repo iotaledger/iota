@@ -41,9 +41,9 @@ Use the following command to generate a IOTA address and key for each supported 
 Use `iota client` to create IOTA addresses of different key schemes.
 
 ```shell
-iota client new-address ed25519
-iota client new-address secp256k1
-iota client new-address secp256r1
+iota client new-address --key-scheme ed25519
+iota client new-address --key-scheme secp256k1
+iota client new-address --key-scheme secp256r1
 ```
 
 ### Step 2: Add keys to IOTA keystore
