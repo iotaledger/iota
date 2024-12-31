@@ -138,6 +138,7 @@ impl Indexer {
             ]),
             1,
             DataIngestionMetrics::new(&Registry::new()),
+            cancel.child_token(),
         );
         let worker =
             new_handlers::<S, T>(store, metrics, primary_watermark, cancel.clone()).await?;
@@ -161,7 +162,6 @@ impl Indexer {
                 config.remote_store_url.clone(),
                 vec![],
                 extra_reader_options,
-                cancel.child_token(),
             )
             .await?;
         Ok(())

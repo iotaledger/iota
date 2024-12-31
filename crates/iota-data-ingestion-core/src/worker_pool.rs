@@ -12,15 +12,27 @@ use iota_metrics::spawn_monitored_task;
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::{Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS};
+use crate::{
+    Worker,
+    executor::{MAX_CHECKPOINTS_IN_PROGRESS, WorkerPoolMsg},
+};
 
 pub struct WorkerPool<W: Worker> {
     pub task_name: String,
     concurrency: usize,
     worker: Arc<W>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum WorkerMsg {
+    /// Send Worker progress status to WorkerPool main loop
+    Progress((usize, u64, Option<u64>)),
+    /// Signal Worker graceful shutdown to WorkerPool main loop
+    ShutDown(usize),
 }
 
 impl<W: Worker + 'static> WorkerPool<W> {
@@ -35,7 +47,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
         self,
         mut current_checkpoint_number: CheckpointSequenceNumber,
         mut checkpoint_receiver: mpsc::Receiver<CheckpointData>,
-        executor_progress_sender: mpsc::Sender<(String, CheckpointSequenceNumber)>,
+        executor_progress_sender: mpsc::Sender<WorkerPoolMsg>,
+        token: CancellationToken,
     ) {
         info!(
             "Starting indexing pipeline {} with concurrency {}. Current watermark is {}.",
@@ -48,22 +61,27 @@ impl<W: Worker + 'static> WorkerPool<W> {
         let mut idle: BTreeSet<_> = (0..self.concurrency).collect();
         let mut checkpoints = VecDeque::new();
 
-        let mut join_handles = vec![];
+        let mut workers_join_handles = vec![];
 
         // spawn child workers
         for worker_id in 0..self.concurrency {
             let (worker_sender, mut worker_recv) =
                 mpsc::channel::<CheckpointData>(MAX_CHECKPOINTS_IN_PROGRESS);
-            let (term_sender, mut term_receiver) = oneshot::channel::<()>();
             let cloned_progress_sender = progress_sender.clone();
             let task_name = self.task_name.clone();
-            workers.push((worker_sender, term_sender));
+            workers.push(worker_sender);
+
+            let token = token.clone();
 
             let worker = self.worker.clone();
             let join_handle = spawn_monitored_task!(async move {
                 loop {
                     tokio::select! {
-                        _ = &mut term_receiver => break,
+                        // Once token is cancelled, notify worker's shutdown to the main loop
+                        _ = token.cancelled() => {
+                            _ = cloned_progress_sender.send(WorkerMsg::ShutDown(worker_id)).await;
+                            break
+                        },
                         Some(checkpoint) = worker_recv.recv() => {
                             let sequence_number = checkpoint.checkpoint_summary.sequence_number;
                             info!("received checkpoint for processing {} for workflow {}", sequence_number, task_name);
@@ -82,7 +100,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                             .await
                             .expect("checkpoint processing failed for checkpoint");
                             info!("finished checkpoint processing {} for workflow {} in {:?}", sequence_number, task_name, start_time.elapsed());
-                            if cloned_progress_sender.send((worker_id, sequence_number, worker.save_progress(sequence_number).await)).await.is_err() {
+                            if cloned_progress_sender.send(WorkerMsg::Progress((worker_id, sequence_number, worker.save_progress(sequence_number).await))).await.is_err() {
                                 // The progress channel closing is a sign we need to exit this loop.
                                 break;
                             }
@@ -92,42 +110,88 @@ impl<W: Worker + 'static> WorkerPool<W> {
             });
 
             // Keep all join handles to ensure all workers are terminated before exiting
-            join_handles.push(join_handle);
+            workers_join_handles.push(join_handle);
         }
+
+        let mut workers_shutdown_signals = vec![];
+
         // main worker pool loop
         loop {
             tokio::select! {
-                Some((worker_id, status_update, progress_watermark)) = progress_receiver.recv() => {
-                    idle.insert(worker_id);
-                    updates.insert(status_update, progress_watermark);
-                    if status_update == current_checkpoint_number {
-                        let mut executor_status_update = None;
-                        while let Some(progress_watermark) = updates.remove(&current_checkpoint_number) {
-                            if let Some(watermark) =  progress_watermark {
-                                executor_status_update = Some(watermark + 1);
+                Some(worker_progress_msg) = progress_receiver.recv() => {
+                    match worker_progress_msg {
+                        WorkerMsg::Progress((worker_id, status_update, progress_watermark)) => {
+                            idle.insert(worker_id);
+                            updates.insert(status_update, progress_watermark);
+                            if status_update == current_checkpoint_number {
+                                let mut executor_status_update = None;
+                                while let Some(progress_watermark) = updates.remove(&current_checkpoint_number) {
+                                    if let Some(watermark) =  progress_watermark {
+                                        executor_status_update = Some(watermark + 1);
+                                    }
+                                    current_checkpoint_number += 1;
+                                }
+                                if let Some(update) = executor_status_update {
+                                    if executor_progress_sender
+                                        .send(WorkerPoolMsg::Progress((self.task_name.clone(), update)))
+                                        .await.is_err() {
+                                            // The executor progress channel closing is a sign we need to
+                                            // exit this loop.
+                                            break;
+                                        }
+                                }
                             }
-                            current_checkpoint_number += 1;
-                        }
-                        if let Some(update) = executor_status_update {
-                            if executor_progress_sender
-                                .send((self.task_name.clone(), update))
-                                .await.is_err() {
-                                    // The executor progress channel closing is a sign we need to
-                                    // exit this loop.
+                            // By checking if token was not cancelled we ensure that no
+                            // further checkpoints will be sent to the workers
+                            while !token.is_cancelled() && !checkpoints.is_empty() && !idle.is_empty() {
+                                let checkpoint = checkpoints.pop_front().unwrap();
+                                let worker_id = idle.pop_first().unwrap();
+                                if workers[worker_id].send(checkpoint).await.is_err() {
+                                    // The worker channel closing is a sign we need to exit this loop.
                                     break;
                                 }
+                            }
                         }
-                    }
-                    while !checkpoints.is_empty() && !idle.is_empty() {
-                        let checkpoint = checkpoints.pop_front().unwrap();
-                        let worker_id = idle.pop_first().unwrap();
-                        if workers[worker_id].0.send(checkpoint).await.is_err() {
-                            // The worker channel closing is a sign we need to exit this loop.
-                            break;
+                        // Manages the graceful shutdown sequence of the worker pool.
+                        //
+                        // The shutdown process follows these steps:
+                        // 1. Token cancellation triggers workers to:
+                        //    - Complete their current checkpoint processing
+                        //    - Send a final ShutDown message
+                        //    - Exit their processing loop
+                        //
+                        // 2. Main loop continues running to:
+                        //    - Process any remaining Progress messages
+                        //    - Track worker shutdowns via ShutDown messages
+                        //    - Once all workers have reported shutdown, await their join handles
+                        //
+                        // This ensures:
+                        // - No work is interrupted mid-processing
+                        // - All progress messages are processed
+                        // - All resources are properly cleaned up
+                        // - Workers terminate in an orderly fashion
+                        WorkerMsg::ShutDown(worker_id) => {
+                            // Track workers that have initiated shutdown
+                            workers_shutdown_signals.push(worker_id);
+                            // Once all workers have signaled completion, await their handles
+                            // This ensures all workers have finished their final tasks
+                            if workers_shutdown_signals.len() == self.concurrency {
+                                for join_handle in workers_join_handles {
+                                    join_handle.await.expect("worker thread panicked");
+                                }
+                                _ = executor_progress_sender
+                                    .send(WorkerPoolMsg::ShutDown(self.task_name.clone()))
+                                    .await;
+                                tracing::info!("Worker pool `{}` terminated gracefully", self.task_name);
+                                break;
+                            }
                         }
                     }
                 }
-                Some(checkpoint) = checkpoint_receiver.recv() => {
+
+                // Adding an if guard to this branch ensure that no checkpoints
+                // will be sent to workers once the token has been cancelled
+                Some(checkpoint) = checkpoint_receiver.recv(), if !token.is_cancelled() => {
                     let sequence_number = checkpoint.checkpoint_summary.sequence_number;
                     if sequence_number < current_checkpoint_number {
                         continue;
@@ -137,23 +201,13 @@ impl<W: Worker + 'static> WorkerPool<W> {
                         checkpoints.push_back(checkpoint);
                     } else {
                         let worker_id = idle.pop_first().unwrap();
-                        if workers[worker_id].0.send(checkpoint).await.is_err() {
+                        if workers[worker_id].send(checkpoint).await.is_err() {
                             // The worker channel closing is a sign we need to exit this loop.
                             break;
                         };
                     }
                 }
             }
-        }
-
-        // Clean up code for graceful termination
-
-        // Notify the exit handles of all workers to terminate
-        drop(workers);
-
-        // Wait for all workers to finish
-        for join_handle in join_handles {
-            join_handle.await.expect("worker thread panicked");
         }
     }
 }

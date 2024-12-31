@@ -52,13 +52,14 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
         data_sender: DataSender<CheckpointTxnData>,
     ) -> Result<JoinHandle<Result<(), Error>>, Error> {
         let token = CancellationToken::new();
-        let token_child = token.child_token();
+        let child_token = token.child_token();
         let progress_store = PerTaskInMemProgressStore {
             current_checkpoint: starting_checkpoint,
             exit_checkpoint: target_checkpoint,
             token: Some(token),
         };
-        let mut executor = IndexerExecutor::new(progress_store, 1, self.metrics.clone());
+        let mut executor =
+            IndexerExecutor::new(progress_store, 1, self.metrics.clone(), child_token);
         let worker = IndexerWorker::new(data_sender);
         let worker_pool = WorkerPool::new(
             worker,
@@ -75,7 +76,6 @@ impl Datasource<CheckpointTxnData> for IotaCheckpointDatasource {
                     Some(remote_store_url),
                     vec![], // optional remote store access options
                     ReaderOptions::default(),
-                    token_child,
                 )
                 .await?;
             Ok(())
