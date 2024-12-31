@@ -241,7 +241,7 @@ pub enum IotaClientCommands {
     /// word15 | word18 | word21 | word24} default to word12 if not specified.
     #[clap(name = "new-address")]
     NewAddress {
-        #[clap(long)]
+        #[clap(long, default_value_t = SignatureScheme::ED25519)]
         key_scheme: SignatureScheme,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
