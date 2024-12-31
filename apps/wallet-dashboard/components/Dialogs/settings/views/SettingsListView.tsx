@@ -14,9 +14,9 @@ import {
 } from '@iota/apps-ui-kit';
 import { DialogLayout, DialogLayoutBody } from '../../layout';
 import { SettingsDialogView } from '../enums';
-import { getNetwork } from '@iota/iota-sdk/client';
-import { useIotaClientContext } from '@iota/dapp-kit';
 import { Globe } from '@iota/ui-icons';
+import { usePersistedNetwork } from '@/hooks';
+import { capitalizeFirstLetter } from '@iota/core';
 
 interface SettingsListViewProps {
     handleClose: () => void;
@@ -24,13 +24,11 @@ interface SettingsListViewProps {
 }
 
 export function SettingsListView({ handleClose, setView }: SettingsListViewProps): JSX.Element {
-    const { network } = useIotaClientContext();
-    const { name: networkName } = getNetwork(network);
-
+    const { persistedNetwork } = usePersistedNetwork();
     const MENU_ITEMS = [
         {
             title: 'Network',
-            subtitle: networkName,
+            subtitle: persistedNetwork,
             icon: <Globe />,
             onClick: () => setView(SettingsDialogView.NetworkSettings),
         },
@@ -49,7 +47,10 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
                                         <span className="text-2xl">{item.icon}</span>
                                     </div>
                                 </CardImage>
-                                <CardBody title={item.title} subtitle={item.subtitle} />
+                                <CardBody
+                                    title={item.title}
+                                    subtitle={capitalizeFirstLetter(item.subtitle)}
+                                />
                                 <CardAction type={CardActionType.Link} />
                             </Card>
                         ))}
