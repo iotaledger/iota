@@ -6,6 +6,7 @@ import Quiz from '@site/src/components/Quiz';
 import questions from '/json/node-operators/iota-full-node/node-setup.json';
 import WarningAdvanced from './../../_snippets/warning-advanced-instructions-node-setup.mdx'
 import NodeHardwareRequirements from './../../_snippets/node-hardware-requirements.mdx'
+import {Networks} from '@site/src/components/constant'
 
 <WarningAdvanced/>
 
@@ -150,7 +151,7 @@ At this point, your IOTA Full node is ready to connect to the IOTA network.
 
 If your setup is successful, your IOTA Full node is now connected to the appropriate network.
 
-Your Full node serves the read endpoints of the IOTA JSON-RPC API at: `http://127.0.0.1:9000`.
+Your Full node serves the read endpoints of the IOTA JSON-RPC API at: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
 
 ## Troubleshooting
 
@@ -216,7 +217,7 @@ Use the following steps to update your Full node:
     ./target/release/iota-node --config-path fullnode.yaml
     ```
 
-Your Full node restarts on: http://127.0.0.1:9000.
+Your Full node restarts on: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
 
 :::info
 

@@ -13,9 +13,8 @@ import {
 } from '@/components';
 import { UnstakeDialogView } from '@/components/Dialogs/unstake/enums';
 import { useUnstakeDialog } from '@/components/Dialogs/unstake/hooks';
-import { useGetSupplyIncreaseVestingObjects, useNotifications } from '@/hooks';
+import { useGetSupplyIncreaseVestingObjects } from '@/hooks';
 import { groupTimelockedStakedObjects, TimelockedStakedObjectsGrouped } from '@/lib/utils';
-import { NotificationType } from '@/stores/notificationStore';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
     Panel,
@@ -56,6 +55,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { StakedTimelockObject } from '@/components';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
+import toast from 'react-hot-toast';
 
 export default function VestingDashboardPage(): JSX.Element {
     const [timelockedObjectsToUnstake, setTimelockedObjectsToUnstake] =
@@ -66,7 +66,6 @@ export default function VestingDashboardPage(): JSX.Element {
     const router = useRouter();
     const { data: system } = useIotaClientQuery('getLatestIotaSystemState');
     const [isVestingScheduleDialogOpen, setIsVestingScheduleDialogOpen] = useState(false);
-    const { addNotification } = useNotifications();
     const { data: activeValidators } = useGetActiveValidatorsInfo();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { theme } = useTheme();
@@ -163,7 +162,7 @@ export default function VestingDashboardPage(): JSX.Element {
 
     const handleCollect = () => {
         if (!unlockAllSupplyIncreaseVesting?.transactionBlock) {
-            addNotification('Failed to create a Transaction', NotificationType.Error);
+            toast.error('Failed to create a Transaction');
             return;
         }
         signAndExecuteTransaction(
@@ -177,10 +176,10 @@ export default function VestingDashboardPage(): JSX.Element {
             },
         )
             .then(() => {
-                addNotification('Collect transaction has been sent');
+                toast.success('Collect transaction has been sent');
             })
             .catch(() => {
-                addNotification('Collect transaction was not sent', NotificationType.Error);
+                toast.error('Collect transaction was not sent');
             });
     };
 
