@@ -131,6 +131,7 @@ export function StakeDialog({
                             handleUnstake={onUnstakeClick}
                             stakedDetails={stakedDetails}
                             handleClose={handleClose}
+                            handleBack={handleBack}
                         />
                     )}
                     {view === StakeDialogView.SelectValidator && (

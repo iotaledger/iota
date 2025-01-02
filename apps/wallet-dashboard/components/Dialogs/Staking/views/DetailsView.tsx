@@ -38,6 +38,7 @@ interface StakeDialogProps {
     stakedDetails: ExtendedDelegatedStake;
     showActiveStatus?: boolean;
     handleUnstake?: () => void;
+    handleBack?: () => void;
 }
 
 export function DetailsView({
@@ -46,6 +47,7 @@ export function DetailsView({
     handleStake,
     stakedDetails,
     showActiveStatus,
+    handleBack,
 }: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
     const validatorAddress = stakedDetails?.validatorAddress;
@@ -102,7 +104,7 @@ export function DetailsView({
 
     return (
         <DialogLayout>
-            <Header title="Validator" onClose={handleClose} onBack={handleClose} titleCentered />
+            <Header title="Validator" onClose={handleClose} onBack={handleBack} titleCentered />
             <DialogLayoutBody>
                 <div className="flex w-full flex-col gap-md">
                     <Card type={CardType.Filled}>
