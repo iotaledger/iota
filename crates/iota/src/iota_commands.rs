@@ -439,7 +439,7 @@ impl IotaCommand {
             }
             IotaCommand::Console { config } => {
                 let config = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                prompt_if_no_config(&config, false).await?;
+                prompt_if_no_config(&config, false, true).await?;
                 let context = WalletContext::new(&config, None, None)?;
                 start_console(context, &mut stdout(), &mut stderr()).await
             }
@@ -450,7 +450,12 @@ impl IotaCommand {
                 accept_defaults,
             } => {
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                prompt_if_no_config(&config_path, accept_defaults).await?;
+                prompt_if_no_config(
+                    &config_path,
+                    accept_defaults,
+                    !matches!(cmd, Some(IotaClientCommands::NewAddress { .. })),
+                )
+                .await?;
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 if let Some(cmd) = cmd {
                     cmd.execute(&mut context).await?.print(!json);
@@ -469,7 +474,7 @@ impl IotaCommand {
                 accept_defaults,
             } => {
                 let config_path = config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                prompt_if_no_config(&config_path, accept_defaults).await?;
+                prompt_if_no_config(&config_path, accept_defaults, true).await?;
                 let mut context = WalletContext::new(&config_path, None, None)?;
                 if let Some(cmd) = cmd {
                     cmd.execute(&mut context).await?.print(!json);
@@ -496,7 +501,7 @@ impl IotaCommand {
                         // management.
                         let config =
                             client_config.unwrap_or(iota_config_dir()?.join(IOTA_CLIENT_CONFIG));
-                        prompt_if_no_config(&config, false).await?;
+                        prompt_if_no_config(&config, false, true).await?;
                         let context = WalletContext::new(&config, None, None)?;
                         let client = context.get_client().await?;
                         let chain_id = client.read_api().get_chain_identifier().await.ok();
@@ -1148,7 +1153,8 @@ async fn genesis(
 async fn prompt_if_no_config(
     wallet_conf_path: &Path,
     accept_defaults: bool,
-) -> Result<(), anyhow::Error> {
+    generate_address: bool,
+) -> anyhow::Result<()> {
     // Prompt user for connect to devnet fullnode if config does not exist.
     if !wallet_conf_path.exists() {
         let env = match std::env::var_os("IOTA_CONFIG_WITH_RPC_URL") {
@@ -1199,12 +1205,13 @@ async fn prompt_if_no_config(
                 .parent()
                 .unwrap_or(&iota_config_dir()?)
                 .join(IOTA_KEYSTORE_FILENAME);
-            let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
+            let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
+            let mut config = IotaClientConfig::new(keystore).with_envs([env]);
             // Get an existing address or generate a new one
-            let active_address = if let Some(existing_address) = keystore.addresses().first() {
+            if let Some(existing_address) = config.keystore().addresses().first() {
                 println!("Using existing address {existing_address} as active address.");
-                *existing_address
-            } else {
+                config = config.with_active_address(*existing_address);
+            } else if generate_address {
                 let key_scheme = if accept_defaults {
                     SignatureScheme::ED25519
                 } else {
@@ -1216,23 +1223,18 @@ async fn prompt_if_no_config(
                         Err(e) => return Err(anyhow!("{e}")),
                     }
                 };
-                let (new_address, phrase, scheme) =
-                    keystore.generate_and_add_new_key(key_scheme, None, None, None)?;
-                let alias = keystore.get_alias_by_address(&new_address)?;
+                let (new_address, phrase, scheme) = config
+                    .keystore_mut()
+                    .generate_and_add_new_key(key_scheme, None, None, None)?;
+                let alias = config.keystore().get_alias_by_address(&new_address)?;
                 println!(
                     "Generated new keypair and alias for address with scheme {:?} [{alias}: {new_address}]",
                     scheme.to_string()
                 );
                 println!("Secret Recovery Phrase : [{phrase}]");
-                new_address
-            };
-            let alias = env.alias().clone();
-            IotaClientConfig::new(keystore)
-                .with_envs([env])
-                .with_active_address(active_address)
-                .with_active_env(alias)
-                .persisted(wallet_conf_path)
-                .save()?;
+                config = config.with_active_address(new_address);
+            }
+            config.persisted(wallet_conf_path).save()?;
         }
     }
     Ok(())
