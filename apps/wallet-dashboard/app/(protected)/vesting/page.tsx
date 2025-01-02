@@ -81,7 +81,6 @@ export default function VestingDashboardPage(): JSX.Element {
         nextPayout,
         supplyIncreaseVestingPortfolio,
         supplyIncreaseVestingSchedule,
-        supplyIncreaseVestingMapped,
         supplyIncreaseVestingStakedMapped,
         isTimelockedStakedObjectsLoading,
         unlockAllSupplyIncreaseVesting,
