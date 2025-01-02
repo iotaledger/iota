@@ -9,7 +9,7 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 		<title>Main Iota Binary</title>
 		<authors>iota</authors>
 		<projectUrl>https://iota.org/</projectUrl>
-		<licenseUrl>https://github.com/iotaledger/iota/blob/main/LICENSE</licenseUrl>
+		<licenseUrl>https://github.com/iotaledger/iota/blob/develop/LICENSE</licenseUrl>
 		<iconUrl>https://assets-global.website-files.com/6425f546844727ce5fb9e5ab/643775f4a15c9a9e10426daa_Iota_Favicon_256.png</iconUrl>
 		<projectSourceUrl>https://github.com/iotaledger/iota/</projectSourceUrl>
 		<bugTrackerUrl>https://github.com/iotaledger/iota/issues</bugTrackerUrl>
