@@ -10,7 +10,7 @@ For more complete docs, visit the
 > **Note**: This package is currently supported **only in Testnet and Devnet**, it is **not yet supported in Mainnet**.
 
 This is the IOTA TypeScript SDK built on the IOTA
-[JSON RPC API](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx).
+[JSON RPC API](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx).
 It provides utility classes and functions for applications to sign transactions and interact with
 the IOTA network.
 
@@ -22,7 +22,7 @@ upcoming TestNet launch.
 
 The SDK will be published to [npm registry](https://www.npmjs.com/package/@iota/iota-sdk) with the
 same bi-weekly release cycle as the Devnet validators and
-[RPC Server](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx). To
+[RPC Server](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx). To
 use the SDK in your project, you can do:
 
 ```bash
@@ -43,7 +43,7 @@ npm install @iota/iota-sdk@experimental
 ```
 
 Refer to the
-[JSON RPC](https://github.com/iotaledger/iota/blob/main/docs/content/references/iota-api.mdx) topic
+[JSON RPC](https://github.com/iotaledger/iota/blob/develop/docs/content/references/iota-api.mdx) topic
 for instructions about how to start a local network and local RPC server.
 
 ## Building Locally
