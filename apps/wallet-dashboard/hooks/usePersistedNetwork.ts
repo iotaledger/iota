@@ -5,6 +5,7 @@ import { useIotaClientContext } from '@iota/dapp-kit';
 import { NetworkConfiguration } from '@iota/iota-sdk/client';
 import { useLocalStorage } from '@iota/core';
 import toast from 'react-hot-toast';
+import { useEffect } from 'react';
 
 export function usePersistedNetwork() {
     const clientContext = useIotaClientContext();
@@ -24,6 +25,12 @@ export function usePersistedNetwork() {
         setPersistedNetwork(network.id);
         toast.success(`Switched to ${network.name}`);
     }
+
+    useEffect(() => {
+        if (activeNetwork !== persistedNetwork) {
+            setPersistedNetwork(activeNetwork);
+        }
+    }, [persistedNetwork, activeNetwork, setPersistedNetwork]);
 
     return {
         persistedNetwork,
