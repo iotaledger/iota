@@ -11,7 +11,7 @@ import cl from 'clsx';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 
-function NFTDetailsPage() {
+export function NFTDetailsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
@@ -211,5 +211,3 @@ function NFTDetailsPage() {
         </PageTemplate>
     );
 }
-
-export default NFTDetailsPage;

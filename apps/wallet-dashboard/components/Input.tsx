@@ -10,7 +10,7 @@ interface InputProps {
     error?: string;
 }
 
-function Input({
+export function Input({
     label,
     value,
     onChange,
@@ -32,5 +32,3 @@ function Input({
         </div>
     );
 }
-
-export default Input;

@@ -42,7 +42,7 @@ const TOKEN_CATEGORIES = [
     },
 ];
 
-function MyCoins(): React.JSX.Element {
+export function MyCoins(): React.JSX.Element {
     const [selectedTokenCategory, setSelectedTokenCategory] = useState(TokenCategory.All);
     const [isSendTokenDialogOpen, setIsSendTokenDialogOpen] = useState(false);
     const [selectedCoin, setSelectedCoin] = useState<CoinBalance>();
@@ -138,5 +138,3 @@ function MyCoins(): React.JSX.Element {
         </Panel>
     );
 }
-
-export default MyCoins;
