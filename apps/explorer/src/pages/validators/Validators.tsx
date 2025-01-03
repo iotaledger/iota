@@ -24,6 +24,7 @@ import { Warning } from '@iota/ui-icons';
 function ValidatorPageResult(): JSX.Element {
     const { data, isPending, isSuccess, isError } = useIotaClientQuery('getLatestIotaSystemState');
     const numberOfValidators = data?.activeValidators.length || 0;
+
     const {
         data: validatorEvents,
         isPending: validatorsEventsLoading,
