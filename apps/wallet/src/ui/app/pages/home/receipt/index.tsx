@@ -64,7 +64,6 @@ function ReceiptPage() {
                 title={pageTitle}
                 closeOverlay={closeReceipt}
                 closeIcon={<Checkmark fill="currentColor" className="text-iota-light h-8 w-8" />}
-                showBackButton
             >
                 {isError ? (
                     <div className="mb-2 flex h-full w-full items-center justify-center p-2">
