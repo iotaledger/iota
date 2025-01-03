@@ -11,7 +11,7 @@ export interface FaucetMessageInfoProps {
     totalReceived?: number | null;
 }
 
-function FaucetMessageInfo({
+export function FaucetMessageInfo({
     error = null,
     loading = false,
     totalReceived = null,
@@ -30,5 +30,3 @@ function FaucetMessageInfo({
         <>{`${totalReceived ? `${coinsReceivedFormatted} ` : ''}${coinsReceivedSymbol} requested`}</>
     );
 }
-
-export default FaucetMessageInfo;

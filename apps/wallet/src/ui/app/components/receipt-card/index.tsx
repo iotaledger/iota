@@ -14,7 +14,7 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { CardType } from '@iota/apps-ui-kit';
 import { ValidatorLogo } from '../../staking/validators/ValidatorLogo';
 import { ExplorerLinkHelper } from '../ExplorerLinkHelper';
-import ExplorerLink from '../explorer-link';
+import { ExplorerLink } from '../explorer-link';
 
 interface ReceiptCardProps {
     txn: IotaTransactionBlockResponse;

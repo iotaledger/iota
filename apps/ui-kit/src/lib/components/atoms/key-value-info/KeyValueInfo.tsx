@@ -154,5 +154,3 @@ export function KeyValueInfo({
         </div>
     );
 }
-
-export default KeyValueInfo;
