@@ -72,12 +72,7 @@ function DisconnectApp({
         return null;
     }
     return (
-        <Overlay
-            showBackButton
-            showModal
-            setShowModal={setShowDisconnectApp}
-            title="Active Connection"
-        >
+        <Overlay showModal setShowModal={setShowDisconnectApp} title="Active Connection">
             <div className="flex max-w-full flex-1 flex-col flex-nowrap items-stretch gap-y-md">
                 <DAppInfoCard name={name} iconUrl={icon} url={link} />
 
