@@ -5,10 +5,9 @@
 import { AppType } from '_redux/slices/app/AppType';
 import { openInNewTab } from '_shared/utils';
 import { useEffect, useRef } from 'react';
+import { useAppSelector } from './useAppSelector';
 
-import useAppSelector from './useAppSelector';
-
-export default function useFullscreenGuard(enabled: boolean) {
+export function useFullscreenGuard(enabled: boolean) {
     const appType = useAppSelector((state) => state.app.appType);
     const isOpenTabInProgressRef = useRef(false);
     useEffect(() => {

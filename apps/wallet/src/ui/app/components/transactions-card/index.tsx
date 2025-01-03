@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
+import { useRecognizedPackages } from '_hooks';
 import {
     formatDate,
     getBalanceChangeSummary,

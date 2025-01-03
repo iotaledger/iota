@@ -12,8 +12,7 @@ import React, {
     useRef,
 } from 'react';
 import { toast } from 'react-hot-toast';
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { useUnlockMutation } from '../../hooks/useUnlockMutation';
+import { useUnlockMutation, useBackgroundClient } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
 
 type OnSuccessCallback = () => void | Promise<void>;

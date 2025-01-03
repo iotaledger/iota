@@ -22,9 +22,8 @@ import {
     ConnectLedgerModal,
     PageTemplate,
 } from '_components';
-import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import { useAppSelector } from '../../hooks';
-import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
+import { getLedgerConnectionErrorMessage } from '../../helpers';
+import { useAppSelector, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/AppType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
 

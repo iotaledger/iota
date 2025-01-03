@@ -14,10 +14,12 @@ import {
     PageTemplate,
     type ProtectAccountFormValues,
 } from '_components';
-import { useAccounts } from '../../hooks/useAccounts';
-import { autoLockDataToMinutes } from '../../hooks/useAutoLockMinutes';
-import { useAutoLockMinutesMutation } from '../../hooks/useAutoLockMinutesMutation';
-import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
+import {
+    useAccounts,
+    autoLockDataToMinutes,
+    useAutoLockMinutesMutation,
+    useCreateAccountsMutation,
+} from '_hooks';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';

@@ -32,11 +32,10 @@ import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { toB64 } from '@iota/iota-sdk/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
-
 import { growthbook } from '../experimentation/feature-gating';
-import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
+import { ACCOUNTS_QUERY_KEY } from '../helpers';
 import { queryClient } from '../helpers/queryClient';
-import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
+import { ACCOUNT_SOURCES_QUERY_KEY } from '_hooks';
 import { AccountSourceType } from '_src/background/account-sources/AccountSource';
 import {
     type DeriveBipPathAccountsFinder,

@@ -11,9 +11,8 @@ import {
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
+import { useActiveAddress, useGetNFTs } from '_hooks';
 import { Loading, NoData, PageTemplate } from '_components';
-import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HiddenAssets } from './HiddenAssets';
 import { NonVisualAssets } from './NonVisualAssets';

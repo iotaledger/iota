@@ -11,12 +11,13 @@ import { toB64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { throttle } from 'throttle-debounce';
-
 import { useIotaLedgerClient } from './components/ledger/IotaLedgerClientProvider';
-import { useAccounts } from './hooks/useAccounts';
-import { useAutoLockMinutes } from './hooks/useAutoLockMinutes';
-import { useBackgroundClient } from './hooks/useBackgroundClient';
-import { useInitialPageView } from './hooks/useInitialPageView';
+import {
+    useAutoLockMinutes,
+    useBackgroundClient,
+    useInitialPageView,
+    useStorageMigrationStatus,
+} from './hooks';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
 import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
@@ -55,7 +56,6 @@ import { SiteConnectPage } from './pages/site-connect';
 import { AppType } from './redux/slices/app/AppType';
 import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
-import { useStorageMigrationStatus } from './hooks/useStorageMigrationStatus';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 
 const HIDDEN_MENU_PATHS = [

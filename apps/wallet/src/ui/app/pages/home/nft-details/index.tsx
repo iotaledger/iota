@@ -2,9 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
+import { useActiveAddress, useUnlockedGuard } from '_hooks';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
-import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
