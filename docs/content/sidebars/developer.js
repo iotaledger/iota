@@ -290,6 +290,14 @@ const developer = [
     },
     {
         type: 'category',
+        label: 'Tutorials',
+        items: [
+            'developer/tutorials/sponsored-txs',
+        ]
+
+    },
+    {
+        type: 'category',
         label: 'Capture The Flag',
         link: {
             type: 'doc',
