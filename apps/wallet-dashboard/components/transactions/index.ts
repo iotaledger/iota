@@ -1,8 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export { default as TransactionAmount } from './TransactionAmount';
-export { default as TransactionSummary } from './TransactionSummary';
+export * from './TransactionAmount';
+export * from './TransactionSummary';
 export * from './TransactionTile';
-export { default as TransactionsList } from './TransactionsList';
-export { default as TransactionsOverview } from './TransactionsOverview';
+export * from './TransactionsList';
+export * from './TransactionsOverview';
