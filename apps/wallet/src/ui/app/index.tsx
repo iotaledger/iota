@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAppDispatch, useAppSelector } from '_hooks';
 import { setNavVisibility } from '_redux/slices/app';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
 import { persistableStorage } from '_src/shared/analytics/amplitude';
@@ -17,6 +16,9 @@ import {
     useBackgroundClient,
     useInitialPageView,
     useStorageMigrationStatus,
+    useAccounts,
+    useAppDispatch,
+    useAppSelector,
 } from './hooks';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
