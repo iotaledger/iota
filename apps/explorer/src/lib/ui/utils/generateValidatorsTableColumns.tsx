@@ -205,7 +205,6 @@ export function generateValidatorsTableColumns({
                 const atRiskValidator = atRiskValidators.find(
                     ([address]) => address === validator.iotaAddress,
                 );
-                console.log('validator', validator);
                 const isAtRisk = !!atRiskValidator;
                 const atRisk = isAtRisk
                     ? VALIDATOR_LOW_STAKE_GRACE_PERIOD - Number(atRiskValidator[1])
