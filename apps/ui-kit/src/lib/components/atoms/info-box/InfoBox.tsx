@@ -3,8 +3,8 @@
 
 import React from 'react';
 import cx from 'classnames';
-import { InfoBoxStyle, InfoBoxType } from './info-box.enums';
-import { BACKGROUND_COLORS, ICON_COLORS } from './info-box.classes';
+import { InfoBoxStyle, InfoBoxType } from './infoBox.enums';
+import { BACKGROUND_COLORS, ICON_COLORS } from './infoBox.classes';
 
 export interface InfoBoxProps {
     /**

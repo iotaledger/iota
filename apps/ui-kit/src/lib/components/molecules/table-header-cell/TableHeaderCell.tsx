@@ -4,7 +4,7 @@ import React from 'react';
 import { SortByDown, SortByUp } from '@iota/ui-icons';
 import cx from 'classnames';
 import { Checkbox } from '@/lib';
-import { TableHeaderCellSortOrder } from './table-header-cell.enums';
+import { TableHeaderCellSortOrder } from './tableHeaderCell.enums';
 
 export interface TableHeaderCellProps {
     /**

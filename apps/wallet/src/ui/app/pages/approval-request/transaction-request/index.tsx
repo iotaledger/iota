@@ -4,7 +4,7 @@
 
 import { ExplorerLinkHelper, UserApproveContainer } from '_components';
 import { useActiveAddress, useAppDispatch, useTransactionData, useTransactionDryRun } from '_hooks';
-import { type TransactionApprovalRequest } from '_payloads/transactions/ApprovalRequest';
+import { type TransactionApprovalRequest } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { respondToTransactionRequest } from '_redux/slices/transaction-requests';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useAccountByAddress } from '_src/ui/app/hooks/useAccountByAddress';

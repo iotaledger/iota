@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { toast } from 'react-hot-toast';
 
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';

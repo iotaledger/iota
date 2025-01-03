@@ -21,8 +21,8 @@ import {
 import { useFormatCoin, getLabel, useTransactionSummary } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
-import { TransactionDetailsLayout } from '../Dialogs/transaction/TransactionDetailsLayout';
-import { DialogLayout } from '../Dialogs/layout';
+import { TransactionDetailsLayout } from '../dialogs/transaction/TransactionDetailsLayout';
+import { DialogLayout } from '../dialogs/layout';
 
 interface TransactionTileProps {
     transaction: ExtendedTransaction;

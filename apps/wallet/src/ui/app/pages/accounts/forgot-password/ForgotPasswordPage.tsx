@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type PasswordRecoveryData } from '_src/shared/messaging/messages/payloads/MethodPayload';
+import { type PasswordRecoveryData } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { createContext, useCallback, useContext, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 

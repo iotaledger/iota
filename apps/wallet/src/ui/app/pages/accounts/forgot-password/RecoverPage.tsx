@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAccountSources } from '../../../hooks/useAccountSources';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { PageTemplate } from '_src/ui/app/components/PageTemplate';
 
 export function RecoverPage() {

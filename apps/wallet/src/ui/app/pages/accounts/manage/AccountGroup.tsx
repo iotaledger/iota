@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
 import { useAccountSources } from '_src/ui/app/hooks/useAccountSources';
 import { useCreateAccountsMutation } from '_src/ui/app/hooks/useCreateAccountMutation';
