@@ -33,6 +33,8 @@ import {
     Button,
     ButtonType,
     LoadingIndicator,
+    LabelText,
+    LabelTextSize,
 } from '@iota/apps-ui-kit';
 import {
     Theme,
@@ -150,6 +152,11 @@ export default function VestingDashboardPage(): JSX.Element {
         IOTA_TYPE_ARG,
     );
 
+    const [formattedAvailableStaking, availableStakingSymbol] = useFormatCoin(
+        supplyIncreaseVestingSchedule.availableStaking,
+        IOTA_TYPE_ARG,
+    );
+
     function handleOnSuccess(digest: string): void {
         setTimelockedObjectsToUnstake(null);
 
@@ -221,7 +228,7 @@ export default function VestingDashboardPage(): JSX.Element {
                     <Panel>
                         <Title title="Vesting" size={TitleSize.Medium} />
                         <div className="flex flex-col gap-md p-lg pt-sm">
-                            <div className="flex h-24 flex-row gap-4">
+                            <div className="flex h-24 flex-row gap-md">
                                 <DisplayStats
                                     label="Total Vested"
                                     value={formattedTotalVested}
@@ -320,8 +327,8 @@ export default function VestingDashboardPage(): JSX.Element {
                                 }
                             />
 
-                            <div className="flex flex-col px-lg py-sm">
-                                <div className="flex flex-row gap-md">
+                            <div className="flex flex-col gap-y-md px-lg py-sm">
+                                <div className="flex flex-row gap-x-md">
                                     <DisplayStats
                                         label="Your stake"
                                         value={`${totalStakedFormatted} ${totalStakedSymbol}`}
@@ -330,6 +337,21 @@ export default function VestingDashboardPage(): JSX.Element {
                                         label="Earned"
                                         value={`${totalEarnedFormatted} ${totalEarnedSymbol}`}
                                     />
+                                </div>
+                                <div className="flex w-full">
+                                    <Card type={CardType.Filled}>
+                                        <CardBody
+                                            title=""
+                                            subtitle={
+                                                <LabelText
+                                                    size={LabelTextSize.Large}
+                                                    label="Available for staking"
+                                                    text={formattedAvailableStaking}
+                                                    supportingLabel={availableStakingSymbol}
+                                                />
+                                            }
+                                        />
+                                    </Card>
                                 </div>
                             </div>
                             <div className="flex flex-col px-lg py-sm">
