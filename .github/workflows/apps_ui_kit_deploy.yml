@@ -89,4 +89,3 @@ jobs:
                 body: `**${commentTag}**\n\nThis pull request has been deployed to Vercel.\n\nLatest commit: ${COMMIT_SHA}\n\n:white_check_mark: Preview: ${DEPLOY_URL}`
               });
             }
-
