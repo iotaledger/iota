@@ -9,7 +9,7 @@ interface ButtonProps {
     disabled?: boolean;
 }
 
-function Button({ onClick, children, disabled }: ButtonProps): JSX.Element {
+export function Button({ onClick, children, disabled }: ButtonProps): JSX.Element {
     return (
         <button
             onClick={onClick}
@@ -20,5 +20,3 @@ function Button({ onClick, children, disabled }: ButtonProps): JSX.Element {
         </button>
     );
 }
-
-export default Button;

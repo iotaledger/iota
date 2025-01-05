@@ -47,7 +47,7 @@ function AddressResult({ address }: { address: string }): JSX.Element {
     );
 }
 
-export default function AddressResultPage(): JSX.Element {
+export function AddressResultPage(): JSX.Element {
     const { id } = useParams();
 
     return (

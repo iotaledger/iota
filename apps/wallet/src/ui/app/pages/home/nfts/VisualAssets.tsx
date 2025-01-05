@@ -15,7 +15,7 @@ interface VisualAssetsProps {
     items: IotaObjectData[];
 }
 
-export default function VisualAssets({ items }: VisualAssetsProps) {
+export function VisualAssets({ items }: VisualAssetsProps) {
     const { hideAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
 
