@@ -12,7 +12,7 @@ import {
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { ExplorerLinkHelper } from '../ExplorerLinkHelper';
-import ExplorerLink from '../explorer-link';
+import { ExplorerLink } from '../explorer-link';
 
 interface ReceiptCardProps {
     txn: IotaTransactionBlockResponse;

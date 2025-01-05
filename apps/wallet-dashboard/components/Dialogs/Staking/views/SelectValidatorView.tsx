@@ -15,7 +15,7 @@ interface SelectValidatorViewProps {
     handleClose: () => void;
 }
 
-function SelectValidatorView({
+export function SelectValidatorView({
     validators,
     onSelect,
     onNext,
@@ -52,5 +52,3 @@ function SelectValidatorView({
         </DialogLayout>
     );
 }
-
-export default SelectValidatorView;

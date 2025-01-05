@@ -7,7 +7,7 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-function CoinsSelectorPage() {
+export function CoinsSelectorPage() {
     const [searchParams] = useSearchParams();
     const coinType = searchParams.get('type') || IOTA_TYPE_ARG;
     const navigate = useNavigate();
@@ -32,5 +32,3 @@ function CoinsSelectorPage() {
         </Overlay>
     );
 }
-
-export default CoinsSelectorPage;
