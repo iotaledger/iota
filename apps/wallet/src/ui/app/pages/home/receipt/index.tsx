@@ -12,7 +12,7 @@ import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useGetTransaction } from '@iota/core';
 
-function ReceiptPage() {
+export function ReceiptPage() {
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const [showModal, setShowModal] = useState(true);
@@ -64,7 +64,6 @@ function ReceiptPage() {
                 title={pageTitle}
                 closeOverlay={closeReceipt}
                 closeIcon={<Checkmark fill="currentColor" className="text-iota-light h-8 w-8" />}
-                showBackButton
             >
                 {isError ? (
                     <div className="mb-2 flex h-full w-full items-center justify-center p-2">
@@ -83,5 +82,3 @@ function ReceiptPage() {
         </Loading>
     );
 }
-
-export default ReceiptPage;

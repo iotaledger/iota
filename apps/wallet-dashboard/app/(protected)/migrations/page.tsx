@@ -7,7 +7,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { useGetStardustMigratableObjects } from '@/hooks';
-import { summarizeMigratableObjectValues, summarizeUnmigratableObjectValues } from '@/lib/utils';
+import { summarizeMigratableObjectValues, summarizeTimelockedObjectValues } from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -25,12 +25,14 @@ import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } f
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { StardustOutputMigrationStatus } from '@/lib/enums';
 import { MigrationObjectsPanel, MigrationDialog } from '@/components';
+import { useRouter } from 'next/navigation';
 
 function MigrationDashboardPage(): JSX.Element {
     const account = useCurrentAccount();
     const address = account?.address || '';
     const queryClient = useQueryClient();
     const iotaClient = useIotaClient();
+    const router = useRouter();
     const [isMigrationDialogOpen, setIsMigrationDialogOpen] = useState(false);
     const [selectedStardustObjectsCategory, setSelectedStardustObjectsCategory] = useState<
         StardustOutputMigrationStatus | undefined
@@ -41,8 +43,8 @@ function MigrationDashboardPage(): JSX.Element {
     const {
         migratableBasicOutputs,
         migratableNftOutputs,
-        unmigratableBasicOutputs,
-        unmigratableNftOutputs,
+        timelockedBasicOutputs,
+        timelockedNftOutputs,
     } = stardustMigrationObjects || {};
 
     const {
@@ -54,9 +56,9 @@ function MigrationDashboardPage(): JSX.Element {
         nftOutputs: migratableNftOutputs,
         address,
     });
-    const { totalUnmigratableObjects } = summarizeUnmigratableObjectValues({
-        basicOutputs: unmigratableBasicOutputs,
-        nftOutputs: unmigratableNftOutputs,
+    const { totalTimelockedObjects } = summarizeTimelockedObjectValues({
+        basicOutputs: timelockedBasicOutputs,
+        nftOutputs: timelockedNftOutputs,
     });
 
     const hasMigratableObjects =
@@ -106,7 +108,7 @@ function MigrationDashboardPage(): JSX.Element {
 
     const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCardProps[] = [
         {
-            title: `${totalUnmigratableObjects}`,
+            title: `${totalTimelockedObjects}`,
             subtitle: 'Time-locked',
             icon: Clock,
         },
@@ -123,8 +125,8 @@ function MigrationDashboardPage(): JSX.Element {
                 selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
             ) {
                 return [
-                    ...stardustMigrationObjects.unmigratableBasicOutputs,
-                    ...stardustMigrationObjects.unmigratableNftOutputs,
+                    ...stardustMigrationObjects.timelockedBasicOutputs,
+                    ...stardustMigrationObjects.timelockedNftOutputs,
                 ];
             }
         }
@@ -137,6 +139,11 @@ function MigrationDashboardPage(): JSX.Element {
 
     function handleCloseDetailsPanel() {
         setSelectedStardustObjectsCategory(undefined);
+    }
+
+    function handleMigrationDialogClose() {
+        setIsMigrationDialogOpen(false);
+        router.push('/');
     }
 
     return (
@@ -159,6 +166,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 selectedStardustObjectsCategory ===
                                 StardustOutputMigrationStatus.TimeLocked
                             }
+                            handleClose={handleMigrationDialogClose}
                         />
                     )}
                     <Panel>
@@ -216,7 +224,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 disabled={
                                     selectedStardustObjectsCategory ===
                                         StardustOutputMigrationStatus.TimeLocked ||
-                                    !totalUnmigratableObjects
+                                    !totalTimelockedObjects
                                 }
                                 onClick={() =>
                                     setSelectedStardustObjectsCategory(

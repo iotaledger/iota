@@ -20,7 +20,6 @@ const FeedbackForm = () => {
 
   return (
     <div className="feedback-container">
-      <div className="divider"></div>
       <div className={clsx("h3", "feedback-header")}>Feedback Form</div>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -54,7 +53,6 @@ const FeedbackForm = () => {
           Submit Feedback
         </button>
       </form>
-      <div className="divider"></div>
     </div>
   );
 };

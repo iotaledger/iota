@@ -68,14 +68,16 @@ jobs:
     secrets: inherit
     with:
       isProd: false
+      isStaging: false
 
-  wallet-dashboard-prod:
-    name: Vercel Wallet Dashboard Production
+  wallet-dashboard-staging:
+    name: Vercel Wallet Dashboard Staging
     if: github.ref_name == 'develop'
     uses: ./.github/workflows/apps_wallet_dashboard_deploy.yml
     secrets: inherit
     with:
-      isProd: true
+      isProd: false
+      isStaging: true
 
   apps-backend-preview:
     name: Vercel apps-backend Preview
