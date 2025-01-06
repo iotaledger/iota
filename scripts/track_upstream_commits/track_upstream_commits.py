@@ -79,7 +79,7 @@ def get_crates_for_code_owner(file_path, code_owner):
 # Get the commits of a crate in the specified range
 def get_crate_commits(crate, start_commit, end_commit):
     # Define the git log command
-    git_log_command = ["git", "log", f"{start_commit}..={end_commit}", "--format=format:https://github.com/MystenLabs/sui/commit/%H", "--", crate]
+    git_log_command = ["git", "log", f"{start_commit}..{end_commit}", "--format=format:https://github.com/MystenLabs/sui/commit/%H", "--", crate]
     # Execute the git log command and collect the output
     result = subprocess.run(git_log_command, capture_output=True, text=True)
     git_log_output = result.stdout.strip().split('\n') if result.stdout.strip() else []
