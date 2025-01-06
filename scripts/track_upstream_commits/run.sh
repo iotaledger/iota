@@ -1,8 +1,8 @@
 #!/bin/bash
 # OPTIONS:
 #   -h, --help            show this help message and exit
-#   --since SINCE         Start date for git log (e.g., "2024-09-05").
-#   --until UNTIL         End date for git log (e.g., "2024-10-26").
+#   --since SINCE         Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc").
+#   --until UNTIL         End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e").
 #   --codeowner CODEOWNER
 #                         code owner of the crates (e.g., "core-node)
 #   --repo-url REPO_URL   The URL to the repository. Can also be a local folder.

@@ -77,9 +77,9 @@ def get_crates_for_code_owner(file_path, code_owner):
     return matched_crates
     
 # Get the first and last commit of the specified range
-def get_commit_range(since, until, crates):
+def get_commit_range(start_commit, end_commit, crates):
     # Define the git log command
-    git_log_command = ["git", "log", f"--since={since}", f"--until={until}", "--format=format:%H", "--"]
+    git_log_command = ["git", "log", f"{start_commit}..={end_commit}", "--format=format:%H", "--"]
     git_log_command.extend(crates)
 
     # Execute the git log command and collect the output
@@ -90,23 +90,23 @@ def get_commit_range(since, until, crates):
     print(f"Last commit: {git_log_output[0]}")
 
 # Get the commits of a crate in the specified range
-def get_crate_commits(crate, since, until):
+def get_crate_commits(crate, start_commit, end_commit):
     # Define the git log command
-    git_log_command = ["git", "log", f"--since={since}", f"--until={until}", "--format=format:https://github.com/MystenLabs/sui/commit/%H", "--", crate]
+    git_log_command = ["git", "log", f"{start_commit}..={end_commit}", "--format=format:https://github.com/MystenLabs/sui/commit/%H", "--", crate]
     # Execute the git log command and collect the output
     result = subprocess.run(git_log_command, capture_output=True, text=True)
     git_log_output = result.stdout.strip().split('\n') if result.stdout.strip() else []
 
     return git_log_output
 
-def analyze_crate_commits(since, until, crates):
-    print(f"SINCE: {since}")
-    print(f"UNTIL: {until}")
+def analyze_crate_commits(start_commit, end_commit, crates):
+    print(f"SINCE: {start_commit}")
+    print(f"UNTIL: {end_commit}")
     print(f"CRATES: {', '.join(crates)}")
     # Only insert non-empty lists into crates_commits
     crates_commits = {}
     for crate in crates:
-        commits = get_crate_commits(crate, since, until)
+        commits = get_crate_commits(crate, start_commit, end_commit)
         if commits: 
             crates_commits[crate] = commits
 
@@ -138,8 +138,8 @@ def analyze_crate_commits(since, until, crates):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Track upstream commits for specified crates.')
-    parser.add_argument('--since', required=True, help='Start date for git log (e.g., "2024-09-05").')
-    parser.add_argument('--until', required=True, help='End date for git log (e.g., "2024-10-26").')
+    parser.add_argument('--since', required=True, help='Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc").')
+    parser.add_argument('--until', required=True, help='End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"), it is included in the results.')
     parser.add_argument('--codeowner', required=True, help='code owner of the crates (e.g., "core-node)')
     parser.add_argument('--repo-url', default="git@github.com:MystenLabs/sui.git", help="The URL to the repository. Can also be a local folder.")
     parser.add_argument('--repo-tag', default=None, help="The tag to checkout in the repository.")
