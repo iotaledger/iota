@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 2;
+pub const MAX_PROTOCOL_VERSION: u64 = 3;
 
 // Record history of protocol version allocations here:
 //
@@ -39,10 +39,10 @@ impl ProtocolVersion {
     #[cfg(not(msim))]
     const MAX_ALLOWED: Self = Self::MAX;
 
-    // We create 3 additional "fake" versions in simulator builds so that we can
+    // We create 2 additional "fake" versions in simulator builds so that we can
     // test upgrades.
     #[cfg(msim)]
-    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 3);
+    pub const MAX_ALLOWED: Self = Self(MAX_PROTOCOL_VERSION + 2);
 
     pub fn new(v: u64) -> Self {
         Self(v)
@@ -559,6 +559,9 @@ pub struct ProtocolConfig {
     // than a per-byte cost. checking an object lock should not require loading an
     // entire object, just consulting an ID -> tx digest map
     obj_access_cost_verify_per_byte: Option<u64>,
+
+    // Maximal nodes which are allowed when converting to a type layout.
+    max_type_to_layout_nodes: Option<u64>,
 
     /// === Gas version. gas model ===
 
@@ -1238,6 +1241,7 @@ impl ProtocolConfig {
             max_num_transferred_move_object_ids_system_tx: Some(2048 * 16),
             max_event_emit_size: Some(250 * 1024),
             max_move_vector_len: Some(256 * 1024),
+            max_type_to_layout_nodes: None,
 
             max_back_edges_per_function: Some(10_000),
             max_back_edges_per_module: Some(10_000),
@@ -1639,6 +1643,9 @@ impl ProtocolConfig {
                 1 => unreachable!(),
                 // version 2 is a new framework version but with no config changes
                 2 => {}
+                3 => {
+                    cfg.max_type_to_layout_nodes = Some(512);
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
