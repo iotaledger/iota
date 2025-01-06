@@ -12,7 +12,7 @@ use regex::Regex;
 
 use crate::{
     gas_algebra::AbstractMemorySize,
-    identifier::{IdentStr, Identifier, ALLOWED_IDENTIFIERS, ALLOWED_NO_SELF_IDENTIFIERS},
+    identifier::{ALLOWED_IDENTIFIERS, ALLOWED_NO_SELF_IDENTIFIERS, IdentStr, Identifier},
 };
 
 #[test]
@@ -70,6 +70,7 @@ fn invalid_identifiers() {
 }
 
 #[test]
+#[ignore = "ignored until https://github.com/MystenLabs/sui/pull/19446 is merged"]
 fn invalid_identifier_deser() {
     let invalid_identifiers = [
         "",
