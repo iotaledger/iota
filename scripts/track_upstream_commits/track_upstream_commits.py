@@ -114,12 +114,12 @@ def analyze_crate_commits(start_commit, end_commit, crates):
     for crate, commits in crates_commits.items():
         if commits:
             print(f"\n\n## {crate} ({len(commits)})")
-            for commit in commits:
+            for commit in reversed(commits):
                 print(f"- {commit}")
 
     # Print the duplicate commits
     print(f"\n\n## Cross-crate commits ({len(duplicate_commits)})")
-    for commit in duplicate_commits:
+    for commit in reversed(list(duplicate_commits)):
         print(f"- {commit}")
 
 
