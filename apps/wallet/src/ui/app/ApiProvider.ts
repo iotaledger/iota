@@ -17,7 +17,7 @@ const ACCOUNT_TYPES_WITH_BACKGROUND_SIGNER: AccountType[] = [
     AccountType.PrivateKeyDerived,
 ];
 
-export default class ApiProvider {
+class ApiProvider {
     private _apiFullNodeProvider?: IotaClient;
     private _signerByAddress: Map<string, WalletSigner> = new Map();
     network = getDefaultNetwork();

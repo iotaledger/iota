@@ -7,7 +7,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { type CoinBalanceVerified } from './OwnedCoins';
-import CoinsPanel from './OwnedCoinsPanel';
+import { CoinsPanel } from './OwnedCoinsPanel';
 import {
     Card,
     CardAction,
@@ -24,7 +24,7 @@ type OwnedCoinViewProps = {
     id: string;
 };
 
-export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
+export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
     const isIotaCoin = coin.coinType === IOTA_TYPE_ARG;
     const [areCoinDetailsOpen, setAreCoinDetailsOpen] = useState<boolean>(isIotaCoin);
     const [formattedTotalBalance, symbol] = useFormatCoin(coin.totalBalance, coin.coinType);

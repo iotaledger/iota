@@ -15,7 +15,7 @@ import { appDisconnect } from './actions';
 import { Link } from '@iota/ui-icons';
 import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 
-function DappStatus() {
+function DappStatusComponent() {
     const dispatch = useAppDispatch();
     const activeOriginUrl = useAppSelector(({ app }) => app.activeOrigin);
     const activeOrigin = useMemo(() => {
@@ -147,4 +147,4 @@ function DappStatus() {
     );
 }
 
-export default memo(DappStatus);
+export const DappStatus = memo(DappStatusComponent);
