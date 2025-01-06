@@ -391,15 +391,15 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-    /// Switch active address and network(e.g., devnet, local rpc server).
+    /// Switch active address and env (e.g. testnet, devnet, localnet, ...).
     #[clap(name = "switch")]
     Switch {
         /// An address to be used as the active address for subsequent
         /// commands. It accepts also the alias of the address.
         #[clap(long)]
         address: Option<KeyIdentity>,
-        /// The RPC server URL (e.g., local rpc server, devnet rpc server, etc)
-        /// to be used for subsequent commands.
+        /// The alias of the env (e.g. testnet, devnet, localnet, ...) to be
+        /// used for subsequent commands.
         #[clap(long)]
         env: Option<String>,
     },

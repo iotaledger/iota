@@ -14,10 +14,10 @@ import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { useGetCurrentEpochStartTimestamp, useNewStakeTimelockedTransaction } from '@/hooks';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
-import EnterAmountDialogLayout from './EnterAmountDialogLayout';
+import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import toast from 'react-hot-toast';
 
-export interface FormValues {
+interface FormValues {
     amount: string;
 }
 
@@ -31,7 +31,7 @@ interface EnterTimelockedAmountViewProps {
     onSuccess: (digest: string) => void;
 }
 
-function EnterTimelockedAmountView({
+export function EnterTimelockedAmountView({
     selectedValidator,
     maxStakableTimelockedAmount,
     amountWithoutDecimals,
@@ -119,5 +119,3 @@ function EnterTimelockedAmountView({
         />
     );
 }
-
-export default EnterTimelockedAmountView;

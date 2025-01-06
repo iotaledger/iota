@@ -35,7 +35,7 @@ enum EpochTabs {
     Validators = 'validators',
 }
 
-export default function EpochDetail() {
+export function EpochDetail() {
     const [activeTabId, setActiveTabId] = useState(EpochTabs.Checkpoints);
     const { id } = useParams();
     const enhancedRpc = useEnhancedRpcClient();

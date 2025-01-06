@@ -22,7 +22,7 @@ import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayou
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/ui-icons';
 
-function SiteConnectPage() {
+export function SiteConnectPage() {
     const { requestID } = useParams();
     const permissionsInitialized = useAppSelector(({ permissions }) => permissions.initialized);
     const loading = !permissionsInitialized;
@@ -177,5 +177,3 @@ function SiteConnectPage() {
         </Loading>
     );
 }
-
-export default SiteConnectPage;
