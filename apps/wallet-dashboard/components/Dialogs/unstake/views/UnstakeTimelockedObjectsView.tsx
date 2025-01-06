@@ -4,7 +4,7 @@
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Validator } from '../../Staking/views/Validator';
-import { useNewUnstakeTimelockedTransaction, useNotifications } from '@/hooks';
+import { useNewUnstakeTimelockedTransaction } from '@/hooks';
 import {
     Collapsible,
     TimeUnit,
@@ -24,7 +24,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
-import { NotificationType } from '@/stores/notificationStore';
+import toast from 'react-hot-toast';
 
 interface UnstakeTimelockedObjectsViewProps {
     onClose: () => void;
@@ -39,7 +39,6 @@ export function UnstakeTimelockedObjectsView({
     onBack,
     onSuccess,
 }: UnstakeTimelockedObjectsViewProps) {
-    const { addNotification } = useNotifications();
     const activeAddress = useCurrentAccount()?.address ?? '';
     const { data: activeValidators } = useGetActiveValidatorsInfo();
 
@@ -71,7 +70,7 @@ export function UnstakeTimelockedObjectsView({
     );
 
     function handleCopySuccess() {
-        addNotification('Copied to clipboard');
+        toast.success('Copied to clipboard');
     }
 
     async function handleUnstake(): Promise<void> {
@@ -83,12 +82,12 @@ export function UnstakeTimelockedObjectsView({
             },
             {
                 onSuccess: (tx) => {
-                    addNotification('Unstake transaction has been sent');
+                    toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
                 },
             },
         ).catch(() => {
-            addNotification('Unstake transaction was not sent', NotificationType.Error);
+            toast.error('Unstake transaction was not sent');
         });
     }
 
