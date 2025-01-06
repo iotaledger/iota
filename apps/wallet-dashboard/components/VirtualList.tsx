@@ -19,7 +19,7 @@ interface VirtualListProps<T> {
     overflowClassName?: string;
 }
 
-function VirtualList<T>({
+export function VirtualList<T>({
     items,
     hasNextPage = false,
     isFetchingNextPage = false,
@@ -98,5 +98,3 @@ function VirtualList<T>({
         </div>
     );
 }
-
-export default VirtualList;

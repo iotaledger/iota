@@ -7,7 +7,7 @@ import cn from 'clsx';
 import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector } from '../../hooks';
 import { AppType } from '../../redux/slices/app/AppType';
-import DappStatus from '../dapp-status';
+import { DappStatus } from '../dapp-status';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
