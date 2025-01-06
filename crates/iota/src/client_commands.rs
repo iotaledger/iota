@@ -381,15 +381,15 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-    /// Switch active address and network(e.g., devnet, local rpc server).
+    /// Switch active address and env (e.g. testnet, devnet, localnet, ...).
     #[clap(name = "switch")]
     Switch {
         /// An address to be used as the active address for subsequent
         /// commands. It accepts also the alias of the address.
         #[clap(long)]
         address: Option<KeyIdentity>,
-        /// The RPC server URL (e.g., local rpc server, devnet rpc server, etc)
-        /// to be used for subsequent commands.
+        /// The alias of the env (e.g. testnet, devnet, localnet, ...) to be
+        /// used for subsequent commands.
         #[clap(long)]
         env: Option<String>,
     },
@@ -1688,8 +1688,7 @@ impl IotaClientCommands {
                 IotaClientCommandResult::NoOutput
             }
         };
-        let client = context.get_client().await?;
-        Ok(ret.prerender_clever_errors(client.read_api()).await)
+        Ok(ret.prerender_clever_errors(context).await)
     }
 
     pub fn switch_env(config: &mut IotaClientConfig, env: &str) -> Result<(), anyhow::Error> {
@@ -2349,14 +2348,16 @@ impl IotaClientCommandResult {
         }
     }
 
-    pub async fn prerender_clever_errors(mut self, read_api: &ReadApi) -> Self {
+    pub async fn prerender_clever_errors(mut self, context: &mut WalletContext) -> Self {
         match &mut self {
             IotaClientCommandResult::DryRun(DryRunTransactionBlockResponse { effects, .. })
             | IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: Some(effects),
                 ..
-            }) => prerender_clever_errors(effects, read_api).await,
-
+            }) => {
+                let client = context.get_client().await.expect("Cannot connect to RPC");
+                prerender_clever_errors(effects, client.read_api()).await
+            }
             IotaClientCommandResult::TransactionBlock(IotaTransactionBlockResponse {
                 effects: None,
                 ..
@@ -2742,7 +2743,7 @@ fn format_balance(
 
 /// Helper function to reduce code duplication for executing dry run
 pub async fn execute_dry_run(
-    client: &IotaClient,
+    context: &mut WalletContext,
     signer: IotaAddress,
     kind: TransactionKind,
     gas_budget: Option<u64>,
@@ -2750,9 +2751,10 @@ pub async fn execute_dry_run(
     gas_payment: Option<Vec<ObjectID>>,
     sponsor: Option<IotaAddress>,
 ) -> Result<IotaClientCommandResult, anyhow::Error> {
+    let client = context.get_client().await?;
     let gas_budget = match gas_budget {
         Some(gas_budget) => gas_budget,
-        None => max_gas_budget(client).await?,
+        None => max_gas_budget(&client).await?,
     };
     let dry_run_tx_data = client
         .transaction_builder()
@@ -2764,7 +2766,7 @@ pub async fn execute_dry_run(
         .await
         .map_err(|e| anyhow!("Dry run failed: {e}"))?;
     let resp = IotaClientCommandResult::DryRun(response)
-        .prerender_clever_errors(client.read_api())
+        .prerender_clever_errors(context)
         .await;
     Ok(resp)
 }
@@ -2780,15 +2782,16 @@ pub async fn execute_dry_run(
 /// This gas estimate is computed exactly as in the TypeScript SDK
 /// <https://github.com/iotaledger/iota/blob/3c4369270605f78a243842098b7029daf8d883d9/sdk/typescript/src/transactions/TransactionBlock.ts#L845-L858>
 pub async fn estimate_gas_budget(
-    client: &IotaClient,
+    context: &mut WalletContext,
     signer: IotaAddress,
     kind: TransactionKind,
     gas_price: u64,
     gas_payment: Option<Vec<ObjectID>>,
     sponsor: Option<IotaAddress>,
 ) -> Result<u64, anyhow::Error> {
+    let client = context.get_client().await?;
     let Ok(IotaClientCommandResult::DryRun(dry_run)) =
-        execute_dry_run(client, signer, kind, None, gas_price, gas_payment, sponsor).await
+        execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await
     else {
         bail!(
             "Could not automatically determine the gas budget. Please supply one using the --gas-budget flag."
@@ -2866,7 +2869,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     let client = context.get_client().await?;
     if dry_run {
         return execute_dry_run(
-            &client,
+            context,
             signer,
             tx_kind,
             gas_budget,
@@ -2881,7 +2884,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         Some(gas_budget) => gas_budget,
         None => {
             estimate_gas_budget(
-                &client,
+                context,
                 signer,
                 tx_kind.clone(),
                 gas_price,

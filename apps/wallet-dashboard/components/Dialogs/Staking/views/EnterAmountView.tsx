@@ -7,7 +7,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { useNewStakeTransaction } from '@/hooks';
-import EnterAmountDialogLayout from './EnterAmountDialogLayout';
+import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
 import toast from 'react-hot-toast';
 
 export interface FormValues {
@@ -24,7 +24,7 @@ interface EnterAmountViewProps {
     onSuccess: (digest: string) => void;
 }
 
-function EnterAmountView({
+export function EnterAmountView({
     selectedValidator,
     onBack,
     handleClose,
@@ -99,5 +99,3 @@ function EnterAmountView({
         />
     );
 }
-
-export default EnterAmountView;

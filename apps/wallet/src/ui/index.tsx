@@ -22,8 +22,7 @@ import { Fragment, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { HashRouter } from 'react-router-dom';
-
-import App from './app';
+import { App } from './app';
 import { walletApiProvider } from './app/ApiProvider';
 import { AccountsFormProvider } from './app/components/accounts/AccountsFormContext';
 import { UnlockAccountProvider } from './app/components/accounts/UnlockAccountContext';
