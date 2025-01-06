@@ -209,8 +209,7 @@ impl WalletContext {
     }
 
     /// Get the [`ObjectRef`] for gas objects owned by the provided address.
-    /// Maximum is RPC_QUERY_MAX_RESULT_LIMIT (50 by
-    /// default).
+    /// Maximum is RPC_QUERY_MAX_RESULT_LIMIT (50 by default).
     pub async fn get_all_gas_objects_owned_by_address(
         &self,
         address: IotaAddress,
