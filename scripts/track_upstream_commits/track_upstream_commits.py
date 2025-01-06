@@ -75,19 +75,6 @@ def get_crates_for_code_owner(file_path, code_owner):
                 break
     
     return matched_crates
-    
-# Get the first and last commit of the specified range
-def get_commit_range(start_commit, end_commit, crates):
-    # Define the git log command
-    git_log_command = ["git", "log", f"{start_commit}..={end_commit}", "--format=format:%H", "--"]
-    git_log_command.extend(crates)
-
-    # Execute the git log command and collect the output
-    result = subprocess.run(git_log_command, capture_output=True, text=True)
-    git_log_output = result.stdout.strip().split('\n')
-
-    print(f"First commit: {git_log_output[-1]}")
-    print(f"Last commit: {git_log_output[0]}")
 
 # Get the commits of a crate in the specified range
 def get_crate_commits(crate, start_commit, end_commit):
@@ -180,9 +167,6 @@ if __name__ == '__main__':
     else:
         # Change working directory to the target folder
         os.chdir(target_folder)
-
-    # Get the commit range
-    get_commit_range(args.since, args.until, crates)
 
     # Analyze the commits of the crates
     analyze_crate_commits(args.since, args.until, crates)
