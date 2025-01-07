@@ -12,7 +12,7 @@ use iota_sdk::types::{
         output::{
             AliasOutputBuilder, BasicOutputBuilder, FoundryOutputBuilder, NftOutputBuilder, Output,
             OutputId,
-            feature::{IssuerFeature, SenderFeature},
+            feature::SenderFeature,
             unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
         },
     },
@@ -305,12 +305,9 @@ where
                 // replace the inner output
                 *inner = BasicOutputBuilder::from(basic_output)
                     .with_features(
-                        vec![
-                            basic_output.features().get(SenderFeature::KIND).cloned(),
-                            basic_output.features().get(IssuerFeature::KIND).cloned(),
-                        ]
-                        .into_iter()
-                        .flatten(),
+                        vec![basic_output.features().get(SenderFeature::KIND).cloned()]
+                            .into_iter()
+                            .flatten(),
                     )
                     .finish()
                     .expect("should be able to create a basic output")
