@@ -3,3 +3,4 @@
 
 export * from './theme.enums';
 export * from './explorerLinkType.enums';
+export * from './features.enums';

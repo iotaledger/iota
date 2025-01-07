@@ -16,7 +16,7 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
 
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
-import { TransactionDetails } from './TransactionDetails';
+import { TransactionDetails } from './transaction-details';
 
 export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;

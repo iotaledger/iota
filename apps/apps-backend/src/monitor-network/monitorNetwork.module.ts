@@ -3,7 +3,7 @@
 
 import { Module } from '@nestjs/common';
 
-import { MonitorNetworkController } from './monitor-network.controller';
+import { MonitorNetworkController } from './monitorNetwork.controller';
 
 @Module({
     controllers: [MonitorNetworkController],
