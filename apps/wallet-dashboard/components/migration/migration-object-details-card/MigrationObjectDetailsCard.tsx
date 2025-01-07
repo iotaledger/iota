@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExternalImage } from '@/components';
+import { useGetCurrentEpochStartTimestamp } from '@/hooks';
 import { useGetCurrentEpochEndTimestamp } from '@/hooks/useGetCurrentEpochEndTimestamp';
 import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
 import { CommonMigrationObjectType } from '@/lib/enums';
@@ -114,11 +115,18 @@ interface UnlockConditionLabelProps {
     isTimelocked: boolean;
 }
 function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockConditionLabelProps) {
+    const { data: currentEpochStartTimestampMs, isLoading: isLoadingEpochStart } =
+        useGetCurrentEpochStartTimestamp();
     const { data: currentEpochEndTimestampMs, isLoading: isLoadingEpochEnd } =
         useGetCurrentEpochEndTimestamp();
 
     const epochEndMs = currentEpochEndTimestampMs ?? 0;
+    const epochStartMs = currentEpochStartTimestampMs ?? '0';
+    const currentDateMs = Date.now();
+
     const unlockConditionTimestampMs = parseInt(groupKey) * MILLISECONDS_PER_SECOND;
+    const isFromPreviousEpoch =
+        !isLoadingEpochStart && unlockConditionTimestampMs < parseInt(epochStartMs);
     // TODO: https://github.com/iotaledger/iota/issues/4369
     const isInAFutureEpoch = !isLoadingEpochEnd && unlockConditionTimestampMs > epochEndMs;
     const outputTimestampMs = isInAFutureEpoch ? unlockConditionTimestampMs : epochEndMs;
@@ -126,8 +134,7 @@ function UnlockConditionLabel({ groupKey, isTimelocked: isTimelocked }: UnlockCo
     const formattedLastPayoutExpirationTime = useCountdownByTimestamp(Number(outputTimestampMs), {
         showSeconds: false,
     });
-    const currentDateMs = Date.now();
-    const showLabel = outputTimestampMs > currentDateMs;
+    const showLabel = !isFromPreviousEpoch && outputTimestampMs > currentDateMs;
 
     return (
         showLabel && (
