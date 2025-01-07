@@ -17,9 +17,12 @@ export const getTransactionAction = (
         ({ type }) => type === UNSTAKING_REQUEST_EVENT,
     );
 
-    const isTimelockedStaking = stakeTypeTransaction?.transactionModule === 'timelocked_staking';
+    const TIMELOCKED_STAKING_EVENT_MODULE = 'timelocked_staking';
+
+    const isTimelockedStaking =
+        stakeTypeTransaction?.transactionModule === TIMELOCKED_STAKING_EVENT_MODULE;
     const isTimelockedUnstaking =
-        unstakeTypeTransaction?.transactionModule === 'timelocked_staking';
+        unstakeTypeTransaction?.transactionModule === TIMELOCKED_STAKING_EVENT_MODULE;
 
     if (stakeTypeTransaction) {
         return isTimelockedStaking ? TransactionAction.TimelockedStaked : TransactionAction.Staked;
