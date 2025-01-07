@@ -456,8 +456,8 @@ impl IotaCommand {
                     !matches!(cmd, Some(IotaClientCommands::NewAddress { .. })),
                 )
                 .await?;
-                let mut context = WalletContext::new(&config_path, None, None)?;
                 if let Some(cmd) = cmd {
+                    let mut context = WalletContext::new(&config_path, None, None)?;
                     cmd.execute(&mut context).await?.print(!json);
                 } else {
                     // Print help
