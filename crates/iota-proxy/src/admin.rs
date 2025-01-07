@@ -27,7 +27,7 @@ use crate::{
     config::{DynamicPeerValidationConfig, RemoteWriteConfig, StaticPeerValidationConfig},
     handlers::publish_metrics,
     histogram_relay::HistogramRelay,
-    middleware::{expect_content_length, expect_mysten_proxy_header, expect_valid_public_key},
+    middleware::{expect_content_length, expect_iota_proxy_header, expect_valid_public_key},
     peers::{IotaNodeProvider, IotaPeer},
     var,
 };
@@ -106,7 +106,7 @@ pub fn app(
             "MAX_BODY_SIZE",
             1024 * 1024 * 5
         )))
-        .route_layer(middleware::from_fn(expect_mysten_proxy_header))
+        .route_layer(middleware::from_fn(expect_iota_proxy_header))
         .route_layer(middleware::from_fn(expect_content_length));
     if let Some(allower) = allower {
         router = router

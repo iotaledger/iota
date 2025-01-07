@@ -54,7 +54,7 @@ pub async fn expect_content_length(
 }
 
 /// we expect iota-node to send us an http header content-type encoding.
-pub async fn expect_mysten_proxy_header(
+pub async fn expect_iota_proxy_header(
     TypedHeader(content_type): TypedHeader<ContentType>,
     request: Request<Body>,
     next: Next,
@@ -64,7 +64,7 @@ pub async fn expect_mysten_proxy_header(
         ct => {
             error!("invalid content-type; {ct}");
             MIDDLEWARE_OPS
-                .with_label_values(&["expect_mysten_proxy_header", "invalid-content-type"])
+                .with_label_values(&["expect_iota_proxy_header", "invalid-content-type"])
                 .inc();
             Err((StatusCode::BAD_REQUEST, "invalid content-type header"))
         }
