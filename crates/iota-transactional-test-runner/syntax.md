@@ -71,6 +71,78 @@ in the respective sections.
 
 ### `run-graphql`
 
+Allows to execute GraphQL queries with optional options and returns the output.
+
+#### Syntax:
+```
+//# run-graphql [OPTIONS]
+<GraphQL-query>
+```
+
+####  Options:
+
+```
+--show-usage: Displays usage information for the command.
+--show-headers: Includes HTTP headers in the output.
+--show-service-version: Displays the version of the service handling the GraphQL query.
+--cursors <cursor-list>: Specifies a list of cursors to be used within the query. Each cursor can be referenced in the GraphQL query using @{cursor_name} syntax.
+```
+
+#### Query interpolation:
+
+The task supports placeholder interpolation within queries.
+Placeholders like `@{variable_name}` are dynamically replaced with values provided in the `--cursors` option or derived from named addresses, object enumerations, and checkpoints.
+
+####  Example: Get the first transaction block with its effects and object changes
+
+```
+//# run-graphql
+{
+  transactionBlocks(first: 1) {
+    nodes {
+      effects {
+        objectChanges {
+          pageInfo {
+            hasPreviousPage
+            hasNextPage
+            startCursor
+            endCursor
+          }
+          edges {
+            cursor
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+####  Example: Get the first transaction block with its effects and object changes using a specific cursor
+
+```
+//# run-graphql --cursors {"c":1}
+{
+  transactionBlocks(first: 1) {
+    nodes {
+      effects {
+        objectChanges(first: 5, after: "@{cursor_0}") {
+          pageInfo {
+            hasPreviousPage
+            hasNextPage
+            startCursor
+            endCursor
+          }
+          edges {
+            cursor
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 ### `force-object-snapshot-catchup`
 
 ### `bench`
