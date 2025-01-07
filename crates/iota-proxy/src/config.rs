@@ -29,7 +29,6 @@ pub struct ProxyConfig {
 pub struct RemoteWriteConfig {
     // TODO upgrade to https
     /// the remote_write url to post data to
-    #[serde(default = "remote_write_url")]
     pub url: String,
     /// username is used for posting data to the remote_write api
     pub username: String,
@@ -97,11 +96,6 @@ fn pool_max_idle_per_host_default() -> usize {
 /// the default hostname we will use if not provided
 fn hostname_default() -> Option<String> {
     Some("localhost".to_string())
-}
-
-/// the default remote write url
-fn remote_write_url() -> String {
-    "http://metrics-gw.testnet.iota.io/api/v1/push".to_string()
 }
 
 /// load our config file from a path
