@@ -3303,7 +3303,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Address related metrics. Exclusively served by the indexer",
+      "description": "Address related metrics. Exclusively served by the indexer.",
       "params": [
         {
           "name": "descending_order",
@@ -3386,7 +3386,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Address related metrics. Exclusively served by the indexer",
+      "description": "Address related metrics. Exclusively served by the indexer.",
       "params": [
         {
           "name": "checkpoint",
@@ -3625,7 +3625,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return current epoch info. Exclusively served by the indexer",
+      "description": "Return current epoch info. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "EpochInfo",
@@ -3821,7 +3821,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return a list of epoch metrics, which is a subset of epoch info. Exclusively served by the indexer",
+      "description": "Return a list of epoch metrics, which is a subset of epoch info. Exclusively served by the indexer.",
       "params": [
         {
           "name": "cursor",
@@ -3862,7 +3862,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return a list of epoch info. Exclusively served by the indexer",
+      "description": "Return a list of epoch info. Exclusively served by the indexer.",
       "params": [
         {
           "name": "cursor",
@@ -3903,7 +3903,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Address related metrics. Exclusively served by the indexer",
+      "description": "Address related metrics. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "AddressMetrics",
@@ -3947,7 +3947,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return move call metrics. Exclusively served by the indexer",
+      "description": "Return move call metrics. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "MoveCallMetrics",
@@ -3964,7 +3964,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return Network metrics. Exclusively served by the indexer",
+      "description": "Return Network metrics. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "NetworkMetrics",
@@ -4400,7 +4400,7 @@
           "name": "Extended API"
         }
       ],
-      "description": "Return the total number of transactions. Exclusively served by the indexer",
+      "description": "Return the total number of transactions. Exclusively served by the indexer.",
       "params": [],
       "result": {
         "name": "BigInt<u64>",
