@@ -152,6 +152,8 @@ members = [
   "crates/typed-store-error",
   "crates/typed-store-workspace-hack",
   "docs/examples/rust",
+  "examples/custom-indexer/rust",
+  "examples/tic-tac-toe/cli",
   "iota-execution",
   "iota-execution/cut",
   "iota-execution/latest/iota-adapter",

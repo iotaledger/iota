@@ -28,7 +28,12 @@ export interface StakeFromProps {
     epoch?: string | number;
 }
 
-function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFromProps) {
+export function StakeFormComponent({
+    validatorAddress,
+    coinBalance,
+    coinType,
+    epoch,
+}: StakeFromProps) {
     const { values, setFieldValue } = useFormikContext<FormValues>();
     const activeAddress = useActiveAddress();
     const { data: metadata } = useCoinMetadata(coinType);
@@ -117,4 +122,4 @@ function StakeForm({ validatorAddress, coinBalance, coinType, epoch }: StakeFrom
     );
 }
 
-export default memo(StakeForm);
+export const StakeForm = memo(StakeFormComponent);

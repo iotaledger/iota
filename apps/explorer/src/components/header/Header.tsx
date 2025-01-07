@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { NetworkSelector } from '../network';
-import Search from '../search/Search';
+import { Search } from '../search';
 import { LinkWithQuery } from '~/components/ui';
 import { ThemedIotaLogo } from '~/components';
 import { ThemeSwitcher } from '@iota/core';
 
-function Header(): JSX.Element {
+export function Header(): JSX.Element {
     return (
         <header className="flex h-header justify-center overflow-visible backdrop-blur-lg">
             <div className="container flex h-full flex-1 items-center justify-between gap-5">
@@ -30,5 +30,3 @@ function Header(): JSX.Element {
         </header>
     );
 }
-
-export default Header;
