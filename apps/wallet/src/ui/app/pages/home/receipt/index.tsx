@@ -12,7 +12,7 @@ import { InfoBox, InfoBoxType, InfoBoxStyle } from '@iota/apps-ui-kit';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { useGetTransaction } from '@iota/core';
 
-function ReceiptPage() {
+export function ReceiptPage() {
     const location = useLocation();
     const [searchParams] = useSearchParams();
     const [showModal, setShowModal] = useState(true);
@@ -82,5 +82,3 @@ function ReceiptPage() {
         </Loading>
     );
 }
-
-export default ReceiptPage;
