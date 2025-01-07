@@ -3,11 +3,12 @@
 
 import { MILLISECONDS_PER_HOUR } from '@iota/core/constants/time.constants';
 import {
-    mockedTimelockedStackedObjectsWithDynamicDate,
+    mockedVestingTimelockedStakedObjectsWithDynamicDate,
     MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS,
     MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
     SUPPLY_INCREASE_STAKER_VESTING_DURATION,
     SUPPLY_INCREASE_VESTING_PAYOUTS_IN_1_YEAR,
+    mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate,
 } from '../../constants';
 import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../interfaces';
 import { formatDelegatedTimelockedStake, isTimelockedObject } from '../timelock';
@@ -23,12 +24,12 @@ const MOCKED_CURRENT_EPOCH_TIMESTAMP = Date.now() + MILLISECONDS_PER_HOUR * 6; /
 
 describe('get last supply increase vesting payout', () => {
     it('should get the object with highest expirationTimestampMs', () => {
-        const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
+        const timelockedObjects = mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate;
 
         // the last in the array is also the one with the latest expiration time
         const expectedObject =
-            MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS[
-                MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS.length - 1
+            mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate[
+                mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate.length - 1
             ];
 
         const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
@@ -62,8 +63,8 @@ describe('get supply increase user type', () => {
 });
 
 describe('build supply increase staker vesting portfolio', () => {
-    xit('should build with mocked timelocked objects', () => {
-        const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
+    it('should build with mocked timelocked objects', () => {
+        const timelockedObjects = mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate;
 
         const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
             timelockedObjects,
@@ -80,7 +81,7 @@ describe('build supply increase staker vesting portfolio', () => {
     });
 
     it('should build properly with mocked timelocked staked objects', () => {
-        const timelockedStakedObjects = mockedTimelockedStackedObjectsWithDynamicDate;
+        const timelockedStakedObjects = mockedVestingTimelockedStakedObjectsWithDynamicDate;
         const extendedTimelockedStakedObjects =
             formatDelegatedTimelockedStake(timelockedStakedObjects);
         const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
@@ -97,9 +98,9 @@ describe('build supply increase staker vesting portfolio', () => {
         );
     });
 
-    xit('should build properly with mix of mocked timelocked and timelocked staked objects', () => {
-        const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
-        const timelockedStakedObjects = MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS;
+    it('should build properly with mix of mocked timelocked and timelocked staked objects', () => {
+        const timelockedObjects = mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate;
+        const timelockedStakedObjects = mockedVestingTimelockedStakedObjectsWithDynamicDate;
         const extendedTimelockedStakedObjects =
             formatDelegatedTimelockedStake(timelockedStakedObjects);
         const mixedObjects = [...timelockedObjects, ...extendedTimelockedStakedObjects];
