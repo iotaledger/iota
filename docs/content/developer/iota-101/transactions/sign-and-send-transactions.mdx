@@ -263,9 +263,19 @@ Create a transfer transaction in CLI. Set the $IOTA_ADDRESS to the one correspon
 
 ```shell
 iota client gas
-iota client transfer-iota --to $IOTA_ADDRESS --iota-coin-object-id $GAS_COIN_ID --serialize-unsigned-transaction
+iota client pay-all-iota --input-coins $GAS_COIN_ID --recipient $IOTA_ADDRESS --gas-budget 2000000 --serialize-unsigned-transaction
 iota keytool sign --address $IOTA_ADDRESS --data $TX_BYTES
 iota client execute-signed-tx --tx-bytes $TX_BYTES --signatures $SERIALIZED_SIGNATURE
+```
+
+All combined:
+
+```shell
+GAS_COIN_ID=$(iota client gas --json | jq -r '.[0].gasCoinId')
+IOTA_ADDRESS=$(iota keytool list --json | jq -r '.[0].iotaAddress')
+UNSIGNED_TX_BYTES=$(iota client pay-all-iota --input-coins $GAS_COIN_ID --recipient $IOTA_ADDRESS --gas-budget 2000000 --serialize-unsigned-transaction)
+SERIALIZED_SIGNATURE=$(iota keytool sign --address $IOTA_ADDRESS --data $UNSIGNED_TX_BYTES --json | jq -r '.iotaSignature')
+iota client execute-signed-tx --tx-bytes $UNSIGNED_TX_BYTES --signatures $SERIALIZED_SIGNATURE
 ```
 
 </TabItem>
