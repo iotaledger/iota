@@ -11,8 +11,10 @@ export function usePersistedNetwork() {
     const clientContext = useIotaClientContext();
     const activeNetwork = clientContext.network;
 
+    const LOCAL_STORAGE_KEY = 'network_iota-dashboard';
+
     const [persistedNetwork, setPersistedNetwork] = useLocalStorage<string>(
-        'network_iota-dashboard',
+        LOCAL_STORAGE_KEY,
         activeNetwork,
     );
 

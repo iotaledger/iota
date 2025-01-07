@@ -16,7 +16,7 @@ import { DialogLayout, DialogLayoutBody } from '../../layout';
 import { SettingsDialogView } from '../enums';
 import { Globe } from '@iota/ui-icons';
 import { usePersistedNetwork } from '@/hooks';
-import { capitalizeFirstLetter } from '@iota/core';
+import { toTitleCase } from '@iota/core';
 
 interface SettingsListViewProps {
     handleClose: () => void;
@@ -28,7 +28,7 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
     const MENU_ITEMS = [
         {
             title: 'Network',
-            subtitle: persistedNetwork,
+            subtitle: toTitleCase(persistedNetwork),
             icon: <Globe />,
             onClick: () => setView(SettingsDialogView.NetworkSettings),
         },
@@ -47,10 +47,7 @@ export function SettingsListView({ handleClose, setView }: SettingsListViewProps
                                         <span className="text-2xl">{item.icon}</span>
                                     </div>
                                 </CardImage>
-                                <CardBody
-                                    title={item.title}
-                                    subtitle={capitalizeFirstLetter(item.subtitle)}
-                                />
+                                <CardBody title={item.title} subtitle={item.subtitle} />
                                 <CardAction type={CardActionType.Link} />
                             </Card>
                         ))}

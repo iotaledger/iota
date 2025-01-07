@@ -5,7 +5,7 @@ import { SettingsDialog, useSettingsDialog } from '@/components';
 import { Badge, BadgeType, Button, ButtonType } from '@iota/apps-ui-kit';
 import { ConnectButton } from '@iota/dapp-kit';
 import { Network } from '@iota/iota-sdk/client';
-import { capitalizeFirstLetter, ThemeSwitcher } from '@iota/core';
+import { toTitleCase, ThemeSwitcher } from '@iota/core';
 import { Settings } from '@iota/ui-icons';
 import { usePersistedNetwork } from '@/hooks';
 
@@ -23,7 +23,7 @@ export function TopNav() {
     return (
         <div className="flex w-full flex-row items-center justify-end gap-md py-xs--rs">
             <Badge
-                label={capitalizeFirstLetter(persistedNetwork)}
+                label={toTitleCase(persistedNetwork)}
                 type={
                     persistedNetwork === Network.Mainnet ? BadgeType.PrimarySoft : BadgeType.Neutral
                 }
