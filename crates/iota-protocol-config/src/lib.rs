@@ -182,6 +182,10 @@ struct FeatureFlags {
     // This flag is used to provide the correct MoveVM configuration for clients.
     #[serde(skip_serializing_if = "is_true")]
     rethrow_serialization_type_layout_errors: bool,
+
+    // Makes the event's sending module version-aware.
+    #[serde(skip_serializing_if = "is_false")]
+    relocate_event_module: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1053,6 +1057,10 @@ impl ProtocolConfig {
     pub fn rethrow_serialization_type_layout_errors(&self) -> bool {
         self.feature_flags.rethrow_serialization_type_layout_errors
     }
+
+    pub fn relocate_event_module(&self) -> bool {
+        self.feature_flags.relocate_event_module
+    }
 }
 
 #[cfg(not(msim))]
@@ -1632,6 +1640,7 @@ impl ProtocolConfig {
             cfg.vdf_hash_to_input_cost = Some(100);
 
             cfg.feature_flags.passkey_auth = true;
+            cfg.feature_flags.relocate_event_module = true;
         }
 
         for cur in 2..=version.0 {
