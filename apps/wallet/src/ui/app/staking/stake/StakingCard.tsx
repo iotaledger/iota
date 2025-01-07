@@ -32,7 +32,7 @@ import { getSignerOperationErrorMessage } from '../../helpers/errorMessages';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { useSigner } from '../../hooks/useSigner';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import StakeForm from './StakeForm';
+import { StakeForm } from './StakeForm';
 import { UnStakeForm } from './UnstakeForm';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import {
@@ -52,7 +52,7 @@ const INITIAL_VALUES = {
 
 export type FormValues = typeof INITIAL_VALUES;
 
-function StakingCard() {
+export function StakingCard() {
     const coinType = IOTA_TYPE_ARG;
     const activeAccount = useActiveAccount();
     const accountAddress = activeAccount?.address;
@@ -347,5 +347,3 @@ function StakingCard() {
         </div>
     );
 }
-
-export default StakingCard;

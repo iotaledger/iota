@@ -15,7 +15,7 @@ import { permissionsSelectors } from '../../redux/slices/permissions';
 import { Loading, NoData, PageTemplate } from '_components';
 import { type DAppEntry, IotaApp } from './IotaApp';
 
-function ConnectedDapps() {
+export function ConnectedAppsCard() {
     const backgroundClient = useBackgroundClient();
     useEffect(() => {
         backgroundClient.sendGetPermissionRequests();
@@ -86,5 +86,3 @@ function ConnectedDapps() {
         </PageTemplate>
     );
 }
-
-export default ConnectedDapps;
