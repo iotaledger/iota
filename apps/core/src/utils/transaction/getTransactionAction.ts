@@ -4,25 +4,18 @@
 
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionAction } from '../../interfaces';
-import { STAKING_REQUEST_EVENT, UNSTAKING_REQUEST_EVENT } from '../../constants';
+import { checkIfIsTimelockedStaking } from '@/lib/utils';
 
 export const getTransactionAction = (
     transaction: IotaTransactionBlockResponse,
     currentAddress?: string,
 ) => {
-    const stakeTypeTransaction = transaction?.events?.find(
-        ({ type }) => type === STAKING_REQUEST_EVENT,
-    );
-    const unstakeTypeTransaction = transaction?.events?.find(
-        ({ type }) => type === UNSTAKING_REQUEST_EVENT,
-    );
-
-    const TIMELOCKED_STAKING_EVENT_MODULE = 'timelocked_staking';
-
-    const isTimelockedStaking =
-        stakeTypeTransaction?.transactionModule === TIMELOCKED_STAKING_EVENT_MODULE;
-    const isTimelockedUnstaking =
-        unstakeTypeTransaction?.transactionModule === TIMELOCKED_STAKING_EVENT_MODULE;
+    const {
+        isTimelockedStaking,
+        isTimelockedUnstaking,
+        stakeTypeTransaction,
+        unstakeTypeTransaction,
+    } = checkIfIsTimelockedStaking(transaction?.events);
 
     if (stakeTypeTransaction) {
         return isTimelockedStaking ? TransactionAction.TimelockedStaked : TransactionAction.Staked;
