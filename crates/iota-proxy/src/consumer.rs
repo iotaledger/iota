@@ -110,15 +110,14 @@ impl ProtobufDecoder {
 
 // populate labels in place for our given metric family data
 pub fn populate_labels(
-    name: String,               // host field for grafana agent (from chain data)
-    network: String,            // network name from ansible (via config)
-    inventory_hostname: String, // inventory_name from ansible (via config)
+    name: String,    // host field for grafana agent (from chain data)
+    network: String, // network name from ansible (via config)
     data: Vec<proto::MetricFamily>,
 ) -> Vec<proto::MetricFamily> {
     let timer = CONSUMER_OPERATION_DURATION
         .with_label_values(&["populate_labels"])
         .start_timer();
-    debug!("received metrics from {name} on {inventory_hostname}");
+    debug!("received metrics from {name}");
     // proto::LabelPair doesn't have pub fields so we can't use
     // struct literals to construct
     let mut network_label = proto::LabelPair::default();
@@ -365,12 +364,7 @@ mod tests {
             )]),
         );
 
-        let labeled_mf = populate_labels(
-            "validator-0".into(),
-            "unittest-network".into(),
-            "inventory-hostname".into(),
-            vec![mf],
-        );
+        let labeled_mf = populate_labels("validator-0".into(), "unittest-network".into(), vec![mf]);
         let metric = &labeled_mf[0].get_metric()[0];
         assert_eq!(
             metric.get_label(),

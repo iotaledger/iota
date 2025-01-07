@@ -89,7 +89,6 @@ pub fn make_reqwest_client(settings: RemoteWriteConfig, user_agent: &str) -> Req
 #[derive(Clone)]
 pub struct Labels {
     pub network: String,
-    pub inventory_hostname: String,
 }
 
 /// App will configure our routes. This fn is also used to instrument our tests

@@ -136,7 +136,6 @@ mod tests {
         let app = admin::app(
             Labels {
                 network: "unittest-network".into(),
-                inventory_hostname: "ansible_inventory_name".into(),
             },
             client,
             HistogramRelay::new(),
@@ -255,7 +254,6 @@ mod tests {
         let app = admin::app(
             Labels {
                 network: "unittest-network".into(),
-                inventory_hostname: "ansible_inventory_name".into(),
             },
             client,
             HistogramRelay::new(),

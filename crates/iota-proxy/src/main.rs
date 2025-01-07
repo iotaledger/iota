@@ -105,8 +105,6 @@ async fn main() -> Result<()> {
     let app = app(
         Labels {
             network: config.network,
-            inventory_hostname: env::var("INVENTORY_HOSTNAME")
-                .expect("INVENTORY_HOSTNAME not found in environment"),
         },
         client,
         histogram_relay,

@@ -59,7 +59,7 @@ pub async fn publish_metrics(
     let timer = HTTP_HANDLER_DURATION
         .with_label_values(&["publish_metrics", &name])
         .start_timer();
-    let data = populate_labels(name, labels.network, labels.inventory_hostname, data);
+    let data = populate_labels(name, labels.network, data);
     relay.submit(data.clone());
     let response = convert_to_remote_write(client.clone(), NodeMetric {
         data,
