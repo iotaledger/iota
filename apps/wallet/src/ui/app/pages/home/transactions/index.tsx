@@ -8,7 +8,7 @@ import { Navigate, useParams } from 'react-router-dom';
 import { CompletedTransactions } from './CompletedTransactions';
 import { PageTemplate } from '_src/ui/app/components';
 
-function TransactionBlocksPage() {
+export function TransactionBlocksPage() {
     const activeAccount = useActiveAccount();
     const { status } = useParams();
     const isPendingTransactions = status === 'pending';
@@ -26,5 +26,3 @@ function TransactionBlocksPage() {
         </PageTemplate>
     );
 }
-
-export default TransactionBlocksPage;

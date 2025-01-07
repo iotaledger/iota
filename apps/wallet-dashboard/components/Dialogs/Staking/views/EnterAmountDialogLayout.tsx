@@ -25,7 +25,7 @@ import { Validator } from './Validator';
 import { StakedInfo } from './StakedInfo';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
-export interface FormValues {
+interface FormValues {
     amount: string;
 }
 
@@ -43,7 +43,7 @@ interface EnterAmountDialogLayoutProps {
     gasBudget?: string | number | null;
 }
 
-function EnterAmountDialogLayout({
+export function EnterAmountDialogLayout({
     selectedValidator,
     gasBudget,
     senderAddress,
@@ -162,5 +162,3 @@ function EnterAmountDialogLayout({
         </DialogLayout>
     );
 }
-
-export default EnterAmountDialogLayout;

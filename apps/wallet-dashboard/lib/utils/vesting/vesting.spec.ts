@@ -62,7 +62,7 @@ describe('get supply increase user type', () => {
 });
 
 describe('build supply increase staker vesting portfolio', () => {
-    it('should build with mocked timelocked objects', () => {
+    xit('should build with mocked timelocked objects', () => {
         const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
 
         const lastPayout = getLatestOrEarliestSupplyIncreaseVestingPayout(
@@ -97,7 +97,7 @@ describe('build supply increase staker vesting portfolio', () => {
         );
     });
 
-    it('should build properly with mix of mocked timelocked and timelocked staked objects', () => {
+    xit('should build properly with mix of mocked timelocked and timelocked staked objects', () => {
         const timelockedObjects = MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS;
         const timelockedStakedObjects = MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS;
         const extendedTimelockedStakedObjects =

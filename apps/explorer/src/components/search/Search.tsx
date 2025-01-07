@@ -10,7 +10,7 @@ import { useDebouncedValue } from '~/hooks/useDebouncedValue';
 import { useSearch } from '~/hooks/useSearch';
 import { ampli } from '~/lib/utils';
 
-function Search(): JSX.Element {
+export function Search(): JSX.Element {
     const [query, setQuery] = useState('');
     const debouncedQuery = useDebouncedValue(query);
     const { isPending, data: results } = useSearch(debouncedQuery);
@@ -58,5 +58,3 @@ function Search(): JSX.Element {
         />
     );
 }
-
-export default Search;
