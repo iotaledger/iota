@@ -17,6 +17,9 @@ use crate::{
     IOTA_TESTNET_GAS_URL, IOTA_TESTNET_URL, IotaClient, IotaClientBuilder,
 };
 
+/// Configuration for the IOTA client, containing a
+/// [`Keystore`](iota_keys::keystore::Keystore) and potentially multiple
+/// [`IotaEnv`]s.
 #[serde_as]
 #[derive(Serialize, Deserialize, Getters, MutGetters)]
 #[getset(get = "pub", get_mut = "pub")]
@@ -28,6 +31,7 @@ pub struct IotaClientConfig {
 }
 
 impl IotaClientConfig {
+    /// Create a new [`IotaClientConfig`] with the given keystore.
     pub fn new(keystore: impl Into<Keystore>) -> Self {
         IotaClientConfig {
             keystore: keystore.into(),
@@ -37,33 +41,40 @@ impl IotaClientConfig {
         }
     }
 
+    /// Set the [`IotaEnv`]s.
     pub fn with_envs(mut self, envs: impl IntoIterator<Item = IotaEnv>) -> Self {
         self.set_envs(envs);
         self
     }
 
+    /// Set the [`IotaEnv`]s.
     pub fn set_envs(&mut self, envs: impl IntoIterator<Item = IotaEnv>) {
         self.envs = envs.into_iter().collect();
     }
 
+    /// Set the active [`IotaEnv`] by its alias.
     pub fn with_active_env(mut self, env: impl Into<Option<String>>) -> Self {
         self.set_active_env(env);
         self
     }
 
+    /// Set the active [`IotaEnv`] by its alias.
     pub fn set_active_env(&mut self, env: impl Into<Option<String>>) {
         self.active_env = env.into();
     }
 
+    /// Set the active [`IotaAddress`].
     pub fn with_active_address(mut self, address: impl Into<Option<IotaAddress>>) -> Self {
         self.set_active_address(address);
         self
     }
 
+    /// Set the active [`IotaAddress`].
     pub fn set_active_address(&mut self, address: impl Into<Option<IotaAddress>>) {
         self.active_address = address.into();
     }
 
+    /// Get the first [`IotaEnv`] or one by its alias.
     pub fn get_env(&self, alias: &Option<String>) -> Option<&IotaEnv> {
         if let Some(alias) = alias {
             self.envs.iter().find(|env| &env.alias == alias)
@@ -72,6 +83,7 @@ impl IotaClientConfig {
         }
     }
 
+    /// Get the active [`IotaEnv`].
     pub fn get_active_env(&self) -> Result<&IotaEnv, anyhow::Error> {
         self.get_env(&self.active_env).ok_or_else(|| {
             anyhow!(
@@ -81,6 +93,7 @@ impl IotaClientConfig {
         })
     }
 
+    /// Add an [`IotaEnv`].
     pub fn add_env(&mut self, env: IotaEnv) {
         if !self
             .envs
@@ -92,6 +105,8 @@ impl IotaClientConfig {
     }
 }
 
+/// IOTA environment configuration, containing the RPC URL, and optional
+/// websocket, basic auth and faucet options.
 #[derive(Debug, Clone, Serialize, Deserialize, Getters, MutGetters)]
 #[getset(get = "pub", get_mut = "pub")]
 pub struct IotaEnv {
@@ -105,6 +120,7 @@ pub struct IotaEnv {
 }
 
 impl IotaEnv {
+    /// Create a new [`IotaEnv`] with the given alias and RPC URL such as <https://api.testnet.iota.cafe>.
     pub fn new(alias: impl Into<String>, rpc: impl Into<String>) -> Self {
         Self {
             alias: alias.into(),
@@ -115,33 +131,42 @@ impl IotaEnv {
         }
     }
 
+    /// Set a websocket URL.
     pub fn with_ws(mut self, ws: impl Into<Option<String>>) -> Self {
         self.set_ws(ws);
         self
     }
 
+    /// Set a websocket URL.
     pub fn set_ws(&mut self, ws: impl Into<Option<String>>) {
         self.ws = ws.into();
     }
 
+    /// Set basic authentication information in the format of username:password.
     pub fn with_basic_auth(mut self, basic_auth: impl Into<Option<String>>) -> Self {
-        self.set_ws(basic_auth);
+        self.set_basic_auth(basic_auth);
         self
     }
 
+    /// Set basic authentication information in the format of username:password.
     pub fn set_basic_auth(&mut self, basic_auth: impl Into<Option<String>>) {
         self.basic_auth = basic_auth.into();
     }
 
+    /// Set a faucet URL such as <https://faucet.testnet.iota.cafe/v1/gas>.
     pub fn with_faucet(mut self, faucet: impl Into<Option<String>>) -> Self {
         self.set_faucet(faucet);
         self
     }
 
+    /// Set a faucet URL such as <https://faucet.testnet.iota.cafe/v1/gas>.
     pub fn set_faucet(&mut self, faucet: impl Into<Option<String>>) {
         self.faucet = faucet.into();
     }
 
+    /// Create an [`IotaClient`] with the given request timeout, max
+    /// concurrent requests and possible configured websocket URL and basic
+    /// auth.
     pub async fn create_rpc_client(
         &self,
         request_timeout: impl Into<Option<std::time::Duration>>,
@@ -173,6 +198,7 @@ impl IotaEnv {
         Ok(builder.build(&self.rpc).await?)
     }
 
+    /// Create the env with the default devnet configuration.
     pub fn devnet() -> Self {
         Self {
             alias: "devnet".to_string(),
@@ -182,6 +208,8 @@ impl IotaEnv {
             faucet: Some(IOTA_DEVNET_GAS_URL.into()),
         }
     }
+
+    /// Create the env with the default testnet configuration.
     pub fn testnet() -> Self {
         Self {
             alias: "testnet".to_string(),
@@ -192,6 +220,7 @@ impl IotaEnv {
         }
     }
 
+    /// Create the env with the default localnet configuration.
     pub fn localnet() -> Self {
         Self {
             alias: "local".to_string(),
