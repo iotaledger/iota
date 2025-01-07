@@ -12,7 +12,7 @@ interface NonVisualAssetsProps {
     items: IotaObjectData[];
 }
 
-export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
+export function NonVisualAssets({ items }: NonVisualAssetsProps) {
     return (
         <div className="flex w-full flex-1 flex-col items-center gap-4">
             {items?.length ? (

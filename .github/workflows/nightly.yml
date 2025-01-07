@@ -81,9 +81,6 @@ jobs:
   external-tests:
     uses: ./.github/workflows/_external_rust_tests.yml
 
-  move-tests:
-    uses: ./.github/workflows/_move_tests.yml
-
   deny:
     uses: ./.github/workflows/_cargo_deny.yml
 

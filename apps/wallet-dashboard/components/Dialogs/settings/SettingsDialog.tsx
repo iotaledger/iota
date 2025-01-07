@@ -25,14 +25,12 @@ export function SettingsDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={() => handleClose()}>
-            <>
-                {view === SettingsDialogView.SelectSetting && (
-                    <SettingsListView handleClose={handleClose} setView={setView} />
-                )}
-                {view === SettingsDialogView.NetworkSettings && (
-                    <NetworkSelectorView handleClose={handleClose} onBack={onBack} />
-                )}
-            </>
+            {view === SettingsDialogView.SelectSetting && (
+                <SettingsListView handleClose={handleClose} setView={setView} />
+            )}
+            {view === SettingsDialogView.NetworkSettings && (
+                <NetworkSelectorView handleClose={handleClose} onBack={onBack} />
+            )}
         </Dialog>
     );
 }

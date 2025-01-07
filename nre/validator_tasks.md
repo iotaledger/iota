@@ -418,13 +418,13 @@ This release process will be different and we expect to announce the directory f
 <!-- Our public key to verify these binaries would be stored [here](https://<TODO_SECURITY_FIXES_URL>/iota_security_release.pem) -->
 
 You can download all the necessary signed binaries and docker artifacts incorporating the security fixes by using
-the [download_private.sh](https://github.com/iotaledger/iota/blob/main/nre/download_private.sh)
+the [download_private.sh](https://github.com/iotaledger/iota/blob/develop/nre/download_private.sh)
 
 Usage
 `./download_private.sh <directory-name>`
 
 You can also download and verify specific binaries that may not be included by the above script using
-the [download_and_verify_private_binary.sh](https://github.com/iotaledger/iota/blob/main/nre/download_and_verify_private_binary.sh)
+the [download_and_verify_private_binary.sh](https://github.com/iotaledger/iota/blob/develop/nre/download_and_verify_private_binary.sh)
 script.
 
 Usage:

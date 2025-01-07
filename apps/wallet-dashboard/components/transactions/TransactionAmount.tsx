@@ -11,7 +11,7 @@ interface TransactionAmountProps {
     approximation?: boolean;
 }
 
-export default function TransactionAmount({
+export function TransactionAmount({
     amount,
     coinType,
     label,
