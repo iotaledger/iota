@@ -46,7 +46,9 @@ export function TransactionDialogView({
                         renderValidatorLogo={Validator}
                     />
                 ) : (
-                    <LoadingIndicator />
+                    <div className="flex h-full w-full justify-center">
+                        <LoadingIndicator />
+                    </div>
                 )}
             </DialogLayoutBody>
             <DialogLayoutFooter>

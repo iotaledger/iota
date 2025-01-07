@@ -425,7 +425,7 @@ async fn test_tto_invalid_receiving_arguments() {
             .find(|(_, owner)| matches!(owner, Owner::ObjectOwner(_)))
             .unwrap();
 
-        #[allow(clippy::type_complexity)]
+        #[expect(clippy::type_complexity)]
         let mutations: Vec<(
             Box<dyn FnOnce(ObjectRef) -> ObjectRef>,
             Box<dyn FnOnce(UserInputError) -> bool>,

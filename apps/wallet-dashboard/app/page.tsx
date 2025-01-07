@@ -7,7 +7,7 @@ import { ConnectButton, useCurrentWallet, useAutoConnectWallet } from '@iota/dap
 import { redirect } from 'next/navigation';
 import { IotaLogoWeb } from '@iota/ui-icons';
 import { HOMEPAGE_ROUTE } from '@/lib/constants/routes.constants';
-import { Theme, useTheme } from '@iota/core';
+import { Theme, ThemeSwitcher, useTheme } from '@iota/core';
 import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 function HomeDashboardPage(): JSX.Element {
@@ -44,7 +44,10 @@ function HomeDashboardPage(): JSX.Element {
                             disableRemotePlayback
                         ></video>
                     </div>
-                    <div className="flex h-full w-full flex-col items-center justify-between p-md sm:p-2xl">
+                    <div className="relative flex h-full w-full flex-col items-center justify-between p-md sm:p-2xl">
+                        <div className="absolute right-2 top-2 sm:right-8 sm:top-8">
+                            <ThemeSwitcher />
+                        </div>
                         <IotaLogoWeb width={130} height={32} />
                         <div className="flex max-w-sm flex-col items-center gap-8 text-center">
                             <div className="flex flex-col items-center gap-4">
@@ -60,8 +63,10 @@ function HomeDashboardPage(): JSX.Element {
                                 <ConnectButton connectText="Connect" />
                             </div>
                         </div>
-                        <div className="text-body-lg text-neutral-60">
+                        <div className="text-center text-body-lg text-neutral-60">
                             &copy; IOTA Foundation {CURRENT_YEAR}
+                            <br />
+                            {process.env.NEXT_PUBLIC_DASHBOARD_REV}
                         </div>
                     </div>
                 </>

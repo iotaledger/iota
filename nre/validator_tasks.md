@@ -27,7 +27,6 @@ This document focuses on running the Iota Node software as a Validator.
 - [Chain Operations](#chain-operations)
   - [Updating On-chain Metadata](#updating-on-chain-metadata)
   - [Operation Cap](#operation-cap)
-  - [Updating the Gas Price Survey Quote](#updating-the-gas-price-survey-quote)
   - [Reporting/Un-reporting Validators](#reportingun-reporting-validators)
   - [Joining the Validator Set](#joining-the-validator-set)
   - [Leaving the Validator Set](#leaving-the-validator-set)
@@ -364,16 +363,6 @@ setting the holder as the active address.
 <!-- Will be fixed by issue 1867. -->
 <!-- Or go to the [explorer](https://explorer.rebased.iota.org/object/0x0000000000000000000000000000000000000005) and look for `operation_cap_id` of that validator in the `validators` module. -->
 
-### Updating the Gas Price Survey Quote
-
-To update the Gas Price Survey Quote of a validator, which is used to calculate the Reference Gas Price at the end of
-the epoch, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the
-validator itself, or a trusted delegatee. To do so, call `iota_system::request_set_gas_price`:
-
-```shell
-iota client call --package 0x3 --module iota_system --function request_set_gas_price --args 0x5 {cap_object_id} {new_gas_price} --gas-budget 10000
-```
-
 ### Reporting/Un-reporting Validators
 
 To report a validator or undo an existing report, the sender needs to hold a valid [`UnverifiedValidatorOperationCap`](#operation-cap). The sender could be the validator itself, or a trusted delegatee. To
@@ -429,13 +418,13 @@ This release process will be different and we expect to announce the directory f
 <!-- Our public key to verify these binaries would be stored [here](https://<TODO_SECURITY_FIXES_URL>/iota_security_release.pem) -->
 
 You can download all the necessary signed binaries and docker artifacts incorporating the security fixes by using
-the [download_private.sh](https://github.com/iotaledger/iota/blob/main/nre/download_private.sh)
+the [download_private.sh](https://github.com/iotaledger/iota/blob/develop/nre/download_private.sh)
 
 Usage
 `./download_private.sh <directory-name>`
 
 You can also download and verify specific binaries that may not be included by the above script using
-the [download_and_verify_private_binary.sh](https://github.com/iotaledger/iota/blob/main/nre/download_and_verify_private_binary.sh)
+the [download_and_verify_private_binary.sh](https://github.com/iotaledger/iota/blob/develop/nre/download_and_verify_private_binary.sh)
 script.
 
 Usage:

@@ -4,26 +4,20 @@
 //! Creating a stardust objects snapshot out of a Hornet snapshot.
 //! TIP that defines the Hornet snapshot file format:
 //! https://github.com/iotaledger/tips/blob/main/tips/TIP-0035/tip-0035.md
-use std::{collections::BTreeMap, fs::File, io::BufWriter};
+use std::{fs::File, io::BufWriter};
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use iota_genesis_builder::{
     OBJECT_SNAPSHOT_FILE_PATH,
     stardust::{
         migration::{Migration, MigrationTargetNetwork},
         parse::HornetSnapshotParser,
-        types::{address_swap_map::AddressSwapMap, output_header::OutputHeader},
+        process_outputs::scale_amount_for_iota,
+        types::address_swap_map::AddressSwapMap,
     },
 };
-use iota_sdk::types::block::{
-    address::Address,
-    output::{
-        AliasOutputBuilder, BasicOutputBuilder, FoundryOutputBuilder, NftOutputBuilder, Output,
-        unlock_condition::{AddressUnlockCondition, StorageDepositReturnUnlockCondition},
-    },
-};
-use iota_types::{stardust::coin_type::CoinType, timelock::timelock::is_vested_reward};
+use iota_types::stardust::coin_type::CoinType;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
@@ -104,182 +98,13 @@ fn main() -> Result<()> {
 
     match coin_type {
         CoinType::Iota => {
-            struct MergingIterator<I> {
-                unlocked_address_balances: BTreeMap<Address, OutputHeaderWithBalance>,
-                snapshot_timestamp_s: u32,
-                outputs: I,
-            }
-
-            impl<I> MergingIterator<I> {
-                fn new(snapshot_timestamp_s: u32, outputs: I) -> Self {
-                    Self {
-                        unlocked_address_balances: Default::default(),
-                        snapshot_timestamp_s,
-                        outputs,
-                    }
-                }
-            }
-
-            impl<I: Iterator<Item = Result<(OutputHeader, Output)>>> Iterator for MergingIterator<I> {
-                type Item = I::Item;
-
-                fn next(&mut self) -> Option<Self::Item> {
-                    // First process all the outputs, building the unlocked_address_balances map as
-                    // we go.
-                    for res in self.outputs.by_ref() {
-                        if let Ok((header, output)) = res {
-                            fn mergeable_address(
-                                header: &OutputHeader,
-                                output: &Output,
-                                snapshot_timestamp_s: u32,
-                            ) -> Option<Address> {
-                                // ignore all non-basic outputs and non vesting outputs
-                                if !output.is_basic()
-                                    || !is_vested_reward(header.output_id(), output.as_basic())
-                                {
-                                    return None;
-                                }
-
-                                if let Some(unlock_conditions) = output.unlock_conditions() {
-                                    // check if vesting unlock period is already done
-                                    if unlock_conditions.is_time_locked(snapshot_timestamp_s) {
-                                        return None;
-                                    }
-                                    unlock_conditions.address().map(|uc| *uc.address())
-                                } else {
-                                    None
-                                }
-                            }
-
-                            if let Some(address) =
-                                mergeable_address(&header, &output, self.snapshot_timestamp_s)
-                            {
-                                // collect the unlocked vesting balances
-                                self.unlocked_address_balances
-                                    .entry(address)
-                                    .and_modify(|x| x.balance += output.amount())
-                                    .or_insert(OutputHeaderWithBalance {
-                                        output_header: header,
-                                        balance: output.amount(),
-                                    });
-                                continue;
-                            } else {
-                                return Some(Ok((header, output)));
-                            }
-                        } else {
-                            return Some(res);
-                        }
-                    }
-
-                    // Now that we are out
-                    self.unlocked_address_balances.pop_first().map(
-                        |(address, output_header_with_balance)| {
-                            // create a new basic output which holds the aggregated balance from
-                            // unlocked vesting outputs for this address
-                            let basic = BasicOutputBuilder::new_with_amount(
-                                output_header_with_balance.balance,
-                            )
-                            .add_unlock_condition(AddressUnlockCondition::new(address))
-                            .finish()
-                            .expect("should be able to create a basic output");
-
-                            Ok((output_header_with_balance.output_header, basic.into()))
-                        },
-                    )
-                }
-            }
-
-            let merged_outputs = MergingIterator::new(
+            migration.run_for_iota(
                 snapshot_parser.target_milestone_timestamp(),
                 snapshot_parser.outputs(),
-            )
-            .map(|res| {
-                let (header, mut output) = res?;
-                scale_output_amount_for_iota(&mut output)?;
-
-                Ok::<_, anyhow::Error>((header, output))
-            });
-            itertools::process_results(merged_outputs, |outputs| {
-                migration.run(outputs, object_snapshot_writer)
-            })??;
+                object_snapshot_writer,
+            )?;
         }
     }
 
     Ok(())
-}
-
-struct OutputHeaderWithBalance {
-    output_header: OutputHeader,
-    balance: u64,
-}
-
-fn scale_output_amount_for_iota(output: &mut Output) -> Result<()> {
-    *output = match output {
-        Output::Basic(ref basic_output) => {
-            // Update amount
-            let mut builder = BasicOutputBuilder::from(basic_output)
-                .with_amount(scale_amount_for_iota(basic_output.amount())?);
-
-            // Update amount in potential storage deposit return unlock condition
-            if let Some(sdr_uc) = basic_output
-                .unlock_conditions()
-                .get(StorageDepositReturnUnlockCondition::KIND)
-            {
-                let sdr_uc = sdr_uc.as_storage_deposit_return();
-                builder = builder.replace_unlock_condition(
-                    StorageDepositReturnUnlockCondition::new(
-                        sdr_uc.return_address(),
-                        scale_amount_for_iota(sdr_uc.amount())?,
-                        u64::MAX,
-                    )
-                    .unwrap(),
-                );
-            };
-
-            Output::from(builder.finish()?)
-        }
-        Output::Alias(ref alias_output) => Output::from(
-            AliasOutputBuilder::from(alias_output)
-                .with_amount(scale_amount_for_iota(alias_output.amount())?)
-                .finish()?,
-        ),
-        Output::Foundry(ref foundry_output) => Output::from(
-            FoundryOutputBuilder::from(foundry_output)
-                .with_amount(scale_amount_for_iota(foundry_output.amount())?)
-                .finish()?,
-        ),
-        Output::Nft(ref nft_output) => {
-            // Update amount
-            let mut builder = NftOutputBuilder::from(nft_output)
-                .with_amount(scale_amount_for_iota(nft_output.amount())?);
-
-            // Update amount in potential storage deposit return unlock condition
-            if let Some(sdr_uc) = nft_output
-                .unlock_conditions()
-                .get(StorageDepositReturnUnlockCondition::KIND)
-            {
-                let sdr_uc = sdr_uc.as_storage_deposit_return();
-                builder = builder.replace_unlock_condition(
-                    StorageDepositReturnUnlockCondition::new(
-                        sdr_uc.return_address(),
-                        scale_amount_for_iota(sdr_uc.amount())?,
-                        u64::MAX,
-                    )
-                    .unwrap(),
-                );
-            };
-
-            Output::from(builder.finish()?)
-        }
-        Output::Treasury(_) => return Ok(()),
-    };
-    Ok(())
-}
-
-fn scale_amount_for_iota(amount: u64) -> Result<u64> {
-    const IOTA_MULTIPLIER: u64 = 1000;
-
-    amount
-        .checked_mul(IOTA_MULTIPLIER)
-        .ok_or_else(|| anyhow!("overflow multiplying amount {amount} by {IOTA_MULTIPLIER}"))
 }
