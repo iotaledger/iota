@@ -8117,6 +8117,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-proxy"
+version = "0.8.0-alpha"
+dependencies = [
+ "anyhow",
+ "axum",
+ "axum-extra",
+ "axum-server",
+ "bytes",
+ "clap",
+ "const-str",
+ "fastcrypto 0.1.8 (git+https://github.com/MystenLabs/fastcrypto?rev=5f2c63266a065996d53f98156f0412782b468597)",
+ "futures",
+ "git-version",
+ "hex",
+ "hyper 1.4.1",
+ "iota-metrics 0.8.0-alpha",
+ "iota-tls",
+ "iota-types 0.8.0-alpha",
+ "itertools 0.13.0",
+ "mime",
+ "multiaddr",
+ "once_cell",
+ "prometheus",
+ "prost",
+ "prost-build",
+ "protobuf",
+ "rand 0.8.5",
+ "reqwest 0.12.7",
+ "rustls 0.23.18",
+ "rustls-pemfile 2.1.3",
+ "serde",
+ "serde_json",
+ "serde_with 3.9.0",
+ "serde_yaml",
+ "snap",
+ "telemetry-subscribers 0.8.0-alpha",
+ "tokio",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "iota-replay"
 version = "0.8.0-alpha"
 dependencies = [

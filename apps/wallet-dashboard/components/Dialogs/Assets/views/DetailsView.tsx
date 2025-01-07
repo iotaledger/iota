@@ -11,7 +11,6 @@ import {
     VisualAssetCard,
     VisualAssetType,
 } from '@iota/apps-ui-kit';
-import Link from 'next/link';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { IotaObjectData } from '@iota/iota-sdk/client';
@@ -38,7 +37,6 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
         isAssetTransferable,
         metaKeys,
         metaValues,
-        formatMetaValue,
         isContainedInKiosk,
         kioskItem,
         objectData,
@@ -88,11 +86,7 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                                 {nftDisplayData?.projectUrl && (
                                     <KeyValueInfo
                                         keyText="Website"
-                                        value={
-                                            <Link href={nftDisplayData?.projectUrl}>
-                                                {nftDisplayData?.projectUrl}
-                                            </Link>
-                                        }
+                                        value={nftDisplayData?.projectUrl}
                                         fullwidth
                                     />
                                 )}
@@ -144,21 +138,14 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                             <Collapsible defaultOpen title="Attributes">
                                 <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
                                     {metaKeys.map((aKey, idx) => {
-                                        const { value, valueLink } = formatMetaValue(
-                                            metaValues[idx],
-                                        );
                                         return (
                                             <KeyValueInfo
                                                 key={idx}
                                                 keyText={aKey}
                                                 value={
-                                                    valueLink ? (
-                                                        <Link key={aKey} href={valueLink || ''}>
-                                                            {value}
-                                                        </Link>
-                                                    ) : (
-                                                        value
-                                                    )
+                                                    typeof metaValues[idx] === 'object'
+                                                        ? JSON.stringify(metaValues[idx])
+                                                        : metaValues[idx]
                                                 }
                                                 fullwidth
                                             />
