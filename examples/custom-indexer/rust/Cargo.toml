@@ -6,14 +6,14 @@ license = "Apache-2.0"
 
 [dependencies]
 # external dependencies
-anyhow = "1.0.86"
-async-trait = "0.1.81"
-prometheus = "0.13.3"
-tokio = { version = "1.38.0", features = ["full"] }
+anyhow.workspace = true
+async-trait.workspace = true
+prometheus.workspace = true
+tokio.workspace = true
 
 # internal dependencies
-iota_data_ingestion_core = { git = "https://github.com/iotaledger/iota", package = "iota-data-ingestion-core" }
-iota_types = { git = "https://github.com/iotaledger/iota", package = "iota-types" }
+iota-data-ingestion-core.workspace = true
+iota-types.workspace = true
 
 [[bin]]
 name = "local_reader"
