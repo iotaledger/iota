@@ -952,7 +952,7 @@ impl RandomnessEventLoop {
         full_sig: Arc<OnceCell<RandomnessSignature>>,
     ) {
         // For simtests, we may test not sending partial signatures.
-        #[expect(unused_mut)]
+        #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
         let mut fail_point_skip_sending = false;
         fail_point_if!("rb-send-partial-signatures", || {
             fail_point_skip_sending = true;

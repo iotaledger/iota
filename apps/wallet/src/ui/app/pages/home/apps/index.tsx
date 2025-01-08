@@ -19,7 +19,7 @@ type FilterTag = {
     link: string;
 };
 
-function AppsPage() {
+export function AppsPage() {
     const navigate = useNavigate();
 
     const DEFAULT_FILTER_TAGS: FilterTag[] = [
@@ -83,5 +83,3 @@ function AppsPage() {
         </div>
     );
 }
-
-export default AppsPage;
