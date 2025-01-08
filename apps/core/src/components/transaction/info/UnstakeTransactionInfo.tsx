@@ -9,9 +9,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import type { GasSummaryType, RenderExplorerLink, RenderValidatorLogo } from '../../../types';
 import { useFormatCoin } from '../../../hooks';
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
-import { GasSummary } from '../../..';
-import { UnstakeEventJson } from '@/lib/interfaces';
-import { parseEventJson, getUnstakeDetails } from '@/lib/utils';
+import { GasSummary, getUnstakeDetails, parseEventJson, UnstakeEventJson } from '../../..';
 
 interface UnstakeTransactionInfoProps {
     activeAddress: string | null;
