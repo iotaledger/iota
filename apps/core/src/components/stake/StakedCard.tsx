@@ -9,7 +9,6 @@ import { useIotaClientQuery } from '@iota/dapp-kit';
 import { ImageIcon } from '../icon';
 import { ExtendedDelegatedStake } from '../../utils';
 import { useFormatCoin, useStakeRewardStatus } from '../../hooks';
-import React from 'react';
 
 interface StakedCardProps {
     extendedStake: ExtendedDelegatedStake;

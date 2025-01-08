@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
 import { useIotaClient, useCurrentAccount } from '@iota/dapp-kit';

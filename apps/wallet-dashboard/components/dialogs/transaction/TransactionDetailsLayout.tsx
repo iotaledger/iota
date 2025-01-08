@@ -1,6 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import React from 'react';
+
 import { ExplorerLink } from '@/components';
 import { ExtendedTransaction } from '@/lib/interfaces';
 import { Header, LoadingIndicator } from '@iota/apps-ui-kit';
