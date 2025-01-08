@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { formatDate, type useTransactionSummary } from '../../hooks';
 import { CheckmarkFilled } from '@iota/ui-icons';

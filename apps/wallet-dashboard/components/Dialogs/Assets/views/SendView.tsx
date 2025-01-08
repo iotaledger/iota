@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { AddressInput, useNftDetails } from '@iota/core';
 import { useFormikContext } from 'formik';
 import { DialogLayoutFooter, DialogLayoutBody } from '../../layout';

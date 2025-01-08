@@ -8,7 +8,7 @@ import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 
 export function NFTDetailsPage() {
@@ -23,7 +23,6 @@ export function NFTDetailsPage() {
         objectData,
         metaKeys,
         metaValues,
-        formatMetaValue,
         isContainedInKiosk,
         kioskItem,
         isAssetTransferable,
@@ -94,11 +93,7 @@ export function NFTDetailsPage() {
                                                 {nftDisplayData?.projectUrl && (
                                                     <KeyValueInfo
                                                         keyText="Website"
-                                                        value={
-                                                            <Link to={nftDisplayData?.projectUrl}>
-                                                                {nftDisplayData?.projectUrl}
-                                                            </Link>
-                                                        }
+                                                        value={nftDisplayData?.projectUrl}
                                                         fullwidth
                                                     />
                                                 )}
@@ -153,19 +148,17 @@ export function NFTDetailsPage() {
                                             <Collapsible defaultOpen title="Attributes">
                                                 <div className="flex flex-col gap-xs px-md pb-xs pt-sm">
                                                     {metaKeys.map((aKey, idx) => {
-                                                        const { value, valueLink } =
-                                                            formatMetaValue(metaValues[idx]);
                                                         return (
                                                             <KeyValueInfo
                                                                 key={idx}
                                                                 keyText={aKey}
                                                                 value={
-                                                                    <Link
-                                                                        key={aKey}
-                                                                        to={valueLink || ''}
-                                                                    >
-                                                                        {value}
-                                                                    </Link>
+                                                                    typeof metaValues[idx] ===
+                                                                    'object'
+                                                                        ? JSON.stringify(
+                                                                              metaValues[idx],
+                                                                          )
+                                                                        : metaValues[idx]
                                                                 }
                                                                 fullwidth
                                                             />
