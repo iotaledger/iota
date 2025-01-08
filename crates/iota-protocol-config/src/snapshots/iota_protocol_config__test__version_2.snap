@@ -1,7 +1,6 @@
 ---
 source: crates/iota-protocol-config/src/lib.rs
 expression: "ProtocolConfig::get_for_version(cur, *chain_id)"
-snapshot_kind: text
 ---
 version: 2
 feature_flags:
@@ -12,6 +11,7 @@ feature_flags:
   zklogin_max_epoch_upper_bound_delta: 30
   enable_vdf: true
   passkey_auth: true
+  relocate_event_module: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
