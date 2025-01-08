@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { TransactionIcon } from './TransactionIcon';
 import formatTimestamp from '@/lib/utils/time';
 import { ExtendedTransaction, TransactionState } from '@/lib/interfaces';
