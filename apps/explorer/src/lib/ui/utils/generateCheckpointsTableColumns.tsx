@@ -46,12 +46,12 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
         },
         {
             header: 'Transactions',
-            accessorKey: 'networkTotalTransactions',
+            accessorKey: 'transactions',
             cell: ({ getValue }) => {
-                const networkTotalTransactions = getValue<Checkpoint['networkTotalTransactions']>();
+                const transactions = getValue<Checkpoint['transactions']>();
                 return (
                     <TableCellBase>
-                        <TableCellText>{networkTotalTransactions}</TableCellText>
+                        <TableCellText>{transactions.length}</TableCellText>
                     </TableCellBase>
                 );
             },
@@ -66,18 +66,6 @@ export function generateCheckpointsTableColumns(): ColumnDef<Checkpoint>[] {
                         <TableCellText>
                             {timestampMs ? getElapsedTime(Number(timestampMs), Date.now()) : '--'}
                         </TableCellText>
-                    </TableCellBase>
-                );
-            },
-        },
-        {
-            header: 'Transaction Block Count',
-            accessorKey: 'transactions',
-            cell: ({ getValue }) => {
-                const transactions = getValue<Checkpoint['transactions']>();
-                return (
-                    <TableCellBase>
-                        <TableCellText>{transactions.length}</TableCellText>
                     </TableCellBase>
                 );
             },

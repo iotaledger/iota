@@ -12,6 +12,9 @@ use tonic_build::manual::{Builder, Method, Service};
 type Result<T> = ::std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 fn main() -> Result<()> {
+    println!("cargo::rustc-check-cfg=cfg(msim)");
+    println!("cargo::rustc-check-cfg=cfg(fail_points)");
+
     let out_dir = if env::var("DUMP_GENERATED_GRPC").is_ok() {
         PathBuf::from("")
     } else {

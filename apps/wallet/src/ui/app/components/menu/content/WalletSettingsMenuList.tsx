@@ -6,7 +6,7 @@ import { useNextMenuUrl, Overlay } from '_components';
 import { useAppSelector } from '_hooks';
 import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { formatAutoLock, useAutoLockMinutes } from '_src/ui/app/hooks/useAutoLockMinutes';
-import FaucetRequestButton from '_src/ui/app/shared/faucet/FaucetRequestButton';
+import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';
 import { Link, useNavigate } from 'react-router-dom';
@@ -30,7 +30,7 @@ import {
 import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork } from '@iota/core';
 
-function MenuList() {
+export function MenuList() {
     const { themePreference } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
@@ -169,5 +169,3 @@ function MenuList() {
         </Overlay>
     );
 }
-
-export default MenuList;

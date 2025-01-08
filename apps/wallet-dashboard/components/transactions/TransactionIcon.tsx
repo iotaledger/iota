@@ -26,7 +26,6 @@ interface TransactionIconProps {
     variant: keyof typeof icons;
 }
 
-function TransactionIcon({ txnFailed, variant }: TransactionIconProps) {
+export function TransactionIcon({ txnFailed, variant }: TransactionIconProps) {
     return <div className="[&_svg]:h-5 [&_svg]:w-5">{icons[txnFailed ? 'Failed' : variant]}</div>;
 }
-export default TransactionIcon;

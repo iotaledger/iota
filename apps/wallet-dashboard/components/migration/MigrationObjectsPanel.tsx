@@ -24,7 +24,7 @@ import { Close, Warning } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { MigrationObjectDetailsCard } from './migration-object-details-card';
-import VirtualList from '../VirtualList';
+import { VirtualList } from '../VirtualList';
 import { filterMigrationObjects } from '@/lib/utils';
 import { MigrationObjectLoading } from './MigrationObjectLoading';
 
