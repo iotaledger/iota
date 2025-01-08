@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { TitleSize, Badge, BadgeType, Title, Panel } from '@iota/apps-ui-kit';
 import { Collapsible, GasSummary, type RenderExplorerLink, type GasSummaryType } from '../../';
 
