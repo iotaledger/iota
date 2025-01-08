@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
+import { useGroupedStardustObjects } from '@/hooks';
 import {
     STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
     STARDUST_TIMELOCKED_OBJECTS_FILTER_LIST,
@@ -51,7 +51,7 @@ export function MigrationObjectsPanel({
         data: resolvedObjects = [],
         isLoading,
         error: isErrored,
-    } = useGroupedMigrationObjectsByExpirationDate(selectedObjects, isTimelocked);
+    } = useGroupedStardustObjects(selectedObjects, isTimelocked);
 
     const filteredObjects = filterMigrationObjects(resolvedObjects, stardustOutputDetailsFilter);
 

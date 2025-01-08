@@ -23,7 +23,7 @@ export function groupStardustObjectsByMigrationStatus(
     const epochUnix = epochTimestampMs / MILLISECONDS_PER_SECOND;
 
     for (const outputObject of stardustOutputObjects) {
-        const outputObjectFields = extractMigrationOutputFields(outputObject);
+        const outputObjectFields = extractOutputFields(outputObject);
 
         if (
             outputObjectFields.timelock_uc &&
@@ -50,26 +50,26 @@ export function groupStardustObjectsByMigrationStatus(
     return { migratable, timelocked };
 }
 
-interface MigratableObjectsData {
+interface StardustObjectsTotals {
     totalNativeTokens: number;
     totalVisualAssets: number;
     totalIotaAmount: bigint;
     totalNotOwnedStorageDepositReturnAmount: bigint;
 }
 
-interface SummarizeMigrationObjectParams {
+interface StardustObjectsTotalsParams {
     basicOutputs: IotaObjectData[] | undefined;
     nftOutputs: IotaObjectData[] | undefined;
     address: string;
     resolvedObjects?: ResolvedObjectTypes[];
 }
 
-export function summarizeMigratableObjectValues({
+export function getStardustObjectsTotals({
     basicOutputs = [],
     nftOutputs = [],
     address,
     resolvedObjects,
-}: SummarizeMigrationObjectParams): MigratableObjectsData {
+}: StardustObjectsTotalsParams): StardustObjectsTotals {
     let totalNativeTokens = 0;
     let totalIotaAmount: bigint = 0n;
     let totalNotOwnedStorageDepositReturnAmount: bigint = 0n;
@@ -87,7 +87,7 @@ export function summarizeMigratableObjectValues({
     totalNativeTokens = getUniqueNativeTokensByCoinType(filteredObjects);
 
     for (const output of outputObjects) {
-        const outputObjectFields = extractMigrationOutputFields(output);
+        const outputObjectFields = extractOutputFields(output);
 
         totalIotaAmount += BigInt(outputObjectFields.balance);
         totalIotaAmount +=
@@ -104,33 +104,6 @@ export function summarizeMigratableObjectValues({
     };
 }
 
-interface UnmmigratableObjectsData {
-    totalTimelockedObjects: number;
-}
-
-export function summarizeTimelockedObjectValues({
-    basicOutputs = [],
-    nftOutputs = [],
-    resolvedObjects,
-}: Omit<SummarizeMigrationObjectParams, 'address'>): UnmmigratableObjectsData {
-    const basicObjects = basicOutputs.length;
-    const nftObjects = nftOutputs.length;
-    let nativeTokens = 0;
-    let filteredObjects: ResolvedObjectTypes[] = [];
-
-    if (resolvedObjects) {
-        filteredObjects = filterMigrationObjects(
-            resolvedObjects,
-            StardustOutputDetailsFilter.NativeTokens,
-        );
-    }
-    nativeTokens = getUniqueNativeTokensByCoinType(filteredObjects);
-
-    const totalTimelockedObjects = basicObjects + nativeTokens + nftObjects;
-
-    return { totalTimelockedObjects };
-}
-
 export function extractOwnedStorageDepositReturnAmount(
     { storage_deposit_return_uc }: CommonOutputObjectWithUc,
     address: string,
@@ -144,9 +117,7 @@ export function extractOwnedStorageDepositReturnAmount(
     return null;
 }
 
-export function extractMigrationOutputFields(
-    outputObject: IotaObjectData,
-): CommonOutputObjectWithUc {
+export function extractOutputFields(outputObject: IotaObjectData): CommonOutputObjectWithUc {
     return (
         outputObject.content as unknown as {
             fields: CommonOutputObjectWithUc;

@@ -6,11 +6,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
-import {
-    useGetStardustMigratableObjects,
-    useGroupedMigrationObjectsByExpirationDate,
-} from '@/hooks';
-import { summarizeMigratableObjectValues, summarizeTimelockedObjectValues } from '@/lib/utils';
+import { useGetStardustMigratableObjects, useGroupedStardustObjects } from '@/hooks';
+import { getStardustObjectsTotals } from '@/lib/utils';
 import {
     Button,
     ButtonSize,
@@ -22,7 +19,7 @@ import {
     Panel,
     Title,
 } from '@iota/apps-ui-kit';
-import { Assets, Clock, IotaLogoMark, Tokens } from '@iota/ui-icons';
+import { Assets, IotaLogoMark, Tokens } from '@iota/ui-icons';
 import { useCurrentAccount, useIotaClient } from '@iota/dapp-kit';
 import { STARDUST_BASIC_OUTPUT_TYPE, STARDUST_NFT_OUTPUT_TYPE, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
@@ -50,30 +47,49 @@ function MigrationDashboardPage(): JSX.Element {
         timelockedNftOutputs,
     } = stardustMigrationObjects || {};
 
-    const { data: resolvedObjects = [] } = useGroupedMigrationObjectsByExpirationDate(
+    const { data: resolvedMigrationObjects = [] } = useGroupedStardustObjects(
         [...(migratableBasicOutputs || []), ...(migratableNftOutputs || [])],
-        selectedStardustObjectsCategory === StardustOutputMigrationStatus.Migratable,
+        false,
+    );
+    const { data: resolvedTimelockedObjects = [] } = useGroupedStardustObjects(
+        [...(timelockedBasicOutputs || []), ...(timelockedNftOutputs || [])],
+        true,
     );
 
     const {
-        totalIotaAmount,
+        totalIotaAmount: migratableIotaAmount,
         totalNativeTokens: migratableNativeTokens,
         totalVisualAssets: migratableVisualAssets,
-    } = summarizeMigratableObjectValues({
+    } = getStardustObjectsTotals({
         basicOutputs: migratableBasicOutputs,
         nftOutputs: migratableNftOutputs,
         address,
-        resolvedObjects,
+        resolvedObjects: resolvedMigrationObjects,
     });
-    const { totalTimelockedObjects } = summarizeTimelockedObjectValues({
+    const {
+        totalIotaAmount: timelockedIotaAmount,
+        totalNativeTokens: timelockedNativeTokens,
+        totalVisualAssets: timelockedVisualAssets,
+    } = getStardustObjectsTotals({
         basicOutputs: timelockedBasicOutputs,
         nftOutputs: timelockedNftOutputs,
+        address,
+        resolvedObjects: resolvedTimelockedObjects,
     });
 
     const hasMigratableObjects =
         (migratableBasicOutputs?.length || 0) > 0 && (migratableNftOutputs?.length || 0) > 0;
+    const hasTimelockedObjects =
+        (timelockedBasicOutputs?.length || 0) > 0 && (timelockedNftOutputs?.length || 0) > 0;
 
-    const [timelockedIotaTokens, symbol] = useFormatCoin(totalIotaAmount, IOTA_TYPE_ARG);
+    const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] = useFormatCoin(
+        migratableIotaAmount,
+        IOTA_TYPE_ARG,
+    );
+    const [timelockedIotaAmountFormatted, timelockedIotaAmountSymbol] = useFormatCoin(
+        timelockedIotaAmount,
+        IOTA_TYPE_ARG,
+    );
 
     const handleOnSuccess = useCallback(
         (digest: string) => {
@@ -99,7 +115,7 @@ function MigrationDashboardPage(): JSX.Element {
 
     const MIGRATION_CARDS: MigrationDisplayCardProps[] = [
         {
-            title: `${timelockedIotaTokens} ${symbol}`,
+            title: `${migratableIotaAmountFormatted} ${migratableIotaAmountSymbol}`,
             subtitle: 'IOTA Tokens',
             icon: IotaLogoMark,
         },
@@ -117,9 +133,19 @@ function MigrationDashboardPage(): JSX.Element {
 
     const TIMELOCKED_ASSETS_CARDS: MigrationDisplayCardProps[] = [
         {
-            title: `${totalTimelockedObjects}`,
-            subtitle: 'Time-locked',
-            icon: Clock,
+            title: `${timelockedIotaAmountFormatted} ${timelockedIotaAmountSymbol}`,
+            subtitle: 'IOTA Tokens',
+            icon: IotaLogoMark,
+        },
+        {
+            title: `${timelockedNativeTokens}`,
+            subtitle: 'Native Tokens',
+            icon: Tokens,
+        },
+        {
+            title: `${timelockedVisualAssets}`,
+            subtitle: 'Visual Assets',
+            icon: Assets,
         },
     ];
 
@@ -233,7 +259,7 @@ function MigrationDashboardPage(): JSX.Element {
                                 disabled={
                                     selectedStardustObjectsCategory ===
                                         StardustOutputMigrationStatus.TimeLocked ||
-                                    !totalTimelockedObjects
+                                    !hasTimelockedObjects
                                 }
                                 onClick={() =>
                                     setSelectedStardustObjectsCategory(

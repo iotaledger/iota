@@ -17,11 +17,11 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
+import { useGroupedStardustObjects } from '@/hooks';
 import { Loader, Warning } from '@iota/ui-icons';
 import { Collapsible, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { summarizeMigratableObjectValues } from '@/lib/utils';
+import { getStardustObjectsTotals } from '@/lib/utils';
 import { MigrationObjectDetailsCard } from '@/components/migration/migration-object-details-card';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
@@ -60,12 +60,9 @@ export function ConfirmMigrationView({
         data: resolvedObjects = [],
         isLoading,
         error: isGroupedMigrationError,
-    } = useGroupedMigrationObjectsByExpirationDate(
-        [...basicOutputObjects, ...nftOutputObjects],
-        isTimelocked,
-    );
+    } = useGroupedStardustObjects([...basicOutputObjects, ...nftOutputObjects], isTimelocked);
 
-    const { totalNotOwnedStorageDepositReturnAmount } = summarizeMigratableObjectValues({
+    const { totalNotOwnedStorageDepositReturnAmount } = getStardustObjectsTotals({
         basicOutputs: basicOutputObjects,
         nftOutputs: nftOutputObjects,
         address: account?.address || '',
