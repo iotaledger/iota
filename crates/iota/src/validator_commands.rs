@@ -1244,9 +1244,9 @@ async fn update_metadata(
             .await
         }
         MetadataUpdate::PrimaryAddress { primary_address } => {
-            primary_address.to_anemo_address().map_err(|_| {
-                anyhow!("Invalid primary address, it must look like `/[ip4,ip6,dns]/.../udp/port`")
-            })?;
+            if !primary_address.is_loosely_valid_tcp_addr() {
+                bail!("Primary address must be a TCP address");
+            }
             let _status = check_status(context, HashSet::from([Pending, Active])).await?;
             let args = vec![CallArg::Pure(bcs::to_bytes(&primary_address).unwrap())];
             call_0x5(
