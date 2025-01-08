@@ -14,9 +14,9 @@ import {
 import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Loading, NoData, PageTemplate } from '_components';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import HiddenAssets from './HiddenAssets';
-import NonVisualAssets from './NonVisualAssets';
-import VisualAssets from './VisualAssets';
+import { HiddenAssets } from './HiddenAssets';
+import { NonVisualAssets } from './NonVisualAssets';
+import { VisualAssets } from './VisualAssets';
 import { Warning } from '@iota/ui-icons';
 import { useOnScreen, useGetNFTs, useHiddenAssets } from '@iota/core';
 import { COIN_TYPE } from '_src/ui/app/redux/slices/iota-objects/Coin';
@@ -42,7 +42,7 @@ const ASSET_CATEGORIES = [
     },
 ];
 
-function NftsPage() {
+export function NftsPage() {
     const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | null>(null);
     const observerElem = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(observerElem);
@@ -52,7 +52,6 @@ function NftsPage() {
     const {
         data: ownedAssets,
         hasNextPage,
-        isLoading,
         isFetchingNextPage,
         fetchNextPage,
         error,
@@ -148,14 +147,6 @@ function NftsPage() {
         }
     }, [hasNextPage, ownedAssets, isFetchingNextPage]);
 
-    if (isLoading) {
-        return (
-            <div className="mt-1 flex w-full justify-center">
-                <LoadingIndicator />
-            </div>
-        );
-    }
-
     return (
         <PageTemplate title="Assets" isTitleCentered>
             <div className="flex h-full w-full flex-col items-start gap-md">
@@ -217,5 +208,3 @@ function NftsPage() {
         </PageTemplate>
     );
 }
-
-export default NftsPage;

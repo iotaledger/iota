@@ -37,7 +37,8 @@ import { ManageAccountsPage } from './pages/accounts/manage/ManageAccountsPage';
 import { ProtectAccountPage } from './pages/accounts/ProtectAccountPage';
 import { WelcomePage } from './pages/accounts/WelcomePage';
 import { ApprovalRequestPage } from './pages/approval-request';
-import HomePage, {
+import {
+    HomePage,
     AppsPage,
     AssetsPage,
     CoinsSelectorPage,
@@ -48,9 +49,9 @@ import HomePage, {
     TransactionBlocksPage,
     TransferCoinPage,
 } from './pages/home';
-import TokenDetailsPage from './pages/home/tokens/TokenDetailsPage';
+import { TokenDetailsPage } from './pages/home/tokens/TokenDetailsPage';
 import { RestrictedPage } from './pages/restricted';
-import SiteConnectPage from './pages/site-connect';
+import { SiteConnectPage } from './pages/site-connect';
 import { AppType } from './redux/slices/app/AppType';
 import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
@@ -68,7 +69,7 @@ const HIDDEN_MENU_PATHS = [
 
 const NOTIFY_USER_ACTIVE_INTERVAL = 5 * 1000; // 5 seconds
 
-const App = () => {
+export function App() {
     const dispatch = useAppDispatch();
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     useEffect(() => {
@@ -215,6 +216,4 @@ const App = () => {
             </Route>
         </Routes>
     );
-};
-
-export default App;
+}
