@@ -50,19 +50,17 @@ $$
 ValidatorRewards_v \ = \ \Big(\beta_v+\delta_v(1-\beta_v)\Big)\mu_v\sigma_v \times TotalStakeRewards
 $$
 
-The $\mu_v$ variable captures the output of the [tallying rule](./gas-pricing.mdx#computation-gas-prices) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $\mu_v\geq1$ for performant validators and $\mu_v<1$ for non-performant validators. 
+The $\mu_v$ variable captures the output of the [tallying rule](./gas-pricing.mdx#computation-gas-prices) computed as part of the [gas price mechanism](./gas-pricing.mdx) and corresponds to $\mu_v=1$ for performant validators and $\mu_v<1$ for non-performant validators. 
 This variable ensures that validators have "skin in the game" and are incentivized to operate IOTA efficiently. 
 The $\sigma_v$ parameter captures each pool's share of total stake.
 
 Consequently, validators with more stake earn more stake rewards and the joint $\mu_v\sigma_v$ term incentivizes validators to increase their share of stake while also operating the network performantly. 
 In the long-run, this incentive encourages users to shift the stake distribution towards the network's most efficient validators, delivering a cost-efficient and decentralized network.
 
-On net, this design encourages validators to operate with low gas price quotes, but not too low or they receive slashed stake rewards. 
-Consequently, the IOTA gas price mechanism and DPoS system encourages a healthy competition for fair prices where validators set low gas fees while operating with viable business models.
 
 ## IOTA incentives
 
-The IOTA economic model bestows IOTA users with an important monitoring role. On the one hand, users want their transactions processed as quickly and efficiently as possible. User clients, such as wallets, encourage this by prioritizing communication with the most responsive validators. Such efficient operations are compensated with boosted rewards relative to less responsive validators. On the other hand, IOTA token stakers receive the same boosted or penalized rewards as their selected validator. An unresponsive validator is thus doubly exposed to IOTA incentives: they lose directly through slashed rewards and indirectly through reduced user stake in future epochs as stakers move their tokens to more responsive validators.
+The IOTA economic model bestows IOTA users with an important monitoring role. On the one hand, users want their transactions processed as quickly and efficiently as possible. User clients, such as wallets, encourage this by prioritizing communication with the most responsive validators. Such efficient operations are compensated with more rewards than less responsive validators. On the other hand, IOTA token stakers receive the same boosted or penalized rewards as their selected validator. An unresponsive validator is thus doubly exposed to IOTA incentives: they lose directly through slashed rewards and indirectly through reduced user stake in future epochs as stakers move their tokens to more responsive validators.
 
 ## Quizzes
 <Quiz questions={questions} />

@@ -24,6 +24,7 @@ COPY .git/ .git/
 COPY consensus consensus
 COPY crates crates
 COPY docs docs
+COPY examples examples
 COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./
