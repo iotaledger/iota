@@ -4,11 +4,14 @@
 #[test_only]
 module iota::coin_manager_tests {
 
+    use std::ascii;
+    use std::string;
+
     use iota::coin_manager;
     use iota::coin::{Self, CoinMetadata};
     use iota::test_scenario;
+    use iota::test_utils::assert_eq;
     use iota::url::{Self, Url};
-    use std::ascii::{string};
 
     public struct COIN_MANAGER_TESTS has drop {}
     
@@ -331,7 +334,7 @@ module iota::coin_manager_tests {
         let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
 
         let bonus = BonusMetadata {
-            website: url::new_unsafe(string(b"https://example.com")),
+            website: url::new_unsafe(ascii::string(b"https://example.com")),
             is_amazing: false
         };
 
@@ -340,7 +343,7 @@ module iota::coin_manager_tests {
         assert!(!wrapper.additional_metadata<COIN_MANAGER_TESTS, BonusMetadata>().is_amazing);
         
         let bonus2 = BonusMetadata {
-            website: url::new_unsafe(string(b"https://iota.org")),
+            website: url::new_unsafe(ascii::string(b"https://iota.org")),
             is_amazing: true
         };
 
@@ -393,6 +396,50 @@ module iota::coin_manager_tests {
         transfer::public_transfer(cmcap, scenario.ctx().sender());
         transfer::public_share_object(wrapper);
         test_scenario::return_immutable(immeta);
+
+        scenario.end();
+    }
+
+    #[test]
+    fun test_coin_manager_update_metadata() {
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+        let witness = COIN_MANAGER_TESTS{};
+
+        // Create a `Coin`.
+        let (cap, meta) = coin::create_currency(
+            witness,
+            0, 
+            b"SYMBOL1",
+            b"NAME1",
+            b"DESCRIPTION1",
+            option::some(url::new_unsafe(ascii::string(b"https://url1.com"))),
+            scenario.ctx(),
+        );
+
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+
+        // Check the original metadata.
+        assert_eq(wrapper.name(), string::utf8(b"NAME1"));
+        assert_eq(wrapper.symbol(), ascii::string(b"SYMBOL1"));
+        assert_eq(wrapper.description(), string::utf8(b"DESCRIPTION1"));
+        assert_eq(wrapper.icon_url(), option::some(url::new_unsafe(ascii::string(b"https://url1.com"))));
+
+        // Update the metadata.
+        coin_manager::update_name(&metacap, &mut wrapper, string::utf8(b"NAME2"));
+        coin_manager::update_symbol(&metacap, &mut wrapper, ascii::string(b"SYMBOL2"));
+        coin_manager::update_description(&metacap, &mut wrapper, string::utf8(b"DESCRIPTION2"));
+        coin_manager::update_icon_url(&metacap, &mut wrapper, ascii::string(b"https://url2.com"));
+
+        // Check the metadata again.
+        assert_eq(wrapper.name(), string::utf8(b"NAME2"));
+        assert_eq(wrapper.symbol(), ascii::string(b"SYMBOL2"));
+        assert_eq(wrapper.description(), string::utf8(b"DESCRIPTION2"));
+        assert_eq(wrapper.icon_url(), option::some(url::new_unsafe(ascii::string(b"https://url2.com"))));
+
+        transfer::public_transfer(cmcap, scenario.ctx().sender());
+        metacap.renounce_metadata_ownership(&mut wrapper);
+        transfer::public_share_object(wrapper);
 
         scenario.end();
     }

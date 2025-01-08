@@ -32,9 +32,6 @@ module iota::coin_manager {
     /// The error returned if you try to edit nonexisting additional metadata
     const EAdditionalMetadataDoesNotExist: u64 = 4;
 
-    /// The error returned if you try to edit immutable metadata
-    const ENoMutableMetadata: u64 = 5;
-
     /// Holds all related objects to a Coin in a convenient shared function
     public struct CoinManager<phantom T> has key, store {
         id: UID,
@@ -383,7 +380,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         name: string::String
     ) {
-        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
         coin::update_name(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), name)
     }
 
@@ -393,7 +389,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         symbol: ascii::String
     ) {
-        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
         coin::update_symbol(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), symbol)
     }
 
@@ -403,7 +398,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         description: string::String
     ) {
-        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
         coin::update_description(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), description)
     }
 
@@ -413,7 +407,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         url: ascii::String
     ) {
-        assert!(manager.metadata_is_immutable(), ENoMutableMetadata);
         coin::update_icon_url(&manager.treasury_cap, option::borrow_mut(&mut manager.metadata), url)
     }
     
