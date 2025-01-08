@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import {
     Card,
     CardAction,
@@ -14,9 +13,9 @@ import {
 } from '@iota/apps-ui-kit';
 import { DialogLayout, DialogLayoutBody } from '../../layout';
 import { SettingsDialogView } from '../enums';
-import { getNetwork } from '@iota/iota-sdk/client';
-import { useIotaClientContext } from '@iota/dapp-kit';
 import { Globe } from '@iota/ui-icons';
+import { usePersistedNetwork } from '@/hooks';
+import { toTitleCase } from '@iota/core';
 
 interface SettingsListViewProps {
     handleClose: () => void;
@@ -24,13 +23,11 @@ interface SettingsListViewProps {
 }
 
 export function SettingsListView({ handleClose, setView }: SettingsListViewProps): JSX.Element {
-    const { network } = useIotaClientContext();
-    const { name: networkName } = getNetwork(network);
-
+    const { persistedNetwork } = usePersistedNetwork();
     const MENU_ITEMS = [
         {
             title: 'Network',
-            subtitle: networkName,
+            subtitle: toTitleCase(persistedNetwork),
             icon: <Globe />,
             onClick: () => setView(SettingsDialogView.NetworkSettings),
         },

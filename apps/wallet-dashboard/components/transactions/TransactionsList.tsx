@@ -1,14 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { VirtualList, TransactionTile } from '@/components';
 import { useQueryTransactionsByAddress } from '@iota/core';
 import { getExtendedTransaction } from '@/lib/utils/transaction';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
-function TransactionsList() {
+export function TransactionsList() {
     const currentAccount = useCurrentAccount();
     const { data: transactions, error } = useQueryTransactionsByAddress(currentAccount?.address);
 
@@ -23,5 +22,3 @@ function TransactionsList() {
 
     return <VirtualList items={transactions || []} estimateSize={() => 60} render={virtualItem} />;
 }
-
-export default TransactionsList;

@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use iota_json_rpc_api::{
-    IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
-};
+use iota_json_rpc_api::{ReadApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponseOptions,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
+    crypto::{AccountKeyPair, get_key_pair},
     object::Owner,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -125,17 +124,28 @@ fn dev_inspect_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = cluster.get_address_0();
-        let receiver = cluster.get_address_1();
+        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
 
-        let objects = cluster
-            .rpc_client()
-            .get_owned_objects(sender, None, None, None)
-            .await
-            .unwrap()
-            .data;
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
 
-        let (obj_id, seq_num, digest) = objects.first().unwrap().object().unwrap().object_ref();
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        let (obj_id, seq_num, digest) = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+
+        indexer_wait_for_object(client, obj_id, seq_num).await;
 
         let mut builder = ProgrammableTransactionBuilder::new();
         builder
@@ -173,15 +183,23 @@ fn dev_inspect_transaction_block() {
             .await
             .unwrap();
 
+        // Ensure that the actual object sequence number remains unchanged after the
+        // checkpoint advances
         indexer_wait_for_checkpoint(store, latest_checkpoint_seq_number.into_inner() + 1).await;
 
-        let actual_object_info = client
+        let actual_object_data = client
             .get_object(obj_id, Some(IotaObjectDataOptions::new().with_owner()))
             .await
+            .unwrap()
+            .data
             .unwrap();
 
         assert_eq!(
-            actual_object_info.data.unwrap().owner.unwrap(),
+            actual_object_data.version, seq_num,
+            "The object sequence number should not mutate"
+        );
+        assert_eq!(
+            actual_object_data.owner.unwrap(),
             Owner::AddressOwner(sender),
             "The initial owner of the object should not change"
         );

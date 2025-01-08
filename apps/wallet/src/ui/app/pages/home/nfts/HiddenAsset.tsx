@@ -39,7 +39,7 @@ export interface HiddenAssetProps {
         | undefined;
 }
 
-export default function HiddenAsset(item: HiddenAssetProps) {
+export function HiddenAsset(item: HiddenAssetProps) {
     const { showAsset, hideAsset } = useHiddenAssets();
     const kioskClient = useKioskClient();
     const navigate = useNavigate();

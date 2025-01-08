@@ -1,9 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { Button, Header } from '@iota/apps-ui-kit';
-
 import { Validator } from './Validator';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 
@@ -15,7 +13,7 @@ interface SelectValidatorViewProps {
     handleClose: () => void;
 }
 
-function SelectValidatorView({
+export function SelectValidatorView({
     validators,
     onSelect,
     onNext,
@@ -52,5 +50,3 @@ function SelectValidatorView({
         </DialogLayout>
     );
 }
-
-export default SelectValidatorView;

@@ -1270,6 +1270,11 @@ impl TestClusterBuilder {
         self
     }
 
+    pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
+        self.get_or_init_genesis_config().delegator = Some(delegator);
+        self
+    }
+
     pub fn with_config_dir(mut self, config_dir: PathBuf) -> Self {
         self.config_dir = Some(config_dir);
         self

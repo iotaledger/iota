@@ -3,8 +3,7 @@
 
 'use client';
 
-import { isKioskOwnerToken, useKioskClient, KioskTile } from '@iota/core';
-import { AssetCategory } from '@/lib/enums';
+import { isKioskOwnerToken, useKioskClient, KioskTile, AssetCategory } from '@iota/core';
 import { VisibilityOff } from '@iota/ui-icons';
 import { VisualAssetTile } from '.';
 import { IotaObjectData } from '@iota/iota-sdk/client';

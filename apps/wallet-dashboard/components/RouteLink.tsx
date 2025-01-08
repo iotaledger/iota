@@ -4,7 +4,6 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import React from 'react';
 import Link from 'next/link';
 
 interface RouteLinkProps {
@@ -12,7 +11,7 @@ interface RouteLinkProps {
     path: string;
 }
 
-function RouteLink({ title, path }: RouteLinkProps): JSX.Element {
+export function RouteLink({ title, path }: RouteLinkProps): JSX.Element {
     const currentPath = usePathname();
 
     const isActive = currentPath && (path === currentPath || path.startsWith(currentPath));
@@ -29,5 +28,3 @@ function RouteLink({ title, path }: RouteLinkProps): JSX.Element {
         </Link>
     );
 }
-
-export default RouteLink;

@@ -3,13 +3,24 @@
 
 'use client';
 
-import { Panel, Title, Chip, TitleSize } from '@iota/apps-ui-kit';
-import { COIN_TYPE, hasDisplayData, useGetNFTs } from '@iota/core';
+import { useState } from 'react';
+import cl from 'clsx';
+import { usePageAssets, AssetCategory } from '@iota/core';
+import {
+    Panel,
+    Title,
+    TitleSize,
+    LoadingIndicator,
+    InfoBox,
+    InfoBoxType,
+    InfoBoxStyle,
+    Chip,
+} from '@iota/apps-ui-kit';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { useState, useEffect } from 'react';
-import { AssetCategory } from '@/lib/enums';
-import { AssetList } from '@/components/AssetsList';
+import { Warning } from '@iota/ui-icons';
+
+import { AssetTileLink, Loading } from '@/components';
 import { AssetDialog } from '@/components/Dialogs/Assets';
 
 const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
@@ -23,84 +34,100 @@ const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
     },
 ];
 
+const ASSET_LAYOUT: Record<AssetCategory, string> = {
+    [AssetCategory.Visual]:
+        'grid-template-visual-assets grid max-h-[600px] gap-md overflow-auto py-sm',
+    [AssetCategory.Other]: 'flex flex-col overflow-auto py-sm',
+    [AssetCategory.Hidden]: 'flex flex-col overflow-auto py-sm',
+};
+
 export default function AssetsDashboardPage(): React.JSX.Element {
     const [selectedAsset, setSelectedAsset] = useState<IotaObjectData | null>(null);
-    const [selectedCategory, setSelectedCategory] = useState<AssetCategory | null>(null);
     const account = useCurrentAccount();
+    const accountAddress = account?.address || null;
+
     const {
-        data: ownedAssets,
-        isFetching,
-        fetchNextPage,
-        hasNextPage,
+        isPending,
         refetch,
-    } = useGetNFTs(account?.address, {
-        MatchNone: [{ StructType: COIN_TYPE }],
-    });
+        error,
+        isError,
 
-    let assets: IotaObjectData[] = [];
-
-    if (selectedCategory === AssetCategory.Visual) {
-        assets = ownedAssets?.visual || [];
-    }
-
-    if (selectedCategory === AssetCategory.Other) {
-        assets =
-            ownedAssets?.other
-                .filter((asset) => {
-                    return !hasDisplayData({ data: asset });
-                })
-                .filter((asset) => asset !== null && asset !== undefined) || [];
-    }
+        isAssetsLoaded,
+        filteredAssets,
+        selectedAssetCategory,
+        setSelectedAssetCategory,
+        observerElem,
+        isSpinnerVisible,
+    } = usePageAssets(accountAddress);
 
     function onAssetClick(asset: IotaObjectData) {
         setSelectedAsset(asset);
     }
 
-    useEffect(() => {
-        if (!ownedAssets || selectedCategory !== null) {
-            return;
-        }
-
-        const defaultCategory =
-            ownedAssets.visual.length > 0
-                ? AssetCategory.Visual
-                : ownedAssets.other.length > 0
-                  ? AssetCategory.Other
-                  : AssetCategory.Visual;
-        setSelectedCategory(defaultCategory);
-    }, [ownedAssets, selectedCategory]);
-
     return (
         <Panel>
             <Title title="Assets" size={TitleSize.Medium} />
             <div className="px-lg">
-                <div className="flex flex-row items-center justify-start gap-xs py-xs">
-                    {ASSET_CATEGORIES.map((tab) => (
-                        <Chip
-                            key={tab.label}
-                            label={tab.label}
-                            onClick={() => setSelectedCategory(tab.value)}
-                            selected={selectedCategory === tab.value}
+                {isError ? (
+                    <div className="mb-2 flex h-full w-full items-center justify-center p-2">
+                        <InfoBox
+                            type={InfoBoxType.Error}
+                            title="Sync error (data might be outdated)"
+                            supportingText={error?.message ?? 'An error occurred'}
+                            icon={<Warning />}
+                            style={InfoBoxStyle.Default}
                         />
-                    ))}
-                </div>
-                {selectedCategory && (
-                    <AssetList
-                        assets={assets}
-                        selectedCategory={selectedCategory}
-                        onClick={onAssetClick}
-                        hasNextPage={hasNextPage}
-                        isFetchingNextPage={isFetching}
-                        fetchNextPage={fetchNextPage}
-                    />
-                )}
-                {selectedAsset && (
-                    <AssetDialog
-                        onClose={() => setSelectedAsset(null)}
-                        asset={selectedAsset}
-                        setSelectedAsset={setSelectedAsset}
-                        refetchAssets={refetch}
-                    />
+                    </div>
+                ) : (
+                    <>
+                        {isAssetsLoaded && Boolean(filteredAssets?.length) ? (
+                            <div className="flex flex-row items-center justify-start gap-xs py-xs">
+                                {ASSET_CATEGORIES.map(({ value, label }) => (
+                                    <Chip
+                                        key={value}
+                                        onClick={() => setSelectedAssetCategory(value)}
+                                        label={label}
+                                        selected={selectedAssetCategory === value}
+                                    />
+                                ))}
+                            </div>
+                        ) : null}
+                        {selectedAssetCategory ? (
+                            <Loading loading={isPending}>
+                                <div
+                                    className={cl(
+                                        'max-h-[600px]',
+                                        ASSET_LAYOUT[selectedAssetCategory],
+                                    )}
+                                >
+                                    {filteredAssets.map((asset) => (
+                                        <AssetTileLink
+                                            key={asset.digest}
+                                            asset={asset}
+                                            type={selectedAssetCategory}
+                                            onClick={onAssetClick}
+                                        />
+                                    ))}
+                                    <div ref={observerElem}>
+                                        {isSpinnerVisible ? (
+                                            <div className="mt-1 flex h-full w-full justify-center">
+                                                <LoadingIndicator />
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </Loading>
+                        ) : null}
+
+                        {selectedAsset && (
+                            <AssetDialog
+                                onClose={() => setSelectedAsset(null)}
+                                asset={selectedAsset}
+                                setSelectedAsset={setSelectedAsset}
+                                refetchAssets={refetch}
+                            />
+                        )}
+                    </>
                 )}
             </div>
         </Panel>
