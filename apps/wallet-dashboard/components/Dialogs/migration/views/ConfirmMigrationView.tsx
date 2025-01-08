@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MigrationObjectLoading, VirtualList } from '@/components';
+import { MigrationObjectLoading, VirtualList, MigrationObjectDetailsCard } from '@/components';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { IotaObjectData } from '@iota/iota-sdk/client';
 import {
@@ -24,7 +24,6 @@ import { filterMigrationObjects, summarizeMigratableObjectValues } from '@/lib/u
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { StardustOutputDetailsFilter } from '@/lib/enums';
-import { MigrationObjectDetailsCard } from '@/components/migration/migration-object-details-card';
 
 interface ConfirmMigrationViewProps {
     basicOutputObjects: IotaObjectData[] | undefined;
@@ -93,10 +92,6 @@ export function ConfirmMigrationView({
         resolvedObjects,
         StardustOutputDetailsFilter.VisualAssets,
     );
-    const filteredWithExpiration = filterMigrationObjects(
-        resolvedObjects,
-        StardustOutputDetailsFilter.WithExpiration,
-    );
 
     const assetsToMigrateCategories = [
         {
@@ -113,11 +108,6 @@ export function ConfirmMigrationView({
             title: 'Visual Assets',
             subtitle: `${migratableVisualAssets} Assets`,
             filteredObjects: filteredVisualAssets,
-        },
-        {
-            title: 'With Expiration',
-            subtitle: `${filteredWithExpiration.length} Objects`,
-            filteredObjects: filteredWithExpiration,
         },
     ];
     const filteredAssetsToMigrateCategories = assetsToMigrateCategories.filter(
