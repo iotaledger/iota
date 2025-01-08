@@ -23,12 +23,13 @@ import {
     ExtendedTransaction,
     TransactionState,
     TransactionIcon,
+    checkIfIsTimelockedStaking,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../Dialogs/transaction/TransactionDetailsLayout';
 import { DialogLayout } from '../Dialogs/layout';
-import { checkIfIsTimelockedStaking, getTransactionAmountForTimelocked } from '@/lib/utils';
+import { getTransactionAmountForTimelocked } from '@/lib/utils';
 
 interface TransactionTileProps {
     transaction: ExtendedTransaction;

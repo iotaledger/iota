@@ -4,7 +4,7 @@
 
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { TransactionAction } from '../../interfaces';
-import { checkIfIsTimelockedStaking } from '@/lib/utils';
+import { checkIfIsTimelockedStaking } from './checkIfIsTimelockedStaking';
 
 export const getTransactionAction = (
     transaction: IotaTransactionBlockResponse,
