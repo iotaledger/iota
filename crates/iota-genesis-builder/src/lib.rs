@@ -19,8 +19,8 @@ use genesis_build_effects::GenesisBuildEffects;
 use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME,
     genesis::{
-        Genesis, GenesisCeremonyParameters, GenesisChainParameters, TokenDistributionSchedule,
-        UnsignedGenesis,
+        Delegations, Genesis, GenesisCeremonyParameters, GenesisChainParameters,
+        TokenDistributionSchedule, UnsignedGenesis,
     },
     migration_tx_data::{MigrationTxData, TransactionsData},
 };
@@ -28,7 +28,7 @@ use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk::{Url, types::block::address::Address};
+use iota_sdk::Url;
 use iota_types::{
     BRIDGE_ADDRESS, IOTA_BRIDGE_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_SYSTEM_ADDRESS,
     balance::{BALANCE_MODULE_NAME, Balance},
@@ -63,7 +63,6 @@ use iota_types::{
     object::{Object, Owner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME},
-    stardust::stardust_to_iota_address,
     system_admin_cap::IOTA_SYSTEM_ADMIN_CAP_MODULE_NAME,
     timelock::{
         stardust_upgrade_label::STARDUST_UPGRADE_LABEL_VALUE,
@@ -78,7 +77,7 @@ use move_binary_format::CompiledModule;
 use move_core_types::ident_str;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
-use stake::{GenesisStake, delegate_genesis_stake};
+use stake::GenesisStake;
 use stardust::migration::MigrationObjects;
 use tracing::trace;
 use validator_info::{GenesisValidatorInfo, GenesisValidatorMetadata, ValidatorInfo};
@@ -88,16 +87,14 @@ mod stake;
 pub mod stardust;
 pub mod validator_info;
 
-// TODO: Lazy static `stardust_to_iota_address`
-pub const IF_STARDUST_ADDRESS: &str =
-    "iota1qp8h9augeh6tk3uvlxqfapuwv93atv63eqkpru029p6sgvr49eufyz7katr";
-
 const GENESIS_BUILDER_COMMITTEE_DIR: &str = "committee";
 pub const GENESIS_BUILDER_PARAMETERS_FILE: &str = "parameters";
 const GENESIS_BUILDER_TOKEN_DISTRIBUTION_SCHEDULE_FILE: &str = "token-distribution-schedule";
 const GENESIS_BUILDER_SIGNATURE_DIR: &str = "signatures";
 const GENESIS_BUILDER_UNSIGNED_GENESIS_FILE: &str = "unsigned-genesis";
 const GENESIS_BUILDER_MIGRATION_SOURCES_FILE: &str = "migration-sources";
+const GENESIS_BUILDER_DELEGATOR_FILE: &str = "delegator";
+const GENESIS_BUILDER_DELEGATOR_MAP_FILE: &str = "delegator-map";
 
 pub const OBJECT_SNAPSHOT_FILE_PATH: &str = "stardust_object_snapshot.bin";
 pub const IOTA_OBJECT_SNAPSHOT_URL: &str = "https://stardust-objects.s3.eu-central-1.amazonaws.com/iota/alphanet/latest/stardust_object_snapshot.bin.gz";
@@ -118,6 +115,15 @@ pub struct Builder {
     genesis_stake: GenesisStake,
     migration_sources: Vec<SnapshotSource>,
     migration_tx_data: Option<MigrationTxData>,
+    delegation: Option<GenesisDelegation>,
+}
+
+enum GenesisDelegation {
+    /// Represents a single delegator address that applies to all validators.
+    OneToAll(IotaAddress),
+    /// Represents a map of delegator addresses to validator addresses and
+    /// a specified stake and gas allocation.
+    ManyToMany(Delegations),
 }
 
 impl Default for Builder {
@@ -139,7 +145,18 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources: Default::default(),
             migration_tx_data: Default::default(),
+            delegation: None,
         }
+    }
+
+    pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
+        self.delegation = Some(GenesisDelegation::OneToAll(delegator));
+        self
+    }
+
+    pub fn with_delegations(mut self, delegations: Delegations) -> Self {
+        self.delegation = Some(GenesisDelegation::ManyToMany(delegations));
+        self
     }
 
     /// Checks if the genesis to be built has no migration or if it includes
@@ -253,19 +270,32 @@ impl Builder {
 
     /// Create and cache the [`GenesisStake`] if the builder
     /// contains migrated objects.
+    ///
+    /// Two cases can happen here:
+    /// 1. if a delegator map is given as input -> then use the map input to
+    ///    create and cache the genesis stake.
+    /// 2. if a delegator map is NOT given as input -> then use one default
+    ///    delegator passed as input and delegate the minimum required stake to
+    ///    all validators to create and cache the genesis stake.
     fn create_and_cache_genesis_stake(&mut self) -> anyhow::Result<()> {
         if !self.migration_objects.is_empty() {
-            let delegator =
-                stardust_to_iota_address(Address::try_from_bech32(IF_STARDUST_ADDRESS).unwrap())
-                    .unwrap();
-            // TODO: check whether we need to start with
-            // VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
-            let minimum_stake = iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS;
-            self.genesis_stake = delegate_genesis_stake(
-                self.validators.values(),
-                delegator,
+            self.genesis_stake = GenesisStake::new_with_delegations(
+                match &self.delegation {
+                    Some(GenesisDelegation::ManyToMany(delegations)) => {
+                        // Case 1 -> use the delegations input to create and cache the genesis stake
+                        delegations.clone()
+                    }
+                    Some(GenesisDelegation::OneToAll(delegator)) => {
+                        // Case 2 -> use one default delegator passed as input and delegate the
+                        // minimum required stake to all validators to create the genesis stake
+                        Delegations::new_for_validators_with_default_allocation(
+                            self.validators.values().map(|v| v.info.iota_address()),
+                            *delegator,
+                        )
+                    }
+                    None => bail!("no delegator/s assigned with a migration"),
+                },
                 &self.migration_objects,
-                minimum_stake,
             )?;
         }
         Ok(())
@@ -273,55 +303,76 @@ impl Builder {
 
     /// Evaluate the genesis [`TokenDistributionSchedule`].
     ///
-    /// This merges conditionally the cached token distribution
-    /// (i.e. `self.token_distribution_schedule`)  with the genesis stake
-    /// resulting from the migrated state.
-    ///
-    /// If the cached token distribution schedule contains timelocked stake, it
-    /// is assumed that the genesis stake is already merged and no operation
-    /// is performed. This is the case where we load a [`Builder`] from disk
-    /// that has already built genesis with the migrated state.
+    /// There are 6 cases for evaluating this:
+    /// 1. The genesis is built WITHOUT migration
+    ///    1. and a schedule is given as input -> then just use the input
+    ///       schedule;
+    ///    2. and the schedule is NOT given as input -> then instantiate a
+    ///       default token distribution schedule for a genesis without
+    ///       migration.
+    /// 2. The genesis is built with migration,
+    ///    1. and token distribution schedule is given as input
+    ///       1. if the token distribution schedule contains a timelocked stake
+    ///          -> then just use the input schedule, because it was initialized
+    ///          for migration before this execution (this is the case where we
+    ///          load a [`Builder`] from disk that has already built genesis
+    ///          with the migrated state.);
+    ///       2. if the token distribution schedule does NOT contain any
+    ///          timelocked stake -> then fetch the cached the genesis stake and
+    ///          merge it to the token distribution schedule;
+    ///    2. and token distribution schedule is NOT given as input -> then
+    ///       fetch the cached genesis stake and initialize a new token
+    ///       distribution schedule with it.
     fn resolve_token_distribution_schedule(&mut self) -> TokenDistributionSchedule {
-        let validator_addresses = self.validators.values().map(|v| v.info.iota_address());
-        let token_distribution_schedule = self.token_distribution_schedule.take();
+        let is_genesis_with_migration = !self.migration_objects.is_empty();
         let stardust_total_supply_nanos =
             self.migration_sources.len() as u64 * STARDUST_TOTAL_SUPPLY_NANOS;
-        if self.genesis_stake.is_empty() {
-            token_distribution_schedule.unwrap_or_else(|| {
-                TokenDistributionSchedule::new_for_validators_with_default_allocation(
-                    validator_addresses,
-                )
-            })
-        } else if let Some(schedule) = token_distribution_schedule {
-            if schedule.contains_timelocked_stake() {
-                // Genesis stake is already included
+
+        if let Some(schedule) = self.token_distribution_schedule.take() {
+            if !is_genesis_with_migration || schedule.contains_timelocked_stake() {
+                // Case 1.1 and 2.1.1
                 schedule
             } else {
+                // Case 2.1.2
                 self.genesis_stake
                     .extend_token_distribution_schedule_without_migration(
                         schedule,
                         stardust_total_supply_nanos,
                     )
             }
+        } else if !is_genesis_with_migration {
+            // Case 1.2
+            TokenDistributionSchedule::new_for_validators_with_default_allocation(
+                self.validators.values().map(|v| v.info.iota_address()),
+            )
         } else {
+            // Case 2.2
             self.genesis_stake
                 .to_token_distribution_schedule(stardust_total_supply_nanos)
         }
     }
 
     fn build_and_cache_unsigned_genesis(&mut self) {
-        // Verify that all input data is valid
+        // Verify that all input data is valid.
+        // Check that if extra objects are present then it is allowed by the paramenters
+        // to add extra objects and it also validates the validator info
         self.validate_inputs().unwrap();
 
+        // If migration sources are present, then load them into memory.
+        // Otherwise do nothing.
         self.load_migration_sources()
             .expect("migration sources should be loaded without errors");
 
+        // If migration objects are present, then create and cache the genesis stake;
+        // this also prepares the data needed to resolve the token distribution
+        // schedule. Otherwise do nothing.
         self.create_and_cache_genesis_stake()
             .expect("genesis stake should be created without errors");
 
-        // Get the token distribution schedule without migration or merge it with
+        // Resolve the token distribution schedule based on inputs and a possible
         // genesis stake
         let token_distribution_schedule = self.resolve_token_distribution_schedule();
+
         // Verify that token distribution schedule is valid
         token_distribution_schedule.validate();
         token_distribution_schedule
@@ -330,17 +381,17 @@ impl Builder {
             )
             .expect("all validators should have the required stake");
 
-        let objects = self.objects.clone().into_values().collect::<Vec<_>>();
-
         // Finally build the genesis and migration data
         let (unsigned_genesis, migration_tx_data) = build_unsigned_genesis_data(
             &self.parameters,
             &token_distribution_schedule,
             self.validators.values(),
-            objects,
+            self.objects.clone().into_values().collect::<Vec<_>>(),
             &mut self.genesis_stake,
             &mut self.migration_objects,
         );
+
+        // Store built data
         self.migration_tx_data = (!migration_tx_data.is_empty()).then_some(migration_tx_data);
         self.built_genesis = Some(unsigned_genesis);
         self.token_distribution_schedule = Some(token_distribution_schedule);
@@ -809,6 +860,26 @@ impl Builder {
             None
         };
 
+        // Load delegator
+        let delegator_file = path.join(GENESIS_BUILDER_DELEGATOR_FILE);
+        let delegator = if delegator_file.exists() {
+            Some(serde_json::from_slice(&fs::read(delegator_file)?)?)
+        } else {
+            None
+        };
+
+        // Load delegator map
+        let delegator_map_file = path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE);
+        let delegator_map = if delegator_map_file.exists() {
+            Some(Delegations::from_csv(fs::File::open(delegator_map_file)?)?)
+        } else {
+            None
+        };
+
+        let delegation = delegator
+            .map(GenesisDelegation::OneToAll)
+            .or(delegator_map.map(GenesisDelegation::ManyToMany));
+
         let mut builder = Self {
             parameters,
             token_distribution_schedule,
@@ -820,6 +891,7 @@ impl Builder {
             genesis_stake: Default::default(),
             migration_sources,
             migration_tx_data,
+            delegation,
         };
 
         let unsigned_genesis_file = path.join(GENESIS_BUILDER_UNSIGNED_GENESIS_FILE);
@@ -905,6 +977,23 @@ impl Builder {
             self.migration_tx_data
                 .expect("migration data should exist")
                 .save(file)?;
+        }
+
+        if let Some(delegation) = &self.delegation {
+            match delegation {
+                GenesisDelegation::OneToAll(delegator) => {
+                    // Write delegator to file
+                    let file = path.join(GENESIS_BUILDER_DELEGATOR_FILE);
+                    let delegator_json = serde_json::to_string(delegator)?;
+                    fs::write(file, delegator_json)?;
+                }
+                GenesisDelegation::ManyToMany(delegator_map) => {
+                    // Write delegator map to CSV file
+                    delegator_map.to_csv(fs::File::create(
+                        path.join(GENESIS_BUILDER_DELEGATOR_MAP_FILE),
+                    )?)?;
+                }
+            }
         }
 
         Ok(())
@@ -1009,9 +1098,9 @@ fn build_unsigned_genesis_data<'info>(
         // migration data. These are either timelocked coins or gas coins. The token
         // distribution schedule logic assumes that these assets are indeed distributed
         // to some addresses and this happens above during the creation of the genesis
-        // objects. Here then we need to burn those assets from the original set of
+        // objects. Here then we need to destroy those assets from the original set of
         // migration objects.
-        let migration_objects = burn_staked_migration_objects(
+        let migration_objects = destroy_staked_migration_objects(
             &mut genesis_ctx,
             migration_objects.take_objects(),
             &genesis_objects,
@@ -1538,9 +1627,9 @@ pub fn generate_genesis_system_object(
 
 // Migration objects as input to this function were previously used to create a
 // genesis stake, that in turn helps to create a token distribution schedule for
-// the genesis. In this function the objects needed for the stake are burned
+// the genesis. In this function the objects needed for the stake are destroyed
 // (and, if needed, split) to provide a new set of migration object as output.
-fn burn_staked_migration_objects(
+fn destroy_staked_migration_objects(
     genesis_ctx: &mut TxContext,
     migration_objects: Vec<Object>,
     genesis_objects: &[Object],
@@ -1577,15 +1666,15 @@ fn burn_staked_migration_objects(
     // Extract objects from the store
     let mut intermediate_store = store.into_inner();
 
-    // Second operation: burn gas and timelocks objects.
-    // If the genesis stake was created, then burn gas and timelock objects that
+    // Second operation: destroy gas and timelocks objects.
+    // If the genesis stake was created, then destroy gas and timelock objects that
     // were added to the token distribution schedule, because they will be
     // created on the Move side during genesis. That means we need to prevent
     // cloning value by evicting these here.
-    for (id, _, _) in genesis_stake.take_gas_coins_to_burn() {
+    for (id, _, _) in genesis_stake.take_gas_coins_to_destroy() {
         intermediate_store.remove(&id);
     }
-    for (id, _, _) in genesis_stake.take_timelocks_to_burn() {
+    for (id, _, _) in genesis_stake.take_timelocks_to_destroy() {
         intermediate_store.remove(&id);
     }
 

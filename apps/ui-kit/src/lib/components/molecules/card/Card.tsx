@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import cx from 'classnames';
 import { CARD_DISABLED_CLASSES, CARD_TYPE_CLASSES } from './card.classes';
 import { CardType } from './card.enums';

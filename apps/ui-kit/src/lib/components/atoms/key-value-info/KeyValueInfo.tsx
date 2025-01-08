@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import cx from 'classnames';
 import { Copy, Info } from '@iota/ui-icons';
 import { ValueSize } from './keyValue.enums';
@@ -154,5 +154,3 @@ export function KeyValueInfo({
         </div>
     );
 }
-
-export default KeyValueInfo;

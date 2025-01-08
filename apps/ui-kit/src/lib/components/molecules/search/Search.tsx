@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
 import { Loader, Search as SearchIcon } from '@iota/ui-icons';
 import { Divider, SearchBarType } from '@/components';

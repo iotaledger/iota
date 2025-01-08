@@ -1,7 +1,6 @@
 ---
 source: crates/iota-swarm-config/tests/snapshot_tests.rs
 expression: genesis_config
-snapshot_kind: text
 ---
 ssfn_config_info: ~
 validator_config_info: ~
@@ -47,3 +46,4 @@ accounts:
       - 30000000000000000
       - 30000000000000000
 migration_sources: []
+delegator: ~
