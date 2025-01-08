@@ -5,7 +5,9 @@ import type { IotaEvent } from '@iota/iota-sdk/client';
 import { StakeEventJson, UnstakeEventJson } from '../../interfaces';
 import { getStakeDetails, getUnstakeDetails, checkIfIsTimelockedStaking, parseEventJson } from '.';
 
-export function getTransactionAmountForTimelocked(events: IotaEvent[]): bigint | undefined {
+export function getTransactionAmountForTimelocked(
+    events: IotaEvent[],
+): bigint | undefined | string {
     if (!events) return;
     const { isTimelockedStaking, isTimelockedUnstaking } = checkIfIsTimelockedStaking(events);
 

@@ -4,12 +4,12 @@
 import { StakeEventJson } from '../../interfaces';
 
 export function getStakeDetails(eventJson: StakeEventJson): {
-    stakedAmount: bigint;
+    stakedAmount: string;
     validatorAddress: string;
     epoch: number;
 } {
     return {
-        stakedAmount: BigInt(eventJson.amount || '0'),
+        stakedAmount: eventJson.amount || '0',
         validatorAddress: eventJson.validator_address || '',
         epoch: Number(eventJson.epoch || '0'),
     };

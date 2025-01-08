@@ -4,17 +4,18 @@
 import { UnstakeEventJson } from '../../interfaces';
 
 export function getUnstakeDetails(eventJson: UnstakeEventJson): {
-    principalAmount: bigint;
-    rewardAmount: bigint;
+    principalAmount: string;
+    rewardAmount: string;
     totalAmount: bigint;
     validatorAddress: string;
 } {
-    const principalAmount = BigInt(eventJson.principal_amount || '0');
-    const rewardAmount = BigInt(eventJson.reward_amount || '0');
+    const principalAmount = eventJson.principal_amount || '0';
+    const rewardAmount = eventJson.reward_amount || '0';
+    const totalAmount = BigInt(principalAmount) + BigInt(rewardAmount);
     return {
         principalAmount,
         rewardAmount,
-        totalAmount: principalAmount + rewardAmount,
+        totalAmount,
         validatorAddress: eventJson.validator_address || '',
     };
 }
