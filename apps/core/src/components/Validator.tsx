@@ -21,21 +21,19 @@ interface ValidatorProps {
     isSelected?: boolean;
     address: string;
     type?: CardType;
-    showApy?: boolean;
     showActiveStatus?: boolean;
     onClick?: () => void;
-    showAction?: boolean;
+    showApy?: boolean;
     activeEpoch?: string;
 }
 
 export function Validator({
     address,
     type,
-    showApy,
     showActiveStatus = false,
     onClick,
     isSelected,
-    showAction = true,
+    showApy = true,
     activeEpoch,
 }: ValidatorProps) {
     const {
@@ -95,12 +93,6 @@ export function Validator({
             </CardImage>
             <CardBody title={validatorDisplayName} subtitle={subtitle} isTextTruncated />
             {showApy && (
-                <CardAction
-                    type={CardActionType.SupportingText}
-                    title={formatPercentageDisplay(apy, '-', isApyApproxZero)}
-                />
-            )}
-            {showAction && (
                 <CardAction
                     type={CardActionType.SupportingText}
                     title={formatPercentageDisplay(apy, '--', isApyApproxZero)}

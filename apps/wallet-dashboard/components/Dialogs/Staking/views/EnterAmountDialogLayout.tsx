@@ -70,7 +70,7 @@ export function EnterAmountDialogLayout({
                 <div className="flex w-full flex-col justify-between">
                     <div>
                         <div className="mb-md">
-                            <Validator address={selectedValidator} isSelected showAction={false} />
+                            <Validator address={selectedValidator} isSelected showApy={false} />
                         </div>
                         <StakedInfo
                             validatorAddress={selectedValidator}

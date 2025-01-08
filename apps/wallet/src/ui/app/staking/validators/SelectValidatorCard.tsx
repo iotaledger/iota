@@ -97,7 +97,6 @@ export function SelectValidatorCard() {
                         >
                             <Validator
                                 address={validator.address}
-                                showApy
                                 onClick={() => {
                                     selectValidator(validator);
                                 }}
