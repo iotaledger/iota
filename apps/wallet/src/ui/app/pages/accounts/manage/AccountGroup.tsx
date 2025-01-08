@@ -5,7 +5,7 @@
 import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
 import { AccountsFormType, useAccountsFormContext, VerifyPasswordModal } from '_components';
 import { useAccountSources, useCreateAccountsMutation, useActiveAccount } from '_hooks';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { Button, ButtonSize, ButtonType, Dropdown, ListItem } from '@iota/apps-ui-kit';

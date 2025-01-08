@@ -3,14 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useState,
-    type ReactNode,
-    useRef,
-} from 'react';
+import { createContext, useCallback, useContext, useState, type ReactNode, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useUnlockMutation, useBackgroundClient } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
