@@ -1087,18 +1087,18 @@ pub async fn get_validator_summary(
         status = Some(ValidatorStatus::Active);
         Some(active_validators.remove(&validator_address).unwrap())
     } else {
-        // Check panding validators
+        // Check pending validators
         get_pending_candidate_summary(validator_address, client, pending_active_validators_id)
             .await?
             .map(|v| v.into_iota_validator_summary())
             .tap_some(|_s| status = Some(ValidatorStatus::Pending))
 
-        // TODO also check candidate and inactive valdiators
+        // TODO also check candidate and inactive validators
     };
     if validator_info.is_none() {
         return Ok(None);
     }
-    // status is safe unwrap because it has to be Some when the code recahes here
+    // status is safe unwrap because it has to be Some when the code reaches here
     // validator_info is safe to unwrap because of the above check
     Ok(Some((status.unwrap(), validator_info.unwrap())))
 }

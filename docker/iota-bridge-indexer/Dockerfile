@@ -24,6 +24,7 @@ RUN apt install -y libpq5 libpq-dev ca-certificates
 COPY consensus consensus
 COPY crates crates
 COPY docs docs
+COPY examples examples
 COPY external-crates external-crates
 COPY iota-execution iota-execution
 COPY Cargo.toml Cargo.lock ./

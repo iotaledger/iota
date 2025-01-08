@@ -12,3 +12,4 @@ export * from './useGetStardustMigratableObjects';
 export * from './useGetSupplyIncreaseVestingObjects';
 export * from './useGroupedMigrationObjectsByExpirationDate';
 export * from './useTransferTransaction';
+export * from './usePersistedNetwork';

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 'use client';
 
-import React, { type PropsWithChildren } from 'react';
+import { type PropsWithChildren } from 'react';
 import { Sidebar, TopNav } from './components';
 
 function DashboardLayout({ children }: PropsWithChildren): JSX.Element {
