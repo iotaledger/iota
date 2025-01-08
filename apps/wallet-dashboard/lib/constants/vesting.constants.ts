@@ -7,7 +7,10 @@ import {
     DAYS_PER_YEAR,
 } from '@iota/core/constants/time.constants';
 import { TimelockedObject } from '../interfaces';
-import { getMockedTimelockedStakedObjectsWithDynamicDate } from '../utils/vesting/getMockedTimelockedStakedObjectsWithDynamicDate';
+import {
+    getMockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate,
+    getMockedVestingTimelockedStakedObjectsWithDynamicDate,
+} from '../utils/vesting/buildMockedObjectsWithDynamicDateUtils';
 import { DelegatedTimelockedStake } from '@iota/iota-sdk/client';
 
 export const SUPPLY_INCREASE_VESTING_PAYOUT_SCHEDULE = 2 * DAYS_PER_WEEK;
@@ -667,5 +670,12 @@ export const MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS: DelegatedTimelockedStake[
     },
 ];
 
-export const mockedTimelockedStackedObjectsWithDynamicDate =
-    getMockedTimelockedStakedObjectsWithDynamicDate(MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS);
+export const mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate =
+    getMockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate(
+        MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS,
+    );
+
+export const mockedVestingTimelockedStakedObjectsWithDynamicDate =
+    getMockedVestingTimelockedStakedObjectsWithDynamicDate(
+        MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
+    );
