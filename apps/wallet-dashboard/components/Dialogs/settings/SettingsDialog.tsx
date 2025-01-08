@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { SettingsDialogView } from './enums';
 import { SettingsListView, NetworkSelectorView } from './views';

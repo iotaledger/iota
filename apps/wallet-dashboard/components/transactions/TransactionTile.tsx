@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import formatTimestamp from '@/lib/utils/time';
 import {
     Card,

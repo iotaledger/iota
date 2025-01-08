@@ -4,7 +4,6 @@
 import { Button } from '@/lib';
 import { Showcase } from '@/storybook/blocks';
 import { VARIABLE_GAP_CLASSES, VARIABLE_PADDING_CLASSES } from '@/storybook/constants';
-import React from 'react';
 
 export function VariableSpacingShowcase() {
     return (
