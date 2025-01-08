@@ -29,13 +29,16 @@ export default function AssetsDashboardPage(): React.JSX.Element {
     const account = useCurrentAccount();
     const {
         data: ownedAssets,
-        isFetching,
-        fetchNextPage,
         hasNextPage,
+        fetchNextPage,
+        isPending,
+        isFetching,
         refetch,
+        isFetchingNextPage,
     } = useGetNFTs(account?.address, {
         MatchNone: [{ StructType: COIN_TYPE }],
     });
+    const isAssetsLoaded = !!ownedAssets;
 
     let assets: IotaObjectData[] = [];
 
@@ -70,21 +73,37 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         setSelectedCategory(defaultCategory);
     }, [ownedAssets, selectedCategory]);
 
+    useEffect(() => {
+        // Fetch the next page if there are no visual assets, other + hidden assets are present in multiples of 50, and there are more pages to fetch
+        if (
+            hasNextPage &&
+            ownedAssets?.visual.length === 0 &&
+            ownedAssets?.other.length + ownedAssets?.hidden.length > 0 &&
+            (ownedAssets.other.length + ownedAssets.hidden.length) % 50 === 0 &&
+            !isFetchingNextPage
+        ) {
+            fetchNextPage();
+            setSelectedCategory(null);
+        }
+    }, [hasNextPage, ownedAssets, isFetchingNextPage, fetchNextPage]);
+
     return (
         <Panel>
             <Title title="Assets" size={TitleSize.Medium} />
             <div className="px-lg">
-                <div className="flex flex-row items-center justify-start gap-xs py-xs">
-                    {ASSET_CATEGORIES.map((tab) => (
-                        <Chip
-                            key={tab.label}
-                            label={tab.label}
-                            onClick={() => setSelectedCategory(tab.value)}
-                            selected={selectedCategory === tab.value}
-                        />
-                    ))}
-                </div>
-                {selectedCategory && (
+                {isAssetsLoaded && Boolean(assets) ? (
+                    <div className="flex flex-row items-center justify-start gap-xs py-xs">
+                        {ASSET_CATEGORIES.map((tab) => (
+                            <Chip
+                                key={tab.label}
+                                label={tab.label}
+                                onClick={() => setSelectedCategory(tab.value)}
+                                selected={selectedCategory === tab.value}
+                            />
+                        ))}
+                    </div>
+                ) : null}
+                {!isPending && selectedCategory && (
                     <AssetList
                         assets={assets}
                         selectedCategory={selectedCategory}
