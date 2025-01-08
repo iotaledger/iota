@@ -4,7 +4,7 @@
 
 import BigNumber from 'bignumber.js';
 
-export function formatAmountParts(amount?: BigNumber | bigint | number | string | null) {
+export function formatAmountParts(amount?: BigNumber | bigint | number | string | null): string[] {
     if (typeof amount === 'undefined' || amount === null) {
         return ['--'];
     }
@@ -29,6 +29,16 @@ export function formatAmountParts(amount?: BigNumber | bigint | number | string 
         bn = bn.decimalPlaces(2, BigNumber.ROUND_DOWN);
     }
 
+    if (bnAbs.gt(0) && bnAbs.lt(1)) {
+        const leadingZeros = countDecimalLeadingZeros(bn.toFormat());
+
+        if (leadingZeros >= 4) {
+            return [formatWithSubscript(bn.toFormat(), leadingZeros), postfix];
+        } else {
+            return [bn.toFormat(leadingZeros + 1), postfix];
+        }
+    }
+
     return [bn.toFormat(), postfix];
 }
 
@@ -37,3 +47,45 @@ export function formatAmount(...args: Parameters<typeof formatAmountParts>) {
         .filter(Boolean)
         .join(' ');
 }
+
+export const countDecimalLeadingZeros = (
+    input: BigNumber | bigint | number | string | null,
+): number => {
+    if (input === null) {
+        return 0;
+    }
+
+    const [, decimals] = input.toString().split('.');
+
+    if (!decimals) {
+        return 0;
+    }
+
+    let count = 0;
+
+    for (const digit of decimals) {
+        if (digit === '0') {
+            count++;
+        } else {
+            break;
+        }
+    }
+
+    return count;
+};
+
+const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
+
+export const formatWithSubscript = (
+    input: BigNumber | bigint | number | string | null,
+    zeroCount: number,
+): string => {
+    if (input === null) {
+        return '0';
+    }
+
+    const [, decimals] = input.toString().split('.');
+    const remainder = decimals.slice(zeroCount);
+
+    return `0.0${SUBSCRIPTS[zeroCount]}${remainder}`;
+};
