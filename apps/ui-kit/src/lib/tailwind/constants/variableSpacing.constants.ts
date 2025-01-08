@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ScreenSize } from '../../enums/screenSize.enum';
+import { ScreenSize } from '../../enums/screenSize.enums';
 
 enum VariableSpacingClassPrefix {
     Xs = 'xs--rs',

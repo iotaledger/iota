@@ -5,7 +5,7 @@ import type { Config } from 'tailwindcss';
 import type { ScreenBreakpoints } from './types';
 import { ScreenSize } from '../enums';
 import { getTailwindScreens, pxToRem } from './helpers';
-import { BASE_CONFIG } from './base.preset';
+import { BASE_CONFIG } from './base.presets';
 import merge from 'lodash.merge';
 
 const BREAKPOINTS: ScreenBreakpoints = {
