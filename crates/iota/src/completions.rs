@@ -46,8 +46,7 @@ impl Generator for GenShell {
 #[derive(Debug, Parser)]
 pub struct CompletionCommand {
     /// The shell for which completions will be generated. By default all will
-    /// be generated. Available targets are: bash, elvish, fish, nushell,
-    /// powershell and zsh.
+    /// be generated.
     #[arg(long, short)]
     shell: Option<GenShell>,
     /// The output directory for the completions file.
