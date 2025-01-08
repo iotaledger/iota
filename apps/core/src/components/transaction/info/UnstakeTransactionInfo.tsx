@@ -8,7 +8,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import type { GasSummaryType, RenderExplorerLink, RenderValidatorLogo } from '../../../types';
 import { useFormatCoin } from '../../../hooks';
 import { Divider, KeyValueInfo, Panel } from '@iota/apps-ui-kit';
-import { GasSummary, getUnstakeDetails, parseEventJson, UnstakeEventJson } from '../../..';
+import { GasSummary, getUnstakeDetailsFromEvent } from '../../..';
 
 interface UnstakeTransactionInfoProps {
     activeAddress: string | null;
@@ -25,10 +25,8 @@ export function UnstakeTransactionInfo({
     renderValidatorLogo: ValidatorLogo,
     renderExplorerLink,
 }: UnstakeTransactionInfoProps) {
-    const eventJson = parseEventJson<UnstakeEventJson>(event);
-
     const { principalAmount, rewardAmount, totalAmount, validatorAddress } =
-        getUnstakeDetails(eventJson);
+        getUnstakeDetailsFromEvent(event);
 
     const [formatPrinciple, symbol] = useFormatCoin(principalAmount, IOTA_TYPE_ARG);
     const [formatRewards] = useFormatCoin(rewardAmount || 0, IOTA_TYPE_ARG);

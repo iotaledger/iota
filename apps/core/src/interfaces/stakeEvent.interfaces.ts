@@ -12,5 +12,3 @@ export interface UnstakeEventJson {
     reward_amount?: string;
     validator_address?: string;
 }
-
-export type ParsedJson = StakeEventJson | UnstakeEventJson;
