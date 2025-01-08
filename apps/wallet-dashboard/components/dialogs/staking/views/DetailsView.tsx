@@ -22,14 +22,11 @@ import {
     Badge,
     BadgeType,
     Divider,
-    InfoBox,
-    InfoBoxStyle,
-    InfoBoxType,
     LoadingIndicator,
 } from '@iota/apps-ui-kit';
-import { Warning } from '@iota/ui-icons';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
+import toast from 'react-hot-toast';
 
 interface StakeDialogProps {
     handleClose: () => void;
@@ -65,7 +62,7 @@ export function DetailsView({
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin(iotaEarned, IOTA_TYPE_ARG);
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
 
-    const validatorName = validatorSummary?.name || '';
+    const validatorName = validatorSummary?.name || '--';
 
     const subtitle = showActiveStatus ? (
         <div className="flex items-center gap-1">
@@ -86,17 +83,7 @@ export function DetailsView({
     }
 
     if (errorValidators) {
-        return (
-            <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                <InfoBox
-                    title="Something went wrong"
-                    supportingText={'An error occurred'}
-                    style={InfoBoxStyle.Default}
-                    type={InfoBoxType.Error}
-                    icon={<Warning />}
-                />
-            </div>
-        );
+        toast.error('An error occurred fetching validator information');
     }
 
     return (
@@ -137,7 +124,7 @@ export function DetailsView({
                             />
                             <KeyValueInfo
                                 keyText="Commission"
-                                value={`${commission.toString()}%`}
+                                value={`${commission ? commission.toString() : '--'}%`}
                                 fullwidth
                             />
                         </div>
