@@ -1313,7 +1313,7 @@
                 "hardened_otw_check": true,
                 "no_extraneous_module_bytes": true,
                 "passkey_auth": true,
-                "relocate_event_module": true,
+                "relocate_event_module": false,
                 "rethrow_serialization_type_layout_errors": true,
                 "zklogin_auth": false
               },
