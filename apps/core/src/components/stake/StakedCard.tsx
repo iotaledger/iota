@@ -60,7 +60,10 @@ export function StakedCard({
                     fallback={validatorMeta?.name || ''}
                 />
             </CardImage>
-            <CardBody title={validatorMeta?.name || ''} subtitle={`${principalStaked} ${symbol}`} />
+            <CardBody
+                title={validatorMeta?.name || '--'}
+                subtitle={`${principalStaked} ${symbol}`}
+            />
             <CardAction title={title} subtitle={subtitle} type={CardActionType.SupportingText} />
         </Card>
     );
