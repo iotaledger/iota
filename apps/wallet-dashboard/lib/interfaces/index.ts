@@ -5,3 +5,4 @@ export * from './timelock.interface';
 export * from './vesting.interface';
 export * from './appRoute.interface';
 export * from './dialogView.interface';
+export * from './stakeEvent.interface';

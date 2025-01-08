@@ -8,6 +8,8 @@ import { TransactionAmount } from '../amount';
 import { StakeTransactionInfo } from '../info';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import type { GasSummaryType, RenderExplorerLink, RenderValidatorLogo } from '../../../types';
+import { StakeEventJson } from '@/lib/interfaces';
+import { parseEventJson, getStakeDetails } from '@/lib/utils';
 
 interface StakeTransactionDetailsProps {
     event: IotaEvent;
@@ -24,20 +26,13 @@ export function StakeTransactionDetails({
     renderValidatorLogo: ValidatorLogo,
     renderExplorerLink,
 }: StakeTransactionDetailsProps) {
-    const json = event.parsedJson as {
-        amount: string;
-        validator_address: string;
-        epoch: string;
-    };
-    const validatorAddress = json?.validator_address;
-    const stakedAmount = json?.amount;
-    const stakedEpoch = Number(json?.epoch || '0');
-
+    const eventJson = parseEventJson<StakeEventJson>(event);
+    const { stakedAmount, validatorAddress, epoch } = getStakeDetails(eventJson);
     const { data: rollingAverageApys } = useGetValidatorsApy();
-
     const { apy, isApyApproxZero } = rollingAverageApys?.[validatorAddress] ?? {
         apy: null,
     };
+    const stakedEpoch = Number(epoch || '0');
 
     return (
         <div className="flex flex-col gap-y-md">
@@ -45,7 +40,7 @@ export function StakeTransactionDetails({
                 <ValidatorLogo
                     address={validatorAddress}
                     showActiveStatus
-                    activeEpoch={json.epoch}
+                    activeEpoch={epoch.toString()}
                     isSelected
                 />
             )}

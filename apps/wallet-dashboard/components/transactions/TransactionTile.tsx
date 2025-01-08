@@ -28,7 +28,7 @@ import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { TransactionDetailsLayout } from '../Dialogs/transaction/TransactionDetailsLayout';
 import { DialogLayout } from '../Dialogs/layout';
-import { checkIfIsTimelockedStaking } from '@/lib/utils';
+import { checkIfIsTimelockedStaking, getTransactionAmountForTimelocked } from '@/lib/utils';
 
 interface TransactionTileProps {
     transaction: ExtendedTransaction;
@@ -52,24 +52,8 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
     const balanceChanges = transactionSummary?.balanceChanges;
 
     function getAmount(tx: ExtendedTransaction) {
-        if (isTimelockedStaking && tx.raw.events) {
-            const json = tx.raw.events[0].parsedJson as {
-                amount: string;
-                validator_address: string;
-                epoch: string;
-            };
-            const stakedAmount = json?.amount;
-            return stakedAmount;
-        } else if (isTimelockedUnstaking && tx.raw.events) {
-            const json = tx.raw.events[0].parsedJson as {
-                principal_amount?: string;
-                reward_amount?: string;
-                validator_address?: string;
-            };
-            const principalAmount = json?.principal_amount || '0';
-            const rewardAmount = json?.reward_amount || '0';
-            const totalAmount = BigInt(principalAmount) + BigInt(rewardAmount);
-            return totalAmount;
+        if ((isTimelockedStaking || isTimelockedUnstaking) && tx.raw.events) {
+            return getTransactionAmountForTimelocked(tx.raw.events);
         } else {
             return address && balanceChanges?.[address]?.[0]?.amount
                 ? Math.abs(Number(balanceChanges?.[address]?.[0]?.amount))
