@@ -229,6 +229,8 @@ pub enum IotaCommand {
         #[clap(long, name = "iota|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
+        #[clap(long, help = "Specify the delegator address")]
+        delegator: Option<IotaAddress>,
     },
     /// Bootstrap and initialize a new iota network
     #[clap(name = "genesis")]
@@ -273,6 +275,8 @@ pub enum IotaCommand {
         #[clap(long, name = "iota|<full-url>")]
         #[arg(num_args(0..))]
         remote_migration_snapshots: Vec<SnapshotUrl>,
+        #[clap(long, help = "Specify the delegator address")]
+        delegator: Option<IotaAddress>,
     },
     /// Create an IOTA Genesis Ceremony with multiple remote validators.
     GenesisCeremony(Ceremony),
@@ -381,6 +385,7 @@ impl IotaCommand {
                 epoch_duration_ms,
                 local_migration_snapshots,
                 remote_migration_snapshots,
+                delegator,
             } => {
                 start(
                     config_dir.clone(),
@@ -394,6 +399,7 @@ impl IotaCommand {
                     no_full_node,
                     local_migration_snapshots,
                     remote_migration_snapshots,
+                    delegator,
                 )
                 .await?;
 
@@ -410,6 +416,7 @@ impl IotaCommand {
                 num_validators,
                 local_migration_snapshots: with_local_migration_snapshot,
                 remote_migration_snapshots: with_remote_migration_snapshot,
+                delegator,
             } => {
                 genesis(
                     from_config,
@@ -422,6 +429,7 @@ impl IotaCommand {
                     num_validators,
                     with_local_migration_snapshot,
                     with_remote_migration_snapshot,
+                    delegator,
                 )
                 .await
             }
@@ -612,6 +620,7 @@ async fn start(
     no_full_node: bool,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
+    delegator: Option<IotaAddress>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -646,7 +655,7 @@ async fn start(
 
     if epoch_duration_ms.is_some() && genesis_blob_exists(config_dir.clone()) && !force_regenesis {
         bail!(
-            "Epoch duration can only be set when passing the `--force-regenesis` flag, or when \
+            "epoch duration can only be set when passing the `--force-regenesis` flag, or when \
             there is no genesis configuration in the default Iota configuration folder or the given \
             network.config argument.",
         );
@@ -671,6 +680,17 @@ async fn start(
             .into_iter()
             .map(SnapshotSource::S3);
         genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
+
+        // A delegator must be supplied when migration snapshots are provided.
+        if !genesis_config.migration_sources.is_empty() {
+            if let Some(delegator) = delegator {
+                // Add a delegator account to the genesis.
+                genesis_config = genesis_config.add_delegator(delegator);
+            } else {
+                bail!("a delegator must be supplied when migration snapshots are provided.");
+            }
+        }
+
         swarm_builder = swarm_builder.with_genesis_config(genesis_config);
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
         swarm_builder = swarm_builder.with_epoch_duration_ms(epoch_duration_ms);
@@ -688,6 +708,7 @@ async fn start(
                 DEFAULT_NUMBER_OF_AUTHORITIES,
                 local_migration_snapshots,
                 remote_migration_snapshots,
+                delegator,
             )
             .await?;
         }
@@ -814,7 +835,7 @@ async fn start(
 
         let host_ip = match faucet_address {
             SocketAddr::V4(addr) => *addr.ip(),
-            _ => bail!("Faucet configuration requires an IPv4 address"),
+            _ => bail!("faucet configuration requires an IPv4 address"),
         };
 
         let config = FaucetConfig {
@@ -891,6 +912,7 @@ async fn genesis(
     num_validators: usize,
     local_migration_snapshots: Vec<PathBuf>,
     remote_migration_snapshots: Vec<SnapshotUrl>,
+    delegator: Option<IotaAddress>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
         // if a directory is specified, it must exist (it
@@ -953,7 +975,7 @@ async fn genesis(
             }
         } else if files.len() != 2 || !client_path.exists() || !keystore_path.exists() {
             bail!(
-                "Cannot run genesis with non-empty Iota config directory {}, please use the --force/-f option to remove the existing configuration",
+                "cannot run genesis with non-empty Iota config directory {}, please use the --force/-f option to remove the existing configuration",
                 iota_config_dir.to_str().unwrap()
             );
         }
@@ -991,6 +1013,16 @@ async fn genesis(
         .into_iter()
         .map(SnapshotSource::S3);
     genesis_conf.migration_sources = local_snapshots.chain(remote_snapshots).collect();
+
+    // A delegator must be supplied when migration snapshots are provided.
+    if !genesis_conf.migration_sources.is_empty() {
+        if let Some(delegator) = delegator {
+            // Add a delegator account to the genesis.
+            genesis_conf = genesis_conf.add_delegator(delegator);
+        } else {
+            bail!("a delegator must be supplied when migration snapshots are provided.");
+        }
+    }
 
     // Adds an extra faucet account to the genesis
     if with_faucet {

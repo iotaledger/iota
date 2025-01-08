@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import { useSendCoinTransaction } from '@/hooks';

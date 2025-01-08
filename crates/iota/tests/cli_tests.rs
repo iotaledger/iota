@@ -91,6 +91,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
+        delegator: None,
     }
     .execute()
     .await?;
@@ -133,6 +134,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
+        delegator: None,
     }
     .execute()
     .await;
@@ -161,6 +163,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             indexer_feature_args: IndexerFeatureArgs::for_testing(),
             local_migration_snapshots: vec![],
             remote_migration_snapshots: vec![],
+            delegator: None,
         }
         .execute(),
     )
