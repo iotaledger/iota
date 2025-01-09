@@ -34,11 +34,11 @@ const MintLeapFrogNFT: React.FC = () => {
     description: '',
     title: '',
   });
-
+  const [isValidIOTAAddress,setIsValidIOTAAddress] = useState<boolean>(true);
   const wallets = useWallets();
   const { mutate } = useConnectWallet();
   const { mutate: signAndExecuteTransaction } = useSignAndExecuteTransaction();
-
+  const regex = /^0x[a-fA-F0-9]{64}$/;
   const handleSubmit = async () => {
    await handleMintLeapFrogSubmit({
       nft,
@@ -93,17 +93,21 @@ const MintLeapFrogNFT: React.FC = () => {
       <input
         type="text"
         value={nft.address}
-        onChange={(e) => setNFT((prevState) => ({
-          ...prevState,
-          address:e.target.value
-        }))}
+        onChange={(e) => {
+          setNFT((prevState) => ({
+            ...prevState,
+            address:e.target.value
+          }))
+          setIsValidIOTAAddress(regex.test(e.target.value))
+        }}
         placeholder="Enter recipient address"
-        className="input-field mb-4"
+        className="input-field"
       />
+      <span className={`red text-sm ${!isValidIOTAAddress ? 'visible' : 'invisible'} mb-4`}>Enter a valid IOTA address</span>
       <button
         onClick={handleSubmit}
         className={`${clsx('button', { 'button-disabled': loading })} p-3 min-w-[12.5rem]`}
-        disabled={loading|| coins==="Congratulations! You have successfully completed this level!" ||  nft.name==='' || nft.description==='' || nft.url==='' || nft.address===''}
+        disabled={loading|| coins==="Congratulations! You have successfully completed this level!" ||  nft.name==='' || nft.description==='' || nft.url==='' || nft.address==='' || !isValidIOTAAddress}
       >
         {loading ? 'Loading...' : 'Submit Challenge'}
       </button>
