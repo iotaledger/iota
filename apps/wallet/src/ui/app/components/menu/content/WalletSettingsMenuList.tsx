@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNextMenuUrl, Overlay } from '_components';
-import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import {
     useAppSelector,
     formatAutoLock,
@@ -11,6 +10,7 @@ import {
     useBackgroundClient,
     useActiveAccount,
 } from '_hooks';
+import { FAQ_LINK, ToS_LINK } from '_src/shared/constants';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { getNetwork, Network } from '@iota/iota-sdk/client';
 import Browser from 'webextension-polyfill';

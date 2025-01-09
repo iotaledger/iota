@@ -2,15 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { setNavVisibility } from '_redux/slices/app';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
-import { persistableStorage } from '_src/shared/analytics/amplitude';
-import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/methodPayload';
-import { toB64 } from '@iota/iota-sdk/utils';
-import { useEffect, useMemo } from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { throttle } from 'throttle-debounce';
-import { useIotaLedgerClient } from './components/ledger/IotaLedgerClientProvider';
 import {
     useAutoLockMinutes,
     useBackgroundClient,
@@ -20,6 +11,15 @@ import {
     useAppDispatch,
     useAppSelector,
 } from './hooks';
+import { setNavVisibility } from '_redux/slices/app';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
+import { persistableStorage } from '_src/shared/analytics/amplitude';
+import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/methodPayload';
+import { toB64 } from '@iota/iota-sdk/utils';
+import { useEffect, useMemo } from 'react';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { throttle } from 'throttle-debounce';
+import { useIotaLedgerClient } from './components/ledger/IotaLedgerClientProvider';
 import { AccountsPage } from './pages/accounts/AccountsPage';
 import { AddAccountPage } from './pages/accounts/AddAccountPage';
 import { BackupMnemonicPage } from './pages/accounts/BackupMnemonicPage';
