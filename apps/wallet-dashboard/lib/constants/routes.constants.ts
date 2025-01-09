@@ -3,7 +3,7 @@
 
 import type { ProtectedRoute } from '../interfaces';
 import { ProtectedRouteTitle } from '../enums';
-import { Activity, Assets, Calendar, Home, Tokens, Vesting } from '@iota/ui-icons';
+import { Activity, Assets, Calendar, Home, Stake, Vesting } from '@iota/ui-icons';
 
 export const HOMEPAGE_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Home,
@@ -20,13 +20,13 @@ export const ASSETS_ROUTE: ProtectedRoute = {
 export const STAKING_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Staking,
     path: '/staking',
-    icon: Activity,
+    icon: Stake,
 };
 
 export const ACTIVITY_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Activity,
     path: '/activity',
-    icon: Tokens,
+    icon: Activity,
 };
 export const MIGRATIONS_ROUTE: ProtectedRoute = {
     title: ProtectedRouteTitle.Migrations,

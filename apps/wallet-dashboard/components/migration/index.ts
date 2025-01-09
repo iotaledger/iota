@@ -3,3 +3,4 @@
 
 export * from './MigrationObjectsPanel';
 export * from './MigrationObjectLoading';
+export * from './migration-object-details-card';

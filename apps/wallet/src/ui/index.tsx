@@ -7,12 +7,12 @@ import '@fontsource-variable/red-hat-mono';
 
 import { ErrorBoundary } from '_components';
 import { initAppType } from '_redux/slices/app';
-import { AppType, getFromLocationSearch } from '_redux/slices/app/AppType';
+import { AppType, getFromLocationSearch } from '_src/ui/app/redux/slices/app/appType';
 import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
 import initSentry from '_src/ui/app/helpers/sentry';
 import store from '_store';
-import { thunkExtras } from '_store/thunk-extras';
+import { thunkExtras } from '_src/ui/app/redux/store/thunkExtras';
 import { KioskClientProvider, ThemeProvider } from '@iota/core';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider } from '@iota/dapp-kit';
@@ -23,11 +23,11 @@ import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { HashRouter } from 'react-router-dom';
 import { App } from './app';
-import { walletApiProvider } from './app/ApiProvider';
+import { walletApiProvider } from './app/apiProvider';
 import { AccountsFormProvider } from './app/components/accounts/AccountsFormContext';
 import { UnlockAccountProvider } from './app/components/accounts/UnlockAccountContext';
 import { IotaLedgerClientProvider } from './app/components/ledger/IotaLedgerClientProvider';
-import { growthbook } from './app/experimentation/feature-gating';
+import { growthbook } from './app/experimentation/featureGating';
 import { persister, queryClient } from './app/helpers/queryClient';
 import { useAppSelector } from './app/hooks';
 
