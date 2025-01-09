@@ -52,6 +52,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         error,
         isError,
 
+        ownedAssets,
         isAssetsLoaded,
         filteredAssets,
         selectedAssetCategory,
@@ -80,7 +81,8 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     </div>
                 ) : (
                     <>
-                        {isAssetsLoaded && Boolean(filteredAssets?.length) ? (
+                        {isAssetsLoaded &&
+                        Boolean(ownedAssets?.visual.length || ownedAssets?.other.length) ? (
                             <div className="flex flex-row items-center justify-start gap-xs py-xs">
                                 {ASSET_CATEGORIES.map(({ value, label }) => (
                                     <Chip
@@ -88,6 +90,11 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                                         onClick={() => setSelectedAssetCategory(value)}
                                         label={label}
                                         selected={selectedAssetCategory === value}
+                                        disabled={
+                                            AssetCategory.Visual === value
+                                                ? !ownedAssets?.visual.length
+                                                : !ownedAssets?.other.length
+                                        }
                                     />
                                 ))}
                             </div>
