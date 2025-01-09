@@ -62,36 +62,27 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
   };
 
   return (
-    <div className="flex items-center">
-      <input
-        type="text"
-        value={inputText}
-        onChange={(e) => setInputText(e.target.value)}
-        placeholder="Enter Flag Object Id"
-        className="input-field mr-2"
-      />
-      <button
-        onClick={handleSubmit}
-        className={`${clsx('button', { 'button-disabled': loading })} p-3 min-w-28`}
-        disabled={loading|| coins==="Congratulations! You have successfully completed this level!" }
-      >
-        {loading ? 'Loading...' : 'Submit'}
-      </button>
-
-      {error.status === 'error' && <p className="text-red-500 text-center mb-0 ml-2">{error.description}</p>}
-
-      {coins && !loading && <pre className="ml-4 mb-0 p-3">{coins}</pre>}
-
-      {showPopup && (
-        <Popup
-          status={error.status}
-          description={error.description}
-          title={error.title}
-          setShowPopup={setShowPopup}
-          showPopup={showPopup}
-          digest={digest}
+    <div className='bg-[#0000001a] dark:bg-[#1e1e1e] p-5 rounded-lg'>
+      <h3>Claim your NFT reward</h3>
+      <label >Flag Id <span className="red">*</span></label>
+      <div className='flex flex-col flex-wrap items-start mt-1'>
+        <input
+          type="text"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Enter Flag Object Id"
+          className="input-field"
         />
-      )}
+        {<p className={`text-red-500 mb-0 mt-1 text-sm ${error ? 'visible' : 'invisible'}`}>{error}</p>}
+        <button 
+          onClick={handleSubmit} 
+          className={`${clsx("button", { "button-disabled": inputText=='' || loading })} min-w-28 mt-4`}
+          disabled={inputText=='' || loading}
+        >
+          {loading ? 'Loading...' : 'Submit Your Challenge'}
+        </button>
+        {coins && <p className='mb-0 py-3 px-2 bg-[#353535] rounded-md'>{coins}</p>}
+      </div>
     </div>
   );
 };

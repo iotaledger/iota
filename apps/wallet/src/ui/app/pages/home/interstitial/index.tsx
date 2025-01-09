@@ -23,7 +23,13 @@ interface InterstitialProps extends InterstitialConfig {
 
 const setInterstitialDismissed = (dismissKey: string) => localStorage.setItem(dismissKey, 'true');
 
-function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: InterstitialProps) {
+export function Interstitial({
+    enabled,
+    dismissKey,
+    imageUrl,
+    bannerUrl,
+    onClose,
+}: InterstitialProps) {
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -68,5 +74,3 @@ function Interstitial({ enabled, dismissKey, imageUrl, bannerUrl, onClose }: Int
         </Portal>
     );
 }
-
-export default Interstitial;

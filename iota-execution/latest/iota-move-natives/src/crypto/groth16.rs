@@ -187,16 +187,18 @@ pub fn verify_groth16_proof_internal(
                 .groth16_verify_groth16_proof_internal_bls12381_cost_base,
             groth16_verify_groth16_proof_internal_cost_params
                 .groth16_verify_groth16_proof_internal_bls12381_cost_per_public_input,
-            (public_proof_inputs.len() + fastcrypto_zkp::bls12381::conversions::SCALAR_SIZE - 1)
-                / fastcrypto_zkp::bls12381::conversions::SCALAR_SIZE,
+            public_proof_inputs
+                .len()
+                .div_ceil(fastcrypto_zkp::bls12381::conversions::SCALAR_SIZE),
         ),
         BN254 => (
             groth16_verify_groth16_proof_internal_cost_params
                 .groth16_verify_groth16_proof_internal_bn254_cost_base,
             groth16_verify_groth16_proof_internal_cost_params
                 .groth16_verify_groth16_proof_internal_bn254_cost_per_public_input,
-            (public_proof_inputs.len() + fastcrypto_zkp::bn254::api::SCALAR_SIZE - 1)
-                / fastcrypto_zkp::bn254::api::SCALAR_SIZE,
+            public_proof_inputs
+                .len()
+                .div_ceil(fastcrypto_zkp::bn254::api::SCALAR_SIZE),
         ),
         _ => {
             // Charge for failure but dont fail if we run out of gas otherwise the actual

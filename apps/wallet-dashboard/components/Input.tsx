@@ -1,8 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
-
 interface InputProps {
     label?: string;
     value: string;
@@ -12,7 +10,7 @@ interface InputProps {
     error?: string;
 }
 
-function Input({
+export function Input({
     label,
     value,
     onChange,
@@ -34,5 +32,3 @@ function Input({
         </div>
     );
 }
-
-export default Input;

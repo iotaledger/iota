@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-export default function ExternalImage({
+export function ExternalImage({
     ...imageProps
 }: React.ImgHTMLAttributes<HTMLImageElement>): JSX.Element {
     // eslint-disable-next-line @next/next/no-img-element

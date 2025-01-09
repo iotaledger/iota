@@ -1,14 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { useFormatCoin, useBalance, CoinFormat, parseAmount, useCoinMetadata } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import { useNewStakeTransaction, useNotifications } from '@/hooks';
-import { NotificationType } from '@/stores/notificationStore';
-import EnterAmountDialogLayout from './EnterAmountDialogLayout';
+import { useNewStakeTransaction } from '@/hooks';
+import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
+import toast from 'react-hot-toast';
 
 export interface FormValues {
     amount: string;
@@ -24,7 +23,7 @@ interface EnterAmountViewProps {
     onSuccess: (digest: string) => void;
 }
 
-function EnterAmountView({
+export function EnterAmountView({
     selectedValidator,
     onBack,
     handleClose,
@@ -32,7 +31,6 @@ function EnterAmountView({
     senderAddress,
     onSuccess,
 }: EnterAmountViewProps): JSX.Element {
-    const { addNotification } = useNotifications();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { values, resetForm } = useFormikContext<FormValues>();
 
@@ -65,7 +63,7 @@ function EnterAmountView({
 
     function handleStake(): void {
         if (!newStakeData?.transaction) {
-            addNotification('Stake transaction was not created', NotificationType.Error);
+            toast.error('Stake transaction was not created');
             return;
         }
         signAndExecuteTransaction(
@@ -75,11 +73,11 @@ function EnterAmountView({
             {
                 onSuccess: (tx) => {
                     onSuccess(tx.digest);
-                    addNotification('Stake transaction has been sent');
+                    toast.success('Stake transaction has been sent');
                     resetForm();
                 },
                 onError: () => {
-                    addNotification('Stake transaction was not sent', NotificationType.Error);
+                    toast.error('Stake transaction was not sent');
                 },
             },
         );
@@ -100,5 +98,3 @@ function EnterAmountView({
         />
     );
 }
-
-export default EnterAmountView;

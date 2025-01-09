@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import cx from 'classnames';
 import { ImageType, ImageShape } from './card.enums';
 import { IMAGE_BG_CLASSES, IMAGE_VARIANT_CLASSES } from './card.classes';
