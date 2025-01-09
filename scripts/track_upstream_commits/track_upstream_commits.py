@@ -131,10 +131,8 @@ if __name__ == '__main__':
     parser.add_argument('--codeowner', help='code owner of the crates (e.g., "node)')
     parser.add_argument('--repo-url', default="git@github.com:MystenLabs/sui.git", help="The URL to the repository. Can also be a local folder.")
     parser.add_argument('--repo-tag', default=None, help="The tag to checkout in the repository.")
-    parser.add_argument('--version', default=None, help="The semantic version to filter overwrites/patches if not found in the repo-tag.")
     parser.add_argument('--target-folder', default="result", help="The path to the target folder.")
     parser.add_argument('--clone-source', action='store_true', help="Clone the upstream repository.")
-    parser.add_argument('--compare-source-folder', help="The path to the source folder for comparison.")
 
     args = parser.parse_args()
     target_folder = args.target_folder
@@ -143,11 +141,6 @@ if __name__ == '__main__':
     # Check if clone_source is true and repo_tag is not specified
     if args.clone_source and not args.repo_tag:
         parser.error("--repo-tag must be specified if --clone-source is true")
-
-    # get current root folder
-    source_folder = os.path.abspath(os.path.join(os.getcwd(), "..", ".."))
-    if args.compare_source_folder:
-        source_folder = os.path.abspath(args.compare_source_folder)
 
     # Check if crates or code owner is specified
     if not args.crates and not args.codeowner:
