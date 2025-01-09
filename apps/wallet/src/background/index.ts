@@ -11,12 +11,12 @@ import { lockAllAccountSources } from './account-sources';
 import { accountSourcesEvents } from './account-sources/events';
 import { getAccountsStatusData, getAllAccounts, lockAllAccounts } from './accounts';
 import { accountsEvents } from './accounts/events';
-import Alarms, { AUTO_LOCK_ALARM_NAME, CLEAN_UP_ALARM_NAME } from './Alarms';
+import Alarms, { AUTO_LOCK_ALARM_NAME, CLEAN_UP_ALARM_NAME } from './alarms';
 import { Connections } from './connections';
-import NetworkEnv from './NetworkEnv';
-import Permissions from './Permissions';
+import NetworkEnv from './networkEnv';
+import Permissions from './permissions';
 import { initSentry } from './sentry';
-import Transactions from './Transactions';
+import Transactions from './transactions';
 
 growthbook.loadFeatures().catch(() => {
     // silence the error

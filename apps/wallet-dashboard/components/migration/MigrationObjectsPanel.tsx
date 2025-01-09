@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
+import { useGroupedStardustObjects } from '@/hooks';
 import {
     STARDUST_MIGRATABLE_OBJECTS_FILTER_LIST,
     STARDUST_TIMELOCKED_OBJECTS_FILTER_LIST,
@@ -36,13 +36,13 @@ const FILTERS = {
 interface MigrationObjectsPanelProps {
     selectedObjects: IotaObjectData[];
     onClose: () => void;
-    isTimelocked: boolean;
+    groupByTimelockUC: boolean;
 }
 
 export function MigrationObjectsPanel({
     selectedObjects,
     onClose,
-    isTimelocked,
+    groupByTimelockUC,
 }: MigrationObjectsPanelProps): React.JSX.Element {
     const [stardustOutputDetailsFilter, setStardustOutputDetailsFilter] =
         useState<StardustOutputDetailsFilter>(StardustOutputDetailsFilter.All);
@@ -51,11 +51,11 @@ export function MigrationObjectsPanel({
         data: resolvedObjects = [],
         isLoading,
         error: isErrored,
-    } = useGroupedMigrationObjectsByExpirationDate(selectedObjects, isTimelocked);
+    } = useGroupedStardustObjects(selectedObjects, groupByTimelockUC);
 
     const filteredObjects = filterMigrationObjects(resolvedObjects, stardustOutputDetailsFilter);
 
-    const filters = isTimelocked ? FILTERS.timelocked : FILTERS.migratable;
+    const filters = groupByTimelockUC ? FILTERS.timelocked : FILTERS.migratable;
     const isHidden = selectedObjects.length === 0;
 
     return (
@@ -101,7 +101,7 @@ export function MigrationObjectsPanel({
                                     render={(migrationObject) => (
                                         <MigrationObjectDetailsCard
                                             migrationObject={migrationObject}
-                                            isTimelocked={isTimelocked}
+                                            isTimelocked={groupByTimelockUC}
                                         />
                                     )}
                                 />

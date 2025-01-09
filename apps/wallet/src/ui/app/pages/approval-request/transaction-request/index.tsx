@@ -12,7 +12,7 @@ import {
     useRecognizedPackages,
     useSigner,
 } from '_hooks';
-import { type TransactionApprovalRequest } from '_payloads/transactions/ApprovalRequest';
+import { type TransactionApprovalRequest } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { respondToTransactionRequest } from '_redux/slices/transaction-requests';
 import { ampli } from '_src/shared/analytics/ampli';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
@@ -20,7 +20,7 @@ import { useTransactionSummary, TransactionSummary, GasFees } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
-import { TransactionDetails } from './TransactionDetails';
+import { TransactionDetails } from './transaction-details';
 
 export interface TransactionRequestProps {
     txRequest: TransactionApprovalRequest;

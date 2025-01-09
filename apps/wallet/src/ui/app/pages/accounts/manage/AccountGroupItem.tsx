@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
 import { useState, useRef } from 'react';
 import clsx from 'clsx';
 import { formatAddress } from '@iota/iota-sdk/utils';

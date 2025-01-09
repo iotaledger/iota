@@ -22,9 +22,9 @@ import {
     ConnectLedgerModal,
     PageTemplate,
 } from '_components';
-import { getLedgerConnectionErrorMessage } from '../../helpers';
+import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
-import { AppType } from '../../redux/slices/app/AppType';
+import { AppType } from '../../redux/slices/app/appType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {

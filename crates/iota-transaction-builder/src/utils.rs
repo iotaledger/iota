@@ -65,7 +65,7 @@ impl TransactionBuilder {
                 }
             }
             Err(anyhow!(
-                "Cannot find gas coin for signer address {signer} with amount sufficient for the required gas budget {gas_budget}. If you are using the pay or transfer commands, you can use pay-iota or transfer-iota commands instead, which will use the only object as gas payment."
+                "Cannot find gas coin for signer address {signer} with amount sufficient for the required gas budget {gas_budget}. If you are using the pay or transfer commands, you can use the pay-iota command instead, which will use the only object as gas payment."
             ))
         }
     }

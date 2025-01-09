@@ -425,27 +425,6 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-    /// Transfer IOTA, and pay gas with the same IOTA coin object.
-    /// If amount is specified, only the amount is transferred; otherwise the
-    /// entire object is transferred.
-    #[clap(name = "transfer-iota")]
-    TransferIota {
-        /// Recipient address (or its alias if it's an address in the keystore)
-        #[clap(long)]
-        to: KeyIdentity,
-
-        /// ID of the coin to transfer. This is also the gas object.
-        #[clap(long)]
-        iota_coin_object_id: ObjectID,
-
-        /// The amount to transfer, if not specified, the entire coin object
-        /// will be transferred.
-        #[clap(long)]
-        amount: Option<u64>,
-
-        #[clap(flatten)]
-        opts: Opts,
-    },
     /// Upgrade Move modules
     #[clap(name = "upgrade")]
     Upgrade {
@@ -1290,29 +1269,6 @@ impl IotaClientCommands {
                     .await?;
                 dry_run_or_execute_or_serialize(
                     signer, tx_kind, context, None, None, opts.gas, opts.rest,
-                )
-                .await?
-            }
-            IotaClientCommands::TransferIota {
-                to,
-                iota_coin_object_id: object_id,
-                amount,
-                opts,
-            } => {
-                let signer = context.get_object_owner(&object_id).await?;
-                let to = get_identity_address(Some(to), context)?;
-                let client = context.get_client().await?;
-                let tx_kind = client
-                    .transaction_builder()
-                    .transfer_iota_tx_kind(to, amount);
-                dry_run_or_execute_or_serialize(
-                    signer,
-                    tx_kind,
-                    context,
-                    None,
-                    None,
-                    Some(object_id),
-                    opts,
                 )
                 .await?
             }

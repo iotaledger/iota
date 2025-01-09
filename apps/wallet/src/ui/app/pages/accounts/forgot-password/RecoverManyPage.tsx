@@ -15,8 +15,8 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useForgotPasswordContext } from './ForgotPasswordPage';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
-import { AccountType } from '_src/background/accounts/Account';
+import { AccountSourceType } from '_src/background/account-sources/accountSource';
+import { AccountType } from '_src/background/accounts/account';
 import { Button, ButtonType } from '@iota/apps-ui-kit';
 
 export function RecoverManyPage() {

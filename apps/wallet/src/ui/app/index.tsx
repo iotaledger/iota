@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { setNavVisibility } from '_redux/slices/app';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { persistableStorage } from '_src/shared/analytics/amplitude';
-import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/MethodPayload';
+import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { toB64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
@@ -55,7 +55,7 @@ import {
 import { TokenDetailsPage } from './pages/home/tokens/TokenDetailsPage';
 import { RestrictedPage } from './pages/restricted';
 import { SiteConnectPage } from './pages/site-connect';
-import { AppType } from './redux/slices/app/AppType';
+import { AppType } from './redux/slices/app/appType';
 import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';

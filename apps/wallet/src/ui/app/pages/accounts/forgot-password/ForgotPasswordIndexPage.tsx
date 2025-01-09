@@ -5,7 +5,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccountSources } from '_hooks';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { AccountSourceType } from '_src/background/account-sources/accountSource';
 
 export function ForgotPasswordIndexPage() {
     const allAccountSources = useAccountSources();

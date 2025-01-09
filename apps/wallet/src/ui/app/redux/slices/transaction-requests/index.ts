@@ -2,15 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ApprovalRequest } from '_payloads/transactions/ApprovalRequest';
-import type { RootState } from '_redux/RootReducer';
+import type { ApprovalRequest } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
+import type { RootState } from '_src/ui/app/redux/rootReducer';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
 import {
     type SignedMessage,
     type SignedTransaction,
     type WalletSigner,
-} from '_src/ui/app/WalletSigner';
-import type { AppThunkConfig } from '_store/thunk-extras';
+} from '_src/ui/app/walletSigner';
+import type { AppThunkConfig } from '_src/ui/app/redux/store/thunkExtras';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { fromB64 } from '@iota/iota-sdk/utils';

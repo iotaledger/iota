@@ -6,7 +6,7 @@ import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useBalance, useFormatCoin } from '@iota/core';
 import { Address, Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
-import { ReceiveFundsDialog, SendTokenDialog } from '../Dialogs';
+import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
 

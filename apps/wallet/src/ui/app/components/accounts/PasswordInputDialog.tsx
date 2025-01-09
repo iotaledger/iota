@@ -9,7 +9,7 @@ import { v4 as uuidV4 } from 'uuid';
 import { z } from 'zod';
 import { useAccountSources, useBackgroundClient } from '_hooks';
 import { Form } from '../../shared/forms/Form';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import {
     Button,
     ButtonHtmlType,

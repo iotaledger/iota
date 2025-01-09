@@ -18,7 +18,7 @@ You must serialize transaction data following [Binary Canonical Serialization](h
 The following example demonstrates how to serialize data for a transfer using the [IOTA CLI](../../../references/cli.mdx). This returns serialized transaction data in Base64. Submit the raw transaction to execute as `tx_bytes`.
 
 ```shell
-iota client transfer-iota --to <IOTA-ADDRESS> --iota-coin-object-id <COIN-OBJECT-ID> --serialize-unsigned-transaction
+iota client pay-all-iota --input-coins <COIN-OBJECT-ID> --recipient <IOTA-ADDRESS> --gas-budget 2000000 --serialize-unsigned-transaction
 ```
 
 The console responds with the resulting `<TX_BYTES>` value.
@@ -82,12 +82,12 @@ Mutated Objects:
 Alternatively, you can use the active key in IOTA Keystore to sign and output a Base64-encoded sender signed data with flag `--serialize-signed-transaction`. 
 
 ```shell
-iota client transfer-iota --to <IOTA-ADDRESS> --iota-coin-object-id <COIN-OBJECT-ID> --serialize-signed-transaction
+iota client pay-all-iota --input-coins <COIN-OBJECT-ID> --recipient <IOTA-ADDRESS> --gas-budget 2000000 --serialize-signed-transaction
 ```
 
 The console responds with the resulting `<SIGNED-TX-BYTES>` value.
 
-After you obtain the signed transaction bytes, you can submit it using the `execute-combined-signed-tx` command. This command takes `--signed-tx-bytes` as the signed transaction bytes to execute (see output of the previous `iota client transfer-iota` command). This executes the signed transaction and returns the certificate and transaction effects if successful.
+After you obtain the signed transaction bytes, you can submit it using the `execute-combined-signed-tx` command. This command takes `--signed-tx-bytes` as the signed transaction bytes to execute (see output of the previous `iota client transfer` command). This executes the signed transaction and returns the certificate and transaction effects if successful.
 
 ```shell
 iota client execute-combined-signed-tx --signed-tx-bytes <SIGNED-TX-BYTES>

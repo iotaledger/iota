@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
@@ -20,8 +20,8 @@ import {
     useAutoLockMinutesMutation,
     useCreateAccountsMutation,
 } from '_hooks';
-import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { AllowedAccountSourceTypes } from '../../accounts-finder';
 import { useFeature } from '@growthbook/growthbook-react';
 import { Feature } from '@iota/core';
