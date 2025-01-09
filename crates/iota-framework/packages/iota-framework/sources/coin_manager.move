@@ -29,11 +29,8 @@ module iota::coin_manager {
     /// The error returned if a attempt is made to change the maximum supply that is higher than the maximum possible supply
     const EMaximumSupplyHigherThanPossible: u64 = 3;
 
-    /// The error returned if additional metadata already exists and you try to overwrite
-    const EAdditionalMetadataAlreadyExists: u64 = 4;
-
     /// The error returned if you try to edit nonexisting additional metadata
-    const EAdditionalMetadataDoesNotExist: u64 = 5;
+    const EAdditionalMetadataDoesNotExist: u64 = 4;
 
     /// The maximum supply supported by `CoinManager`
     const MAX_SUPPLY: u64 = 18_446_744_073_709_551_614u64;
@@ -199,7 +196,6 @@ module iota::coin_manager {
         manager: &mut CoinManager<T>,
         value: Value
     ) {
-        assert!(!df::exists_(&manager.id, b"additional_metadata"), EAdditionalMetadataAlreadyExists);
         df::add(&mut manager.id, b"additional_metadata", value);
     }
     
