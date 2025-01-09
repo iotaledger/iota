@@ -65,17 +65,21 @@ export function ValidatorLogo({
     // for inactive validators, show the epoch number
     const fallBackText = activeEpoch
         ? `Staked ${Number(system?.epoch) - Number(activeEpoch)} epochs ago`
-        : '';
+        : '--';
     const validatorName = validatorMeta?.name || fallBackText;
 
-    const subtitle = showActiveStatus ? (
-        <div className="flex items-center gap-1">
-            {formatAddress(validatorAddress)}
-            {newValidator && <Badge label="New" type={BadgeType.PrimarySoft} />}
-            {isAtRisk && <Badge label="At Risk" type={BadgeType.PrimarySolid} />}
-        </div>
+    const subtitle = validatorAddress ? (
+        showActiveStatus ? (
+            <div className="flex items-center gap-1">
+                {formatAddress(validatorAddress)}
+                {newValidator && <Badge label="New" type={BadgeType.PrimarySoft} />}
+                {isAtRisk && <Badge label="At Risk" type={BadgeType.PrimarySolid} />}
+            </div>
+        ) : (
+            formatAddress(validatorAddress)
+        )
     ) : (
-        formatAddress(validatorAddress)
+        '--'
     );
     return (
         <>

@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { ExplorerLinkType, useFormatCoin, type GasSummaryType } from '../../';
 import { RenderExplorerLink } from '../../types';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';

@@ -4,7 +4,6 @@
 'use client';
 
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import React from 'react';
 import { useGetNFTDisplay } from '@iota/core';
 import { FlexDirection } from '@/lib/ui/enums';
 import { VisualAssetCard, VisualAssetType, type VisualAssetCardProps } from '@iota/apps-ui-kit';
