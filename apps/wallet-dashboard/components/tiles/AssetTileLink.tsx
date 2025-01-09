@@ -11,7 +11,7 @@ import { NonVisualAssetCard } from './NonVisualAssetTile';
 
 interface AssetTileLinkProps {
     asset: IotaObjectData;
-    type: AssetCategory;
+    type: AssetCategory | null;
     onClick: (asset: IotaObjectData) => void;
 }
 

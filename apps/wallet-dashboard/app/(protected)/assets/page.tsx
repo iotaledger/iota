@@ -92,32 +92,30 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                                 ))}
                             </div>
                         ) : null}
-                        {selectedAssetCategory ? (
-                            <Loading loading={isPending}>
-                                <div
-                                    className={cl(
-                                        'max-h-[600px]',
-                                        ASSET_LAYOUT[selectedAssetCategory],
-                                    )}
-                                >
-                                    {filteredAssets.map((asset) => (
-                                        <AssetTileLink
-                                            key={asset.digest}
-                                            asset={asset}
-                                            type={selectedAssetCategory}
-                                            onClick={onAssetClick}
-                                        />
-                                    ))}
-                                    <div ref={observerElem}>
-                                        {isSpinnerVisible ? (
-                                            <div className="mt-1 flex h-full w-full justify-center">
-                                                <LoadingIndicator />
-                                            </div>
-                                        ) : null}
-                                    </div>
+                        <Loading loading={isPending}>
+                            <div
+                                className={cl(
+                                    'max-h-[600px]',
+                                    selectedAssetCategory && ASSET_LAYOUT[selectedAssetCategory],
+                                )}
+                            >
+                                {filteredAssets.map((asset) => (
+                                    <AssetTileLink
+                                        key={asset.digest}
+                                        asset={asset}
+                                        type={selectedAssetCategory}
+                                        onClick={onAssetClick}
+                                    />
+                                ))}
+                                <div ref={observerElem}>
+                                    {isSpinnerVisible ? (
+                                        <div className="mt-1 flex h-full w-full justify-center">
+                                            <LoadingIndicator />
+                                        </div>
+                                    ) : null}
                                 </div>
-                            </Loading>
-                        ) : null}
+                            </div>
+                        </Loading>
 
                         {selectedAsset && (
                             <AssetDialog
