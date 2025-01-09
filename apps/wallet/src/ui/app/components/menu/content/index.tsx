@@ -15,12 +15,12 @@ import type { MouseEvent } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AutoLockAccounts } from './AutoLockAccounts';
 import { NetworkSettings } from './NetworkSettings';
-import WalletSettingsMenuList from './WalletSettingsMenuList';
+import { MenuList } from './WalletSettingsMenuList';
 import { ThemeSettings } from './ThemeSettings';
 
 const CLOSE_KEY_CODES: string[] = ['Escape'];
 
-function MenuContent() {
+export function MenuContent() {
     const mainLocation = useLocation();
     const isOpen = useMenuIsOpen();
     const menuUrl = useMenuUrl();
@@ -47,7 +47,7 @@ function MenuContent() {
             <ErrorBoundary>
                 <MainLocationContext.Provider value={mainLocation}>
                     <Routes location={menuUrl || ''}>
-                        <Route path="/" element={<WalletSettingsMenuList />} />
+                        <Route path="/" element={<MenuList />} />
                         <Route path="/network" element={<NetworkSettings />} />
                         <Route path="/auto-lock" element={<AutoLockAccounts />} />
                         <Route path="/theme" element={<ThemeSettings />} />
@@ -58,5 +58,3 @@ function MenuContent() {
         </div>
     );
 }
-
-export default MenuContent;

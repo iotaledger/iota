@@ -31,4 +31,4 @@ export * from './receipt-card';
 export * from './receipt-card/TxnAmount';
 export * from './transactions-card';
 export * from './user-approve-container';
-export { default as FiltersPortal } from './filters-tags';
+export * from './filters-tags';

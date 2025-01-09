@@ -16,7 +16,7 @@ import {
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
 } from '@iota/core';
-import { extractMigrationOutputFields, extractOwnedStorageDepositReturnAmount } from '.';
+import { extractOutputFields, extractOwnedStorageDepositReturnAmount } from '.';
 import { IotaClient, IotaObjectData } from '@iota/iota-sdk/client';
 import { MIGRATION_OBJECT_WITHOUT_UC_KEY } from '@/lib/constants';
 
@@ -24,7 +24,7 @@ export async function groupMigrationObjectsByUnlockCondition(
     objectsData: IotaObjectData[],
     client: IotaClient,
     currentAddress: string = '',
-    isTimelockUnlockCondition: boolean = false,
+    groupByTimelockUC: boolean = false, // If true, group by timelock unlock condition, else group by expiration unlock condition
     currentEpochStartMs: number,
 ): Promise<ResolvedObjectTypes[]> {
     const flatObjects: ResolvedObjectTypes[] = [];
@@ -38,10 +38,10 @@ export async function groupMigrationObjectsByUnlockCondition(
         const chunk = objectsData.slice(i, i + PROMISE_CHUNK_SIZE);
 
         const promises = chunk.map(async (object) => {
-            const objectFields = extractMigrationOutputFields(object);
+            const objectFields = extractOutputFields(object);
 
             let groupKey: string | undefined;
-            if (isTimelockUnlockCondition) {
+            if (groupByTimelockUC) {
                 const timestamp = objectFields.timelock_uc?.fields.unix_time.toString();
                 groupKey = timestamp;
             } else {
@@ -164,7 +164,7 @@ async function getNftDetails(
     expirationKey: UnlockConditionTimestamp,
     client: IotaClient,
 ): Promise<ResolvedNftObject[]> {
-    const objectFields = extractMigrationOutputFields(object);
+    const objectFields = extractOutputFields(object);
     const nftOutputDynamicFields = await client.getDynamicFields({
         parentId: objectFields.id.id,
     });
@@ -199,7 +199,7 @@ async function extractNativeTokensFromObject(
     client: IotaClient,
     expirationKey: UnlockConditionTimestamp,
 ): Promise<ResolvedNativeToken[]> {
-    const fields = extractMigrationOutputFields(object);
+    const fields = extractOutputFields(object);
     const bagId = fields.native_tokens.fields.id.id;
     const bagSize = Number(fields.native_tokens.fields.size);
 

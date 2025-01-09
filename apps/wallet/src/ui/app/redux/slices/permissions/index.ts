@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Permission } from '_messages/payloads/permissions';
-import type { RootState } from '_redux/RootReducer';
-import type { AppThunkConfig } from '_store/thunk-extras';
+import type { RootState } from '_src/ui/app/redux/rootReducer';
+import type { AppThunkConfig } from '_src/ui/app/redux/store/thunkExtras';
 import {
     createAsyncThunk,
     createEntityAdapter,

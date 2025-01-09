@@ -15,9 +15,9 @@ import { useActiveAddress } from '_app/hooks/useActiveAddress';
 import { Loading, NoData, PageTemplate } from '_components';
 import { useGetNFTs } from '_src/ui/app/hooks/useGetNFTs';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import HiddenAssets from './HiddenAssets';
-import NonVisualAssets from './NonVisualAssets';
-import VisualAssets from './VisualAssets';
+import { HiddenAssets } from './HiddenAssets';
+import { NonVisualAssets } from './NonVisualAssets';
+import { VisualAssets } from './VisualAssets';
 import { Warning } from '@iota/ui-icons';
 import { useOnScreen } from '@iota/core';
 
@@ -42,7 +42,7 @@ const ASSET_CATEGORIES = [
     },
 ];
 
-function NftsPage() {
+export function NftsPage() {
     const [selectedAssetCategory, setSelectedAssetCategory] = useState<AssetCategory | null>(null);
     const observerElem = useRef<HTMLDivElement | null>(null);
     const { isIntersecting } = useOnScreen(observerElem);
@@ -201,5 +201,3 @@ function NftsPage() {
         </PageTemplate>
     );
 }
-
-export default NftsPage;

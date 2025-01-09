@@ -4,7 +4,7 @@
 
 import { useFeature } from '@growthbook/growthbook-react';
 import { FiltersPortal, ConnectedAppsCard, type DAppEntry } from '_components';
-import { getFromSessionStorage, setToSessionStorage } from '_src/background/storage-utils';
+import { getFromSessionStorage, setToSessionStorage } from '_src/background/storageUtils';
 import { Feature } from '@iota/core';
 import { useUnlockedGuard } from '_src/ui/app/hooks/useUnlockedGuard';
 import { useEffect } from 'react';
@@ -19,7 +19,7 @@ type FilterTag = {
     link: string;
 };
 
-function AppsPage() {
+export function AppsPage() {
     const navigate = useNavigate();
 
     const DEFAULT_FILTER_TAGS: FilterTag[] = [
@@ -83,5 +83,3 @@ function AppsPage() {
         </div>
     );
 }
-
-export default AppsPage;

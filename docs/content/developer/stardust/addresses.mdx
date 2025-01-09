@@ -12,13 +12,31 @@ In IOTA Stardust, addresses were represented in either Bech32 address format (fo
 
 ### Bech32 to Hex conversion
 
-It's possible to convert a legacy Bech32 address back to hex format by doing the following:
+It's possible to convert a legacy Bech32 address back to hex format by using a library that implements the [Bech32 specification](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki#specification).
+The human readable part that needs to be provided is `iota`.
+After decoding a Bech32 address, the resulting bytes must have a length of 33 bytes, where the first one needs to be removed, as it is the legacy address type byte.
+The remaining 32 bytes just need to be hex encoded to get the address in the hex format.
 
-1. Take the part after `iota1`. Using the address from the above paragraph as an example, iota1**qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx**.
-2. Base32 decode it. 
-3. Strip away the last 6 digits containing the checksum. 
+Example using the third party library https://www.npmjs.com/package/bech32:
 
-You are left with a 33-byte hex string. The first byte represents the address type (`0x00`) and can be stripped. The 32 bytes represent an address in hex format. 
+```ts
+import { bech32 } from 'bech32'
+
+const bech32AddressToHexAddress = (bech32Address: string) => {
+    let decoded = bech32.decode(bech32Address);
+    let addressBytes = bech32.fromWords(decoded.words)
+    // Remove address type byte
+    addressBytes.shift()
+    return '0x' + bytesToHex(addressBytes)
+}
+
+const bytesToHex = (value: number[]): string => {
+    return value.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+let hexAddress = bech32AddressToHexAddress('iota1qrhacyfwlcnzkvzteumekfkrrwks98mpdm37cj4xx3drvmjvnep6xqgyzyx')
+// hexAddress == '0xefdc112efe262b304bcf379b26c31bad029f616ee3ec4aa6345a366e4c9e43a3'
+```
 
 ## Keys
 

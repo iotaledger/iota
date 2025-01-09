@@ -2,7 +2,7 @@
     "name": "@iota/create-dapp",
     "author": "IOTA Foundation <info@iota.org>",
     "description": "A CLI for creating new IOTA dApps",
-    "homepage": "https://docs.iota.org/references/ts-sdk/typescript/",
+    "homepage": "https://docs.iota.org/ts-sdk/typescript/",
     "version": "0.3.0",
     "license": "Apache-2.0",
     "files": [
