@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { Divider, KeyValueInfo, Panel, TooltipPosition } from '@iota/apps-ui-kit';
 import { type GasSummaryType, useStakeTxnInfo, GasSummary } from '../../../';
 import { RenderExplorerLink } from '../../../types';

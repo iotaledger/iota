@@ -10,7 +10,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { useState } from 'react';
 import { AssetCategory } from '@/lib/enums';
 import { AssetList } from '@/components/AssetsList';
-import { AssetDialog } from '@/components/Dialogs/Assets';
+import { AssetDialog } from '@/components/dialogs/assets';
 
 const OBJECTS_PER_REQ = 50;
 

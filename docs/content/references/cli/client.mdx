@@ -45,7 +45,6 @@ Commands:
   switch                      Switch active address and env (e.g. testnet, devnet, localnet, ...)
   tx-block                    Get a transaction block with the effects, events and object changes of its execution
   transfer                    Transfer object
-  transfer-iota               Transfer IOTA, and pay gas with the same IOTA coin object. If amount is specified, only the amount is transferred; otherwise the entire object is transferred
   upgrade                     Upgrade Move modules
   verify-bytecode-meter       Run the bytecode verifier on the package
   verify-source               Verify local Move packages against on-chain packages, and optionally their dependencies
@@ -202,14 +201,13 @@ $ iota client dynamic-field 0x5
 ### Send IOTA or objects
 
 In this example, let's see how to transfer IOTA or transfer an object from one address to another. First of all, there two main commands for sending IOTA or transferring objects: `pay` and `transfer`.
-Both `pay` and `transfer` have a few sister commands: `pay-iota`, `pay-all-iota`, `transfer-iota`.
+The `pay` command has two related commands: `pay-iota`, `pay-all-iota`.
 
 The differences between these commands are:
 - commands that end in `-iota` deal with Iota's native coin, and they use the input coints to pay for gas and for transferring IOTA or the object.
 - `pay-` commands typically deal with coins and handle (coin merging)[../../developer/iota-101/transactions/ptb/optimizing-gas-with-coin-merging.mdx] for you, whereas `transfer` commands can handle the transfer of any object that has public transfer, meaning any object that has the `store` ability.
 - `pay` commands allow you to send coins to multiple recipients, whereas `transfer` commands only accept one recipient.
 - `pay-all-iota` is a special case of `pay-iota` that offers a way to transfer the entire balance after smashing.
-- `transfer-iota` is a legacy command and has been entirely superseded by `pay-iota` or `pay-all-iota` depending on whether an amount is specified or not.
 
 Assume you have two addresses:
 
@@ -237,7 +235,7 @@ iota client gas hungry-spodumene
 ╰────────────────────────────────────────────────────────────────────┴────────────────────┴──────────────────╯
 ```
 
-You want to send 0.5 IOTA to `eloquent-amber`. Given that you have a few gas coins, you can use `pay`. If only one gas coin exists, then you need to use `transfer-iota` or `pay-iota`, or you would need to split the coin first to have another coin to use for paying gas. In this case, let's use the `pay-iota` command as you do not need to provide a separate gas coin to be used for the gas fees. In the command below, you set the recipient to be `eloquent-amber`, which coin to use to transfer IOTA from, and the amount of IOTA to transfer.
+You want to send 0.5 IOTA to `eloquent-amber`. Given that you have a few gas coins, you can use `pay`. If only one gas coin exists, then you need to use `pay-iota`, or you would need to split the coin first to have another coin to use for paying gas. In this case, let's use the `pay-iota` command as you do not need to provide a separate gas coin to be used for the gas fees. In the command below, you set the recipient to be `eloquent-amber`, which coin to use to transfer IOTA from, and the amount of IOTA to transfer.
 
 ```
 iota client pay-iota --recipients eloquent-amber --input-coins 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52 --amounts 500000000 
@@ -391,11 +389,9 @@ iota client gas eloquent-amber
 ╰────────────────────────────────────────────────────────────────────┴────────────────────┴──────────────────╯
 ```
 
-If you want to transfer the whole object, you can use `iota client pay-all-iota` or `iota client transfer-iota` (without passing the amount):
+If you want to transfer the whole object, you can use `iota client pay-all-iota` (without passing the amount):
 ```
-iota client pay-iota --recipient eloquent-amber --input-coins 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52
-or
-iota client transfer-iota --to eloquent-amber --iota-coin-object-id 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52
+iota client pay-all-iota --recipient eloquent-amber --input-coins 0xc9b447fff18f13fa035e028534b8344d5fc8a8760248fad10155e78f44dc3a52 --gas-budget 2000000
 ```
 
 Then check the gas for `eloquent-amber` again:
