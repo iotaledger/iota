@@ -29,7 +29,7 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
 
     const { data: nftDisplayData, isPending: isPendingNftDislpay } = useGetNFTDisplay(nftId);
 
-    const nftName = nftDisplayData?.name || formatAddress(nftId);
+    const NftName = nftDisplayData?.name || formatAddress(nftId);
     const nftImageUrl = nftDisplayData?.imageUrl || '';
 
     // Extract either the attributes, or use the top-level NFT fields:
@@ -59,7 +59,7 @@ export function useNftDetails(nftId: string, accountAddress: string | null) {
         isLoading,
         objectData,
         isNftLoading,
-        nftName,
+        NftName,
         nftImageUrl,
         ownerAddress,
         isCheckingAssetTransferability,

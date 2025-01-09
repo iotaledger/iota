@@ -29,7 +29,7 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
     const objectId = asset.objectId;
 
     const {
-        nftName,
+        NftName,
         nftImageUrl,
         nftDisplayData,
         ownerAddress,
@@ -59,9 +59,9 @@ export function DetailsView({ onClose, asset, onSend }: DetailsViewProps) {
                     <div className="w-[172px]">
                         <VisualAssetCard
                             assetSrc={nftImageUrl}
-                            assetTitle={nftName}
+                            assetTitle={NftName}
                             assetType={VisualAssetType.Image}
-                            altText={nftName || 'NFT'}
+                            altText={NftName || 'NFT'}
                             isHoverable={false}
                         />
                     </div>
