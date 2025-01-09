@@ -1,5 +1,5 @@
 ---
-description: Learn how to set up an IOTA Full node from source.
+description: Learn how to set up an IOTA full node from source.
 title: Build From Source
 ---
 import Quiz from '@site/src/components/Quiz';
@@ -14,7 +14,7 @@ import {Networks} from '@site/src/components/constant'
 
 ## Software requirements
 
-IOTA recommends running IOTA Full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also run an IOTA Full node on macOS.
+IOTA recommends running IOTA full nodes on Linux. IOTA supports the Ubuntu and Debian distributions. You can also run an IOTA full node on macOS.
 
 Make sure to [update Rust](https://www.rust-lang.org/tools/install).
 
@@ -64,7 +64,7 @@ Open a terminal or console in the `iota` directory you downloaded in the previou
 cargo install
 ```
 
-2. Make a copy of the [Full node YAML template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml):
+2. Make a copy of the [full node YAML template](https://github.com/iotaledger/iota/blob/develop/crates/iota-config/data/fullnode-template.yaml):
 
 ```bash
 cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
@@ -115,7 +115,7 @@ cp crates/iota-config/data/fullnode-template.yaml fullnode.yaml
     </Tabs>
 
 5. (Optional, skip this step to accept the default paths to resources). Edit the `fullnode.yaml` file to use custom paths.
-    1. Update the `db-path` field with the path to the Full node database.
+    1. Update the `db-path` field with the path to the full node database.
         ```yaml
         db-path: "/db-files/iota-fullnode"`
         ```
@@ -139,7 +139,7 @@ cargo run --release --bin iota-node
 
 ## 4. Start Services
 
-At this point, your IOTA Full node is ready to connect to the IOTA network.
+At this point, your IOTA full node is ready to connect to the IOTA network.
 
 1. Open a terminal or console to the `iota` directory and run the following command to start your node:
 
@@ -149,9 +149,9 @@ At this point, your IOTA Full node is ready to connect to the IOTA network.
 
 2. (Optional) Publish/subscribe to notifications using JSON-RPC via websocket.
 
-If your setup is successful, your IOTA Full node is now connected to the appropriate network.
+If your setup is successful, your IOTA full node is now connected to the appropriate network.
 
-Your Full node serves the read endpoints of the IOTA JSON-RPC API at: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
+Your full node serves the read endpoints of the IOTA JSON-RPC API at: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
 
 ## Troubleshooting
 
@@ -178,13 +178,13 @@ metrics-address: "0.0.0.0:9180"
 
 ## Update Your Full node
 
-Whenever IOTA releases a new version, you must update your Full node with the release to ensure compatibility with the
+Whenever IOTA releases a new version, you must update your full node with the release to ensure compatibility with the
 network it connects to.
 For example, if you use IOTA Testnet you should install the version of IOTA running on IOTA Testnet.
 
-Use the following steps to update your Full node:
+Use the following steps to update your full node:
 
-1. Shut down your running Full node.
+1. Shut down your running full node.
 2. Move into the directory for your local `iota` repository and remove the database, 'genesis.blob' and 'migration.blob'
    files:
 
@@ -205,19 +205,19 @@ Use the following steps to update your Full node:
     - [Devnet migration blob](https://dbfiles.devnet.iota.cafe/migration.blob):
         `curl -fLJO https://dbfiles.devnet.iota.cafe/migration.blob`
 5. (Optional) Update your `fullnode.yaml` configuration file, if needed.
-6. Recompile your IOTA Full node:
+6. Recompile your IOTA full node:
 
     ```bash
     cargo run --release --bin iota-node
     ```
 
-7. Restart your IOTA Full node:
+7. Restart your IOTA full node:
 
     ```shell
     ./target/release/iota-node --config-path fullnode.yaml
     ```
 
-Your Full node restarts on: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
+Your full node restarts on: <code>{Networks.iota_localnet.jsonRpcUrl}</code>.
 
 :::info
 
