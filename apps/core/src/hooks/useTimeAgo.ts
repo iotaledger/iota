@@ -128,7 +128,7 @@ export const timeAgo = (
 type Format = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'weekday';
 
 export function formatDate(date: Date | number, format?: Format[]): string {
-    const formatOption = format ?? (['month', 'day', 'hour', 'minute'] as Format[]);
+    const formatOption = format ?? (['day', 'month', 'hour', 'minute'] as Format[]);
     const dateTime = new Date(date);
     if (!(dateTime instanceof Date)) return '';
 
@@ -150,5 +150,5 @@ export function formatDate(date: Date | number, format?: Format[]): string {
         return responseObj;
     }, {});
 
-    return new Intl.DateTimeFormat('en-US', formatOptions).format(dateTime);
+    return new Intl.DateTimeFormat('en-GB', formatOptions).format(dateTime);
 }

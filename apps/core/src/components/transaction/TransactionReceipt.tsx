@@ -86,7 +86,9 @@ interface TransactionStatusProps {
 }
 
 function TransactionStatus({ success, timestamp, isIncoming }: TransactionStatusProps) {
-    const txnDate = timestamp ? formatDate(Number(timestamp)) : '';
+    const txnDate = timestamp
+        ? formatDate(Number(timestamp), ['day', 'month', 'year', 'hour', 'minute'])
+        : '';
     const successMessage = isIncoming ? 'Successfully received' : 'Successfully sent';
     return (
         <InfoBox

@@ -28,5 +28,5 @@ export default function formatDate(timeStamp: number, show: Show[]): string {
         return responseObj;
     }, {});
 
-    return new Intl.DateTimeFormat('en-US', formatOptions).format(date);
+    return new Intl.DateTimeFormat('en-GB', formatOptions).format(date);
 }
