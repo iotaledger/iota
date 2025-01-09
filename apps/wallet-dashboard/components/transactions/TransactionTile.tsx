@@ -4,7 +4,6 @@
 'use client';
 
 import { useState } from 'react';
-import formatTimestamp from '@/lib/utils/time';
 import {
     Card,
     CardType,
@@ -25,6 +24,7 @@ import {
     TransactionIcon,
     checkIfIsTimelockedStaking,
     getTransactionAmountForTimelocked,
+    formatDate,
 } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useCurrentAccount } from '@iota/dapp-kit';
@@ -69,7 +69,9 @@ export function TransactionTile({ transaction }: TransactionTileProps): JSX.Elem
         setOpen(true);
     }
 
-    const transactionDate = transaction?.timestamp && formatTimestamp(transaction.timestamp);
+    const transactionDate =
+        transaction?.timestamp &&
+        formatDate(Number(transaction?.timestamp), ['month', 'day', 'hour', 'minute']);
 
     return (
         <>
