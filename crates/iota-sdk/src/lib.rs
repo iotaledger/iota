@@ -355,7 +355,7 @@ impl IotaClientBuilder {
         self.build(IOTA_TESTNET_URL).await
     }
 
-    /// Returns an [IotaClient] object that is ready to interact with the Iota
+    /// Returns an [IotaClient] object that is ready to interact with the IOTA
     /// mainnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
@@ -363,11 +363,11 @@ impl IotaClientBuilder {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use sui_sdk::IotaClientBuilder;
+    /// use iota_sdk::IotaClientBuilder;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
-    ///     let sui = IotaClientBuilder::default().build_mainnet().await?;
+    ///     let iota = IotaClientBuilder::default().build_mainnet().await?;
     ///
     ///     println!("{:?}", iota.api_version());
     ///     Ok(())
