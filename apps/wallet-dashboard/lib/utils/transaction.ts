@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { ExtendedTransaction, TransactionAction, TransactionState } from '@/lib/interfaces';
 import { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { parseTimestamp } from './time';
+import { TransactionState, ExtendedTransaction, getTransactionAction } from '@iota/core';
 
 const getTransactionTransactionState = (tx: IotaTransactionBlockResponse): TransactionState => {
     const executionStatus = tx.effects?.status.status;
@@ -18,14 +18,6 @@ const getTransactionTransactionState = (tx: IotaTransactionBlockResponse): Trans
     }
 
     return TransactionState.Pending;
-};
-
-export const getTransactionAction = (
-    transaction: IotaTransactionBlockResponse,
-    currentAddress: string,
-) => {
-    const isSender = transaction.transaction?.data.sender === currentAddress;
-    return isSender ? TransactionAction.Send : TransactionAction.Receive;
 };
 
 export const getExtendedTransaction = (
