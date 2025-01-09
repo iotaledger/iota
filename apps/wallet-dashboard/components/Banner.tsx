@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
-import React from 'react';
 
 interface BannerProps {
     videoSrc: string;

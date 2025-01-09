@@ -3,7 +3,7 @@
 
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { useBalance, useFormatCoin } from '@iota/core';
 import { Copy } from '@iota/ui-icons';
 import { Panel, ButtonUnstyled } from '@iota/apps-ui-kit';

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { growthbook } from '_src/shared/experimentation/features';
-import { getSentryConfig } from '_src/shared/sentry-config';
+import { getSentryConfig } from '_src/shared/sentryConfig';
 import * as Sentry from '@sentry/browser';
 import { Feature } from '@iota/core';
 

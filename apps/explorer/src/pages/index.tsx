@@ -4,13 +4,13 @@
 
 import { wrapCreateBrowserRouter } from '@sentry/react';
 import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom';
-import AddressResult from './address-result/AddressResult';
-import CheckpointDetail from './checkpoints/CheckpointDetail';
-import EpochDetail from './epochs/EpochDetail';
-import Home from './home/Home';
+import { AddressResultPage } from './address-result/AddressResult';
+import { CheckpointDetail } from './checkpoints/CheckpointDetail';
+import { EpochDetail } from './epochs/EpochDetail';
+import { Home } from './home/Home';
 import { ObjectResult } from './object-result/ObjectResult';
 import { Recent } from './recent';
-import TransactionResult from './transaction-result/TransactionResult';
+import { TransactionResult } from './transaction-result/TransactionResult';
 import { ValidatorDetails } from './validator/ValidatorDetails';
 import { ValidatorPageResult } from './validators/Validators';
 import { Layout } from '~/components';
@@ -39,7 +39,7 @@ export const router = sentryCreateBrowserRouter([
             { path: 'epoch/current', element: <EpochDetail /> },
             { path: 'txblock/:id', element: <TransactionResult /> },
             { path: 'epoch/:id', element: <EpochDetail /> },
-            { path: 'address/:id', element: <AddressResult /> },
+            { path: 'address/:id', element: <AddressResultPage /> },
             { path: 'validators', element: <ValidatorPageResult /> },
             { path: 'validator/:id', element: <ValidatorDetails /> },
         ],

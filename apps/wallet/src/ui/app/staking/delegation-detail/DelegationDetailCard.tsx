@@ -37,6 +37,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
 import { Warning } from '@iota/ui-icons';
+import toast from 'react-hot-toast';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -122,17 +123,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     }
 
     if (isError || errorValidators) {
-        return (
-            <div className="mb-2 flex h-full w-full items-center justify-center p-2">
-                <InfoBox
-                    title="Something went wrong"
-                    supportingText={error?.message ?? 'An error occurred'}
-                    style={InfoBoxStyle.Default}
-                    type={InfoBoxType.Error}
-                    icon={<Warning />}
-                />
-            </div>
-        );
+        toast.error(error?.message ?? 'An error occurred fetching validator information');
     }
     function handleAddNewStake() {
         navigate(stakeByValidatorAddress);

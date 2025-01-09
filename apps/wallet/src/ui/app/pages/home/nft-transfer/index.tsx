@@ -9,7 +9,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { TransferNFTForm } from './TransferNFTForm';
 import { useOwnedNFT, useIsAssetTransferable } from '@iota/core';
 
-function NftTransferPage() {
+export function NftTransferPage() {
     const { nftId } = useParams();
     const address = useActiveAddress();
     // verify that the nft is owned by the user and is transferable
@@ -38,5 +38,3 @@ function NftTransferPage() {
         </Overlay>
     );
 }
-
-export default NftTransferPage;
