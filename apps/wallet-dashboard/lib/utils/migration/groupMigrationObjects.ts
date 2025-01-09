@@ -25,7 +25,7 @@ export async function groupMigrationObjectsByUnlockCondition(
     client: IotaClient,
     currentAddress: string = '',
     groupByTimelockUC: boolean = false, // If true, group by timelock unlock condition, else group by expiration unlock condition
-    currentEpochStartMs: number,
+    currentEpochStartMs?: number,
 ): Promise<ResolvedObjectTypes[]> {
     const flatObjects: ResolvedObjectTypes[] = [];
     const basicObjectMap: Map<string, ResolvedBasicObject> = new Map();
