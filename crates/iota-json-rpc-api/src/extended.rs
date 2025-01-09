@@ -27,7 +27,8 @@ pub trait ExtendedApi {
         descending_order: Option<bool>,
     ) -> RpcResult<EpochPage>;
 
-    /// Return a list of epoch metrics, which is a subset of epoch info. Exclusively served by the indexer.
+    /// Return a list of epoch metrics, which is a subset of epoch info.
+    /// Exclusively served by the indexer.
     #[method(name = "getEpochMetrics")]
     async fn get_epoch_metrics(
         &self,
@@ -66,7 +67,8 @@ pub trait ExtendedApi {
         descending_order: Option<bool>,
     ) -> RpcResult<Vec<AddressMetrics>>;
 
-    /// Return the total number of transactions. Exclusively served by the indexer.
+    /// Return the total number of transactions. Exclusively served by the
+    /// indexer.
     #[method(name = "getTotalTransactions")]
     async fn get_total_transactions(&self) -> RpcResult<BigInt<u64>>;
 }
