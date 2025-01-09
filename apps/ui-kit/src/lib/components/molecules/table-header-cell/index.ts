@@ -2,4 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './TableHeaderCell';
-export * from './table-header-cell.enums';
+export * from './tableHeaderCell.enums';

@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AccountType, type SerializedUIAccount } from '_src/background/accounts/Account';
-import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
-import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
+import { AccountType, type SerializedUIAccount } from '_src/background/accounts/account';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 
 export function getKey(account: SerializedUIAccount): string {
     if (isMnemonicSerializedUiAccount(account)) return account.sourceID;

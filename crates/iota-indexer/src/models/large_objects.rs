@@ -78,7 +78,8 @@ pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
         let offset = (chunk_num * chunk_size) as i64;
         tracing::trace!("Storing large-object chunk at offset {}", offset);
         // TODO: (to treat in a different issue):
-        // remove dangling chunks (either by using a transaction or by handlng manually)
+        // remove dangling chunks (either by using a transaction or by handling
+        // manually)
         //
         // additionally we could apply a backoff retry strategy
         transactional_blocking_with_retry!(
