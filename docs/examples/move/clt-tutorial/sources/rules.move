@@ -74,7 +74,7 @@ module clt_tutorial::allowlist_rule {
         }
     }
 
-    /// Removes addresses frome the `allowlist_rule` for a given action.
+    /// Removes addresses from the `allowlist_rule` for a given action.
     public fun remove_addresses<T>(
         policy: &mut TokenPolicy<T>,
         cap: &TokenPolicyCap<T>,

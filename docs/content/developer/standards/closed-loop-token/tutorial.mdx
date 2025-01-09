@@ -69,7 +69,7 @@ in which we check if we have enough voucher token for a LED bulb and then transf
 
 But wait, remember that we said tokens are different from coins? With `token::spend` we again get a `ActionRequest` object which we have to approve.
 This time we can't approve with the treasury capability as the caller is the household. And even if we would have the treasury capability, 
-rememver how we learned that the treasury capability grants as admin rights? So it would confirm everything without checkint the rules. But here we actually want to make use of the policy rules feature.
+remember how we learned that the treasury capability grants as admin rights? So it would confirm everything without checkint the rules. But here we actually want to make use of the policy rules feature.
 As we should only be allowed as a household to spend the voucher token for LED bulbs in a certified shop.
 
 So let's look into rules and add some to our policy.

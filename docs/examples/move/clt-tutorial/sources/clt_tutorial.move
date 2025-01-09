@@ -61,7 +61,7 @@ module clt_tutorial::voucher {
     /// hence does not need to be confirmed; however, the `transfer` action
     /// does require a confirmation and can be confirmed with `TreasuryCap`.
     /// Keep in mind that confirming with `TreasuryCap` is ignoring the rules,
-    /// hence why we are allowd to transfer to a non-shop address in this case.
+    /// hence why we are allowed to transfer to a non-shop address in this case.
     public fun gift_voucher(
         cap: &mut TreasuryCap<VOUCHER>,
         amount: u64,
