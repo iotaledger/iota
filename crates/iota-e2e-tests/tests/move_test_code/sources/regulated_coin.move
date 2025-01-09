@@ -8,7 +8,7 @@ module move_test_code::regulated_coin {
     public struct REGULATED_COIN has drop {}
 
     fun init(otw: REGULATED_COIN, ctx: &mut TxContext) {
-        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (mut treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v1(
             otw,
             9,
             b"RC",

@@ -7,7 +7,7 @@ This project leverages [Foundry](https://github.com/foundry-rs/foundry) to manag
 Duplicate rename the `.env.example` file to `.env`. You'll need accounts and api keys for **Infura** and **Etherscan** as well as the necessary RPC URLs. Be sure to add the required values in your newly created `.env` file.
 
 > **Note**
-> The OZ foundry upgrades library uses node to verify upgrade safety. Make sure you have node version 18.17 or higher as well as npm version 10.4 or higher installed.
+> The OZ foundry upgrades library uses node to verify upgrade safety. Make sure you have node version 20.0.0 or higher as well as npm version 10.4 or higher installed.
 
 #### Dependencies
 

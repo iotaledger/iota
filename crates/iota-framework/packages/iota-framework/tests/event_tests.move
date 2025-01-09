@@ -40,7 +40,7 @@ module iota::event_tests {
         assert_eq(event::events_by_type<S1>().length(), 2)
     }
 
-     #[test]
+    #[test]
     fun test_emit_heterogenous() {
         let e0 = S1(0);
         let e1 = S2(1);

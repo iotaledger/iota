@@ -338,7 +338,7 @@ impl<'a> BytecodeSourceVerifier<'a> {
             at: Some(AccountAddress::ZERO),
             ..
         }) {
-            return Err(Error::ZeroOnChainAddresSpecifiedFailure.into());
+            return Err(Error::ZeroOnChainAddressSpecifiedFailure.into());
         }
 
         let local = mode.local(package)?;
@@ -414,9 +414,9 @@ impl<'a> BytecodeSourceVerifier<'a> {
 
         match obj {
             IotaRawData::Package(pkg) => Ok(pkg),
-            IotaRawData::MoveObject(move_obj) => {
-                Err(Error::ObjectFoundWhenPackageExpected(obj_id, move_obj))
-            }
+            IotaRawData::MoveObject(move_obj) => Err(Error::ObjectFoundWhenPackageExpected(
+                Box::new((obj_id, move_obj)),
+            )),
         }
     }
 }

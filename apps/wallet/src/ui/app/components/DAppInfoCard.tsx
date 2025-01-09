@@ -12,7 +12,7 @@ import { useUnlockAccount } from './accounts/UnlockAccountContext';
 import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
 import { Link } from 'react-router-dom';
-import { ImageIcon } from '../shared/image-icon';
+import { ImageIcon } from '@iota/core';
 
 export interface DAppInfoCardProps {
     name: string;
@@ -57,6 +57,7 @@ export function DAppInfoCard({
                             {validDAppUrl?.toString() ?? url}
                         </Link>
                     }
+                    isTextTruncated
                 />
             </Card>
             {connectedAddress && account ? (

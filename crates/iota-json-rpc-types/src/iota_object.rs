@@ -209,7 +209,6 @@ pub struct IotaObjectData {
     /// The Display metadata for frontend UI rendering, default to be None
     /// unless IotaObjectDataOptions.showContent is set to true This can also
     /// be None if the struct type does not have Display defined
-    /// See more details in <https://forums.iota.io/t/nft-object-display-proposal/4872>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<DisplayFieldsResponse>,
     /// Move object content or package content, default to be None unless
@@ -586,10 +585,9 @@ impl TryInto<Object> for IotaObjectData {
     fn try_into(self) -> Result<Object, Self::Error> {
         let protocol_config = ProtocolConfig::get_for_min_version();
         let data = match self.bcs {
-            Some(IotaRawData::MoveObject(o)) => Data::Move(unsafe {
+            Some(IotaRawData::MoveObject(o)) => Data::Move({
                 MoveObject::new_from_execution(
                     o.type_().clone().into(),
-                    o.has_public_transfer,
                     o.version,
                     o.bcs_bytes,
                     &protocol_config,
@@ -841,7 +839,6 @@ pub struct IotaParsedMoveObject {
     #[serde_as(as = "IotaStructTag")]
     #[schemars(with = "String")]
     pub type_: StructTag,
-    pub has_public_transfer: bool,
     pub fields: IotaMoveStruct,
 }
 
@@ -856,13 +853,11 @@ impl IotaMoveObject for IotaParsedMoveObject {
             if let IotaMoveStruct::WithTypes { type_, fields } = move_struct {
                 IotaParsedMoveObject {
                     type_,
-                    has_public_transfer: object.has_public_transfer(),
                     fields: IotaMoveStruct::WithFields(fields),
                 }
             } else {
                 IotaParsedMoveObject {
                     type_: object.type_().clone().into(),
-                    has_public_transfer: object.has_public_transfer(),
                     fields: move_struct,
                 }
             },
@@ -925,7 +920,6 @@ pub struct IotaRawMoveObject {
     #[serde(rename = "type")]
     #[serde_as(as = "IotaStructTag")]
     pub type_: StructTag,
-    pub has_public_transfer: bool,
     pub version: SequenceNumber,
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64")]
@@ -936,7 +930,6 @@ impl From<MoveObject> for IotaRawMoveObject {
     fn from(o: MoveObject) -> Self {
         Self {
             type_: o.type_().clone().into(),
-            has_public_transfer: o.has_public_transfer(),
             version: o.version(),
             bcs_bytes: o.into_contents(),
         }
@@ -950,7 +943,6 @@ impl IotaMoveObject for IotaRawMoveObject {
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             type_: object.type_().clone().into(),
-            has_public_transfer: object.has_public_transfer(),
             version: object.version(),
             bcs_bytes: object.into_contents(),
         })

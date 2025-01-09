@@ -1,0 +1,20 @@
+[
+  {
+    "questionText": "What is the primary benefit of using sponsored transactions on IOTA?",
+    "answerOptions": [
+      { "answerText": "To avoid paying transaction fees altogether", "isCorrect": false },
+      { "answerText": "To allow users to execute transactions without paying gas fees themselves", "isCorrect": true },
+      { "answerText": "To reduce the gas price for all transactions", "isCorrect": false },
+      { "answerText": "To increase the transaction speed on the IOTA network", "isCorrect": false }
+    ]
+  },
+  {
+    "questionText": "In a user-initiated sponsored transaction, what step happens after the sponsor signs the TransactionData?",
+    "answerOptions": [
+      { "answerText": "The user submits the signed transaction directly to a full node", "isCorrect": false },
+      { "answerText": "The sponsor sends the TransactionData and Signature back to the user", "isCorrect": true },
+      { "answerText": "The transaction is broadcast to the network", "isCorrect": false },
+      { "answerText": "The user constructs the GasData object", "isCorrect": false }
+    ]
+  }
+]

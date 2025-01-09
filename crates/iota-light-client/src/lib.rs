@@ -4,6 +4,7 @@
 
 pub mod construct;
 pub mod proof;
+pub mod utils;
 
 #[doc(inline)]
 pub use construct::*;

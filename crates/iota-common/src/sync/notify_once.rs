@@ -35,7 +35,7 @@ impl NotifyOnce {
     /// After this method all pending and future calls to .wait() will return
     ///
     /// This method returns errors if called more then once
-    #[allow(clippy::result_unit_err)]
+    #[expect(clippy::result_unit_err)]
     pub fn notify(&self) -> Result<(), ()> {
         let Some(notify) = self.notify.lock().take() else {
             return Err(());

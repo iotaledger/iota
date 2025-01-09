@@ -1,10 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { Tooltip, TooltipPosition } from '../../atoms';
 import { Info } from '@iota/ui-icons';
-import { DisplayStatsType, DisplayStatsSize } from './display-stats.enums';
+import { DisplayStatsType, DisplayStatsSize } from './displayStats.enums';
 import cx from 'classnames';
 import {
     BACKGROUND_CLASSES,
@@ -13,7 +13,7 @@ import {
     VALUE_TEXT_CLASSES,
     SUPPORTING_LABEL_TEXT_CLASSES,
     LABEL_TEXT_CLASSES,
-} from './display-stats.classes';
+} from './displayStats.classes';
 
 interface DisplayStatsProps {
     /**
@@ -92,7 +92,7 @@ export function DisplayStats({
                 {icon && <span className="text-neutral-10 dark:text-neutral-92">{icon}</span>}
             </div>
             <div className="flex w-full flex-row items-baseline gap-xxs">
-                <span className={cx(valueClass)}>{value}</span>
+                <span className={cx('break-all', valueClass)}>{value}</span>
                 {supportingLabel && (
                     <span className={cx('opacity-40', supportingLabelTextClass)}>
                         {supportingLabel}

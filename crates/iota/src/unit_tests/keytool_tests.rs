@@ -153,8 +153,11 @@ async fn test_iota_operations_config() {
     // This is the hardcoded keystore in iota-operation: https://github.com/iotaledger/iota-operations/blob/af04c9d3b61610dbb36401aff6bef29d06ef89f8/docker/config/generate/static/iota.keystore
     // If this test fails, address hardcoded in iota-operations is likely needed be
     // updated.
-    let kp = IotaKeyPair::decode_base64("ANRj4Rx5FZRehqwrctiLgZDPrY/3tI5+uJLCdaXPCj6C").unwrap();
-    let contents = vec![kp.encode_base64()];
+    let kp = IotaKeyPair::decode(
+        "iotaprivkey1qr2x8cgu0y2egh5x4s4h9kytsxgvltv0776gul4cjtp8tfw0pglgyye70lu",
+    )
+    .unwrap();
+    let contents = vec![kp.encode().unwrap()];
     let res = std::fs::write(path, serde_json::to_string_pretty(&contents).unwrap());
     assert!(res.is_ok());
     let read = FileBasedKeystore::new(&path1);
@@ -170,8 +173,11 @@ async fn test_iota_operations_config() {
     // updated.
     let path2 = temp_dir.path().join("iota-benchmark.keystore");
     let path3 = path2.clone();
-    let kp = IotaKeyPair::decode_base64("APCWxPNCbgGxOYKeMfPqPmXmwdNVyau9y4IsyBcmC14A").unwrap();
-    let contents = vec![kp.encode_base64()];
+    let kp = IotaKeyPair::decode(
+        "iotaprivkey1qrcfd38ngfhqrvfes20rrul28ej7dswn2hy6h0wtsgkvs9expd0qqy38y3q",
+    )
+    .unwrap();
+    let contents = vec![kp.encode().unwrap()];
     let res = std::fs::write(path2, serde_json::to_string_pretty(&contents).unwrap());
     assert!(res.is_ok());
     let read = FileBasedKeystore::new(&path3);
@@ -191,10 +197,10 @@ async fn test_load_keystore_err() {
     // write encoded AuthorityKeyPair without flag byte to file
     let kp: AuthorityKeyPair = get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
     let contents = kp.encode_base64();
-    let res = std::fs::write(path, contents);
+    let res = std::fs::write(path, serde_json::to_string(&[contents]).unwrap());
     assert!(res.is_ok());
 
-    // cannot load keypair due to missing flag
+    // cannot load keypair due to wrong format
     assert!(FileBasedKeystore::new(&path2).is_err());
 }
 
@@ -612,5 +618,44 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     }
     .execute(&mut keystore)
     .await?;
+    Ok(())
+}
+
+#[test]
+async fn test_show() -> Result<(), anyhow::Error> {
+    let temp_dir = TempDir::new().unwrap();
+    let path = temp_dir.path().join("iota.key");
+
+    // First create a .key file with a private key
+    std::fs::write(
+        &path,
+        "iotaprivkey1qp3asak8fsdwcrxc8fys02mhsg3fs35d7fe45s5zcyg6x3sp9zsw5wqnj5v",
+    )
+    .unwrap();
+
+    let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
+    let output = KeyToolCommand::Show { file: path }
+        .execute(&mut keystore)
+        .await?;
+    match output {
+        CommandOutput::Show(key) => {
+            assert_eq!(
+                &key.iota_address.to_string(),
+                "0x5f60f23c01486c6af8540144cf9fa74c167257b93c08fc33b74b8f173a885038"
+            );
+            assert_eq!(
+                &key.public_base64_key,
+                "svUb1I94/15y2k6LKaEWqNLFf1rNMHq0hcWFAJynu0g="
+            );
+            assert_eq!(&key.key_scheme, "ed25519");
+            assert_eq!(key.flag, 0);
+            assert_eq!(
+                &key.peer_id.unwrap(),
+                "b2f51bd48f78ff5e72da4e8b29a116a8d2c57f5acd307ab485c585009ca7bb48"
+            );
+        }
+        _ => panic!("unexpected output: {output:?}"),
+    }
+
     Ok(())
 }

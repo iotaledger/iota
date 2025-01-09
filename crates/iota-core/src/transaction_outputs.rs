@@ -24,8 +24,8 @@ pub struct TransactionOutputs {
     pub markers: Vec<(ObjectKey, MarkerValue)>,
     pub wrapped: Vec<ObjectKey>,
     pub deleted: Vec<ObjectKey>,
-    pub locks_to_delete: Vec<ObjectRef>,
-    pub new_locks_to_init: Vec<ObjectRef>,
+    pub live_object_markers_to_delete: Vec<ObjectRef>,
+    pub new_live_object_markers_to_init: Vec<ObjectRef>,
     pub written: WrittenObjects,
 }
 
@@ -97,7 +97,7 @@ impl TransactionOutputs {
             received.chain(deleted).chain(shared_smears).collect()
         };
 
-        let locks_to_delete: Vec<_> = mutable_inputs
+        let live_object_markers_to_delete: Vec<_> = mutable_inputs
             .into_iter()
             .filter_map(|(id, ((version, digest), owner))| {
                 owner.is_address_owned().then_some((id, version, digest))
@@ -105,7 +105,7 @@ impl TransactionOutputs {
             .chain(received_objects)
             .collect();
 
-        let new_locks_to_init: Vec<_> = written
+        let new_live_object_markers_to_init: Vec<_> = written
             .values()
             .filter_map(|new_object| {
                 if new_object.is_address_owned() {
@@ -132,8 +132,8 @@ impl TransactionOutputs {
             markers,
             wrapped,
             deleted,
-            locks_to_delete,
-            new_locks_to_init,
+            live_object_markers_to_delete,
+            new_live_object_markers_to_init,
             written,
         }
     }

@@ -141,14 +141,14 @@ fn build_token_bridge_approve_transaction(
     let source_chain = builder.pure(source_chain as u8).unwrap();
     let seq_num = builder.pure(seq_num).unwrap();
     let sender = builder.pure(sender.clone()).map_err(|e| {
-        BridgeError::BridgeSerializationError(format!(
+        BridgeError::BridgeSerialization(format!(
             "Failed to serialize sender: {:?}. Err: {:?}",
             sender, e
         ))
     })?;
     let target_chain = builder.pure(target_chain as u8).unwrap();
     let target = builder.pure(target.clone()).map_err(|e| {
-        BridgeError::BridgeSerializationError(format!(
+        BridgeError::BridgeSerialization(format!(
             "Failed to serialize target: {:?}. Err: {:?}",
             target, e
         ))
@@ -181,7 +181,7 @@ fn build_token_bridge_approve_transaction(
         sig_bytes.push(sig.as_bytes().to_vec());
     }
     let arg_signatures = builder.pure(sig_bytes.clone()).map_err(|e| {
-        BridgeError::BridgeSerializationError(format!(
+        BridgeError::BridgeSerialization(format!(
             "Failed to serialize signatures: {:?}. Err: {:?}",
             sig_bytes, e
         ))
@@ -256,7 +256,7 @@ fn build_emergency_op_approve_transaction(
         sig_bytes.push(sig.as_bytes().to_vec());
     }
     let arg_signatures = builder.pure(sig_bytes.clone()).map_err(|e| {
-        BridgeError::BridgeSerializationError(format!(
+        BridgeError::BridgeSerialization(format!(
             "Failed to serialize signatures: {:?}. Err: {:?}",
             sig_bytes, e
         ))
@@ -323,7 +323,7 @@ fn build_committee_blocklist_approve_transaction(
         sig_bytes.push(sig.as_bytes().to_vec());
     }
     let arg_signatures = builder.pure(sig_bytes.clone()).map_err(|e| {
-        BridgeError::BridgeSerializationError(format!(
+        BridgeError::BridgeSerialization(format!(
             "Failed to serialize signatures: {:?}. Err: {:?}",
             sig_bytes, e
         ))
@@ -386,7 +386,7 @@ fn build_limit_update_approve_transaction(
         sig_bytes.push(sig.as_bytes().to_vec());
     }
     let arg_signatures = builder.pure(sig_bytes.clone()).map_err(|e| {
-        BridgeError::BridgeSerializationError(format!(
+        BridgeError::BridgeSerialization(format!(
             "Failed to serialize signatures: {:?}. Err: {:?}",
             sig_bytes, e
         ))
@@ -449,7 +449,7 @@ fn build_asset_price_update_approve_transaction(
         sig_bytes.push(sig.as_bytes().to_vec());
     }
     let arg_signatures = builder.pure(sig_bytes.clone()).map_err(|e| {
-        BridgeError::BridgeSerializationError(format!(
+        BridgeError::BridgeSerialization(format!(
             "Failed to serialize signatures: {:?}. Err: {:?}",
             sig_bytes, e
         ))
@@ -640,6 +640,7 @@ mod tests {
     };
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_token_transfer() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];
@@ -718,6 +719,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_emergency_op() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];
@@ -787,6 +789,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_committee_blocklist() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];
@@ -873,6 +876,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_limit_update() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];
@@ -942,6 +946,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_build_iota_transaction_for_price_update() {
         telemetry_subscribers::init_for_testing();
         let mut bridge_keys = vec![];

@@ -2,14 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator } from '@iota/ui';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 import { PlaceholderReplace, VisibilityOff } from '@iota/ui-icons';
 import { cva, cx, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 import { useAnimate } from 'framer-motion';
 import { type ImgHTMLAttributes, useEffect, useState } from 'react';
-
-import useImage from '~/hooks/useImage';
+import { useImage } from '~/hooks';
 import { ImageVisibility } from '~/lib/enums';
 
 const imageStyles = cva(null, {

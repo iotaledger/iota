@@ -7,7 +7,7 @@ task 1, lines 10-24:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5517600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5510000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 26-28:
 //# programmable --sender A --inputs @A
@@ -15,7 +15,7 @@ task 2, lines 26-28:
 //> TransferObjects([Result(0)], Input(0))
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, lines 30-37:
 //# programmable --sender A --inputs object(2,0) 200
@@ -27,7 +27,7 @@ task 3, lines 30-37:
 //> test::m1::priv(Input(0));
 //> test::m1::priv(Input(0));
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 2188800, non_refundable_storage_fee: 0
 
 task 4, lines 39-44:
 //# programmable --sender A --inputs @A  --gas-budget 10000000000
@@ -38,4 +38,4 @@ task 4, lines 39-44:
 //> TransferObjects([Result(1)], Input(0))
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0

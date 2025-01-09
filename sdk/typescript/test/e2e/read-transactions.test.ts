@@ -35,7 +35,6 @@ describe('Transaction Reading API', () => {
             return toolbox.client.signAndExecuteTransaction({
                 signer: toolbox.keypair,
                 transaction: tx,
-                requestType: 'WaitForEffectsCert',
             });
         }
 

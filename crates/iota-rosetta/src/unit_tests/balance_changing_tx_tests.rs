@@ -52,7 +52,7 @@ use crate::{
 async fn test_transfer_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Transfer Iota
@@ -82,7 +82,7 @@ async fn test_transfer_iota() {
 async fn test_transfer_iota_whole_coin() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test transfer iota whole coin
@@ -112,7 +112,7 @@ async fn test_transfer_iota_whole_coin() {
 async fn test_transfer_object() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test transfer object
@@ -139,105 +139,109 @@ async fn test_transfer_object() {
     .await;
 }
 
-#[tokio::test]
-async fn test_publish_and_move_call() {
-    let network = TestClusterBuilder::new().build().await;
-    let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
-    let rgp = network.get_reference_gas_price().await;
+mod move_tests {
+    use super::*;
 
-    // Test publish
-    let addresses = network.get_addresses();
-    let sender = get_random_address(&addresses, vec![]);
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.extend(["..", "..", "examples", "move", "coin"]);
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
-    let compiled_modules_bytes =
-        compiled_package.get_package_bytes(/* with_unpublished_deps */ false);
-    let dependencies = compiled_package.get_dependency_storage_package_ids();
+    #[tokio::test]
+    async fn test_publish_and_move_call() {
+        let network = TestClusterBuilder::new().build().await;
+        let client = network.wallet.get_client().await.unwrap();
+        let keystore = network.wallet.config().keystore();
+        let rgp = network.get_reference_gas_price().await;
 
-    let pt = {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        builder.publish_immutable(compiled_modules_bytes, dependencies);
-        builder.finish()
-    };
-    let response = test_transaction(
-        &client,
-        keystore,
-        vec![],
-        sender,
-        pt,
-        vec![],
-        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
-        rgp,
-        false,
-    )
-    .await;
-    let object_changes = response.object_changes.unwrap();
+        // Test publish
+        let addresses = network.get_addresses();
+        let sender = get_random_address(&addresses, vec![]);
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.extend(["..", "..", "examples", "move", "coin"]);
+        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+        let compiled_modules_bytes =
+            compiled_package.get_package_bytes(/* with_unpublished_deps */ false);
+        let dependencies = compiled_package.get_dependency_storage_package_ids();
 
-    // Test move call (reuse published module from above test)
-    let package = object_changes
-        .iter()
-        .find_map(|change| {
-            if let ObjectChange::Published { package_id, .. } = change {
-                Some(package_id)
-            } else {
-                None
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.publish_immutable(compiled_modules_bytes, dependencies);
+            builder.finish()
+        };
+        let response = test_transaction(
+            &client,
+            keystore,
+            vec![],
+            sender,
+            pt,
+            vec![],
+            rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+            rgp,
+            false,
+        )
+        .await;
+        let object_changes = response.object_changes.unwrap();
+
+        // Test move call (reuse published module from above test)
+        let package = object_changes
+            .iter()
+            .find_map(|change| {
+                if let ObjectChange::Published { package_id, .. } = change {
+                    Some(package_id)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+
+        let treasury = find_module_object(&object_changes, |type_| {
+            if type_.name.as_str() != "TreasuryCap" {
+                return false;
             }
-        })
-        .unwrap();
 
-    let treasury = find_module_object(&object_changes, |type_| {
-        if type_.name.as_str() != "TreasuryCap" {
-            return false;
-        }
+            let Some(TypeTag::Struct(otw)) = type_.type_params.first() else {
+                return false;
+            };
 
-        let Some(TypeTag::Struct(otw)) = type_.type_params.first() else {
-            return false;
+            otw.name.as_str() == "MY_COIN"
+        });
+
+        let treasury = treasury.clone().reference.to_object_ref();
+        let recipient = *addresses.choose(&mut OsRng).unwrap();
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder
+                .move_call(
+                    *package,
+                    Identifier::from_str("my_coin").unwrap(),
+                    Identifier::from_str("mint").unwrap(),
+                    vec![],
+                    vec![
+                        CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),
+                        CallArg::Pure(bcs::to_bytes(&10000u64).unwrap()),
+                        CallArg::Pure(bcs::to_bytes(&recipient).unwrap()),
+                    ],
+                )
+                .unwrap();
+            builder.finish()
         };
 
-        otw.name.as_str() == "MY_COIN"
-    });
-
-    let treasury = treasury.clone().reference.to_object_ref();
-    let recipient = *addresses.choose(&mut OsRng).unwrap();
-    let pt = {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        builder
-            .move_call(
-                *package,
-                Identifier::from_str("my_coin").unwrap(),
-                Identifier::from_str("mint").unwrap(),
-                vec![],
-                vec![
-                    CallArg::Object(ObjectArg::ImmOrOwnedObject(treasury)),
-                    CallArg::Pure(bcs::to_bytes(&10000u64).unwrap()),
-                    CallArg::Pure(bcs::to_bytes(&recipient).unwrap()),
-                ],
-            )
-            .unwrap();
-        builder.finish()
-    };
-
-    test_transaction(
-        &client,
-        keystore,
-        vec![],
-        sender,
-        pt,
-        vec![],
-        rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
-        rgp,
-        false,
-    )
-    .await;
+        test_transaction(
+            &client,
+            keystore,
+            vec![],
+            sender,
+            pt,
+            vec![],
+            rgp * TEST_ONLY_GAS_UNIT_FOR_GENERIC,
+            rgp,
+            false,
+        )
+        .await;
+    }
 }
 
 #[tokio::test]
 async fn test_split_coin() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test spilt coin
@@ -270,7 +274,7 @@ async fn test_split_coin() {
 async fn test_merge_coin() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test merge coin
@@ -304,7 +308,7 @@ async fn test_merge_coin() {
 async fn test_pay() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay
@@ -337,7 +341,7 @@ async fn test_pay() {
 async fn test_pay_multiple_coin_multiple_recipient() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay multiple coin multiple recipient
@@ -374,7 +378,7 @@ async fn test_pay_multiple_coin_multiple_recipient() {
 async fn test_pay_iota_multiple_coin_same_recipient() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay multiple coin same recipient
@@ -410,7 +414,7 @@ async fn test_pay_iota_multiple_coin_same_recipient() {
 async fn test_pay_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay Iota
@@ -445,7 +449,7 @@ async fn test_pay_iota() {
 async fn test_failed_pay_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test failed Pay Iota
@@ -480,7 +484,7 @@ async fn test_failed_pay_iota() {
 async fn test_stake_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Delegate Iota
@@ -528,7 +532,7 @@ async fn test_stake_iota() {
 async fn test_stake_iota_with_none_amount() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Staking Iota
@@ -576,7 +580,7 @@ async fn test_stake_iota_with_none_amount() {
 async fn test_pay_all_iota() {
     let network = TestClusterBuilder::new().build().await;
     let client = network.wallet.get_client().await.unwrap();
-    let keystore = &network.wallet.config.keystore;
+    let keystore = network.wallet.config().keystore();
     let rgp = network.get_reference_gas_price().await;
 
     // Test Pay All Iota

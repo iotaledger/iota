@@ -295,10 +295,10 @@ async fn main() -> anyhow::Result<()> {
                 .active_validators
                 .into_iter()
                 .map(|summary| {
-                    let protocol_key =
-                        AuthorityPublicKeyBytes::from_bytes(&summary.protocol_pubkey_bytes)
+                    let authority_key =
+                        AuthorityPublicKeyBytes::from_bytes(&summary.authority_pubkey_bytes)
                             .unwrap();
-                    (summary.iota_address, (protocol_key, summary.name))
+                    (summary.iota_address, (authority_key, summary.name))
                 })
                 .collect::<HashMap<_, _>>();
             let mut authorities = vec![];
@@ -326,8 +326,8 @@ async fn main() -> anyhow::Result<()> {
                 };
                 let url = url.to_string();
 
-                let (protocol_key, name) = names.get(&iota_address).unwrap();
-                let stake = stakes.get(protocol_key).unwrap();
+                let (authority_key, name) = names.get(&iota_address).unwrap();
+                let stake = stakes.get(authority_key).unwrap();
                 authorities.push((name, iota_address, pubkey, eth_address, url, stake));
             }
             let total_stake = authorities

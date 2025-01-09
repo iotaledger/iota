@@ -4,13 +4,13 @@
 
 //docs::#regulate
 module examples::regcoin {
-    use iota::coin::{Self, DenyCapV2};
+    use iota::coin::{Self, DenyCapV1};
     use iota::deny_list::{DenyList};
 
     public struct REGCOIN has drop {}
 
     fun init(witness: REGCOIN, ctx: &mut TxContext) {
-        let (treasury, deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (treasury, deny_cap, metadata) = coin::create_regulated_currency_v1(
             witness,
             6,
             b"REGCOIN",
@@ -28,19 +28,19 @@ module examples::regcoin {
     //docs::/#regulate}
     public fun add_addr_from_deny_list(
         denylist: &mut DenyList,
-        denycap: &mut DenyCapV2<REGCOIN>,
+        denycap: &mut DenyCapV1<REGCOIN>,
         denyaddy: address,
         ctx: &mut TxContext,
     ) {
-        coin::deny_list_v2_add(denylist, denycap, denyaddy, ctx);
+        coin::deny_list_v1_add(denylist, denycap, denyaddy, ctx);
     }
 
     public fun remove_addr_from_deny_list(
         denylist: &mut DenyList,
-        denycap: &mut DenyCapV2<REGCOIN>,
+        denycap: &mut DenyCapV1<REGCOIN>,
         denyaddy: address,
         ctx: &mut TxContext,
     ) {
-        coin::deny_list_v2_remove(denylist, denycap, denyaddy, ctx);
+        coin::deny_list_v1_remove(denylist, denycap, denyaddy, ctx);
     }
 }

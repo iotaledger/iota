@@ -771,7 +771,7 @@ mod tests {
         commit_syncer::CommitSyncer,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        core_thread::MockCoreThreadDispatcher,
+        core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
         error::ConsensusResult,
         network::{BlockStream, NetworkClient},

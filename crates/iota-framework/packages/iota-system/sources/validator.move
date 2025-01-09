@@ -9,7 +9,7 @@ module iota_system::validator {
     use iota::balance::Balance;
     use iota::iota::IOTA;
     use iota_system::validator_cap::{Self, ValidatorOperationCap};
-    use iota_system::staking_pool::{Self, PoolTokenExchangeRate, StakedIota, StakingPool};
+    use iota_system::staking_pool::{Self, PoolTokenExchangeRate, StakedIota, StakingPoolV1};
     use std::string::String;
     use iota::url::Url;
     use iota::url;
@@ -20,14 +20,14 @@ module iota_system::validator {
     /// Invalid proof_of_possession field in ValidatorMetadata
     const EInvalidProofOfPossession: u64 = 0;
 
-    /// Invalid pubkey_bytes field in ValidatorMetadata
-    const EMetadataInvalidPubkey: u64 = 1;
+    /// Invalid authority_pubkey_bytes field in ValidatorMetadata
+    const EMetadataInvalidAuthorityPubkey: u64 = 1;
 
     /// Invalid network_pubkey_bytes field in ValidatorMetadata
     const EMetadataInvalidNetPubkey: u64 = 2;
 
-    /// Invalid worker_pubkey_bytes field in ValidatorMetadata
-    const EMetadataInvalidWorkerPubkey: u64 = 3;
+    /// Invalid protocol_pubkey_bytes field in ValidatorMetadata
+    const EMetadataInvalidProtocolPubkey: u64 = 3;
 
     /// Invalid net_address field in ValidatorMetadata
     const EMetadataInvalidNetAddr: u64 = 4;
@@ -38,23 +38,20 @@ module iota_system::validator {
     /// Invalid primary_address field in ValidatorMetadata
     const EMetadataInvalidPrimaryAddr: u64 = 6;
 
-    /// Invalidworker_address field in ValidatorMetadata
-    const EMetadataInvalidWorkerAddr: u64 = 7;
-
     /// Commission rate set by the validator is higher than the threshold
-    const ECommissionRateTooHigh: u64 = 8;
+    const ECommissionRateTooHigh: u64 = 7;
 
     /// Validator Metadata is too long
-    const EValidatorMetadataExceedingLengthLimit: u64 = 9;
+    const EValidatorMetadataExceedingLengthLimit: u64 = 8;
 
     /// Intended validator is not a candidate one.
-    const ENotValidatorCandidate: u64 = 10;
+    const ENotValidatorCandidate: u64 = 9;
 
     /// Stake amount is invalid or wrong.
-    const EInvalidStakeAmount: u64 = 11;
+    const EInvalidStakeAmount: u64 = 10;
 
     /// Function called during non-genesis times.
-    const ECalledDuringNonGenesis: u64 = 12;
+    const ECalledDuringNonGenesis: u64 = 11;
 
     /// New Capability is not created by the validator itself
     const ENewCapNotCreatedByValidatorItself: u64 = 100;
@@ -74,19 +71,20 @@ module iota_system::validator {
     /// Max gas price a validator can set is 100K NANOS.
     const MAX_VALIDATOR_GAS_PRICE: u64 = 100_000;
 
-    public struct ValidatorMetadata has store {
-        /// The Iota Address of the validator. This is the sender that created the Validator object,
+    public struct ValidatorMetadataV1 has store {
+        /// The Iota Address of the validator. This is the sender that created the ValidatorV1 object,
         /// and also the address to send validator/coins to during withdraws.
         iota_address: address,
         /// The public key bytes corresponding to the private key that the validator
         /// holds to sign transactions. For now, this is the same as AuthorityName.
-        protocol_pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         /// The public key bytes corresponding to the private key that the validator
-        /// uses to establish TLS connections
+        /// uses to establish TLS connections.
         network_pubkey_bytes: vector<u8>,
-        /// The public key bytes correstponding to the Narwhal Worker
-        worker_pubkey_bytes: vector<u8>,
-        /// This is a proof that the validator has ownership of the private key
+        /// The public key bytes corresponding to the private key that the validator
+        /// holds to sign consensus blocks.
+        protocol_pubkey_bytes: vector<u8>,
+        /// This is a proof that the validator has ownership of the private key.
         proof_of_possession: vector<u8>,
         /// A unique human-readable name of this validator.
         name: String,
@@ -97,29 +95,26 @@ module iota_system::validator {
         net_address: String,
         /// The address of the validator used for p2p activities such as state sync (could also contain extra info such as port, DNS and etc.).
         p2p_address: String,
-        /// The address of the narwhal primary
+        /// The primary address of the consensus
         primary_address: String,
-        /// The address of the narwhal worker
-        worker_address: String,
 
         /// "next_epoch" metadata only takes effects in the next epoch.
         /// If none, current value will stay unchanged.
-        next_epoch_protocol_pubkey_bytes: Option<vector<u8>>,
+        next_epoch_authority_pubkey_bytes: Option<vector<u8>>,
         next_epoch_proof_of_possession: Option<vector<u8>>,
         next_epoch_network_pubkey_bytes: Option<vector<u8>>,
-        next_epoch_worker_pubkey_bytes: Option<vector<u8>>,
+        next_epoch_protocol_pubkey_bytes: Option<vector<u8>>,
         next_epoch_net_address: Option<String>,
         next_epoch_p2p_address: Option<String>,
         next_epoch_primary_address: Option<String>,
-        next_epoch_worker_address: Option<String>,
 
         /// Any extra fields that's not defined statically.
         extra_fields: Bag,
     }
 
-    public struct Validator has store {
+    public struct ValidatorV1 has store {
         /// Summary of the validator.
-        metadata: ValidatorMetadata,
+        metadata: ValidatorMetadataV1,
         /// The voting power of this validator, which might be different from its
         /// stake amount.
         voting_power: u64,
@@ -128,7 +123,7 @@ module iota_system::validator {
         /// Gas price quote, updated only at end of epoch.
         gas_price: u64,
         /// Staking pool for this validator.
-        staking_pool: StakingPool,
+        staking_pool: StakingPoolV1,
         /// Commission rate of the validator, in basis point.
         commission_rate: u64,
         /// Total amount of stake that would be active in the next epoch.
@@ -163,9 +158,9 @@ module iota_system::validator {
 
     public(package) fun new_metadata(
         iota_address: address,
-        protocol_pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: String,
         description: String,
@@ -174,14 +169,13 @@ module iota_system::validator {
         net_address: String,
         p2p_address: String,
         primary_address: String,
-        worker_address: String,
         extra_fields: Bag,
-    ): ValidatorMetadata {
-        let metadata = ValidatorMetadata {
+    ): ValidatorMetadataV1 {
+        let metadata = ValidatorMetadataV1 {
             iota_address,
-            protocol_pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name,
             description,
@@ -190,15 +184,13 @@ module iota_system::validator {
             net_address,
             p2p_address,
             primary_address,
-            worker_address,
-            next_epoch_protocol_pubkey_bytes: option::none(),
+            next_epoch_authority_pubkey_bytes: option::none(),
             next_epoch_network_pubkey_bytes: option::none(),
-            next_epoch_worker_pubkey_bytes: option::none(),
+            next_epoch_protocol_pubkey_bytes: option::none(),
             next_epoch_proof_of_possession: option::none(),
             next_epoch_net_address: option::none(),
             next_epoch_p2p_address: option::none(),
             next_epoch_primary_address: option::none(),
-            next_epoch_worker_address: option::none(),
             extra_fields,
         };
         metadata
@@ -206,9 +198,9 @@ module iota_system::validator {
 
     public(package) fun new(
         iota_address: address,
-        protocol_pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -217,16 +209,14 @@ module iota_system::validator {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext
-    ): Validator {
+    ): ValidatorV1 {
         assert!(
             net_address.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && p2p_address.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && primary_address.length() <= MAX_VALIDATOR_METADATA_LENGTH
-                && worker_address.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && name.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && description.length() <= MAX_VALIDATOR_METADATA_LENGTH
                 && image_url.length() <= MAX_VALIDATOR_METADATA_LENGTH
@@ -234,13 +224,13 @@ module iota_system::validator {
             EValidatorMetadataExceedingLengthLimit
         );
         assert!(commission_rate <= MAX_COMMISSION_RATE, ECommissionRateTooHigh);
-        assert!(gas_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(gas_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
 
         let metadata = new_metadata(
             iota_address,
-            protocol_pubkey_bytes,
+            authority_pubkey_bytes,
             network_pubkey_bytes,
-            worker_pubkey_bytes,
+            protocol_pubkey_bytes,
             proof_of_possession,
             name.to_ascii_string().to_string(),
             description.to_ascii_string().to_string(),
@@ -249,7 +239,6 @@ module iota_system::validator {
             net_address.to_ascii_string().to_string(),
             p2p_address.to_ascii_string().to_string(),
             primary_address.to_ascii_string().to_string(),
-            worker_address.to_ascii_string().to_string(),
             bag::new(ctx),
         );
 
@@ -265,23 +254,23 @@ module iota_system::validator {
     }
 
     /// Deactivate this validator's staking pool
-    public(package) fun deactivate(self: &mut Validator, deactivation_epoch: u64) {
+    public(package) fun deactivate(self: &mut ValidatorV1, deactivation_epoch: u64) {
         self.staking_pool.deactivate_staking_pool(deactivation_epoch)
     }
 
-    public(package) fun activate(self: &mut Validator, activation_epoch: u64) {
+    public(package) fun activate(self: &mut ValidatorV1, activation_epoch: u64) {
         self.staking_pool.activate_staking_pool(activation_epoch);
     }
 
     /// Process pending stake and pending withdraws, and update the gas price.
-    public(package) fun adjust_stake_and_gas_price(self: &mut Validator) {
+    public(package) fun adjust_stake_and_gas_price(self: &mut ValidatorV1) {
         self.gas_price = self.next_epoch_gas_price;
         self.commission_rate = self.next_epoch_commission_rate;
     }
 
     /// Request to add stake to the validator's staking pool, processed at the end of the epoch.
     public(package) fun request_add_stake(
-        self: &mut Validator,
+        self: &mut ValidatorV1,
         stake: Balance<IOTA>,
         staker_address: address,
         ctx: &mut TxContext,
@@ -309,7 +298,7 @@ module iota_system::validator {
 
     /// Request to add stake to the validator's staking pool at genesis
     public(package) fun request_add_stake_at_genesis(
-        self: &mut Validator,
+        self: &mut ValidatorV1,
         stake: Balance<IOTA>,
         staker_address: address,
         ctx: &mut TxContext,
@@ -325,7 +314,7 @@ module iota_system::validator {
     /// Internal request to add stake to the validator's staking pool at genesis.
     /// Returns a StakedIota
     public(package) fun request_add_stake_at_genesis_with_receipt(
-        self: &mut Validator,
+        self: &mut ValidatorV1,
         stake: Balance<IOTA>,
         ctx: &mut TxContext,
     ) : StakedIota {
@@ -348,7 +337,7 @@ module iota_system::validator {
 
     /// Request to withdraw stake from the validator's staking pool, processed at the end of the epoch.
     public(package) fun request_withdraw_stake(
-        self: &mut Validator,
+        self: &mut ValidatorV1,
         staked_iota: StakedIota,
         ctx: &TxContext,
     ) : Balance<IOTA> {
@@ -375,11 +364,11 @@ module iota_system::validator {
     /// Request to set new gas price for the next epoch.
     /// Need to present a `ValidatorOperationCap`.
     public(package) fun request_set_gas_price(
-        self: &mut Validator,
+        self: &mut ValidatorV1,
         verified_cap: ValidatorOperationCap,
         new_price: u64,
     ) {
-        assert!(new_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
         let validator_address = *verified_cap.verified_operation_cap_address();
         assert!(validator_address == self.metadata.iota_address, EInvalidCap);
         self.next_epoch_gas_price = new_price;
@@ -387,12 +376,12 @@ module iota_system::validator {
 
     /// Set new gas price for the candidate validator.
     public(package) fun set_candidate_gas_price(
-        self: &mut Validator,
+        self: &mut ValidatorV1,
         verified_cap: ValidatorOperationCap,
         new_price: u64
     ) {
         assert!(is_preactive(self), ENotValidatorCandidate);
-        assert!(new_price < MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
+        assert!(new_price <= MAX_VALIDATOR_GAS_PRICE, EGasPriceHigherThanThreshold);
         let validator_address = *verified_cap.verified_operation_cap_address();
         assert!(validator_address == self.metadata.iota_address, EInvalidCap);
         self.next_epoch_gas_price = new_price;
@@ -400,215 +389,207 @@ module iota_system::validator {
     }
 
     /// Request to set new commission rate for the next epoch.
-    public(package) fun request_set_commission_rate(self: &mut Validator, new_commission_rate: u64) {
+    public(package) fun request_set_commission_rate(self: &mut ValidatorV1, new_commission_rate: u64) {
         assert!(new_commission_rate <= MAX_COMMISSION_RATE, ECommissionRateTooHigh);
         self.next_epoch_commission_rate = new_commission_rate;
     }
 
     /// Set new commission rate for the candidate validator.
-    public(package) fun set_candidate_commission_rate(self: &mut Validator, new_commission_rate: u64) {
+    public(package) fun set_candidate_commission_rate(self: &mut ValidatorV1, new_commission_rate: u64) {
         assert!(is_preactive(self), ENotValidatorCandidate);
         assert!(new_commission_rate <= MAX_COMMISSION_RATE, ECommissionRateTooHigh);
         self.commission_rate = new_commission_rate;
     }
 
     /// Deposit stakes rewards into the validator's staking pool, called at the end of the epoch.
-    public(package) fun deposit_stake_rewards(self: &mut Validator, reward: Balance<IOTA>) {
+    public(package) fun deposit_stake_rewards(self: &mut ValidatorV1, reward: Balance<IOTA>) {
         self.next_epoch_stake = self.next_epoch_stake + reward.value();
         self.staking_pool.deposit_rewards(reward);
     }
 
     /// Process pending stakes and withdraws, called at the end of the epoch.
-    public(package) fun process_pending_stakes_and_withdraws(self: &mut Validator, ctx: &TxContext) {
+    public(package) fun process_pending_stakes_and_withdraws(self: &mut ValidatorV1, ctx: &TxContext) {
         self.staking_pool.process_pending_stakes_and_withdraws(ctx);
         assert!(stake_amount(self) == self.next_epoch_stake, EInvalidStakeAmount);
     }
 
     /// Returns true if the validator is preactive.
-    public fun is_preactive(self: &Validator): bool {
+    public fun is_preactive(self: &ValidatorV1): bool {
         self.staking_pool.is_preactive()
     }
 
-    public fun metadata(self: &Validator): &ValidatorMetadata {
+    public fun metadata(self: &ValidatorV1): &ValidatorMetadataV1 {
         &self.metadata
     }
 
-    public fun iota_address(self: &Validator): address {
+    public fun iota_address(self: &ValidatorV1): address {
         self.metadata.iota_address
     }
 
-    public fun name(self: &Validator): &String {
+    public fun name(self: &ValidatorV1): &String {
         &self.metadata.name
     }
 
-    public fun description(self: &Validator): &String {
+    public fun description(self: &ValidatorV1): &String {
         &self.metadata.description
     }
 
-    public fun image_url(self: &Validator): &Url {
+    public fun image_url(self: &ValidatorV1): &Url {
         &self.metadata.image_url
     }
 
-    public fun project_url(self: &Validator): &Url {
+    public fun project_url(self: &ValidatorV1): &Url {
         &self.metadata.project_url
     }
 
-    public fun network_address(self: &Validator): &String {
+    public fun network_address(self: &ValidatorV1): &String {
         &self.metadata.net_address
     }
 
-    public fun p2p_address(self: &Validator): &String {
+    public fun p2p_address(self: &ValidatorV1): &String {
         &self.metadata.p2p_address
     }
 
-    public fun primary_address(self: &Validator): &String {
+    public fun primary_address(self: &ValidatorV1): &String {
         &self.metadata.primary_address
     }
 
-    public fun worker_address(self: &Validator): &String {
-        &self.metadata.worker_address
+    public fun authority_pubkey_bytes(self: &ValidatorV1): &vector<u8> {
+        &self.metadata.authority_pubkey_bytes
     }
 
-    public fun protocol_pubkey_bytes(self: &Validator): &vector<u8> {
-        &self.metadata.protocol_pubkey_bytes
-    }
-
-    public fun proof_of_possession(self: &Validator): &vector<u8> {
+    public fun proof_of_possession(self: &ValidatorV1): &vector<u8> {
         &self.metadata.proof_of_possession
     }
 
-    public fun network_pubkey_bytes(self: &Validator): &vector<u8> {
+    public fun network_pubkey_bytes(self: &ValidatorV1): &vector<u8> {
         &self.metadata.network_pubkey_bytes
     }
 
-    public fun worker_pubkey_bytes(self: &Validator): &vector<u8> {
-        &self.metadata.worker_pubkey_bytes
+    public fun protocol_pubkey_bytes(self: &ValidatorV1): &vector<u8> {
+        &self.metadata.protocol_pubkey_bytes
     }
 
-    public fun next_epoch_network_address(self: &Validator): &Option<String> {
+    public fun next_epoch_network_address(self: &ValidatorV1): &Option<String> {
         &self.metadata.next_epoch_net_address
     }
 
-    public fun next_epoch_p2p_address(self: &Validator): &Option<String> {
+    public fun next_epoch_p2p_address(self: &ValidatorV1): &Option<String> {
         &self.metadata.next_epoch_p2p_address
     }
 
-    public fun next_epoch_primary_address(self: &Validator): &Option<String> {
+    public fun next_epoch_primary_address(self: &ValidatorV1): &Option<String> {
         &self.metadata.next_epoch_primary_address
     }
 
-    public fun next_epoch_worker_address(self: &Validator): &Option<String> {
-        &self.metadata.next_epoch_worker_address
+    public fun next_epoch_authority_pubkey_bytes(self: &ValidatorV1): &Option<vector<u8>> {
+        &self.metadata.next_epoch_authority_pubkey_bytes
     }
 
-    public fun next_epoch_protocol_pubkey_bytes(self: &Validator): &Option<vector<u8>> {
-        &self.metadata.next_epoch_protocol_pubkey_bytes
-    }
-
-    public fun next_epoch_proof_of_possession(self: &Validator): &Option<vector<u8>> {
+    public fun next_epoch_proof_of_possession(self: &ValidatorV1): &Option<vector<u8>> {
         &self.metadata.next_epoch_proof_of_possession
     }
 
-    public fun next_epoch_network_pubkey_bytes(self: &Validator): &Option<vector<u8>> {
+    public fun next_epoch_network_pubkey_bytes(self: &ValidatorV1): &Option<vector<u8>> {
         &self.metadata.next_epoch_network_pubkey_bytes
     }
 
-    public fun next_epoch_worker_pubkey_bytes(self: &Validator): &Option<vector<u8>> {
-        &self.metadata.next_epoch_worker_pubkey_bytes
+    public fun next_epoch_protocol_pubkey_bytes(self: &ValidatorV1): &Option<vector<u8>> {
+        &self.metadata.next_epoch_protocol_pubkey_bytes
     }
 
-    public fun operation_cap_id(self: &Validator): &ID {
+    public fun operation_cap_id(self: &ValidatorV1): &ID {
         &self.operation_cap_id
     }
 
-    public fun next_epoch_gas_price(self: &Validator): u64 {
+    public fun next_epoch_gas_price(self: &ValidatorV1): u64 {
         self.next_epoch_gas_price
     }
 
     // TODO: this and `delegate_amount` and `total_stake` all seem to return the same value?
     // two of the functions can probably be removed.
-    public fun total_stake_amount(self: &Validator): u64 {
+    public fun total_stake_amount(self: &ValidatorV1): u64 {
         self.staking_pool.iota_balance()
     }
 
-    public fun stake_amount(self: &Validator): u64 {
+    public fun stake_amount(self: &ValidatorV1): u64 {
         self.staking_pool.iota_balance()
     }
 
     /// Return the total amount staked with this validator
-    public fun total_stake(self: &Validator): u64 {
+    public fun total_stake(self: &ValidatorV1): u64 {
         stake_amount(self)
     }
 
     /// Return the voting power of this validator.
-    public fun voting_power(self: &Validator): u64 {
+    public fun voting_power(self: &ValidatorV1): u64 {
         self.voting_power
     }
 
     /// Set the voting power of this validator, called only from validator_set.
-    public(package) fun set_voting_power(self: &mut Validator, new_voting_power: u64) {
+    public(package) fun set_voting_power(self: &mut ValidatorV1, new_voting_power: u64) {
         self.voting_power = new_voting_power;
     }
 
-    public fun pending_stake_amount(self: &Validator): u64 {
+    public fun pending_stake_amount(self: &ValidatorV1): u64 {
         self.staking_pool.pending_stake_amount()
     }
 
-    public fun pending_stake_withdraw_amount(self: &Validator): u64 {
+    public fun pending_stake_withdraw_amount(self: &ValidatorV1): u64 {
         self.staking_pool.pending_stake_withdraw_amount()
     }
 
-    public fun gas_price(self: &Validator): u64 {
+    public fun gas_price(self: &ValidatorV1): u64 {
         self.gas_price
     }
 
-    public fun commission_rate(self: &Validator): u64 {
+    public fun commission_rate(self: &ValidatorV1): u64 {
         self.commission_rate
     }
 
-    public fun pool_token_exchange_rate_at_epoch(self: &Validator, epoch: u64): PoolTokenExchangeRate {
+    public fun pool_token_exchange_rate_at_epoch(self: &ValidatorV1, epoch: u64): PoolTokenExchangeRate {
         self.staking_pool.pool_token_exchange_rate_at_epoch(epoch)
     }
 
-    public fun staking_pool_id(self: &Validator): ID {
+    public fun staking_pool_id(self: &ValidatorV1): ID {
         object::id(&self.staking_pool)
     }
 
     // MUSTFIX: We need to check this when updating metadata as well.
-    public fun is_duplicate(self: &Validator, other: &Validator): bool {
-         self.metadata.iota_address == other.metadata.iota_address
+    public fun is_duplicate(self: &ValidatorV1, other: &ValidatorV1): bool {
+        self.metadata.iota_address == other.metadata.iota_address
             || self.metadata.name == other.metadata.name
             || self.metadata.net_address == other.metadata.net_address
             || self.metadata.p2p_address == other.metadata.p2p_address
-            || self.metadata.protocol_pubkey_bytes == other.metadata.protocol_pubkey_bytes
+            || self.metadata.authority_pubkey_bytes == other.metadata.authority_pubkey_bytes
             || self.metadata.network_pubkey_bytes == other.metadata.network_pubkey_bytes
-            || self.metadata.network_pubkey_bytes == other.metadata.worker_pubkey_bytes
-            || self.metadata.worker_pubkey_bytes == other.metadata.worker_pubkey_bytes
-            || self.metadata.worker_pubkey_bytes == other.metadata.network_pubkey_bytes
+            || self.metadata.network_pubkey_bytes == other.metadata.protocol_pubkey_bytes
+            || self.metadata.protocol_pubkey_bytes == other.metadata.protocol_pubkey_bytes
+            || self.metadata.protocol_pubkey_bytes == other.metadata.network_pubkey_bytes
             // All next epoch parameters.
             || is_equal_some(&self.metadata.next_epoch_net_address, &other.metadata.next_epoch_net_address)
             || is_equal_some(&self.metadata.next_epoch_p2p_address, &other.metadata.next_epoch_p2p_address)
-            || is_equal_some(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.next_epoch_protocol_pubkey_bytes)
+            || is_equal_some(&self.metadata.next_epoch_authority_pubkey_bytes, &other.metadata.next_epoch_authority_pubkey_bytes)
             || is_equal_some(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.next_epoch_network_pubkey_bytes)
-            || is_equal_some(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.next_epoch_worker_pubkey_bytes)
-            || is_equal_some(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.next_epoch_worker_pubkey_bytes)
-            || is_equal_some(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.next_epoch_network_pubkey_bytes)
+            || is_equal_some(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.next_epoch_protocol_pubkey_bytes)
+            || is_equal_some(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.next_epoch_protocol_pubkey_bytes)
+            || is_equal_some(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.next_epoch_network_pubkey_bytes)
             // My next epoch parameters with other current epoch parameters.
             || is_equal_some_and_value(&self.metadata.next_epoch_net_address, &other.metadata.net_address)
             || is_equal_some_and_value(&self.metadata.next_epoch_p2p_address, &other.metadata.p2p_address)
-            || is_equal_some_and_value(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&self.metadata.next_epoch_authority_pubkey_bytes, &other.metadata.authority_pubkey_bytes)
             || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.network_pubkey_bytes)
-            || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.worker_pubkey_bytes)
-            || is_equal_some_and_value(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.worker_pubkey_bytes)
-            || is_equal_some_and_value(&self.metadata.next_epoch_worker_pubkey_bytes, &other.metadata.network_pubkey_bytes)
+            || is_equal_some_and_value(&self.metadata.next_epoch_network_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&self.metadata.next_epoch_protocol_pubkey_bytes, &other.metadata.network_pubkey_bytes)
             // Other next epoch parameters with my current epoch parameters.
             || is_equal_some_and_value(&other.metadata.next_epoch_net_address, &self.metadata.net_address)
             || is_equal_some_and_value(&other.metadata.next_epoch_p2p_address, &self.metadata.p2p_address)
-            || is_equal_some_and_value(&other.metadata.next_epoch_protocol_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&other.metadata.next_epoch_authority_pubkey_bytes, &self.metadata.authority_pubkey_bytes)
             || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.network_pubkey_bytes)
-            || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.worker_pubkey_bytes)
-            || is_equal_some_and_value(&other.metadata.next_epoch_worker_pubkey_bytes, &self.metadata.worker_pubkey_bytes)
-            || is_equal_some_and_value(&other.metadata.next_epoch_worker_pubkey_bytes, &self.metadata.network_pubkey_bytes)
+            || is_equal_some_and_value(&other.metadata.next_epoch_network_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&other.metadata.next_epoch_protocol_pubkey_bytes, &self.metadata.protocol_pubkey_bytes)
+            || is_equal_some_and_value(&other.metadata.next_epoch_protocol_pubkey_bytes, &self.metadata.network_pubkey_bytes)
     }
 
     fun is_equal_some_and_value<T>(a: &Option<T>, b: &T): bool {
@@ -631,7 +612,7 @@ module iota_system::validator {
 
     /// Create a new `UnverifiedValidatorOperationCap`, transfer to the validator,
     /// and registers it, thus revoking the previous cap's permission.
-    public(package) fun new_unverified_validator_operation_cap_and_transfer(self: &mut Validator, ctx: &mut TxContext) {
+    public(package) fun new_unverified_validator_operation_cap_and_transfer(self: &mut ValidatorV1, ctx: &mut TxContext) {
         let address = ctx.sender();
         assert!(address == self.metadata.iota_address, ENewCapNotCreatedByValidatorItself);
         let new_id = validator_cap::new_unverified_validator_operation_cap_and_transfer(address, ctx);
@@ -639,7 +620,7 @@ module iota_system::validator {
     }
 
     /// Update name of the validator.
-    public(package) fun update_name(self: &mut Validator, name: vector<u8>) {
+    public(package) fun update_name(self: &mut ValidatorV1, name: vector<u8>) {
         assert!(
             name.length() <= MAX_VALIDATOR_METADATA_LENGTH,
             EValidatorMetadataExceedingLengthLimit
@@ -648,7 +629,7 @@ module iota_system::validator {
     }
 
     /// Update description of the validator.
-    public(package) fun update_description(self: &mut Validator, description: vector<u8>) {
+    public(package) fun update_description(self: &mut ValidatorV1, description: vector<u8>) {
         assert!(
             description.length() <= MAX_VALIDATOR_METADATA_LENGTH,
             EValidatorMetadataExceedingLengthLimit
@@ -657,7 +638,7 @@ module iota_system::validator {
     }
 
     /// Update image url of the validator.
-    public(package) fun update_image_url(self: &mut Validator, image_url: vector<u8>) {
+    public(package) fun update_image_url(self: &mut ValidatorV1, image_url: vector<u8>) {
         assert!(
             image_url.length() <= MAX_VALIDATOR_METADATA_LENGTH,
             EValidatorMetadataExceedingLengthLimit
@@ -666,7 +647,7 @@ module iota_system::validator {
     }
 
     /// Update project url of the validator.
-    public(package) fun update_project_url(self: &mut Validator, project_url: vector<u8>) {
+    public(package) fun update_project_url(self: &mut ValidatorV1, project_url: vector<u8>) {
         assert!(
             project_url.length() <= MAX_VALIDATOR_METADATA_LENGTH,
             EValidatorMetadataExceedingLengthLimit
@@ -675,7 +656,7 @@ module iota_system::validator {
     }
 
     /// Update network address of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_network_address(self: &mut Validator, net_address: vector<u8>) {
+    public(package) fun update_next_epoch_network_address(self: &mut ValidatorV1, net_address: vector<u8>) {
         assert!(
             net_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
             EValidatorMetadataExceedingLengthLimit
@@ -686,7 +667,7 @@ module iota_system::validator {
     }
 
     /// Update network address of this candidate validator
-    public(package) fun update_candidate_network_address(self: &mut Validator, net_address: vector<u8>) {
+    public(package) fun update_candidate_network_address(self: &mut ValidatorV1, net_address: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
         assert!(
             net_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
@@ -698,7 +679,7 @@ module iota_system::validator {
     }
 
     /// Update p2p address of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_p2p_address(self: &mut Validator, p2p_address: vector<u8>) {
+    public(package) fun update_next_epoch_p2p_address(self: &mut ValidatorV1, p2p_address: vector<u8>) {
         assert!(
             p2p_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
             EValidatorMetadataExceedingLengthLimit
@@ -709,7 +690,7 @@ module iota_system::validator {
     }
 
     /// Update p2p address of this candidate validator
-    public(package) fun update_candidate_p2p_address(self: &mut Validator, p2p_address: vector<u8>) {
+    public(package) fun update_candidate_p2p_address(self: &mut ValidatorV1, p2p_address: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
         assert!(
             p2p_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
@@ -721,7 +702,7 @@ module iota_system::validator {
     }
 
     /// Update primary address of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_primary_address(self: &mut Validator, primary_address: vector<u8>) {
+    public(package) fun update_next_epoch_primary_address(self: &mut ValidatorV1, primary_address: vector<u8>) {
         assert!(
             primary_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
             EValidatorMetadataExceedingLengthLimit
@@ -732,7 +713,7 @@ module iota_system::validator {
     }
 
     /// Update primary address of this candidate validator
-    public(package) fun update_candidate_primary_address(self: &mut Validator, primary_address: vector<u8>) {
+    public(package) fun update_candidate_primary_address(self: &mut ValidatorV1, primary_address: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
         assert!(
             primary_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
@@ -743,74 +724,51 @@ module iota_system::validator {
         validate_metadata(&self.metadata);
     }
 
-    /// Update worker address of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_worker_address(self: &mut Validator, worker_address: vector<u8>) {
-        assert!(
-            worker_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
-            EValidatorMetadataExceedingLengthLimit
-        );
-        let worker_address = worker_address.to_ascii_string().to_string();
-        self.metadata.next_epoch_worker_address = option::some(worker_address);
-        validate_metadata(&self.metadata);
-    }
-
-    /// Update worker address of this candidate validator
-    public(package) fun update_candidate_worker_address(self: &mut Validator, worker_address: vector<u8>) {
-        assert!(is_preactive(self), ENotValidatorCandidate);
-        assert!(
-            worker_address.length() <= MAX_VALIDATOR_METADATA_LENGTH,
-            EValidatorMetadataExceedingLengthLimit
-        );
-        let worker_address = worker_address.to_ascii_string().to_string();
-        self.metadata.worker_address = worker_address;
-        validate_metadata(&self.metadata);
-    }
-
-    /// Update protocol public key of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_protocol_pubkey(self: &mut Validator, protocol_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
-        self.metadata.next_epoch_protocol_pubkey_bytes = option::some(protocol_pubkey);
+    /// Update authority public key of this validator, taking effects from next epoch
+    public(package) fun update_next_epoch_authority_pubkey(self: &mut ValidatorV1, authority_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
+        self.metadata.next_epoch_authority_pubkey_bytes = option::some(authority_pubkey);
         self.metadata.next_epoch_proof_of_possession = option::some(proof_of_possession);
         validate_metadata(&self.metadata);
     }
 
-    /// Update protocol public key of this candidate validator
-    public(package) fun update_candidate_protocol_pubkey(self: &mut Validator, protocol_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
+    /// Update authority public key of this candidate validator
+    public(package) fun update_candidate_authority_pubkey(self: &mut ValidatorV1, authority_pubkey: vector<u8>, proof_of_possession: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
-        self.metadata.protocol_pubkey_bytes = protocol_pubkey;
+        self.metadata.authority_pubkey_bytes = authority_pubkey;
         self.metadata.proof_of_possession = proof_of_possession;
         validate_metadata(&self.metadata);
     }
 
     /// Update network public key of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_network_pubkey(self: &mut Validator, network_pubkey: vector<u8>) {
+    public(package) fun update_next_epoch_network_pubkey(self: &mut ValidatorV1, network_pubkey: vector<u8>) {
         self.metadata.next_epoch_network_pubkey_bytes = option::some(network_pubkey);
         validate_metadata(&self.metadata);
     }
 
     /// Update network public key of this candidate validator
-    public(package) fun update_candidate_network_pubkey(self: &mut Validator, network_pubkey: vector<u8>) {
+    public(package) fun update_candidate_network_pubkey(self: &mut ValidatorV1, network_pubkey: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
         self.metadata.network_pubkey_bytes = network_pubkey;
         validate_metadata(&self.metadata);
     }
 
-    /// Update Narwhal worker public key of this validator, taking effects from next epoch
-    public(package) fun update_next_epoch_worker_pubkey(self: &mut Validator, worker_pubkey: vector<u8>) {
-        self.metadata.next_epoch_worker_pubkey_bytes = option::some(worker_pubkey);
+    /// Update protocol public key of this validator, taking effects from next epoch
+    public(package) fun update_next_epoch_protocol_pubkey(self: &mut ValidatorV1, protocol_pubkey: vector<u8>) {
+        self.metadata.next_epoch_protocol_pubkey_bytes = option::some(protocol_pubkey);
         validate_metadata(&self.metadata);
     }
 
-    /// Update Narwhal worker public key of this candidate validator
-    public(package) fun update_candidate_worker_pubkey(self: &mut Validator, worker_pubkey: vector<u8>) {
+    /// Update protocol public key of this candidate validator
+    public(package) fun update_candidate_protocol_pubkey(self: &mut ValidatorV1, protocol_pubkey: vector<u8>) {
         assert!(is_preactive(self), ENotValidatorCandidate);
-        self.metadata.worker_pubkey_bytes = worker_pubkey;
+        self.metadata.protocol_pubkey_bytes = protocol_pubkey;
         validate_metadata(&self.metadata);
     }
 
     /// Effectutate all staged next epoch metadata for this validator.
     /// NOTE: this function SHOULD ONLY be called by validator_set when
     /// advancing an epoch.
-    public(package) fun effectuate_staged_metadata(self: &mut Validator) {
+    public(package) fun effectuate_staged_metadata(self: &mut ValidatorV1) {
         if (next_epoch_network_address(self).is_some()) {
             self.metadata.net_address = self.metadata.next_epoch_net_address.extract();
             self.metadata.next_epoch_net_address = option::none();
@@ -826,14 +784,9 @@ module iota_system::validator {
             self.metadata.next_epoch_primary_address = option::none();
         };
 
-        if (next_epoch_worker_address(self).is_some()) {
-            self.metadata.worker_address = self.metadata.next_epoch_worker_address.extract();
-            self.metadata.next_epoch_worker_address = option::none();
-        };
-
-        if (next_epoch_protocol_pubkey_bytes(self).is_some()) {
-            self.metadata.protocol_pubkey_bytes = self.metadata.next_epoch_protocol_pubkey_bytes.extract();
-            self.metadata.next_epoch_protocol_pubkey_bytes = option::none();
+        if (next_epoch_authority_pubkey_bytes(self).is_some()) {
+            self.metadata.authority_pubkey_bytes = self.metadata.next_epoch_authority_pubkey_bytes.extract();
+            self.metadata.next_epoch_authority_pubkey_bytes = option::none();
             self.metadata.proof_of_possession = self.metadata.next_epoch_proof_of_possession.extract();
             self.metadata.next_epoch_proof_of_possession = option::none();
         };
@@ -843,37 +796,37 @@ module iota_system::validator {
             self.metadata.next_epoch_network_pubkey_bytes = option::none();
         };
 
-        if (next_epoch_worker_pubkey_bytes(self).is_some()) {
-            self.metadata.worker_pubkey_bytes = self.metadata.next_epoch_worker_pubkey_bytes.extract();
-            self.metadata.next_epoch_worker_pubkey_bytes = option::none();
+        if (next_epoch_protocol_pubkey_bytes(self).is_some()) {
+            self.metadata.protocol_pubkey_bytes = self.metadata.next_epoch_protocol_pubkey_bytes.extract();
+            self.metadata.next_epoch_protocol_pubkey_bytes = option::none();
         };
     }
 
     /// Aborts if validator metadata is valid
-    public fun validate_metadata(metadata: &ValidatorMetadata) {
+    public fun validate_metadata(metadata: &ValidatorMetadataV1) {
         validate_metadata_bcs(bcs::to_bytes(metadata));
     }
 
     public native fun validate_metadata_bcs(metadata: vector<u8>);
 
-    public(package) fun get_staking_pool_ref(self: &Validator) : &StakingPool {
+    public(package) fun get_staking_pool_ref(self: &ValidatorV1) : &StakingPoolV1 {
         &self.staking_pool
     }
 
 
-    /// Create a new validator from the given `ValidatorMetadata`, called by both `new` and `new_for_testing`.
+    /// Create a new validator from the given `ValidatorMetadataV1`, called by both `new` and `new_for_testing`.
     fun new_from_metadata(
-        metadata: ValidatorMetadata,
+        metadata: ValidatorMetadataV1,
         gas_price: u64,
         commission_rate: u64,
         ctx: &mut TxContext
-    ): Validator {
+    ): ValidatorV1 {
         let iota_address = metadata.iota_address;
 
         let staking_pool = staking_pool::new(ctx);
 
         let operation_cap_id = validator_cap::new_unverified_validator_operation_cap_and_transfer(iota_address, ctx);
-        Validator {
+        ValidatorV1 {
             metadata,
             // Initialize the voting power to be 0.
             // At the epoch change where this validator is actually added to the
@@ -894,13 +847,13 @@ module iota_system::validator {
     // Creates a validator - bypassing the proof of possession check and other metadata
     // validation in the process.
     // Note: `proof_of_possession` MUST be a valid signature using iota_address and
-    // protocol_pubkey_bytes. To produce a valid PoP, run [fn test_proof_of_possession].
+    // authority_pubkey_bytes. To produce a valid PoP, run [fn test_proof_of_possession].
     #[test_only]
     public(package) fun new_for_testing(
         iota_address: address,
-        protocol_pubkey_bytes: vector<u8>,
+        authority_pubkey_bytes: vector<u8>,
         network_pubkey_bytes: vector<u8>,
-        worker_pubkey_bytes: vector<u8>,
+        protocol_pubkey_bytes: vector<u8>,
         proof_of_possession: vector<u8>,
         name: vector<u8>,
         description: vector<u8>,
@@ -909,19 +862,18 @@ module iota_system::validator {
         net_address: vector<u8>,
         p2p_address: vector<u8>,
         primary_address: vector<u8>,
-        worker_address: vector<u8>,
         mut initial_stake_option: Option<Balance<IOTA>>,
         gas_price: u64,
         commission_rate: u64,
         is_active_at_genesis: bool,
         ctx: &mut TxContext
-    ): Validator {
+    ): ValidatorV1 {
         let mut validator = new_from_metadata(
             new_metadata(
                 iota_address,
-                protocol_pubkey_bytes,
+                authority_pubkey_bytes,
                 network_pubkey_bytes,
-                worker_pubkey_bytes,
+                protocol_pubkey_bytes,
                 proof_of_possession,
                 name.to_ascii_string().to_string(),
                 description.to_ascii_string().to_string(),
@@ -930,7 +882,6 @@ module iota_system::validator {
                 net_address.to_ascii_string().to_string(),
                 p2p_address.to_ascii_string().to_string(),
                 primary_address.to_ascii_string().to_string(),
-                worker_address.to_ascii_string().to_string(),
                 bag::new(ctx),
             ),
             gas_price,

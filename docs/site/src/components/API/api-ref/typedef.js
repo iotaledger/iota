@@ -1,15 +1,36 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import React from "react";
+
+import React, { useState, useEffect } from "react";
 import _ from "lodash";
 import { getRef } from "../index";
-
 import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
-import json from "react-syntax-highlighter/dist/esm/languages/hljs/json";
-import dark from "react-syntax-highlighter/dist/esm/styles/hljs/dracula";
+import { a11yLight, vs2015 } from "react-syntax-highlighter/dist/esm/styles/hljs";
 
 const TypeDef = (props) => {
+  const [light, setLight] = useState(() => {
+    if (typeof window !== "undefined") {
+      const theme = localStorage.getItem("theme");
+      return theme === "light";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const checkTheme = () => {
+      if (typeof window !== "undefined") {
+        const theme = localStorage.getItem("theme");
+        setLight(theme === "light");
+      }
+    };
+
+    window.addEventListener("storage", checkTheme);
+    return () => {
+      window.removeEventListener("storage", checkTheme);
+    };
+  }, []);
+
   const { schema, schemas } = props;
   const schemaObj = schemas[schema];
   let refs = [{ title: schema, ...schemaObj }];
@@ -23,36 +44,35 @@ const TypeDef = (props) => {
       } else if (value && typeof value === "object") {
         collectRefs(value);
       }
-      if (key == "$ref")
+      if (key === "$ref") {
         refs.push({ title: getRef(value), ...schemas[getRef(value)] });
+      }
     }
   };
 
   collectRefs(schemaObj);
 
-  refs.map((ref) => {
-    collectRefs(schemas[ref.title]);
-  });
-
-  refs.map((ref) => {
-    collectRefs(schemas[ref.title]);
-  });
+  refs.map((ref) => collectRefs(schemas[ref.title]));
+  refs.map((ref) => collectRefs(schemas[ref.title]));
 
   return (
     <div>
-      {_.uniqWith(refs, (a, b) => {
-        return a.title === b.title;
-      }).map((curObj, idx) => {
-        return (
-          <div key={idx}>
-            <p className="text-lg font-bold mb-0 mt-8">{curObj.title}</p>
-            <hr className="mt-0" />
-            <SyntaxHighlighter language={json} style={dark}>
-              {JSON.stringify(_.omit(curObj, "title"), null, 4)}
-            </SyntaxHighlighter>
-          </div>
-        );
-      })}
+      {_.uniqWith(refs, (a, b) => a.title === b.title).map((curObj, idx) => (
+        <div key={idx}>
+          <p className="text-lg font-bold mb-0 mt-8">{curObj.title}</p>
+          <hr className="mt-0" />
+          <SyntaxHighlighter 
+            language="json" 
+            style={light ? a11yLight : vs2015} 
+            customStyle={{
+              ...(light ? { boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.1)' } : {}),
+              padding: '15px'
+            }}
+          >
+            {JSON.stringify(_.omit(curObj, "title"), null, 4)}
+          </SyntaxHighlighter>
+        </div>
+      ))}
     </div>
   );
 };

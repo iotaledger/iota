@@ -265,7 +265,7 @@ module iota::timelocked_balance_tests {
         scenario.end();
     }
 
-     #[test]
+    #[test]
     fun test_split_and_transfer_timelocked_balances() {
         // Set up a test environment.
         let sender = @0xA;

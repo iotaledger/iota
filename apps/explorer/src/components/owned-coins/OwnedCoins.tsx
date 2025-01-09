@@ -2,15 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { getCoinSymbol } from '@iota/core';
+import { getCoinSymbol, useRecognizedPackages } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
-import { type CoinBalance } from '@iota/iota-sdk/client';
+import { type CoinBalance, type Network } from '@iota/iota-sdk/client';
+import { useNetwork } from '~/hooks';
 import { normalizeIotaAddress } from '@iota/iota-sdk/utils';
-import { LoadingIndicator } from '@iota/ui';
 import { FilterList, Warning } from '@iota/ui-icons';
 import { useMemo, useState } from 'react';
-import OwnedCoinView from './OwnedCoinView';
-import { useRecognizedPackages } from '~/hooks/useRecognizedPackages';
+import { OwnedCoinView } from './OwnedCoinView';
 import {
     Button,
     ButtonType,
@@ -20,10 +19,13 @@ import {
     InfoBoxStyle,
     InfoBoxType,
     ListItem,
+    LoadingIndicator,
     Select,
+    SelectSize,
     Title,
 } from '@iota/apps-ui-kit';
 import { Pagination } from '../ui';
+import { PAGE_SIZES_RANGE_20_60 } from '~/lib/constants';
 
 export type CoinBalanceVerified = CoinBalance & {
     isRecognized?: boolean;
@@ -45,7 +47,8 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
     const { isPending, data, isError } = useIotaClientQuery('getAllBalances', {
         owner: normalizeIotaAddress(id),
     });
-    const recognizedPackages = useRecognizedPackages();
+    const [network] = useNetwork();
+    const recognizedPackages = useRecognizedPackages(network as Network);
 
     const balances: Record<CoinFilter, CoinBalanceVerified[]> = useMemo(() => {
         const balanceData = data?.reduce(
@@ -94,24 +97,29 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
         };
     }, [data, recognizedPackages]);
 
+    function handleFilterClick(filterValue: CoinFilter) {
+        setFilterValue(filterValue);
+        setCurrentSlice(1);
+    }
+
     const filterOptions: FilterOption[] = useMemo(
         () => [
             {
                 label: 'All',
                 counter: balances.allBalances.length,
-                onClick: () => setFilterValue(CoinFilter.All),
+                onClick: () => handleFilterClick(CoinFilter.All),
             },
             {
                 label: `Recognized`,
                 counter: balances.recognizedBalances.length,
                 isDisabled: !balances.recognizedBalances.length,
-                onClick: () => setFilterValue(CoinFilter.Recognized),
+                onClick: () => handleFilterClick(CoinFilter.Recognized),
             },
             {
                 label: `Unrecognized`,
                 counter: balances.unrecognizedBalances.length,
                 isDisabled: !balances.unrecognizedBalances.length,
-                onClick: () => setFilterValue(CoinFilter.Unrecognized),
+                onClick: () => handleFilterClick(CoinFilter.Unrecognized),
             },
         ],
         [balances],
@@ -124,7 +132,15 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
 
     if (isError) {
         return (
-            <div className="pt-2 font-sans font-semibold text-issue-dark">Failed to load Coins</div>
+            <div className="p-sm--rs">
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Coins"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
+            </div>
         );
     }
 
@@ -138,12 +154,14 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                 </div>
             ) : (
                 <div className="flex h-full flex-col">
-                    <Title
-                        title={coinBalanceHeader}
-                        trailingElement={
-                            hasCoinsBalance && <CoinsFilter filterOptions={filterOptions} />
-                        }
-                    />
+                    <div className="flex flex-col justify-center sm:min-h-[72px]">
+                        <Title
+                            title={coinBalanceHeader}
+                            trailingElement={
+                                hasCoinsBalance && <CoinsFilter filterOptions={filterOptions} />
+                            }
+                        />
+                    </div>
                     {hasCoinsBalance ? (
                         <>
                             <div className="relative overflow-y-auto p-sm--rs pt-0">
@@ -161,7 +179,7 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                             </div>
 
                             {displayedBalances.length > limit && (
-                                <div className="flex flex-col justify-between gap-2 px-sm--rs py-xs--rs md:flex-row">
+                                <div className="flex flex-row flex-wrap items-center justify-between gap-xs px-sm--rs py-sm--rs">
                                     <Pagination
                                         hasFirst={currentSlice !== 1}
                                         onNext={() => setCurrentSlice(currentSlice + 1)}
@@ -174,9 +192,8 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         onFirst={() => setCurrentSlice(1)}
                                     />
                                     <div className="flex items-center gap-3">
-                                        <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
-                                            {`Showing `}
-                                            {(currentSlice - 1) * limit + 1}-
+                                        <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
+                                            Showing {(currentSlice - 1) * limit + 1}-
                                             {currentSlice * limit > displayedBalances.length
                                                 ? displayedBalances.length
                                                 : currentSlice * limit}
@@ -184,29 +201,40 @@ export function OwnedCoins({ id }: OwnerCoinsProps): JSX.Element {
                                         <Select
                                             dropdownPosition={DropdownPosition.Top}
                                             value={limit.toString()}
-                                            options={[
-                                                { label: '20 Per Page', id: '20' },
-                                                { label: '40 Per Page', id: '40' },
-                                                { label: '60 Per Page', id: '60' },
-                                            ]}
+                                            options={PAGE_SIZES_RANGE_20_60.map((size) => ({
+                                                label: `${size} / page`,
+                                                id: size.toString(),
+                                            }))}
                                             onValueChange={(value) => {
                                                 setLimit(Number(value));
                                                 setCurrentSlice(1);
                                             }}
+                                            size={SelectSize.Small}
                                         />
                                     </div>
                                 </div>
                             )}
                         </>
                     ) : (
-                        <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
-                            <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
-                                No Coins Owned
-                            </span>
-                        </div>
+                        <NoObjectsOwnedMessage objectType="Coins" />
                     )}
                 </div>
             )}
+        </div>
+    );
+}
+
+interface NoObjectsOwnedMessageProps {
+    objectType: string;
+}
+export function NoObjectsOwnedMessage({
+    objectType,
+}: NoObjectsOwnedMessageProps): React.JSX.Element {
+    return (
+        <div className="md:h-coinsAndAssetsContainer flex h-full items-center justify-center">
+            <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
+                No {objectType} Owned
+            </span>
         </div>
     );
 }

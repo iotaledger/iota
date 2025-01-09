@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import { useCurrentAccount } from '../hooks/wallet/useCurrentAccount.js';
 import { AccountDropdownMenu } from './AccountDropdownMenu.js';
@@ -12,20 +12,24 @@ import { Button } from './ui/Button.js';
 
 type ConnectButtonProps = {
     connectText?: ReactNode;
-} & ButtonHTMLAttributes<HTMLButtonElement>;
+    size?: React.ComponentProps<typeof Button>['size'];
+} & React.ComponentProps<typeof Button>;
 
 export function ConnectButton({
     connectText = 'Connect Wallet',
+    size,
     ...buttonProps
 }: ConnectButtonProps) {
     const currentAccount = useCurrentAccount();
     return currentAccount ? (
-        <AccountDropdownMenu currentAccount={currentAccount} />
+        <AccountDropdownMenu currentAccount={currentAccount} size={size} />
     ) : (
         <ConnectModal
             trigger={
                 <StyleMarker>
-                    <Button {...buttonProps}>{connectText}</Button>
+                    <Button {...buttonProps} size={size}>
+                        {connectText}
+                    </Button>
                 </StyleMarker>
             }
         />

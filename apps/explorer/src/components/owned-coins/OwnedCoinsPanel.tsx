@@ -3,11 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useElementDimensions, useGetCoins, useOnScreen } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
 import clsx from 'clsx';
 import { useEffect, useRef } from 'react';
-
-import CoinItem from './CoinItem';
+import { CoinItem } from './CoinItem';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 const MIN_CONTAINER_WIDTH_SIZE = 500;
 
@@ -16,7 +15,7 @@ type CoinsPanelProps = {
     id: string;
 };
 
-export default function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Element {
+export function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Element {
     const containerRef = useRef(null);
     const coinsSectionRef = useRef(null);
     const { isIntersecting } = useOnScreen(containerRef);
@@ -41,11 +40,7 @@ export default function CoinsPanel({ coinType, id }: CoinsPanelProps): JSX.Eleme
                         page.data.map((coin) => (
                             <div
                                 key={coin.coinObjectId}
-                                className={clsx(
-                                    'w-full',
-                                    multiCols && 'basis-1/3',
-                                    !multiCols && 'pr-3',
-                                )}
+                                className={clsx('w-full', multiCols && 'basis-1/3')}
                             >
                                 <CoinItem coin={coin} />
                             </div>

@@ -32,7 +32,6 @@ use iota_core::{
     epoch::committee_store::CommitteeStore,
     state_accumulator::WrappedObject,
 };
-use iota_protocol_config::Chain;
 use iota_storage::{
     FileCompression, SHA3_BYTES, compute_sha3_checksum, object_store::util::path_to_filesystem,
 };
@@ -247,7 +246,6 @@ pub async fn setup_db_state(
     perpetual_db: Arc<AuthorityPerpetualTables>,
     checkpoint_store: Arc<CheckpointStore>,
     committee_store: Arc<CommitteeStore>,
-    chain: Chain,
     verify: bool,
     num_live_objects: u64,
     m: MultiProgress,
@@ -277,15 +275,7 @@ pub async fn setup_db_state(
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
 
     if verify {
-        let simplified_unwrap_then_delete = match (chain, epoch) {
-            (Chain::Mainnet, ep) if ep >= 87 => true,
-            (Chain::Mainnet, ep) if ep < 87 => false,
-            (Chain::Testnet, ep) if ep >= 50 => true,
-            (Chain::Testnet, ep) if ep < 50 => false,
-            _ => panic!("Unsupported chain"),
-        };
-        let include_tombstones = !simplified_unwrap_then_delete;
-        let iter = perpetual_db.iter_live_object_set(include_tombstones);
+        let iter = perpetual_db.iter_live_object_set();
         let local_digest = ECMHLiveObjectSetDigest::from(
             accumulate_live_object_iter(Box::new(iter), m.clone(), num_live_objects)
                 .await

@@ -11,29 +11,51 @@ The added benefit is that your private keys remain securely stored in your Ledge
 
 Before connecting your Ledger device to IOTA Wallet, ensure the following:
 
-- Install the latest version of [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet-rc/nlmllpflpelpannpijhhnbhekpbpejch) from the Chrome Web Store.
+- Install the latest version of [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija) from the Chrome Web Store.
 - Set up your Ledger device and update it to the latest firmware.
 - Install [Ledger Live](https://www.ledger.com/ledger-live) and confirm that your device can connect successfully.
 
-## Install the IOTA App on Your Ledger Device
+## Install the IOTA Rebased App on Your Ledger Device
 
-To use IOTA Wallet with Ledger, install the IOTA app on your device through Ledger Live.
+To use IOTA Wallet with Ledger, install the IOTA Rebased app on your device through Ledger Live or manually.
+Ledger Live is preferred, but you need to install the app manually for deprecated devices like the Ledger Nano S.
+
+### Ledger Live (preferred)
 
 1. Unlock your Ledger device.
 2. Open Ledger Live and navigate to **My Ledger** in the left panel.
 3. Press both buttons on the device to approve the secure connection.
-4. In the App Catalog, search for **IOTA**.
-5. Click **Install** to download the IOTA app to your device.
+4. In the App Catalog, search for **IOTA Rebased**.
+5. Click **Install** to download the IOTA Rebased app to your device.
 6. Your device will show the installation progress.
+
+### Manually (for deprecated devices such as Ledger Nano S)
+
+:::warning
+
+Make sure you have enough space left for an additional app on your device.
+
+:::
+
+1. Go to the latest release on https://github.com/iotaledger/ledger-app-iota/releases.
+2. Download the archive matching your device, e.g. `nanos.tar.gz` for the Ledger Nano S.
+3. Verify that the checksum (`shasum -a 256 nanos.tar.gz`) matches the one from the release.
+4. Extract the archive `tar -xvzf nanos.tar.gz`.
+5. Move to the app folder `cd nanos`.
+6. Follow the steps on https://github.com/LedgerHQ/ledgerctl to install `ledgerctl`.
+7. Install the app on your device `ledgerctl install -f app_nanos.json`.
+8. Accept `Allow unsafe manager` on your device.
+9. Accept `Perform installation` on your device.
+10. Enter your pin on your device.
 
 ## Import Accounts from Your Ledger Device
 
 To import accounts from your Ledger into IOTA Wallet:
 
 1. Unlock your Ledger device.
-2. Open the `IOTA` app on your Ledger and press both buttons to start it.
+2. Open the `IOTA Rebased` app on your Ledger and press both buttons to start it.
 3. Close Ledger Live if it is still running.
-4. Open [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet-rc/nlmllpflpelpannpijhhnbhekpbpejch) and enter your password.
+4. Open [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija) and enter your password.
 5. Go to `Accounts` by clicking on the address at the top of the `Home` section.
 
    ![Accounts](/img/about-iota/iota-wallet/how-to/multi-account/navigate-to-accounts.png)
@@ -119,7 +141,7 @@ To send digital assets from your Ledger account:
 
 To stake IOTA using a Ledger account, you need to enable blind signing on your device.
 
-1. Unlock your Ledger device and open the IOTA app.
+1. Unlock your Ledger device and open the IOTA Rebased app.
 2. Enable Blind Signing by scrolling to `Blind signing` and pressing both buttons to activate it.
 3. Open IOTA Wallet and select the Ledger account you want to stake from.
 4. Click `Start Staking`.

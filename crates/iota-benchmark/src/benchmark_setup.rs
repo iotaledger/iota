@@ -114,7 +114,7 @@ impl Env {
                 for v in cluster.swarm.config().validator_configs() {
                     eprintln!(
                         "Metric address for validator {}: {}",
-                        v.protocol_public_key().concise(),
+                        v.authority_public_key().concise(),
                         v.metrics_address
                     );
                 }

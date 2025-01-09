@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { DividerType } from './divider.enums';
 import cx from 'classnames';
 import { BACKGROUND_COLORS, DIVIDER_FULL_WIDTH } from './divider.classes';
@@ -33,7 +32,7 @@ export function Divider({
     height,
     lineHeight = DEFAULT_LINE_HEIGHT,
 }: DividerProps): React.JSX.Element {
-    // Set width and height of divider line based on type
+    // Set height and width of divider line based on type
     const lineStyle = {
         ...(type === DividerType.Horizontal ? { height: lineHeight } : { width: lineHeight }),
     };

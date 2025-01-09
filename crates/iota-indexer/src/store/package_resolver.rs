@@ -57,14 +57,14 @@ impl<T: R2D2Connection> IndexerStorePackageResolver<T> {
             query.get_result::<Vec<u8>>(conn).optional()
         })?
         else {
-            return Err(IndexerError::PostgresReadError(format!(
+            return Err(IndexerError::PostgresRead(format!(
                 "Package not found in DB: {:?}",
                 id
             )));
         };
         let object = bcs::from_bytes::<Object>(&bcs)?;
         Package::read_from_object(&object).map_err(|e| {
-            IndexerError::PostgresReadError(format!("Failed parsing object to package: {:?}", e))
+            IndexerError::PostgresRead(format!("Failed parsing object to package: {:?}", e))
         })
     }
 

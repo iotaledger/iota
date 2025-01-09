@@ -214,9 +214,8 @@ fn test_upgrade_linkage_digest_to_new_dep() {
 
     // Make sure that we compute the package digest off of the update dependencies
     // and not the old dependencies in the linkage table.
-    let hash_modules = true;
     assert_eq!(
-        b_new.digest(hash_modules),
+        b_new.digest(),
         MovePackage::compute_digest_for_modules_and_deps(
             &build_test_modules("B")
                 .iter()
@@ -229,7 +228,6 @@ fn test_upgrade_linkage_digest_to_new_dep() {
                 })
                 .collect::<Vec<_>>(),
             [&c_id2],
-            hash_modules,
         )
     )
 }
@@ -327,10 +325,9 @@ fn package_digest_changes_with_dep_upgrades_and_in_sync_with_move_package_digest
     let local_v1 = build_test_package("B").get_package_digest(with_unpublished_deps);
     let local_v2 = build_test_package("Bv2").get_package_digest(with_unpublished_deps);
 
-    let hash_modules = true;
-    assert_ne!(b_pkg.digest(hash_modules), b_v2.digest(hash_modules));
-    assert_eq!(b_pkg.digest(hash_modules), local_v1);
-    assert_eq!(b_v2.digest(hash_modules), local_v2);
+    assert_ne!(b_pkg.digest(), b_v2.digest());
+    assert_eq!(b_pkg.digest(), local_v1);
+    assert_eq!(b_v2.digest(), local_v2);
     assert_ne!(local_v1, local_v2);
 }
 

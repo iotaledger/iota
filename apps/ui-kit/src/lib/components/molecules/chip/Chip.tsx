@@ -64,7 +64,7 @@ export function Chip({
         <ButtonUnstyled
             onClick={onClick}
             className={cx(
-                'border',
+                'border transition-all duration-500 ease-in-out',
                 ROUNDED_CLASS,
                 BACKGROUND_CLASSES[chipState],
                 BORDER_CLASSES[chipState],

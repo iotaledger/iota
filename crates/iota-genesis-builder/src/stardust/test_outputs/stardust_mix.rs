@@ -307,7 +307,7 @@ fn random_alias_foundry_native_token(
                 .finish()?,
             rng,
         ));
-        let metadata = Irc30Metadata::new(&format!("My Native Token {i}"), "MNT", 10)
+        let metadata = Irc30Metadata::new(format!("My Native Token {i}"), "MNT", 10)
             .with_description("A native token for testing");
 
         outputs.push(finish_with_header(

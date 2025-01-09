@@ -10,7 +10,7 @@
         "build:release": "wasm-pack build --target web --release --scope iota",
         "test": "vitest run"
     },
-    "author": "IOTA Foundation <contact@iota.org>",
+    "author": "IOTA Foundation <info@iota.org>",
     "license": "Apache-2.0",
     "devDependencies": {
         "@iota/bcs": "workspace:*",

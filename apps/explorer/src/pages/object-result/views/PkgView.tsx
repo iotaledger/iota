@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useGetTransaction } from '@iota/core';
-import { LoadingIndicator } from '@iota/ui';
 import { useState } from 'react';
 import { type Direction } from 'react-resizable-panels';
 
@@ -22,6 +21,7 @@ import {
     ButtonSegment,
     ButtonSegmentType,
     KeyValueInfo,
+    LoadingIndicator,
     Panel,
     SegmentedButton,
     SegmentedButtonType,
@@ -39,7 +39,7 @@ interface PkgViewProps {
     data: DataType;
 }
 
-function PkgView({ data }: PkgViewProps): JSX.Element {
+export function PkgView({ data }: PkgViewProps): JSX.Element {
     const [selectedSplitPanelOrientation, setSplitPanelOrientation] = useState(
         SPLIT_PANELS_ORIENTATION[1].value,
     );
@@ -145,5 +145,3 @@ function PkgView({ data }: PkgViewProps): JSX.Element {
         </div>
     );
 }
-
-export default PkgView;

@@ -18,7 +18,7 @@ export const menuContent = style({
     display: 'flex',
     flexDirection: 'column',
     width: 180,
-    maxHeight: 200,
+    maxHeight: 300,
     marginTop: 4,
     padding: 8,
     gap: 8,
@@ -26,8 +26,15 @@ export const menuContent = style({
     backgroundColor: themeVars.backgroundColors.dropdownMenu,
 });
 
+export const scrollableContent = style({
+    overflowY: 'auto',
+    maxHeight: 300,
+    flexGrow: 1,
+});
+
 export const menuItem = style({
     padding: 8,
+    height: 40,
     userSelect: 'none',
     outline: 'none',
     display: 'flex',

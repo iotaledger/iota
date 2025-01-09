@@ -28,7 +28,7 @@ module iota::groth16_tests {
 
         let vk_bytes = arr.pop_back();
         assert!(vk_bytes == expected_vk_bytes);
-   }
+    }
 
     #[test]
     #[expected_failure(abort_code = groth16::EInvalidVerifyingKey)]

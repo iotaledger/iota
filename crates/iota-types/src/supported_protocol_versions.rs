@@ -25,14 +25,6 @@ impl SupportedProtocolVersions {
         max: ProtocolVersion::MAX,
     };
 
-    /// Use by VersionedProtocolMessage implementors to describe in which range
-    /// of versions a message variant is supported.
-    pub fn new_for_message(min: u64, max: u64) -> Self {
-        let min = ProtocolVersion::new(min);
-        let max = ProtocolVersion::new(max);
-        Self { min, max }
-    }
-
     pub fn new_for_testing(min: u64, max: u64) -> Self {
         let min = min.into();
         let max = max.into();

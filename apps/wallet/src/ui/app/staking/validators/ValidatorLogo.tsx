@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { ImageIcon } from '_app/shared/image-icon';
 import {
     Badge,
     BadgeType,
@@ -15,7 +14,7 @@ import {
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useMemo } from 'react';
-import { formatPercentageDisplay, useGetValidatorsApy } from '@iota/core';
+import { formatPercentageDisplay, useGetValidatorsApy, ImageIcon, ImageIconSize } from '@iota/core';
 
 interface ValidatorLogoProps {
     validatorAddress: string;
@@ -66,25 +65,34 @@ export function ValidatorLogo({
     // for inactive validators, show the epoch number
     const fallBackText = activeEpoch
         ? `Staked ${Number(system?.epoch) - Number(activeEpoch)} epochs ago`
-        : '';
+        : '--';
     const validatorName = validatorMeta?.name || fallBackText;
 
-    const subtitle = showActiveStatus ? (
-        <div className="flex items-center gap-1">
-            {formatAddress(validatorAddress)}
-            {newValidator && <Badge label="New" type={BadgeType.PrimarySoft} />}
-            {isAtRisk && <Badge label="At Risk" type={BadgeType.PrimarySolid} />}
-        </div>
+    const subtitle = validatorAddress ? (
+        showActiveStatus ? (
+            <div className="flex items-center gap-1">
+                {formatAddress(validatorAddress)}
+                {newValidator && <Badge label="New" type={BadgeType.PrimarySoft} />}
+                {isAtRisk && <Badge label="At Risk" type={BadgeType.PrimarySolid} />}
+            </div>
+        ) : (
+            formatAddress(validatorAddress)
+        )
     ) : (
-        formatAddress(validatorAddress)
+        '--'
     );
     return (
         <>
             <Card type={type} onClick={onClick}>
                 <CardImage>
-                    <ImageIcon src={null} label={validatorName} fallback={validatorName} />
+                    <ImageIcon
+                        src={validatorMeta?.imageUrl ?? null}
+                        label={validatorName}
+                        fallback={validatorName}
+                        size={ImageIconSize.Large}
+                    />
                 </CardImage>
-                <CardBody title={validatorName} subtitle={subtitle} />
+                <CardBody title={validatorName} subtitle={subtitle} isTextTruncated />
                 {showApy && (
                     <CardAction
                         type={CardActionType.SupportingText}

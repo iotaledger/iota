@@ -10,9 +10,9 @@ import {
     UserApproveContainer,
 } from '_components';
 import { useAppDispatch, useAppSelector } from '_hooks';
-import type { RootState } from '_redux/RootReducer';
+import type { RootState } from '_src/ui/app/redux/rootReducer';
 import { permissionsSelectors, respondToPermissionRequest } from '_redux/slices/permissions';
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -22,7 +22,7 @@ import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayou
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/ui-icons';
 
-function SiteConnectPage() {
+export function SiteConnectPage() {
     const { requestID } = useParams();
     const permissionsInitialized = useAppSelector(({ permissions }) => permissions.initialized);
     const loading = !permissionsInitialized;
@@ -177,5 +177,3 @@ function SiteConnectPage() {
         </Loading>
     );
 }
-
-export default SiteConnectPage;

@@ -9,18 +9,6 @@
 //# publish
 module 0x0.m {
     import 0x2.event;
-    import 0x2.coin;
-
-    t(s: coin.CurrencyCreated<u64>) {
-        label l0:
-        event.emit<coin.CurrencyCreated<u64>>(move(s));
-        return;
-    }
-}
-
-//# publish
-module 0x0.m {
-    import 0x2.event;
 
     t<T: copy + drop>(x: T) {
         label l0:
@@ -81,7 +69,7 @@ module test.m {
     }
 }
 
-//# set-address test object(6,0)
+//# set-address test object(5,0)
 
 //# publish --dependencies test
 module 0x0.t {

@@ -1,11 +1,10 @@
 [package]
 name = "telemetry-subscribers"
-version = "0.2.0"
-authors = ["IOTA Foundation <contact@iota.org>"]
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
 edition = "2021"
 license = "Apache-2.0"
 publish = false
-repository = "https://github.com/mystenlabs/mysten-infra"
 description = "Library for common telemetry and observability functionality"
 
 [dependencies]
@@ -26,7 +25,7 @@ prost.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tonic.workspace = true
 tracing.workspace = true
-tracing-appender.workspace = true
+tracing-appender = "0.2.2"
 tracing-opentelemetry = "0.25"
 tracing-subscriber.workspace = true
 

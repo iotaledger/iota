@@ -2,10 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Alert, LoadingIndicator } from '_components';
 import { useAppSelector } from '_hooks';
 import { ampli } from '_src/shared/analytics/ampli';
-import { MIN_NUMBER_IOTA_TO_STAKE } from '_src/shared/constants';
 import {
     useBalance,
     useCoinMetadata,
@@ -15,18 +13,31 @@ import {
     DELEGATED_STAKES_QUERY_STALE_TIME,
     useFormatCoin,
     formatPercentageDisplay,
+    MIN_NUMBER_IOTA_TO_STAKE,
 } from '@iota/core';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
 import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
-
 import { useActiveAddress } from '../../hooks/useActiveAddress';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
-import { CardType, Panel, KeyValueInfo, Divider, Button, ButtonType } from '@iota/apps-ui-kit';
+import {
+    CardType,
+    Panel,
+    KeyValueInfo,
+    Divider,
+    Button,
+    ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+    LoadingIndicator,
+} from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { ValidatorLogo } from '../validators/ValidatorLogo';
+import { Warning } from '@iota/ui-icons';
+import toast from 'react-hot-toast';
 
 interface DelegationDetailCardProps {
     validatorAddress: string;
@@ -47,6 +58,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         data: allDelegation,
         isPending,
         isError,
+        error,
     } = useGetDelegatedStake({
         address: accountAddress || '',
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -88,7 +100,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     const [iotaEarnedFormatted, iotaEarnedSymbol] = useFormatCoin(iotaEarned, IOTA_TYPE_ARG);
     const [totalStakeFormatted, totalStakeSymbol] = useFormatCoin(totalStake, IOTA_TYPE_ARG);
 
-    const delegationId = delegationData?.status === 'Active' && delegationData?.stakedIotaId;
+    const delegationId = delegationData?.stakedIotaId;
 
     const stakeByValidatorAddress = `/stake/new?${new URLSearchParams({
         address: validatorAddress,
@@ -111,24 +123,8 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     }
 
     if (isError || errorValidators) {
-        return (
-            <div className="p-2">
-                <Alert>
-                    <div className="mb-1 font-semibold">Something went wrong</div>
-                </Alert>
-            </div>
-        );
+        toast.error(error?.message ?? 'An error occurred fetching validator information');
     }
-
-    if (hasInactiveValidatorDelegation) {
-        <div className="mb-3">
-            <Alert>
-                Unstake IOTA from this inactive validator and stake on an active validator to start
-                earning rewards again.
-            </Alert>
-        </div>;
-    }
-
     function handleAddNewStake() {
         navigate(stakeByValidatorAddress);
         ampli.clickedStakeIota({
@@ -149,6 +145,16 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         <div className="flex h-full w-full flex-col justify-between">
             <div className="flex flex-col gap-y-md">
                 <ValidatorLogo validatorAddress={validatorAddress} type={CardType.Filled} />
+                {hasInactiveValidatorDelegation ? (
+                    <InfoBox
+                        type={InfoBoxType.Error}
+                        title="Earn with active validators"
+                        supportingText="Unstake IOTA from the inactive validators and stake on an active
+                                validator to start earning rewards again."
+                        icon={<Warning />}
+                        style={InfoBoxStyle.Elevated}
+                    />
+                ) : null}
                 <Panel hasBorder>
                     <div className="flex flex-col gap-y-sm p-md">
                         <KeyValueInfo
@@ -177,7 +183,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
                     </div>
                 </Panel>
             </div>
-            <div className="my-3.75 flex w-full gap-2.5">
+            <div className="flex w-full gap-2.5">
                 {Boolean(totalStake) && delegationId && (
                     <Button
                         type={ButtonType.Secondary}

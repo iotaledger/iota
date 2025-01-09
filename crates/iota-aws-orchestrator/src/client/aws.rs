@@ -32,7 +32,7 @@ where
     T: Debug + std::error::Error + Send + Sync + 'static,
 {
     fn from(e: SdkError<T, aws_smithy_runtime_api::client::orchestrator::HttpResponse>) -> Self {
-        Self::RequestError(format!("{:?}", e.into_source()))
+        Self::Request(format!("{:?}", e.into_source()))
     }
 }
 
@@ -147,7 +147,7 @@ impl AwsClient {
         response
             .images()
             .first()
-            .ok_or_else(|| CloudProviderError::RequestError("Cannot find image id".into()))?
+            .ok_or_else(|| CloudProviderError::Request("Cannot find image id".into()))?
             .image_id
             .clone()
             .ok_or_else(|| {
@@ -310,9 +310,10 @@ impl ServerProviderClient for AwsClient {
         let region = region.into();
         let testbed_id = &self.settings.testbed_id;
 
-        let client = self.clients.get(&region).ok_or_else(|| {
-            CloudProviderError::RequestError(format!("Undefined region {region:?}"))
-        })?;
+        let client = self
+            .clients
+            .get(&region)
+            .ok_or_else(|| CloudProviderError::Request(format!("Undefined region {region:?}")))?;
 
         // Create a security group (if needed).
         self.create_security_group(client).await?;
@@ -359,7 +360,7 @@ impl ServerProviderClient for AwsClient {
 
     async fn delete_instance(&self, instance: Instance) -> CloudProviderResult<()> {
         let client = self.clients.get(&instance.region).ok_or_else(|| {
-            CloudProviderError::RequestError(format!("Undefined region {:?}", instance.region))
+            CloudProviderError::Request(format!("Undefined region {:?}", instance.region))
         })?;
 
         client

@@ -1,8 +1,9 @@
 {
     "name": "@iota/iota-sdk",
-    "author": "IOTA Foundation <contact@iota.org>",
+    "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA TypeScript API",
-    "version": "0.2.0",
+    "homepage": "https://docs.iota.org/ts-sdk/typescript/",
+    "version": "0.4.0",
     "license": "Apache-2.0",
     "sideEffects": false,
     "files": [
@@ -76,9 +77,9 @@
             "import": "./dist/esm/verify/index.js",
             "require": "./dist/cjs/verify/index.js"
         },
-        "./graphql/schemas/2024.9": {
-            "import": "./dist/esm/graphql/schemas/2024.9/index.js",
-            "require": "./dist/cjs/graphql/schemas/2024.9/index.js"
+        "./graphql/schemas/2024.11": {
+            "import": "./dist/esm/graphql/schemas/2024.11/index.js",
+            "require": "./dist/cjs/graphql/schemas/2024.11/index.js"
         }
     },
     "scripts": {
@@ -102,9 +103,8 @@
         "eslint:fix": "pnpm run eslint:check --fix",
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
-        "update-graphql-schema": "pnpm run generate-schema -c src/graphql/generated/2024.9/tsconfig.tada.json",
         "update-graphql-schemas": "pnpm tsx scripts/update-graphql-schemas.ts",
-        "update-open-rpc-schema": "pnpm tsx scripts/generate.ts",
+        "update-open-rpc-client-types": "pnpm tsx scripts/generate.ts",
         "generate-schema": "gql.tada generate-output"
     },
     "bugs": {

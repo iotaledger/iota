@@ -16,8 +16,8 @@ use iota_sdk::IotaClientBuilder;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let client = IotaClientBuilder::default()
-        .ws_url("wss://rpc.testnet.iota.io:443")
-        .build("https://fullnode.testnet.iota.io:443")
+        .ws_url("wss://api.testnet.iota.cafe")
+        .build("https://api.testnet.iota.cafe")
         .await?;
     println!("WS version {:?}", client.api_version());
 

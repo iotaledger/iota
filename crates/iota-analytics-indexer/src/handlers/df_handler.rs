@@ -134,7 +134,7 @@ impl DynamicFieldHandler {
         let name_type = move_object.type_().try_extract_field_name(&type_)?;
 
         let bcs_name = bcs::to_bytes(&name_value.clone().undecorate()).map_err(|e| {
-            IndexerError::SerdeError(format!(
+            IndexerError::Serde(format!(
                 "Failed to serialize dynamic field name {:?}: {e}",
                 name_value
             ))
@@ -166,7 +166,7 @@ impl DynamicFieldHandler {
             },
             DynamicFieldType::DynamicObject => {
                 let object = all_written_objects.get(&object_id).ok_or(
-                    IndexerError::UncategorizedError(anyhow::anyhow!(
+                    IndexerError::Uncategorized(anyhow::anyhow!(
                         "Failed to find object_id {:?} when trying to create dynamic field info",
                         object_id
                     )),

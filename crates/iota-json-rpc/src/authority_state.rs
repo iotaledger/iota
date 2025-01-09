@@ -223,12 +223,12 @@ pub trait StateRead: Send + Sync {
         digest: CheckpointDigest,
     ) -> StateReadResult<VerifiedCheckpoint>;
 
-    fn deprecated_multi_get_transaction_checkpoint(
+    fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>>;
 
-    fn deprecated_get_transaction_checkpoint(
+    fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>>;
@@ -354,7 +354,6 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    #[allow(clippy::type_complexity)]
     async fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
@@ -544,22 +543,22 @@ impl StateRead for AuthorityState {
         Ok(self.get_verified_checkpoint_summary_by_digest(digest)?)
     }
 
-    fn deprecated_multi_get_transaction_checkpoint(
+    fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
         Ok(self
             .get_checkpoint_cache()
-            .deprecated_multi_get_transaction_checkpoint(digests)?)
+            .multi_get_transactions_perpetual_checkpoints(digests)?)
     }
 
-    fn deprecated_get_transaction_checkpoint(
+    fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>> {
         Ok(self
             .get_checkpoint_cache()
-            .deprecated_get_transaction_checkpoint(digest)?)
+            .get_transaction_perpetual_checkpoint(digest)?)
     }
 
     fn multi_get_checkpoint_by_sequence_number(
@@ -653,9 +652,9 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
 #[derive(Debug, Error)]
 pub enum StateReadInternalError {
     #[error(transparent)]
-    IotaError(#[from] IotaError),
+    Iota(#[from] IotaError),
     #[error(transparent)]
-    JoinError(#[from] JoinError),
+    Join(#[from] JoinError),
     #[error(transparent)]
     Anyhow(#[from] anyhow::Error),
 }
@@ -663,9 +662,9 @@ pub enum StateReadInternalError {
 #[derive(Debug, Error)]
 pub enum StateReadClientError {
     #[error(transparent)]
-    IotaError(#[from] IotaError),
+    Iota(#[from] IotaError),
     #[error(transparent)]
-    UserInputError(#[from] UserInputError),
+    UserInput(#[from] UserInputError),
 }
 
 /// `StateReadError` is the error type for callers to work with.

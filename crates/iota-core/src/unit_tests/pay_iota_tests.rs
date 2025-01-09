@@ -444,7 +444,7 @@ async fn execute_pay_all_iota(
         )
         .build();
     let genesis = network_config.genesis;
-    let keypair = network_config.validator_configs[0].protocol_key_pair();
+    let keypair = network_config.validator_configs[0].authority_key_pair();
 
     let authority_state = init_state_with_committee(&genesis, keypair).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();

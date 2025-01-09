@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaWallet } from '_src/dapp-interface/WalletStandardInterface';
+import { type IotaWallet } from '_src/dapp-interface/walletStandardInterface';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { getWallets, ReadonlyWalletAccount, type Wallet } from '@iota/wallet-standard';
 import { useEffect, useState } from 'react';
@@ -131,7 +131,7 @@ function App() {
                 onClick={async () => {
                     setError(null);
                     try {
-                        await iotaWallet.features['iota:signMessage']?.signMessage({
+                        await iotaWallet.features['iota:signPersonalMessage']?.signPersonalMessage({
                             account: getAccount(accounts[0], useWrongAccounts),
                             message: new TextEncoder().encode('Test message'),
                         });

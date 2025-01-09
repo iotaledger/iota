@@ -50,7 +50,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .transfer_object(
             sender,
             object_to_transfer.coin_object_id,
-            Some(gas_coin.coin_object_id),
+            gas_coin.coin_object_id,
             gas_budget,
             recipient,
         )

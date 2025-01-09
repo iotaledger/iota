@@ -4,7 +4,6 @@ tags: [ typescript, sdk, getting-started, install]
 ---
 
 import InfoPnpmRequired from "../../_snippets/info-pnpm-required.mdx";
-import AlphaNet from "../../_snippets/alphanet.mdx";
 import Quiz from '@site/src/components/Quiz';
 import questions from '/json/developer/getting-started/client-tssdk.json';
 
@@ -35,14 +34,14 @@ yarn create @iota/dapp --template react-client-dapp
 
 ## What is the IOTA TypeScript SDK?
 
-The [IOTA TypeScript SDK](../../references/ts-sdk/typescript/index.mdx) (`@iota/iota-sdk`) provides the essential
+The [IOTA TypeScript SDK](../../ts-sdk/typescript/index.mdx) (`@iota/iota-sdk`) provides the essential
 functionality needed to interact with the IOTA
 ecosystem from TypeScript. It's versatile enough to be used in any TypeScript or JavaScript project, including web apps,
 Node.js applications, or mobile apps developed with tools like React Native that support TypeScript.
 
 ## What is dApp Kit?
 
-[dApp Kit](../../references/ts-sdk/dapp-kit/index.mdx). (`@iota/dapp-kit`) is a collection of React hooks, components,
+[dApp Kit](../../ts-sdk/dapp-kit/index.mdx). (`@iota/dapp-kit`) is a collection of React hooks, components,
 and utilities designed to simplify building
 decentralized applications (dApps) on the IOTA network.
 
@@ -97,7 +96,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 	</React.StrictMode>,
 );
 ```
-<AlphaNet />
 
 ### `IotaClientProvider`
 
@@ -113,7 +111,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const queryClient = new QueryClient();
 const networks = {
 	devnet: { url: getFullnodeUrl('devnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+	testnet: { url: getFullnodeUrl('testnet') },
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -142,7 +140,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const queryClient = new QueryClient();
 const networks = {
 	devnet: { url: getFullnodeUrl('devnet') },
-	mainnet: { url: getFullnodeUrl('mainnet') },
+    testnet: { url: getFullnodeUrl('testnet') },
 };
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -245,7 +243,7 @@ function OwnedObjects({ address }: { address: string }) {
 		<ul>
 			{data.data.map((object) => (
 				<li key={object.data?.objectId}>
-					<a href={`https://explorer.iota.cafe/object/${object.data?.objectId}`}>
+					<a href={`https://explorer.rebased.iota.org/object/${object.data?.objectId}`}>
 						{object.data?.objectId}
 					</a>
 				</li>

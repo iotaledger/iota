@@ -25,7 +25,6 @@ export function ValidatorStats({
     const numberOfDelegators = 0;
     const networkStakingParticipation = 0;
     const votedLastRound = 0;
-    const lastNarwhalRound = 0;
 
     const totalStake = Number(validatorData.stakingPoolIotaBalance);
     const commission = Number(validatorData.commissionRate) / 100;
@@ -151,17 +150,6 @@ export function ValidatorStats({
                                 !tallyingScore
                                     ? 'Coming soon'
                                     : 'A score created by validators to assess each other’s performance during Iota’s standard operations.'
-                            }
-                            tooltipPosition={TooltipPosition.Right}
-                        />
-                        <LabelText
-                            size={LabelTextSize.Medium}
-                            label="Last Narwhal round"
-                            text={lastNarwhalRound || '--'}
-                            tooltipText={
-                                !lastNarwhalRound
-                                    ? 'Coming soon'
-                                    : 'The most recent Narwhal round for this epoch.'
                             }
                             tooltipPosition={TooltipPosition.Right}
                         />

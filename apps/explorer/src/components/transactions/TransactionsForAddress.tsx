@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { useIotaClient } from '@iota/dapp-kit';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
-import { LoadingIndicator, Text } from '@iota/ui';
+import { Warning } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
-
-import { Banner, TableCard } from '~/components/ui';
+import { TableCard } from '~/components/ui';
 import { generateTransactionsTableColumns } from '~/lib/ui';
 
 interface TransactionsForAddressProps {
@@ -38,9 +38,13 @@ export function TransactionsForAddressTable({
 
     if (isError) {
         return (
-            <Banner variant="error" fullWidth>
-                Transactions could not be extracted on the following specified address: {address}
-            </Banner>
+            <InfoBox
+                title="Failed to extract transactions"
+                supportingText={`Transactions could not be extracted on the following specified address: ${address}`}
+                icon={<Warning />}
+                type={InfoBoxType.Error}
+                style={InfoBoxStyle.Elevated}
+            />
         );
     }
 
@@ -50,9 +54,9 @@ export function TransactionsForAddressTable({
     if (!hasTxns) {
         return (
             <div className="flex h-20 items-center justify-center md:h-full">
-                <Text variant="body/medium" color="steel-dark">
+                <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
                     No transactions found
-                </Text>
+                </span>
             </div>
         );
     }

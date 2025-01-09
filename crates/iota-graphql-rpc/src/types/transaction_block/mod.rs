@@ -467,8 +467,13 @@ impl Loader<DigestKey> for Db {
 
         let transaction_digest_to_stored: BTreeMap<_, _> = transactions
             .into_iter()
-            .map(|tx| (tx.transaction_digest.clone(), tx))
-            .collect();
+            .map(|mut tx| {
+                if tx.is_genesis() {
+                    tx = tx.set_genesis_large_object_as_inner_data(&self.inner.get_pool())?;
+                }
+                Ok((tx.transaction_digest.clone(), tx))
+            })
+            .collect::<Result<BTreeMap<_, _>, Error>>()?;
 
         let mut results = HashMap::new();
         for key in keys {

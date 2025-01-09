@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the key difference in how metadata changes for 'name' take effect compared to changes for 'network address'?",
+        "answerOptions": [
+            { "answerText": "Metadata changes for 'name' take effect immediately, while changes for 'network address' take effect after the next epoch and require a restart.", "isCorrect": true },
+            { "answerText": "Both types of metadata changes take effect immediately.", "isCorrect": false },
+            { "answerText": "Changes for all listed metadata types require waiting for the next epoch and a validator restart.", "isCorrect": false },
+            { "answerText": "User cannot change 'network address'.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What happens if you update a validator's network public key?",
+        "answerOptions": [
+          { "answerText": "The change takes effect immediately.", "isCorrect": false },
+          { "answerText": "The change takes effect after the next epoch, and you must restart the validator with the new key.", "isCorrect": true },
+          { "answerText": "The change will never take effect until you leave and rejoin the committee.", "isCorrect": false },
+          { "answerText": "It takes effect after the next epoch, with no further action required.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which metadata changes take effect immediately for IOTA validators?",
+        "answerOptions": [
+            { "answerText": "name, description, image URL, and project URL", "isCorrect": true },
+            { "answerText": "network address, authority public key, and protocol public key", "isCorrect": false },
+            { "answerText": "primary address, and authority public key", "isCorrect": false },
+            { "answerText": "description, and project URL", "isCorrect": false }
+        ]
+    }
+]

@@ -138,7 +138,7 @@ impl CheckpointBlockProvider {
 
         // previous digest should only be None for genesis block.
         if checkpoint.previous_digest.is_none() && index != 0 {
-            return Err(Error::DataError(format!(
+            return Err(Error::Data(format!(
                 "Previous digest is None for checkpoint [{index}], digest: [{hash:?}]"
             )));
         }

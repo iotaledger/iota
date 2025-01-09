@@ -166,7 +166,7 @@ impl<'a, S> Api<'a, S> {
         openapi.tags.sort_by(|a, b| a.name.cmp(&b.name));
 
         openapi.servers = vec![openapiv3::v3_1::Server {
-            url: "/v2".into(),
+            url: "/api/v1".into(),
             ..Default::default()
         }];
 

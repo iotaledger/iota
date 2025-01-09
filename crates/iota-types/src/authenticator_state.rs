@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
+pub(crate) use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
@@ -94,11 +94,10 @@ fn jwk_ord(a: &ActiveJwk, b: &ActiveJwk) -> std::cmp::Ordering {
     }
 }
 
-#[allow(clippy::non_canonical_partial_ord_impl)]
 impl std::cmp::PartialOrd for ActiveJwk {
     // This must match the sort order defined by jwk_lt in authenticator_state.move
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(jwk_ord(self, other))
+        Some(self.cmp(other))
     }
 }
 

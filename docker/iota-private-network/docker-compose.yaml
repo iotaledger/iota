@@ -4,7 +4,7 @@ x-common-validator: &common-validator
   image: iota-node
   environment: &common-env
     - RUST_BACKTRACE=1
-    - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,narwhal=debug,narwhal-primary::helper=info,jsonrpsee=error
+    - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error
     - RPC_WORKER_THREAD=12
     - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
     - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000

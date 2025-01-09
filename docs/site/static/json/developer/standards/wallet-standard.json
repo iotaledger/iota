@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the primary purpose of the `standard:connect` feature in the Wallet standard?",
+        "answerOptions": [
+            { "answerText": "To disconnect the wallet from the dApp.", "isCorrect": false },
+            { "answerText": "To report transaction effects back to the wallet.", "isCorrect": false },
+            { "answerText": "To initiate a connection to the wallet and allow dApps to access its features.", "isCorrect": true },
+            { "answerText": "To register a new wallet with the dApp.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which of the following features must be implemented by a wallet to be listed in the IOTA wallet adapter?",
+        "answerOptions": [
+            { "answerText": "iota:reportTransactionEffects", "isCorrect": true },
+            { "answerText": "iota:generateAddress", "isCorrect": false },
+            { "answerText": "iota:fetchBalance", "isCorrect": false },
+            { "answerText": "iota:createAccount", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the purpose of the `iota:reportTransactionEffects` feature in the Wallet standard?",
+        "answerOptions": [
+            { "answerText": "To retrieve the historical effects of all transactions made by the wallet.", "isCorrect": false },
+            { "answerText": "To allow dApps to report the effects of a transaction executed to the wallet, enabling it to update its internal state.", "isCorrect": true },
+            { "answerText": "To initiate a transaction based on previous transaction effects.", "isCorrect": false },
+            { "answerText": "To log transaction effects for auditing purposes.", "isCorrect": false }
+        ]
+    }
+]

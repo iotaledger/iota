@@ -62,7 +62,7 @@ impl WriteAheadLog {
         if self.log.contains_key(&coin)? {
             // Don't permit multiple writes against the same coin
             // TODO: Use a better error type than `TypedStoreError`.
-            return Err(TypedStoreError::SerializationError(format!(
+            return Err(TypedStoreError::Serialization(format!(
                 "Duplicate WAL entry for coin {coin:?}",
             )));
         }
@@ -83,7 +83,7 @@ impl WriteAheadLog {
     pub(crate) fn reclaim(&self, coin: ObjectID) -> Result<Option<Entry>, TypedStoreError> {
         match self.log.get(&coin) {
             Ok(entry) => Ok(entry),
-            Err(TypedStoreError::SerializationError(_)) => {
+            Err(TypedStoreError::Serialization(_)) => {
                 // Remove bad log from the store, so we don't crash on start up, this can happen
                 // if we update the WAL Entry and have some leftover Entry from
                 // the WAL.
@@ -124,7 +124,7 @@ impl WriteAheadLog {
                 "Attempted to set inflight a coin that was not in the WAL."
             );
 
-            return Err(TypedStoreError::RocksDBError(format!(
+            return Err(TypedStoreError::RocksDB(format!(
                 "Coin object {coin:?} not found in WAL."
             )));
         }
@@ -203,7 +203,7 @@ mod tests {
         // Second write fails because it tries to write to the same coin
         assert!(matches!(
             wal.reserve(uuid, coin.0, recv1, tx1),
-            Err(TypedStoreError::SerializationError(_)),
+            Err(TypedStoreError::Serialization(_)),
         ));
     }
 

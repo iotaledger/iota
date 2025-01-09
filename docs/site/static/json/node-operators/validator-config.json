@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "In the IOTA Validator setup, what is the maximum voting power a single validator can hold, regardless of the amount staked?",
+        "answerOptions": [
+            { "answerText": "1,000", "isCorrect": true },
+            { "answerText": "2,000", "isCorrect": false },
+            { "answerText": "6,667", "isCorrect": false },
+            { "answerText": "10,000", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "How does a validator set the reference gas price for the next epoch?",
+        "answerOptions": [
+            { "answerText": "By submitting a gas price quote during the gas price survey at the end of each epoch.", "isCorrect": true },
+            { "answerText": "By manually adjusting the gas price in the fullnode configuration file.", "isCorrect": false },
+            { "answerText": "By aggregating the previous epoch's gas prices from all validators.", "isCorrect": false },
+            { "answerText": "By implementing a fixed gas price throughout the network.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What happens if a validator is deemed to be non-performant by other validators in the IOTA network?",
+        "answerOptions": [
+            { "answerText": "The validator is removed from the network immediately.", "isCorrect": false },
+            { "answerText": "The validator is automatically demoted to a full node.", "isCorrect": false },
+            { "answerText": "The validator's rewards can be slashed based on the tallying rule.", "isCorrect": true },
+            { "answerText": "The validator's stake is redistributed among other validators.", "isCorrect": false }
+        ]
+    }
+]

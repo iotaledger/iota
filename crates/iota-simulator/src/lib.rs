@@ -18,7 +18,6 @@ pub use lru;
 pub use move_package;
 #[cfg(msim)]
 pub use msim::*;
-pub use narwhal_network;
 pub use telemetry_subscribers;
 pub use tempfile;
 pub use tower;
@@ -88,7 +87,7 @@ pub mod configs {
         env_configs: impl IntoIterator<Item = (&'static str, SimConfig)>,
     ) -> SimConfig {
         let mut env_configs = HashMap::<&'static str, SimConfig>::from_iter(env_configs);
-        if let Some(env) = std::env::var("IOTA_SIM_CONFIG").ok() {
+        if let Ok(env) = std::env::var("IOTA_SIM_CONFIG") {
             if let Some(cfg) = env_configs.remove(env.as_str()) {
                 info!("Using test config for IOTA_SIM_CONFIG={}", env);
                 cfg

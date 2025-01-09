@@ -91,7 +91,6 @@ impl Commit {
 pub(crate) trait CommitAPI {
     fn round(&self) -> Round;
     fn index(&self) -> CommitIndex;
-    #[allow(dead_code)]
     fn previous_digest(&self) -> CommitDigest;
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
@@ -269,7 +268,7 @@ pub struct CommitRef {
 }
 
 impl CommitRef {
-    pub(crate) fn new(index: CommitIndex, digest: CommitDigest) -> Self {
+    pub fn new(index: CommitIndex, digest: CommitDigest) -> Self {
         Self { index, digest }
     }
 }
@@ -315,8 +314,8 @@ pub struct CommittedSubDag {
 }
 
 impl CommittedSubDag {
-    /// Create new (empty) sub-dag.
-    pub(crate) fn new(
+    /// Creates a new committed sub dag.
+    pub fn new(
         leader: BlockRef,
         blocks: Vec<VerifiedBlock>,
         timestamp_ms: BlockTimestampMs,

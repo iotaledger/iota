@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { ReactNode } from 'react';
+import { ReactNode } from 'react';
 import cx from 'classnames';
 import { Copy, Info } from '@iota/ui-icons';
 import { ValueSize } from './keyValue.enums';
@@ -53,6 +53,14 @@ interface KeyValueProps {
      * Full width KeyValue (optional).
      */
     fullwidth?: boolean;
+    /**
+     * Reverse the KeyValue (optional).
+     */
+    isReverse?: boolean;
+    /**
+     * Text shown on value hover.
+     */
+    valueHoverTitle?: string;
 }
 
 export function KeyValueInfo({
@@ -67,7 +75,10 @@ export function KeyValueInfo({
     onCopySuccess,
     onCopyError,
     fullwidth,
+    isReverse = false,
+    valueHoverTitle,
 }: KeyValueProps): React.JSX.Element {
+    const flexDirectionClass = isReverse ? 'flex-row-reverse' : 'flex-row';
     async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
         if (!navigator.clipboard) {
             return;
@@ -86,9 +97,13 @@ export function KeyValueInfo({
 
     return (
         <div
-            className={cx('flex w-full flex-row items-baseline gap-xs py-xxs font-inter', {
-                'justify-between': fullwidth,
-            })}
+            className={cx(
+                'flex w-full items-baseline gap-xs py-xxs font-inter',
+                flexDirectionClass,
+                {
+                    'justify-between': fullwidth,
+                },
+            )}
         >
             <div
                 className={cx('flex shrink-0 flex-row items-center gap-x-0.5', {
@@ -109,6 +124,7 @@ export function KeyValueInfo({
                 })}
             >
                 <span
+                    title={valueHoverTitle}
                     className={cx(
                         'text-neutral-10 dark:text-neutral-92',
                         size === ValueSize.Medium ? 'text-body-lg' : 'text-body-md',
@@ -138,5 +154,3 @@ export function KeyValueInfo({
         </div>
     );
 }
-
-export default KeyValueInfo;

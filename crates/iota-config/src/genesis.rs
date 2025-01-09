@@ -21,7 +21,7 @@ use iota_types::{
     clock::Clock,
     committee::{Committee, CommitteeWithNetworkMetadata, EpochId, ProtocolVersion},
     crypto::DefaultHash,
-    deny_list_v1::{PerTypeDenyList, get_coin_deny_list},
+    deny_list_v1::get_deny_list_root_object,
     effects::{TransactionEffects, TransactionEvents},
     error::IotaResult,
     iota_system_state::{
@@ -162,6 +162,10 @@ impl Genesis {
             .expect("Iota System State Wrapper object must always exist")
     }
 
+    pub fn contains_migrations(&self) -> bool {
+        self.checkpoint_contents.size() > 1
+    }
+
     pub fn iota_system_object(&self) -> IotaSystemState {
         get_iota_system_state(&self.objects()).expect("Iota System State object must always exist")
     }
@@ -171,29 +175,29 @@ impl Genesis {
             .objects()
             .iter()
             .find(|o| o.id() == iota_types::IOTA_CLOCK_OBJECT_ID)
-            .expect("Clock must always exist")
+            .expect("clock must always exist")
             .data
             .try_as_move()
-            .expect("Clock must be a Move object");
+            .expect("clock must be a Move object");
         bcs::from_bytes::<Clock>(clock.contents())
-            .expect("Clock object deserialization cannot fail")
+            .expect("clock object deserialization cannot fail")
     }
 
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
         let path = path.as_ref();
-        trace!("Reading Genesis from {}", path.display());
+        trace!("reading Genesis from {}", path.display());
         let read = File::open(path)
-            .with_context(|| format!("Unable to load Genesis from {}", path.display()))?;
+            .with_context(|| format!("unable to load Genesis from {}", path.display()))?;
         bcs::from_reader(BufReader::new(read))
-            .with_context(|| format!("Unable to parse Genesis from {}", path.display()))
+            .with_context(|| format!("unable to parse Genesis from {}", path.display()))
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), anyhow::Error> {
         let path = path.as_ref();
-        trace!("Writing Genesis to {}", path.display());
+        trace!("writing Genesis to {}", path.display());
         let mut write = BufWriter::new(File::create(path)?);
         bcs::serialize_into(&mut write, &self)
-            .with_context(|| format!("Unable to save Genesis to {}", path.display()))?;
+            .with_context(|| format!("unable to save Genesis to {}", path.display()))?;
         Ok(())
     }
 
@@ -342,8 +346,8 @@ impl UnsignedGenesis {
             .is_some()
     }
 
-    pub fn coin_deny_list_state(&self) -> Option<PerTypeDenyList> {
-        get_coin_deny_list(&self.objects())
+    pub fn has_coin_deny_list_object(&self) -> bool {
+        get_deny_list_root_object(&self.objects()).is_ok()
     }
 }
 
@@ -450,7 +454,7 @@ impl TokenDistributionSchedule {
         for allocation in &self.allocations {
             total_nanos = total_nanos
                 .checked_add(allocation.amount_nanos)
-                .expect("TokenDistributionSchedule allocates more than the maximum supply which equals u64::MAX", );
+                .expect("TokenDistributionSchedule allocates more than the maximum supply which equals u64::MAX");
         }
     }
 
@@ -512,12 +516,7 @@ impl TokenDistributionSchedule {
     /// Helper to read a TokenDistributionSchedule from a csv file.
     ///
     /// The file is encoded such that the final entry in the CSV file is used to
-    /// denote the allocation to the stake subsidy fund. It must be in the
-    /// following format:
-    /// `0x0000000000000000000000000000000000000000000000000000000000000000,
-    /// <pre>minted supply</pre>,`
-    ///
-    /// All entries in a token distribution schedule must add up to 10B Iota.
+    /// denote the allocation to the stake subsidy fund.
     pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
         let mut reader = csv::Reader::from_reader(reader);
         let mut allocations: Vec<TokenAllocation> =
@@ -527,11 +526,11 @@ impl TokenDistributionSchedule {
         assert_eq!(
             IotaAddress::default(),
             pre_minted_supply.recipient_address,
-            "Final allocation must be for the pre-minted supply amount",
+            "final allocation must be for the pre-minted supply amount",
         );
         assert!(
             pre_minted_supply.staked_with_validator.is_none(),
-            "Can't stake the pre-minted supply amount",
+            "cannot stake the pre-minted supply amount",
         );
 
         let schedule = Self {
@@ -564,7 +563,17 @@ impl TokenDistributionSchedule {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct TokenAllocation {
+    /// Indicates the address that owns the tokens. It means that this
+    /// `TokenAllocation` can serve to stake some funds to the
+    /// `staked_with_validator` during genesis, but it's the `recipient_address`
+    /// which will receive the associated StakedIota (or TimelockedStakedIota)
+    /// object.
     pub recipient_address: IotaAddress,
+    /// Indicates an amount of nanos that is:
+    /// - minted for the `recipient_address` and staked to a validator, only in
+    ///   the case `staked_with_validator` is Some
+    /// - minted for the `recipient_address` and transferred that address,
+    ///   otherwise.
     pub amount_nanos: u64,
 
     /// Indicates if this allocation should be staked at genesis and with which
@@ -582,7 +591,7 @@ pub struct TokenDistributionScheduleBuilder {
 }
 
 impl TokenDistributionScheduleBuilder {
-    #[allow(clippy::new_without_default)]
+    #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             pre_minted_supply: 0,
@@ -622,5 +631,119 @@ impl TokenDistributionScheduleBuilder {
 
         schedule.validate();
         schedule
+    }
+}
+
+/// Represents the allocation of stake and gas payment to a validator.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ValidatorAllocation {
+    /// The validator address receiving the stake and/or gas payment
+    pub validator: IotaAddress,
+    /// The amount of nanos to stake to the validator
+    pub amount_nanos_to_stake: u64,
+    /// The amount of nanos to transfer as gas payment to the validator
+    pub amount_nanos_to_pay_gas: u64,
+}
+
+/// Represents a delegation of stake and gas payment to a validator,
+/// coming from a delegator. This struct is used to serialize and deserialize
+/// delegations to and from a csv file.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Delegation {
+    /// The address from which to take the nanos for staking/gas
+    pub delegator: IotaAddress,
+    /// The allocation to a validator receiving a stake and/or a gas payment
+    #[serde(flatten)]
+    pub validator_allocation: ValidatorAllocation,
+}
+
+/// Represents genesis delegations to validators.
+///
+/// This struct maps a delegator address to a list of validators and their
+/// stake and gas allocations. Each ValidatorAllocation contains the address of
+/// a validator that will receive an amount of nanos to stake and an amount as
+/// gas payment.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Delegations {
+    pub allocations: HashMap<IotaAddress, Vec<ValidatorAllocation>>,
+}
+
+impl Delegations {
+    pub fn new_for_validators_with_default_allocation(
+        validators: impl IntoIterator<Item = IotaAddress>,
+        delegator: IotaAddress,
+    ) -> Self {
+        let validator_allocations = validators
+            .into_iter()
+            .map(|address| ValidatorAllocation {
+                validator: address,
+                amount_nanos_to_stake: iota_types::governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                amount_nanos_to_pay_gas: 0,
+            })
+            .collect();
+
+        let mut allocations = HashMap::new();
+        allocations.insert(delegator, validator_allocations);
+
+        Self { allocations }
+    }
+
+    /// Helper to read a Delegations struct from a csv file.
+    ///
+    /// The file is encoded such that the final entry in the CSV file is used to
+    /// denote the allocation coming from a delegator. It must be in the
+    /// following format:
+    /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
+    /// <delegator1-address>,<validator-1-address>,2000000000000000,5000000000
+    /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
+    /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
+    pub fn from_csv<R: std::io::Read>(reader: R) -> Result<Self> {
+        let mut reader = csv::Reader::from_reader(reader);
+
+        let mut delegations = Self::default();
+        for delegation in reader.deserialize::<Delegation>() {
+            let delegation = delegation?;
+            delegations
+                .allocations
+                .entry(delegation.delegator)
+                .or_default()
+                .push(delegation.validator_allocation);
+        }
+
+        Ok(delegations)
+    }
+
+    /// Helper to write a Delegations struct into a csv file.
+    ///
+    /// It writes in the following format:
+    /// `delegator,validator,amount-nanos-to-stake,amount-nanos-to-pay-gas
+    /// <delegator1-address>,<validator-1-address>,2000000000000000,5000000000
+    /// <delegator1-address>,<validator-2-address>,3000000000000000,5000000000
+    /// <delegator2-address>,<validator-3-address>,4500000000000000,5000000000`
+    pub fn to_csv<W: std::io::Write>(&self, writer: W) -> Result<()> {
+        let mut writer = csv::Writer::from_writer(writer);
+
+        writer.write_record([
+            "delegator",
+            "validator",
+            "amount-nanos-to-stake",
+            "amount-nanos-to-pay-gas",
+        ])?;
+
+        for (&delegator, validator_allocations) in &self.allocations {
+            for validator_allocation in validator_allocations {
+                writer.write_record(&[
+                    delegator.to_string(),
+                    validator_allocation.validator.to_string(),
+                    validator_allocation.amount_nanos_to_stake.to_string(),
+                    validator_allocation.amount_nanos_to_pay_gas.to_string(),
+                ])?;
+            }
+        }
+
+        Ok(())
     }
 }

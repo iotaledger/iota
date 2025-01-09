@@ -29,7 +29,7 @@
 27: PackageUpgradeError
 28: WrittenObjectsTooLarge
 29: CertificateDenied
-30: IotaMoveVerificationTimedout
+30: IotaMoveVerificationTimeout
 31: SharedObjectOperationNotAllowed
 32: InputObjectDeleted
 33: ExecutionCancelledDueToSharedObjectCongestion

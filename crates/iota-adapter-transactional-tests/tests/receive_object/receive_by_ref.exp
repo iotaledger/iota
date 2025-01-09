@@ -4,13 +4,13 @@ task 1, lines 7-40:
 //# publish
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 9872400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9864800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 42:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3397200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 44:
 //# view-object 2,0
@@ -39,12 +39,12 @@ Contents: tto::M1::B {
 task 5, line 48:
 //# run tto::M1::call_mut_ref --args object(2,0) receiving(2,1)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 2188800, non_refundable_storage_fee: 0
 
 task 6, line 50:
 //# run tto::M1::call_immut_ref --args object(2,0) receiving(2,1)
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 2204000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 2188800, non_refundable_storage_fee: 0
 
 task 7, line 52:
 //# run tto::M1::call_mut_ref_ret --args object(2,0) receiving(2,1)
@@ -60,7 +60,7 @@ task 9, lines 56-57:
 //# programmable --inputs receiving(2,1)
 //> tto::M1::immut_immut_ref(Input(0), Input(0))
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 10, lines 59-60:
 //# programmable --inputs receiving(2,1)

@@ -4,9 +4,8 @@
 
 import { useContext } from 'react';
 import { createPortal } from 'react-dom';
-
-import { Heading } from '../heading';
 import { PageMainLayoutContext } from './PageMainLayout';
+import { Header } from '@iota/apps-ui-kit';
 
 export type PageMainLayoutTitleProps = {
     title: string;
@@ -14,12 +13,7 @@ export type PageMainLayoutTitleProps = {
 export function PageMainLayoutTitle({ title }: PageMainLayoutTitleProps) {
     const titleNode = useContext(PageMainLayoutContext);
     if (titleNode) {
-        return createPortal(
-            <Heading variant="heading4" truncate weight="semibold" color="gray-90">
-                {title}
-            </Heading>,
-            titleNode,
-        );
+        return createPortal(<Header titleCentered title={title} />, titleNode);
     }
     return null;
 }

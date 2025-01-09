@@ -73,8 +73,7 @@ pub fn init_static_initializers(_args: TokenStream, item: TokenStream) -> TokenS
                 use ::iota_simulator::anemo_tower::trace::DefaultMakeSpan;
                 use ::iota_simulator::anemo_tower::trace::DefaultOnFailure;
                 use ::iota_simulator::anemo_tower::trace::TraceLayer;
-                use ::iota_simulator::narwhal_network::metrics::MetricsMakeCallbackHandler;
-                use ::iota_simulator::narwhal_network::metrics::NetworkMetrics;
+                use ::iota_metrics::metrics_network::{NetworkMetrics, MetricsMakeCallbackHandler};
 
                 use std::sync::Arc;
                 use ::iota_simulator::fastcrypto::traits::KeyPair;
@@ -235,7 +234,7 @@ pub fn sim_test(args: TokenStream, item: TokenStream) -> TokenStream {
         let sig = &input.sig;
         let body = &input.block;
         quote! {
-            #[allow(clippy::needless_return)]
+            #[expect(clippy::needless_return)]
             #[tokio::test]
             #ignore
             #sig {

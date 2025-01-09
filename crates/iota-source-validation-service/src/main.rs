@@ -34,7 +34,7 @@ pub async fn main() -> anyhow::Result<()> {
     let (sources, sources_list) = initialize(&package_config, tmp_dir.path()).await?;
     info!("verification complete in {:?}", start.elapsed());
 
-    let metrics_listener = tokio::net::TcpListener::bind(METRICS_HOST_PORT).await?;
+    let metrics_listener = std::net::TcpListener::bind(METRICS_HOST_PORT)?;
     let registry_service = start_prometheus_server(metrics_listener);
     let prometheus_registry = registry_service.default_registry();
     let metrics = SourceServiceMetrics::new(&prometheus_registry);

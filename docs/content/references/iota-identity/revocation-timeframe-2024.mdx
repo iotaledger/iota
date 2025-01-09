@@ -13,7 +13,7 @@ tags:
 
 ## Abstract
 
-This specification describes a new revocation mechanism - `RevocationTimeframe2024` - that extends [`RevocationBitmap2022`](revocation-bitmap-2022.mdx)
+This specification describes a new revocation mechanism - `RevocationTimeframe2024` - that extends [`RevocationBitmap2022`](./revocation-bitmap-2022.mdx)
 to address its linkability security concerns, at least when used in combination with selectively disclosable (SD-able) VCs.
 
 ## Introduction
@@ -24,8 +24,8 @@ To address this privacy concern, `RevocationTimeframe2024` was designed as an ex
 most of its logic.
 
 ## Concepts
-`RevocationTimeframe2024` should be used together with selectively disclosable credentials - either [SD-JWT](../../developer/iota-identity/how-tos/verifiable-credentials/selective-disclosure)
-or [ZK-SD](../../developer/iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure) - in order to conceal to the verifier
+`RevocationTimeframe2024` should be used together with selectively disclosable credentials - either [SD-JWT](../../iota-identity/how-tos/verifiable-credentials/selective-disclosure)
+or [ZK-SD](../../iota-identity/how-tos/verifiable-credentials/zero-knowledge-selective-disclosure) - in order to conceal to the verifier
 the credential's index in the issuer's revocation bitmap to avoid linkability.
 
 ### Validity Timeframe
@@ -96,7 +96,7 @@ To allow verifiers to check the status of a [Revocation Timeframe Status](#revoc
 | :---------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`              | The constraints on the `id` property are listed in the [DID Core service specification](https://www.w3.org/TR/did-core/#services). The `id` property MUST be a DID URL uniquely identifying the revocation bitmap. |
 | `type`            | The `type` property MUST be `"RevocationTimeframe2024"`.                                                                                                                                                           |
-| `serviceEndpoint` | The `serviceEndpoint` MUST be generated according to the service endpoint generation algorithm described in [`RevocationBitmap2022`](revocation-bitmap-2022.mdx#service-endpoint-generation-algorithm).                                                                                                                    |
+| `serviceEndpoint` | The `serviceEndpoint` MUST be generated according to the service endpoint generation algorithm described in [`RevocationBitmap2022`](./revocation-bitmap-2022.mdx#service-endpoint-generation-algorithm).                                                                                                                    |
 
 #### Example
 
@@ -133,7 +133,7 @@ An example of an issuers DID document where credential `"5"` in the `#revocation
 
 ## Algorithms
 
-For generation and expansion of the service endpoint see [`RevocationBitmap2022`](revocation-bitmap-2022.mdx#algorithms).
+For generation and expansion of the service endpoint see [`RevocationBitmap2022`](./revocation-bitmap-2022.mdx#algorithms).
 
 ### Validation Algorithm
 
@@ -145,4 +145,4 @@ The following steps MUST be followed when checking whether a verifiable credenti
 4. Return `true` if `startValidityTimeframe <= now < endValidityTimeframe`, `false` otherwise.
 
 ## Test Vectors
-See [`RevocationBitmap2022`](revocation-bitmap-2022.mdx#test-vectors).
+See [`RevocationBitmap2022`](./revocation-bitmap-2022.mdx#test-vectors).

@@ -16,8 +16,7 @@ use crate::{
     error::{Error, IotaRpcResult},
 };
 
-/// Event API provides the functionality to fetch, query, or subscribe to events
-/// on the Iota network.
+/// Defines methods to fetch, query, or subscribe to events on the Iota network.
 #[derive(Clone)]
 pub struct EventApi {
     api: Arc<RpcClient>,
@@ -28,7 +27,7 @@ impl EventApi {
         Self { api }
     }
 
-    /// Return a stream of events, or an error upon failure.
+    /// Subscribe to receive a stream of filtered events.
     ///
     /// Subscription is only possible via WebSockets.
     /// For a list of possible event filters, see [EventFilter].
@@ -45,8 +44,8 @@ impl EventApi {
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default()
-    ///         .ws_url("wss://rpc.mainnet.iota.io:443")
-    ///         .build("https://fullnode.mainnet.iota.io:443")
+    ///         .ws_url("wss://api.mainnet.iota.cafe")
+    ///         .build("https://api.mainnet.iota.cafe")
     ///         .await?;
     ///     let mut subscribe_all = iota
     ///         .event_api()
@@ -73,41 +72,41 @@ impl EventApi {
         }
     }
 
-    /// Return a list of events for the given transaction digest, or an error
-    /// upon failure.
+    /// Get a list of events for the given transaction digest.
     pub async fn get_events(&self, digest: TransactionDigest) -> IotaRpcResult<Vec<IotaEvent>> {
         Ok(self.api.http.get_events(digest).await?)
     }
 
-    /// Return a paginated response with events for the given event filter, or
-    /// an error upon failure.
+    /// Get a list of filtered events.
+    /// The response is paginated and can be ordered ascending or descending.
     ///
-    /// The ordering of the events can be set with the `descending_order`
-    /// argument. For a list of possible event filters, see [EventFilter].
+    /// For a list of possible event filters, see [EventFilter].
     pub async fn query_events(
         &self,
         query: EventFilter,
-        cursor: Option<EventID>,
-        limit: Option<usize>,
+        cursor: impl Into<Option<EventID>>,
+        limit: impl Into<Option<usize>>,
         descending_order: bool,
     ) -> IotaRpcResult<EventPage> {
         Ok(self
             .api
             .http
-            .query_events(query, cursor, limit, Some(descending_order))
+            .query_events(query, cursor.into(), limit.into(), Some(descending_order))
             .await?)
     }
 
-    /// Return a stream of events for the given event filter.
+    /// Get a stream of filtered events which can be ordered ascending or
+    /// descending.
     ///
-    /// The ordering of the events can be set with the `descending_order`
-    /// argument. For a list of possible event filters, see [EventFilter].
+    /// For a list of possible event filters, see [EventFilter].
     pub fn get_events_stream(
         &self,
         query: EventFilter,
-        cursor: Option<EventID>,
+        cursor: impl Into<Option<EventID>>,
         descending_order: bool,
     ) -> impl Stream<Item = IotaEvent> + '_ {
+        let cursor = cursor.into();
+
         stream::unfold(
             (vec![], cursor, true, query),
             move |(mut data, cursor, first, query)| async move {

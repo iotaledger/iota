@@ -8,8 +8,7 @@ import { useCoinsReFetchingConfig } from '_hooks';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { Link } from 'react-router-dom';
-import { CoinItem } from './CoinItem';
-import { filterAndSortTokenBalances } from '@iota/core';
+import { filterAndSortTokenBalances, CoinItem } from '@iota/core';
 
 interface ActiveCoinsCardProps {
     activeCoinType: string;

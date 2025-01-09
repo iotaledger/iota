@@ -46,9 +46,9 @@ describe('SerialExecutor', { retry: 3 }, () => {
 
         const effects = bcs.TransactionEffects.fromBase64(result.effects);
 
-        const newCoinId = effects.V2?.changedObjects.find(
+        const newCoinId = effects.V1?.changedObjects.find(
             ([_id, { outputState }], index) =>
-                index !== effects.V2.gasObjectIndex && outputState.ObjectWrite,
+                index !== effects.V1.gasObjectIndex && outputState.ObjectWrite,
         )?.[0]!;
 
         expect(toolbox.client.getCoins).toHaveBeenCalledTimes(1);
@@ -82,9 +82,9 @@ describe('SerialExecutor', { retry: 3 }, () => {
 
         await toolbox.client.waitForTransaction({ digest: result.digest });
 
-        const newCoinId = effects.V2?.changedObjects.find(
+        const newCoinId = effects.V1?.changedObjects.find(
             ([_id, { outputState }], index) =>
-                index !== effects.V2.gasObjectIndex && outputState.ObjectWrite,
+                index !== effects.V1.gasObjectIndex && outputState.ObjectWrite,
         )?.[0]!;
 
         expect(toolbox.client.getCoins).toHaveBeenCalledTimes(1);
@@ -106,6 +106,6 @@ describe('SerialExecutor', { retry: 3 }, () => {
         const result2 = await executor.executeTransaction(txb3);
 
         expect(result2.digest).not.toEqual(result.digest);
-        expect(bcs.TransactionEffects.fromBase64(result2.effects).V2?.status.Success).toEqual(true);
+        expect(bcs.TransactionEffects.fromBase64(result2.effects).V1?.status.Success).toEqual(true);
     });
 });

@@ -1,0 +1,28 @@
+{
+  "name": "typescript",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "address-unlock-condition": "ts-node src/stardust/address-unlock-condition.ts",
+    "alias-migration": "ts-node src/stardust/alias-migration.ts",
+    "alias-output-claim": "ts-node src/stardust/alias-output-claim.ts",
+    "basic-output-claim": "ts-node src/stardust/basic-output-claim.ts",
+    "check-basic-output-unlock-conditions": "ts-node src/stardust/check-basic-output-unlock-conditions.ts",
+    "foundry-output-claim": "ts-node src/stardust/foundry-output-claim.ts",
+    "iota-self-sponsor": "ts-node src/stardust/iota-self-sponsor.ts",
+    "nft-migration": "ts-node src/stardust/nft-migration.ts",
+    "nft-output-claim": "ts-node src/stardust/nft-output-claim.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/tmp": "^0.2.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@iota/iota-sdk": "file:../../../sdk/typescript"
+  }
+}

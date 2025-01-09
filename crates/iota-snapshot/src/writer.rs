@@ -14,20 +14,16 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use byteorder::{BigEndian, ByteOrder};
 use fastcrypto::hash::MultisetHash;
 use futures::StreamExt;
 use integer_encoding::VarInt;
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_core::{
-    authority::{
-        CHAIN_IDENTIFIER,
-        authority_store_tables::{AuthorityPerpetualTables, LiveObject},
-    },
+    authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     state_accumulator::StateAccumulator,
 };
-use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},
@@ -35,7 +31,6 @@ use iota_storage::{
 use iota_types::{
     accumulator::Accumulator,
     base_types::{ObjectID, ObjectRef},
-    iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::ECMHLiveObjectSetDigest,
 };
 use object_store::{DynObjectStore, path::Path};
@@ -312,26 +307,8 @@ impl StateSnapshotWriterV1 {
         perpetual_db: Arc<AuthorityPerpetualTables>,
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()> {
-        // Retrieves the system state object, configures protocol settings, and
-        // delegates the writing and uploading process to `write_internal`.
-        let system_state_object = get_iota_system_state(&perpetual_db)?;
-
-        let protocol_version = system_state_object.protocol_version();
-        let chain_identifier = CHAIN_IDENTIFIER
-            .get()
-            .ok_or(anyhow!("No chain identifier found"))?;
-        let protocol_config = ProtocolConfig::get_for_version(
-            ProtocolVersion::new(protocol_version),
-            chain_identifier.chain(),
-        );
-        let include_wrapped_tombstone = !protocol_config.simplified_unwrap_then_delete();
-        self.write_internal(
-            epoch,
-            include_wrapped_tombstone,
-            perpetual_db,
-            root_state_hash,
-        )
-        .await
+        self.write_internal(epoch, perpetual_db, root_state_hash)
+            .await
     }
 
     /// Writes the state snapshot for the provided epoch to the local staging
@@ -339,7 +316,6 @@ impl StateSnapshotWriterV1 {
     pub(crate) async fn write_internal(
         mut self,
         epoch: u64,
-        include_wrapped_tombstone: bool,
         perpetual_db: Arc<AuthorityPerpetualTables>,
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()> {
@@ -359,7 +335,6 @@ impl StateSnapshotWriterV1 {
                 perpetual_db,
                 sender,
                 Self::bucket_func,
-                include_wrapped_tombstone,
                 root_state_hash,
             )
         });
@@ -439,7 +414,6 @@ impl StateSnapshotWriterV1 {
         perpetual_db: Arc<AuthorityPerpetualTables>,
         sender: Sender<FileMetadata>,
         bucket_func: F,
-        include_wrapped_tombstone: bool,
         root_state_hash: ECMHLiveObjectSetDigest,
     ) -> Result<()>
     where
@@ -449,7 +423,7 @@ impl StateSnapshotWriterV1 {
         let local_staging_dir_path =
             path_to_filesystem(self.local_staging_dir.clone(), &self.epoch_dir(epoch))?;
         let mut acc = Accumulator::default();
-        for object in perpetual_db.iter_live_object_set(include_wrapped_tombstone) {
+        for object in perpetual_db.iter_live_object_set() {
             StateAccumulator::accumulate_live_object(&mut acc, &object);
             let bucket_num = bucket_func(&object);
             // Creates a new LiveObjectSetWriterV1 for the bucket if it does not exist

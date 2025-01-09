@@ -116,8 +116,7 @@ module iota::kiosk {
     const EWrongKiosk: u64 = 5;
     /// Trying to exclusively list an already listed item.
     const EAlreadyListed: u64 = 6;
-    /// Trying to call `uid_mut` when `allow_extensions` set to false.
-    const EUidAccessNotAllowed: u64 = 7;
+    /// 7 is reserved due to a previous interface having EUidAccessNotAllowed.
     /// Attempt to `take` an item that is locked.
     const EItemLocked: u64 = 8;
     /// Taking or mutably borrowing an item that is listed.
@@ -143,12 +142,6 @@ module iota::kiosk {
         /// Number of items stored in a Kiosk. Used to allow unpacking
         /// an empty Kiosk if it was wrapped or has a single owner.
         item_count: u32,
-        /// [DEPRECATED] Please, don't use the `allow_extensions` and the matching
-        /// `set_allow_extensions` function - it is a legacy feature that is being
-        /// replaced by the `kiosk_extension` module and its Extensions API.
-        ///
-        /// Exposes `uid_mut` publicly when set to `true`, set to `false` by default.
-        allow_extensions: bool
     }
 
     /// A Capability granting the bearer a right to `place` and `take` items
@@ -248,7 +241,6 @@ module iota::kiosk {
             profits: balance::zero(),
             owner: ctx.sender(),
             item_count: 0,
-            allow_extensions: false
         };
 
         let cap = KioskOwnerCap {
@@ -265,7 +257,7 @@ module iota::kiosk {
     public fun close_and_withdraw(
         self: Kiosk, cap: KioskOwnerCap, ctx: &mut TxContext
     ): Coin<IOTA> {
-        let Kiosk { id, profits, owner: _, item_count, allow_extensions: _ } = self;
+        let Kiosk { id, profits, owner: _, item_count } = self;
         let KioskOwnerCap { id: cap_id, `for` } = cap;
 
         assert!(id.to_inner() == `for`, ENotOwner);
@@ -532,16 +524,6 @@ module iota::kiosk {
         &mut self.id
     }
 
-    /// [DEPRECATED]
-    /// Allow or disallow `uid` and `uid_mut` access via the `allow_extensions`
-    /// setting.
-    public fun set_allow_extensions(
-        self: &mut Kiosk, cap: &KioskOwnerCap, allow_extensions: bool
-    ) {
-        assert!(self.has_access(cap), ENotOwner);
-        self.allow_extensions = allow_extensions;
-    }
-
     /// Get the immutable `UID` for dynamic field access.
     /// Always enabled.
     ///
@@ -549,13 +531,6 @@ module iota::kiosk {
     /// its access
     public fun uid(self: &Kiosk): &UID {
         &self.id
-    }
-
-    /// Get the mutable `UID` for dynamic field access and extensions.
-    /// Aborts if `allow_extensions` set to `false`.
-    public fun uid_mut(self: &mut Kiosk): &mut UID {
-        assert!(self.allow_extensions, EUidAccessNotAllowed);
-        &mut self.id
     }
 
     /// Get the owner of the Kiosk.

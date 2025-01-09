@@ -44,7 +44,8 @@ pub async fn start_test_indexer<T: R2D2Connection + Send + 'static>(
     db_url: Option<String>,
     rpc_url: String,
     reader_writer_config: ReaderWriterConfig,
-    data_ingestion_path: PathBuf,
+    data_ingestion_path: Option<PathBuf>,
+    new_database: Option<&str>,
 ) -> (PgIndexerStore<T>, JoinHandle<Result<(), IndexerError>>) {
     start_test_indexer_impl(
         db_url,
@@ -52,8 +53,9 @@ pub async fn start_test_indexer<T: R2D2Connection + Send + 'static>(
         reader_writer_config,
         // reset_database
         false,
-        Some(data_ingestion_path),
+        data_ingestion_path,
         CancellationToken::new(),
+        new_database,
     )
     .await
 }
@@ -65,24 +67,33 @@ pub async fn start_test_indexer_impl<T: R2D2Connection + 'static>(
     db_url: Option<String>,
     rpc_url: String,
     reader_writer_config: ReaderWriterConfig,
-    reset_database: bool,
+    mut reset_database: bool,
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
+    new_database: Option<&str>,
 ) -> (PgIndexerStore<T>, JoinHandle<Result<(), IndexerError>>) {
-    let db_url = db_url.unwrap_or_else(|| {
+    let mut db_url = db_url.unwrap_or_else(|| {
         let pg_host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".into());
         let pg_port = env::var("POSTGRES_PORT").unwrap_or_else(|_| "32770".into());
         let pw = env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgrespw".into());
         format!("postgres://postgres:{pw}@{pg_host}:{pg_port}")
     });
 
+    if let Some(new_database) = new_database {
+        db_url = replace_db_name(&db_url, new_database).0;
+        reset_database = true;
+    };
+
     let mut config = IndexerConfig {
         db_url: Some(db_url.clone().into()),
+        // As fallback sync mechanism enable Rest Api if `data_ingestion_path` was not provided
+        remote_store_url: data_ingestion_path
+            .is_none()
+            .then_some(format!("{rpc_url}/api/v1")),
         rpc_client_url: rpc_url,
         reset_db: true,
         fullnode_sync_worker: true,
         rpc_server_worker: false,
-        remote_store_url: None,
         data_ingestion_path,
         ..Default::default()
     };

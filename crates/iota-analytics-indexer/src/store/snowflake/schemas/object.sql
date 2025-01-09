@@ -12,7 +12,6 @@ CREATE OR REPLACE TABLE OBJECT
     object_status          STRING,
     initial_shared_version NUMBER(20, 0),
     previous_transaction   STRING        NOT NULL,
-    has_public_transfer    BOOLEAN       NOT NULL,
     storage_rebate         NUMBER(20, 0) NOT NULL,
     bcs                    STRING        NOT NULL,
     coin_type              STRING,
@@ -43,7 +42,7 @@ CREATE
     INTEGRATION = 'CHECKPOINTS_DATA_LOADER_NOTIFICATION'
     AS
         copy into OBJECT (object_id, version, digest, type, checkpoint, epoch, timestamp_ms, owner_type, owner_address,
-                          object_status, initial_shared_version, previous_transaction, has_public_transfer,
+                          object_status, initial_shared_version, previous_transaction,
                           storage_rebate, bcs, coin_type, coin_balance, struct_tag, object_json)
             from (SELECT t.$1:object_id               as object_id,
                          t.$1:version                 as version,
@@ -57,7 +56,6 @@ CREATE
                          t.$1:object_status           as object_status,
                          t.$1:initial_shared_version  as initial_shared_version,
                          t.$1:previous_transaction    as previous_transaction,
-                         t.$1:has_public_transfer     as has_public_transfer,
                          t.$1:storage_rebate          as storage_rebate,
                          t.$1:bcs                     as bcs,
                          t.$1:coin_type               as coin_type,

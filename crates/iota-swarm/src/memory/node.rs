@@ -44,7 +44,7 @@ impl Node {
 
     /// Return the `name` of this Node
     pub fn name(&self) -> AuthorityName {
-        self.config().protocol_public_key()
+        self.config().authority_public_key()
     }
 
     pub fn config(&self) -> MutexGuard<'_, NodeConfig> {

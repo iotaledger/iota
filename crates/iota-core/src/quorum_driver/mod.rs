@@ -25,10 +25,10 @@ use iota_types::{
     base_types::{AuthorityName, ObjectRef, TransactionDigest},
     committee::{Committee, EpochId, StakeUnit},
     error::{IotaError, IotaResult},
-    messages_grpc::HandleCertificateRequestV3,
+    messages_grpc::HandleCertificateRequestV1,
     messages_safe_client::PlainTransactionInfoResponse,
     quorum_driver_types::{
-        ExecuteTransactionRequestV3, QuorumDriverEffectsQueueResult, QuorumDriverError,
+        ExecuteTransactionRequestV1, QuorumDriverEffectsQueueResult, QuorumDriverError,
         QuorumDriverResponse, QuorumDriverResult,
     },
     transaction::{CertifiedTransaction, Transaction},
@@ -62,7 +62,7 @@ const TX_MAX_RETRY_TIMES: u32 = 10;
 
 #[derive(Clone)]
 pub struct QuorumDriverTask {
-    pub request: ExecuteTransactionRequestV3,
+    pub request: ExecuteTransactionRequestV1,
     pub tx_cert: Option<CertifiedTransaction>,
     pub retry_times: u32,
     pub next_retry_after: Instant,
@@ -148,7 +148,7 @@ impl<A: Clone> QuorumDriver<A> {
     /// If it has, notify failure.
     async fn enqueue_again_maybe(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         tx_cert: Option<CertifiedTransaction>,
         old_retry_times: u32,
         client_addr: Option<SocketAddr>,
@@ -176,7 +176,7 @@ impl<A: Clone> QuorumDriver<A> {
     /// backoff duration will be at least `min_backoff_duration`.
     async fn backoff_and_enqueue(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         tx_cert: Option<CertifiedTransaction>,
         old_retry_times: u32,
         client_addr: Option<SocketAddr>,
@@ -252,7 +252,7 @@ where
     #[instrument(level = "trace", skip_all)]
     pub async fn submit_transaction(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
     ) -> IotaResult<Registration<TransactionDigest, QuorumDriverResult>> {
         let tx_digest = request.transaction.digest();
         debug!(?tx_digest, "Received transaction execution request.");
@@ -277,7 +277,7 @@ where
     #[instrument(level = "trace", skip_all)]
     pub async fn submit_transaction_no_ticket(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> IotaResult<()> {
         let tx_digest = request.transaction.digest();
@@ -492,7 +492,7 @@ where
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.certificate.digest()))]
     pub(crate) async fn process_certificate(
         &self,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> Result<QuorumDriverResponse, Option<QuorumDriverError>> {
         let auth_agg = self.validators.load();
@@ -568,7 +568,7 @@ where
                     .validators
                     .load()
                     .process_certificate(
-                        HandleCertificateRequestV3 {
+                        HandleCertificateRequestV1 {
                             certificate: cert,
                             include_events: true,
                             include_input_objects: false,
@@ -691,7 +691,7 @@ where
     // TransactionOrchestrator
     pub async fn submit_transaction_no_ticket(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         client_addr: Option<SocketAddr>,
     ) -> IotaResult<()> {
         self.quorum_driver
@@ -701,7 +701,7 @@ where
 
     pub async fn submit_transaction(
         &self,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
     ) -> IotaResult<Registration<TransactionDigest, QuorumDriverResult>> {
         self.quorum_driver.submit_transaction(request).await
     }
@@ -834,7 +834,7 @@ where
 
         let response = match quorum_driver
             .process_certificate(
-                HandleCertificateRequestV3 {
+                HandleCertificateRequestV1 {
                     certificate: tx_cert.clone(),
                     include_events: request.include_events,
                     include_input_objects: request.include_input_objects,
@@ -891,7 +891,7 @@ where
 
     fn handle_error(
         quorum_driver: Arc<QuorumDriver<A>>,
-        request: ExecuteTransactionRequestV3,
+        request: ExecuteTransactionRequestV1,
         err: Option<QuorumDriverError>,
         tx_cert: Option<CertifiedTransaction>,
         old_retry_times: u32,

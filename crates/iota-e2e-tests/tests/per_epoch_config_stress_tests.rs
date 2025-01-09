@@ -103,9 +103,9 @@ async fn create_deny_tx(test_env: Arc<TestEnv>, gas: ObjectRef) -> TransactionDa
             IOTA_FRAMEWORK_PACKAGE_ID,
             "coin",
             if deny {
-                "deny_list_v2_add"
+                "deny_list_v1_add"
             } else {
-                "deny_list_v2_remove"
+                "deny_list_v1_remove"
             },
             vec![
                 CallArg::Object(ObjectArg::SharedObject {
@@ -240,7 +240,7 @@ async fn create_test_env() -> TestEnv {
             coin_id = Some(object_id);
             coin_type = object.coin_type_maybe();
             coin_owner = Some(created.owner.get_address_owner_address().unwrap());
-        } else if object.type_().unwrap().is_coin_deny_cap_v2() {
+        } else if object.type_().unwrap().is_coin_deny_cap_v1() {
             deny_cap = Some(object_id);
         }
     }

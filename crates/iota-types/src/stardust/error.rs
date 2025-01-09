@@ -17,7 +17,7 @@ pub enum StardustError {
     #[error("invalid Hornet genesis snapshot: milestone diff count must be 0, but was {0}")]
     InvalidHornetGenesisSnapshot(u32),
     #[error("block error: {0}")]
-    BlockError(#[from] iota_stardust_sdk::types::block::Error),
+    Block(#[from] iota_stardust_sdk::types::block::Error),
     #[error("{0}")]
     UnknownTag(#[from] UnknownTagError<u8>),
     #[error(

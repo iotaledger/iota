@@ -15,6 +15,7 @@ use tracing::trace;
 pub mod certificate_deny_config;
 pub mod genesis;
 pub mod local_ip_utils;
+pub mod migration_tx_data;
 pub mod node;
 pub mod node_config_metrics;
 pub mod object_storage_config;
@@ -33,6 +34,7 @@ pub const IOTA_KEYSTORE_FILENAME: &str = "iota.keystore";
 pub const IOTA_KEYSTORE_ALIASES_FILENAME: &str = "iota.aliases";
 pub const IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME: &str = "benchmark.keystore";
 pub const IOTA_GENESIS_FILENAME: &str = "genesis.blob";
+pub const IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME: &str = "migration.blob";
 pub const IOTA_DEV_NET_URL: &str = "https://fullnode.devnet.iota.io:443";
 
 pub const AUTHORITIES_DB_NAME: &str = "authorities_db";
@@ -44,7 +46,7 @@ pub fn iota_config_dir() -> Result<PathBuf, anyhow::Error> {
         Some(config_env) => Ok(config_env.into()),
         None => match dirs::home_dir() {
             Some(v) => Ok(v.join(IOTA_DIR).join(IOTA_CONFIG_DIR)),
-            None => anyhow::bail!("Cannot obtain home directory path"),
+            None => anyhow::bail!("cannot obtain home directory path"),
         },
     }
     .and_then(|dir| {
@@ -104,7 +106,7 @@ where
         let path = path.as_ref();
         trace!("Reading config from {}", path.display());
         let reader = fs::File::open(path)
-            .with_context(|| format!("Unable to load config from {}", path.display()))?;
+            .with_context(|| format!("unable to load config from {}", path.display()))?;
         Ok(serde_yaml::from_reader(reader)?)
     }
 
@@ -113,7 +115,7 @@ where
         trace!("Writing config to {}", path.display());
         let mut write = BufWriter::new(fs::File::create(path)?);
         serde_yaml::to_writer(&mut write, &self)
-            .with_context(|| format!("Unable to save config to {}", path.display()))?;
+            .with_context(|| format!("unable to save config to {}", path.display()))?;
         Ok(())
     }
 }

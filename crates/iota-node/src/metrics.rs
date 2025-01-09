@@ -2,14 +2,164 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use axum::http::header;
+use iota_metrics::RegistryService;
 use iota_network::tonic::Code;
 use iota_network_stack::metrics::MetricsCallbackProvider;
 use prometheus::{
-    HistogramVec, IntCounterVec, IntGaugeVec, Registry, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
+    Encoder, HistogramVec, IntCounterVec, IntGaugeVec, PROTOBUF_FORMAT, Registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry,
 };
+use tracing::error;
+
+const METRICS_PUSH_TIMEOUT: Duration = Duration::from_secs(45);
+
+pub struct MetricsPushClient {
+    certificate: std::sync::Arc<iota_tls::SelfSignedCertificate>,
+    client: reqwest::Client,
+}
+
+impl MetricsPushClient {
+    pub fn new(network_key: iota_types::crypto::NetworkKeyPair) -> Self {
+        use fastcrypto::traits::KeyPair;
+        let certificate = std::sync::Arc::new(iota_tls::SelfSignedCertificate::new(
+            network_key.private(),
+            iota_tls::IOTA_VALIDATOR_SERVER_NAME,
+        ));
+        let identity = certificate.reqwest_identity();
+        let client = reqwest::Client::builder()
+            .identity(identity)
+            .build()
+            .unwrap();
+
+        Self {
+            certificate,
+            client,
+        }
+    }
+
+    pub fn certificate(&self) -> &iota_tls::SelfSignedCertificate {
+        &self.certificate
+    }
+
+    pub fn client(&self) -> &reqwest::Client {
+        &self.client
+    }
+}
+
+/// Starts a task to periodically push metrics to a configured endpoint if a
+/// metrics push endpoint is configured.
+pub fn start_metrics_push_task(config: &iota_config::NodeConfig, registry: RegistryService) {
+    use fastcrypto::traits::KeyPair;
+    use iota_config::node::MetricsConfig;
+
+    const DEFAULT_METRICS_PUSH_INTERVAL: Duration = Duration::from_secs(60);
+
+    let (interval, url) = match &config.metrics {
+        Some(MetricsConfig {
+            push_interval_seconds,
+            push_url: Some(url),
+        }) => {
+            let interval = push_interval_seconds
+                .map(Duration::from_secs)
+                .unwrap_or(DEFAULT_METRICS_PUSH_INTERVAL);
+            let url = reqwest::Url::parse(url).expect("unable to parse metrics push url");
+            (interval, url)
+        }
+        _ => return,
+    };
+
+    // make a copy so we can make a new client later when we hit errors posting
+    // metrics
+    let config_copy = config.clone();
+    let mut client = MetricsPushClient::new(config_copy.network_key_pair().copy());
+
+    async fn push_metrics(
+        client: &MetricsPushClient,
+        url: &reqwest::Url,
+        registry: &RegistryService,
+    ) -> Result<(), anyhow::Error> {
+        // now represents a collection timestamp for all of the metrics we send to the
+        // proxy
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+
+        let mut metric_families = registry.gather_all();
+        for mf in metric_families.iter_mut() {
+            for m in mf.mut_metric() {
+                m.set_timestamp_ms(now);
+            }
+        }
+
+        let mut buf: Vec<u8> = vec![];
+        let encoder = prometheus::ProtobufEncoder::new();
+        encoder.encode(&metric_families, &mut buf)?;
+
+        let mut s = snap::raw::Encoder::new();
+        let compressed = s.compress_vec(&buf).map_err(|err| {
+            error!("unable to snappy encode; {err}");
+            err
+        })?;
+
+        let response = client
+            .client()
+            .post(url.to_owned())
+            .header(reqwest::header::CONTENT_ENCODING, "snappy")
+            .header(header::CONTENT_TYPE, PROTOBUF_FORMAT)
+            .body(compressed)
+            .timeout(METRICS_PUSH_TIMEOUT)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = match response.text().await {
+                Ok(body) => body,
+                Err(error) => format!("couldn't decode response body; {error}"),
+            };
+            return Err(anyhow::anyhow!(
+                "metrics push failed: [{}]:{}",
+                status,
+                body
+            ));
+        }
+
+        tracing::debug!("successfully pushed metrics to {url}");
+
+        Ok(())
+    }
+
+    tokio::spawn(async move {
+        tracing::info!(push_url =% url, interval =? interval, "Started Metrics Push Service");
+
+        let mut interval = tokio::time::interval(interval);
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        let mut errors = 0;
+        loop {
+            interval.tick().await;
+
+            if let Err(error) = push_metrics(&client, &url, &registry).await {
+                errors += 1;
+                if errors >= 10 {
+                    // If we hit 10 failures in a row, start logging errors.
+                    tracing::error!("unable to push metrics: {error}; new client will be created");
+                } else {
+                    tracing::warn!("unable to push metrics: {error}; new client will be created");
+                }
+                // aggressively recreate our client connection if we hit an error
+                client = MetricsPushClient::new(config_copy.network_key_pair().copy());
+            } else {
+                errors = 0;
+            }
+        }
+    });
+}
 
 pub struct IotaNodeMetrics {
     pub jwk_requests: IntCounterVec,
@@ -140,7 +290,7 @@ mod tests {
         tokio::task::yield_now().await;
 
         // now add a few registries to the service along side with metrics
-        let registry_1 = Registry::new_custom(Some("narwhal".to_string()), None).unwrap();
+        let registry_1 = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
         let counter_1 = IntCounter::new("counter_1", "a sample counter 1").unwrap();
         registry_1.register(Box::new(counter_1)).unwrap();
 
@@ -161,9 +311,9 @@ iota_counter_2 0"
         ));
 
         assert!(result.contains(
-            "# HELP narwhal_counter_1 a sample counter 1
-# TYPE narwhal_counter_1 counter
-narwhal_counter_1 0"
+            "# HELP consensus_counter_1 a sample counter 1
+# TYPE consensus_counter_1 counter
+consensus_counter_1 0"
         ));
 
         // Now remove registry 1
@@ -178,9 +328,9 @@ narwhal_counter_1 0"
 
         // Registry 1 metrics should not be present anymore
         assert!(!result.contains(
-            "# HELP narwhal_counter_1 a sample counter 1
-# TYPE narwhal_counter_1 counter
-narwhal_counter_1 0"
+            "# HELP consensus_counter_1 a sample counter 1
+# TYPE consensus_counter_1 counter
+consensus_counter_1 0"
         ));
 
         // Registry 2 metric should have increased by 1

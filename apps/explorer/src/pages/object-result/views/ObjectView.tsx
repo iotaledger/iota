@@ -4,14 +4,16 @@
 
 import { DisplayStats, TooltipPosition } from '@iota/apps-ui-kit';
 import { CoinFormat, useFormatCoin } from '@iota/core';
-import { ArrowUpRight16 } from '@iota/icons';
 import { type IotaObjectResponse, type ObjectOwner } from '@iota/iota-sdk/client';
 import {
     formatAddress,
+    formatDigest,
+    formatType,
     IOTA_TYPE_ARG,
     normalizeStructTag,
     parseStructTag,
 } from '@iota/iota-sdk/utils';
+import { ArrowTopRight } from '@iota/ui-icons';
 import { useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react';
@@ -50,7 +52,7 @@ function HeroVideoImage({ title, subtitle, src, video }: HeroVideoImageProps): J
                 rounded="xl"
             />
             <div className="absolute right-3 top-3 hidden h-8 w-8 items-center justify-center rounded-md bg-white/40 backdrop-blur group-hover:flex">
-                <ArrowUpRight16 />
+                <ArrowTopRight className="h-4 w-4" />
             </div>
         </div>
     );
@@ -112,13 +114,12 @@ function TypeCard({ objectType }: TypeCardCardProps): JSX.Element {
         ...rest,
     };
 
-    const normalizedStructTag = normalizeStructTag(structTag);
-
+    const normalizedStructTag = formatType(normalizeStructTag(structTag));
     return (
         <DisplayStats
             label="Type"
             value={
-                <ObjectLink objectId={`${address}?module=${module}`}>
+                <ObjectLink objectId={`${address}?module=${module}`} label={normalizedStructTag}>
                     {normalizedStructTag}
                 </ObjectLink>
             }
@@ -144,7 +145,7 @@ function LastTxBlockCard({ digest }: LastTxBlockCardProps): JSX.Element {
     return (
         <DisplayStats
             label="Last Transaction Block Digest"
-            value={<TransactionLink digest={digest}>{formatAddress(digest)}</TransactionLink>}
+            value={<TransactionLink digest={digest}>{formatDigest(digest)}</TransactionLink>}
         />
     );
 }

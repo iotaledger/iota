@@ -10,7 +10,8 @@ use std::{
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, QueryDsl,
+    RunQueryDsl, SelectableHelper, TextExpressionMethods,
     dsl::sql,
     r2d2::{ConnectionManager, R2D2Connection},
     sql_types::Bool,
@@ -32,7 +33,10 @@ use iota_types::{
     dynamic_field::{DynamicFieldInfo, DynamicFieldName},
     effects::TransactionEvents,
     event::EventID,
-    iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
+    iota_system_state::{
+        IotaSystemStateTrait,
+        iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
+    },
     is_system_package,
     object::{Object, ObjectRead},
 };
@@ -60,7 +64,7 @@ use crate::{
     },
     schema::{
         address_metrics, checkpoints, display, epochs, events, move_call_metrics, objects,
-        objects_snapshot, transactions,
+        objects_snapshot, packages, pruner_cp_watermark, transactions, tx_digests,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
@@ -235,7 +239,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .fetch(package_id.into())
             .await
             .map_err(|e| {
-                IndexerError::PostgresReadError(format!(
+                IndexerError::PostgresRead(format!(
                     "Fail to fetch package from package store with error {:?}",
                     e
                 ))
@@ -349,12 +353,12 @@ impl<U: R2D2Connection> IndexerReader<U> {
         let stored_epoch = self.get_epoch_info_from_db(epoch)?;
         let stored_epoch = match stored_epoch {
             Some(stored_epoch) => stored_epoch,
-            None => return Err(IndexerError::InvalidArgumentError("Invalid epoch".into())),
+            None => return Err(IndexerError::InvalidArgument("Invalid epoch".into())),
         };
 
         let system_state: IotaSystemStateSummary = bcs::from_bytes(&stored_epoch.system_state)
             .map_err(|_| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to deserialize `system_state` for epoch {:?}",
                     epoch,
                 ))
@@ -458,7 +462,16 @@ impl<U: R2D2Connection> IndexerReader<U> {
     ) -> Result<IotaTransactionBlockEffects, IndexerError> {
         let mut stored_txn: StoredTransaction = run_query!(&self.pool, |conn| {
             transactions::table
-                .filter(transactions::transaction_digest.eq(digest.into_inner().to_vec()))
+                .filter(
+                    transactions::tx_sequence_number
+                        .nullable()
+                        .eq(tx_digests::table
+                            .select(tx_digests::tx_sequence_number)
+                            // we filter the tx_digests table because it is indexed by digest,
+                            // transactions table is not
+                            .filter(tx_digests::tx_digest.eq(digest.into_inner().to_vec()))
+                            .single_value()),
+                )
                 .first::<StoredTransaction>(conn)
         })?;
 
@@ -494,7 +507,14 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .collect::<Vec<_>>();
         let transactions = run_query!(&self.pool, |conn| {
             transactions::table
-                .filter(transactions::transaction_digest.eq_any(digests))
+                .inner_join(
+                    tx_digests::table
+                        .on(transactions::tx_sequence_number.eq(tx_digests::tx_sequence_number)),
+                )
+                // we filter the tx_digests table because it is indexed by digest,
+                // transactions table is not
+                .filter(tx_digests::tx_digest.eq_any(digests))
+                .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
         })?;
         if cfg!(feature = "postgres-feature") {
@@ -623,7 +643,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                                             .as_str();
                                 }
                             } else {
-                                return Err(IndexerError::InvalidArgumentError(
+                                return Err(IndexerError::InvalidArgument(
                                     "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
                                 ));
                             }
@@ -640,14 +660,14 @@ impl<U: R2D2Connection> IndexerReader<U> {
                                     objects::object_type.not_like(format!("{}%", object_type)),
                                 );
                             } else {
-                                return Err(IndexerError::InvalidArgumentError(
+                                return Err(IndexerError::InvalidArgument(
                                     "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
                                 ));
                             }
                         }
                     }
                     _ => {
-                        return Err(IndexerError::InvalidArgumentError(
+                        return Err(IndexerError::InvalidArgument(
                             "Invalid filter type. Only struct, MatchAny and MatchNone of struct filters are supported.".into(),
                         ));
                     }
@@ -660,7 +680,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
 
             query
                 .load::<StoredObject>(conn)
-                .map_err(|e| IndexerError::PostgresReadError(e.to_string()))
+                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
         })
     }
 
@@ -682,7 +702,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .into_iter()
             .map(|id| {
                 ObjectID::from_bytes(id.clone()).map_err(|_e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "Can't convert {:?} to ObjectID",
                         id,
                     ))
@@ -719,8 +739,21 @@ impl<U: R2D2Connection> IndexerReader<U> {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        let pool = self.get_pool();
+        let tx_range: (i64, i64) = run_query_async!(&pool, move |conn| {
+            pruner_cp_watermark::dsl::pruner_cp_watermark
+                .select((
+                    pruner_cp_watermark::min_tx_sequence_number,
+                    pruner_cp_watermark::max_tx_sequence_number,
+                ))
+                // we filter the pruner_cp_watermark table because it is indexed by
+                // checkpoint_sequence_number, transactions is not
+                .filter(pruner_cp_watermark::checkpoint_sequence_number.eq(checkpoint_seq as i64))
+                .first::<(i64, i64)>(conn)
+        })?;
+
         let mut query = transactions::dsl::transactions
-            .filter(transactions::dsl::checkpoint_sequence_number.eq(checkpoint_seq as i64))
+            .filter(transactions::tx_sequence_number.between(tx_range.0, tx_range.1))
             .into_boxed();
 
         // Translate transaction digest cursor to tx sequence number
@@ -775,9 +808,11 @@ impl<U: R2D2Connection> IndexerReader<U> {
         let cursor_tx_seq = if let Some(cursor) = cursor {
             let pool = self.get_pool();
             let tx_seq = run_query_async!(&pool, move |conn| {
-                transactions::dsl::transactions
-                    .select(transactions::tx_sequence_number)
-                    .filter(transactions::dsl::transaction_digest.eq(cursor.into_inner().to_vec()))
+                tx_digests::table
+                    .select(tx_digests::tx_sequence_number)
+                    // we filter the tx_digests table because it is indexed by digest,
+                    // transactions (and other tables) are not
+                    .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
                     .first::<i64>(conn)
             })?;
             Some(tx_seq)
@@ -830,7 +865,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                         ),
                     ),
                     (None, Some(_)) => {
-                        return Err(IndexerError::InvalidArgumentError(
+                        return Err(IndexerError::InvalidArgument(
                             "Function cannot be present without Module.".into(),
                         ));
                     }
@@ -938,7 +973,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             Some(
                 TransactionFilter::TransactionKind(_) | TransactionFilter::TransactionKindIn(_),
             ) => {
-                return Err(IndexerError::NotSupportedError(
+                return Err(IndexerError::NotSupported(
                     "TransactionKind filter is not supported.".into(),
                 ));
             }
@@ -1016,7 +1051,16 @@ impl<U: R2D2Connection> IndexerReader<U> {
         let pool = self.get_pool();
         let (timestamp_ms, serialized_events) = run_query_async!(&pool, move |conn| {
             transactions::table
-                .filter(transactions::transaction_digest.eq(digest.into_inner().to_vec()))
+                .filter(
+                    transactions::tx_sequence_number
+                        .nullable()
+                        .eq(tx_digests::table
+                            .select(tx_digests::tx_sequence_number)
+                            // we filter the tx_digests table because it is indexed by digest,
+                            // transactions table is not
+                            .filter(tx_digests::tx_digest.eq(digest.into_inner().to_vec()))
+                            .single_value()),
+                )
                 .select((transactions::timestamp_ms, transactions::events))
                 .first::<(i64, StoredTransactionEvents)>(conn)
         })?;
@@ -1034,43 +1078,68 @@ impl<U: R2D2Connection> IndexerReader<U> {
         Ok(iota_tx_events.map_or(vec![], |ste| ste.data))
     }
 
-    fn query_events_by_tx_digest_query(
+    async fn query_events_by_tx_digest(
         &self,
         tx_digest: TransactionDigest,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<String> {
-        let cursor = if let Some(cursor) = cursor {
+    ) -> IndexerResult<Vec<IotaEvent>> {
+        let mut query = events::table.into_boxed();
+
+        if let Some(cursor) = cursor {
             if cursor.tx_digest != tx_digest {
-                return Err(IndexerError::InvalidArgumentError(
+                return Err(IndexerError::InvalidArgument(
                     "Cursor tx_digest does not match the tx_digest in the query.".into(),
                 ));
             }
             if descending_order {
-                format!("e.{EVENT_SEQUENCE_NUMBER_STR} < {}", cursor.event_seq)
+                query = query.filter(events::event_sequence_number.lt(cursor.event_seq as i64));
             } else {
-                format!("e.{EVENT_SEQUENCE_NUMBER_STR} > {}", cursor.event_seq)
+                query = query.filter(events::event_sequence_number.gt(cursor.event_seq as i64));
             }
         } else if descending_order {
-            format!("e.{EVENT_SEQUENCE_NUMBER_STR} <= {}", i64::MAX)
+            query = query.filter(events::event_sequence_number.le(i64::MAX));
         } else {
-            format!("e.{EVENT_SEQUENCE_NUMBER_STR} >= {}", 0)
+            query = query.filter(events::event_sequence_number.ge(0));
         };
 
-        let order_clause = if descending_order { "DESC" } else { "ASC" };
-        Ok(format!(
-            "SELECT * \
-            FROM EVENTS e \
-            JOIN TRANSACTIONS t \
-            ON t.tx_sequence_number = e.tx_sequence_number \
-            AND t.transaction_digest = '\\x{}'::bytea \
-            WHERE {cursor} \
-            ORDER BY e.{EVENT_SEQUENCE_NUMBER_STR} {order_clause} \
-            LIMIT {limit}
-            ",
-            Hex::encode(tx_digest.into_inner()),
-        ))
+        if descending_order {
+            query = query.order(events::event_sequence_number.desc());
+        } else {
+            query = query.order(events::event_sequence_number.asc());
+        }
+
+        query = query.filter(
+            events::tx_sequence_number.nullable().eq(tx_digests::table
+                .select(tx_digests::tx_sequence_number)
+                // we filter the tx_digests table because it is indexed by digest,
+                // events table is not
+                .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
+                .single_value()),
+        );
+
+        let pool = self.get_pool();
+        let stored_events = run_query_async!(&pool, move |conn| {
+            query.limit(limit as i64).load::<StoredEvent>(conn)
+        })?;
+
+        let mut iota_event_futures = vec![];
+        for stored_event in stored_events {
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
+            ));
+        }
+
+        let iota_events = futures::future::join_all(iota_event_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
+        Ok(iota_events)
     }
 
     pub async fn query_events_in_blocking_task(
@@ -1090,21 +1159,22 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 transactions::dsl::transactions
                     .select(transactions::tx_sequence_number)
                     .filter(
-                        transactions::dsl::transaction_digest.eq(tx_digest.into_inner().to_vec()),
+                        transactions::tx_sequence_number
+                            .nullable()
+                            .eq(tx_digests::table
+                                .select(tx_digests::tx_sequence_number)
+                                // we filter the tx_digests table because it is indexed by digest,
+                                // transactions table is not
+                                .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
+                                .single_value()),
                     )
                     .first::<i64>(conn)
             })?;
-            (tx_seq, event_seq)
+            (tx_seq, event_seq as i64)
         } else if descending_order {
-            let max_tx_seq: i64 = run_query_async!(&pool, move |conn| {
-                events::dsl::events
-                    .select(events::tx_sequence_number)
-                    .order(events::dsl::tx_sequence_number.desc())
-                    .first::<i64>(conn)
-            })
-            .map_or(-1, |max_tx_seq| max_tx_seq + 1);
-
-            (max_tx_seq, 0)
+            let max_tx_seq = i64::MAX;
+            let max_event_seq = i64::MAX;
+            (max_tx_seq, max_event_seq)
         } else {
             (-1, 0)
         };
@@ -1144,7 +1214,9 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 limit,
             )
         } else if let EventFilter::Transaction(tx_digest) = filter {
-            self.query_events_by_tx_digest_query(tx_digest, cursor, limit, descending_order)?
+            return self
+                .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
+                .await;
         } else {
             let main_where_clause = match filter {
                 EventFilter::Package(package_id) => {
@@ -1158,7 +1230,8 @@ impl<U: R2D2Connection> IndexerReader<U> {
                     )
                 }
                 EventFilter::MoveEventType(struct_tag) => {
-                    format!("event_type = '{}'", struct_tag)
+                    let formatted_struct_tag = struct_tag.to_canonical_string(true);
+                    format!("event_type = '{formatted_struct_tag}'")
                 }
                 EventFilter::MoveEventModule { package, module } => {
                     let package_module_prefix = format!("{}::{}", package.to_hex_literal(), module);
@@ -1178,7 +1251,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 | EventFilter::And(_, _)
                 | EventFilter::Or(_, _)
                 | EventFilter::TimeRange { .. } => {
-                    return Err(IndexerError::NotSupportedError(
+                    return Err(IndexerError::NotSupported(
                         "This type of EventFilter is not supported.".into(),
                     ));
                 }
@@ -1247,7 +1320,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .await?;
 
         if any(objects.iter(), |o| o.df_object_id.is_none()) {
-            return Err(IndexerError::PersistentStorageDataCorruptionError(format!(
+            return Err(IndexerError::PersistentStorageDataCorruption(format!(
                 "Dynamic field has empty df_object_id column for parent object {}",
                 parent_object_id
             )));
@@ -1340,7 +1413,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             .type_layout(name.type_.clone())
             .await
             .map_err(|e| {
-                IndexerError::ResolveMoveStructError(format!(
+                IndexerError::ResolveMoveStruct(format!(
                     "Failed to get type layout for type {}: {}",
                     name.type_, e
                 ))
@@ -1368,7 +1441,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
         .into_iter()
         .map(|object_ref: ObjectRefColumn| {
             let object_id = ObjectID::from_bytes(object_ref.object_id.clone()).map_err(|_e| {
-                IndexerError::PersistentStorageDataCorruptionError(format!(
+                IndexerError::PersistentStorageDataCorruption(format!(
                     "Can't convert {:?} to ObjectID",
                     object_ref.object_id
                 ))
@@ -1376,7 +1449,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
             let seq = SequenceNumber::from_u64(object_ref.object_version as u64);
             let object_digest = ObjectDigest::try_from(object_ref.object_digest.as_slice())
                 .map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruptionError(format!(
+                    IndexerError::PersistentStorageDataCorruption(format!(
                         "object {:?} has incompatible object digest. Error: {e}",
                         object_ref.object_digest
                     ))
@@ -1506,10 +1579,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
     }
 
     pub fn get_latest_network_metrics(&self) -> IndexerResult<NetworkMetrics> {
-        let metrics = run_query!(&self.pool, |conn| {
+        let mut metrics = run_query!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
+        if metrics.total_packages == -1 {
+            // this implies that the estimate is not available in the db
+            // so we fallback to the more expensive count query
+            metrics.total_packages = run_query!(&self.pool, |conn| {
+                packages::dsl::packages.count().get_result::<i64>(conn)
+            })?;
+        }
         Ok(metrics.into())
     }
 
@@ -1625,7 +1705,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
     ) -> Result<DisplayFieldsResponse, IndexerError> {
         let (object_type, layout) = if let Some((object_type, layout)) =
             iota_json_rpc::read_api::get_object_type_and_struct(original_object, original_layout)
-                .map_err(|e| IndexerError::GenericError(e.to_string()))?
+                .map_err(|e| IndexerError::Generic(e.to_string()))?
         {
             (object_type, layout)
         } else {
@@ -1637,7 +1717,7 @@ impl<U: R2D2Connection> IndexerReader<U> {
 
         if let Some(display_object) = self.get_display_object_by_type(&object_type).await? {
             return iota_json_rpc::read_api::get_rendered_fields(display_object.fields, &layout)
-                .map_err(|e| IndexerError::GenericError(e.to_string()));
+                .map_err(|e| IndexerError::Generic(e.to_string()));
         }
         Ok(DisplayFieldsResponse {
             data: None,
@@ -1696,13 +1776,13 @@ impl<U: R2D2Connection> IndexerReader<U> {
                 get_single_obj_id_from_package_publish(self, package_id, treasury_cap_type.clone())
                     .unwrap()
             })
-            .ok_or(IndexerError::GenericError(format!(
+            .ok_or(IndexerError::Generic(format!(
                 "Cannot find treasury cap for type {}",
                 treasury_cap_type
             )))?;
         let treasury_cap_obj_object =
             self.get_object(&treasury_cap_obj_id, None)?
-                .ok_or(IndexerError::GenericError(format!(
+                .ok_or(IndexerError::Generic(format!(
                     "Cannot find treasury cap object with id {}",
                     treasury_cap_obj_id
                 )))?;
@@ -1734,6 +1814,17 @@ impl<U: R2D2Connection> IndexerReader<U> {
 
     pub fn package_resolver(&self) -> PackageResolver<U> {
         self.package_resolver.clone()
+    }
+
+    pub async fn pending_active_validators(
+        &self,
+    ) -> Result<Vec<IotaValidatorSummary>, IndexerError> {
+        self.spawn_blocking(move |this| {
+            iota_types::iota_system_state::get_iota_system_state(&this)
+                .and_then(|system_state| system_state.get_pending_active_validators(&this))
+        })
+        .await
+        .map_err(Into::into)
     }
 }
 

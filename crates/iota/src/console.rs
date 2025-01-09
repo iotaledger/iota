@@ -49,7 +49,7 @@ pub async fn start_console(
     }
     writeln!(out, "--- IOTA Console {version} ---")?;
     writeln!(out)?;
-    writeln!(out, "{}", context.config.deref())?;
+    writeln!(out, "{}", context.config().deref())?;
 
     let client = context.get_client().await?;
     writeln!(

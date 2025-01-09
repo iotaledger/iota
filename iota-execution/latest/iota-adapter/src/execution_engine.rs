@@ -35,11 +35,10 @@ mod checked {
         },
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
-        deny_list_v1::{DENY_LIST_CREATE_FUNC, DENY_LIST_MODULE},
         digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::{ExecutionResults, ExecutionResultsV2, is_certificate_denied},
+        execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
         execution_config_utils::to_binary_config,
         execution_status::{CongestedObjects, ExecutionStatus},
         gas::{GasCostSummary, IotaGasStatus},
@@ -47,20 +46,16 @@ mod checked {
         id::UID,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
-            ADVANCE_EPOCH_FUNCTION_NAME, ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME, AdvanceEpochParams,
-            IOTA_SYSTEM_MODULE_NAME,
+            ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams, IOTA_SYSTEM_MODULE_NAME,
         },
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        randomness_state::{
-            RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
-            RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
-        },
+        randomness_state::{RANDOMNESS_MODULE_NAME, RANDOMNESS_STATE_UPDATE_FUNCTION_NAME},
         storage::{BackingStore, Storage},
         transaction::{
-            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdate, CallArg, ChangeEpoch,
+            Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             CheckedInputObjects, Command, EndOfEpochTransactionKind, GenesisTransaction, ObjectArg,
             ProgrammableTransaction, RandomnessStateUpdate, TransactionKind,
         },
@@ -405,7 +400,6 @@ mod checked {
             gas_charger,
             tx_ctx,
             move_vm,
-            protocol_config.simple_conservation_checks(),
             enable_expensive_checks,
             &cost_summary,
             is_genesis_or_epoch_change_tx,
@@ -432,7 +426,6 @@ mod checked {
         gas_charger: &mut GasCharger,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
-        simple_conservation_checks: bool,
         enable_expensive_checks: bool,
         cost_summary: &GasCostSummary,
         is_genesis_or_epoch_change_tx: bool,
@@ -444,7 +437,7 @@ mod checked {
             // if the check fails
             let conservation_result = {
                 temporary_store
-                    .check_iota_conserved(simple_conservation_checks, cost_summary)
+                    .check_iota_conserved(cost_summary)
                     .and_then(|()| {
                         if enable_expensive_checks {
                             // ensure that this transaction did not create or destroy IOTA, try to
@@ -471,7 +464,7 @@ mod checked {
                 // check conservation once more more
                 if let Err(recovery_err) = {
                     temporary_store
-                        .check_iota_conserved(simple_conservation_checks, cost_summary)
+                        .check_iota_conserved(cost_summary)
                         .and_then(|()| {
                             if enable_expensive_checks {
                                 // ensure that this transaction did not create or destroy IOTA, try
@@ -612,20 +605,6 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
     ) -> Result<Mode::ExecutionResults, ExecutionError> {
         let result = match transaction_kind {
-            TransactionKind::ChangeEpoch(change_epoch) => {
-                let builder = ProgrammableTransactionBuilder::new();
-                advance_epoch(
-                    builder,
-                    change_epoch,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                )?;
-                Ok(Mode::empty_results())
-            }
             TransactionKind::Genesis(GenesisTransaction { objects, events }) => {
                 if tx_ctx.epoch() != 0 {
                     panic!("BUG: Genesis Transactions can only be executed in epoch 0");
@@ -645,8 +624,8 @@ mod checked {
                     }
                 }
 
-                temporary_store.record_execution_results(ExecutionResults::V2(
-                    ExecutionResultsV2 {
+                temporary_store.record_execution_results(ExecutionResults::V1(
+                    ExecutionResultsV1 {
                         user_events: events,
                         ..Default::default()
                     },
@@ -654,7 +633,7 @@ mod checked {
 
                 Ok(Mode::empty_results())
             }
-            TransactionKind::ConsensusCommitPrologue(prologue) => {
+            TransactionKind::ConsensusCommitPrologueV1(prologue) => {
                 setup_consensus_commit(
                     prologue.commit_timestamp_ms,
                     temporary_store,
@@ -664,33 +643,7 @@ mod checked {
                     protocol_config,
                     metrics,
                 )
-                .expect("ConsensusCommitPrologue cannot fail");
-                Ok(Mode::empty_results())
-            }
-            TransactionKind::ConsensusCommitPrologueV2(prologue) => {
-                setup_consensus_commit(
-                    prologue.commit_timestamp_ms,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                )
-                .expect("ConsensusCommitPrologueV2 cannot fail");
-                Ok(Mode::empty_results())
-            }
-            TransactionKind::ConsensusCommitPrologueV3(prologue) => {
-                setup_consensus_commit(
-                    prologue.commit_timestamp_ms,
-                    temporary_store,
-                    tx_ctx,
-                    move_vm,
-                    gas_charger,
-                    protocol_config,
-                    metrics,
-                )
-                .expect("ConsensusCommitPrologueV3 cannot fail");
+                .expect("ConsensusCommitPrologueV1 cannot fail");
                 Ok(Mode::empty_results())
             }
             TransactionKind::ProgrammableTransaction(pt) => {
@@ -734,14 +687,6 @@ mod checked {
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
                         }
-                        EndOfEpochTransactionKind::RandomnessStateCreate => {
-                            assert!(protocol_config.random_beacon());
-                            builder = setup_randomness_state_create(builder);
-                        }
-                        EndOfEpochTransactionKind::DenyListStateCreate => {
-                            assert!(protocol_config.enable_coin_deny_list_v1());
-                            builder = setup_coin_deny_list_state_create(builder);
-                        }
                         EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
                             assert!(protocol_config.enable_bridge());
                             builder = setup_bridge_create(builder, chain_id)
@@ -757,7 +702,7 @@ mod checked {
                     "EndOfEpochTransactionKind::ChangeEpoch should be the last transaction in the list"
                 )
             }
-            TransactionKind::AuthenticatorStateUpdate(auth_state_update) => {
+            TransactionKind::AuthenticatorStateUpdateV1(auth_state_update) => {
                 setup_authenticator_state_update(
                     auth_state_update,
                     temporary_store,
@@ -891,58 +836,6 @@ mod checked {
         Ok(builder.finish())
     }
 
-    /// Constructs a `ProgrammableTransaction` to advance the epoch in safe
-    /// mode.
-    pub fn construct_advance_epoch_safe_mode_pt(
-        params: &AdvanceEpochParams,
-        protocol_config: &ProtocolConfig,
-    ) -> Result<ProgrammableTransaction, ExecutionError> {
-        let mut builder = ProgrammableTransactionBuilder::new();
-        // Step 1: Create storage charges and computation rewards.
-        let (storage_charges, computation_rewards) = mint_epoch_rewards_in_pt(&mut builder, params);
-
-        // Step 2: Advance the epoch.
-        let mut arguments = vec![storage_charges, computation_rewards];
-
-        let mut args = vec![
-            CallArg::IOTA_SYSTEM_MUT,
-            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()),
-            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()),
-        ];
-
-        if protocol_config.get_advance_epoch_start_time_in_safe_mode() {
-            args.push(CallArg::Pure(
-                bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap(),
-            ));
-        }
-
-        let call_arg_arguments = args
-            .into_iter()
-            .map(|a| builder.input(a))
-            .collect::<Result<_, _>>();
-
-        assert_invariant!(
-            call_arg_arguments.is_ok(),
-            "Unable to generate args for advance_epoch transaction!"
-        );
-
-        arguments.append(&mut call_arg_arguments.unwrap());
-
-        info!("Call arguments to advance_epoch transaction: {:?}", params);
-
-        builder.programmable_move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            ADVANCE_EPOCH_SAFE_MODE_FUNCTION_NAME.to_owned(),
-            vec![],
-            arguments,
-        );
-
-        Ok(builder.finish())
-    }
-
     /// Advances the epoch by constructing a `ProgrammableTransaction` with
     /// `construct_advance_epoch_pt` and executing it.
     /// If the transaction fails, it switches to safe mode and retries the
@@ -996,52 +889,26 @@ mod checked {
             // Must reset the storage rebate since we are re-executing.
             gas_charger.reset_storage_cost_and_rebate();
 
-            if protocol_config.get_advance_epoch_start_time_in_safe_mode() {
-                temporary_store.advance_epoch_safe_mode(&params, protocol_config);
-            } else {
-                let advance_epoch_safe_mode_pt =
-                    construct_advance_epoch_safe_mode_pt(&params, protocol_config)?;
-                programmable_transactions::execution::execute::<execution_mode::System>(
-                    protocol_config,
-                    metrics.clone(),
-                    move_vm,
-                    temporary_store,
-                    tx_ctx,
-                    gas_charger,
-                    advance_epoch_safe_mode_pt,
-                )
-                .expect("Advance epoch with safe mode must succeed");
-            }
+            temporary_store.advance_epoch_safe_mode(&params, protocol_config);
         }
 
-        if protocol_config.fresh_vm_on_framework_upgrade() {
-            let new_vm = new_move_vm(
-                all_natives(/* silent */ true, protocol_config),
-                protocol_config,
-                // enable_profiler
-                None,
-            )
-            .expect("Failed to create new MoveVM");
-            process_system_packages(
-                change_epoch,
-                temporary_store,
-                tx_ctx,
-                &new_vm,
-                gas_charger,
-                protocol_config,
-                metrics,
-            );
-        } else {
-            process_system_packages(
-                change_epoch,
-                temporary_store,
-                tx_ctx,
-                move_vm,
-                gas_charger,
-                protocol_config,
-                metrics,
-            );
-        }
+        let new_vm = new_move_vm(
+            all_natives(/* silent */ true, protocol_config),
+            protocol_config,
+            // enable_profiler
+            None,
+        )
+        .expect("Failed to create new MoveVM");
+        process_system_packages(
+            change_epoch,
+            temporary_store,
+            tx_ctx,
+            &new_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+        );
+
         Ok(())
     }
 
@@ -1169,23 +1036,6 @@ mod checked {
         builder
     }
 
-    /// Configures a `ProgrammableTransactionBuilder` to create a new randomness
-    /// state.
-    fn setup_randomness_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                RANDOMNESS_MODULE_NAME.to_owned(),
-                RANDOMNESS_STATE_CREATE_FUNCTION_NAME.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate randomness_state_create transaction!");
-        builder
-    }
-
     /// Configures a `ProgrammableTransactionBuilder` to create a bridge.
     fn setup_bridge_create(
         mut builder: ProgrammableTransactionBuilder,
@@ -1267,7 +1117,7 @@ mod checked {
     /// arguments. It then executes the transaction using the system
     /// execution mode.
     fn setup_authenticator_state_update(
-        update: AuthenticatorStateUpdate,
+        update: AuthenticatorStateUpdateV1,
         temporary_store: &mut TemporaryStore<'_>,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
@@ -1381,25 +1231,5 @@ mod checked {
             gas_charger,
             pt,
         )
-    }
-
-    /// Prepares a `ProgrammableTransactionBuilder` to create a deny list state
-    /// for coins. The function adds a `move_call` to the transaction
-    /// builder to call the `DENY_LIST_CREATE_FUNC` function
-    /// in the `DENY_LIST_MODULE` of the IOTA framework. This transaction is to
-    /// set up the initial state for the coin deny list.
-    fn setup_coin_deny_list_state_create(
-        mut builder: ProgrammableTransactionBuilder,
-    ) -> ProgrammableTransactionBuilder {
-        builder
-            .move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                DENY_LIST_MODULE.to_owned(),
-                DENY_LIST_CREATE_FUNC.to_owned(),
-                vec![],
-                vec![],
-            )
-            .expect("Unable to generate coin_deny_list_create transaction!");
-        builder
     }
 }

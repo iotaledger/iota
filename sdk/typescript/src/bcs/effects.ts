@@ -4,7 +4,7 @@
 
 import { bcs } from '@iota/bcs';
 
-import { Address, ObjectDigest, IotaObjectRef } from './bcs.js';
+import { Address, ObjectDigest } from './bcs.js';
 
 const PackageUpgradeError = bcs.enum('PackageUpgradeError', {
     UnableToFetchPackage: bcs.struct('UnableToFetchPackage', { packageId: Address }),
@@ -118,6 +118,7 @@ const ExecutionStatus = bcs.enum('ExecutionStatus', {
 
 const GasCostSummary = bcs.struct('GasCostSummary', {
     computationCost: bcs.u64(),
+    computationCostBurned: bcs.u64(),
     storageCost: bcs.u64(),
     storageRebate: bcs.u64(),
     nonRefundableStorageFee: bcs.u64(),
@@ -132,24 +133,6 @@ const Owner = bcs.enum('Owner', {
     Immutable: null,
 });
 
-const TransactionEffectsV1 = bcs.struct('TransactionEffectsV1', {
-    status: ExecutionStatus,
-    executedEpoch: bcs.u64(),
-    gasUsed: GasCostSummary,
-    modifiedAtVersions: bcs.vector(bcs.tuple([Address, bcs.u64()])),
-    sharedObjects: bcs.vector(IotaObjectRef),
-    transactionDigest: ObjectDigest,
-    created: bcs.vector(bcs.tuple([IotaObjectRef, Owner])),
-    mutated: bcs.vector(bcs.tuple([IotaObjectRef, Owner])),
-    unwrapped: bcs.vector(bcs.tuple([IotaObjectRef, Owner])),
-    deleted: bcs.vector(IotaObjectRef),
-    unwrappedThenDeleted: bcs.vector(IotaObjectRef),
-    wrapped: bcs.vector(IotaObjectRef),
-    gasObject: bcs.tuple([IotaObjectRef, Owner]),
-    eventsDigest: bcs.option(ObjectDigest),
-    dependencies: bcs.vector(ObjectDigest),
-});
-
 const VersionDigest = bcs.tuple([bcs.u64(), ObjectDigest]);
 
 const ObjectIn = bcs.enum('ObjectIn', {
@@ -157,7 +140,7 @@ const ObjectIn = bcs.enum('ObjectIn', {
     Exist: bcs.tuple([VersionDigest, Owner]),
 });
 
-const ObjectOut = bcs.enum('ObjectOut', {
+export const ObjectOut = bcs.enum('ObjectOut', {
     NotExist: null,
     ObjectWrite: bcs.tuple([ObjectDigest, Owner]),
     PackageWrite: VersionDigest,
@@ -183,7 +166,7 @@ const UnchangedSharedKind = bcs.enum('UnchangedSharedKind', {
     PerEpochConfig: null,
 });
 
-const TransactionEffectsV2 = bcs.struct('TransactionEffectsV2', {
+const TransactionEffectsV1 = bcs.struct('TransactionEffectsV1', {
     status: ExecutionStatus,
     executedEpoch: bcs.u64(),
     gasUsed: GasCostSummary,
@@ -199,5 +182,4 @@ const TransactionEffectsV2 = bcs.struct('TransactionEffectsV2', {
 
 export const TransactionEffects = bcs.enum('TransactionEffects', {
     V1: TransactionEffectsV1,
-    V2: TransactionEffectsV2,
 });

@@ -261,7 +261,7 @@ impl ReadApi {
         trace!("getting checkpoint sequence numbers");
         let checkpoint_seq_list = self
             .transaction_kv_store
-            .multi_get_transaction_checkpoint(&digests)
+            .multi_get_transactions_perpetual_checkpoints(&digests)
             .await
             .tap_err(
                 |err| debug!(digests=?digests, "Failed to multi get checkpoint sequence number: {:?}", err))?;
@@ -287,7 +287,7 @@ impl ReadApi {
             .multi_get_checkpoints_summaries(&unique_checkpoint_numbers)
             .await
             .map_err(|e| {
-                Error::UnexpectedError(format!("Failed to fetch checkpoint summaries by these checkpoint ids: {unique_checkpoint_numbers:?} with error: {e:?}"))
+                Error::Unexpected(format!("Failed to fetch checkpoint summaries by these checkpoint ids: {unique_checkpoint_numbers:?} with error: {e:?}"))
             })?
             .into_iter()
             .map(|c| c.map(|checkpoint| checkpoint.timestamp_ms));
@@ -333,7 +333,7 @@ impl ReadApi {
                 .multi_get_events(&event_digests_list)
                 .await
                 .map_err(|e| {
-                    Error::UnexpectedError(format!("Failed to call multi_get_events for transactions {digests:?} with event digests {event_digests_list:?}: {e:?}"))
+                    Error::Unexpected(format!("Failed to call multi_get_events for transactions {digests:?} with event digests {event_digests_list:?}: {e:?}"))
                 })?
                 .into_iter();
 
@@ -518,7 +518,7 @@ impl ReadApiServer for ReadApi {
                                     Some(IotaObjectData::new(
                                         object_ref, o, layout, options, None,
                                     )?),
-                                    Some(IotaObjectResponseError::DisplayError {
+                                    Some(IotaObjectResponseError::Display {
                                         error: e.to_string(),
                                     }),
                                 ));
@@ -575,7 +575,7 @@ impl ReadApiServer for ReadApi {
                     .collect();
 
                 let objects = objects_result.map_err(|err| {
-                    Error::UnexpectedError(format!("Failed to fetch objects with error: {}", err))
+                    Error::Unexpected(format!("Failed to fetch objects with error: {}", err))
                 })?;
 
                 self.metrics
@@ -622,7 +622,7 @@ impl ReadApiServer for ReadApi {
                             get_display_fields(self, &self.transaction_kv_store, &o, &layout)
                                 .await
                                 .map_err(|e| {
-                                    Error::UnexpectedError(format!(
+                                    Error::Unexpected(format!(
                                         "Unable to render object at version {version}: {e}"
                                     ))
                                 })?,
@@ -786,9 +786,14 @@ impl ReadApiServer for ReadApi {
                 );
             }
 
+            // `AuthorityPerpetualTables::executed_transactions_to_checkpoint`
+            // table and `CheckpointCache` trait exist for the sole purpose
+            // of being able to execute the following call below.
+            // It if gets removed or rewritten then the table and associated
+            // code can be removed as well.
             temp_response.checkpoint_seq = self
                 .transaction_kv_store
-                .deprecated_get_transaction_checkpoint(digest)
+                .get_transaction_perpetual_checkpoint(digest)
                 .await
                 .map_err(|e| {
                     error!("Failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
@@ -933,7 +938,7 @@ impl ReadApiServer for ReadApi {
                     .map_err(
                         |e| {
                             error!("Failed to get transaction events for event digest {event_digest:?} with error: {e:?}");
-                            Error::StateReadError(e.into())
+                            Error::StateRead(e.into())
                         })?
                     .data
                     .into_iter()
@@ -949,7 +954,7 @@ impl ReadApiServer for ReadApi {
                         )
                     })
                     .collect::<Result<Vec<_>, _>>()
-                    .map_err(Error::IotaError)?
+                    .map_err(Error::Iota)?
                 } else {
                     Vec::new()
                 };
@@ -1124,7 +1129,7 @@ pub enum ObjectDisplayError {
     Bcs(#[from] bcs::Error),
 
     #[error(transparent)]
-    StateReadError(#[from] StateReadError),
+    StateRead(#[from] StateReadError),
 }
 
 async fn get_display_fields(
@@ -1224,7 +1229,7 @@ pub fn get_rendered_fields(
             .collect::<Vec<String>>()
             .join("; ");
         let error = if !error_string.is_empty() {
-            Some(IotaObjectResponseError::DisplayError {
+            Some(IotaObjectResponseError::Display {
                 error: anyhow!("{error_string}").to_string(),
             })
         } else {
@@ -1301,7 +1306,7 @@ fn get_value_from_move_struct(
                         Err(anyhow!("Field value {var_name} cannot be found in struct"))?;
                     }
                 } else {
-                    Err(Error::UnexpectedError(format!(
+                    Err(Error::Unexpected(format!(
                         "Unexpected move struct type for field {var_name}"
                     )))?;
                 }
@@ -1318,7 +1323,7 @@ fn get_value_from_move_struct(
                 }
             }
             _ => {
-                Err(Error::UnexpectedError(format!(
+                Err(Error::Unexpected(format!(
                     "Unexpected move value type for field {var_name}"
                 )))?;
             }
@@ -1362,6 +1367,17 @@ fn convert_to_response(
         response.transaction = Some(tx_block);
     }
 
+    if opts.show_raw_effects {
+        let raw_effects = cache
+            .effects
+            .as_ref()
+            .map(bcs::to_bytes)
+            .transpose()
+            .map_err(|e| anyhow!("Failed to serialize raw effects with error: {e}"))?
+            .unwrap_or_default();
+        response.raw_effects = raw_effects;
+    }
+
     if opts.show_effects && cache.effects.is_some() {
         let effects = cache.effects.unwrap().try_into().map_err(|e| {
             anyhow!(
@@ -1386,6 +1402,7 @@ fn convert_to_response(
     if opts.show_object_changes {
         response.object_changes = cache.object_changes;
     }
+
     Ok(response)
 }
 

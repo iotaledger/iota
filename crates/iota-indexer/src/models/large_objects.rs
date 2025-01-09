@@ -71,14 +71,15 @@ pub fn put_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
     let oid = create_large_object(pool)?;
 
     if let Err(err) = i64::try_from(data.len()) {
-        return Err(IndexerError::GenericError(err.to_string()));
+        return Err(IndexerError::Generic(err.to_string()));
     }
 
     for (chunk_num, chunk) in data.chunks(chunk_size).enumerate() {
         let offset = (chunk_num * chunk_size) as i64;
         tracing::trace!("Storing large-object chunk at offset {}", offset);
         // TODO: (to treat in a different issue):
-        // remove dangling chunks (either by using a transaction or by handlng manually)
+        // remove dangling chunks (either by using a transaction or by handling
+        // manually)
         //
         // additionally we could apply a backoff retry strategy
         transactional_blocking_with_retry!(
@@ -101,8 +102,7 @@ pub fn get_large_object_in_chunks<T: R2D2Connection + Send + 'static>(
     let mut data: Vec<u8> = vec![];
     let mut chunk_num = 0;
     loop {
-        let length =
-            i32::try_from(chunk_size).map_err(|e| IndexerError::GenericError(e.to_string()))?;
+        let length = i32::try_from(chunk_size).map_err(|e| IndexerError::Generic(e.to_string()))?;
         let offset = (chunk_num * chunk_size) as i64;
 
         tracing::trace!("Fetching large-object chunk at offset {}", offset);

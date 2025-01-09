@@ -42,7 +42,7 @@ const MIN_HASHMAP_CAPACITY: usize = 1000;
 
 /// TransactionManager is responsible for managing object dependencies of
 /// pending transactions, and publishing a stream of certified transactions
-/// (certificates) ready to execute. It receives certificates from Narwhal,
+/// (certificates) ready to execute. It receives certificates from consensus,
 /// validator RPC handlers, and checkpoint executor. Execution driver subscribes
 /// to the stream of ready certificates from TransactionManager, and
 /// executes them in parallel.
@@ -64,7 +64,7 @@ pub struct TransactionManager {
 #[derive(Clone, Debug)]
 pub struct PendingCertificateStats {
     // The time this certificate enters transaction manager.
-    #[allow(unused)]
+    #[cfg(test)]
     pub enqueue_time: Instant,
     // The time this certificate becomes ready for execution.
     pub ready_time: Option<Instant>,
@@ -556,6 +556,7 @@ impl TransactionManager {
                 expected_effects_digest,
                 waiting_input_objects: input_object_keys,
                 stats: PendingCertificateStats {
+                    #[cfg(test)]
                     enqueue_time: pending_cert_enqueue_time,
                     ready_time: None,
                 },

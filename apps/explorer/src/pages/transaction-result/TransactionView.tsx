@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import { type Network, type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { ErrorBoundary, SplitPanes } from '~/components';
@@ -10,10 +10,9 @@ import { Events } from '~/pages/transaction-result/Events';
 import { TransactionData } from '~/pages/transaction-result/TransactionData';
 import { TransactionSummary } from '~/pages/transaction-result/transaction-summary';
 import { Signatures } from './Signatures';
-import styles from './TransactionResult.module.css';
 import { TransactionDetails } from './transaction-summary/TransactionDetails';
-import { useTransactionSummary } from '@iota/core';
-import { useBreakpoint, useRecognizedPackages } from '~/hooks';
+import { useTransactionSummary, useRecognizedPackages } from '@iota/core';
+import { useBreakpoint, useNetwork } from '~/hooks';
 import {
     ButtonSegment,
     ButtonSegmentType,
@@ -43,7 +42,8 @@ export function TransactionView({ transaction }: TransactionViewProps): JSX.Elem
     const transactionKindName = transaction.transaction?.data.transaction?.kind;
     const isProgrammableTransaction = transactionKindName === 'ProgrammableTransaction';
 
-    const recognizedPackagesList = useRecognizedPackages();
+    const [network] = useNetwork();
+    const recognizedPackagesList = useRecognizedPackages(network as Network);
     const summary = useTransactionSummary({
         transaction,
         recognizedPackagesList,
@@ -115,31 +115,29 @@ export function TransactionView({ transaction }: TransactionViewProps): JSX.Elem
         defaultSize: isProgrammableTransaction ? 65 : 50,
     };
     return (
-        <div className={clsx(styles.txdetailsbg)}>
-            <div className="flex h-full flex-col gap-2xl">
-                <div>
-                    <TransactionDetails
-                        timestamp={summary?.timestamp}
-                        sender={summary?.sender}
-                        checkpoint={transaction.checkpoint}
-                        executedEpoch={transaction.effects?.executedEpoch}
-                    />
-                </div>
-                {isMediumOrAbove ? (
-                    <SplitPanes
-                        autoSaveId={LocalStorageSplitPaneKey.TransactionView}
-                        onCollapse={setIsCollapsed}
-                        splitPanels={[leftPane, rightPane]}
-                        direction="horizontal"
-                    />
-                ) : (
-                    <div className="flex h-full flex-col gap-lg">
-                        {leftPane.panel}
-                        <Divider />
-                        {rightPane.panel}
-                    </div>
-                )}
+        <div className="flex h-full flex-col gap-2xl">
+            <div>
+                <TransactionDetails
+                    timestamp={summary?.timestamp}
+                    sender={summary?.sender}
+                    checkpoint={transaction.checkpoint}
+                    executedEpoch={transaction.effects?.executedEpoch}
+                />
             </div>
+            {isMediumOrAbove ? (
+                <SplitPanes
+                    autoSaveId={LocalStorageSplitPaneKey.TransactionView}
+                    onCollapse={setIsCollapsed}
+                    splitPanels={[leftPane, rightPane]}
+                    direction="horizontal"
+                />
+            ) : (
+                <div className="flex h-full flex-col gap-lg">
+                    {leftPane.panel}
+                    <Divider />
+                    {rightPane.panel}
+                </div>
+            )}
         </div>
     );
 }

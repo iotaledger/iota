@@ -622,6 +622,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_server_handle_blocklist_update_action_path() {
         let client = setup();
 
@@ -640,6 +641,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_server_handle_emergency_action_path() {
         let client = setup();
 
@@ -652,6 +654,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_server_handle_limit_update_action_path() {
         let client = setup();
 
@@ -665,6 +668,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_server_handle_asset_price_update_action_path() {
         let client = setup();
 
@@ -678,6 +682,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_server_handle_evm_contract_upgrade_action_path() {
         let client = setup();
 
@@ -701,6 +706,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_server_handle_add_tokens_on_iota_action_path() {
         let client = setup();
 
@@ -720,6 +726,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_bridge_server_handle_add_tokens_on_evm_action_path() {
         let client = setup();
 

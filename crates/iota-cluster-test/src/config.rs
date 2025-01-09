@@ -19,8 +19,7 @@ pub enum Env {
     NewLocal,
 }
 
-#[derive(derivative::Derivative, Parser)]
-#[derivative(Debug)]
+#[derive(derive_more::Debug, Parser)]
 #[clap(name = "", rename_all = "kebab-case")]
 pub struct ClusterTestOpt {
     #[clap(value_enum)]
@@ -36,7 +35,7 @@ pub struct ClusterTestOpt {
     pub indexer_address: Option<String>,
     /// URL for the Indexer Postgres DB
     #[clap(long)]
-    #[derivative(Debug(format_with = "obfuscated_pg_address"))]
+    #[debug("{}", ObfuscatedPgAddress(pg_address))]
     pub pg_address: Option<String>,
     #[clap(long)]
     pub config_dir: Option<PathBuf>,
@@ -48,22 +47,29 @@ pub struct ClusterTestOpt {
     #[arg(num_args(0..))]
     pub local_migration_snapshots: Vec<PathBuf>,
     /// Remote migration snapshots.
-    #[clap(long, name = "iota|smr|<full-url>")]
+    #[clap(long, name = "iota|<full-url>")]
     #[arg(num_args(0..))]
     pub remote_migration_snapshots: Vec<SnapshotUrl>,
 }
 
-fn obfuscated_pg_address(val: &Option<String>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match val {
-        None => write!(f, "None"),
-        Some(val) => {
-            write!(
-                f,
-                "{}",
-                Regex::new(r":.*@")
-                    .unwrap()
-                    .replace_all(val.as_str(), ":*****@")
-            )
+// This is not actually dead, but rust thinks it is because it is only used in
+// the derive macro above.
+#[allow(dead_code)]
+struct ObfuscatedPgAddress<'a>(&'a Option<String>);
+
+impl std::fmt::Display for ObfuscatedPgAddress<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            None => write!(f, "None"),
+            Some(val) => {
+                write!(
+                    f,
+                    "{}",
+                    Regex::new(r":.*@")
+                        .unwrap()
+                        .replace_all(val.as_str(), ":*****@")
+                )
+            }
         }
     }
 }

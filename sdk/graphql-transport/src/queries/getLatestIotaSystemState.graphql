@@ -12,6 +12,7 @@ query getLatestIotaSystemState {
             enabled
             gasSummary {
                 computationCost
+                computationCostBurned
                 nonRefundableStorageFee
                 storageCost
                 storageRebate
@@ -24,6 +25,7 @@ query getLatestIotaSystemState {
         }
         systemStateVersion
         iotaTotalSupply
+        iotaTreasuryCapId
         systemParameters {
             minValidatorCount
             maxValidatorCount

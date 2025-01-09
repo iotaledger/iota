@@ -1,0 +1,20 @@
+[
+    {
+        "questionText": "Which signing scheme does IOTA use for hardened key derivation in wallets?",
+        "answerOptions": [
+            { "answerText": "ECDSA Secp256r1", "isCorrect": false },
+            { "answerText": "Ed25519 (EdDSA)", "isCorrect": true },
+            { "answerText": "ECDSA Secp256k1", "isCorrect": false },
+            { "answerText": "MultiSig", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What hashing function does IOTA use to derive a 32-byte address?",
+        "answerOptions": [
+            { "answerText": "SHA-256", "isCorrect": false },
+            { "answerText": "RIPEMD-160", "isCorrect": false },
+            { "answerText": "BLAKE2b", "isCorrect": true },
+            { "answerText": "MD5", "isCorrect": false }
+        ]
+    }
+]

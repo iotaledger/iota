@@ -47,7 +47,6 @@ generate_genesis_files() {
         .genesis.genesis-file-location = $overlay.genesis.genesis-file-location |
         .db-path = $overlay.db-path |
         .consensus-config.db-path = $overlay.consensus-config.db-path |
-        .consensus-config.narwhal-config.max_header_delay = $overlay.consensus-config.narwhal-config.max_header_delay |
         .expensive-safety-check-config = $overlay.expensive-safety-check-config |
         .epoch_duration_ms = $overlay.epoch_duration_ms
       ' "$file" "$OVERLAY_PATH" >"${file}.tmp" && mv "${file}.tmp" "$file"

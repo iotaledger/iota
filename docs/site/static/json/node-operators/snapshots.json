@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the main advantage of using formal snapshots in IOTA?",
+        "answerOptions": [
+            { "answerText": "They contain complete transaction history.", "isCorrect": false },
+            { "answerText": "They are database agnostic and have a smaller storage footprint.", "isCorrect": true },
+            { "answerText": "They are easier to manipulate for custom queries.", "isCorrect": false },
+            { "answerText": "They provide faster transaction processing speeds.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which command is used to restore a full node from a RocksDB snapshot?",
+        "answerOptions": [
+            { "answerText": "iota-tool download-db-snapshot", "isCorrect": true },
+            { "answerText": "iota-tool restore-snapshot", "isCorrect": false },
+            { "answerText": "iota-tool backup-db", "isCorrect": false },
+            { "answerText": "iota-tool fetch-snapshot", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What must be done before restoring a full node using a formal snapshot?",
+        "answerOptions": [
+            { "answerText": "Ensure the node is running with the latest software.", "isCorrect": false },
+            { "answerText": "Stop the node if it's currently running.", "isCorrect": true },
+            { "answerText": "Delete the existing database files.", "isCorrect": false },
+            { "answerText": "Connect to the local network.", "isCorrect": false }
+        ]
+    }
+]

@@ -23,17 +23,17 @@ pub enum BridgeError {
     // Found BridgeEvent but not BridgeAction
     BridgeEventNotActionable,
     // Failure to serialize
-    BridgeSerializationError(String),
+    BridgeSerialization(String),
     // Internal Bridge error
-    InternalError(String),
+    Internal(String),
     // Authority signature duplication
     AuthoritySignatureDuplication(String),
     // Too many errors when aggregating authority signatures
-    AuthoritySignatureAggregationTooManyError(String),
+    AuthoritySignatureAggregationTooManyErrors(String),
     // Transient Ethereum provider error
-    TransientProviderError(String),
+    TransientProvider(String),
     // Ethereum provider error
-    ProviderError(String),
+    Provider(String),
     // TokenId is unknown
     UnknownTokenId(u8),
     // Invalid BridgeCommittee
@@ -54,10 +54,10 @@ pub enum BridgeError {
     MismatchedAction,
     // Action is not a governance action
     ActionIsNotGovernanceAction(BridgeAction),
-    // Client requested an non-approved governace action
+    // Client requested an non-approved governance action
     GovernanceActionIsNotApproved,
     // Authority has invalid url
-    AuthoirtyUrlInvalid,
+    AuthorityUrlInvalid,
     // Action is not token transfer
     ActionIsNotTokenTransferAction,
     // Iota transaction failure due to generic error
@@ -65,9 +65,9 @@ pub enum BridgeError {
     // Zero value bridge transfer should not be allowed
     ZeroValueBridgeTransfer(String),
     // Storage Error
-    StorageError(String),
-    // Rest API Error
-    RestAPIError(String),
+    Storage(String),
+    // REST API Error
+    RestAPI(String),
     // Uncategorized error
     Generic(String),
 }

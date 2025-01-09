@@ -1,0 +1,32 @@
+{
+    "questions": [
+      {
+        "questionText": "How many IOTA tokens were migrated from the Stardust network during the IOTA Rebased launch?",
+        "answerOptions": [
+          { "answerText": "1,000,000,000", "isCorrect": false },
+          { "answerText": "4,600,000,000", "isCorrect": true },
+          { "answerText": "5,000,000,000", "isCorrect": false },
+          { "answerText": "2,500,000,000", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "What is one of the key purposes of IOTA tokens in governance?",
+        "answerOptions": [
+          { "answerText": "They are used to mint new tokens.", "isCorrect": false },
+          { "answerText": "They grant the right to participate in on-chain voting.", "isCorrect": true },
+          { "answerText": "They allow users to store more data.", "isCorrect": false },
+          { "answerText": "They reduce gas fees for transactions.", "isCorrect": false }
+        ]
+      },
+      {
+        "questionText": "How did the number of decimals for the IOTA token change after the Rebased release?",
+        "answerOptions": [
+          { "answerText": "From 4 to 9 decimals", "isCorrect": false },
+          { "answerText": "From 3 to 6 decimals", "isCorrect": false },
+          { "answerText": "From 6 to 9 decimals", "isCorrect": true },
+          { "answerText": "From 9 to 12 decimals", "isCorrect": false }
+        ]
+      }
+    ]
+  }
+  

@@ -43,7 +43,6 @@ pub enum StoreName {
     Validator,
     Index,
     Epoch,
-    // TODO: Add the new checkpoint v2 tables.
 }
 impl std::fmt::Display for StoreName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

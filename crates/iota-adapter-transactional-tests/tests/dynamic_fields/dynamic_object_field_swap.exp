@@ -7,25 +7,25 @@ task 1, lines 7-60:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 8937600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8930000,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 62:
 //# run test::m::parent --sender A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2470000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2454800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 64:
 //# run test::m::child --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2287600,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2272400,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 4, line 66:
 //# run test::m::add_field --sender A --args object(2,0) object(3,0)
 created: object(4,0)
 mutated: object(0,0), object(2,0), object(3,0)
-gas summary: computation_cost: 1000000, storage_cost: 6224400,  storage_rebate: 3769600, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6194000,  storage_rebate: 3746800, non_refundable_storage_fee: 0
 
 task 5, line 68:
 //# view-object 3,0
@@ -45,7 +45,7 @@ task 6, line 70:
 created: object(6,0)
 mutated: object(0,0), object(2,0), object(3,0)
 deleted: object(4,0)
-gas summary: computation_cost: 1000000, storage_cost: 5251600,  storage_rebate: 6224400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5221200,  storage_rebate: 6194000, non_refundable_storage_fee: 0
 
 task 7, line 72:
 //# view-object 3,0

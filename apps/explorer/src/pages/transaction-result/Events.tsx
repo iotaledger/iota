@@ -2,15 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Accordion, AccordionHeader, AccordionContent, KeyValueInfo } from '@iota/apps-ui-kit';
+import {
+    Accordion,
+    AccordionHeader,
+    AccordionContent,
+    KeyValueInfo,
+    Divider,
+} from '@iota/apps-ui-kit';
 import { type IotaEvent } from '@iota/iota-sdk/client';
 import { formatAddress, parseStructTag } from '@iota/iota-sdk/utils';
 import { TriangleDown } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useState } from 'react';
-
 import { SyntaxHighlighter } from '~/components';
-import { Divider, ObjectLink } from '~/components/ui';
+import { ObjectLink } from '~/components/ui';
 
 function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.Element {
     const [open, setOpen] = useState(false);

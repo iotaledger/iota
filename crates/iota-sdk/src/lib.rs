@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The Iota Rust SDK
+//! The IOTA Rust SDK
 //!
 //! It aims at providing a similar SDK functionality like the one existing for
 //! [TypeScript](https://github.com/iotaledger/iota/tree/main/sdk/typescript/).
-//! Iota Rust SDK builds on top of the [JSON RPC API](https://docs.iota.io/iota-jsonrpc)
+//! IOTA Rust SDK builds on top of the [JSON RPC API](https://docs.iota.org/iota-api-ref)
 //! and therefore many of the return types are the ones specified in
 //! [iota_types].
 //!
@@ -26,7 +26,7 @@
 //!
 //! # Usage
 //! The main way to interact with the API is through the [IotaClientBuilder],
-//! which returns a [IotaClient] object from which the user can access the
+//! which returns an [IotaClient] object from which the user can access the
 //! various APIs.
 //!
 //! ## Getting Started
@@ -34,14 +34,14 @@
 //! folder of your Rust project.
 //!
 //! The main building block for the Iota Rust SDK is the [IotaClientBuilder],
-//! which provides a simple and straightforward way of connecting to a Iota
+//! which provides a simple and straightforward way of connecting to an Iota
 //! network and having access to the different available APIs.
 //!
-//! A simple example that connects to a running Iota local network,
-//! the Iota devnet, and the Iota testnet is shown below.
+//! Below is a simple example which connects to a running Iota local network,
+//! devnet, and testnet.
 //! To successfully run this program, make sure to spin up a local
 //! network with a local validator, a fullnode, and a faucet server
-//! (see [here](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk/README.md#prerequisites) for more information).
+//! (see [the README](https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk/README.md#prerequisites) for more information).
 //!
 //! ```rust,no_run
 //! use iota_sdk::IotaClientBuilder;
@@ -71,7 +71,7 @@
 //! ## Examples
 //!
 //! For detailed examples, please check the APIs docs and the examples folder
-//! in the [main repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
+//! in the [repository](https://github.com/iotaledger/iota/tree/main/crates/iota-sdk/examples).
 
 pub mod apis;
 pub mod error;
@@ -117,18 +117,20 @@ use crate::{
 pub const IOTA_COIN_TYPE: &str = "0x2::iota::IOTA";
 pub const IOTA_LOCAL_NETWORK_URL: &str = "http://127.0.0.1:9000";
 pub const IOTA_LOCAL_NETWORK_URL_0: &str = "http://0.0.0.0:9000";
-pub const IOTA_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:5003/gas";
-pub const IOTA_DEVNET_URL: &str = "https://fullnode.devnet.iota.io:443";
-pub const IOTA_TESTNET_URL: &str = "https://fullnode.testnet.iota.io:443";
+pub const IOTA_LOCAL_NETWORK_GAS_URL: &str = "http://127.0.0.1:9123/v1/gas";
+pub const IOTA_DEVNET_URL: &str = "https://api.devnet.iota.cafe";
+pub const IOTA_DEVNET_GAS_URL: &str = "https://faucet.devnet.iota.cafe/v1/gas";
+pub const IOTA_TESTNET_URL: &str = "https://api.testnet.iota.cafe";
+pub const IOTA_TESTNET_GAS_URL: &str = "https://faucet.testnet.iota.cafe/v1/gas";
 
-/// A Iota client builder for connecting to the Iota network
+/// Builder for creating an [IotaClient] for connecting to the Iota network.
 ///
-/// By default the `maximum concurrent requests` is set to 256 and
-/// the `request timeout` is set to 60 seconds. These can be adjusted using the
-/// `max_concurrent_requests` function, and the `request_timeout` function.
-/// If you use the WebSocket, consider setting the `ws_ping_interval` field to a
-/// value of your choice to prevent the inactive WS subscription being
-/// disconnected due to proxy timeout.
+/// By default `maximum concurrent requests` is set to 256 and `request timeout`
+/// is set to 60 seconds. These can be adjusted using
+/// [`Self::max_concurrent_requests()`], and the [`Self::request_timeout()`].
+/// If you use the WebSocket, consider setting `ws_ping_interval` appropriately
+/// to prevent an inactive WS subscription being disconnected due to proxy
+/// timeout.
 ///
 /// # Examples
 ///
@@ -165,38 +167,38 @@ impl Default for IotaClientBuilder {
 }
 
 impl IotaClientBuilder {
-    /// Set the request timeout to the specified duration
+    /// Set the request timeout to the specified duration.
     pub fn request_timeout(mut self, request_timeout: Duration) -> Self {
         self.request_timeout = request_timeout;
         self
     }
 
-    /// Set the max concurrent requests allowed
+    /// Set the max concurrent requests allowed.
     pub fn max_concurrent_requests(mut self, max_concurrent_requests: usize) -> Self {
         self.max_concurrent_requests = max_concurrent_requests;
         self
     }
 
-    /// Set the WebSocket URL for the Iota network
+    /// Set the WebSocket URL for the Iota network.
     pub fn ws_url(mut self, url: impl AsRef<str>) -> Self {
         self.ws_url = Some(url.as_ref().to_string());
         self
     }
 
-    /// Set the WebSocket ping interval
+    /// Set the WebSocket ping interval.
     pub fn ws_ping_interval(mut self, duration: Duration) -> Self {
         self.ws_ping_interval = Some(duration);
         self
     }
 
-    /// Set the basic auth credentials for the HTTP client
+    /// Set the basic auth credentials for the HTTP client.
     pub fn basic_auth(mut self, username: impl AsRef<str>, password: impl AsRef<str>) -> Self {
         self.basic_auth = Some((username.as_ref().to_string(), password.as_ref().to_string()));
         self
     }
 
-    /// Returns a [IotaClient] object connected to the Iota network running at
-    /// the URI provided.
+    /// Return an [IotaClient] object connected to the Iota network accessible
+    /// via the provided URI.
     ///
     /// # Examples
     ///
@@ -285,9 +287,9 @@ impl IotaClientBuilder {
         })
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the local
-    /// development network (by default it expects the Iota network to be
-    /// up and running at `127.0.0.1:9000`).
+    /// Return an [IotaClient] object that is ready to interact with the local
+    /// development network (by default it expects the Iota network to be up
+    /// and running at `127.0.0.1:9000`).
     ///
     /// For connecting to a custom URI, use the `build` function instead.
     ///
@@ -308,10 +310,10 @@ impl IotaClientBuilder {
         self.build(IOTA_LOCAL_NETWORK_URL).await
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the Iota
+    /// Return an [IotaClient] object that is ready to interact with the Iota
     /// devnet.
     ///
-    /// For connecting to a custom URI, use the `build` function instead..
+    /// For connecting to a custom URI, use the `build` function instead.
     ///
     /// # Examples
     ///
@@ -330,7 +332,7 @@ impl IotaClientBuilder {
         self.build(IOTA_DEVNET_URL).await
     }
 
-    /// Returns a [IotaClient] object that is ready to interact with the Iota
+    /// Return an [IotaClient] object that is ready to interact with the Iota
     /// testnet.
     ///
     /// For connecting to a custom URI, use the `build` function instead.
@@ -399,12 +401,12 @@ impl IotaClientBuilder {
     }
 }
 
-/// IotaClient is the basic type that provides all the necessary abstractions
-/// for interacting with the Iota network.
+/// Provides all the necessary abstractions for interacting with the Iota
+/// network.
 ///
 /// # Usage
 ///
-/// Use [IotaClientBuilder] to build a [IotaClient].
+/// Use [IotaClientBuilder] to build an [IotaClient].
 ///
 /// # Examples
 ///
@@ -461,8 +463,8 @@ impl Debug for RpcClient {
     }
 }
 
-/// ServerInfo contains all the useful information regarding the API version,
-/// the available RPC calls, and subscriptions.
+/// Contains all the useful information regarding the API version, the available
+/// RPC calls, and subscriptions.
 struct ServerInfo {
     rpc_methods: Vec<String>,
     subscriptions: Vec<String>,
@@ -470,19 +472,19 @@ struct ServerInfo {
 }
 
 impl IotaClient {
-    /// Returns a list of RPC methods supported by the node the client is
+    /// Return a list of RPC methods supported by the node the client is
     /// connected to.
     pub fn available_rpc_methods(&self) -> &Vec<String> {
         &self.api.info.rpc_methods
     }
 
-    /// Returns a list of streaming/subscription APIs supported by the node the
+    /// Return a list of streaming/subscription APIs supported by the node the
     /// client is connected to.
     pub fn available_subscriptions(&self) -> &Vec<String> {
         &self.api.info.subscriptions
     }
 
-    /// Returns the API version information as a string.
+    /// Return the API version information as a string.
     ///
     /// The format of this string is `<major>.<minor>.<patch>`, e.g., `1.6.0`,
     /// and it is retrieved from the OpenRPC specification via the discover
@@ -491,7 +493,7 @@ impl IotaClient {
         &self.api.info.version
     }
 
-    /// Verifies if the API version matches the server version and returns an
+    /// Verify if the API version matches the server version and returns an
     /// error if they do not match.
     pub fn check_api_version(&self) -> IotaRpcResult<()> {
         let server_version = self.api_version();
@@ -505,42 +507,42 @@ impl IotaClient {
         Ok(())
     }
 
-    /// Returns a reference to the coin read API.
+    /// Return a reference to the coin read API.
     pub fn coin_read_api(&self) -> &CoinReadApi {
         &self.coin_read_api
     }
 
-    /// Returns a reference to the event API.
+    /// Return a reference to the event API.
     pub fn event_api(&self) -> &EventApi {
         &self.event_api
     }
 
-    /// Returns a reference to the governance API.
+    /// Return a reference to the governance API.
     pub fn governance_api(&self) -> &GovernanceApi {
         &self.governance_api
     }
 
-    /// Returns a reference to the quorum driver API.
+    /// Return a reference to the quorum driver API.
     pub fn quorum_driver_api(&self) -> &QuorumDriverApi {
         &self.quorum_driver_api
     }
 
-    /// Returns a reference to the read API.
+    /// Return a reference to the read API.
     pub fn read_api(&self) -> &ReadApi {
         &self.read_api
     }
 
-    /// Returns a reference to the transaction builder API.
+    /// Return a reference to the transaction builder API.
     pub fn transaction_builder(&self) -> &TransactionBuilder {
         &self.transaction_builder
     }
 
-    /// Returns a reference to the underlying http client.
+    /// Return a reference to the underlying http client.
     pub fn http(&self) -> &HttpClient {
         &self.api.http
     }
 
-    /// Returns a reference to the underlying WebSocket client, if any.
+    /// Return a reference to the underlying WebSocket client, if any.
     pub fn ws(&self) -> Option<&WsClient> {
         self.api.ws.as_ref()
     }
@@ -594,7 +596,7 @@ impl DataReader for ReadApi {
         Ok(self.get_object_with_options(object_id, options).await?)
     }
 
-    /// Returns the reference gas price as a u64 or an error otherwise
+    /// Return the reference gas price as a u64 or an error otherwise
     async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
         Ok(self.get_reference_gas_price().await?)
     }

@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "Which key is used by an IOTA Node for staking control?",
+        "answerOptions": [
+            { "answerText": "protocol.key", "isCorrect": false },
+            { "answerText": "account.key", "isCorrect": true },
+            { "answerText": "network.key", "isCorrect": false },
+            { "answerText": "worker.key", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is the purpose of increasing network buffer size for an IOTA validator?",
+        "answerOptions": [
+            { "answerText": "To improve logging accuracy.", "isCorrect": false },
+            { "answerText": "To enhance peer-to-peer transaction speed.", "isCorrect": true },
+            { "answerText": "To increase storage capacity.", "isCorrect": false },
+            { "answerText": "To optimize CPU usage.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "What is required for an IOTA validator to update its name on-chain?",
+        "answerOptions": [
+            { "answerText": "Using the IOTA Client CLI to call `iota_system::update_validator_name`.", "isCorrect": true },
+            { "answerText": "Sending a request to IOTA Foundation.", "isCorrect": false },
+            { "answerText": "Editing the validator.yaml file.", "isCorrect": false },
+            { "answerText": "Restarting the validator node.", "isCorrect": false }
+        ]
+    }
+]

@@ -336,7 +336,7 @@ mod tests {
             let mut mock_internal = MockMoveUtilsInternalTrait::new();
             let error_string = format!("No module found with module name {module_name}");
             let expected_error =
-                Error::IotaRpcInputError(IotaRpcInputError::GenericNotFound(error_string.clone()));
+                Error::IotaRpcInput(IotaRpcInputError::GenericNotFound(error_string.clone()));
             mock_internal
                 .expect_get_move_module()
                 .return_once(move |_package, _module_name| Err(expected_error));

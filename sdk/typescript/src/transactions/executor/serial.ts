@@ -41,7 +41,7 @@ export class SerialTransactionExecutor {
     }
 
     #cacheGasCoin = async (effects: typeof bcs.TransactionEffects.$inferType) => {
-        if (!effects.V2) {
+        if (!effects.V1) {
             return;
         }
 
@@ -117,11 +117,11 @@ export class SerialTransactionExecutor {
 }
 
 export function getGasCoinFromEffects(effects: typeof bcs.TransactionEffects.$inferType) {
-    if (!effects.V2) {
+    if (!effects.V1) {
         throw new Error('Unexpected effects version');
     }
 
-    const gasObjectChange = effects.V2.changedObjects[effects.V2.gasObjectIndex!];
+    const gasObjectChange = effects.V1.changedObjects[effects.V1.gasObjectIndex!];
 
     if (!gasObjectChange) {
         throw new Error('Gas object not found in effects');
@@ -139,7 +139,7 @@ export function getGasCoinFromEffects(effects: typeof bcs.TransactionEffects.$in
         ref: {
             objectId,
             digest,
-            version: effects.V2.lamportVersion,
+            version: effects.V1.lamportVersion,
         },
         owner: owner.AddressOwner || owner.ObjectOwner!,
     };

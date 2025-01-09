@@ -12,7 +12,7 @@ use serde_with::serde_as;
 
 #[test]
 fn test_struct_tag_serde() {
-    let tag = parse_iota_struct_tag("0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::iotafrens::IotaFren<0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::capy::Capy>").unwrap();
+    let tag = parse_iota_struct_tag("0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::mymodule::MyStruct<0x7f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::othermodule::OtherStruct>").unwrap();
     #[serde_as]
     #[derive(Serialize)]
     struct TestStructTag(#[serde_as(as = "IotaStructTag")] StructTag);
@@ -23,7 +23,7 @@ fn test_struct_tag_serde() {
     };
     assert_eq!(
         json,
-        "0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::iotafrens::IotaFren<0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::capy::Capy>"
+        "0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::mymodule::MyStruct<0x07f89cdffd8968affa0b47bef91adc5314e19509080470c45bfd434cd83a766b::othermodule::OtherStruct>"
     );
 
     let tag2 = parse_iota_struct_tag(&json).unwrap();

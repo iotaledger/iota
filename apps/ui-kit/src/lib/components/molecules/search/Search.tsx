@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import cx from 'classnames';
 import { Loader, Search as SearchIcon } from '@iota/ui-icons';
 import { Divider, SearchBarType } from '@/components';
@@ -162,7 +162,7 @@ export function Search({
                 <div
                     ref={suggestionsListRef}
                     className={cx(
-                        'absolute left-0 top-full flex w-full flex-col items-center overflow-hidden',
+                        'absolute left-0 top-full flex w-full flex-col items-center overflow-hidden bg-neutral-100 dark:bg-neutral-10',
                         suggestionsStyle,
                     )}
                 >

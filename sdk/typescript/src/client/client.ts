@@ -413,7 +413,6 @@ export class IotaClient {
         transactionBlock,
         signature,
         options,
-        requestType,
     }: ExecuteTransactionBlockParams): Promise<IotaTransactionBlockResponse> {
         const result: IotaTransactionBlockResponse = await this.transport.request({
             method: 'iota_executeTransactionBlock',
@@ -423,16 +422,6 @@ export class IotaClient {
                 options,
             ],
         });
-
-        if (requestType === 'WaitForLocalExecution') {
-            try {
-                await this.waitForTransaction({
-                    digest: result.digest,
-                });
-            } catch (_) {
-                // Ignore error while waiting for transaction
-            }
-        }
 
         return result;
     }

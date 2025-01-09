@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { MediaPlay16 } from '@iota/icons';
+import { Play } from '@iota/ui-icons';
 import { cva, type VariantProps } from 'class-variance-authority';
 import clsx from 'clsx';
 
@@ -100,9 +100,7 @@ export function ObjectVideoImage({
                 />
                 {video && (
                     <div className="pointer-events-none absolute bottom-2 right-2 z-10 flex items-center justify-center rounded-full opacity-80">
-                        <MediaPlay16
-                            className={clsx(variant === 'large' ? 'h-8 w-8' : 'h-5 w-5')}
-                        />
+                        <Play className={clsx(variant === 'large' ? 'h-8 w-8' : 'h-5 w-5')} />
                     </div>
                 )}
             </div>

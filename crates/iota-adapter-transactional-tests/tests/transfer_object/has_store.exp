@@ -7,13 +7,13 @@ task 1, lines 9-26:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5905200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5897600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 28:
 //# run test::m::mint_s --sender A
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2181200,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 3, line 30:
 //# view-object 2,0
@@ -30,7 +30,7 @@ Contents: test::m::S {
 task 4, line 32:
 //# transfer-object 2,0 --sender A --recipient B
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2196400,  storage_rebate: 2196400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2181200,  storage_rebate: 2181200, non_refundable_storage_fee: 0
 
 task 5, lines 34-37:
 //# view-object 2,0
@@ -48,7 +48,7 @@ task 6, line 39:
 //# run test::m::mint_cup --type-args test::m::S --sender A
 created: object(6,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2500400,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2485200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 7, line 41:
 //# view-object 6,0
@@ -65,7 +65,7 @@ Contents: test::m::Cup<test::m::S> {
 task 8, line 43:
 //# transfer-object 6,0 --sender A --recipient B
 mutated: object(0,0), object(6,0)
-gas summary: computation_cost: 1000000, storage_cost: 2500400,  storage_rebate: 2500400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2485200,  storage_rebate: 2485200, non_refundable_storage_fee: 0
 
 task 9, line 45:
 //# view-object 6,0

@@ -21,15 +21,16 @@ As a user, you may own `BasicOutput` objects that need to be unlocked before you
 To begin, you need to determine if your `BasicOutput` can be unlocked. You can achieve this by performing specific off-chain queries that will check the unlock conditions for the `BasicOutput`.
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/check-basic-output-unlock-conditions.ts#L17-L49
+```
+
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/check-basic-output-unlock-conditions.rs#L20-L56
 ```
-
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-
-Coming soon
 
 </TabItem>
 </Tabs>
@@ -43,15 +44,16 @@ Once you've confirmed that the `BasicOutput` can be unlocked, you can start the 
 The first step is to fetch the `BasicOutput` object that you intend to claim.
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/basic-output-claim.ts#L25-L42
+```
+
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L56-L81
 ```
-
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-
-Coming soon
 
 </TabItem>
 </Tabs>
@@ -66,15 +68,16 @@ these keys are strings representing the [`OTW`](../../iota-101/move-overview/one
 
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/basic-output-claim.ts#L47-L66
+```
+
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L83-L110
 ```
-
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-
-Coming soon
 
 </TabItem>
 </Tabs>
@@ -85,15 +88,16 @@ Finally, you can create a Programmable Transaction Block (PTB) using the `basic_
 along with the `Bag` keys to iterate over the extracted native tokens.
 
 <Tabs groupId="language">
+<TabItem value="typescript" label="TypeScript">
+
+```typescript file=<rootDir>/docs/examples/typescript/src/stardust/basic-output-claim.ts#L68-L118
+```
+
+</TabItem>
 <TabItem value="rust" label="Rust">
 
 ```rust file=<rootDir>/docs/examples/rust/stardust/basic-output-claim.rs#L113-L177
 ```
-
-</TabItem>
-<TabItem value="typescript" label="TypeScript">
-
-Coming soon
 
 </TabItem>
 </Tabs>

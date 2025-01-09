@@ -93,8 +93,7 @@ fragment RPC_CREDENTIAL_FIELDS on ValidatorCredentials {
     networkPubKey
     p2PAddress
     primaryAddress
-    workerPubKey
-    workerAddress
+    authorityPubKey
     proofOfPossession
     protocolPubKey
 }

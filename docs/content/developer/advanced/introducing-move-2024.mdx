@@ -1,0 +1,470 @@
+---
+title: Introducing Move 2024
+description: New features are becoming available to Move in 2024. These features are opt-in, so existing code will continue to function as expected. If you want to use these features in code you've already written, however, there are some steps you must take and breaking changes to be aware of to migrate to Move 2024.
+---
+
+IOTA launches with the "Move 2024.beta" edition, bringing enhanced features to improve both the writing and readability of Move code. These updates refine the source language without impacting the on-chain binary representation, allowing users to enjoy a smoother experience with the latest language improvements.
+
+The primary goal of the "Move 2024.beta" edition is to make Move easier to write and, ideally, easier to read. The minimal breaking changes introduced in the source language are designed to better prepare Move for future advancements.
+
+This document highlights some new features to try out and shows how to use them in your existing modules.
+
+:::info
+
+Please, provide any feedback or report any issues you encounter via [GitHub](https://github.com/iotaledger/iota/issues/new/choose) or [Discord](https://discord.iota.org/).
+
+:::
+
+## New features
+
+:::info
+
+Below are examples of how to rewrite some legacy code in the Move 2024 edition. 
+If you find legacy code in the Move examples and would like to rewrite it based on Move 2024, refer to these examples.
+
+:::
+
+
+### Method Syntax
+
+You can now call certain function methods using the `.` syntax. For example, the following call:
+
+```move
+vector::push_back(&mut v, coin::value(&c));
+```
+
+Can now be written as:
+
+```move
+v.push_back(c.value());
+```
+
+Where the receiver of the method (`v` and `c` in this example) is automatically borrowed if necessary (as `&mut v` and `&c` respectively).
+
+You can call any function defined in the same module as the receiver's type as a method if it takes the receiver as its first argument.
+
+For functions defined outside the module, you can declare methods using `public use fun` and `use fun`.
+
+### Index Syntax
+
+With method syntax, you can annotate certain functions as being `#[syntax(index)]` methods. You then call these methods using `v[i]`-style calls.
+
+For example,
+
+```move
+*&mut v[i] = v[j];
+```
+
+resolves to
+
+```move
+*vector::borrow_mut(&mut v, i) = *vector::borrow(&v, j);
+```
+
+### Macro Functions
+
+Higher-order functions (such as `map,` `filter,` `fold,` `for_each,` etc.) are useful in many languages for concisely transforming collections. Move does not have lambdas, closures, or function pointers, making defining these operations impossible.
+Macro functions will allow for Move to mimic these sorts of operations without supporting the behavior at runtime. The body of the macro mimicking the "higher-order function" will be inlined at each call site. And the call site can provide a "lambda" that will be substituted as the macro is expanded. For example:
+
+```move
+let v2 = v.map!(|x| x + 1);
+```
+
+Or
+
+```move
+v.for_each!(|x| foo(x));
+```
+
+The "lambdas" additionally will support control flow through break and return.
+
+### Enums
+
+Enumerations allow you to define a single type that may hold multiple different shapes of data. Unlike structs, which always have the same fields, enums can have different fields depending on the variant of the enum. For example, in `enum Option<T> { None, Some(T) }`, the variant None has no fields, and the variant Some has a single field of type `T`.
+Move allows destructuring enums using match expressions. Some examples of enums in Move are the following:
+
+```move
+public enum Color {
+    RGB { red: u8, green: u8, blue: u8 },
+    HSL { hue: u16, saturation: u8, lightness: u8 },
+    Hex(u32)
+}
+
+public enum Option<T> {
+    None,
+    Some(T),
+}
+
+public fun is_rgb_color(color: &Color): bool {
+    match (color) {
+      Color::RGB { red: _, green: _, blue: _ } => true,
+      _ => false,
+    }
+}
+
+const EOptionIsNone: u64 = 0;
+public fun unwrap_some<T>(option: Option<T>): T {
+    match (option) {
+        Option::Some(x) => x,
+        Option::None => abort EOptionIsNone,
+    }
+}
+```
+
+Move will add support for basic high-level enums that have similar visibility rules to structs in Move today; the enumeration type is publicly visible, just like struct types, but the variants of the enumeration are not public, much like fields. However, we plan to add public variants in the future. Similarly, enumerations cannot be recursive at release, but we plan to support this in the future.
+
+### public(package)
+
+`friend` declarations, and the associated `public(friend)` visibility modifiers, are deprecated. In their place is the `public(package)` visibility modifier, which allows calling functions only within the same package where they are defined.
+
+### Positional Fields
+
+You can now define `struct`s with positional fields, which are accessed by zero-based index. For example,
+
+```move
+public struct Pair(u64, u64) has copy, drop, store;
+```
+
+then to access each field,
+
+```move
+public fun sum(p: &Pair): u64 {
+  p.0 + p.1
+}
+```
+
+And as this example shows, you can now declare abilities after the struct field list.
+
+### Postfix `has` Ability Declarations
+
+With positional fields, it is a bit awkward to read `has` declarations in the middle of a declaration. As an alternative, `has` can now be written after the fields. For example, both will be valid:
+
+```move
+struct Wrapper1 has copy, drop, store (u64)
+```
+
+```move
+struct Wrapper2(u64) has copy, drop, store;
+```
+
+### Nested `use` and Standard Library Defaults
+
+You can now nest `use` aliases for more conciseness.
+
+```move
+use iota::{balance, coin::{Self, Coin}};
+```
+
+Additionally, the following `use` declarations are now automatically included in every module:
+
+```move
+use std::vector;
+use std::option::{Self, Option};
+use iota::object::{Self, ID, UID};
+use iota::transfer;
+use iota::tx_context::{Self, TxContext};
+```
+
+### Automatic Referencing in Equality
+
+Equality operations, `==` and `!=`, now automatically borrow if one side is a reference and the other is not. For example,
+
+```move
+fun check(x: u64, r: &u64): bool {
+  x == r
+}
+```
+
+is equivalent to
+
+```move
+fun check(x: u64, r: &u64): bool {
+  &x == r
+}
+```
+
+This automatic borrowing can occur on either side of `==` and `!=`.
+
+### Loop Labels
+
+When nesting loops, it can be convenient to break to the outer loop. For example,
+
+```move
+let mut i = 0;
+let mut j = 0;
+let mut terminate_loop = false;
+while (i < 10) {
+    while (j < 10) {
+        if (haystack(i, j) == needle) {
+            terminate_loop = true;
+            break;
+        };
+        j = j + 1;
+    };
+    if (terminate_loop) break;
+    i = i + 1;
+}
+```
+
+Now, you can directly name the outer loop (`outer` in this case) and break it all at once:
+
+```move
+let mut i = 0;
+let mut j = 0;
+'outer: while (i < 10) {
+    while (j < 10) {
+        if (haystack(i, j) == needle) break'outer;
+        j = j + 1;
+    };
+    i = i + 1;
+}
+```
+### Type Inference Holes `_` On Type Annotations
+
+With type directed programming, often you need to annotate a variable declaration or provide type arguments. But, sometimes you really only need to annotate on specific type, but the other types can be inferred. `_` will be added to allow that type to still be inferred, even when other parts of the type are annotated. For example
+
+```move
+dynamic_field::borrow_mut<address, Coin<IOTA>>(&mut id, owner)
+```
+
+could be rewritten as
+
+```move
+dynamic_field::borrow_mut<_, Coin<IOTA>>(&mut id, owner)
+```
+
+where the `_` would be inferred as `address`
+
+
+### `break` With Value
+
+It's now possible to `break` with a value from a `loop`. For example,
+
+```move
+let mut i = 0;
+let x: u64 = loop {
+    if (v[i] > 10) break i;
+    i = i + 1;
+};
+```
+
+You can achieve this with labels, as well. For example,
+
+```move
+let mut i = 0;
+let mut j = 0;
+let item = 'outer: loop {
+    while (j < 10) {
+        let item = haystack(i, j);
+        if (item == needle) break'outer option::some(item);
+        j = j + 1;
+    };
+    i = i + 1;
+    if (i == 10) break option::none();
+};
+```
+
+### Named Blocks With Enhanced Control Flow Operations
+
+Move 2024 supports naming `loop`, `while`, and normal blocks, allowing for more-complex control
+flow.
+
+Previous code with nested `while` loops (such as this simplified excerpt from deepbook) would need to
+set a flag to break both loops:
+
+```move
+let mut terminate_loop = false;
+
+while (...loop_condition...) {
+    while (...inner_condition...) {
+        ...
+        if (...break_condition...) {
+            terminate_loop = true;
+        }
+        ...
+        if (terminate_loop) {
+            break;
+        }
+    }
+    if (terminate_loop) {
+        break;
+    }
+}
+```
+
+Now, you can directly name the outer loop and break it all at once:
+
+```move
+let mut terminate_loop = false;
+
+while (...loop_condition...) 'outer: {
+    while (...inner_condition...) {
+        ...
+        if (...break_condition...) {
+            terminate_loop = true;
+        }
+        ...
+        if (terminate_loop) {
+            break 'outer;
+        }
+    }
+}
+```
+
+This will immediately break to the outer loop, allowing more precise control flow when you'd like
+to escape from loops.
+
+This feature also works with normal loop forms, including breaks with values:
+
+```move
+let y = loop 'outer: {
+    let _x = loop 'inner: {
+        if (true) {
+            break 'outer 10;
+        } else {
+            break 'inner 20
+        }
+    };
+};
+```
+
+In this toy example, `y` will take on the value `10` because the first `break` will break the
+'outer` loop with that value.
+
+Finally, this feature can be applied to normal blocks in Move, but instead utilizes the `return`
+keyword. This can be useful when sequencing a block of code that may need early returns with values.
+
+```move
+public fun auth_user(auth_one: EasyAuth, auth_two: AuthTwo): u64 {
+    let auth_token = 'auth:  {
+        let maybe_auth_token = try_auth(auth_one);
+        if (valid_auth(maybe_auth_token)) {
+            return 'auth unpack_auth(maybe_auth_token);
+        }
+        // ... more complicated code involving auth_two
+    };
+    // ... code using the auth_token
+}
+```
+
+While we do not expect programmers to use named blocks with return in everyday cases, we anticipate
+that they will ease the development and usage of macros significantly.
+
+
+## Breaking Changes
+
+### Datatype Visibility Requirements
+
+Currently, all structs in Move are, by convention, public: any other module or package can import them and refer to them by type. To make this clearer, Move 2024 requires that all structs be declared with the `public` keyword. For example:
+
+```move
+// legacy code
+struct S { x: u64 }
+
+// Move 2024 code
+public struct S { x: u64 }
+```
+
+Any non-public struct produces an error at this time, though the Move team is working on new visibility options for future releases.
+
+### Mutability Requirements
+
+Previously, all variables in Move were implicitly mutable. For example:
+
+```move
+fun f(s: S, y: u64): u64 {
+    let a = 0;
+    let S { x } = s;
+    a = 1;
+    x = 10;
+    y = 5;
+    x + y
+}
+```
+
+Now, you must declare mutable variables explicitly:
+
+```move
+fun f(s: S, mut y: u64): u64 {
+    let mut a = 0;
+    let S { mut x } = 5;
+    a = 1;
+    x = 10;
+    y = 5;
+    x + y
+}
+```
+
+The compiler now produces an error if you attempt to reassign or borrow a variable mutably without this explicit declaration.
+
+### Removing Friends and `public(friend)`
+
+Friends and the `public(friend)` visibilities were introduced early in Move's development, predating even the package system. As indicated in the [public(package)](#publicpackage) section, `public(package)` deprecates `public(friend)` in Move 2024.
+
+The following declaration now produces an error:
+
+```move
+module pkg::m {
+    friend pkg::a;
+    public(friend) fun f() { ... }
+}
+
+module pkg::a {
+    fun calls_f() { ... pkg::m::f() ... }
+}
+```
+
+Instead, if you want your function to be visible only in the package, write:
+
+```move
+module pkg::m {
+    public(package) fun f() { ... }
+}
+
+module pkg::a {
+    // this now works directly
+    fun calls_f() { ... pkg::m::f() ... }
+}
+```
+
+### New Keywords
+
+Looking toward the future, Move 2024 Beta adds the following keywords to the language: `enum`, `for`, `match`, `mut`, and `type`. Unfortunately, the compiler now produces parsing errors when it finds these in other positions. This is a necessary change as the language matures.
+
+### Revised Paths and Namespaces
+
+Move 2024 revises how paths and namespaces work compared to legacy Move, toward easing `enum` aliasing in the future. Consider the following snippet from a test annotation in the `iota_system` library:
+
+```move
+use iota_system::iota_system;
+...
+#[expected_failure(abort_code = iota_system::validator_set::EInvalidCap)]
+```
+
+Legacy Move would always treat a three-part name as an address(`iota_system`), module(`validator_set`), and module member (`EInvalidCap`). Move 2024 respects scope for `use`, so `iota_system` in the attribute resolves to the module, producing a name resolution error overall.
+
+To avoid cases where this is the intended behavior, Move 2024 introduces a prefix operation for global qualification. To use, you can rewrite this annotation as:
+
+```move
+use iota_system::iota_system;
+...
+#[expected_failure(abort_code = ::iota_system::validator_set::EInvalidCap)]
+                             // ^ note `::` here
+```
+
+
+## Move 2024 Editions
+
+The beta release of Move 2024 comes with some powerful new features in addition to the breaking changes described here. There are also more on the horizon, such as syntactic macros, enums with pattern matching, and other user-defined syntax extensions.
+
+#### `beta` Edition
+- `beta` (specified via `edition = "2024.beta"`) is the recommended edition. It includes all the new
+  features mentioned above and all breaking changes. While there is the risk of breaking changes or
+  bugs in `beta`, you should feel comfortable using it in your projects. As new features are added
+  and tested, they will be included in the `beta` edition. The `beta` edition will end after _all_
+  features for the year have been added and finalized.
+  
+  #### `alpha` Edition
+- `alpha` (specified via `edition = "2024.alpha"`) will get new features and changes as they are
+  developed. Breaking changes to features in `alpha` should be expected. As such, take caution when
+  using`alpha` in your projects.

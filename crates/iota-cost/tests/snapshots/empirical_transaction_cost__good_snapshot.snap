@@ -1,59 +1,69 @@
 ---
 source: crates/iota-cost/tests/empirical_transaction_cost.rs
 expression: common_costs_actual
+snapshot_kind: text
 ---
 {
   "MergeCoin": {
     "computationCost": "1000000",
-    "storageCost": "1976000",
+    "computationCostBurned": "1000000",
+    "storageCost": "1960800",
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   },
   "Publish": {
     "computationCost": "1000000",
-    "storageCost": "13505200",
+    "computationCostBurned": "1000000",
+    "storageCost": "13474800",
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   },
   "SharedCounterAssertValue": {
     "computationCost": "1000000",
-    "storageCost": "2591600",
-    "storageRebate": "1603600",
+    "computationCostBurned": "1000000",
+    "storageCost": "2576400",
+    "storageRebate": "1596000",
     "nonRefundableStorageFee": "0"
   },
   "SharedCounterCreate": {
     "computationCost": "1000000",
-    "storageCost": "2591600",
+    "computationCostBurned": "1000000",
+    "storageCost": "2576400",
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   },
   "SharedCounterIncrement": {
     "computationCost": "1000000",
-    "storageCost": "2591600",
-    "storageRebate": "1603600",
+    "computationCostBurned": "1000000",
+    "storageCost": "2576400",
+    "storageRebate": "1596000",
     "nonRefundableStorageFee": "0"
   },
   "SplitCoin": {
     "computationCost": "1000000",
-    "storageCost": "4940000",
+    "computationCostBurned": "1000000",
+    "storageCost": "4902000",
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   },
   "TransferPortionIotaCoin": {
     "computationCost": "1000000",
-    "storageCost": "1976000",
+    "computationCostBurned": "1000000",
+    "storageCost": "1960800",
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   },
   "TransferWholeCoin": {
     "computationCost": "1000000",
-    "storageCost": "1976000",
+    "computationCostBurned": "1000000",
+    "storageCost": "1960800",
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   },
   "TransferWholeIotaCoin": {
     "computationCost": "1000000",
-    "storageCost": "988000",
+    "computationCostBurned": "1000000",
+    "storageCost": "980400",
     "storageRebate": "0",
     "nonRefundableStorageFee": "0"
   }

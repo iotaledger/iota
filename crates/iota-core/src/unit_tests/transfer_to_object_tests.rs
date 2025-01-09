@@ -425,7 +425,7 @@ async fn test_tto_invalid_receiving_arguments() {
             .find(|(_, owner)| matches!(owner, Owner::ObjectOwner(_)))
             .unwrap();
 
-        #[allow(clippy::type_complexity)]
+        #[expect(clippy::type_complexity)]
         let mutations: Vec<(
             Box<dyn FnOnce(ObjectRef) -> ObjectRef>,
             Box<dyn FnOnce(UserInputError) -> bool>,
@@ -466,7 +466,7 @@ async fn test_tto_invalid_receiving_arguments() {
             ),
             (
                 Box::new(|_: ObjectRef| shared.0),
-                Box::new(|err| matches!(err, UserInputError::NotSharedObjectError)),
+                Box::new(|err| matches!(err, UserInputError::NotSharedObject)),
             ),
             (
                 Box::new(|_: ObjectRef| object_owned.0),

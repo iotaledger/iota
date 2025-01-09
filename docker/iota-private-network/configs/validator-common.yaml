@@ -8,8 +8,6 @@ validator:
   db-path: /opt/iota/db/authorities_db
   consensus-config:
     db-path: /opt/iota/db/consensus_db
-    narwhal-config:
-      max_header_delay: 2000ms
   expensive-safety-check-config:
     enable-epoch-iota-conservation-check: false
     enable-deep-per-tx-iota-conservation-check: false

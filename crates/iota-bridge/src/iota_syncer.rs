@@ -127,6 +127,7 @@ mod tests {
     use crate::{iota_client::IotaClient, iota_mock_client::IotaMockClient};
 
     #[tokio::test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     async fn test_iota_syncer_basic() -> anyhow::Result<()> {
         telemetry_subscribers::init_for_testing();
         let registry = Registry::new();

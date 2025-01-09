@@ -164,6 +164,22 @@ pub struct BridgeSummary {
     // TODO: add treasury
 }
 
+impl Default for BridgeSummary {
+    fn default() -> Self {
+        Self {
+            bridge_version: 1,
+            message_version: 1,
+            chain_id: 1,
+            sequence_nums: vec![],
+            committee: BridgeCommitteeSummary::default(),
+            treasury: BridgeTreasurySummary::default(),
+            bridge_records_id: ObjectID::random(),
+            limiter: BridgeLimiterSummary::default(),
+            is_frozen: false,
+        }
+    }
+}
+
 pub fn get_bridge_wrapper(object_store: &dyn ObjectStore) -> Result<BridgeWrapper, IotaError> {
     let wrapper = object_store
         .get_object(&IOTA_BRIDGE_OBJECT_ID)?
@@ -254,12 +270,12 @@ impl BridgeTrait for BridgeInnerV1 {
             .into_iter()
             .map(|e| {
                 let source = BridgeChainId::try_from(e.key.source).map_err(|_e| {
-                    IotaError::GenericBridgeError {
+                    IotaError::GenericBridge {
                         error: format!("Unrecognized chain id: {}", e.key.source),
                     }
                 })?;
                 let destination = BridgeChainId::try_from(e.key.destination).map_err(|_e| {
-                    IotaError::GenericBridgeError {
+                    IotaError::GenericBridge {
                         error: format!("Unrecognized chain id: {}", e.key.destination),
                     }
                 })?;
@@ -287,12 +303,12 @@ impl BridgeTrait for BridgeInnerV1 {
             .into_iter()
             .map(|e| {
                 let source = BridgeChainId::try_from(e.key.source).map_err(|_e| {
-                    IotaError::GenericBridgeError {
+                    IotaError::GenericBridge {
                         error: format!("Unrecognized chain id: {}", e.key.source),
                     }
                 })?;
                 let destination = BridgeChainId::try_from(e.key.destination).map_err(|_e| {
-                    IotaError::GenericBridgeError {
+                    IotaError::GenericBridge {
                         error: format!("Unrecognized chain id: {}", e.key.destination),
                     }
                 })?;

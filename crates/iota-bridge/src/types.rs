@@ -604,6 +604,7 @@ mod tests {
     };
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_committee_construction() -> anyhow::Result<()> {
         let (mut authority, _, _) = get_test_authority_and_key(8000, 9999);
         // This is ok
@@ -632,6 +633,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_committee_total_blocklisted_stake() -> anyhow::Result<()> {
         let (mut authority1, _, _) = get_test_authority_and_key(10000, 9999);
         assert_eq!(
@@ -667,6 +669,7 @@ mod tests {
 
     // Regression test to avoid accidentally change to approval threshold
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_action_approval_threshold_regression_test() -> anyhow::Result<()> {
         let action = get_test_iota_to_eth_bridge_action(None, None, None, None, None, None, None);
         assert_eq!(action.approval_threshold(), 3334);
@@ -724,6 +727,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "https://github.com/iotaledger/iota/issues/3224"]
     fn test_bridge_committee_filter_blocklisted_authorities() -> anyhow::Result<()> {
         // Note: today BridgeCommittee does not shuffle authorities
         let (authority1, _, _) = get_test_authority_and_key(5000, 9999);

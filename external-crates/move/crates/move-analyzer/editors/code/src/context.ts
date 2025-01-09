@@ -124,7 +124,7 @@ export class Context {
         command: (context: Readonly<Context>, ...args: Array<any>) => any,
     ): void {
         const disposable = vscode.commands.registerCommand(
-            `move.${name}`,
+            `iota-move.${name}`,
             async (...args: Array<any>) : Promise<any> => {
                 const ret = await command(this, ...args);
                 return ret;
@@ -359,7 +359,7 @@ export class Context {
                 await vscode.window.showInformationMessage(
                     `The move-analyzer binary at the user-specified path ('${this.configuration.serverPath}') ` +
                     'is not working. See troubleshooting instructions in the README file accompanying ' +
-                    'Move VSCode extension by IOTA Foundation in the VSCode marketplace',
+                    'Move VSCode extension by iotaledger in the VSCode marketplace',
                     { modal: true },
                     items,
                 );
@@ -410,7 +410,7 @@ export class Context {
             await vscode.window.showErrorMessage(
                 'Pre-built move-analyzer binary is not available for this platform. ' +
                 'Follow the instructions to manually install the language server in the README ' +
-                'file accompanying Move VSCode extension by IOTA Foundation in the VSCode marketplace',
+                'file accompanying Move VSCode extension by iotaledger in the VSCode marketplace',
                 { modal: true },
                 items,
             );

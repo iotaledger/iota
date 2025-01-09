@@ -2,14 +2,18 @@
 name = "custom-indexer"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
 
 [dependencies]
-anyhow = "1.0.86"
-async-trait = "0.1.81"
-iota_data_ingestion_core = { git = "https://github.com/iotaledger/iota", package = "iota-data-ingestion-core" }
-iota_types = { git = "https://github.com/iotaledger/iota", package = "iota-types" }
-prometheus = "0.13.3"
-tokio = { version = "1.38.0", features = ["full"] }
+# external dependencies
+anyhow.workspace = true
+async-trait.workspace = true
+prometheus.workspace = true
+tokio.workspace = true
+
+# internal dependencies
+iota-data-ingestion-core.workspace = true
+iota-types.workspace = true
 
 [[bin]]
 name = "local_reader"
@@ -18,5 +22,3 @@ path = "local_reader.rs"
 [[bin]]
 name = "remote_reader"
 path = "remote_reader.rs"
-
-[workspace]

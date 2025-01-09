@@ -5,12 +5,12 @@
 module reviews_rating::service {
     use std::string::String;
 
-    use iota::balance::{Self, Balance};
+    use iota::balance::Balance;
     use iota::clock::Clock;
-    use iota::coin::{Self, Coin};
+    use iota::coin::Coin;
     use iota::dynamic_field as df;
     use iota::iota::IOTA;
-    use iota::object_table::{Self, ObjectTable};
+    use iota::object_table::ObjectTable;
     
     use reviews_rating::moderator::{Moderator};
     use reviews_rating::review::{Self, Review};
@@ -30,7 +30,7 @@ module reviews_rating::service {
     /// Represents a service
     public struct Service has key, store {
         id: UID,
-        reward_pool: Balance<IOTA>,
+        reward_pool: Balance<IOTA>,  // IOTA currency
         reward: u64,
         top_reviews: vector<ID>,
         reviews: ObjectTable<ID, Review>,
@@ -38,7 +38,7 @@ module reviews_rating::service {
         name: String
     }
 
-    /// Represents a proof of experience that can be used to write a review with higher score
+    /// Represents a proof of experience that can be used to write a review with a higher score
     public struct ProofOfExperience has key {
         id: UID,
         service_id: ID,
@@ -57,26 +57,89 @@ module reviews_rating::service {
         name: String,
         ctx: &mut TxContext,
     ): ID {
-        let id = object::new(ctx);
+        let id = iota::object::new(ctx);  // IOTA object creation
         let service_id = id.to_inner();
         let service = Service {
             id,
             reward: 1000000,
-            reward_pool: balance::zero(),
-            reviews: object_table::new(ctx),
+            reward_pool: iota::balance::zero(),  // IOTA balance initialization
+            reviews: iota::object_table::new(ctx),  // IOTA object table
             top_reviews: vector[],
             overall_rate: 0,
             name
         };
 
         let admin_cap = AdminCap {
-            id: object::new(ctx),
+            id: iota::object::new(ctx),  // IOTA object creation
             service_id
         };
 
-        transfer::share_object(service);
-        transfer::public_transfer(admin_cap, tx_context::sender(ctx));
+        iota::transfer::share_object(service);  // IOTA transfer
+        iota::transfer::public_transfer(admin_cap, iota::tx_context::sender(ctx));  // IOTA transfer
         service_id
+    }
+
+    /// Upvotes a review
+    public fun upvote(
+        service: &mut Service,
+        review_id: ID,
+        _upvoter: address,
+    ) {
+        let review = service.reviews.borrow_mut(review_id);
+        let total_score = review.upvote();
+        service.reorder(review_id, total_score);
+    }
+
+    /// Reorder top_reviews after a review is updated
+    fun reorder(
+        service: &mut Service,
+        review_id: ID,
+        total_score: u64
+    ) {
+        let (contains, idx) = service.top_reviews.index_of(&review_id);
+        if (!contains) {
+            service.update_top_reviews(review_id, total_score);
+        } else {
+            // remove existing review from vector and insert back
+            service.top_reviews.remove(idx);
+            let idx = service.find_idx(total_score);
+            service.top_reviews.insert(review_id, idx);
+        }
+    }
+
+    /// Updates top_reviews if necessary
+    fun update_top_reviews(
+        service: &mut Service,
+        review_id: ID,
+        total_score: u64
+    ) {
+        if (service.should_update_top_reviews(total_score)) {
+            let idx = service.find_idx(total_score);
+            service.top_reviews.insert(review_id, idx);
+            service.prune_top_reviews();
+        };
+    }
+
+    /// Finds the index of a review in top_reviews
+    fun find_idx(service: &Service, total_score: u64): u64 {
+        let mut i = service.top_reviews.length();
+        while (0 < i) {
+            let review_id = service.top_reviews[i - 1];
+            if (service.get_total_score(review_id) > total_score) {
+                break
+            };
+            i = i - 1;
+        };
+        i
+    }
+
+    /// Prunes top_reviews if it exceeds MAX_REVIEWERS_TO_REWARD
+    fun prune_top_reviews(
+        service: &mut Service
+    ) {
+        while (service.top_reviews.length() > MAX_REVIEWERS_TO_REWARD) {
+            service.top_reviews.pop_back();
+        };
     }
 
     /// Writes a new review
@@ -91,7 +154,7 @@ module reviews_rating::service {
     ) {
         assert!(poe.service_id == service.id.to_inner(), EInvalidPermission);
         let ProofOfExperience { id, service_id: _ } = poe;
-        object::delete(id);
+        iota::object::delete(id);  // IOTA object deletion
         let review = review::new_review(
             owner,
             service.id.to_inner(),
@@ -150,42 +213,7 @@ module reviews_rating::service {
         let len = service.top_reviews.length();
         len < MAX_REVIEWERS_TO_REWARD
             || total_score > service.get_total_score(service.top_reviews[len - 1])
-    }
-
-    /// Prunes top_reviews if it exceeds MAX_REVIEWERS_TO_REWARD
-    fun prune_top_reviews(
-        service: &mut Service
-    ) {
-        while (service.top_reviews.length() > MAX_REVIEWERS_TO_REWARD) {
-            service.top_reviews.pop_back();
-        };
-    }
-
-    /// Updates top_reviews if necessary
-    fun update_top_reviews(
-        service: &mut Service,
-        review_id: ID,
-        total_score: u64
-    ) {
-        if (service.should_update_top_reviews(total_score)) {
-            let idx = service.find_idx(total_score);
-            service.top_reviews.insert(review_id, idx);
-            service.prune_top_reviews();
-        };
-    }
-
-    /// Finds the index of a review in top_reviews
-    fun find_idx(service: &Service, total_score: u64): u64 {
-        let mut i = service.top_reviews.length();
-        while (0 < i) {
-            let review_id = service.top_reviews[i - 1];
-            if (service.get_total_score(review_id) > total_score) {
-                break
-            };
-            i = i - 1;
-        };
-        i
-    }
+    }   
 
     /// Gets the total score of a review
     fun get_total_score(service: &Service, review_id: ID): u64 {
@@ -209,10 +237,10 @@ module reviews_rating::service {
         let mut i = 0;
         while (i < len) {
             let sub_balance = service.reward_pool.split(service.reward);
-            let reward = coin::from_balance(sub_balance, ctx);
+            let reward = iota::coin::from_balance(sub_balance, ctx);  // IOTA coin transfer
             let review_id = &service.top_reviews[i];
             let record = df::borrow<ID, ReviewRecord>(&service.id, *review_id);
-            transfer::public_transfer(reward, record.owner);
+            iota::transfer::public_transfer(reward, record.owner);  // IOTA transfer
             i = i + 1;
         };
     }
@@ -232,13 +260,13 @@ module reviews_rating::service {
         recipient: address,
         ctx: &mut TxContext
     ) {
-        // generate an NFT and transfer it to customer who can use it to write a review with higher score
+        // generate an NFT and transfer it to a customer who can use it to write a review with higher score
         assert!(cap.service_id == service.id.to_inner(), EInvalidPermission);
         let poe = ProofOfExperience {
-            id: object::new(ctx),
+            id: iota::object::new(ctx),  // IOTA object creation
             service_id: cap.service_id
         };
-        transfer::transfer(poe, recipient);
+        iota::transfer::transfer(poe, recipient);  // IOTA transfer
     }
 
     /// Removes a review (only moderators can do this)
@@ -255,29 +283,5 @@ module reviews_rating::service {
             service.top_reviews.remove(i);
         };
         service.reviews.remove(review_id).delete_review();
-    }
-
-    /// Reorder top_reviews after a review is updated
-    fun reorder(
-        service: &mut Service,
-        review_id: ID,
-        total_score: u64
-    ) {
-        let (contains, idx) = service.top_reviews.index_of(&review_id);
-        if (!contains) {
-            service.update_top_reviews(review_id, total_score);
-        } else {
-            // remove existing review from vector and insert back
-            service.top_reviews.remove(idx);
-            let idx = service.find_idx(total_score);
-            service.top_reviews.insert(review_id, idx);
-        }
-    }
-
-    /// Upvotes a review
-    public fun upvote(service: &mut Service, review_id: ID) {
-        let review = &mut service.reviews[review_id];
-        review.upvote();
-        service.reorder(review_id, review.get_total_score());
     }
 }

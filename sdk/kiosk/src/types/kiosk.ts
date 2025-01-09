@@ -40,7 +40,6 @@ export type Kiosk = {
     profits: string;
     owner: string;
     itemCount: number;
-    allowExtensions: boolean;
 };
 
 /**

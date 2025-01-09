@@ -3,8 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type IotaMoveNormalizedType } from '@iota/iota-sdk/client';
-import { Text } from '@iota/ui';
-
 import { SyntaxHighlighter } from '~/components';
 import { AddressLink, Link, ObjectLink } from '~/components/ui';
 import { getFieldTypeValue } from '~/lib/ui';
@@ -51,7 +49,7 @@ export function FieldItem({
 
     if (normalizedType === TYPE_URL) {
         return (
-            <div className="truncate break-all">
+            <div className="break-all">
                 <Link href={value.toString()} variant="textHeroDark">
                     {value}
                 </Link>
@@ -60,8 +58,8 @@ export function FieldItem({
     }
 
     return (
-        <Text variant="body/medium" color="steel-darker" truncate={truncate}>
+        <div className="break-all text-body-md text-neutral-40">
             {value === null || value === undefined ? null : String(value)}
-        </Text>
+        </div>
     );
 }

@@ -1,3 +1,9 @@
+# To build the `iota-framework` packages and include them in the latest protocol version snapshot during the development phase
+
+1. Edit any of the modules in `./packages` and check their correctness with the command `iota move test`.
+2. Then, (in `crates/iota-framework`) run `UPDATE=1 cargo insta test`. This updates the packages build in `./packages_compiled`.
+3. Finally, (in the root folder) run `cargo run --release --bin iota-framework-snapshot`. This updates the packages snapshot for the current (working) protocol version.
+
 # To add a new native Move function
 
 1. Add a new `./iota-framework/{name}.move` file or find an appropriate `.move`.

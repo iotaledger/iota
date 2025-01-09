@@ -23,7 +23,6 @@ use typed_store::{
 
 use super::*;
 use crate::authority::{
-    authority_store::LockDetailsWrapperDeprecated,
     authority_store_types::{
         ObjectContentDigest, StoreData, StoreMoveObjectWrapper, StoreObject, StoreObjectPair,
         StoreObjectValue, StoreObjectWrapper, get_store_object_pair, try_construct_object,
@@ -63,15 +62,9 @@ pub struct AuthorityPerpetualTables {
     #[default_options_override_fn = "indirect_move_objects_table_default_config"]
     pub(crate) indirect_move_objects: DBMap<ObjectContentDigest, StoreMoveObjectWrapper>,
 
-    /// This is a map between object references of currently active objects that
-    /// can be mutated.
-    ///
-    /// For old epochs, it may also contain the transaction that they are lock
-    /// on for use by this specific validator. The transaction locks
-    /// themselves are now in AuthorityPerEpochStore.
-    #[default_options_override_fn = "owned_object_transaction_locks_table_default_config"]
-    #[rename = "owned_object_transaction_locks"]
-    pub(crate) live_owned_object_markers: DBMap<ObjectRef, Option<LockDetailsWrapperDeprecated>>,
+    /// Object references of currently active objects that can be mutated.
+    #[default_options_override_fn = "live_owned_object_markers_table_default_config"]
+    pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
@@ -109,10 +102,10 @@ pub struct AuthorityPerpetualTables {
     #[default_options_override_fn = "events_table_default_config"]
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
 
-    /// DEPRECATED in favor of the table of the same name in
-    /// authority_per_epoch_store. Please do not add new
-    /// accessors/callsites. When transaction is executed via checkpoint
-    /// executor, we store association here
+    /// Epoch and checkpoint of transactions finalized by checkpoint
+    /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
+    /// Note, there is a table with the same name in
+    /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
@@ -363,8 +356,6 @@ impl AuthorityPerpetualTables {
         Ok(self.effects.get(&effect_digest)?)
     }
 
-    // DEPRECATED as the backing table has been moved to authority_per_epoch_store.
-    // Please do not add new accessors/callsites.
     pub fn get_checkpoint_sequence_number(
         &self,
         digest: &TransactionDigest,
@@ -406,12 +397,11 @@ impl AuthorityPerpetualTables {
             .is_none())
     }
 
-    pub fn iter_live_object_set(&self, include_wrapped_object: bool) -> LiveSetIter<'_> {
+    pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
         LiveSetIter {
             iter: self.objects.unbounded_iter(),
             tables: self,
             prev: None,
-            include_wrapped_object,
         }
     }
 
@@ -419,7 +409,6 @@ impl AuthorityPerpetualTables {
         &self,
         lower_bound: Option<ObjectID>,
         upper_bound: Option<ObjectID>,
-        include_wrapped_object: bool,
     ) -> LiveSetIter<'_> {
         let lower_bound = lower_bound.as_ref().map(ObjectKey::min_for_id);
         let upper_bound = upper_bound.as_ref().map(ObjectKey::max_for_id);
@@ -428,7 +417,6 @@ impl AuthorityPerpetualTables {
             iter: self.objects.iter_with_bounds(lower_bound, upper_bound),
             tables: self,
             prev: None,
-            include_wrapped_object,
         }
     }
 
@@ -528,8 +516,6 @@ pub struct LiveSetIter<'a> {
         <DBMap<ObjectKey, StoreObjectWrapper> as Map<'a, ObjectKey, StoreObjectWrapper>>::Iterator,
     tables: &'a AuthorityPerpetualTables,
     prev: Option<(ObjectKey, StoreObjectWrapper)>,
-    /// Whether a wrapped object is considered as a live object.
-    include_wrapped_object: bool,
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
@@ -582,14 +568,7 @@ impl LiveSetIter<'_> {
                     .expect("Constructing object from store cannot fail");
                 Some(LiveObject::Normal(object))
             }
-            StoreObject::Wrapped => {
-                if self.include_wrapped_object {
-                    Some(LiveObject::Wrapped(object_key))
-                } else {
-                    None
-                }
-            }
-            StoreObject::Deleted => None,
+            StoreObject::Wrapped | StoreObject::Deleted => None,
         }
     }
 }
@@ -626,7 +605,7 @@ impl Iterator for LiveSetIter<'_> {
 }
 
 // These functions are used to initialize the DB tables
-fn owned_object_transaction_locks_table_default_config() -> DBOptions {
+fn live_owned_object_markers_table_default_config() -> DBOptions {
     DBOptions {
         options: default_db_options()
             .optimize_for_write_throughput()

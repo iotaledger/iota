@@ -7,19 +7,19 @@ task 1, lines 7-37:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 7007200,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6999600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, line 39:
 //# run tto::M1::start
 created: object(2,0), object(2,1)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3397200,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 3, line 41:
 //# run tto::M1::middle --sender A
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2204000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2188800,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 4, line 43:
 //# view-object 2,0
@@ -48,7 +48,7 @@ Contents: tto::M1::B {
 task 6, line 48:
 //# run tto::M1::send_back --args object(2,0) receiving(2,1)
 mutated: object(0,1), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3420000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3397200,  storage_rebate: 3397200, non_refundable_storage_fee: 0
 
 task 7, line 50:
 //# view-object 2,0
@@ -82,7 +82,7 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 10, lines 58-60:
 //# run tto::M1::send_back --args object(2,0) receiving(2,1)@4
 mutated: object(0,1), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3420000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3397200,  storage_rebate: 3397200, non_refundable_storage_fee: 0
 
 task 11, lines 61-63:
 //# run tto::M1::send_back --summarize --args object(3,0) receiving(2,1)@6 --sender A
@@ -92,4 +92,4 @@ Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { k
 task 12, line 64:
 //# run tto::M1::send_back --args object(2,0) receiving(2,1)@6
 mutated: object(0,1), object(2,0), object(2,1)
-gas summary: computation_cost: 1000000, storage_cost: 3420000,  storage_rebate: 3420000, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3397200,  storage_rebate: 3397200, non_refundable_storage_fee: 0

@@ -17,16 +17,14 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CheckpointRequest, CheckpointRequestV2, CheckpointResponse, CheckpointResponseV2,
-    },
+    messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
-        HandleCertificateRequestV3, HandleCertificateResponseV2, HandleCertificateResponseV3,
-        HandleSoftBundleCertificatesRequestV3, HandleSoftBundleCertificatesResponseV3,
+        HandleCertificateRequestV1, HandleCertificateResponseV1,
+        HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
         TransactionInfoRequest, TransactionInfoResponse,
     },
-    transaction::{CertifiedTransaction, Transaction, VerifiedTransaction},
+    transaction::{Transaction, VerifiedTransaction},
 };
 
 use crate::{
@@ -85,35 +83,11 @@ impl AuthorityAPI for LocalAuthorityClient {
         result
     }
 
-    async fn handle_certificate_v2(
+    async fn handle_certificate_v1(
         &self,
-        certificate: CertifiedTransaction,
+        request: HandleCertificateRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
-        let state = self.state.clone();
-        let fault_config = self.fault_config;
-        let request = HandleCertificateRequestV3 {
-            certificate,
-            include_events: true,
-            include_input_objects: false,
-            include_output_objects: false,
-            include_auxiliary_data: false,
-        };
-        spawn_monitored_task!(Self::handle_certificate(state, request, fault_config))
-            .await
-            .unwrap()
-            .map(|resp| HandleCertificateResponseV2 {
-                signed_effects: resp.effects,
-                events: resp.events.unwrap_or_default(),
-                fastpath_input_objects: vec![],
-            })
-    }
-
-    async fn handle_certificate_v3(
-        &self,
-        request: HandleCertificateRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
         let state = self.state.clone();
         let fault_config = self.fault_config;
         spawn_monitored_task!(Self::handle_certificate(state, request, fault_config))
@@ -121,11 +95,11 @@ impl AuthorityAPI for LocalAuthorityClient {
             .unwrap()
     }
 
-    async fn handle_soft_bundle_certificates_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
+        _request: HandleSoftBundleCertificatesRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
         unimplemented!()
     }
 
@@ -153,15 +127,6 @@ impl AuthorityAPI for LocalAuthorityClient {
         let state = self.state.clone();
 
         state.handle_checkpoint_request(&request)
-    }
-
-    async fn handle_checkpoint_v2(
-        &self,
-        request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, IotaError> {
-        let state = self.state.clone();
-
-        state.handle_checkpoint_request_v2(&request)
     }
 
     async fn handle_system_state_object(
@@ -197,9 +162,9 @@ impl LocalAuthorityClient {
     // transactions.
     async fn handle_certificate(
         state: Arc<AuthorityState>,
-        request: HandleCertificateRequestV3,
+        request: HandleCertificateRequestV1,
         fault_config: LocalAuthorityClientFaultConfig,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
         if fault_config.fail_before_handle_confirmation {
             return Err(IotaError::GenericAuthority {
                 error: "Mock error before handle_confirmation_transaction".to_owned(),
@@ -252,8 +217,8 @@ impl LocalAuthorityClient {
             .then(|| state.get_transaction_output_objects(&signed_effects))
             .and_then(Result::ok);
 
-        Ok(HandleCertificateResponseV3 {
-            effects: signed_effects,
+        Ok(HandleCertificateResponseV1 {
+            signed_effects,
             events,
             input_objects,
             output_objects,
@@ -294,28 +259,19 @@ impl AuthorityAPI for MockAuthorityApi {
         unimplemented!();
     }
 
-    /// Execute a certificate.
-    async fn handle_certificate_v2(
+    async fn handle_certificate_v1(
         &self,
-        _certificate: CertifiedTransaction,
+        _request: HandleCertificateRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
         unimplemented!()
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        _request: HandleCertificateRequestV3,
+        _request: HandleSoftBundleCertificatesRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
-        unimplemented!()
-    }
-
-    async fn handle_soft_bundle_certificates_v3(
-        &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
         unimplemented!()
     }
 
@@ -355,13 +311,6 @@ impl AuthorityAPI for MockAuthorityApi {
         unimplemented!();
     }
 
-    async fn handle_checkpoint_v2(
-        &self,
-        _request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, IotaError> {
-        unimplemented!();
-    }
-
     async fn handle_system_state_object(
         &self,
         _request: SystemStateRequest,
@@ -373,7 +322,7 @@ impl AuthorityAPI for MockAuthorityApi {
 #[derive(Clone)]
 pub struct HandleTransactionTestAuthorityClient {
     pub tx_info_resp_to_return: IotaResult<HandleTransactionResponse>,
-    pub cert_resp_to_return: IotaResult<HandleCertificateResponseV2>,
+    pub cert_resp_to_return: IotaResult<HandleCertificateResponseV1>,
     // If set, sleep for this duration before responding to a request.
     // This is useful in testing a timeout scenario.
     pub sleep_duration_before_responding: Option<Duration>,
@@ -392,30 +341,22 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         self.tx_info_resp_to_return.clone()
     }
 
-    async fn handle_certificate_v2(
+    async fn handle_certificate_v1(
         &self,
-        _certificate: CertifiedTransaction,
+        _request: HandleCertificateRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV2, IotaError> {
+    ) -> Result<HandleCertificateResponseV1, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {
             tokio::time::sleep(duration).await;
         }
         self.cert_resp_to_return.clone()
     }
 
-    async fn handle_certificate_v3(
+    async fn handle_soft_bundle_certificates_v1(
         &self,
-        _request: HandleCertificateRequestV3,
+        _request: HandleSoftBundleCertificatesRequestV1,
         _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleCertificateResponseV3, IotaError> {
-        unimplemented!()
-    }
-
-    async fn handle_soft_bundle_certificates_v3(
-        &self,
-        _request: HandleSoftBundleCertificatesRequestV3,
-        _client_addr: Option<SocketAddr>,
-    ) -> Result<HandleSoftBundleCertificatesResponseV3, IotaError> {
+    ) -> Result<HandleSoftBundleCertificatesResponseV1, IotaError> {
         unimplemented!()
     }
 
@@ -437,13 +378,6 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         &self,
         _request: CheckpointRequest,
     ) -> Result<CheckpointResponse, IotaError> {
-        unimplemented!()
-    }
-
-    async fn handle_checkpoint_v2(
-        &self,
-        _request: CheckpointRequestV2,
-    ) -> Result<CheckpointResponseV2, IotaError> {
         unimplemented!()
     }
 
@@ -476,7 +410,7 @@ impl HandleTransactionTestAuthorityClient {
         self.tx_info_resp_to_return = Err(IotaError::Unknown("".to_string()));
     }
 
-    pub fn set_cert_resp_to_return(&mut self, resp: HandleCertificateResponseV2) {
+    pub fn set_cert_resp_to_return(&mut self, resp: HandleCertificateResponseV1) {
         self.cert_resp_to_return = Ok(resp);
     }
 

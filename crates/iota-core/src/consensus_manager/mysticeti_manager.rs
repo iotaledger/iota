@@ -16,7 +16,6 @@ use iota_types::{
     committee::EpochId,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
-use narwhal_executor::ExecutionState;
 use prometheus::Registry;
 use tokio::sync::Mutex;
 use tracing::info;
@@ -87,7 +86,6 @@ impl MysticetiManager {
     fn pick_network(&self, epoch_store: &AuthorityPerEpochStore) -> ConsensusNetwork {
         if let Ok(type_str) = std::env::var("CONSENSUS_NETWORK") {
             match type_str.to_lowercase().as_str() {
-                "anemo" => return ConsensusNetwork::Anemo,
                 "tonic" => return ConsensusNetwork::Tonic,
                 _ => {
                     info!(
@@ -113,7 +111,7 @@ impl ConsensusManagerTrait for MysticetiManager {
         tx_validator: IotaTxValidator,
     ) {
         let system_state = epoch_store.epoch_start_state();
-        let committee: Committee = system_state.get_mysticeti_committee();
+        let committee: Committee = system_state.get_consensus_committee();
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
         let network_type = self.pick_network(&epoch_store);
@@ -156,8 +154,7 @@ impl ConsensusManagerTrait for MysticetiManager {
         let consensus_handler = consensus_handler_initializer.new_consensus_handler();
         let consumer = CommitConsumer::new(
             commit_sender,
-            // TODO(mysticeti): remove dependency on narwhal executor
-            consensus_handler.last_executed_sub_dag_index() as CommitIndex,
+            consensus_handler.last_processed_subdag_index() as CommitIndex,
         );
         let monitor = consumer.monitor();
 

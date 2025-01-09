@@ -4,12 +4,12 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
-
-import { LoadingIndicator, PasswordInputDialog } from '_components';
+import { PasswordInputDialog } from '_components';
 import { useBackgroundClient } from '../hooks/useBackgroundClient';
 import { useStorageMigrationStatus } from '../hooks/useStorageMigrationStatus';
 import { CardLayout } from '../shared/card-layout';
 import { Toaster } from '../shared/toaster';
+import { LoadingIndicator } from '@iota/apps-ui-kit';
 
 export function StorageMigrationPage() {
     const { data } = useStorageMigrationStatus();

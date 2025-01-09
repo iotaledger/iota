@@ -7,7 +7,7 @@ import { Route, Routes } from 'react-router-dom';
 import { NftsPage } from '..';
 import { HiddenAssetsProvider } from './HiddenAssetsProvider';
 
-function AssetsPage() {
+export function AssetsPage() {
     if (useUnlockedGuard()) {
         return null;
     }
@@ -19,5 +19,3 @@ function AssetsPage() {
         </HiddenAssetsProvider>
     );
 }
-
-export default AssetsPage;

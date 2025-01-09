@@ -23,9 +23,9 @@ struct Args {
     /// Remotely stored migration snapshots.
     #[clap(
         long,
-        name = "iota|smr|<full-url>",
+        name = "iota|<full-url>",
         help = "Remote migration snapshots.",
-        default_values_t = vec![SnapshotUrl::Iota, SnapshotUrl::Shimmer],
+        default_values_t = vec![SnapshotUrl::Iota],
     )]
     #[arg(num_args(0..))]
     migration_snapshots: Vec<SnapshotUrl>,
@@ -47,7 +47,7 @@ fn genesis_builder(migration_sources: Vec<SnapshotSource>) -> GenesisBuilder {
         let validator_info = validator_config.to_validator_info(format!("validator-{i}"));
         let validator_addr = validator_info.info.iota_address();
         validators.push(validator_addr);
-        key_pairs.push(validator_config.key_pair);
+        key_pairs.push(validator_config.authority_key_pair);
         builder = builder.add_validator(validator_info.info, validator_info.proof_of_possession);
     }
 

@@ -2,12 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { LoadingIndicator } from '@iota/ui';
 import { useMemo } from 'react';
-
 import { ModuleFunction } from './ModuleFunction';
 import { useNormalizedMoveModule } from '~/hooks/useNormalizedMoveModule';
-import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
+import { InfoBox, InfoBoxStyle, InfoBoxType, LoadingIndicator } from '@iota/apps-ui-kit';
 import { Info, Warning } from '@iota/ui-icons';
 
 type ModuleFunctionsInteractionProps = {
@@ -39,7 +37,7 @@ export function ModuleFunctionsInteraction({
                 {error ? (
                     <InfoBox
                         style={InfoBoxStyle.Elevated}
-                        type={InfoBoxType.Warning}
+                        type={InfoBoxType.Error}
                         icon={<Warning />}
                         supportingText={`Error loading module ${moduleName} details.`}
                     />

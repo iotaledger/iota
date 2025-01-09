@@ -217,6 +217,12 @@
     edges {                                                 # 1
       node {                                                # 10
         timestamp                                           # 10
+        sendingModule {                                     # 10
+            name                                            # 10
+        }                                                   # 10
+        type {                                              # 10
+            repr                                            # 10
+        }                                                   # 10
       }
     }
   }

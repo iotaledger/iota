@@ -357,12 +357,9 @@ impl Nft {
         version: SequenceNumber,
     ) -> anyhow::Result<Object> {
         // Construct the Nft object.
-        let move_nft_object = unsafe {
-            // Safety: we know from the definition of `Nft` in the stardust package
-            // that it has public transfer (`store` ability is present).
+        let move_nft_object = {
             MoveObject::new_from_execution(
                 Self::tag().into(),
-                true,
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,
@@ -447,12 +444,9 @@ impl NftOutput {
         coin_type: CoinType,
     ) -> anyhow::Result<Object> {
         // Construct the Nft Output object.
-        let move_nft_output_object = unsafe {
-            // Safety: we know from the definition of `NftOutput` in the stardust package
-            // that it does not have public transfer (`store` ability is absent).
+        let move_nft_output_object = {
             MoveObject::new_from_execution(
                 NftOutput::tag(coin_type.to_type_tag()).into(),
-                false,
                 version,
                 bcs::to_bytes(&self)?,
                 protocol_config,

@@ -59,7 +59,7 @@ export function RemoveDialog({ isOpen, setOpen, accountID }: RemoveDialogProps) 
                         />
                         <Button
                             fullWidth
-                            type={ButtonType.Primary}
+                            type={ButtonType.Destructive}
                             text="Remove"
                             onClick={handleRemove}
                         />

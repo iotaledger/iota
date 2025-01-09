@@ -12,7 +12,6 @@ use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     state_accumulator::StateAccumulator,
 };
-use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     accumulator::Accumulator, base_types::ObjectID, messages_checkpoint::ECMHLiveObjectSetDigest,
     object::Object,
@@ -42,30 +41,24 @@ pub fn insert_keys(
 fn compare_live_objects(
     db1: &AuthorityPerpetualTables,
     db2: &AuthorityPerpetualTables,
-    include_wrapped_tombstone: bool,
 ) -> Result<(), anyhow::Error> {
     let mut object_set_1 = HashSet::new();
     let mut object_set_2 = HashSet::new();
-    for live_object in db1.iter_live_object_set(include_wrapped_tombstone) {
+    for live_object in db1.iter_live_object_set() {
         object_set_1.insert(live_object.object_reference());
     }
-    for live_object in db2.iter_live_object_set(include_wrapped_tombstone) {
+    for live_object in db2.iter_live_object_set() {
         object_set_2.insert(live_object.object_reference());
     }
     assert_eq!(object_set_1, object_set_2);
     Ok(())
 }
 
-fn accumulate_live_object_set(
-    perpetual_db: &AuthorityPerpetualTables,
-    include_wrapped_tombstone: bool,
-) -> Accumulator {
+fn accumulate_live_object_set(perpetual_db: &AuthorityPerpetualTables) -> Accumulator {
     let mut acc = Accumulator::default();
-    perpetual_db
-        .iter_live_object_set(include_wrapped_tombstone)
-        .for_each(|live_object| {
-            StateAccumulator::accumulate_live_object(&mut acc, &live_object);
-        });
+    perpetual_db.iter_live_object_set().for_each(|live_object| {
+        StateAccumulator::accumulate_live_object(&mut acc, &live_object);
+    });
     acc
 }
 
@@ -97,9 +90,9 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
     insert_keys(&perpetual_db, 1000)?;
     let root_accumulator =
-        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db, true).digest());
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(0, true, perpetual_db.clone(), root_accumulator)
+        .write_internal(0, perpetual_db.clone(), root_accumulator)
         .await?;
     let local_store_restore_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
@@ -120,7 +113,7 @@ async fn test_snapshot_basic() -> Result<(), anyhow::Error> {
     snapshot_reader
         .read(&restored_perpetual_db, abort_registration, None)
         .await?;
-    compare_live_objects(&perpetual_db, &restored_perpetual_db, true)?;
+    compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
     Ok(())
 }
 
@@ -141,8 +134,6 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
         directory: Some(remote),
         ..Default::default()
     };
-    let include_wrapped_tombstone =
-        !ProtocolConfig::get_for_max_version_UNSAFE().simplified_unwrap_then_delete();
     let snapshot_writer = StateSnapshotWriterV1::new(
         &local_store_config,
         &remote_store_config,
@@ -152,9 +143,9 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
     .await?;
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path, None));
     let root_accumulator =
-        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db, true).digest());
+        ECMHLiveObjectSetDigest::from(accumulate_live_object_set(&perpetual_db).digest());
     snapshot_writer
-        .write_internal(0, true, perpetual_db.clone(), root_accumulator)
+        .write_internal(0, perpetual_db.clone(), root_accumulator)
         .await?;
     let local_store_restore_config = ObjectStoreConfig {
         object_store: Some(ObjectStoreType::File),
@@ -175,10 +166,6 @@ async fn test_snapshot_empty_db() -> Result<(), anyhow::Error> {
     snapshot_reader
         .read(&restored_perpetual_db, abort_registration, None)
         .await?;
-    compare_live_objects(
-        &perpetual_db,
-        &restored_perpetual_db,
-        include_wrapped_tombstone,
-    )?;
+    compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
     Ok(())
 }

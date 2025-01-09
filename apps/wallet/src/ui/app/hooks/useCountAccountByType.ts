@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type AccountType } from '_src/background/accounts/Account';
+import { type AccountType } from '_src/background/accounts/account';
 import { useMemo } from 'react';
 
 import { useAccounts } from './useAccounts';

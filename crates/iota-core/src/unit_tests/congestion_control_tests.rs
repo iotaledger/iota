@@ -64,9 +64,6 @@ impl TestSetup {
         // to go through.
         let max_accumulated_txn_cost_per_object_in_commit =
             TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT;
-        protocol_config.set_max_accumulated_txn_cost_per_object_in_narwhal_commit_for_testing(
-            max_accumulated_txn_cost_per_object_in_commit,
-        );
         protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
             max_accumulated_txn_cost_per_object_in_commit,
         );
@@ -209,7 +206,7 @@ impl TestSetup {
     }
 }
 
-// Creates a transaction that touchs the shared objects `shared_object_1` and
+// Creates a transaction that touches the shared objects `shared_object_1` and
 // `shared_object_2`, and `owned_object`, and executes the transaction in
 // `authority_state`. Returns the transaction and the effects of the execution.
 async fn update_objects(

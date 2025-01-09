@@ -160,7 +160,7 @@ pub async fn submit(
         .dry_run_transaction_block(tx_data)
         .await?;
     if let IotaExecutionStatus::Failure { error } = dry_run.effects.status() {
-        return Err(Error::TransactionDryRunError(error.clone()));
+        return Err(Error::TransactionDryRun(error.clone()));
     };
 
     let response = context
@@ -181,7 +181,7 @@ pub async fn submit(
         .expect("Execute transaction should return effects")
         .status()
     {
-        return Err(Error::TransactionExecutionError(error.to_string()));
+        return Err(Error::TransactionExecution(error.to_string()));
     }
 
     Ok(TransactionIdentifierResponse {
@@ -333,7 +333,7 @@ pub async fn metadata(
             let effects = dry_run.effects;
 
             if let IotaExecutionStatus::Failure { error } = effects.status() {
-                return Err(Error::TransactionDryRunError(error.to_string()));
+                return Err(Error::TransactionDryRun(error.to_string()));
             }
             effects.gas_cost_summary().computation_cost + effects.gas_cost_summary().storage_cost
         }

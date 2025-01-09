@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "What is the main purpose of the `uid_mut_as_owner` function in the context of Kiosk apps?",
+        "answerOptions": [
+            { "answerText": "It allows the Kiosk owner to mutably access the UID to add or remove custom fields.", "isCorrect": true },
+            { "answerText": "It enables third-party apps to directly modify the Kiosk's properties.", "isCorrect": false },
+            { "answerText": "It provides a way to permanently lock the Kiosk's UID.", "isCorrect": false },
+            { "answerText": "It ensures that all dynamic fields in a Kiosk are immutable.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "In the app lifecycle, what must happen before a Kiosk app can start functioning?",
+        "answerOptions": [
+            { "answerText": "The app must automatically request permissions without owner consent.", "isCorrect": false },
+            { "answerText": "The app must be deployed on a public blockchain for access.", "isCorrect": false },
+            { "answerText": "The Kiosk owner must disable all other apps first.", "isCorrect": false },
+            { "answerText": "The kiosk owner must explicitly call the `add` function to install the app.", "isCorrect": true }
+        ]
+    },
+    {
+        "questionText": "What is the consequence of disabling a Kiosk app for the kiosk owner?",
+        "answerOptions": [
+            { "answerText": "It revokes all permissions of the app, preventing it from performing any actions.", "isCorrect": true },
+            { "answerText": "It permanently removes the app and its storage from the kiosk.", "isCorrect": false },
+            { "answerText": "It allows the app to continue operating under limited permissions.", "isCorrect": false },
+            { "answerText": "It creates a backup of the app's storage for future use.", "isCorrect": false }
+        ]
+    }
+]

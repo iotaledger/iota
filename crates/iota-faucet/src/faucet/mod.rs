@@ -137,8 +137,8 @@ impl Default for FaucetConfig {
         Self {
             port: 5003,
             host_ip: Ipv4Addr::new(127, 0, 0, 1),
-            amount: 1_000_000_000,
-            num_coins: 1,
+            amount: DEFAULT_AMOUNT,
+            num_coins: DEFAULT_NUM_OF_COINS,
             request_buffer_size: 10,
             max_request_per_second: 10,
             wallet_client_timeout_secs: 60,

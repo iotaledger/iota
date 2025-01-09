@@ -12,7 +12,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { Exclamation, Info } from '@iota/ui-icons';
 import { HideShowDisplayBox, Loading, PageTemplate } from '_components';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAccountSources } from '../../hooks/useAccountSources';
@@ -48,7 +48,7 @@ export function BackupMnemonicPage() {
             <Loading loading={isPending}>
                 <div className="flex h-full flex-col items-center justify-between">
                     <div className="flex flex-col gap-md">
-                        <h3 className="text-center text-headline-lg text-neutral-10">
+                        <h3 className="text-center text-headline-lg text-neutral-10 dark:text-neutral-92">
                             Wallet Created Successfully!
                         </h3>
                         <InfoBox

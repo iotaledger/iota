@@ -25,7 +25,7 @@ export interface DisconnectAppProps extends Omit<DAppEntry, 'description' | 'tag
     setShowDisconnectApp: (showModal: boolean) => void;
 }
 
-function DisconnectApp({
+export function DisconnectApp({
     name,
     icon,
     link,
@@ -72,12 +72,7 @@ function DisconnectApp({
         return null;
     }
     return (
-        <Overlay
-            showBackButton
-            showModal
-            setShowModal={setShowDisconnectApp}
-            title="Active Connection"
-        >
+        <Overlay showModal setShowModal={setShowDisconnectApp} title="Active Connection">
             <div className="flex max-w-full flex-1 flex-col flex-nowrap items-stretch gap-y-md">
                 <DAppInfoCard name={name} iconUrl={icon} url={link} />
 
@@ -103,7 +98,9 @@ function DisconnectApp({
                                 />
                             ) : (
                                 <SummaryListItem
-                                    icon={<CircleEmitter className="h-5 w-5 text-neutral-10" />}
+                                    icon={
+                                        <CircleEmitter className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                    }
                                     text={
                                         connectedAccounts[0]
                                             ? formatAddress(connectedAccounts[0])
@@ -135,5 +132,3 @@ function DisconnectApp({
         </Overlay>
     );
 }
-
-export default DisconnectApp;

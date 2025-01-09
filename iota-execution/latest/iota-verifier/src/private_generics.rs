@@ -12,7 +12,6 @@ use move_binary_format::{
 };
 use move_bytecode_utils::format_signature_token;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
-use move_vm_config::verifier::VerifierConfig;
 
 use crate::{TEST_SCENARIO_MODULE_NAME, verification_failure};
 
@@ -50,10 +49,7 @@ pub const TRANSFER_IMPL_FUNCTIONS: &[&IdentStr] = &[
 /// `transfer` functions, there is no relaxation for `store`
 /// Concretely, with `event::emit<T>(...)`:
 /// - `T` must be a type declared in the current module
-pub fn verify_module(
-    module: &CompiledModule,
-    verifier_config: &VerifierConfig,
-) -> Result<(), ExecutionError> {
+pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
     if *module.address() == IOTA_FRAMEWORK_ADDRESS
         && module.name() == IdentStr::new(TEST_SCENARIO_MODULE_NAME).unwrap()
     {
@@ -64,25 +60,19 @@ pub fn verify_module(
     }
     // do not need to check the iota::transfer module itself
     for func_def in &module.function_defs {
-        verify_function(module, func_def, verifier_config.allow_receiving_object_id).map_err(
-            |error| {
-                verification_failure(format!(
-                    "{}::{}. {}",
-                    module.self_id(),
-                    module.identifier_at(module.function_handle_at(func_def.function).name),
-                    error
-                ))
-            },
-        )?;
+        verify_function(module, func_def).map_err(|error| {
+            verification_failure(format!(
+                "{}::{}. {}",
+                module.self_id(),
+                module.identifier_at(module.function_handle_at(func_def.function).name),
+                error
+            ))
+        })?;
     }
     Ok(())
 }
 
-fn verify_function(
-    view: &CompiledModule,
-    fdef: &FunctionDefinition,
-    allow_receiving_object_id: bool,
-) -> Result<(), String> {
+fn verify_function(view: &CompiledModule, fdef: &FunctionDefinition) -> Result<(), String> {
     let code = match &fdef.code {
         None => return Ok(()),
         Some(code) => code,
@@ -100,7 +90,7 @@ fn verify_function(
             let type_arguments = &view.signature_at(*type_parameters).0;
             let ident = addr_module(view, mhandle);
             if ident == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
-                verify_private_transfer(view, fhandle, type_arguments, allow_receiving_object_id)?
+                verify_private_transfer(view, fhandle, type_arguments)?
             } else if ident == (IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
                 verify_private_event_emit(view, fhandle, type_arguments)?
             }
@@ -113,21 +103,14 @@ fn verify_private_transfer(
     view: &CompiledModule,
     fhandle: &FunctionHandle,
     type_arguments: &[SignatureToken],
-    allow_receiving_object_id: bool,
 ) -> Result<(), String> {
-    let public_transfer_functions = if allow_receiving_object_id {
-        PUBLIC_TRANSFER_FUNCTIONS
-    } else {
-        // Before protocol version 33, the `receiving_object_id` function was not public
-        &PUBLIC_TRANSFER_FUNCTIONS[..PUBLIC_TRANSFER_FUNCTIONS.len() - 1]
-    };
     let self_handle = view.module_handle_at(view.self_handle_idx());
     if addr_module(view, self_handle) == (IOTA_FRAMEWORK_ADDRESS, TRANSFER_MODULE) {
         return Ok(());
     }
     let fident = view.identifier_at(fhandle.name);
     // public transfer functions require `store` and have no additional rules
-    if public_transfer_functions.contains(&fident) {
+    if PUBLIC_TRANSFER_FUNCTIONS.contains(&fident) {
         return Ok(());
     }
     if !PRIVATE_TRANSFER_FUNCTIONS.contains(&fident) {

@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { getCustomNetwork } from '_src/shared/api-env';
+import { getCustomNetwork } from '@iota/core';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
 
-import { AppType } from '../redux/slices/app/AppType';
+import { AppType } from '../redux/slices/app/appType';
 import { useActiveAccount } from './useActiveAccount';
 import useAppSelector from './useAppSelector';
 

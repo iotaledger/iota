@@ -26,7 +26,7 @@ export function GettingStarted() {
                 <div className={styles.installButtonContainer}>
                     <Button variant="outline" asChild>
                         <a
-                            href="https://chrome.google.com/webstore/detail/iota-wallet/opcgpfmipidbgpenhmajoajpbobppdil"
+                            href="https://chrome.google.com/webstore/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija"
                             target="_blank"
                             rel="noreferrer"
                         >

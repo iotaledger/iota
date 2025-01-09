@@ -83,14 +83,14 @@ impl Datasource<RawEthData> for EthSubscriptionDatasource {
                 let raw_log = RawEthLog {
                     block_number: log
                         .block_number
-                        .ok_or(BridgeError::ProviderError(
+                        .ok_or(BridgeError::Provider(
                             "Provider returns log without block_number".into(),
                         ))
                         .unwrap()
                         .as_u64(),
                     tx_hash: log
                         .transaction_hash
-                        .ok_or(BridgeError::ProviderError(
+                        .ok_or(BridgeError::Provider(
                             "Provider returns log without transaction_hash".into(),
                         ))
                         .unwrap(),

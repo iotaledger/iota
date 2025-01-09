@@ -38,7 +38,7 @@
 
 //# advance-epoch
 
-//# view-object 3,1
+//# view-object 3,0
 
 //# view-object 7,0
 
@@ -56,11 +56,11 @@
   }
 }
 
-//# run-graphql --cursors @{obj_3_1,1} @{obj_7_0,1}
+//# run-graphql --cursors @{obj_3_0,1} @{obj_7_0,1}
 # Even though there is a stake created after the initial one, the cursor locks the upper bound to
 # checkpoint 1 - at that point in time, we did not have any additional stakes.
 {
-  no_coins_after_obj_3_1_chkpt_1: address(address: "@{C}") {
+  no_coins_after_obj_3_0_chkpt_1: address(address: "@{C}") {
     stakedIotas(after: "@{cursor_0}") {
       edges {
         cursor
@@ -70,7 +70,7 @@
       }
     }
   }
-  no_coins_before_obj_3_1_chkpt_1: address(address: "@{C}") {
+  no_coins_before_obj_3_0_chkpt_1: address(address: "@{C}") {
     stakedIotas(before: "@{cursor_0}") {
       edges {
         cursor
@@ -102,30 +102,10 @@
   }
 }
 
-//# run-graphql --cursors @{obj_3_1,3} @{obj_7_0,3}
+//# run-graphql --cursors @{obj_3_0,3} @{obj_7_0,3}
 # The second stake was created at checkpoint 3, and thus will be visible.
 {
-  coins_after_obj_3_1_chkpt_3: address(address: "@{C}") {
-    stakedIotas(after: "@{cursor_0}") {
-      edges {
-        cursor
-        node {
-          principal
-        }
-      }
-    }
-  }
-  coins_before_obj_3_1_chkpt_3: address(address: "@{C}") {
-    stakedIotas(before: "@{cursor_0}") {
-      edges {
-        cursor
-        node {
-          principal
-        }
-      }
-    }
-  }
-  coins_after_obj_7_0_chkpt_3: address(address: "@{C}") {
+  coins_after_obj_3_0_chkpt_3: address(address: "@{C}") {
     stakedIotas(after: "@{cursor_1}") {
       edges {
         cursor
@@ -135,8 +115,28 @@
       }
     }
   }
-  coins_before_obj_7_0_chkpt_3: address(address: "@{C}") {
+  coins_before_obj_3_0_chkpt_3: address(address: "@{C}") {
     stakedIotas(before: "@{cursor_1}") {
+      edges {
+        cursor
+        node {
+          principal
+        }
+      }
+    }
+  }
+  coins_after_obj_7_0_chkpt_3: address(address: "@{C}") {
+    stakedIotas(after: "@{cursor_0}") {
+      edges {
+        cursor
+        node {
+          principal
+        }
+      }
+    }
+  }
+  coins_before_obj_7_0_chkpt_3: address(address: "@{C}") {
+    stakedIotas(before: "@{cursor_0}") {
       edges {
         cursor
         node {

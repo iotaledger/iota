@@ -706,7 +706,6 @@ async fn upgrade_package(
     let package = compile_package(package);
     let with_unpublished_deps = false;
     let package_bytes = package.get_package_bytes(with_unpublished_deps);
-    let package_digest = package.get_package_digest(with_unpublished_deps).to_vec();
     let package_deps = package.dependency_ids.published.into_values().collect();
 
     upgrade_package_with_wallet(
@@ -715,7 +714,6 @@ async fn upgrade_package(
         upgrade_cap,
         package_bytes,
         package_deps,
-        package_digest,
     )
     .await
     .0
@@ -803,7 +801,6 @@ pub async fn upgrade_package_with_wallet(
     upgrade_cap: ObjectID,
     all_module_bytes: Vec<Vec<u8>>,
     dep_ids: Vec<ObjectID>,
-    digest: Vec<u8>,
 ) -> (ObjectRef, TransactionDigest) {
     let sender = context.get_addresses()[0];
     let client = context.get_client().await.unwrap();
@@ -818,7 +815,6 @@ pub async fn upgrade_package_with_wallet(
                 dep_ids,
                 upgrade_cap,
                 UpgradePolicy::COMPATIBLE,
-                digest,
                 None,
                 TEST_ONLY_GAS_UNIT_FOR_PUBLISH * 2 * gas_price,
             )

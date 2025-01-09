@@ -10,7 +10,7 @@ export function SummaryListItem({ icon, text }: SummaryListItemProps) {
     return (
         <div className="flex flex-row items-center gap-x-sm">
             {icon}
-            <span className="text-body-md text-neutral-40">{text}</span>
+            <span className="text-body-md text-neutral-40 dark:text-neutral-60">{text}</span>
         </div>
     );
 }

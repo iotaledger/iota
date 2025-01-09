@@ -416,7 +416,7 @@ pub enum OperationType {
     Genesis,
     ConsensusCommitPrologue,
     ProgrammableTransaction,
-    AuthenticatorStateUpdate,
+    AuthenticatorStateUpdateV1,
     RandomnessStateUpdate,
     EndOfEpochTransaction,
 }
@@ -424,18 +424,15 @@ pub enum OperationType {
 impl From<&IotaTransactionBlockKind> for OperationType {
     fn from(tx: &IotaTransactionBlockKind) -> Self {
         match tx {
-            IotaTransactionBlockKind::ChangeEpoch(_) => OperationType::EpochChange,
             IotaTransactionBlockKind::Genesis(_) => OperationType::Genesis,
-            IotaTransactionBlockKind::ConsensusCommitPrologue(_)
-            | IotaTransactionBlockKind::ConsensusCommitPrologueV2(_)
-            | IotaTransactionBlockKind::ConsensusCommitPrologueV3(_) => {
+            IotaTransactionBlockKind::ConsensusCommitPrologueV1(_) => {
                 OperationType::ConsensusCommitPrologue
             }
             IotaTransactionBlockKind::ProgrammableTransaction(_) => {
                 OperationType::ProgrammableTransaction
             }
-            IotaTransactionBlockKind::AuthenticatorStateUpdate(_) => {
-                OperationType::AuthenticatorStateUpdate
+            IotaTransactionBlockKind::AuthenticatorStateUpdateV1(_) => {
+                OperationType::AuthenticatorStateUpdateV1
             }
             IotaTransactionBlockKind::RandomnessStateUpdate(_) => {
                 OperationType::RandomnessStateUpdate
@@ -756,7 +753,6 @@ pub struct BalanceExemption {
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-#[allow(dead_code)]
 pub enum ExemptionType {
     GreaterOrEqual,
     LessOrEqual,
@@ -765,7 +761,6 @@ pub enum ExemptionType {
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
-#[allow(clippy::enum_variant_names, dead_code)]
 pub enum Case {
     UpperCase,
     LowerCase,
@@ -802,7 +797,6 @@ pub struct RelatedTransaction {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "lowercase")]
-#[allow(dead_code)]
 pub enum Direction {
     Forward,
     Backward,

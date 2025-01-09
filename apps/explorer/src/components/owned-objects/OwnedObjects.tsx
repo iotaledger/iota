@@ -2,7 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useGetKioskContents, useGetOwnedObjects, useLocalStorage } from '@iota/core';
+import {
+    useGetKioskContents,
+    useGetOwnedObjects,
+    useLocalStorage,
+    useCursorPagination,
+} from '@iota/core';
 import {
     Button,
     ButtonSize,
@@ -15,17 +20,21 @@ import {
     ButtonSegmentType,
     ButtonSegment,
     SegmentedButton,
+    Select,
+    DropdownPosition,
+    SelectSize,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
 } from '@iota/apps-ui-kit';
-import { ListViewLarge, ListViewMedium, ListViewSmall } from '@iota/ui-icons';
-import { Text } from '@iota/ui';
+import { ListViewLarge, ListViewMedium, ListViewSmall, Warning } from '@iota/ui-icons';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
-
-import { ListView, SmallThumbnailsView, ThumbnailsView } from '~/components';
+import { ListView, NoObjectsOwnedMessage, SmallThumbnailsView, ThumbnailsView } from '~/components';
 import { ObjectViewMode } from '~/lib/enums';
-import { Pagination, useCursorPagination } from '~/components/ui';
+import { Pagination } from '~/components/ui';
+import { PAGE_SIZES_RANGE_10_50 } from '~/lib/constants';
 
-const PAGE_SIZES = [10, 20, 30, 40, 50];
 const SHOW_PAGINATION_MAX_ITEMS = 9;
 const OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE = 'owned-objects/viewMode';
 const OWNED_OBJECTS_LOCAL_STORAGE_FILTER = 'owned-objects/filter';
@@ -38,6 +47,11 @@ interface ItemsRangeFromCurrentPage {
 enum FilterValue {
     All = 'all',
     Kiosks = 'kiosks',
+}
+
+enum OwnedObjectsContainerHeight {
+    Small = 'h-[400px]',
+    Default = 'h-[400px] md:h-[570px]',
 }
 
 const FILTER_OPTIONS = [
@@ -77,6 +91,11 @@ function getShowPagination(
     return currentPage !== 0 || itemsLength > SHOW_PAGINATION_MAX_ITEMS;
 }
 
+const MIN_OBJECT_COUNT_TO_HEIGHT_MAP: Record<number, OwnedObjectsContainerHeight> = {
+    0: OwnedObjectsContainerHeight.Small,
+    20: OwnedObjectsContainerHeight.Default,
+};
+
 interface OwnedObjectsProps {
     id: string;
 }
@@ -86,6 +105,9 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         OWNED_OBJECTS_LOCAL_STORAGE_FILTER,
         undefined,
     );
+
+    const [ownedObjectsContainerHeight, setOwnedObjectsContainerHeight] =
+        useState<OwnedObjectsContainerHeight>(OwnedObjectsContainerHeight.Small);
 
     const [viewMode, setViewMode] = useLocalStorage(
         OWNED_OBJECTS_LOCAL_STORAGE_VIEW_MODE,
@@ -124,7 +146,7 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         () =>
             getItemsRangeFromCurrentPage(
                 pagination.currentPage,
-                filteredData?.length || PAGE_SIZES[0],
+                filteredData?.length || PAGE_SIZES_RANGE_10_50[0],
             ),
         [filteredData?.length, pagination.currentPage],
     );
@@ -157,23 +179,47 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
         isFetching,
     );
 
-    const hasAssets = sortedDataByDisplayImages.length > 0;
-    const noAssets = !hasAssets && !isPending;
+    const hasVisualAssets = sortedDataByDisplayImages.length > 0;
+
+    const noVisualAssets = !hasVisualAssets && !isPending;
+
+    useEffect(() => {
+        const ownedObjectsCount = sortedDataByDisplayImages.length;
+        Object.keys(MIN_OBJECT_COUNT_TO_HEIGHT_MAP).forEach((minObjectCount) => {
+            if (ownedObjectsCount >= Number(minObjectCount)) {
+                setOwnedObjectsContainerHeight(
+                    MIN_OBJECT_COUNT_TO_HEIGHT_MAP[Number(minObjectCount)],
+                );
+            }
+        });
+    }, [sortedDataByDisplayImages, setOwnedObjectsContainerHeight]);
 
     if (isError) {
         return (
-            <div className="pt-2 font-sans font-semibold text-issue-dark">Failed to load NFTs</div>
+            <div className="p-sm--rs">
+                <InfoBox
+                    title="Error"
+                    supportingText="Failed to load Assets"
+                    icon={<Warning />}
+                    type={InfoBoxType.Error}
+                    style={InfoBoxStyle.Default}
+                />
+            </div>
         );
     }
 
     return (
-        <div className={clsx(!noAssets && 'h-coinsAndAssetsContainer md:h-full')}>
+        <div className={clsx(!noVisualAssets ? 'h-coinsAndAssetsContainer' : 'h-full')}>
             <div className={clsx('flex h-full overflow-hidden', !showPagination && 'pb-2')}>
-                <div className="relative flex h-full w-full flex-col gap-4">
-                    <div className="flex w-full flex-col items-start sm:min-h-[72px] sm:flex-row sm:items-center sm:justify-between">
+                <div
+                    className={clsx('relative flex h-full w-full flex-col', {
+                        'gap-4': hasVisualAssets,
+                    })}
+                >
+                    <div className="flex w-full flex-row flex-wrap items-center justify-between sm:min-h-[72px]">
                         <Title size={TitleSize.Medium} title="Assets" />
-                        {hasAssets && (
-                            <div className="flex flex-row-reverse justify-between sm:flex-row sm:pr-lg">
+                        {hasVisualAssets && (
+                            <div className="flex justify-between sm:flex-row sm:pr-lg">
                                 <div className="flex items-center gap-sm">
                                     {VIEW_MODES.map((mode) => {
                                         const selected = mode.value === viewMode;
@@ -227,58 +273,57 @@ export function OwnedObjects({ id }: OwnedObjectsProps): JSX.Element {
                             </div>
                         )}
                     </div>
-                    <div className="flex-2 flex w-full flex-col overflow-hidden p-md">
-                        {noAssets && (
-                            <div className="flex h-20 items-center justify-center md:h-coinsAndAssetsContainer">
-                                <div className="text-body-lg">No Assets owned</div>
-                            </div>
-                        )}
+                    {noVisualAssets ? (
+                        <NoObjectsOwnedMessage objectType="Assets" />
+                    ) : (
+                        <div
+                            className={clsx(
+                                'flex-2 flex w-full flex-col overflow-hidden p-md',
+                                ownedObjectsContainerHeight,
+                            )}
+                        >
+                            {hasVisualAssets && viewMode === ObjectViewMode.List && (
+                                <ListView loading={isPending} data={sortedDataByDisplayImages} />
+                            )}
+                            {hasVisualAssets && viewMode === ObjectViewMode.SmallThumbnail && (
+                                <SmallThumbnailsView
+                                    loading={isPending}
+                                    data={sortedDataByDisplayImages}
+                                    limit={limit}
+                                />
+                            )}
+                            {hasVisualAssets && viewMode === ObjectViewMode.Thumbnail && (
+                                <ThumbnailsView
+                                    loading={isPending}
+                                    data={sortedDataByDisplayImages}
+                                    limit={limit}
+                                />
+                            )}
+                        </div>
+                    )}
 
-                        {hasAssets && viewMode === ObjectViewMode.List && (
-                            <ListView loading={isPending} data={sortedDataByDisplayImages} />
-                        )}
-                        {hasAssets && viewMode === ObjectViewMode.SmallThumbnail && (
-                            <SmallThumbnailsView
-                                loading={isPending}
-                                data={sortedDataByDisplayImages}
-                                limit={limit}
-                            />
-                        )}
-                        {hasAssets && viewMode === ObjectViewMode.Thumbnail && (
-                            <ThumbnailsView
-                                loading={isPending}
-                                data={sortedDataByDisplayImages}
-                                limit={limit}
-                            />
-                        )}
-                    </div>
-                    {showPagination && hasAssets && (
-                        <div className="flex flex-1 items-end p-md pt-none">
-                            <div className="flex w-full flex-row flex-wrap items-center justify-between gap-2">
-                                <Pagination {...pagination} />
-                                <div className="ml-auto flex items-center">
-                                    {!isPending && (
-                                        <Text variant="body/medium" color="steel">
-                                            Showing {start} - {end}
-                                        </Text>
-                                    )}
-                                </div>
-                                <div className="hidden sm:block">
-                                    <select
-                                        className="form-select rounded-md border border-gray-45 px-3 py-2 pr-8 text-bodySmall font-medium leading-[1.2] text-steel-dark shadow-button"
-                                        value={limit}
-                                        onChange={(e) => {
-                                            setLimit(Number(e.target.value));
-                                            pagination.onFirst();
-                                        }}
-                                    >
-                                        {PAGE_SIZES.map((size) => (
-                                            <option key={size} value={size}>
-                                                {size} Per Page
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                    {showPagination && hasVisualAssets && (
+                        <div className="flex flex-row flex-wrap items-center justify-between gap-sm px-sm--rs py-sm--rs">
+                            <Pagination {...pagination} />
+                            <div className="flex items-center gap-3">
+                                {!isPending && (
+                                    <span className="shrink-0 text-body-sm text-neutral-40 dark:text-neutral-60">
+                                        Showing {start} - {end}
+                                    </span>
+                                )}
+                                <Select
+                                    dropdownPosition={DropdownPosition.Top}
+                                    value={limit.toString()}
+                                    options={PAGE_SIZES_RANGE_10_50.map((size) => ({
+                                        label: `${size} / page`,
+                                        id: size.toString(),
+                                    }))}
+                                    onValueChange={(value) => {
+                                        setLimit(Number(value));
+                                        pagination.onFirst();
+                                    }}
+                                    size={SelectSize.Small}
+                                />
                             </div>
                         </div>
                     )}

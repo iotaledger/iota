@@ -9,7 +9,7 @@ Here are IOTA's key features:
 
 - [Causal order vs. total order](#causal-order-vs-total-order) enables massively parallel execution
 - IOTA's variant of Move and its object-centric data model make composable objects/NFTs possible
-- The blockchain-oriented [Move programming language](../developer/evm-to-move/why-move.mdx) eases the developer experience
+- The blockchain-oriented [Move programming language](../about-iota/why-move.mdx) eases the developer experience
 
 ## Traditional blockchains
 
@@ -29,16 +29,16 @@ This doesn't mean that IOTA as a platform never orders transactions with respect
 
 ## A collaborative approach to transaction submission
 
-IOTA validates transactions individually, rather than batching them in the traditional blocks. The key advantage of this approach is low latency; each successful transaction quickly obtains a certificate of finality that proves to anyone that the transaction will persists its effects on the IOTA network.
+IOTA validates transactions individually, rather than batching them in the traditional blocks. The key advantage of this approach is low latency; each successful transaction quickly obtains a _certificate_ of finality that proves to anyone that the transaction will persists its effects on the IOTA network.
 
 But the process of submitting a transaction is a bit more involved. That little more work occurs on the network. (With bandwidth getting cheaper, this is less of a concern.) Whereas a usual blockchain can accept a bunch of transactions from the same author in a fire-and-forget mode, IOTA transaction submission follows these steps:
 
 1.  Sender broadcasts a transaction to all IOTA validators.
 1.  IOTA validators send individual votes on this transaction to the sender.
 1.  Each vote has a certain weight since each validator has weight based upon the rules of [Proof of Stake](https://en.wikipedia.org/wiki/Proof_of_work).
-1.  Sender collects a Byzantine-resistant-majority of these votes into a _certificate_ and broadcasts it to all IOTA validators.
+1.  Sender collects a Byzantine-resistant-majority of these votes into a __certificate__ and broadcasts it to all IOTA validators.
 1.  The validators execute the transaction and sign the results. When the client receives a Byzantine-resistant-majority of the results _finality_ is reached, ie., assurance the transaction will not be dropped (revoked).
-1.  Optionally, the sender assembles the votes to a certificate detailing the effects of the transaction.
+1.  Optionally, the sender assembles the votes to a _certificate_ detailing the effects of the transaction.
 
 While those steps demand more of the sender, performing them efficiently can still yield a cryptographic proof of finality with minimum latency. Aside from crafting the original transaction itself, the session management for a transaction does not require access to any private keys and can be delegated to a third party.
 
@@ -49,7 +49,7 @@ Because IOTA focuses on managing specific objects rather than a single aggregate
 - Every object in IOTA has a unique version number.
 - Every new version is created from a transaction that may involve several dependencies, themselves versioned objects.
 
-As a consequence, a IOTA Validator can exhibit a causal history of an object, showing its history since genesis. IOTA explicitly makes the bet that in many cases, the ordering of that causal history with the causal history of another object is irrelevant; and in the few cases where this information is relevant, IOTA makes this relationship explicit in the data.
+As a consequence, a IOTA Validator can exhibit a _causal history_ of an object, showing its history since genesis. IOTA explicitly makes the bet that in many cases, the ordering of that _causal history_ with the _causal history_ of another object is irrelevant; and in the few cases where this information is relevant, IOTA makes this relationship explicit in the data.
 
 ## Causal order vs. total order
 
@@ -57,9 +57,7 @@ Unlike most existing blockchain systems (and as the reader may have guessed from
 
 ## State-of-the-art consensus
 
-Narwhal and Bullshark represent the latest variant of decades of work on multi-proposer, high-throughput consensus algorithms that reaches throughputs more than 130,000 transactions per second on a WAN, with production cryptography, permanent storage, and a scaled-out primary-worker architecture.
-
-The [Narwhal mempool](https://github.com/iotaledger/iota/tree/develop/narwhal) offers a high-throughput data availability engine and a scaled architecture, splitting the disk I/O and networking requirements across several workers. And Bullshark is a zero-message overhead consensus algorithm, leveraging graph traversals.
+[Mysticeti](https://arxiv.org/pdf/2310.14821) represents the latest variant of decades of work on multi-proposer, high-throughput consensus algorithms that reaches throughput more than 400,000 transactions per second on a WAN, with production cryptography and permanent storage.
 
 ## Where IOTA excels
 
@@ -126,6 +124,4 @@ IOTA uses the state commitment that arrives upon epoch change. IOTA requires a s
 
 ## Conclusion
 
-In summary, IOTA offers many performance and usability gains at the cost of some complexity in less simple use cases. Direct sender transactions excel in IOTA. And complex smart contracts may benefit from shared objects where more than one user can mutate those objects (following smart contract specific rules). In this case, IOTA totally orders all transactions involving shared objects using a consensus protocol.
-
-IOTA uses a novel peer-reviewed consensus protocol based on [Narwhal and Bullshark](https://github.com/iotaledger/iota/tree/develop/narwhal), which provides a DAG-based mempool and efficient Byzantine Fault Tolerant (BFT) consensus. This is state-of-the-art in terms of both performance and robustness.
+In summary, IOTA provides significant performance and usability enhancements. It introduces an innovative fastpath consensus for simple send transactions and utilizes a state-of-the-art consensus protocol that leads the industry with its low latency and high throughput.

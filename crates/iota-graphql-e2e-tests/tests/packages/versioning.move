@@ -50,7 +50,7 @@ module P0::m {
     }
 }
 
-//# upgrade --package P0 --upgrade-capability 1,1 --sender A
+//# upgrade --package P0 --upgrade-capability 1,0 --sender A
 module P1::m {
     public fun f(): u64 { 42 }
     public fun g(): u64 { 43 }
@@ -97,7 +97,7 @@ module P1::m {
     }
 }
 
-//# upgrade --package P1 --upgrade-capability 1,1 --sender A
+//# upgrade --package P1 --upgrade-capability 1,0 --sender A
 module P2::m {
     public fun f(): u64 { 42 }
     public fun g(): u64 { 43 }

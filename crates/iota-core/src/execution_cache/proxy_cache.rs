@@ -5,7 +5,6 @@
 use std::{sync::Arc, time::Duration};
 
 use futures::{FutureExt, future::BoxFuture};
-use iota_protocol_config::ProtocolVersion;
 use iota_types::{
     accumulator::Accumulator,
     base_types::{EpochId, ObjectID, ObjectRef, SequenceNumber, VerifiedExecutionData},
@@ -266,14 +265,6 @@ impl ExecutionCacheWrite for ProxyCache {
 }
 
 impl AccumulatorStore for ProxyCache {
-    fn get_object_ref_prior_to_key_deprecated(
-        &self,
-        object_id: &ObjectID,
-        version: iota_types::base_types::VersionNumber,
-    ) -> IotaResult<Option<ObjectRef>> {
-        delegate_method!(self.get_object_ref_prior_to_key_deprecated(object_id, version))
-    }
-
     fn get_root_state_accumulator_for_epoch(
         &self,
         epoch: EpochId,
@@ -298,16 +289,14 @@ impl AccumulatorStore for ProxyCache {
 
     fn iter_live_object_set(
         &self,
-        include_wrapped_tombstone: bool,
     ) -> Box<dyn Iterator<Item = crate::authority::authority_store_tables::LiveObject> + '_> {
-        delegate_method!(self.iter_live_object_set(include_wrapped_tombstone))
+        delegate_method!(self.iter_live_object_set())
     }
 
     fn iter_cached_live_object_set_for_testing(
         &self,
-        include_wrapped_tombstone: bool,
     ) -> Box<dyn Iterator<Item = crate::authority::authority_store_tables::LiveObject> + '_> {
-        delegate_method!(self.iter_cached_live_object_set_for_testing(include_wrapped_tombstone))
+        delegate_method!(self.iter_cached_live_object_set_for_testing())
     }
 }
 
@@ -329,27 +318,29 @@ impl ExecutionCacheCommit for ProxyCache {
 }
 
 impl CheckpointCache for ProxyCache {
-    fn deprecated_get_transaction_checkpoint(
+    fn get_transaction_perpetual_checkpoint(
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        delegate_method!(self.deprecated_get_transaction_checkpoint(digest))
+        delegate_method!(self.get_transaction_perpetual_checkpoint(digest))
     }
 
-    fn deprecated_multi_get_transaction_checkpoint(
+    fn multi_get_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
-        delegate_method!(self.deprecated_multi_get_transaction_checkpoint(digests))
+        delegate_method!(self.multi_get_transactions_perpetual_checkpoints(digests))
     }
 
-    fn deprecated_insert_finalized_transactions(
+    fn insert_finalized_transactions_perpetual_checkpoints(
         &self,
         digests: &[TransactionDigest],
         epoch: EpochId,
         sequence: CheckpointSequenceNumber,
     ) -> IotaResult {
-        delegate_method!(self.deprecated_insert_finalized_transactions(digests, epoch, sequence))
+        delegate_method!(
+            self.insert_finalized_transactions_perpetual_checkpoints(digests, epoch, sequence)
+        )
     }
 }
 
@@ -393,14 +384,6 @@ impl ExecutionCacheReconfigAPI for ProxyCache {
 
     fn checkpoint_db(&self, path: &std::path::Path) -> IotaResult {
         delegate_method!(self.checkpoint_db(path))
-    }
-
-    fn maybe_reaccumulate_state_hash(
-        &self,
-        cur_epoch_store: &AuthorityPerEpochStore,
-        new_protocol_version: ProtocolVersion,
-    ) {
-        delegate_method!(self.maybe_reaccumulate_state_hash(cur_epoch_store, new_protocol_version))
     }
 
     fn reconfigure_cache<'a>(

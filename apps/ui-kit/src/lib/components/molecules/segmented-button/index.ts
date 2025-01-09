@@ -3,4 +3,4 @@
 
 export * from './SegmentedButton';
 
-export * from './segmented-button.enums';
+export * from './segmentedButton.enums';

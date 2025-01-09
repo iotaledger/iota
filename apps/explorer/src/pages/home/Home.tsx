@@ -19,9 +19,9 @@ import {
 } from '~/components';
 import { useNetwork } from '~/hooks';
 
-const TRANSACTIONS_LIMIT = 25;
+const TRANSACTIONS_LIMIT = 15;
 
-function Home(): JSX.Element {
+export function Home(): JSX.Element {
     const [network] = useNetwork();
     const isIotaTokenCardEnabled = network === Network.Mainnet;
     return (
@@ -77,5 +77,3 @@ function Home(): JSX.Element {
         />
     );
 }
-
-export default Home;

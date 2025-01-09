@@ -35,7 +35,7 @@ enum TestIteratorWrapper<'a, K, V> {
 // for different types of Iterator. For non-safe Iterator, it returns the key
 // value pair. For SafeIterator, it consumes the result (assuming no error), and
 // return they key value pairs.
-impl<'a, K: DeserializeOwned, V: DeserializeOwned> Iterator for TestIteratorWrapper<'a, K, V> {
+impl<K: DeserializeOwned, V: DeserializeOwned> Iterator for TestIteratorWrapper<'_, K, V> {
     type Item = (K, V);
     fn next(&mut self) -> Option<Self::Item> {
         match self {
@@ -92,7 +92,7 @@ where
     }
 }
 
-impl<'a, K: Serialize, V> TestIteratorWrapper<'a, K, V> {
+impl<K: Serialize, V> TestIteratorWrapper<'_, K, V> {
     pub fn skip_to(self, key: &K) -> Result<Self, TypedStoreError> {
         match self {
             TestIteratorWrapper::Iter(iter) => Ok(TestIteratorWrapper::Iter(iter.skip_to(key)?)),
@@ -1172,7 +1172,7 @@ async fn test_transaction_snapshot() {
     db.insert(&key, &"1".to_string()).unwrap();
     assert!(matches!(
         tx1.commit(),
-        Err(TypedStoreError::RetryableTransactionError)
+        Err(TypedStoreError::RetryableTransaction)
     ));
     assert_eq!(db.get(&key).unwrap().unwrap(), "1".to_string());
 
@@ -1184,7 +1184,7 @@ async fn test_transaction_snapshot() {
         .unwrap();
     assert!(matches!(
         tx1.commit(),
-        Err(TypedStoreError::RetryableTransactionError)
+        Err(TypedStoreError::RetryableTransaction)
     ));
 
     let mut tx1 = db.transaction().expect("failed to initiate transaction");
@@ -1209,7 +1209,7 @@ async fn test_transaction_snapshot() {
     tx1.commit().expect("failed to commit");
     assert!(matches!(
         tx2.commit(),
-        Err(TypedStoreError::RetryableTransactionError)
+        Err(TypedStoreError::RetryableTransaction)
     ));
 
     // IMPORTANT: a race is still possible if one tx commits before the other

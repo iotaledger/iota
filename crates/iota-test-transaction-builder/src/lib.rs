@@ -20,7 +20,6 @@ use iota_types::{
     digests::TransactionDigest,
     iota_system_state::IOTA_SYSTEM_MODULE_NAME,
     multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
-    multisig_legacy::{MultiSigLegacy, MultiSigPublicKeyLegacy},
     object::Owner,
     signature::GenericSignature,
     transaction::{
@@ -204,9 +203,9 @@ impl TestTransactionBuilder {
             "request_add_validator_candidate",
             vec![
                 CallArg::IOTA_SYSTEM_MUT,
-                CallArg::Pure(bcs::to_bytes(&validator.protocol_public_key).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&validator.authority_public_key).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.network_public_key).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.worker_public_key).unwrap()),
+                CallArg::Pure(bcs::to_bytes(&validator.protocol_public_key).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.proof_of_possession).unwrap()),
                 CallArg::Pure(bcs::to_bytes(validator.name.as_bytes()).unwrap()),
                 CallArg::Pure(bcs::to_bytes(validator.description.as_bytes()).unwrap()),
@@ -215,7 +214,6 @@ impl TestTransactionBuilder {
                 CallArg::Pure(bcs::to_bytes(&validator.network_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.p2p_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&validator.primary_address).unwrap()),
-                CallArg::Pure(bcs::to_bytes(&validator.worker_address).unwrap()),
                 CallArg::Pure(bcs::to_bytes(&DEFAULT_VALIDATOR_GAS_PRICE).unwrap()), // gas_price
                 CallArg::Pure(bcs::to_bytes(&0u64).unwrap()), // commission_rate
             ],
@@ -376,27 +374,6 @@ impl TestTransactionBuilder {
 
         let multisig =
             GenericSignature::MultiSig(MultiSig::insecure_new(signatures, bitmap, multisig_pk));
-
-        Transaction::from_generic_sig_data(data, vec![multisig])
-    }
-
-    pub fn build_and_sign_multisig_legacy(
-        self,
-        multisig_pk: MultiSigPublicKeyLegacy,
-        signers: &[&dyn Signer<Signature>],
-    ) -> Transaction {
-        let data = self.build();
-        let intent = Intent::iota_transaction();
-        let intent_msg = IntentMessage::new(intent.clone(), data.clone());
-
-        let mut signatures = Vec::with_capacity(signers.len());
-        for signer in signers {
-            signatures.push(Signature::new_secure(&intent_msg, *signer).into());
-        }
-
-        let multisig = GenericSignature::MultiSigLegacy(
-            MultiSigLegacy::combine(signatures, multisig_pk).unwrap(),
-        );
 
         Transaction::from_generic_sig_data(data, vec![multisig])
     }

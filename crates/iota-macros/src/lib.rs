@@ -413,7 +413,6 @@ mod test {
     #[test]
     #[should_panic]
     fn test_macro_overflow() {
-        #[allow(arithmetic_overflow)]
         fn f() {
             println!("{}", i32::MAX + 1);
         }
@@ -603,7 +602,6 @@ mod test {
         #[test]
         #[should_panic]
         fn test_macro_overflow() {
-            #[allow(arithmetic_overflow)]
             fn f() {
                 println!("{}", i32::MAX + 1);
             }

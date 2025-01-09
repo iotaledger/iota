@@ -12,7 +12,7 @@ interface NonVisualAssetsProps {
     items: IotaObjectData[];
 }
 
-export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
+export function NonVisualAssets({ items }: NonVisualAssetsProps) {
     return (
         <div className="flex w-full flex-1 flex-col items-center gap-4">
             {items?.length ? (
@@ -26,7 +26,7 @@ export default function NonVisualAssets({ items }: NonVisualAssetsProps) {
                                 type={ExplorerLinkType.Object}
                                 key={item.objectId}
                             >
-                                <Card type={CardType.Default}>
+                                <Card type={CardType.Default} isHoverable>
                                     <CardBody
                                         title={formatAddress(item.objectId!)}
                                         subtitle={`${formatAddress(address)}::${module}::${name}`}

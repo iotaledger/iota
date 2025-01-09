@@ -185,7 +185,7 @@ impl CheckpointReader {
             )
             .expect("failed to create remote store client");
             RemoteStore::Hybrid(object_store, iota_rest_api::Client::new(fn_url))
-        } else if url.ends_with("/rest") {
+        } else if url.ends_with("/api/v1") {
             RemoteStore::Rest(iota_rest_api::Client::new(url))
         } else {
             let object_store = create_remote_store_client(

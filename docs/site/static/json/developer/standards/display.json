@@ -1,0 +1,29 @@
+[
+    {
+        "questionText": "In the context of IOTA Object Display, what is the role of the `Publisher` object?",
+        "answerOptions": [
+            { "answerText": "It acts as a storage mechanism for all IOTA objects.", "isCorrect": false },
+            { "answerText": "It is used to verify the authenticity of transactions on the IOTA network.", "isCorrect": false },
+            { "answerText": "It is necessary for creating new UIDs for objects.", "isCorrect": false },
+            { "answerText": "It enables the on-chain management of off-chain representations for types.", "isCorrect": true }
+        ]
+    },
+    {
+        "questionText": "What is the purpose of the `update_version` function in the IOTA Object Display standard?",
+        "answerOptions": [
+            { "answerText": "To apply changes to a `Display` object and emit an event for full nodes to retrieve the updated template.", "isCorrect": true },
+            { "answerText": "To permanently remove a `Display` object from the blockchain.", "isCorrect": false },
+            { "answerText": "To duplicate the current version of a `Display` object for backup purposes.", "isCorrect": false },
+            { "answerText": "To validate the integrity of the data stored in the `Display` object.", "isCorrect": false }
+        ]
+    },
+    {
+        "questionText": "Which of the following fields is NOT a suggested property for an IOTA Object Display template?",
+        "answerOptions": [
+            { "answerText": "name", "isCorrect": false },
+            { "answerText": "image_url", "isCorrect": false },
+            { "answerText": "thumbnail_url", "isCorrect": false },
+            { "answerText": "contract_address", "isCorrect": true }
+        ]
+    }
+]

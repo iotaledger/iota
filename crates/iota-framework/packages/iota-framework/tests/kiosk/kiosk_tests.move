@@ -292,15 +292,6 @@ module iota::kiosk_tests {
         abort 1337
     }
 
-    #[test]
-    fun test_disallow_extensions_access_as_owner() {
-        let ctx = &mut test::ctx();
-        let (mut kiosk, owner_cap) = test::get_kiosk(ctx);
-
-        kiosk.set_allow_extensions(&owner_cap, false);
-        let _uid_mut = kiosk.uid_mut_as_owner(&owner_cap);
-        test::return_kiosk(kiosk, owner_cap, ctx);
-    }
 
     #[test]
     fun test_uid_access() {
@@ -313,26 +304,4 @@ module iota::kiosk_tests {
         test::return_kiosk(kiosk, owner_cap, ctx);
     }
 
-    #[test]
-    #[expected_failure(abort_code = iota::kiosk::EUidAccessNotAllowed)]
-    fun test_disallow_extensions_uid_mut() {
-        let ctx = &mut test::ctx();
-        let (mut kiosk, owner_cap) = test::get_kiosk(ctx);
-
-        kiosk.set_allow_extensions(&owner_cap, false);
-        let _ = kiosk.uid_mut();
-
-        abort 1337
-    }
-
-    #[test]
-    fun test_disallow_extensions_uid_available() {
-        let ctx = &mut test::ctx();
-        let (mut kiosk, owner_cap) = test::get_kiosk(ctx);
-
-        kiosk.set_allow_extensions(&owner_cap, false);
-        let _ = kiosk.uid();
-
-        test::return_kiosk(kiosk, owner_cap, ctx);
-    }
 }

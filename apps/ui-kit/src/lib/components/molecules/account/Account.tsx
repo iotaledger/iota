@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import cx from 'classnames';
 import { ButtonUnstyled } from '../../atoms/button';
 import { Badge, BadgeType } from '../../atoms';
@@ -157,7 +156,7 @@ export function Account({
                 {showSelected && (
                     <ButtonUnstyled>
                         {isSelected ? (
-                            <CheckmarkFilled className="h-5 w-5 text-primary-30" />
+                            <CheckmarkFilled className="h-5 w-5 text-primary-30 dark:text-primary-80" />
                         ) : (
                             <RadioOff className="h-5 w-5 text-neutral-40 dark:text-neutral-60" />
                         )}

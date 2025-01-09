@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import { ButtonHtmlType, ButtonSize, ButtonType } from './button.enums';
 import {
     PADDINGS,
@@ -83,7 +82,7 @@ export function Button({
             onClick={onClick}
             type={htmlType}
             className={cx(
-                'state-layer relative flex items-center justify-center gap-2 rounded-full disabled:cursor-not-allowed disabled:opacity-40',
+                'state-layer relative flex items-center justify-center gap-2 rounded-full transition-all duration-150 ease-in disabled:cursor-not-allowed disabled:opacity-40',
                 paddingClasses,
                 backgroundColors,
                 fullWidth && 'w-full',

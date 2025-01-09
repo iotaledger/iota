@@ -2,23 +2,29 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFormatCoin } from '@iota/core';
+import { useFormatCoin, ImageIconSize, CoinIcon } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import clsx from 'clsx';
 import { useState } from 'react';
-
-import { CoinIcon } from './CoinIcon';
 import { type CoinBalanceVerified } from './OwnedCoins';
-import CoinsPanel from './OwnedCoinsPanel';
-import { Card, CardBody, Chip, Tooltip, Divider } from '@iota/apps-ui-kit';
-import { ArrowUp, Warning } from '@iota/ui-icons';
+import { CoinsPanel } from './OwnedCoinsPanel';
+import {
+    Card,
+    CardAction,
+    CardActionType,
+    CardBody,
+    CardImage,
+    Divider,
+    ImageType,
+} from '@iota/apps-ui-kit';
+import { ArrowUp, RecognizedBadge } from '@iota/ui-icons';
 
 type OwnedCoinViewProps = {
     coin: CoinBalanceVerified;
     id: string;
 };
 
-export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
+export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
     const isIotaCoin = coin.coinType === IOTA_TYPE_ARG;
     const [areCoinDetailsOpen, setAreCoinDetailsOpen] = useState<boolean>(isIotaCoin);
     const [formattedTotalBalance, symbol] = useFormatCoin(coin.totalBalance, coin.coinType);
@@ -26,11 +32,7 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
     const CARD_BODY: React.ComponentProps<typeof CardBody> = {
         title: symbol,
         subtitle: `${formattedTotalBalance} ${symbol}`,
-    };
-
-    const CHIP_PROPS: React.ComponentProps<typeof Chip> = {
-        label: `${coin.coinObjectCount} Object` + (coin.coinObjectCount > 1 ? 's' : ''),
-        trailingElement: <ArrowUp className={clsx({ 'rotate-180': !areCoinDetailsOpen })} />,
+        icon: coin.isRecognized && <RecognizedBadge className="h-4 w-4 text-primary-40" />,
     };
     return (
         <div
@@ -40,35 +42,29 @@ export default function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Ele
                 areCoinDetailsOpen ? 'border-shader-neutral-light-8' : 'border-transparent',
             )}
         >
-            <Card>
-                <div className="rounded-full border border-neutral-92 dark:border-neutral-10">
-                    <CoinIcon coinType={coin.coinType} size="lg" />
-                </div>
-                <div className="mr-auto flex flex-row items-center gap-md">
-                    <CardBody {...CARD_BODY} />
-                    {!coin.isRecognized && (
-                        <Tooltip text="This coin has not been recognized by IOTA Foundation.">
-                            <Warning />
-                        </Tooltip>
-                    )}
-                </div>
-                <div className="whitespace-nowrap">
-                    <Chip
-                        {...CHIP_PROPS}
-                        onClick={() => {
-                            setAreCoinDetailsOpen((prev) => !prev);
-                        }}
-                    />
-                </div>
+            <Card onClick={() => setAreCoinDetailsOpen((prev) => !prev)}>
+                <CardImage type={ImageType.Placeholder}>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
+                        <CoinIcon coinType={coin.coinType} size={ImageIconSize.Small} />
+                    </div>
+                </CardImage>
+                <CardBody {...CARD_BODY} isTextTruncated />
+                <CardAction
+                    type={CardActionType.Button}
+                    onClick={() => setAreCoinDetailsOpen((prev) => !prev)}
+                    title={`${coin.coinObjectCount} Object` + (coin.coinObjectCount > 1 ? 's' : '')}
+                    icon={<ArrowUp className={clsx({ 'rotate-180': !areCoinDetailsOpen })} />}
+                    iconAfterText
+                />
             </Card>
             {areCoinDetailsOpen && (
                 <>
                     <div className="flex justify-center">
-                        <div className="w-9/12 ">
+                        <div className="w-9/12">
                             <Divider />
                         </div>
                     </div>
-                    <div className="flex flex-col gap-xs px-md--rs pb-md--rs pt-xs--rs">
+                    <div className="flex flex-col gap-xs px-md--rs pb-md--rs pt-sm--rs">
                         <CoinsPanel id={id} coinType={coin.coinType} />
                     </div>
                 </>

@@ -56,7 +56,7 @@ pub async fn status(
         .map(|validator| Peer {
             peer_id: ObjectID::from(validator.iota_address).into(),
             metadata: Some(json!({
-                "public_key": Hex::from_bytes(&validator.protocol_pubkey_bytes),
+                "public_key": Hex::from_bytes(&validator.authority_pubkey_bytes),
                 "stake_amount": validator.staking_pool_iota_balance,
             })),
         })

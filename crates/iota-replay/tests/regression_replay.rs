@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 
 #[tokio::test]
-#[ignore = "sandbox snapshots are invalidated by rename"]
 async fn replay_sandboxes() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests/sandbox_snapshots");
