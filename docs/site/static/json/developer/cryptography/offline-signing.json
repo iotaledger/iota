@@ -12,7 +12,7 @@
         "questionText": "Which command is used to execute a signed transaction in IOTA?",
         "answerOptions": [
             { "answerText": "iota client execute-signed-tx", "isCorrect": true },
-            { "answerText": "iota client transfer-iota", "isCorrect": false },
+            { "answerText": "iota client pay-all-iota", "isCorrect": false },
             { "answerText": "iota keytool sign", "isCorrect": false },
             { "answerText": "iota client publish", "isCorrect": false }
         ]

@@ -21,7 +21,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { Warning } from '@iota/ui-icons';
 
 import { AssetTileLink, Loading } from '@/components';
-import { AssetDialog } from '@/components/Dialogs/Assets';
+import { AssetDialog } from '@/components/dialogs/assets';
 
 const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
     {

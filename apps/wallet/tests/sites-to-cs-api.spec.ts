@@ -5,7 +5,7 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import { createWallet } from './utils/auth';
-import { demoDappConnect } from './utils/dapp-connect';
+import { demoDappConnect } from './utils/dappConnect';
 import dotenv from 'dotenv';
 
 dotenv.config();
