@@ -49,7 +49,9 @@ export async function groupMigrationObjectsByUnlockCondition(
                 // Timestamp can be undefined if the object was timelocked and is now unlocked
                 // and it doesn't have an expiration unlock condition
                 groupKey =
-                    timestamp && Number(timestamp) >= currentEpochStartMs / MILLISECONDS_PER_SECOND
+                    timestamp &&
+                    currentEpochStartMs !== undefined &&
+                    Number(timestamp) >= currentEpochStartMs / MILLISECONDS_PER_SECOND
                         ? timestamp
                         : MIGRATION_OBJECT_WITHOUT_UC_KEY;
             }
