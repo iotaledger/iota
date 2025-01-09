@@ -225,6 +225,40 @@ module iota::coin_manager_tests {
     }
 
     #[test]
+    #[expected_failure(abort_code = coin_manager::EMaximumSupplyHigherThanPossible)]
+    fun test_max_supply_higher_than_maximum() {
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+        let witness = COIN_MANAGER_TESTS{};
+
+        // Create a `Coin`.
+        let (cap, meta) = coin::create_currency(
+            witness,
+            0, 
+            b"TEST",
+            b"TEST",
+            b"TEST",
+            option::none(),
+            scenario.ctx(),
+        );
+
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+
+        // Check the default maximum supply.
+        assert_eq(wrapper.maximum_supply(), 18_446_744_073_709_551_614u64);
+
+        // Update the maximum supply to be higher than is maximum possible.
+        cmcap.enforce_maximum_supply(&mut wrapper, 18_446_744_073_709_551_615u64);
+        
+        transfer::public_transfer(cmcap, scenario.ctx().sender());
+        metacap.renounce_metadata_ownership(&mut wrapper);
+
+        transfer::public_share_object(wrapper);
+
+        scenario.end();
+    }
+
+    #[test]
     #[expected_failure(abort_code = coin_manager::EMaximumSupplyAlreadySet)]
     fun test_max_supply_once() {
         let sender = @0xA;
