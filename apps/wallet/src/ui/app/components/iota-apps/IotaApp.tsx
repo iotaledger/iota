@@ -8,8 +8,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { getDAppUrl } from '_src/shared/utils';
 import { useState } from 'react';
 import { Card, CardImage, CardBody, ImageShape, Badge, BadgeType } from '@iota/apps-ui-kit';
-
-import DisconnectApp from './DisconnectApp';
+import { DisconnectApp } from './DisconnectApp';
 
 export type DAppEntry = {
     name: string;

@@ -91,6 +91,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
+        delegator: None,
     }
     .execute()
     .await?;
@@ -133,6 +134,7 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         num_validators: DEFAULT_NUMBER_OF_AUTHORITIES,
         local_migration_snapshots: vec![],
         remote_migration_snapshots: vec![],
+        delegator: None,
     }
     .execute()
     .await;
@@ -161,6 +163,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             indexer_feature_args: IndexerFeatureArgs::for_testing(),
             local_migration_snapshots: vec![],
             remote_migration_snapshots: vec![],
+            delegator: None,
         }
         .execute(),
     )
@@ -3853,7 +3856,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
     let sender = context.active_address().unwrap();
     let tx_builder = client.transaction_builder();
     let tx_kind = tx_builder.transfer_iota_tx_kind(address2, Some(amount));
-    let gas_estimate = estimate_gas_budget(&client, sender, tx_kind, rgp, None, None).await;
+    let gas_estimate = estimate_gas_budget(context, sender, tx_kind, rgp, None, None).await;
     assert!(gas_estimate.is_ok());
 
     let transfer_iota_cmd = IotaClientCommands::TransferIota {

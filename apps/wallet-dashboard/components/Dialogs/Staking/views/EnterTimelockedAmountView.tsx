@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     useFormatCoin,
     CoinFormat,
@@ -12,16 +12,12 @@ import {
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
-import {
-    useGetCurrentEpochStartTimestamp,
-    useNewStakeTimelockedTransaction,
-    useNotifications,
-} from '@/hooks';
-import { NotificationType } from '@/stores/notificationStore';
+import { useGetCurrentEpochStartTimestamp, useNewStakeTimelockedTransaction } from '@/hooks';
 import { prepareObjectsForTimelockedStakingTransaction } from '@/lib/utils';
-import EnterAmountDialogLayout from './EnterAmountDialogLayout';
+import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
+import toast from 'react-hot-toast';
 
-export interface FormValues {
+interface FormValues {
     amount: string;
 }
 
@@ -35,7 +31,7 @@ interface EnterTimelockedAmountViewProps {
     onSuccess: (digest: string) => void;
 }
 
-function EnterTimelockedAmountView({
+export function EnterTimelockedAmountView({
     selectedValidator,
     maxStakableTimelockedAmount,
     amountWithoutDecimals,
@@ -44,7 +40,6 @@ function EnterTimelockedAmountView({
     handleClose,
     onSuccess,
 }: EnterTimelockedAmountViewProps): JSX.Element {
-    const { addNotification } = useNotifications();
     const { mutateAsync: signAndExecuteTransaction } = useSignAndExecuteTransaction();
     const { resetForm } = useFormikContext<FormValues>();
 
@@ -84,11 +79,11 @@ function EnterTimelockedAmountView({
 
     function handleStake(): void {
         if (groupedTimelockObjects.length === 0) {
-            addNotification('Invalid stake amount. Please try again.', NotificationType.Error);
+            toast.error('Invalid stake amount. Please try again.');
             return;
         }
         if (!newStakeData?.transaction) {
-            addNotification('Stake transaction was not created', NotificationType.Error);
+            toast.error('Stake transaction was not created');
             return;
         }
         signAndExecuteTransaction(
@@ -98,11 +93,11 @@ function EnterTimelockedAmountView({
             {
                 onSuccess: (tx) => {
                     onSuccess?.(tx.digest);
-                    addNotification('Stake transaction has been sent');
+                    toast.success('Stake transaction has been sent');
                     resetForm();
                 },
                 onError: () => {
-                    addNotification('Stake transaction was not sent', NotificationType.Error);
+                    toast.error('Stake transaction was not sent');
                 },
             },
         );
@@ -124,5 +119,3 @@ function EnterTimelockedAmountView({
         />
     );
 }
-
-export default EnterTimelockedAmountView;
