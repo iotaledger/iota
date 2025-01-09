@@ -1,11 +1,11 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { isMnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
-import { isSeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
+import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
+import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
-import type { SerializedUIAccount } from '_src/background/accounts/Account';
+import type { SerializedUIAccount } from '_src/background/accounts/account';
 
 export function isMainAccount(account: SerializedUIAccount | null) {
     if (!account) {

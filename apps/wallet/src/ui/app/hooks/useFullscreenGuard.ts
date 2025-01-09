@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { AppType } from '_redux/slices/app/AppType';
+import { AppType } from '_src/ui/app/redux/slices/app/appType';
 import { openInNewTab } from '_shared/utils';
 import { useEffect, useRef } from 'react';
 

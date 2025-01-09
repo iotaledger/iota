@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Browser from 'webextension-polyfill';
 
-import { AppType } from '../redux/slices/app/AppType';
+import { AppType } from '../redux/slices/app/appType';
 import { useActiveAccount } from './useActiveAccount';
 import useAppSelector from './useAppSelector';
 
