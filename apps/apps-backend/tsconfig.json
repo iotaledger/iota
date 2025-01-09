@@ -20,5 +20,5 @@
         "paths": {
             "@iota/core/constants/*": ["./../core/src/constants/*"]
         }
-    },
+    }
 }

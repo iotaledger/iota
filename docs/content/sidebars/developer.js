@@ -56,7 +56,7 @@ const developer = [
             {
                 type: 'link',
                 label: 'Typescript SDK',
-                href: '/references/ts-sdk/typescript',
+                href: '/ts-sdk/typescript',
             },
         ],
     },

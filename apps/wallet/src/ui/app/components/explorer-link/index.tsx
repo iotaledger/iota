@@ -45,5 +45,3 @@ export function ExplorerLink({
 }
 
 export { ExplorerLinkType };
-
-export default ExplorerLink;
