@@ -45,6 +45,7 @@ export function useGroupedMigrationObjectsByExpirationDate(
                 client,
                 address,
                 isTimelockUnlockCondition,
+                epochStartMs,
             );
 
             return sortStardustResolvedObjectsByExpiration(
