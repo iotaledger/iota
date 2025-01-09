@@ -311,7 +311,7 @@ pub fn default_zklogin_oauth_providers() -> BTreeMap<Chain, BTreeSet<String>> {
 
 fn default_transaction_kv_store_config() -> TransactionKeyValueStoreReadConfig {
     TransactionKeyValueStoreReadConfig {
-        base_url: "https://transactions.iota.io/".to_string(),
+        base_url: "https://transactions.iota.cafe/".to_string(),
     }
 }
 

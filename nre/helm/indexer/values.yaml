@@ -27,9 +27,9 @@ env:
   CHECKPOINT_COMMIT_BATCH_SIZE:
     value: "300"
   RPC_CLIENT:
-    value: "https://public-rpc.mainnet.iota.io"
+    value: "https://api.mainnet.iota.cafe"
   REMOTE_STORE:
-    value: "https://checkpoints.mainnet.iota.io"
+    value: "https://checkpoints.mainnet.iota.cafe"
   DB_URL:
     valueFrom:
       secretKeyRef:
