@@ -31,7 +31,7 @@ interface ConfirmMigrationViewProps {
     nftOutputObjects: IotaObjectData[] | undefined;
     onSuccess: () => void;
     setOpen: (bool: boolean) => void;
-    isTimelocked: boolean;
+    groupByTimelockUC: boolean;
     migrateData:
         | {
               transaction: Transaction;
@@ -48,7 +48,7 @@ export function ConfirmMigrationView({
     nftOutputObjects = [],
     onSuccess,
     setOpen,
-    isTimelocked,
+    groupByTimelockUC,
     migrateData,
     isMigrationPending,
     isMigrationError,
@@ -60,7 +60,7 @@ export function ConfirmMigrationView({
         data: resolvedObjects = [],
         isLoading,
         error: isGroupedMigrationError,
-    } = useGroupedStardustObjects([...basicOutputObjects, ...nftOutputObjects], isTimelocked);
+    } = useGroupedStardustObjects([...basicOutputObjects, ...nftOutputObjects], groupByTimelockUC);
 
     const {
         totalIotaAmount,
@@ -164,7 +164,7 @@ export function ConfirmMigrationView({
                                                     render={(migrationObject) => (
                                                         <MigrationObjectDetailsCard
                                                             migrationObject={migrationObject}
-                                                            isTimelocked={isTimelocked}
+                                                            isTimelocked={groupByTimelockUC}
                                                         />
                                                     )}
                                                 />

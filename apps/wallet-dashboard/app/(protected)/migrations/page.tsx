@@ -274,7 +274,7 @@ function MigrationDashboardPage(): JSX.Element {
                 <MigrationObjectsPanel
                     selectedObjects={selectedObjects}
                     onClose={handleCloseDetailsPanel}
-                    isTimelocked={
+                    groupByTimelockUC={
                         selectedStardustObjectsCategory === StardustOutputMigrationStatus.TimeLocked
                     }
                 />
