@@ -23,7 +23,7 @@ export * from './useActiveAccount';
 export * from './useAutoLockMinutes';
 export * from './useAutoLockMinutesMutation';
 export * from './useBackgroundClient';
-export * from './useCreateAccountMutation';
+export * from './useCreateAccountsMutation';
 export * from './useExportPassphraseMutation';
 export * from './useExportSeedMutation';
 export * from './useGetNFTs';
