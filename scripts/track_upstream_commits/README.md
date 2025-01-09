@@ -5,30 +5,24 @@ This script identifies all commits for the crates managed by the specified code 
 ## Usage
 
 ```bash
-usage: track_upstream_commits.py [-h] --since SINCE --until UNTIL [--crates CRATES [CRATES ...]]
-                                 [--codeowner CODEOWNER] [--repo-url REPO_URL] [--repo-tag REPO_TAG]
-                                 [--version VERSION] [--target-folder TARGET_FOLDER] [--clone-source]
-                                 [--compare-source-folder COMPARE_SOURCE_FOLDER]
+usage: track_upstream_commits.py [-h] --since SINCE --until UNTIL [--crates CRATES [CRATES ...]] [--codeowner CODEOWNER] [--repo-url REPO_URL] [--repo-tag REPO_TAG]
+                                 [--target-folder TARGET_FOLDER] [--clone-source]
 
 Track upstream commits for specified crates.
 
 options:
   -h, --help            show this help message and exit
-  --since SINCE         Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc").
-  --until UNTIL         End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"),
-                        it is included in the results.
+  --since SINCE         Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc"), it is EXCLUDED from the results.
+  --until UNTIL         End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"), it is INCLUDED in the results.
   --crates CRATES [CRATES ...]
                         List of crates to track (e.g., "iota-core iota-node").
   --codeowner CODEOWNER
-                        code owner of the crates (e.g., "node)
+                        code owner of the crates (e.g., "node")
   --repo-url REPO_URL   The URL to the repository. Can also be a local folder.
   --repo-tag REPO_TAG   The tag to checkout in the repository.
-  --version VERSION     The semantic version to filter overwrites/patches if not found in the repo-tag.
   --target-folder TARGET_FOLDER
                         The path to the target folder.
   --clone-source        Clone the upstream repository.
-  --compare-source-folder COMPARE_SOURCE_FOLDER
-                        The path to the source folder for comparison.
 ```
 
 ## Example

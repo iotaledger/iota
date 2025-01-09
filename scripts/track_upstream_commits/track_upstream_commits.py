@@ -125,10 +125,10 @@ def analyze_crate_commits(start_commit, end_commit, crates):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Track upstream commits for specified crates.')
-    parser.add_argument('--since', required=True, help='Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc").')
-    parser.add_argument('--until', required=True, help='End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"), it is included in the results.')
+    parser.add_argument('--since', required=True, help='Start commit hash for git log (e.g., "bb778828e36d53a7d91a27e55109f2f45621badc"), it is EXCLUDED from the results.')
+    parser.add_argument('--until', required=True, help='End commit hash for git log (e.g., "3ada97c109cc7ae1b451cb384a1f2cfae49c8d3e"), it is INCLUDED in the results.')
     parser.add_argument('--crates', nargs='+', help='List of crates to track (e.g., "iota-core iota-node").')
-    parser.add_argument('--codeowner', help='code owner of the crates (e.g., "node)')
+    parser.add_argument('--codeowner', help='code owner of the crates (e.g., "node")')
     parser.add_argument('--repo-url', default="git@github.com:MystenLabs/sui.git", help="The URL to the repository. Can also be a local folder.")
     parser.add_argument('--repo-tag', default=None, help="The tag to checkout in the repository.")
     parser.add_argument('--target-folder', default="result", help="The path to the target folder.")
