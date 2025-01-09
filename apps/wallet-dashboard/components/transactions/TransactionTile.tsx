@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { TransactionIcon } from './TransactionIcon';
 import { ExtendedTransaction, TransactionState } from '@/lib/interfaces';
 import {

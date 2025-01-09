@@ -3,7 +3,6 @@
 
 'use client';
 
-import React from 'react';
 import { Panel, Title, TitleSize } from '@iota/apps-ui-kit';
 import { TransactionsList } from '@/components';
 

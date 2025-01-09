@@ -1,7 +1,6 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import React from 'react';
 import cx from 'classnames';
 import { InfoBoxStyle, InfoBoxType } from './info-box.enums';
 import { BACKGROUND_COLORS, ICON_COLORS } from './info-box.classes';

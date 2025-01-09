@@ -5,7 +5,7 @@
 import { Input, InputType } from '@iota/apps-ui-kit';
 import { Close } from '@iota/ui-icons';
 import { useIotaAddressValidation } from '../../hooks';
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { useField, useFormikContext } from 'formik';
 
 export interface AddressInputProps {

@@ -4,23 +4,22 @@
 
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
-use move_core_types::language_storage::StructTag;
-use shared_crypto::intent::Intent;
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{
+    IotaClient,
     rpc_types::{
-        DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, ObjectChange, IotaData,
+        DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaData,
         IotaExecutionStatus, IotaObjectData, IotaObjectDataFilter, IotaObjectDataOptions,
         IotaObjectResponse, IotaObjectResponseQuery, IotaProtocolConfigValue,
-        IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+        IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse, ObjectChange,
     },
     wallet_context::WalletContext,
-    IotaClient,
 };
 use iota_types::{
-    base_types::{ObjectID, ObjectRef, IotaAddress},
+    Identifier,
+    base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::PublicKey,
     multisig::{MultiSig, MultiSigPublicKey},
     object::Owner,
@@ -30,8 +29,9 @@ use iota_types::{
         InputObjectKind, ObjectArg, ProgrammableTransaction, Transaction, TransactionData,
         TransactionKind,
     },
-    Identifier,
 };
+use move_core_types::language_storage::StructTag;
+use shared_crypto::intent::Intent;
 
 use crate::{
     crypto::combine_keys,
@@ -56,9 +56,9 @@ pub(crate) struct Client {
 }
 
 impl Client {
-    /// Create a new client that derives its active address and RPC from the CLI's config (found at
-    /// path `config`), and that expects to interact with the tic-tac-toe package at address
-    /// `package`.
+    /// Create a new client that derives its active address and RPC from the
+    /// CLI's config (found at path `config`), and that expects to interact
+    /// with the tic-tac-toe package at address `package`.
     pub(crate) fn new(conn: Connection) -> Result<Self> {
         let Some(config) = conn.config.or_else(|| {
             let mut default = dirs::home_dir()?;
@@ -78,21 +78,19 @@ impl Client {
         })
     }
 
-    /// Fetch the details of a game object from on-chain (can be either shared or owned).
+    /// Fetch the details of a game object from on-chain (can be either shared
+    /// or owned).
     pub(crate) async fn game(&self, id: ObjectID) -> Result<Game> {
         let client = self.client().await?;
 
         // (1) Read from RPC
         let response = client
             .read_api()
-            .get_object_with_options(
-                id,
-                IotaObjectDataOptions {
-                    show_owner: true,
-                    show_bcs: true,
-                    ..Default::default()
-                },
-            )
+            .get_object_with_options(id, IotaObjectDataOptions {
+                show_owner: true,
+                show_bcs: true,
+                ..Default::default()
+            })
             .await
             .context("Error fetching game over RPC.")?;
 
@@ -211,8 +209,9 @@ impl Client {
         })
     }
 
-    /// Look for a `TurnCap` for the given `game` owned by the wallet's active address, and return
-    /// its `ObjectRef`. Fails if no such `TurnCap` can be found.
+    /// Look for a `TurnCap` for the given `game` owned by the wallet's active
+    /// address, and return its `ObjectRef`. Fails if no such `TurnCap` can
+    /// be found.
     pub(crate) async fn turn_cap(&mut self, game: &Game) -> Result<ObjectRef> {
         let player = self.wallet.active_address()?;
         let client = self.client().await?;
@@ -277,8 +276,9 @@ impl Client {
         }
     }
 
-    /// Create a new shared game, between the wallet's active address and the given `opponent`.
-    /// Returns the ID of the Game that was created on success.
+    /// Create a new shared game, between the wallet's active address and the
+    /// given `opponent`. Returns the ID of the Game that was created on
+    /// success.
     pub(crate) async fn new_shared_game(&mut self, opponent: IotaAddress) -> Result<ObjectID> {
         let player = self.wallet.active_address()?;
 
@@ -298,20 +298,22 @@ impl Client {
         self.execute_for_game(tx).await
     }
 
-    /// Create a new owned game, between the wallet's active address and the given `opponent`. The
-    /// game is transferred to a 1-of-2 multisig address -- the admin -- where the two partial
-    /// signatures are the player's and the opponent's.
+    /// Create a new owned game, between the wallet's active address and the
+    /// given `opponent`. The game is transferred to a 1-of-2 multisig
+    /// address -- the admin -- where the two partial signatures are the
+    /// player's and the opponent's.
     ///
     /// Returns the ID for the Game that was created on success.
     pub async fn new_owned_game(&mut self, opponent_key: PublicKey) -> Result<ObjectID> {
         let player = self.wallet.active_address()?;
-        let player_key = self.wallet.config.keystore.get_key(&player)?.public();
+        let player_key = self.wallet.config().keystore().get_key(&player)?.public();
 
-        // The opponent's address can be derived from their public key, but not vice versa.
+        // The opponent's address can be derived from their public key, but not vice
+        // versa.
         let opponent = IotaAddress::from(&opponent_key);
 
-        // A 1-of-2 multisig acts as the admin of the game. The Game object will be transferred to
-        // this address once it is created.
+        // A 1-of-2 multisig acts as the admin of the game. The Game object will be
+        // transferred to this address once it is created.
         let admin_key = combine_keys(vec![player_key, opponent_key])?;
         let admin = IotaAddress::from(&admin_key);
         let admin_bytes =
@@ -336,8 +338,8 @@ impl Client {
         self.execute_for_game(tx).await
     }
 
-    /// Delete a shared game, given itself contents and its ownership information (which should be a
-    /// `Owner::Shared`).
+    /// Delete a shared game, given itself contents and its ownership
+    /// information (which should be a `Owner::Shared`).
     pub async fn delete_shared_game(&mut self, game: &game::Shared, owner: Owner) -> Result<()> {
         let player = self.wallet.active_address()?;
 
@@ -370,8 +372,9 @@ impl Client {
         Ok(())
     }
 
-    /// Delete an owned (multi-sig) game. The transaction is signed by the player on behalf of the
-    /// admin (multi-sig) address, and also directly by the player who is acting as the sponsor.
+    /// Delete an owned (multi-sig) game. The transaction is signed by the
+    /// player on behalf of the admin (multi-sig) address, and also directly
+    /// by the player who is acting as the sponsor.
     pub async fn delete_owned_game(
         &mut self,
         game: &game::Owned,
@@ -408,8 +411,9 @@ impl Client {
         Ok(())
     }
 
-    /// Make a move on a shared game as the wallet's active address. Fails if the active address is
-    /// not meant to make the next move, or if the position is already occupied.
+    /// Make a move on a shared game as the wallet's active address. Fails if
+    /// the active address is not meant to make the next move, or if the
+    /// position is already occupied.
     pub async fn make_shared_move(
         &mut self,
         game: &game::Shared,
@@ -451,9 +455,10 @@ impl Client {
         Ok(())
     }
 
-    /// Make a move on an owned game as the wallet's active address. This involves sending two
-    /// transactions: The first from the player to create a `Mark`, and a second from the admin to
-    /// receive the mark and apply it.
+    /// Make a move on an owned game as the wallet's active address. This
+    /// involves sending two transactions: The first from the player to
+    /// create a `Mark`, and a second from the admin to receive the mark and
+    /// apply it.
     pub async fn make_owned_move(
         &mut self,
         game: &game::Owned,
@@ -517,7 +522,8 @@ impl Client {
             bail!("Can't find Mark");
         };
 
-        // Second transaction applies the mark to the game, and needs to be run as the admin.
+        // Second transaction applies the mark to the game, and needs to be run as the
+        // admin.
         let mut builder = ProgrammableTransactionBuilder::new();
 
         let g = builder.obj(ObjectArg::ImmOrOwnedObject(game_ref))?;
@@ -551,7 +557,8 @@ impl Client {
         Ok(())
     }
 
-    /// Execute a PTB, expecting it to create a shared or owned Game, and return its ObjectID.
+    /// Execute a PTB, expecting it to create a shared or owned Game, and return
+    /// its ObjectID.
     async fn execute_for_game(&self, data: TransactionData) -> Result<ObjectID> {
         let tx = self.wallet.sign_transaction(&data);
         let IotaTransactionBlockResponse {
@@ -597,10 +604,11 @@ impl Client {
         self.build_tx_data_with_sponsor(sender, None, tx).await
     }
 
-    /// Do gas estimation and coin selection to create a `TransactionData` from a
-    /// `ProgrammableTransaction`. If `sponsor` is provided, it will be used as the gas sponsor, and
-    /// coin selection will fetch coins owned by this address, otherwise coins will be selected from
-    /// the `sender`'s owned objects.
+    /// Do gas estimation and coin selection to create a `TransactionData` from
+    /// a `ProgrammableTransaction`. If `sponsor` is provided, it will be
+    /// used as the gas sponsor, and coin selection will fetch coins owned
+    /// by this address, otherwise coins will be selected from the `sender`'
+    /// s owned objects.
     async fn build_tx_data_with_sponsor(
         &self,
         sender: IotaAddress,
@@ -627,8 +635,10 @@ impl Client {
                 tx_kind.clone(),
                 max_budget,
                 gas_price,
-                /* gas_payment */ None,
-                /* gas_sponsor */ None,
+                // gas_payment
+                None,
+                // gas_sponsor
+                None,
             )
             .await;
 
@@ -659,7 +669,8 @@ impl Client {
         })
     }
 
-    /// Find the max budget allowed for a transaction according to the current protocol config.
+    /// Find the max budget allowed for a transaction according to the current
+    /// protocol config.
     async fn max_gas_budget(&self) -> Result<u64> {
         let client = self.client().await?;
 
@@ -671,8 +682,8 @@ impl Client {
         Ok(*max)
     }
 
-    /// Select Gas coins owned by `owner` to meet `balance`, avoiding input objects to the
-    /// transaction, `tx`.
+    /// Select Gas coins owned by `owner` to meet `balance`, avoiding input
+    /// objects to the transaction, `tx`.
     async fn select_coins(
         &self,
         owner: IotaAddress,
@@ -697,8 +708,9 @@ impl Client {
             .object_ref())
     }
 
-    /// Sign the transaction as `sender` by itself (as the sponsor) and as part of the multi-sig,
-    /// `admin_key` (the transaction sender), and execute it.
+    /// Sign the transaction as `sender` by itself (as the sponsor) and as part
+    /// of the multi-sig, `admin_key` (the transaction sender), and execute
+    /// it.
     async fn multi_sig_transaction(
         &self,
         sender: IotaAddress,
@@ -707,8 +719,8 @@ impl Client {
     ) -> Result<Transaction> {
         let sponsor_sig: GenericSignature = self
             .wallet
-            .config
-            .keystore
+            .config()
+            .keystore()
             .sign_secure(&sender, &data, Intent::iota_transaction())
             .context("Signing transaction")?
             .into();
@@ -717,14 +729,14 @@ impl Client {
             .context("Signing as admin")?
             .into();
 
-        Ok(Transaction::from_generic_sig_data(
-            data,
-            vec![multi_sig, sponsor_sig],
-        ))
+        Ok(Transaction::from_generic_sig_data(data, vec![
+            multi_sig,
+            sponsor_sig,
+        ]))
     }
 
-    /// Execute the transaction, and check whether it succeeded or failed. Transaction execution
-    /// failure is treated as an error.
+    /// Execute the transaction, and check whether it succeeded or failed.
+    /// Transaction execution failure is treated as an error.
     async fn execute_transaction(&self, tx: Transaction) -> Result<IotaTransactionBlockResponse> {
         let response = self
             .wallet
