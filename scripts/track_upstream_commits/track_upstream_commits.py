@@ -51,19 +51,48 @@ def clone_repo(repo_url, repo_tag, target_folder):
     # Change working directory to the cloned repo
     os.chdir(target_folder)
 
+def convert_iota_to_sui_crates(crates):
+    premap = {
+        'iota-common': 'mysten-common',
+        'iota-metrics': 'mysten-metrics',
+        'iota-network-stack': 'mysten-network',
+        'iota-util-mem': 'mysten-util-mem',
+        'iota-util-mem-derive': 'mysten-util-mem-derive',
+    }
+
+    skip_prefix = {
+        'consensus',
+    }
+
+    skip_crates = {
+        'docker',
+    }
+
+    mapped_crates = []
+    for crate in crates:
+        if crate in skip_crates:
+            continue
+        if crate in premap:
+            crate = premap[crate]
+        if crate not in skip_prefix and not crate.startswith("crates/"):
+            crate = f"crates/{crate}"
+        mapped_crates.append(crate.replace('iota', 'sui'))
+
+    return mapped_crates
+
 # Parse the CODEOWNERS file and return the crates of the code owner
 def get_crates_for_code_owner(file_path, code_owner):
-    pattern_to_owners = {}
+    crate_to_owners = {}
     matched_crates = []
     with open(file_path, 'r') as file:
         for line in file:
             line = line.strip()
             if line and not line.startswith('#'):
-                pattern, *owners = line.split()
-                pattern_to_owners[pattern] = owners
+                crate, *owners = line.split()
+                crate_to_owners[crate] = owners
 
-    for pattern, owners in pattern_to_owners.items():
-        if pattern == "*":
+    for crate, owners in crate_to_owners.items():
+        if crate == "*":
             # skip the fallback here, we want to check all other patterns first
             continue
 
@@ -71,10 +100,10 @@ def get_crates_for_code_owner(file_path, code_owner):
         regex_pattern = '.*' + re.escape(code_owner) + '.*'
         for owner in owners:
             if re.match(regex_pattern, owner):
-                matched_crates.append(pattern.replace('iota', 'sui').strip('/'))
+                matched_crates.append(crate.strip('/'))
                 break
     
-    return matched_crates
+    return convert_iota_to_sui_crates(matched_crates)
 
 # Get the commits of a crate in the specified range
 def get_crate_commits(crate, start_commit, end_commit):
@@ -148,10 +177,9 @@ if __name__ == '__main__':
         exit(1)
 
     crates = []
-    # Replace 'iota' with 'sui', and add the prefix 'crates/'
     if args.crates:
-        crates = [f"crates/{crate.replace('iota', 'sui')}" for crate in args.crates]
-    
+        crates = convert_iota_to_sui_crates(args.crates)
+
     if args.codeowner:
         print("Parsing the CODEOWNERS file...")
         # Get crates of the code owner
