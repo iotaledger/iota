@@ -27,6 +27,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let iota_devnet = IotaClientBuilder::default().build_devnet().await?;
     println!("Iota devnet version: {}", iota_devnet.api_version());
 
+    // Iota mainnet -- https://api.mainnet.iota.cafe
+    let iota_mainnet = IotaClientBuilder::default().build_mainnet().await?;
+    println!("Iota mainnet version: {}", iota_mainnet.api_version());
+
     Ok(())
 }
 ```
