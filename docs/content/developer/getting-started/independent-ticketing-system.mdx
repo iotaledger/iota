@@ -1,0 +1,67 @@
+---
+description: Tutorial for simple token transfer
+tags:
+  - explanation
+  - tutorial
+---
+
+# Independent Ticketing System 
+
+In this tutorial, we will build an independent ticketing system utilizing the Move language for blockchain contracts and the IOTA dApp kit for the frontend application. The project begins with creating a Move package, building and deploying it on the testnet network. Once the backend contract is operational, we will develop the frontend dApp. 
+
+This step-by-step guide provides a comprehensive approach to building a decentralized ticketing system.
+
+## Sequence Diagram 
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant Blockchain as Blockchain
+    participant NFTContract as IndependentTicketingSystemNFT
+
+    User ->> Blockchain: Deploy Contract
+    Blockchain ->> NFTContract: init()
+
+    User ->> NFTContract: mint_ticket(event_id, event_date, royalty_percentage, package_creator, total_seat, price, ctx)
+    NFTContract ->> NFTContract: Validate sender is creator
+    NFTContract ->> NFTContract: Validate total seats > 0
+    NFTContract ->> NFTContract: Create TicketNFT
+    NFTContract ->> Blockchain: Public transfer of TicketNFT
+
+    User ->> NFTContract: enable_ticket_to_buy(nft, creator, available_tickets, ctx)
+    NFTContract ->> NFTContract: Validate sender is creator
+    NFTContract ->> NFTContract: Add NFT to available_tickets
+
+    User ->> NFTContract: buy_ticket(coin, seat_number, buyable_tickets, ctx)
+    NFTContract ->> NFTContract: Validate seat availability
+    NFTContract ->> NFTContract: Validate buyer is whitelisted
+    NFTContract ->> Blockchain: Split coin for payment
+    NFTContract ->> Blockchain: Transfer payment to creator
+    NFTContract ->> Blockchain: Public transfer of TicketNFT to buyer
+
+    User ->> NFTContract: resale(nft, updated_price, recipient, ctx)
+    NFTContract ->> NFTContract: Validate sender is NFT owner
+    NFTContract ->> NFTContract: Validate recipient is whitelisted
+    NFTContract ->> Blockchain: Update price and initiate resale
+
+    User ->> NFTContract: buy_resale(coin, initiated_resale, ctx)
+    NFTContract ->> NFTContract: Validate sender is buyer
+    NFTContract ->> Blockchain: Split coin for royalty and seller payment
+    NFTContract ->> Blockchain: Transfer royalty fee to creator
+    NFTContract ->> Blockchain: Transfer payment to seller
+    NFTContract ->> Blockchain: Public transfer of TicketNFT to buyer
+    NFTContract ->> NFTContract: Delete InitiateResale object
+
+    User ->> NFTContract: burn(nft, ctx)
+    NFTContract ->> NFTContract: Validate sender is NFT owner
+    NFTContract ->> Blockchain: Delete NFT object
+
+    User ->> NFTContract: whitelist_buyer(user, nft)
+    NFTContract ->> NFTContract: Add user to NFT whitelist
+
+    User ->> NFTContract: create_TicketNFT(name, creator, owner, ... , ctx)
+    NFTContract ->> NFTContract: Create a new TicketNFT (Test purpose)
+
+    User ->> NFTContract: create_TotalSeat(value, ctx)
+    NFTContract ->> NFTContract: Create TotalSeat object (Test purpose)
+```
