@@ -73,7 +73,7 @@ export function MigrationDialog({
                     nftOutputObjects={nftOutputObjects}
                     onSuccess={handleMigrate}
                     setOpen={setOpen}
-                    isTimelocked={isTimelocked}
+                    groupByTimelockUC={isTimelocked}
                     migrateData={migrateData}
                     isMigrationPending={isMigrationPending}
                     isMigrationError={isMigrationError}

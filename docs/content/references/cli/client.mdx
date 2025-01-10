@@ -465,7 +465,7 @@ will verify that all transactions local execution results match the effects on-c
 
 Use the `iota client profile-transaction --tx-digest <TRANSACTION-DIGEST>` command to re-execute a transaction locally
 and produce a gas profile. Similar to the `replay` command, this command fetches the transaction dependencies from the
-Full node specified in the client environment that are needed to execute the transaction. During the local execution of the transaction,
+full node specified in the client environment that are needed to execute the transaction. During the local execution of the transaction,
 this command records all the Move function invocations and the gas cost breakdown for each invocation.
 
 To enable the profiler, you must either install or build the IOTA Client binary locally with the `--features gas-profiler` flag.

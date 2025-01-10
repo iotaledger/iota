@@ -16,11 +16,11 @@ import {
     Title,
     TitleSize,
 } from '@iota/apps-ui-kit';
-import { useGroupedMigrationObjectsByExpirationDate } from '@/hooks';
+import { useGroupedStardustObjects } from '@/hooks';
 import { Loader, Warning } from '@iota/ui-icons';
 import { Collapsible, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { filterMigrationObjects, summarizeMigratableObjectValues } from '@/lib/utils';
+import { getStardustObjectsTotals, filterMigrationObjects } from '@/lib/utils';
 import { DialogLayout, DialogLayoutBody, DialogLayoutFooter } from '../../layout';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { StardustOutputDetailsFilter } from '@/lib/enums';
@@ -30,7 +30,7 @@ interface ConfirmMigrationViewProps {
     nftOutputObjects: IotaObjectData[] | undefined;
     onSuccess: () => void;
     setOpen: (bool: boolean) => void;
-    isTimelocked: boolean;
+    groupByTimelockUC: boolean;
     migrateData:
         | {
               transaction: Transaction;
@@ -47,7 +47,7 @@ export function ConfirmMigrationView({
     nftOutputObjects = [],
     onSuccess,
     setOpen,
-    isTimelocked,
+    groupByTimelockUC,
     migrateData,
     isMigrationPending,
     isMigrationError,
@@ -59,17 +59,14 @@ export function ConfirmMigrationView({
         data: resolvedObjects = [],
         isLoading,
         error: isGroupedMigrationError,
-    } = useGroupedMigrationObjectsByExpirationDate(
-        [...basicOutputObjects, ...nftOutputObjects],
-        isTimelocked,
-    );
+    } = useGroupedStardustObjects([...basicOutputObjects, ...nftOutputObjects], groupByTimelockUC);
 
     const {
         totalIotaAmount,
         totalNativeTokens: migratableNativeTokens,
         totalVisualAssets: migratableVisualAssets,
         totalNotOwnedStorageDepositReturnAmount,
-    } = summarizeMigratableObjectValues({
+    } = getStardustObjectsTotals({
         basicOutputs: basicOutputObjects,
         nftOutputs: nftOutputObjects,
         address: account?.address || '',
@@ -166,7 +163,7 @@ export function ConfirmMigrationView({
                                                     render={(migrationObject) => (
                                                         <MigrationObjectDetailsCard
                                                             migrationObject={migrationObject}
-                                                            isTimelocked={isTimelocked}
+                                                            isTimelocked={groupByTimelockUC}
                                                         />
                                                     )}
                                                 />

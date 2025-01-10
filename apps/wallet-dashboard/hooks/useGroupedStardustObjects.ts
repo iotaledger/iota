@@ -13,9 +13,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useGetCurrentEpochStartTimestamp } from './useGetCurrentEpochStartTimestamp';
 import { useGetCurrentEpochEndTimestamp } from './useGetCurrentEpochEndTimestamp';
 
-export function useGroupedMigrationObjectsByExpirationDate(
+export function useGroupedStardustObjects(
     objects: IotaObjectData[],
-    isTimelockUnlockCondition: boolean = false,
+    groupByTimelockUC: boolean = false,
 ) {
     const client = useIotaClient();
     const address = useCurrentAccount()?.address;
@@ -32,7 +32,7 @@ export function useGroupedMigrationObjectsByExpirationDate(
             'grouped-migration-objects',
             objects,
             address,
-            isTimelockUnlockCondition,
+            groupByTimelockUC,
             epochStartMs,
             epochEndMs,
         ],
@@ -44,7 +44,7 @@ export function useGroupedMigrationObjectsByExpirationDate(
                 objects,
                 client,
                 address,
-                isTimelockUnlockCondition,
+                groupByTimelockUC,
             );
 
             return sortStardustResolvedObjectsByExpiration(
