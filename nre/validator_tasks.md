@@ -1,6 +1,6 @@
 ## Overview
 
-This document focuses on running the Iota Node software as a Validator.
+This document focuses on running the IOTA Node software as a Validator.
 
 <div className="hidden-text">
 
@@ -21,7 +21,6 @@ This document focuses on running the Iota Node software as a Validator.
 - [Monitoring](#monitoring)
   - [Metrics](#metrics)
   - [Logs](#logs)
-  - [Dashboards](#dashboards)
 - [Software Updates](#software-updates)
 - [State Sync](#state-sync)
 - [Chain Operations](#chain-operations)
@@ -45,25 +44,17 @@ To run an Iota Validator a machine with the following is required:
 
 ## Deployment
 
-Iota Node can be deployed in a number of ways.
+IOTA Node can be deployed in a number of ways.
 
 There are pre-built container images available in [Docker Hub](https://hub.docker.com/r/iotaledger/iota-node/tags).
 
-And pre built `linux/amd64` binaries available in S3 that can be fetched using one of the following methods:
+And pre-built `linux/amd64` binaries available in [Github](https://github.com/iotaledger/iota/releases):
 
-```shell
-wget https://releases.iota.io/$IOTA_SHA/iota-node
-```
-
-```shell
-curl https://releases.iota.io/$IOTA_SHA/iota-node -o iota-node
-```
-
-To build directly from source:
+To build directly from source (select the branch you want to build from depending on the network you want to connect to):
 
 ```shell
 git clone https://github.com/iotaledger/iota.git && cd iota
-git checkout [SHA|BRANCH|TAG]
+git checkout [devnet|testnet|mainnet]
 cargo build --release --bin iota-node
 ```
 
@@ -75,7 +66,7 @@ Configuration and guides are available for the following deployment options:
 
 ## Configuration
 
-Iota Node runs with a single configuration file provided as an argument, example:
+IOTA Node runs with a single configuration file provided as an argument, example:
 
 `./iota-node --config-path /opt/iota/config/validator.yaml`.
 
@@ -245,12 +236,6 @@ To change the currently configured logging values:
 curl localhost:1337/logging -d "info"
 ```
 
-### Dashboards
-
-Public dashboard for network wide visibility:
-
-- [Iota Testnet Validators](https://metrics.iota.io/public-dashboards/9b841d63c9bf43fe8acec4f0fa991f5e)
-
 ## Software Updates
 
 When an update is required to the Iota Node software the following process can be used. Follow the relevant Systemd or
@@ -289,17 +274,7 @@ p2p-config:
 ## Chain Operations
 
 The following chain operations are executed using the `iota` CLI. This binary is built and provided as a release similar
-to `iota-node`, examples:
-
-```shell
-wget https://releases.iota.io/$IOTA_SHA/iota
-chmod +x iota
-```
-
-```shell
-curl https://releases.iota.io/$IOTA_SHA/iota -o iota
-chmod +x iota
-```
+to `iota-node` on [Github](https://github.com/iotaledger/iota/releases).
 
 It is recommended and often required that the `iota` binary release/version matches that of the deployed network.
 
