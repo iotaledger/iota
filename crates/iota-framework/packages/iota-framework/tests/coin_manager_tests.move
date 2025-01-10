@@ -393,6 +393,49 @@ module iota::coin_manager_tests {
 
         scenario.end();
     }
+
+    #[test]
+    #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
+    fun test_double_adding_additional_metadata() {
+        let sender = @0xA;
+        let mut scenario = test_scenario::begin(sender);
+        let witness = COIN_MANAGER_TESTS{};
+
+        // Create a `Coin`.
+        let (cap, meta) = coin::create_currency(
+            witness,
+            0, 
+            b"TEST",
+            b"TEST",
+            b"TEST",
+            option::none(),
+            scenario.ctx(),
+        );
+
+        let (cmcap, metacap, mut wrapper) = coin_manager::new(cap, meta, scenario.ctx());
+
+        // Add an additional metadata.
+        let bonus1 = BonusMetadata {
+            website: url::new_unsafe(ascii::string(b"https://example1.com")),
+            is_amazing: false
+        };
+
+        metacap.add_additional_metadata(&mut wrapper, bonus1);
+
+        // Add an additional metadata one more time.
+        let bonus2 = BonusMetadata {
+            website: url::new_unsafe(ascii::string(b"https://example2.com")),
+            is_amazing: false
+        };
+
+        metacap.add_additional_metadata(&mut wrapper, bonus2);
+
+        cmcap.renounce_treasury_ownership(&mut wrapper);
+        metacap.renounce_metadata_ownership(&mut wrapper);
+        transfer::public_share_object(wrapper);
+
+        scenario.end();
+    }
     
     #[test]
     fun test_coin_manager_immutable() {
