@@ -4,7 +4,7 @@
 
 import { type Config } from 'tailwindcss';
 import colors from 'tailwindcss/colors';
-import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive.preset';
+import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive.presets';
 
 export default {
     presets: [uiKitResponsivePreset],

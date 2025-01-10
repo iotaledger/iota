@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
 
@@ -30,7 +30,7 @@ export function VirtualList<T>({
     heightClassName = 'h-fit',
     overflowClassName,
 }: VirtualListProps<T>): JSX.Element {
-    const containerRef = React.useRef<HTMLDivElement | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
     const virtualizer = useVirtualizer({
         // Render one more item if there is still pages to be fetched
         count: hasNextPage ? items.length + 1 : items.length,

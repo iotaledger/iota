@@ -2,15 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
-import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useState,
-    type ReactNode,
-    useRef,
-} from 'react';
+import { type SerializedUIAccount } from '_src/background/accounts/account';
+import { createContext, useCallback, useContext, useState, type ReactNode, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { useUnlockMutation } from '../../hooks/useUnlockMutation';

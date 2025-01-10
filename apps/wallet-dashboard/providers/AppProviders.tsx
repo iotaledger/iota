@@ -9,7 +9,7 @@ import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota
 import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
-import { KioskClientProvider } from '@iota/core';
+import { KioskClientProvider, useLocalStorage } from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 
@@ -19,6 +19,8 @@ export function AppProviders({ children }: React.PropsWithChildren) {
     const [queryClient] = useState(() => new QueryClient());
     const allNetworks = getAllNetworks();
     const defaultNetwork = getDefaultNetwork();
+    const [persistedNetwork] = useLocalStorage<string>('network_iota-dashboard', defaultNetwork);
+
     function handleNetworkChange() {
         queryClient.resetQueries();
         queryClient.clear();
@@ -28,7 +30,7 @@ export function AppProviders({ children }: React.PropsWithChildren) {
             <QueryClientProvider client={queryClient}>
                 <IotaClientProvider
                     networks={allNetworks}
-                    defaultNetwork={defaultNetwork}
+                    defaultNetwork={persistedNetwork}
                     onNetworkChange={handleNetworkChange}
                 >
                     <KioskClientProvider>

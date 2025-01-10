@@ -131,7 +131,7 @@ The response resembles the following:
 
 ## Step 5: Serialize any transaction
 
-This section demonstrates how to use an object that belongs to a multisig address and serialize a transfer to be signed. The `tx_bytes` value can be any serialized transaction data where the sender is the multisig address. Use the `--serialize-unsigned-transaction` flag for supported commands in `iota client -h` (`publish`, `upgrade`, `call`, `transfer`, `transfer-iota`, `pay`, `pay-all-iota`, `pay-iota`, `split`, `merge-coin`) to output the Base64 encoded transaction bytes.
+This section demonstrates how to use an object that belongs to a multisig address and serialize a transfer to be signed. The `tx_bytes` value can be any serialized transaction data where the sender is the multisig address. Use the `--serialize-unsigned-transaction` flag for supported commands in `iota client -h` (`publish`, `upgrade`, `call`, `transfer`, `pay`, `pay-all-iota`, `pay-iota`, `split`, `merge-coin`) to output the Base64 encoded transaction bytes.
 
 ```shell
 iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --serialize-unsigned-transaction
