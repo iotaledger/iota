@@ -112,7 +112,7 @@ jobs:
     uses: ./.github/workflows/_move_ide.yml
 
   split-cluster:
-    if: (!cancelled() && !failure()) && needs.diff.isRust == 'true' && github.event.pull_request.draft == false
+    if: (!cancelled() && !failure()) && needs.diff.outputs.isRust == 'true' && github.event.pull_request.draft == false
     needs:
       - diff
       - rust
