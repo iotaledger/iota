@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLink } from '@/components';
-import { ExtendedTransaction } from '@/lib/interfaces';
 import { Header, LoadingIndicator } from '@iota/apps-ui-kit';
 import {
     useTransactionSummary,
@@ -10,6 +9,7 @@ import {
     ExplorerLinkType,
     TransactionReceipt,
     useRecognizedPackages,
+    ExtendedTransaction,
 } from '@iota/core';
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { DialogLayoutBody, DialogLayoutFooter } from '../layout';
