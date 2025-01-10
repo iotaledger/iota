@@ -87,6 +87,7 @@ export default function VestingDashboardPage(): JSX.Element {
         isTimelockedStakedObjectsLoading,
         unlockAllSupplyIncreaseVesting,
         refreshStakeList,
+        isSupplyIncreaseVestingScheduleEmpty,
     } = useGetSupplyIncreaseVestingObjects(address);
 
     const timelockedStakedObjectsGrouped: TimelockedStakedObjectsGrouped[] =
@@ -220,12 +221,6 @@ export default function VestingDashboardPage(): JSX.Element {
         );
     }
 
-    const isSupplyIncreaseVestingScheduleEmpty =
-        !supplyIncreaseVestingSchedule.totalVested &&
-        !supplyIncreaseVestingSchedule.totalLocked &&
-        !supplyIncreaseVestingSchedule.availableClaiming &&
-        !supplyIncreaseVestingSchedule.totalStaked &&
-        !supplyIncreaseVestingSchedule.totalEarned;
     return (
         <>
             <div className="flex w-full max-w-4xl flex-col items-stretch justify-center gap-lg justify-self-center md:flex-row">
@@ -302,7 +297,7 @@ export default function VestingDashboardPage(): JSX.Element {
                         </div>
                     </Panel>
 
-                    {!isSupplyIncreaseVestingScheduleEmpty ? (
+                    {isSupplyIncreaseVestingScheduleEmpty ? (
                         <Banner
                             videoSrc={videoSrc}
                             title="Stake Vested Tokens"

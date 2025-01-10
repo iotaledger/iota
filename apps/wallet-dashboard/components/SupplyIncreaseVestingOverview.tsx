@@ -26,12 +26,8 @@ export function SupplyIncreaseVestingOverview() {
     const address = account?.address || '';
     const iotaClient = useIotaClient();
     const queryClient = useQueryClient();
-    const {
-        nextPayout,
-        supplyIncreaseVestingSchedule,
-        supplyIncreaseVestingMapped,
-        supplyIncreaseVestingStakedMapped,
-    } = useGetSupplyIncreaseVestingObjects(address);
+    const { nextPayout, supplyIncreaseVestingSchedule, isSupplyIncreaseVestingScheduleEmpty } =
+        useGetSupplyIncreaseVestingObjects(address);
 
     const {
         stakeDialogView,
@@ -57,9 +53,6 @@ export function SupplyIncreaseVestingOverview() {
         IOTA_TYPE_ARG,
     );
 
-    const showSupplyIncreaseVestingOverview =
-        supplyIncreaseVestingMapped.length > 0 || supplyIncreaseVestingStakedMapped.length > 0;
-
     function handleOnSuccess(digest: string): void {
         iotaClient
             .waitForTransaction({
@@ -81,7 +74,7 @@ export function SupplyIncreaseVestingOverview() {
             });
     }
 
-    return showSupplyIncreaseVestingOverview ? (
+    return !isSupplyIncreaseVestingScheduleEmpty ? (
         <div style={{ gridArea: 'vesting' }} className="with-vesting flex grow overflow-hidden">
             <Panel>
                 <Title title="Vesting" />
