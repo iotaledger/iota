@@ -170,3 +170,10 @@ jobs:
       - license-check
       - typos
     uses: ./.github/workflows/_move_ide.yml
+
+  split-cluster:
+    if: (!cancelled() && !failure()) && needs.diff.isRust == 'true'
+    needs:
+      - diff
+      - rust
+    uses: ./.github/workflows/split_cluster.yml
