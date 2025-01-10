@@ -59,7 +59,7 @@ export const handleChallengeSubmit = async ({
                                     client.waitForTransaction({ digest, options: { showEffects: true } }).then(() => {
                                         setError({
                                             status: 'success',
-                                            description: 'An NFT reward is minted to your IOTA wallet address upon completing the challenge.',
+                                            description: 'An NFT reward was minted and transferred to your IOTA wallet address for completing the challenge.',
                                             title: 'NFT Minted',
                                         });
                                         setCoins(message);
