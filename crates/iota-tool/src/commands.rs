@@ -707,9 +707,9 @@ impl ToolCommand {
                 let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
                     if no_sign_request {
                         if network == Chain::Mainnet {
-                            Some("https://dbfiles.mainnet.iota.cafe/formal".to_string())
+                            Some("https://formal-snapshot.mainnet.iota.cafe".to_string())
                         } else if network == Chain::Testnet {
-                            Some("https://dbfiles.testnet.iota.cafe/formal".to_string())
+                            Some("https://formal-snapshot.testnet.iota.cafe".to_string())
                         } else {
                             None
                         }
@@ -940,9 +940,9 @@ impl ToolCommand {
                 let snapshot_store_config = if no_sign_request {
                     let aws_endpoint = env::var("AWS_SNAPSHOT_ENDPOINT").ok().or_else(|| {
                         if network == Chain::Mainnet {
-                            Some("https://dbfiles.mainnet.iota.cafe/snapshots".to_string())
+                            Some("https://rocksdb-snapshot.mainnet.iota.cafe".to_string())
                         } else if network == Chain::Testnet {
-                            Some("https://dbfiles.testnet.iota.cafe/snapshots".to_string())
+                            Some("https://rocksdb-snapshot.testnet.iota.cafe".to_string())
                         } else {
                             None
                         }
