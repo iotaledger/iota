@@ -78,9 +78,9 @@ function MigrationDashboardPage(): JSX.Element {
     });
 
     const hasMigratableObjects =
-        (migratableBasicOutputs?.length || 0) > 0 && (migratableNftOutputs?.length || 0) > 0;
+        (migratableBasicOutputs?.length || 0) > 0 || (migratableNftOutputs?.length || 0) > 0;
     const hasTimelockedObjects =
-        (timelockedBasicOutputs?.length || 0) > 0 && (timelockedNftOutputs?.length || 0) > 0;
+        (timelockedBasicOutputs?.length || 0) > 0 || (timelockedNftOutputs?.length || 0) > 0;
 
     const [migratableIotaAmountFormatted, migratableIotaAmountSymbol] = useFormatCoin(
         migratableIotaAmount,
