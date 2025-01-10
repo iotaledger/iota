@@ -47,7 +47,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 4th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(filter: {transactionDigest: "9FCwfRVFu6fgpGDDM2axZ6L3nwvkdgSV3wEz3LjyDuxe"}) {
+    events(filter: {transactionDigest: "DXS58tvs78DSk6XsFNrAvSmDTgQCHkY3X2FcsuWMevHm"}) {
         edges {
             cursor
             node {
@@ -62,7 +62,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 4th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(after: "@{cursor_0}" filter: {transactionDigest: "9FCwfRVFu6fgpGDDM2axZ6L3nwvkdgSV3wEz3LjyDuxe"}) {
+    events(after: "@{cursor_0}" filter: {transactionDigest: "DXS58tvs78DSk6XsFNrAvSmDTgQCHkY3X2FcsuWMevHm"}) {
         edges {
             cursor
             node {
@@ -79,7 +79,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 4th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(after: "@{cursor_0}" filter: {transactionDigest: "EkH8TQ1xRv4Lj4wtD4kRuZrsPYP2vGKSk2mtbeENDGsn"}) {
+    events(after: "@{cursor_0}" filter: {transactionDigest: "DXS58tvs78DSk6XsFNrAvSmDTgQCHkY3X2FcsuWMevHm"}) {
         edges {
             cursor
             node {
@@ -94,7 +94,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 5th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(filter: {transactionDigest: "FQQqBB4Fq9u4ZMJ5yUFZrGuDxs4k5vvd2sWTyz8c49PM"}) {
+    events(filter: {transactionDigest: "9yiD2xdZhsfSUn92BFKV5kkmqCoPKYexjXXDbT2jjNB8"}) {
         edges {
             cursor
             node {
@@ -108,7 +108,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 5th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(after: "@{cursor_0}" filter: {transactionDigest: "FQQqBB4Fq9u4ZMJ5yUFZrGuDxs4k5vvd2sWTyz8c49PM"}) {
+    events(after: "@{cursor_0}" filter: {transactionDigest: "9yiD2xdZhsfSUn92BFKV5kkmqCoPKYexjXXDbT2jjNB8"}) {
         edges {
             cursor
             node {
@@ -123,7 +123,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 4th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(last: 10 filter: {transactionDigest: "9FCwfRVFu6fgpGDDM2axZ6L3nwvkdgSV3wEz3LjyDuxe"}) {
+    events(last: 10 filter: {transactionDigest: "DXS58tvs78DSk6XsFNrAvSmDTgQCHkY3X2FcsuWMevHm"}) {
         edges {
             cursor
             node {
@@ -138,7 +138,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 4th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "9FCwfRVFu6fgpGDDM2axZ6L3nwvkdgSV3wEz3LjyDuxe"}) {
+    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "DXS58tvs78DSk6XsFNrAvSmDTgQCHkY3X2FcsuWMevHm"}) {
         edges {
             cursor
             node {
@@ -155,7 +155,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 4th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "9FCwfRVFu6fgpGDDM2axZ6L3nwvkdgSV3wEz3LjyDuxe"}) {
+    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "DXS58tvs78DSk6XsFNrAvSmDTgQCHkY3X2FcsuWMevHm"}) {
         edges {
             cursor
             node {
@@ -170,7 +170,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 5th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(last: 10 filter: {transactionDigest: "FQQqBB4Fq9u4ZMJ5yUFZrGuDxs4k5vvd2sWTyz8c49PM"}) {
+    events(last: 10 filter: {transactionDigest: "9yiD2xdZhsfSUn92BFKV5kkmqCoPKYexjXXDbT2jjNB8"}) {
         edges {
             cursor
             node {
@@ -184,7 +184,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 5th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "FQQqBB4Fq9u4ZMJ5yUFZrGuDxs4k5vvd2sWTyz8c49PM"}) {
+    events(last: 10 before: "@{cursor_0}" filter: {transactionDigest: "9yiD2xdZhsfSUn92BFKV5kkmqCoPKYexjXXDbT2jjNB8"}) {
         edges {
             cursor
             node {
@@ -199,7 +199,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 4th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(filter: {sender: "@{A}" transactionDigest: "9FCwfRVFu6fgpGDDM2axZ6L3nwvkdgSV3wEz3LjyDuxe"}) {
+    events(filter: {sender: "@{A}" transactionDigest: "DXS58tvs78DSk6XsFNrAvSmDTgQCHkY3X2FcsuWMevHm"}) {
         edges {
             cursor
             node {
@@ -214,7 +214,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 5th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(filter: {sender: "@{B}" transactionDigest: "FQQqBB4Fq9u4ZMJ5yUFZrGuDxs4k5vvd2sWTyz8c49PM"}) {
+    events(filter: {sender: "@{B}" transactionDigest: "9yiD2xdZhsfSUn92BFKV5kkmqCoPKYexjXXDbT2jjNB8"}) {
         edges {
             cursor
             node {
@@ -229,7 +229,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 4th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(filter: {sender: "@{B}" transactionDigest: "9FCwfRVFu6fgpGDDM2axZ6L3nwvkdgSV3wEz3LjyDuxe"}) {
+    events(filter: {sender: "@{B}" transactionDigest: "DXS58tvs78DSk6XsFNrAvSmDTgQCHkY3X2FcsuWMevHm"}) {
         edges {
             cursor
             node {
@@ -244,7 +244,7 @@ module Test::M1 {
 {
     # `transactionDigest` is the digest of the 5th transaction returned by
     # task 6 (see `tx_digest.exp`)
-    events(filter: {sender: "@{A}" transactionDigest: "FQQqBB4Fq9u4ZMJ5yUFZrGuDxs4k5vvd2sWTyz8c49PM"}) {
+    events(filter: {sender: "@{A}" transactionDigest: "9yiD2xdZhsfSUn92BFKV5kkmqCoPKYexjXXDbT2jjNB8"}) {
         edges {
             cursor
             node {

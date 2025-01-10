@@ -54,7 +54,7 @@ Response: {
                   },
                   {
                     "node": {
-                      "amount": "4000"
+                      "amount": "1000"
                     },
                     "cursor": "eyJpIjoxLCJjIjoyfQ"
                   },
@@ -66,13 +66,13 @@ Response: {
                   },
                   {
                     "node": {
-                      "amount": "1000"
+                      "amount": "2000"
                     },
                     "cursor": "eyJpIjozLCJjIjoyfQ"
                   },
                   {
                     "node": {
-                      "amount": "2000"
+                      "amount": "4000"
                     },
                     "cursor": "eyJpIjo0LCJjIjoyfQ"
                   },
@@ -111,13 +111,13 @@ Response: {
                 "edges": [
                   {
                     "node": {
-                      "amount": "1000"
+                      "amount": "2000"
                     },
                     "cursor": "eyJpIjozLCJjIjoxfQ"
                   },
                   {
                     "node": {
-                      "amount": "2000"
+                      "amount": "4000"
                     },
                     "cursor": "eyJpIjo0LCJjIjoxfQ"
                   }
@@ -156,7 +156,7 @@ Response: {
                   },
                   {
                     "node": {
-                      "amount": "4000"
+                      "amount": "1000"
                     },
                     "cursor": "eyJpIjoxLCJjIjoxfQ"
                   },
