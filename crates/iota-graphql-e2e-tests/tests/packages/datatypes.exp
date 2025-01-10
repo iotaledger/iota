@@ -155,7 +155,7 @@ task 5, lines 73-97:
 Response: {
   "data": {
     "object": {
-      "address": "0x416f86a3ae5c3eae593a2f345346265988d2d4a5a981c9635e506ccdb5417d5b",
+      "address": "0x95a344d119233cc7e8b3c8a63c83b6788eca748cf205c7c635ffc1f74aee0212",
       "asMovePackage": {
         "module": {
           "datatypes": {
@@ -190,7 +190,7 @@ task 6, lines 99-144:
 Response: {
   "data": {
     "object": {
-      "address": "0x416f86a3ae5c3eae593a2f345346265988d2d4a5a981c9635e506ccdb5417d5b",
+      "address": "0x95a344d119233cc7e8b3c8a63c83b6788eca748cf205c7c635ffc1f74aee0212",
       "asMovePackage": {
         "module": {
           "datatypes": {
