@@ -4,6 +4,6 @@
 
 import { registerWallet } from '@iota/wallet-standard';
 
-import { IotaWallet } from './WalletStandardInterface';
+import { IotaWallet } from './walletStandardInterface';
 
 registerWallet(new IotaWallet());

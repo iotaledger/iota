@@ -73,7 +73,7 @@ const ChallengeVerifier: React.FC<ChallengeVerifierProps> = ({
           placeholder="Enter Flag Object Id"
           className="input-field"
         />
-        {<p className={`text-red-500 mb-0 mt-1 text-sm ${error ? 'visible' : 'invisible'}`}>{error}</p>}
+        {<p className={`text-red-500 mb-0 mt-1 text-sm ${error.description!=='' ? 'visible' : 'invisible'}`}>{error.description}</p>}
         <button 
           onClick={handleSubmit} 
           className={`${clsx("button", { "button-disabled": inputText=='' || loading })} min-w-28 mt-4`}

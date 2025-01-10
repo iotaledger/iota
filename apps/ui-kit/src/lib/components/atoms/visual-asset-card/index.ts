@@ -2,4 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './VisualAssetCard';
-export * from './visual-asset-card.enums';
+export * from './visualAssetCard.enums';
