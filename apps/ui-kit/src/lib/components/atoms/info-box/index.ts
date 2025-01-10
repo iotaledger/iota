@@ -2,4 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './InfoBox';
-export * from './info-box.enums';
+export * from './infoBox.enums';

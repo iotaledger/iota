@@ -1,4 +1,4 @@
-# Run a Iota Node using Systemd
+# Run a IOTA Node using Systemd
 
 Tested using:
 
@@ -18,28 +18,20 @@ sudo mkdir -p /opt/iota/key-pairs
 sudo chown -R iota:iota /opt/iota
 ```
 
-2. Install the Iota Node (iota-node) binary, two options:
+2. Install the IOTA Node (iota-node) binary, two options:
 
-- Pre-built binary stored in Amazon S3:
+- Pre-built binary from [Github](https://github.com/iotaledger/iota/releases)
 
-```shell
-wget https://releases.iota.io/$IOTA_SHA/iota-node
-chmod +x iota-node
-sudo mv iota-node /opt/iota/bin
-```
-
-- Build from source:
+- Build from source (select the branch you want to build from depending on the network you want to connect to):
 
 ```shell
 git clone https://github.com/iotaledger/iota.git && cd iota
-git checkout $IOTA_SHA
+git checkout [devnet|testnet|mainnet]
 cargo build --release --bin iota-node
 mv ./target/release/iota-node /opt/iota/bin/iota-node
 ```
 
 3. Copy your key-pairs into `/opt/iota/key-pairs/`
-
-If generated during the Genesis ceremony these will be at `IotaExternal.git/iota-testnet-wave3/genesis/key-pairs/`
 
 Make sure when you copy them they retain `iota` user permissions. To be safe you can re-run: `sudo chown -R iota:iota /opt/iota`
 
@@ -56,9 +48,9 @@ network-key-pair:
   path: /opt/iota/key-pairs/network.key
 ```
 
-5. Place genesis.blob in `/opt/iota/config/` (should be available after the Genesis ceremony)
+5. Place `genesis.blob` (see [Genesis](https://docs.iota.org/operator/genesis)) in `/opt/iota/config/`
 
-6. Copy the iota-node systemd service unit file
+6. Copy the `iota-node` systemd service unit file
 
 File: [iota-node.service](./iota-node.service)
 
@@ -78,7 +70,7 @@ sudo systemctl enable iota-node.service
 
 ## Connectivity
 
-You may need to explicitly open the ports outlined in [Iota for Node Operators](../validator-tasks#connectivity) for the required Iota Node connectivity.
+You may need to explicitly open the ports outlined in [IOTA for Node Operators](../validator-tasks#connectivity) for the required IOTA Node connectivity.
 
 ## Start the node
 
@@ -102,11 +94,11 @@ journalctl -u iota-node -f
 
 ## Updates
 
-When an update is required to the Iota Node software the following procedure can be used. It is highly **unlikely** that you will want to restart with a clean database.
+When an update is required to the IOTA Node software the following procedure can be used. It is highly **unlikely** that you will want to restart with a clean database.
 
 - assumes iota-node lives in `/opt/iota/bin/`
-- assumes systemd service is named iota-node
-- **DO NOT** delete the Iota databases
+- assumes systemd service is named `iota-node`
+- **DO NOT** delete the IOTA databases
 
 1. Stop iota-node systemd service
 
@@ -114,11 +106,7 @@ When an update is required to the Iota Node software the following procedure can
 sudo systemctl stop iota-node
 ```
 
-2. Fetch the new iota-node binary
-
-```shell
-wget https://releases.iota.io/${IOTA_SHA}/iota-node
-```
+2. Fetch the new `iota-node` binary from [Github](https://github.com/iotaledger/iota/releases)
 
 3. Update and move the new binary:
 

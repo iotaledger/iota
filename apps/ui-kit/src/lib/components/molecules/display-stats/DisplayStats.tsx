@@ -4,7 +4,7 @@
 import { ReactNode } from 'react';
 import { Tooltip, TooltipPosition } from '../../atoms';
 import { Info } from '@iota/ui-icons';
-import { DisplayStatsType, DisplayStatsSize } from './display-stats.enums';
+import { DisplayStatsType, DisplayStatsSize } from './displayStats.enums';
 import cx from 'classnames';
 import {
     BACKGROUND_CLASSES,
@@ -13,7 +13,7 @@ import {
     VALUE_TEXT_CLASSES,
     SUPPORTING_LABEL_TEXT_CLASSES,
     LABEL_TEXT_CLASSES,
-} from './display-stats.classes';
+} from './displayStats.classes';
 
 interface DisplayStatsProps {
     /**

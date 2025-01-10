@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Loading } from '_components';
-import { Coin } from '_redux/slices/iota-objects/Coin';
+import { Coin } from '_src/ui/app/redux/slices/iota-objects/coin';
 import { ampli } from '_src/shared/analytics/ampli';
 import {
     createStakeTransaction,

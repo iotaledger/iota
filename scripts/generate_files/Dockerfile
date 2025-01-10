@@ -9,7 +9,7 @@ ARG USER_ID=1000
 # Check if the USER_ID needs to be updated, and adjust permissions accordingly
 RUN if [ $USER_ID -ne 1000 ]; then \
     usermod -u $USER_ID node; \
-    chown -R $USER_ID /home/node; \
+    chown -R node /home/node; \
 fi
 
 # Install pnpm
