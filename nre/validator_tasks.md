@@ -21,7 +21,6 @@ This document focuses on running the IOTA Node software as a Validator.
 - [Monitoring](#monitoring)
   - [Metrics](#metrics)
   - [Logs](#logs)
-  - [Dashboards](#dashboards)
 - [Software Updates](#software-updates)
 - [State Sync](#state-sync)
 - [Chain Operations](#chain-operations)
