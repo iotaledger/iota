@@ -778,8 +778,8 @@ impl ToolCommand {
 
                 let archive_bucket = Some(
                     env::var("FORMAL_SNAPSHOT_ARCHIVE_BUCKET").unwrap_or_else(|_| match network {
-                        Chain::Mainnet => "iota-mainnet-archives".to_string(),
-                        Chain::Testnet => "iota-testnet-archives".to_string(),
+                        Chain::Mainnet => "iota-mainnet-archive".to_string(),
+                        Chain::Testnet => "iota-testnet-archive".to_string(),
                         Chain::Unknown => {
                             panic!("Cannot generate default archive bucket for unknown network");
                         }
