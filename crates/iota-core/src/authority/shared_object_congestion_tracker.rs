@@ -569,26 +569,27 @@ mod object_cost_tests {
         // case 1: large initial cost, small tx cost
         let mut shared_object_congestion_tracker =
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
-                &[(object_id_0, u64::MAX-1), (object_id_1, u64::MAX-1)],
+                &[(object_id_0, u64::MAX - 1), (object_id_1, u64::MAX - 1)],
                 PerObjectCongestionControlMode::TotalGasBudget,
             );
 
         let tx = build_transaction(&[(object_id_0, true)], 1);
-        assert!(shared_object_congestion_tracker
-            .should_defer_due_to_object_congestion(
-                &tx,
-                max_accumulated_txn_cost_per_object_in_commit,
-                &HashMap::new(),
-                0,
-            ).is_none(), "objects are not yet congested");
+        assert!(
+            shared_object_congestion_tracker
+                .should_defer_due_to_object_congestion(
+                    &tx,
+                    max_accumulated_txn_cost_per_object_in_commit,
+                    &HashMap::new(),
+                    0,
+                )
+                .is_none(),
+            "objects are not yet congested"
+        );
         shared_object_congestion_tracker.bump_object_execution_cost(&tx);
         assert_eq!(
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
-                &[
-                    (object_id_0, u64::MAX),
-                    (object_id_1, u64::MAX-1),
-                ],
+                &[(object_id_0, u64::MAX), (object_id_1, u64::MAX - 1),],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
         );
@@ -611,10 +612,7 @@ mod object_cost_tests {
         assert_eq!(
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
-                &[
-                    (object_id_0, u64::MAX),
-                    (object_id_1, u64::MAX),
-                ],
+                &[(object_id_0, u64::MAX), (object_id_1, u64::MAX),],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
         );
@@ -637,10 +635,7 @@ mod object_cost_tests {
         assert_eq!(
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
-                &[
-                    (object_id_0, u64::MAX),
-                    (object_id_1, u64::MAX),
-                ],
+                &[(object_id_0, u64::MAX), (object_id_1, u64::MAX),],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
         );
@@ -652,7 +647,14 @@ mod object_cost_tests {
                 PerObjectCongestionControlMode::TotalGasBudget,
             );
 
-        let tx = build_transaction(&[(object_id_0, true), (object_id_1, true), (object_id_2, true)], u64::MAX-1);
+        let tx = build_transaction(
+            &[
+                (object_id_0, true),
+                (object_id_1, true),
+                (object_id_2, true),
+            ],
+            u64::MAX - 1,
+        );
         if let Some((_, congested_objects)) = shared_object_congestion_tracker
             .should_defer_due_to_object_congestion(
                 &tx,
@@ -704,9 +706,7 @@ mod object_cost_tests {
         assert_eq!(
             shared_object_congestion_tracker,
             SharedObjectCongestionTracker::new_with_initial_value_for_test(
-                &[
-                    (object_id_0, u64::MAX),
-                ],
+                &[(object_id_0, u64::MAX),],
                 PerObjectCongestionControlMode::TotalGasBudget
             )
         );
