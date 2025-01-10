@@ -29,7 +29,7 @@ import { Loader } from '@iota/ui-icons';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 
-function TransferCoinPage() {
+export function TransferCoinPage() {
     const [searchParams] = useSearchParams();
     const selectedCoinType = searchParams.get('type');
     const [showTransactionPreview, setShowTransactionPreview] = useState<boolean>(false);
@@ -206,5 +206,3 @@ function TransferCoinPage() {
         </Overlay>
     );
 }
-
-export default TransferCoinPage;

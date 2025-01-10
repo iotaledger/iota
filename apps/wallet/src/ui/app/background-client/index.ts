@@ -4,40 +4,40 @@
 
 import { createMessage } from '_messages';
 import type { Message } from '_messages';
-import { PortStream } from '_messaging/PortStream';
+import { PortStream } from '_src/shared/messaging/portStream';
 import { type BasePayload } from '_payloads';
 import { isLoadedFeaturesPayload } from '_payloads/feature-gating';
 import { isSetNetworkPayload, type SetNetworkPayload } from '_payloads/network';
 import { isPermissionRequests } from '_payloads/permissions';
 import type { GetPermissionRequests, PermissionResponse } from '_payloads/permissions';
-import type { DisconnectApp } from '_payloads/permissions/DisconnectApp';
+import type { DisconnectApp } from '_src/shared/messaging/messages/payloads/permissions/disconnectApp';
 import { isUpdateActiveOrigin } from '_payloads/tabs/updateActiveOrigin';
-import type { GetTransactionRequests } from '_payloads/transactions/ui/GetTransactionRequests';
-import { isGetTransactionRequestsResponse } from '_payloads/transactions/ui/GetTransactionRequestsResponse';
-import type { TransactionRequestResponse } from '_payloads/transactions/ui/TransactionRequestResponse';
+import type { GetTransactionRequests } from '_src/shared/messaging/messages/payloads/transactions/ui/getTransactionRequests';
+import { isGetTransactionRequestsResponse } from '_src/shared/messaging/messages/payloads/transactions/ui/getTransactionRequestsResponse';
+import type { TransactionRequestResponse } from '_src/shared/messaging/messages/payloads/transactions/ui/transactionRequestResponse';
 import { changeActiveNetwork, setActiveOrigin } from '_redux/slices/app';
 import { setPermissions } from '_redux/slices/permissions';
 import { setTransactionRequests } from '_redux/slices/transaction-requests';
-import { type MnemonicSerializedUiAccount } from '_src/background/accounts/MnemonicAccount';
-import { type SeedSerializedUiAccount } from '_src/background/accounts/SeedAccount';
+import { type MnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
+import { type SeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
 import type { NetworkEnvType } from '@iota/core';
 import {
     isMethodPayload,
     type MethodPayload,
     type UIAccessibleEntityType,
-} from '_src/shared/messaging/messages/payloads/MethodPayload';
-import { type SignedMessage, type SignedTransaction } from '_src/ui/app/WalletSigner';
+} from '_src/shared/messaging/messages/payloads/methodPayload';
+import { type SignedMessage, type SignedTransaction } from '_src/ui/app/walletSigner';
 import type { AppDispatch } from '_store';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { toB64 } from '@iota/iota-sdk/utils';
 import { type QueryKey } from '@tanstack/react-query';
 import { lastValueFrom, map, take } from 'rxjs';
 
-import { growthbook } from '../experimentation/feature-gating';
-import { ACCOUNTS_QUERY_KEY } from '../helpers/query-client-keys';
+import { growthbook } from '../experimentation/featureGating';
+import { ACCOUNTS_QUERY_KEY } from '../helpers/queryClientKeys';
 import { queryClient } from '../helpers/queryClient';
 import { ACCOUNT_SOURCES_QUERY_KEY } from '../hooks/useAccountSources';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import {
     type DeriveBipPathAccountsFinder,
     isDeriveBipPathAccountsFinderResponse,

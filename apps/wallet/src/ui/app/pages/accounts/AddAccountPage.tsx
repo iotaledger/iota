@@ -25,7 +25,7 @@ import {
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector } from '../../hooks';
 import { useCreateAccountsMutation } from '../../hooks/useCreateAccountMutation';
-import { AppType } from '../../redux/slices/app/AppType';
+import { AppType } from '../../redux/slices/app/appType';
 import { Create, ImportPass, Key, Seed, Ledger } from '@iota/ui-icons';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {

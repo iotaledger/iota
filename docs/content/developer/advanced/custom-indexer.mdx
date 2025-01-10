@@ -1,6 +1,6 @@
 ---
 title: Custom Indexer
-description: You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA Full node, and provides efficient assemblage of checkpoint data.
+description: You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA full node, and provides efficient assemblage of checkpoint data.
 ---
 
 import Quiz from '@site/src/components/Quiz';
@@ -10,7 +10,7 @@ import CodeBlock from '@theme/CodeBlock';
 
 You can build custom indexers using the IOTA micro-data ingestion framework. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from IOTA, one that you set up in your local environment, or a combination of the two.
 
-Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA Full node, and provides efficient assemblage of checkpoint data.
+Establishing a custom indexer helps improve latency, allows pruning the data of your IOTA full node, and provides efficient assemblage of checkpoint data.
 
 ## Interface and Data Format
 
@@ -63,9 +63,9 @@ This is suitable for setups with a single ingestion pipeline where progress trac
 
 ### Local Reader
 
-Colocate the data ingestion daemon with a Full node and enable checkpoint dumping on the latter to set up a local stream source. After enabling, the Full node starts dumping executed checkpoints as files to a local directory, and the data ingestion daemon subscribes to changes in the directory through an inotify-like mechanism. This approach allows minimizing ingestion latency (checkpoint are processed immediately after a checkpoint executor on a Full node) and getting rid of dependency on an externally managed bucket.
+Colocate the data ingestion daemon with a full node and enable checkpoint dumping on the latter to set up a local stream source. After enabling, the full node starts dumping executed checkpoints as files to a local directory, and the data ingestion daemon subscribes to changes in the directory through an inotify-like mechanism. This approach allows minimizing ingestion latency (checkpoint are processed immediately after a checkpoint executor on a full node) and getting rid of dependency on an externally managed bucket.
 
-To enable, add the following to your [Full node configuration](../../operator/iota-full-node/overview.mdx) file:
+To enable, add the following to your [full node configuration](../../operator/iota-full-node/overview.mdx) file:
 
 ```yaml
 checkpoint-executor-config:
@@ -108,7 +108,7 @@ The concurrency parameter specifies how many threads the workflow uses. Having a
 
 ### Hybrid Mode
 
-Specify both a local and remote store as a fallback to ensure constant data flow. The framework always prioritizes locally available checkpoint data over remote data. It's useful when you want to start utilizing your own Full node for data ingestion but need to partially backfill historical data or just have a failover.
+Specify both a local and remote store as a fallback to ensure constant data flow. The framework always prioritizes locally available checkpoint data over remote data. It's useful when you want to start utilizing your own full node for data ingestion but need to partially backfill historical data or just have a failover.
 ```rust
 executor.run(
     PathBuf::from("./chk".to_string()), // path to a local directory

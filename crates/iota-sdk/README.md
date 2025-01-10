@@ -145,9 +145,9 @@ See the programmable transactions [example](https://github.com/iotaledger/iota/b
    1. [Connect to IOTA Devnet](https://docs.iota.org/developer/getting-started/connect).
    1. [Make sure you have two addresses with gas](https://docs.iota.org/developer/getting-started/get-address) by using the `new-address` command to create new addresses:
       ```shell
-      iota client new-address ed25519
+      iota client new-address --key-scheme ed25519
       ```
-      You must specify the key scheme, one of `ed25519` or `secp256k1` or `secp256r1`.
+      You can specify the key scheme, one of `ed25519` or `secp256k1` or `secp256r1`.
       You can skip this step if you are going to play with a friend. :)
    1. [Request IOTA tokens](https://docs.iota.org/developer/getting-started/get-coins) for all addresses that will be used to join the game.
 
