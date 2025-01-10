@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { useGetNFTs, COIN_TYPE, HiddenAssets, useOnScreen } from '../..';
+import { useGetNFTs, HiddenAssets, useOnScreen } from '../..';
 
 export enum AssetCategory {
     Visual = 'Visual',
@@ -23,13 +23,7 @@ export function usePageAssets(address: string | null, hiddenAssets?: HiddenAsset
         isError,
         isFetching,
         refetch,
-    } = useGetNFTs(
-        address,
-        {
-            MatchNone: [{ StructType: COIN_TYPE }],
-        },
-        hiddenAssets,
-    );
+    } = useGetNFTs(address, hiddenAssets);
 
     const isAssetsLoaded = !!ownedAssets;
     const isSpinnerVisible = isFetchingNextPage && hasNextPage;

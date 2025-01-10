@@ -8,8 +8,9 @@ import {
     useGetOwnedObjects,
     useKioskClient,
     HiddenAssets,
+    COIN_TYPE,
 } from '../../';
-import { type IotaObjectData, IotaObjectDataFilter } from '@iota/iota-sdk/client';
+import { type IotaObjectData } from '@iota/iota-sdk/client';
 import { useMemo } from 'react';
 
 type OwnedAssets = {
@@ -25,11 +26,7 @@ export enum AssetFilterTypes {
 
 const OBJECTS_PER_REQ = 50;
 
-export function useGetNFTs(
-    address?: string | null,
-    filter?: IotaObjectDataFilter,
-    hiddenAssets?: HiddenAssets,
-) {
+export function useGetNFTs(address?: string | null, hiddenAssets?: HiddenAssets) {
     const kioskClient = useKioskClient();
     const {
         data,
@@ -42,7 +39,13 @@ export function useGetNFTs(
         fetchNextPage,
         isLoading,
         refetch,
-    } = useGetOwnedObjects(address, filter, OBJECTS_PER_REQ);
+    } = useGetOwnedObjects(
+        address,
+        {
+            MatchNone: [{ StructType: COIN_TYPE }],
+        },
+        OBJECTS_PER_REQ,
+    );
 
     const assets = useMemo(() => {
         const ownedAssets: OwnedAssets = {
