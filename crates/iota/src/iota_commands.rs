@@ -369,7 +369,7 @@ pub enum IotaCommand {
     Analyzer,
     /// Generate completion files for various shells
     #[cfg(feature = "gen-completions")]
-    GenerateCompletions(crate::completions::CompletionCommand),
+    GenerateCompletions(crate::completions::GenerateCompletionsCommand),
 }
 
 impl IotaCommand {

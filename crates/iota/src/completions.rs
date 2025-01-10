@@ -44,7 +44,7 @@ impl Generator for GenShell {
 }
 
 #[derive(Debug, Parser)]
-pub struct CompletionCommand {
+pub struct GenerateCompletionsCommand {
     /// The shell for which completions will be generated. By default all will
     /// be generated.
     #[arg(long, short)]
@@ -55,9 +55,9 @@ pub struct CompletionCommand {
     out_dir: Option<String>,
 }
 
-impl CompletionCommand {
+impl GenerateCompletionsCommand {
     pub fn run(self) -> anyhow::Result<()> {
-        let CompletionCommand { shell, out_dir } = self;
+        let GenerateCompletionsCommand { shell, out_dir } = self;
 
         let mut cli = IotaCommand::command();
 
