@@ -1641,7 +1641,6 @@ impl ProtocolConfig {
             cfg.vdf_hash_to_input_cost = Some(100);
 
             cfg.feature_flags.passkey_auth = true;
-            cfg.feature_flags.relocate_event_module = true;
         }
 
         for cur in MAX_PROTOCOL_VERSION..=version.0 {
@@ -1649,7 +1648,10 @@ impl ProtocolConfig {
                 1 => unreachable!(),
                 // version 2 is a new framework version but with no config changes
                 2 => {}
-                3 => {}
+                // version 3
+                3 => {
+                    cfg.feature_flags.relocate_event_module = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
