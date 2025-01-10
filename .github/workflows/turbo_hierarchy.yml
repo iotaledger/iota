@@ -15,7 +15,7 @@ jobs:
   diff:
     runs-on: [self-hosted]
     concurrency:
-      group: diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      group: turbo-diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
