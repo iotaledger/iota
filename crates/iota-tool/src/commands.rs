@@ -189,22 +189,22 @@ pub enum ToolCommand {
     #[command(name = "dump-packages")]
     DumpPackages {
         /// Connection information for a GraphQL service.
-        #[clap(long, short)]
+        #[arg(long, short)]
         rpc_url: String,
 
         /// Path to a non-existent directory that can be created and filled with
         /// package information.
-        #[clap(long, short)]
+        #[arg(long, short)]
         output_dir: PathBuf,
 
         /// Only fetch packages that were created before this checkpoint (given
         /// by its sequence number).
-        #[clap(long)]
+        #[arg(long)]
         before_checkpoint: Option<u64>,
 
         /// If false (default), log level will be overridden to "off", and
         /// output will be reduced to necessary status information.
-        #[clap(short, long = "verbose")]
+        #[arg(short, long = "verbose")]
         verbose: bool,
     },
 
@@ -253,36 +253,36 @@ pub enum ToolCommand {
         db_checkpoint_path: PathBuf,
     },
 
-    #[clap(
+    #[command(
         name = "download-db-snapshot",
         about = "Downloads the legacy database snapshot via cloud object store, outputs to local disk"
     )]
     DownloadDBSnapshot {
-        #[clap(long = "epoch", conflicts_with = "latest")]
+        #[arg(long = "epoch", conflicts_with = "latest")]
         epoch: Option<u64>,
-        #[clap(
+        #[arg(
             long = "path",
             help = "the path to write the downloaded snapshot files"
         )]
         path: PathBuf,
         /// skip downloading indexes dir
-        #[clap(long = "skip-indexes")]
+        #[arg(long = "skip-indexes")]
         skip_indexes: bool,
         /// Number of parallel downloads to perform. Defaults to a reasonable
         /// value based on number of available logical cores.
-        #[clap(long = "num-parallel-downloads")]
+        #[arg(long = "num-parallel-downloads")]
         num_parallel_downloads: Option<usize>,
         /// Network to download snapshot for. Defaults to "mainnet".
         /// If `--snapshot-bucket` or `--archive-bucket` is not specified,
         /// the value of this flag is used to construct default bucket names.
-        #[clap(long = "network", default_value = "mainnet")]
+        #[arg(long = "network", default_value = "mainnet")]
         network: Chain,
         /// Snapshot bucket name. If not specified, defaults are
         /// based on value of `--network` flag.
-        #[clap(long = "snapshot-bucket", conflicts_with = "no_sign_request")]
+        #[arg(long = "snapshot-bucket", conflicts_with = "no_sign_request")]
         snapshot_bucket: Option<String>,
         /// Snapshot bucket type
-        #[clap(
+        #[arg(
             long = "snapshot-bucket-type",
             conflicts_with = "no_sign_request",
             help = "Required if --no-sign-request is not set"
@@ -290,13 +290,13 @@ pub enum ToolCommand {
         snapshot_bucket_type: Option<ObjectStoreType>,
         /// Path to snapshot directory on local filesystem.
         /// Only applicable if `--snapshot-bucket-type` is "file".
-        #[clap(
+        #[arg(
             long = "snapshot-path",
             help = "only used for testing, when --snapshot-bucket-type=FILE"
         )]
         snapshot_path: Option<PathBuf>,
         /// If true, no authentication is needed for snapshot restores
-        #[clap(
+        #[arg(
             long = "no-sign-request",
             conflicts_with_all = &["snapshot_bucket", "snapshot_bucket_type"],
             help = "if set, no authentication is needed for snapshot restore"
@@ -304,7 +304,7 @@ pub enum ToolCommand {
         no_sign_request: bool,
         /// Download snapshot of the latest available epoch.
         /// If `--epoch` is specified, then this flag gets ignored.
-        #[clap(
+        #[arg(
             long = "latest",
             conflicts_with = "epoch",
             help = "defaults to latest available snapshot in chosen bucket"
@@ -312,40 +312,40 @@ pub enum ToolCommand {
         latest: bool,
         /// If false (default), log level will be overridden to "off",
         /// and output will be reduced to necessary status information.
-        #[clap(long = "verbose")]
+        #[arg(long = "verbose")]
         verbose: bool,
     },
 
     // Restore from formal (slim, DB agnostic) snapshot.
-    #[clap(
+    #[command(
         name = "download-formal-snapshot",
         about = "Downloads formal database snapshot via cloud object store, outputs to local disk"
     )]
     DownloadFormalSnapshot {
-        #[clap(long = "epoch", conflicts_with = "latest")]
+        #[arg(long = "epoch", conflicts_with = "latest")]
         epoch: Option<u64>,
-        #[clap(long = "genesis")]
+        #[arg(long = "genesis")]
         genesis: PathBuf,
-        #[clap(long = "path")]
+        #[arg(long = "path")]
         path: PathBuf,
         /// Number of parallel downloads to perform. Defaults to a reasonable
         /// value based on number of available logical cores.
-        #[clap(long = "num-parallel-downloads")]
+        #[arg(long = "num-parallel-downloads")]
         num_parallel_downloads: Option<usize>,
         /// Verification mode to employ.
-        #[clap(long = "verify", default_value = "normal")]
+        #[arg(long = "verify", default_value = "normal")]
         verify: Option<SnapshotVerifyMode>,
         /// Network to download snapshot for. Defaults to "mainnet".
         /// If `--snapshot-bucket` or `--archive-bucket` is not specified,
         /// the value of this flag is used to construct default bucket names.
-        #[clap(long = "network", default_value = "mainnet")]
+        #[arg(long = "network", default_value = "mainnet")]
         network: Chain,
         /// Snapshot bucket name. If not specified, defaults are
         /// based on value of `--network` flag.
-        #[clap(long = "snapshot-bucket", conflicts_with = "no_sign_request")]
+        #[arg(long = "snapshot-bucket", conflicts_with = "no_sign_request")]
         snapshot_bucket: Option<String>,
         /// Snapshot bucket type
-        #[clap(
+        #[arg(
             long = "snapshot-bucket-type",
             conflicts_with = "no_sign_request",
             help = "Required if --no-sign-request is not set"
@@ -353,10 +353,10 @@ pub enum ToolCommand {
         snapshot_bucket_type: Option<ObjectStoreType>,
         /// Path to snapshot directory on local filesystem.
         /// Only applicable if `--snapshot-bucket-type` is "file".
-        #[clap(long = "snapshot-path")]
+        #[arg(long = "snapshot-path")]
         snapshot_path: Option<PathBuf>,
         /// If true, no authentication is needed for snapshot restores
-        #[clap(
+        #[arg(
             long = "no-sign-request",
             conflicts_with_all = &["snapshot_bucket", "snapshot_bucket_type"],
             help = "if set, no authentication is needed for snapshot restore"
@@ -364,7 +364,7 @@ pub enum ToolCommand {
         no_sign_request: bool,
         /// Download snapshot of the latest available epoch.
         /// If `--epoch` is specified, then this flag gets ignored.
-        #[clap(
+        #[arg(
             long = "latest",
             conflicts_with = "epoch",
             help = "defaults to latest available snapshot in chosen bucket"
@@ -372,7 +372,7 @@ pub enum ToolCommand {
         latest: bool,
         /// If false (default), log level will be overridden to "off",
         /// and output will be reduced to necessary status information.
-        #[clap(long = "verbose")]
+        #[arg(long = "verbose")]
         verbose: bool,
 
         /// If provided, all checkpoint summaries from genesis to the end of the
@@ -381,11 +381,11 @@ pub enum ToolCommand {
         /// will be performed. If omitted, only end of epoch checkpoint
         /// summaries will be downloaded, and (if --verify is provided)
         /// will be verified via committee signature.
-        #[clap(long = "all-checkpoints")]
+        #[arg(long = "all-checkpoints")]
         all_checkpoints: bool,
     },
 
-    #[clap(name = "replay")]
+    #[command(name = "replay")]
     Replay {
         #[arg(long = "rpc")]
         rpc_url: Option<String>,

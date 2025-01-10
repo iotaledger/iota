@@ -18,10 +18,10 @@ use iota_swarm_config::genesis_config::ValidatorGenesisConfigBuilder;
 use rand::rngs::OsRng;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Example that indexes the genesis transaction into the database")]
+#[command(about = "Example that indexes the genesis transaction into the database")]
 struct Args {
     /// Remotely stored migration snapshots.
-    #[clap(
+    #[arg(
         long,
         name = "iota|<full-url>",
         help = "Remote migration snapshots.",

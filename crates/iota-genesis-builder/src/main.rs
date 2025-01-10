@@ -22,26 +22,26 @@ use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 #[derive(Parser, Debug)]
-#[clap(about = "Tool for migrating Iota Hornet full-snapshot file")]
+#[command(about = "Tool for migrating Iota Hornet full-snapshot file")]
 struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     snapshot: Snapshot,
-    #[clap(long, help = "Disable global snapshot verification")]
+    #[arg(long, help = "Disable global snapshot verification")]
     disable_global_snapshot_verification: bool,
 }
 
 #[derive(Subcommand, Debug)]
 enum Snapshot {
-    #[clap(about = "Migrate an Iota Hornet full-snapshot file")]
+    #[command(about = "Migrate an Iota Hornet full-snapshot file")]
     Iota {
-        #[clap(long, help = "Path to the Iota Hornet full-snapshot file")]
+        #[arg(long, help = "Path to the Iota Hornet full-snapshot file")]
         snapshot_path: String,
-        #[clap(
+        #[arg(
             long,
             help = "Path to the address swap map file. This must be a CSV file with two columns, where an entry contains in the first column an IotaAddress present in the Hornet full-snapshot and in the second column an IotaAddress that will be used for the swap."
         )]
         address_swap_map_path: Option<String>,
-        #[clap(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
+        #[arg(long, value_parser = clap::value_parser!(MigrationTargetNetwork), help = "Target network for migration")]
         target_network: MigrationTargetNetwork,
     },
 }

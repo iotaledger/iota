@@ -196,12 +196,12 @@ enum Action {
 }
 
 #[derive(Debug, Parser)]
-#[clap(
+#[command(
     name = "Iota format generator",
     about = "Trace serde (de)serialization to generate format descriptions for Iota types"
 )]
 struct Options {
-    #[clap(value_enum, default_value = "Print", ignore_case = true)]
+    #[arg(value_enum, default_value = "Print", ignore_case = true)]
     action: Action,
 }
 

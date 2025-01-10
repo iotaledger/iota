@@ -60,11 +60,11 @@ use crate::key_identity::{KeyIdentity, get_identity_address_from_keystore};
 mod keytool_tests;
 
 #[derive(Subcommand)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 pub enum KeyToolCommand {
     /// Update an old alias to a new one.
     /// If a new alias is not provided, a random one will be generated.
-    #[clap(name = "update-alias")]
+    #[command(name = "update-alias")]
     Alias {
         old_alias: String,
         /// The alias must start with a letter and can contain only letters,
@@ -81,21 +81,21 @@ pub enum KeyToolCommand {
     /// signature is provided, verify the signature against the transaction
     /// and output the result.
     DecodeOrVerifyTx {
-        #[clap(long)]
+        #[arg(long)]
         tx_bytes: String,
-        #[clap(long)]
+        #[arg(long)]
         sig: Option<GenericSignature>,
-        #[clap(long, default_value = "0")]
+        #[arg(long, default_value = "0")]
         cur_epoch: u64,
     },
     /// Given a Base64 encoded MultiSig signature, decode its components.
     /// If tx_bytes is passed in, verify the multisig.
     DecodeMultiSig {
-        #[clap(long)]
+        #[arg(long)]
         multisig: MultiSig,
-        #[clap(long)]
+        #[arg(long)]
         tx_bytes: Option<String>,
-        #[clap(long, default_value = "0")]
+        #[arg(long, default_value = "0")]
         cur_epoch: u64,
     },
     /// Generate a new keypair with key scheme flag {ed25519 | secp256k1 |
@@ -130,7 +130,7 @@ pub enum KeyToolCommand {
         /// Sets an alias for this address. The alias must start with a letter
         /// and can contain only letters, digits, hyphens (-), or underscores
         /// (_).
-        #[clap(long)]
+        #[arg(long)]
         alias: Option<String>,
         input_string: String,
         key_scheme: SignatureScheme,
@@ -139,24 +139,24 @@ pub enum KeyToolCommand {
     /// Output the private key of the given key identity in Iota CLI Keystore as
     /// Bech32 encoded string starting with `iotaprivkey`.
     Export {
-        #[clap(long)]
+        #[arg(long)]
         key_identity: KeyIdentity,
     },
     /// List all keys by its Iota address, Base64 encoded public key, key scheme
     /// name in iota.keystore.
     List {
         /// Sort by alias
-        #[clap(long, short = 's')]
+        #[arg(long, short = 's')]
         sort_by_alias: bool,
     },
     /// To MultiSig Iota Address. Pass in a list of all public keys `flag || pk`
     /// in Base64. See `keytool list` for example public keys.
     MultiSigAddress {
-        #[clap(long)]
+        #[arg(long)]
         threshold: ThresholdUnit,
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         pks: Vec<PublicKey>,
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
     },
     /// Provides a list of participating signatures (`flag || sig || pk` encoded
@@ -170,13 +170,13 @@ pub enum KeyToolCommand {
     /// e.g. for [pk1, pk2, pk3, pk4, pk5], [sig1, sig2, sig5] is valid, but
     /// [sig2, sig1, sig5] is invalid.
     MultiSigCombinePartialSig {
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         sigs: Vec<GenericSignature>,
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         pks: Vec<PublicKey>,
-        #[clap(long, num_args(1..))]
+        #[arg(long, num_args(1..))]
         weights: Vec<WeightUnit>,
-        #[clap(long)]
+        #[arg(long)]
         threshold: ThresholdUnit,
     },
     /// Read the content at the provided file path. The accepted format can be
@@ -190,11 +190,11 @@ pub enum KeyToolCommand {
     /// serialized transaction bytes itself and its intent. If intent is absent,
     /// default will be used.
     Sign {
-        #[clap(long)]
+        #[arg(long)]
         address: KeyIdentity,
-        #[clap(long)]
+        #[arg(long)]
         data: String,
-        #[clap(long)]
+        #[arg(long)]
         intent: Option<Intent>,
     },
     /// Creates a signature by leveraging AWS KMS. Pass in a key-id to leverage
@@ -204,13 +204,13 @@ pub enum KeyToolCommand {
     /// Base64 encoded of the BCS serialized transaction bytes itself and
     /// its intent. If intent is absent, default will be used.
     SignKMS {
-        #[clap(long)]
+        #[arg(long)]
         data: String,
-        #[clap(long)]
+        #[arg(long)]
         keyid: String,
-        #[clap(long)]
+        #[arg(long)]
         intent: Option<Intent>,
-        #[clap(long)]
+        #[arg(long)]
         base64pk: String,
     },
     // Commented for now: https://github.com/iotaledger/iota/issues/1777
@@ -219,15 +219,15 @@ pub enum KeyToolCommand {
     // /// create a test transaction, use the ephemeral key to sign and execute it
     // /// by assembling to a serialized zkLogin signature.
     // ZkLoginSignAndExecuteTx {
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     max_epoch: EpochId,
-    //     #[clap(long, default_value = "devnet")]
+    //     #[arg(long, default_value = "devnet")]
     //     network: String,
-    //     #[clap(long, default_value = "false")]
+    //     #[arg(long, default_value = "false")]
     //     fixed: bool, // if true, use a fixed kp generated from [0; 32] seed.
-    //     #[clap(long, default_value = "false")]
+    //     #[arg(long, default_value = "false")]
     //     test_multisig: bool, // if true, use a multisig address with zklogin and a traditional
-    // kp.     #[clap(long, default_value = "false")]
+    // kp.     #[arg(long, default_value = "false")]
     //     sign_with_sk: bool, /* if true, execute tx with the traditional sig (in the multisig),
     //                          * otherwise with the zklogin sig. */
     // },
@@ -235,21 +235,21 @@ pub enum KeyToolCommand {
     // /// not work (for Facebook). All the inputs required here are printed from
     // /// the command above.
     // ZkLoginEnterToken {
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     parsed_token: String,
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     max_epoch: EpochId,
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     jwt_randomness: String,
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     kp_bigint: String,
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     ephemeral_key_identifier: IotaAddress,
-    //     #[clap(long, default_value = "devnet")]
+    //     #[arg(long, default_value = "devnet")]
     //     network: String,
-    //     #[clap(long, default_value = "false")]
+    //     #[arg(long, default_value = "false")]
     //     test_multisig: bool,
-    //     #[clap(long, default_value = "false")]
+    //     #[arg(long, default_value = "false")]
     //     sign_with_sk: bool,
     // },
     // /// Given a zkLogin signature, parse it if valid. If `bytes` provided,
@@ -260,20 +260,20 @@ pub enum KeyToolCommand {
     // /// --curr-epoch 10
     // ZkLoginSigVerify {
     //     /// The Base64 of the serialized zkLogin signature.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     sig: String,
     //     /// The Base64 of the BCS encoded TransactionData or PersonalMessage.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     bytes: Option<String>,
     //     /// Either 0 for TransactionData or 3 for PersonalMessage.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     intent_scope: u8,
     //     /// The current epoch for the network to verify the signature's
     //     /// max_epoch against.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     cur_epoch: Option<EpochId>,
     //     /// The network to verify the signature for, determines ZkLoginEnv.
-    //     #[clap(long, default_value = "devnet")]
+    //     #[arg(long, default_value = "devnet")]
     //     network: String,
     // },
     // /// TESTING ONLY: Generate a fixed ephemeral key and its JWT token with test
@@ -283,10 +283,10 @@ pub enum KeyToolCommand {
     // ZkLoginInsecureSignPersonalMessage {
     //     /// The base64 encoded string of the message to sign, without the intent
     //     /// message wrapping.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     data: String,
     //     /// The max epoch used for the zklogin signature validity.
-    //     #[clap(long)]
+    //     #[arg(long)]
     //     max_epoch: EpochId,
     // },
 }

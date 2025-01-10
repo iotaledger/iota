@@ -29,89 +29,89 @@ pub const IOTA_ARGS_LONG: &str = "iota-args";
 
 #[derive(Clone, Debug, clap::Parser)]
 pub struct IotaRunArgs {
-    #[clap(long = "sender")]
+    #[arg(long = "sender")]
     pub sender: Option<String>,
-    #[clap(long = "gas-price")]
+    #[arg(long = "gas-price")]
     pub gas_price: Option<u64>,
-    #[clap(long = "summarize")]
+    #[arg(long = "summarize")]
     pub summarize: bool,
 }
 
 #[derive(Debug, clap::Parser, Default)]
 pub struct IotaPublishArgs {
-    #[clap(long = "sender")]
+    #[arg(long = "sender")]
     pub sender: Option<String>,
-    #[clap(long = "upgradeable", action = clap::ArgAction::SetTrue)]
+    #[arg(long = "upgradeable", action = clap::ArgAction::SetTrue)]
     pub upgradeable: bool,
-    #[clap(long = "dependencies", num_args(1..))]
+    #[arg(long = "dependencies", num_args(1..))]
     pub dependencies: Vec<String>,
-    #[clap(long = "gas-price")]
+    #[arg(long = "gas-price")]
     pub gas_price: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct IotaInitArgs {
-    #[clap(long = "accounts", num_args(1..))]
+    #[arg(long = "accounts", num_args(1..))]
     pub accounts: Option<Vec<String>>,
-    #[clap(long = "protocol-version")]
+    #[arg(long = "protocol-version")]
     pub protocol_version: Option<u64>,
-    #[clap(long = "max-gas")]
+    #[arg(long = "max-gas")]
     pub max_gas: Option<u64>,
-    #[clap(long = "move-binary-format-version")]
+    #[arg(long = "move-binary-format-version")]
     pub move_binary_format_version: Option<u32>,
-    #[clap(long = "simulator")]
+    #[arg(long = "simulator")]
     pub simulator: bool,
-    #[clap(long = "custom-validator-account")]
+    #[arg(long = "custom-validator-account")]
     pub custom_validator_account: bool,
-    #[clap(long = "reference-gas-price")]
+    #[arg(long = "reference-gas-price")]
     pub reference_gas_price: Option<u64>,
-    #[clap(long = "default-gas-price")]
+    #[arg(long = "default-gas-price")]
     pub default_gas_price: Option<u64>,
-    #[clap(long = "object-snapshot-min-checkpoint-lag")]
+    #[arg(long = "object-snapshot-min-checkpoint-lag")]
     pub object_snapshot_min_checkpoint_lag: Option<usize>,
-    #[clap(long = "object-snapshot-max-checkpoint-lag")]
+    #[arg(long = "object-snapshot-max-checkpoint-lag")]
     pub object_snapshot_max_checkpoint_lag: Option<usize>,
-    #[clap(long = "flavor")]
+    #[arg(long = "flavor")]
     pub flavor: Option<Flavor>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct ViewObjectCommand {
-    #[clap(value_parser = parse_fake_id)]
+    #[arg(value_parser = parse_fake_id)]
     pub id: FakeID,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct TransferObjectCommand {
-    #[clap(value_parser = parse_fake_id)]
+    #[arg(value_parser = parse_fake_id)]
     pub id: FakeID,
-    #[clap(long = "recipient")]
+    #[arg(long = "recipient")]
     pub recipient: String,
-    #[clap(long = "sender")]
+    #[arg(long = "sender")]
     pub sender: Option<String>,
-    #[clap(long = "gas-budget")]
+    #[arg(long = "gas-budget")]
     pub gas_budget: Option<u64>,
-    #[clap(long = "gas-price")]
+    #[arg(long = "gas-price")]
     pub gas_price: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct ConsensusCommitPrologueCommand {
-    #[clap(long = "timestamp-ms")]
+    #[arg(long = "timestamp-ms")]
     pub timestamp_ms: u64,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct ProgrammableTransactionCommand {
-    #[clap(long = "sender")]
+    #[arg(long = "sender")]
     pub sender: Option<String>,
-    #[clap(long = "gas-budget")]
+    #[arg(long = "gas-budget")]
     pub gas_budget: Option<u64>,
-    #[clap(long = "gas-price")]
+    #[arg(long = "gas-price")]
     pub gas_price: Option<u64>,
-    #[clap(long = "dev-inspect")]
+    #[arg(long = "dev-inspect")]
     pub dev_inspect: bool,
-    #[clap(
+    #[arg(
         long = "inputs",
         value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
         num_args(1..),
@@ -122,62 +122,62 @@ pub struct ProgrammableTransactionCommand {
 
 #[derive(Debug, clap::Parser)]
 pub struct UpgradePackageCommand {
-    #[clap(long = "package")]
+    #[arg(long = "package")]
     pub package: String,
-    #[clap(long = "upgrade-capability", value_parser = parse_fake_id)]
+    #[arg(long = "upgrade-capability", value_parser = parse_fake_id)]
     pub upgrade_capability: FakeID,
-    #[clap(long = "dependencies", num_args(1..))]
+    #[arg(long = "dependencies", num_args(1..))]
     pub dependencies: Vec<String>,
-    #[clap(long = "sender")]
+    #[arg(long = "sender")]
     pub sender: String,
-    #[clap(long = "gas-budget")]
+    #[arg(long = "gas-budget")]
     pub gas_budget: Option<u64>,
-    #[clap(long = "syntax")]
+    #[arg(long = "syntax")]
     pub syntax: Option<SyntaxChoice>,
-    #[clap(long = "policy", default_value="compatible", value_parser = parse_policy)]
+    #[arg(long = "policy", default_value="compatible", value_parser = parse_policy)]
     pub policy: u8,
-    #[clap(long = "gas-price")]
+    #[arg(long = "gas-price")]
     pub gas_price: Option<u64>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct StagePackageCommand {
-    #[clap(long = "syntax")]
+    #[arg(long = "syntax")]
     pub syntax: Option<SyntaxChoice>,
-    #[clap(long = "dependencies", num_args(1..))]
+    #[arg(long = "dependencies", num_args(1..))]
     pub dependencies: Vec<String>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct SetAddressCommand {
     pub address: String,
-    #[clap(value_parser = ParsedValue::<IotaExtraValueArgs>::parse)]
+    #[arg(value_parser = ParsedValue::<IotaExtraValueArgs>::parse)]
     pub input: ParsedValue<IotaExtraValueArgs>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct AdvanceClockCommand {
-    #[clap(long = "duration-ns")]
+    #[arg(long = "duration-ns")]
     pub duration_ns: u64,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct RunGraphqlCommand {
-    #[clap(long = "show-usage")]
+    #[arg(long = "show-usage")]
     pub show_usage: bool,
-    #[clap(long = "show-headers")]
+    #[arg(long = "show-headers")]
     pub show_headers: bool,
-    #[clap(long = "show-service-version")]
+    #[arg(long = "show-service-version")]
     pub show_service_version: bool,
-    #[clap(long, num_args(1..))]
+    #[arg(long, num_args(1..))]
     pub cursors: Vec<String>,
 }
 
 #[derive(Debug, clap::Parser)]
 pub struct ForceObjectSnapshotCatchup {
-    #[clap(long = "start-cp")]
+    #[arg(long = "start-cp")]
     pub start_cp: u64,
-    #[clap(long = "end-cp")]
+    #[arg(long = "end-cp")]
     pub end_cp: u64,
 }
 
@@ -193,11 +193,11 @@ pub struct AdvanceEpochCommand {
 
 #[derive(Debug, clap::Parser)]
 pub struct SetRandomStateCommand {
-    #[clap(long = "randomness-round")]
+    #[arg(long = "randomness-round")]
     pub randomness_round: u64,
-    #[clap(long = "random-bytes")]
+    #[arg(long = "random-bytes")]
     pub random_bytes: String,
-    #[clap(long = "randomness-initial-version")]
+    #[arg(long = "randomness-initial-version")]
     pub randomness_initial_version: u64,
 }
 
