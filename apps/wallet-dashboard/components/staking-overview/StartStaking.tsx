@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { StakeDialog, useStakeDialog } from '../Dialogs';
+import { StakeDialog, useStakeDialog } from '../dialogs';
 import { Theme, useTheme } from '@iota/core';
 import { Banner } from '../Banner';
 

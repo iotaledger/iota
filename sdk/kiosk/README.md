@@ -7,7 +7,7 @@
 This Kiosk SDK library provides different utilities to interact/create/manage a
 [Kiosk](https://github.com/iotaledger/iota/tree/develop/kiosk).
 
-[You can read the documentation and see examples by clicking here.](https://docs.iota.org/references/ts-sdk/kiosk)
+[You can read the documentation and see examples by clicking here.](https://docs.iota.org/ts-sdk/kiosk)
 
 ## Install
 
@@ -17,7 +17,7 @@ To use the Kiosk SDK in your project, run the following command in your project 
 npm i @iota/kiosk @iota/iota-sdk
 ```
 
-To use the Kiosk SDK, you must create a [KioskClient](https://docs.iota.org/references/ts-sdk/kiosk/kiosk-client/introduction) instance.
+To use the Kiosk SDK, you must create a [KioskClient](https://docs.iota.org/ts-sdk/kiosk/kiosk-client/introduction) instance.
 
 ## Setup
 
@@ -38,4 +38,4 @@ const kioskClient = new KioskClient({
 });
 ```
 
-You can read the KioskClient documentation to query kiosk data [here](https://docs.iota.org/references/ts-sdk/kiosk/kiosk-client/querying).
+You can read the KioskClient documentation to query kiosk data [here](https://docs.iota.org/ts-sdk/kiosk/kiosk-client/querying).

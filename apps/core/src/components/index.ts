@@ -5,7 +5,7 @@ export * from './coin';
 export * from './cards';
 export * from './gas';
 export * from './icon';
-export * from './Inputs';
+export * from './inputs';
 export * from './QR';
 export * from './transaction';
 export * from './buttons';

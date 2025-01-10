@@ -12,7 +12,7 @@ import { useCurrentAccount } from '@iota/dapp-kit';
 
 interface AssetTileLinkProps {
     asset: IotaObjectData;
-    type: AssetCategory;
+    type: AssetCategory | null;
     onClick: (asset: IotaObjectData) => void;
 }
 

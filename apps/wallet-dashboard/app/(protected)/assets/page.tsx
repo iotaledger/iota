@@ -21,7 +21,7 @@ import { IotaObjectData } from '@iota/iota-sdk/client';
 import { Warning } from '@iota/ui-icons';
 
 import { AssetTileLink, Loading } from '@/components';
-import { AssetDialog } from '@/components/Dialogs/Assets';
+import { AssetDialog } from '@/components/dialogs/assets';
 
 const ASSET_CATEGORIES: { label: string; value: AssetCategory }[] = [
     {
@@ -52,6 +52,7 @@ export default function AssetsDashboardPage(): React.JSX.Element {
         error,
         isError,
 
+        ownedAssets,
         isAssetsLoaded,
         filteredAssets,
         selectedAssetCategory,
@@ -80,7 +81,8 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                     </div>
                 ) : (
                     <>
-                        {isAssetsLoaded && Boolean(filteredAssets?.length) ? (
+                        {isAssetsLoaded &&
+                        Boolean(ownedAssets?.visual.length || ownedAssets?.other.length) ? (
                             <div className="flex flex-row items-center justify-start gap-xs py-xs">
                                 {ASSET_CATEGORIES.map(({ value, label }) => (
                                     <Chip
@@ -88,36 +90,39 @@ export default function AssetsDashboardPage(): React.JSX.Element {
                                         onClick={() => setSelectedAssetCategory(value)}
                                         label={label}
                                         selected={selectedAssetCategory === value}
+                                        disabled={
+                                            AssetCategory.Visual === value
+                                                ? !ownedAssets?.visual.length
+                                                : !ownedAssets?.other.length
+                                        }
                                     />
                                 ))}
                             </div>
                         ) : null}
-                        {selectedAssetCategory ? (
-                            <Loading loading={isPending}>
-                                <div
-                                    className={cl(
-                                        'max-h-[600px]',
-                                        ASSET_LAYOUT[selectedAssetCategory],
-                                    )}
-                                >
-                                    {filteredAssets.map((asset) => (
-                                        <AssetTileLink
-                                            key={asset.digest}
-                                            asset={asset}
-                                            type={selectedAssetCategory}
-                                            onClick={onAssetClick}
-                                        />
-                                    ))}
-                                    <div ref={observerElem}>
-                                        {isSpinnerVisible ? (
-                                            <div className="mt-1 flex h-full w-full justify-center">
-                                                <LoadingIndicator />
-                                            </div>
-                                        ) : null}
-                                    </div>
+                        <Loading loading={isPending}>
+                            <div
+                                className={cl(
+                                    'max-h-[600px]',
+                                    selectedAssetCategory && ASSET_LAYOUT[selectedAssetCategory],
+                                )}
+                            >
+                                {filteredAssets.map((asset) => (
+                                    <AssetTileLink
+                                        key={asset.digest}
+                                        asset={asset}
+                                        type={selectedAssetCategory}
+                                        onClick={onAssetClick}
+                                    />
+                                ))}
+                                <div ref={observerElem}>
+                                    {isSpinnerVisible ? (
+                                        <div className="mt-1 flex h-full w-full justify-center">
+                                            <LoadingIndicator />
+                                        </div>
+                                    ) : null}
                                 </div>
-                            </Loading>
-                        ) : null}
+                            </div>
+                        </Loading>
 
                         {selectedAsset && (
                             <AssetDialog

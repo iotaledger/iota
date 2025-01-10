@@ -6,13 +6,13 @@ import { createMessage, type Message } from '_src/shared/messaging/messages';
 import {
     isMethodPayload,
     type MethodPayload,
-} from '_src/shared/messaging/messages/payloads/MethodPayload';
+} from '_src/shared/messaging/messages/payloads/methodPayload';
 
-import { type UiConnection } from '../connections/UiConnection';
+import { type UiConnection } from '../connections/uiConnection';
 import { getDB } from '../db';
-import { AccountSourceType, type AccountSourceSerialized } from './AccountSource';
-import { MnemonicAccountSource } from './MnemonicAccountSource';
-import { SeedAccountSource } from './SeedAccountSource';
+import { AccountSourceType, type AccountSourceSerialized } from './accountSource';
+import { MnemonicAccountSource } from './mnemonicAccountSource';
+import { SeedAccountSource } from './seedAccountSource';
 import { toEntropy } from '_src/shared/utils';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {

@@ -6,15 +6,15 @@ import { ErrorBoundary, MenuContent, Navigation, WalletSettingsButton } from '_c
 import cn from 'clsx';
 import { createContext, type ReactNode, useState } from 'react';
 import { useAppSelector } from '../../hooks';
-import { AppType } from '../../redux/slices/app/AppType';
+import { AppType } from '../../redux/slices/app/appType';
 import { DappStatus } from '../dapp-status';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
 import { IotaLogoMark, Ledger } from '@iota/ui-icons';
 import { useActiveAccount } from '../../hooks/useActiveAccount';
 import { Link } from 'react-router-dom';
-import { isLedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
-import { type SerializedUIAccount } from '_src/background/accounts/Account';
+import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
+import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { formatAccountName } from '../../helpers';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);

@@ -15,7 +15,7 @@ import {
     Panel,
     Title,
 } from '@iota/apps-ui-kit';
-import { StakeDialog, useStakeDialog } from './Dialogs';
+import { StakeDialog, useStakeDialog } from './dialogs';
 import { TIMELOCK_IOTA_TYPE, useCountdownByTimestamp, useFormatCoin } from '@iota/core';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import SvgClock from '@iota/ui-icons/src/Clock';

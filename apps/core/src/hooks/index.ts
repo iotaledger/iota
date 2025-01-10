@@ -51,4 +51,4 @@ export * from './useGetNFTs';
 export * from './useRecognizedPackages';
 
 export * from './stake';
-export * from './usePageAssets';
+export * from './ui';
