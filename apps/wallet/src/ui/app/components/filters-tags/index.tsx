@@ -23,7 +23,7 @@ interface FiltersPortalProps {
     callback?: (tag: Tag) => void;
 }
 
-function FiltersPortal({ tags, callback, firstLastMargin }: FiltersPortalProps) {
+function FiltersPortalComponent({ tags, callback, firstLastMargin }: FiltersPortalProps) {
     const [element, setElement] = useState<HTMLElement | null>(null);
 
     useEffect(() => {
@@ -65,4 +65,4 @@ function FiltersPortal({ tags, callback, firstLastMargin }: FiltersPortalProps) 
     );
 }
 
-export default memo(FiltersPortal);
+export const FiltersPortal = memo(FiltersPortalComponent);

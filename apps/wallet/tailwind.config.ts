@@ -5,7 +5,7 @@
 import { type Config } from 'tailwindcss';
 import animatePlugin from 'tailwindcss-animate';
 // Note: exception for the tailwind preset import
-import uiKitStaticPreset from '../../apps/ui-kit/src/lib/tailwind/static.preset';
+import uiKitStaticPreset from '../../apps/ui-kit/src/lib/tailwind/static.presets';
 
 export default {
     presets: [uiKitStaticPreset],

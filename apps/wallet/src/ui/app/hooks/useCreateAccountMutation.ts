@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
-import { AccountType } from '_src/background/accounts/Account';
+import { AccountType } from '_src/background/accounts/account';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,

@@ -8,7 +8,7 @@ interface AmountBoxProps {
     amount: string;
 }
 
-function AmountBox({ title, amount }: AmountBoxProps): JSX.Element {
+export function AmountBox({ title, amount }: AmountBoxProps): JSX.Element {
     return (
         <div className="flex items-center justify-center gap-4 pt-12">
             <Box title={title}>
@@ -17,5 +17,3 @@ function AmountBox({ title, amount }: AmountBoxProps): JSX.Element {
         </div>
     );
 }
-
-export default AmountBox;

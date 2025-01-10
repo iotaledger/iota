@@ -18,7 +18,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import cl from 'clsx';
 import { KeyValueInfo } from '@iota/apps-ui-kit';
 
-function KioskDetailsPage() {
+export function KioskDetailsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const kioskId = searchParams.get('kioskId');
@@ -92,5 +92,3 @@ function KioskDetailsPage() {
         </PageTemplate>
     );
 }
-
-export default KioskDetailsPage;

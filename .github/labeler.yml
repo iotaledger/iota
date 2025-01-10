@@ -4,3 +4,37 @@ documentation:
 explorer:
   - changed-files:
       - any-glob-to-any-file: apps/explorer/**/*
+wallet:
+  - changed-files:
+      - any-glob-to-any-file: apps/wallet/**/*
+wallet-dashboard:
+  - changed-files:
+      - any-glob-to-any-file: apps/wallet-dashboard/**/*
+ts-sdk:
+  - changed-files:
+      - any-glob-to-any-file: sdk/**/*
+apps-ui-kit:
+  - changed-files:
+      - any-glob-to-any-file: apps/ui-kit/**/*
+apps-backend:
+  - changed-files:
+      - any-glob-to-any-file: apps/apps-backend/**/*
+tooling:
+  - changed-files:
+      - any-glob-to-any-file: |
+          sdk/**
+          apps/**
+          dapps/**
+          linting/**
+          .husky/**
+          .changeset/**
+          .eslintrc.js
+          .lintstagedrc.json
+          .npmrc
+          .prettierignore
+          graphql.config.ts
+          package.json
+          pnpm-workspace.yaml
+          prettier.config.js
+          turbo.json
+          vercel.json

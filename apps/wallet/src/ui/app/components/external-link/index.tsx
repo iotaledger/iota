@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { memo } from 'react';
 import type { ReactNode } from 'react';
 
 export interface ExternalLinkProps {
@@ -27,5 +26,3 @@ export function ExternalLink({ href, className, children, title, onClick }: Exte
         </a>
     );
 }
-
-export default memo(ExternalLink);
