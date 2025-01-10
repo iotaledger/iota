@@ -42,22 +42,26 @@ export function AccountBalance() {
                     <p>Loading...</p>
                 ) : (
                     <div className="flex h-full flex-col items-center justify-center gap-y-lg p-lg">
-                        {address && (
-                            <Address
-                                text={formattedAddress}
-                                isCopyable
-                                copyText={address}
-                                isExternal
-                                externalLink={explorerLink}
-                                onCopySuccess={handleOnCopySuccess}
-                            />
-                        )}
-                        <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
-                            {formatted} {symbol}
-                        </span>{' '}
-                        <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
-                            {fiatBalance}
-                        </span>
+                        <div className="flex flex-col items-center gap-y-xs">
+                            {address && (
+                                <div className="-mr-lg">
+                                    <Address
+                                        text={formattedAddress}
+                                        isCopyable
+                                        copyText={address}
+                                        isExternal
+                                        externalLink={explorerLink}
+                                        onCopySuccess={handleOnCopySuccess}
+                                    />
+                                </div>
+                            )}
+                            <span className="text-headline-lg text-neutral-10 dark:text-neutral-92">
+                                {formatted} {symbol}
+                            </span>
+                            <span className="text-body-md text-neutral-10 dark:text-neutral-92">
+                                {fiatBalance}
+                            </span>
+                        </div>
                         <div className="flex w-full max-w-56 gap-xs">
                             <Button
                                 onClick={openSendTokenDialog}
