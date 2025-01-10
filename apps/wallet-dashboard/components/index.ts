@@ -12,13 +12,13 @@ export * from './PaginationOptions';
 
 export * from './account-balance/AccountBalance';
 export * from './coins';
-export * from './AppList';
-export * from './Cards';
-export * from './Buttons';
+export * from './app-list';
+export * from './cards';
+export * from './buttons';
 export * from './transactions';
 export * from './staking-overview';
 export * from './ExplorerLink';
-export * from './Dialogs';
+export * from './dialogs';
 export * from './ValidatorStakingData';
 export * from './tiles';
 export * from './migration';

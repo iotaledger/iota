@@ -6,13 +6,13 @@ import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
 import {
     formatDate,
     getBalanceChangeSummary,
-    getLabel,
+    getTransactionAction,
     useFormatCoin,
     useTransactionSummary,
+    TransactionIcon,
 } from '@iota/core';
 import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Link } from 'react-router-dom';
-import { TxnIcon } from './TxnIcon';
 import {
     Card,
     CardType,
@@ -64,9 +64,9 @@ export function TransactionCard({ txn, address }: TransactionCardProps) {
         >
             <Card type={CardType.Default} isHoverable>
                 <CardImage type={ImageType.BgSolid} shape={ImageShape.SquareRounded}>
-                    <TxnIcon
+                    <TransactionIcon
                         txnFailed={executionStatus !== 'success' || !!error}
-                        variant={getLabel(txn, address)}
+                        variant={getTransactionAction(txn, address)}
                     />
                 </CardImage>
                 <CardBody

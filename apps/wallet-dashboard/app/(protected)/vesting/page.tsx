@@ -11,8 +11,8 @@ import {
     UnstakeDialog,
     StakeDialogView,
 } from '@/components';
-import { UnstakeDialogView } from '@/components/Dialogs/unstake/enums';
-import { useUnstakeDialog } from '@/components/Dialogs/unstake/hooks';
+import { UnstakeDialogView } from '@/components/dialogs/unstake/enums';
+import { useUnstakeDialog } from '@/components/dialogs/unstake/hooks';
 import { useGetSupplyIncreaseVestingObjects } from '@/hooks';
 import { groupTimelockedStakedObjects, TimelockedStakedObjectsGrouped } from '@/lib/utils';
 import { useFeature } from '@growthbook/growthbook-react';

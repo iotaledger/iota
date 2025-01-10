@@ -2976,10 +2976,10 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
         .data;
     let coin = object_refs.get(1).unwrap().object().unwrap().object_id;
 
-    IotaClientCommands::TransferIota {
-        to: KeyIdentity::Address(address1),
-        iota_coin_object_id: coin,
-        amount: Some(1),
+    IotaClientCommands::PayIota {
+        input_coins: vec![coin],
+        recipients: vec![KeyIdentity::Address(address1)],
+        amounts: vec![1],
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
@@ -2991,10 +2991,10 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     .execute(context)
     .await?;
 
-    IotaClientCommands::TransferIota {
-        to: KeyIdentity::Address(address1),
-        iota_coin_object_id: coin,
-        amount: Some(1),
+    IotaClientCommands::PayIota {
+        input_coins: vec![coin],
+        recipients: vec![KeyIdentity::Address(address1)],
+        amounts: vec![1],
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
@@ -3007,10 +3007,10 @@ async fn test_serialize_tx() -> Result<(), anyhow::Error> {
     .await?;
 
     // use alias for transfer
-    IotaClientCommands::TransferIota {
-        to: KeyIdentity::Alias(alias1),
-        iota_coin_object_id: coin,
-        amount: Some(1),
+    IotaClientCommands::PayIota {
+        input_coins: vec![coin],
+        recipients: vec![KeyIdentity::Alias(alias1)],
+        amounts: vec![1],
         opts: Opts {
             gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
             dry_run: false,
@@ -3353,18 +3353,6 @@ async fn test_dry_run() -> Result<(), anyhow::Error> {
     .await?;
 
     assert_dry_run(transfer_dry_run, object_id, "Transfer");
-
-    // === TRANSFER IOTA === //
-    let transfer_iota_dry_run = IotaClientCommands::TransferIota {
-        to: KeyIdentity::Address(IotaAddress::random_for_testing_only()),
-        iota_coin_object_id: object_to_send,
-        amount: Some(1),
-        opts: Opts::for_testing_dry_run(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
-    }
-    .execute(context)
-    .await?;
-
-    assert_dry_run(transfer_iota_dry_run, object_to_send, "TransferIota");
 
     // === PAY === //
     let pay_dry_run = IotaClientCommands::Pay {
@@ -3754,99 +3742,6 @@ async fn test_transfer() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-async fn test_transfer_iota() -> Result<(), anyhow::Error> {
-    let (mut test_cluster, client, rgp, objects, recipients, addresses) =
-        test_cluster_helper().await;
-    let object_id1 = objects[0];
-    let recipient1 = &recipients[0];
-    let address2 = addresses[0];
-    let context = &mut test_cluster.wallet;
-    let amount = 1000;
-    let transfer_iota = IotaClientCommands::TransferIota {
-        to: KeyIdentity::Address(address2),
-        iota_coin_object_id: object_id1,
-        amount: Some(amount),
-        opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
-    }
-    .execute(context)
-    .await?;
-
-    // transfer iota will transfer the amount from object_id1 to address2, and use
-    // the same object as gas, and we check if the recipient address received
-    // the object, and the expected balance is correct
-    if let IotaClientCommandResult::TransactionBlock(response) = transfer_iota {
-        assert!(response.status_ok().unwrap());
-        assert_eq!(
-            response.effects.as_ref().unwrap().gas_object().object_id(),
-            object_id1
-        );
-        let objs_refs = client
-            .read_api()
-            .get_owned_objects(
-                address2,
-                Some(IotaObjectResponseQuery::new_with_options(
-                    IotaObjectDataOptions::full_content(),
-                )),
-                None,
-                None,
-            )
-            .await?;
-        assert!(!objs_refs.has_next_page);
-        assert_eq!(objs_refs.data.len(), 1);
-        let balance = client
-            .coin_read_api()
-            .get_balance(address2, None)
-            .await?
-            .total_balance;
-        assert_eq!(balance, amount as u128);
-    } else {
-        panic!("TransferIota test failed");
-    }
-    // transfer the whole object by not passing an amount
-    let transfer_iota = IotaClientCommands::TransferIota {
-        to: recipient1.clone(),
-        iota_coin_object_id: object_id1,
-        amount: None,
-        opts: Opts::for_testing(rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
-    }
-    .execute(context)
-    .await?;
-    if let IotaClientCommandResult::TransactionBlock(response) = transfer_iota {
-        assert!(response.status_ok().unwrap());
-        assert_eq!(
-            response.effects.as_ref().unwrap().gas_object().object_id(),
-            object_id1
-        );
-        let objs_refs = client
-            .read_api()
-            .get_owned_objects(
-                address2,
-                Some(IotaObjectResponseQuery::new_with_options(
-                    IotaObjectDataOptions::full_content(),
-                )),
-                None,
-                None,
-            )
-            .await?;
-        assert!(!objs_refs.has_next_page);
-        assert_eq!(
-            objs_refs.data.len(),
-            2,
-            "Expected to have two coins when calling transfer iota the 2nd time"
-        );
-        assert!(
-            objs_refs
-                .data
-                .iter()
-                .any(|x| x.object().unwrap().object_id == object_id1)
-        );
-    } else {
-        panic!("TransferIota test failed");
-    }
-    Ok(())
-}
-
-#[sim_test]
 async fn test_gas_estimation() -> Result<(), anyhow::Error> {
     let (mut test_cluster, client, rgp, objects, _, addresses) = test_cluster_helper().await;
     let object_id1 = objects[0];
@@ -3859,10 +3754,10 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
     let gas_estimate = estimate_gas_budget(context, sender, tx_kind, rgp, None, None).await;
     assert!(gas_estimate.is_ok());
 
-    let transfer_iota_cmd = IotaClientCommands::TransferIota {
-        to: KeyIdentity::Address(address2),
-        iota_coin_object_id: object_id1,
-        amount: Some(amount),
+    let pay_iota_cmd = IotaClientCommands::PayIota {
+        recipients: vec![KeyIdentity::Address(address2)],
+        input_coins: vec![object_id1],
+        amounts: vec![amount],
         opts: Opts {
             gas_budget: None,
             dry_run: false,
@@ -3874,7 +3769,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
     .execute(context)
     .await
     .unwrap();
-    if let IotaClientCommandResult::TransactionBlock(response) = transfer_iota_cmd {
+    if let IotaClientCommandResult::TransactionBlock(response) = pay_iota_cmd {
         assert!(response.status_ok().unwrap());
         let gas_used = response.effects.as_ref().unwrap().gas_object().object_id();
         assert_eq!(gas_used, object_id1);
@@ -3888,7 +3783,7 @@ async fn test_gas_estimation() -> Result<(), anyhow::Error> {
                 <= gas_estimate.unwrap()
         );
     } else {
-        panic!("TransferIota test failed");
+        panic!("PayIota failed in gas estimation test");
     }
     Ok(())
 }

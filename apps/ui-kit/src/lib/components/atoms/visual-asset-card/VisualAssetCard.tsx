@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { VisualAssetType } from './visual-asset-card.enums';
+import { VisualAssetType } from './visualAssetCard.enums';
 import { ButtonUnstyled } from '../button';
 import { MoreHoriz } from '@iota/ui-icons';
 import cx from 'classnames';

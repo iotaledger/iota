@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type LedgerAccountSerializedUI } from '_src/background/accounts/LedgerAccount';
+import { type LedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import type IotaLedgerClient from '@iota/ledgerjs-hw-app-iota';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 
 import { useIotaLedgerClient } from './IotaLedgerClientProvider';
-import { AccountType } from '_src/background/accounts/Account';
+import { AccountType } from '_src/background/accounts/account';
 
 type LedgerAccountKeys = 'address' | 'publicKey' | 'type' | 'derivationPath';
 
