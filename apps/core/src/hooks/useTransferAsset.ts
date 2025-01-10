@@ -32,27 +32,31 @@ export function useTransferAsset({
         (kioskItem) => kioskItem.data?.objectId === objectId,
     );
 
+    const handleKioskTransfer = async (to: string) => {
+        return transferKioskItem.mutateAsync({ to });
+    };
+
+    const handleDirectTransfer = async (to: string) => {
+        const tx = new Transaction();
+        tx.transferObjects([tx.object(objectId)], to);
+
+        return executeFn!({
+            transaction: tx,
+            options: {
+                showInput: true,
+                showEffects: true,
+                showEvents: true,
+            },
+        });
+    };
+
     return useMutation({
         mutationFn: async (to: string) => {
             if (!to || !executeFn) {
                 throw new Error('Missing data');
             }
 
-            if (isContainedInKiosk) {
-                return transferKioskItem.mutateAsync({ to });
-            }
-
-            const tx = new Transaction();
-            tx.transferObjects([tx.object(objectId)], to);
-
-            return executeFn({
-                transaction: tx,
-                options: {
-                    showInput: true,
-                    showEffects: true,
-                    showEvents: true,
-                },
-            });
+            return isContainedInKiosk ? handleKioskTransfer(to) : handleDirectTransfer(to);
         },
         onSuccess,
         onError,

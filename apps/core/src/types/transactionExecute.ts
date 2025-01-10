@@ -11,13 +11,3 @@ export type TransferAssetExecuteFn = (input: {
     transaction: Transaction;
     options?: IotaTransactionBlockResponseOptions;
 }) => Promise<IotaTransactionBlockResponse>;
-
-export type WalletExecuteFn = (input: {
-    transactionBlock: Uint8Array | Transaction;
-    options?: IotaTransactionBlockResponseOptions;
-}) => Promise<IotaTransactionBlockResponse>;
-
-export type DappKitExecuteFn = (input: {
-    transaction: Transaction | string;
-    options?: IotaTransactionBlockResponseOptions;
-}) => Promise<IotaTransactionBlockResponse>;

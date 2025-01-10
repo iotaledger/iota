@@ -12,7 +12,6 @@ import {
     AddressInput,
     useTransferAsset,
     type TransferAssetExecuteFn,
-    type WalletExecuteFn,
 } from '@iota/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Formik } from 'formik';
@@ -20,13 +19,19 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/ui-icons';
+import { type WalletSigner } from '_src/ui/app/walletSigner';
 
 interface TransferNFTFormProps {
     objectId: string;
     objectType?: string | null;
 }
 
-function normalizeWalletSignAndExecute(executeFn: WalletExecuteFn): TransferAssetExecuteFn {
+function normalizeWalletSignAndExecute(
+    signer: WalletSigner | null,
+): TransferAssetExecuteFn | undefined {
+    if (!signer || !signer) return;
+
+    const executeFn = signer.signAndExecuteTransaction.bind(signer);
     return ({ transaction, ...rest }) => executeFn({ transactionBlock: transaction, ...rest });
 }
 
@@ -42,9 +47,7 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
         activeAddress,
         objectId,
         objectType,
-        executeFn: signer?.signAndExecuteTransaction
-            ? normalizeWalletSignAndExecute(signer.signAndExecuteTransaction.bind(signer))
-            : undefined,
+        executeFn: normalizeWalletSignAndExecute(signer),
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['object', objectId] });
             queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });
