@@ -23,7 +23,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 3;
 // Version 1: Original version.
 // Version 2: Don't redistribute slashed staking rewards, fix computation of
 // SystemEpochInfoEventV1.
-// Version 3: Set the `relocate_event_module` to be ture so that the module that is associated
+// Version 3: Set the `relocate_event_module` to be true so that the module that is associated
 // as the "sending module" for an event is relocated by linkage.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
