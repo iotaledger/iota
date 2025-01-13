@@ -5,6 +5,6 @@
 import type { AppDispatch } from '_store';
 import { useDispatch } from 'react-redux';
 
-export default function useAppDispatch() {
+export function useAppDispatch() {
     return useDispatch<AppDispatch>();
 }

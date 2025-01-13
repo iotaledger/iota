@@ -4,12 +4,16 @@
 import { useState } from 'react';
 import { Dialog } from '@iota/apps-ui-kit';
 import { FormikProvider, useFormik } from 'formik';
-import { useIotaClient, useCurrentAccount } from '@iota/dapp-kit';
-import { createNftSendValidationSchema, isKioskOwnerToken, useKioskClient } from '@iota/core';
+import { useIotaClient, useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
+import {
+    createNftSendValidationSchema,
+    useTransferAsset,
+    isKioskOwnerToken as verifyKioskOwnerToken,
+    useKioskClient,
+} from '@iota/core';
 import { DetailsView, SendView, KioskDetailsView } from './views';
-import { IotaObjectData } from '@iota/iota-sdk/client';
+import { IotaObjectData, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { AssetsDialogView } from './constants';
-import { useCreateSendAssetTransaction } from '@/hooks';
 import { TransactionDetailsView } from '../send-token';
 import { DialogLayout } from '../layout';
 import toast from 'react-hot-toast';
@@ -36,9 +40,10 @@ export function AssetDialog({
     refetchAssets,
 }: AssetsDialogProps): JSX.Element {
     const kioskClient = useKioskClient();
-    const isOwnerToken = isKioskOwnerToken(kioskClient.network, asset);
+    const isKioskOwnerToken = verifyKioskOwnerToken(kioskClient.network, asset);
 
-    const initView = isOwnerToken ? AssetsDialogView.KioskDetails : AssetsDialogView.Details;
+    const initView = isKioskOwnerToken ? AssetsDialogView.KioskDetails : AssetsDialogView.Details;
+
     const [view, setView] = useState<AssetsDialogView>(initView);
 
     const account = useCurrentAccount();
@@ -47,8 +52,13 @@ export function AssetDialog({
     const objectId = asset?.objectId ?? '';
     const iotaClient = useIotaClient();
     const validationSchema = createNftSendValidationSchema(activeAddress, objectId);
-
-    const { mutation: sendAsset } = useCreateSendAssetTransaction(objectId);
+    const { mutateAsync: signAndExecuteTransaction } =
+        useSignAndExecuteTransaction<IotaTransactionBlockResponse>();
+    const { mutateAsync: sendAsset } = useTransferAsset({
+        objectId,
+        activeAddress: activeAddress,
+        executeFn: signAndExecuteTransaction,
+    });
 
     const formik = useFormik<FormValues>({
         initialValues: INITIAL_VALUES,
@@ -59,7 +69,7 @@ export function AssetDialog({
 
     async function onSubmit(values: FormValues) {
         try {
-            const executed = await sendAsset.mutateAsync(values.to);
+            const executed = await sendAsset(values.to);
 
             const tx = await iotaClient.waitForTransaction({
                 digest: executed.digest,
