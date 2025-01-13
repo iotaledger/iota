@@ -1289,7 +1289,7 @@ impl AuthorityPerEpochStore {
                             .as_ref()
                             // Shared version assignments could have been deleted if the tx just
                             // finished executing concurrently.
-                            .ok_or(IotaError::GenericAuthorityError {
+                            .ok_or(IotaError::GenericAuthority {
                                 error: "no shared locks".to_string(),
                             })?;
                         // If we found locks, but they are missing the assignment for this object,
