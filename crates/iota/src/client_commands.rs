@@ -161,7 +161,6 @@ pub enum IotaClientCommands {
         /// not in production environments.
         #[arg(hide = true)]
         gas_price: Option<u64>,
-
         #[command(flatten)]
         opts: OptsWithGas,
     },
