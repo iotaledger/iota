@@ -127,8 +127,7 @@ export const timeAgo = (
 // TODO - Merge with related functions
 type Format = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second' | 'weekday';
 
-export function formatDate(date: Date | number, format?: Format[]): string {
-    const formatOption = format ?? (['day', 'month', 'hour', 'minute'] as Format[]);
+export function formatDate(date: Date | number, format: Format[] = ['day', 'month', 'hour', 'minute']): string {
     const dateTime = new Date(date);
     if (!(dateTime instanceof Date)) return '';
 
@@ -142,7 +141,7 @@ export function formatDate(date: Date | number, format?: Format[]): string {
         second: 'numeric',
     };
 
-    const formatOptions = formatOption.reduce((accumulator, current: Format) => {
+    const formatOptions = format.reduce((accumulator, current: Format) => {
         const responseObj = {
             ...accumulator,
             ...{ [current]: options[current] },
