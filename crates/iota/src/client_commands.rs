@@ -161,7 +161,6 @@ pub enum IotaClientCommands {
         /// not in production environments.
         #[clap(hide = true)]
         gas_price: Option<u64>,
-
         #[clap(flatten)]
         opts: OptsWithGas,
     },
@@ -191,7 +190,6 @@ pub enum IotaClientCommands {
         /// using --serialize-unsigned-transaction.
         #[clap(long)]
         tx_bytes: String,
-
         /// A list of Base64 encoded signatures `flag || signature || pubkey`.
         #[clap(long)]
         signatures: Vec<String>,
@@ -236,18 +234,23 @@ pub enum IotaClientCommands {
         #[clap(flatten)]
         opts: OptsWithGas,
     },
-    /// Generate new address and keypair with keypair scheme flag {ed25519 |
-    /// secp256k1 | secp256r1} with optional derivation path, default to
-    /// m/44'/4218'/0'/0'/0' for ed25519 or m/54'/4218'/0'/0/0 for secp256k1
-    /// or m/74'/4218'/0'/0/0 for secp256r1. Word length can be { word12 |
-    /// word15 | word18 | word21 | word24} default to word12 if not specified.
+    /// Generate new address and keypair with optional key scheme {ed25519 |
+    /// secp256k1 | secp256r1} which defaults to ed25519, optional alias which
+    /// defaults to a random one, optional word length { word12 | word15 |
+    /// word18 | word21 | word24} which defaults to word12, and optional
+    /// derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519,
+    /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1.
     #[clap(name = "new-address")]
     NewAddress {
+        #[clap(long, default_value_t = SignatureScheme::ED25519)]
         key_scheme: SignatureScheme,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
+        #[clap(long)]
         alias: Option<String>,
+        #[clap(long)]
         word_length: Option<String>,
+        #[clap(long)]
         derivation_path: Option<DerivationPath>,
     },
     /// Add new IOTA environment.
@@ -274,7 +277,6 @@ pub enum IotaClientCommands {
         /// Object ID of the object to fetch
         #[clap(name = "object_id")]
         id: ObjectID,
-
         /// Return the bcs serialized version of the object
         #[clap(long)]
         bcs: bool,
@@ -296,16 +298,13 @@ pub enum IotaClientCommands {
         /// specified amounts.
         #[clap(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
-
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
         #[clap(long, num_args(1..))]
         recipients: Vec<KeyIdentity>,
-
         /// The amounts to be paid, following the order of recipients.
         #[clap(long, num_args(1..))]
         amounts: Vec<u64>,
-
         #[clap(flatten)]
         opts: OptsWithGas,
     },
@@ -317,12 +316,10 @@ pub enum IotaClientCommands {
         /// coin.
         #[clap(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
-
         /// The recipient address (or its alias if it's an address in the
         /// keystore).
         #[clap(long)]
         recipient: KeyIdentity,
-
         #[clap(flatten)]
         opts: Opts,
     },
@@ -335,16 +332,13 @@ pub enum IotaClientCommands {
         /// coin.
         #[clap(long, num_args(1..))]
         input_coins: Vec<ObjectID>,
-
         /// The recipient addresses, must be of same length as amounts.
         /// Aliases of addresses are also accepted as input.
         #[clap(long, num_args(1..))]
         recipients: Vec<KeyIdentity>,
-
         /// The amounts to be paid, following the order of recipients.
         #[clap(long, num_args(1..))]
         amounts: Vec<u64>,
-
         #[clap(flatten)]
         opts: Opts,
     },
@@ -357,20 +351,16 @@ pub enum IotaClientCommands {
         /// Path to directory containing a Move package
         #[clap(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
-
         /// Package build options
         #[clap(flatten)]
         build_config: MoveBuildConfig,
-
         #[clap(flatten)]
         opts: OptsWithGas,
-
         /// Publish the package without checking whether compiling dependencies
         /// from source results in bytecode matching the dependencies
         /// found on-chain.
         #[clap(long)]
         skip_dependency_verification: bool,
-
         /// Also publish transitive dependencies that have not already been
         /// published.
         #[clap(long)]
@@ -417,11 +407,9 @@ pub enum IotaClientCommands {
         /// Recipient address (or its alias if it's an address in the keystore)
         #[clap(long)]
         to: KeyIdentity,
-
         /// ID of the object to transfer
         #[clap(long)]
         object_id: ObjectID,
-
         #[clap(flatten)]
         opts: OptsWithGas,
     },
@@ -431,24 +419,19 @@ pub enum IotaClientCommands {
         /// Path to directory containing a Move package
         #[clap(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
-
         /// ID of the upgrade capability for the package being upgraded.
         #[clap(long)]
         upgrade_capability: ObjectID,
-
         /// Package build options
         #[clap(flatten)]
         build_config: MoveBuildConfig,
-
         #[clap(flatten)]
         opts: OptsWithGas,
-
         /// Publish the package without checking whether compiling dependencies
         /// from source results in bytecode matching the dependencies
         /// found on-chain.
         #[clap(long)]
         skip_dependency_verification: bool,
-
         /// Also publish transitive dependencies that have not already been
         /// published.
         #[clap(long)]
@@ -461,19 +444,16 @@ pub enum IotaClientCommands {
         /// current directory)
         #[clap(name = "package", long, global = true)]
         package_path: Option<PathBuf>,
-
         /// Protocol version to use for the bytecode verifier (defaults to the
         /// latest protocol version)
         #[clap(name = "protocol-version", long)]
         protocol_version: Option<u64>,
-
         /// Paths to specific pre-compiled module bytecode to verify (instead of
         /// an entire package). Multiple modules can be verified by
         /// passing multiple --module flags. They will be treated as if
         /// they were one package (subject to the overall package limit).
         #[clap(name = "module", long, action = clap::ArgAction::Append, global = true)]
         module_paths: Vec<PathBuf>,
-
         /// Package build options
         #[clap(flatten)]
         build_config: MoveBuildConfig,
@@ -485,19 +465,15 @@ pub enum IotaClientCommands {
         /// Path to directory containing a Move package
         #[clap(name = "package_path", global = true, default_value = ".")]
         package_path: PathBuf,
-
         /// Package build options
         #[clap(flatten)]
         build_config: MoveBuildConfig,
-
         /// Verify on-chain dependencies.
         #[clap(long)]
         verify_deps: bool,
-
         /// Don't verify source (only valid if --verify-deps is enabled).
         #[clap(long)]
         skip_source: bool,
-
         /// If specified, override the addresses for the package's own modules
         /// with this address. Only works for unpublished modules (whose
         /// addresses are currently 0x0).
@@ -513,7 +489,6 @@ pub enum IotaClientCommands {
         /// The digest of the transaction to replay
         #[arg(long, short)]
         tx_digest: String,
-
         /// If specified, overrides the filepath of the output profile, for
         /// example -- /temp/my_profile_name.json will write output to
         /// `/temp/my_profile_name_{tx_digest}_{unix_timestamp}.json` If
@@ -530,20 +505,16 @@ pub enum IotaClientCommands {
         /// The digest of the transaction to replay
         #[arg(long, short)]
         tx_digest: String,
-
         /// Log extra gas-related information
         #[arg(long)]
         gas_info: bool,
-
         /// Log information about each programmable transaction command
         #[arg(long)]
         ptb_info: bool,
-
         /// Optional version of the executor to use, if not specified defaults
         /// to the one originally used for the transaction.
         #[arg(long, short, allow_hyphen_values = true)]
         executor_version: Option<i64>,
-
         /// Optional protocol version to use, if not specified defaults to the
         /// one originally used for the transaction.
         #[arg(long, short, allow_hyphen_values = true)]
@@ -556,7 +527,6 @@ pub enum IotaClientCommands {
         /// digest per line
         #[arg(long, short)]
         path: PathBuf,
-
         /// If an error is encountered during a transaction, this specifies
         /// whether to terminate or continue
         #[arg(long, short)]
@@ -569,12 +539,10 @@ pub enum IotaClientCommands {
         /// to replay
         #[arg(long, short)]
         start: u64,
-
         /// The ending checkpoint sequence number of the range of checkpoints to
         /// replay
         #[arg(long, short)]
         end: u64,
-
         /// If an error is encountered during a transaction, this specifies
         /// whether to terminate or continue
         #[arg(long, short)]

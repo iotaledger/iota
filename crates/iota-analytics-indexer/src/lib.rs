@@ -109,7 +109,7 @@ pub struct AnalyticsIndexerConfig {
     pub file_type: FileType,
     #[clap(
         long,
-        default_value = "https://checkpoints.mainnet.iota.io",
+        default_value = "https://checkpoints.mainnet.iota.cafe",
         global = true
     )]
     pub remote_store_url: String,

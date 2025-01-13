@@ -54,32 +54,29 @@ export async function groupMigrationObjectsByUnlockCondition(
                 return;
             }
 
-            if (object.type === STARDUST_BASIC_OUTPUT_TYPE) {
-                const existing = basicObjectMap.get(groupKey);
-                const gasReturn = extractOwnedStorageDepositReturnAmount(
-                    objectFields,
-                    currentAddress,
-                );
-                const newBalance =
-                    (existing ? existing.balance : 0n) +
-                    BigInt(objectFields.balance) +
-                    (gasReturn ?? 0n);
+            const existingBasicObject = basicObjectMap.get(groupKey);
+            const gasReturn = extractOwnedStorageDepositReturnAmount(objectFields, currentAddress);
+            const newBalance =
+                (existingBasicObject ? existingBasicObject.balance : 0n) +
+                BigInt(objectFields.balance) +
+                (gasReturn ?? 0n);
 
-                if (existing) {
-                    existing.balance = newBalance;
-                } else {
-                    const newBasicObject: ResolvedBasicObject = {
-                        balance: newBalance,
-                        unlockConditionTimestamp: groupKey,
-                        type: object.type,
-                        commonObjectType: CommonMigrationObjectType.Basic,
-                        output: object,
-                        uniqueId: objectFields.id.id,
-                    };
-                    basicObjectMap.set(groupKey, newBasicObject);
-                    flatObjects.push(newBasicObject);
-                }
-            } else if (object.type === STARDUST_NFT_OUTPUT_TYPE) {
+            if (existingBasicObject) {
+                existingBasicObject.balance = newBalance;
+            } else {
+                const newBasicObject: ResolvedBasicObject = {
+                    balance: newBalance,
+                    unlockConditionTimestamp: groupKey,
+                    type: STARDUST_BASIC_OUTPUT_TYPE,
+                    commonObjectType: CommonMigrationObjectType.Basic,
+                    output: object,
+                    uniqueId: objectFields.id.id,
+                };
+                basicObjectMap.set(groupKey, newBasicObject);
+                flatObjects.push(newBasicObject);
+            }
+
+            if (object.type === STARDUST_NFT_OUTPUT_TYPE) {
                 const nftDetails = await getNftDetails(object, groupKey, client);
                 flatObjects.push(...nftDetails);
             }
