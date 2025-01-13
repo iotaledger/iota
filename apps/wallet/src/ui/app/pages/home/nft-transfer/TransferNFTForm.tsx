@@ -7,20 +7,32 @@ import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessage
 import { useActiveAddress } from '_src/ui/app/hooks';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 import { useSigner } from '_src/ui/app/hooks/useSigner';
-import { createNftSendValidationSchema, useGetKioskContents, AddressInput } from '@iota/core';
-import { Transaction } from '@iota/iota-sdk/transactions';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+    createNftSendValidationSchema,
+    AddressInput,
+    useTransferAsset,
+    type TransferAssetExecuteFn,
+} from '@iota/core';
+import { useQueryClient } from '@tanstack/react-query';
 import { Form, Formik } from 'formik';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
-import { useTransferKioskItem } from './useTransferKioskItem';
 import { Button, ButtonHtmlType } from '@iota/apps-ui-kit';
 import { Loader } from '@iota/ui-icons';
+import { type WalletSigner } from '_src/ui/app/walletSigner';
 
 interface TransferNFTFormProps {
     objectId: string;
     objectType?: string | null;
+}
+
+function normalizeWalletSignAndExecute(
+    signer: WalletSigner | null,
+): TransferAssetExecuteFn | undefined {
+    if (!signer || !signer) return;
+
+    const executeFn = signer.signAndExecuteTransaction.bind(signer);
+    return ({ transaction, ...rest }) => executeFn({ transactionBlock: transaction, ...rest });
 }
 
 export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) {
@@ -30,34 +42,12 @@ export function TransferNFTForm({ objectId, objectType }: TransferNFTFormProps) 
     const signer = useSigner(activeAccount);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const { data: kiosk } = useGetKioskContents(activeAddress);
-    const transferKioskItem = useTransferKioskItem({ objectId, objectType });
-    const isContainedInKiosk = kiosk?.list.some(
-        (kioskItem) => kioskItem.data?.objectId === objectId,
-    );
 
-    const transferNFT = useMutation({
-        mutationFn: async (to: string) => {
-            if (!to || !signer) {
-                throw new Error('Missing data');
-            }
-
-            if (isContainedInKiosk) {
-                return transferKioskItem.mutateAsync({ to });
-            }
-
-            const tx = new Transaction();
-            tx.transferObjects([tx.object(objectId)], to);
-
-            return signer.signAndExecuteTransaction({
-                transactionBlock: tx,
-                options: {
-                    showInput: true,
-                    showEffects: true,
-                    showEvents: true,
-                },
-            });
-        },
+    const transferNFT = useTransferAsset({
+        activeAddress,
+        objectId,
+        objectType,
+        executeFn: normalizeWalletSignAndExecute(signer),
         onSuccess: (response) => {
             queryClient.invalidateQueries({ queryKey: ['object', objectId] });
             queryClient.invalidateQueries({ queryKey: ['get-kiosk-contents'] });

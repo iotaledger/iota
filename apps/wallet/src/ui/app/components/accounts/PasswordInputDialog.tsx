@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { useAccountSources } from '../../hooks/useAccountSources';
 import { useBackgroundClient } from '../../hooks/useBackgroundClient';
 import { Form } from '../../shared/forms/Form';
-import { AccountSourceType } from '_src/background/account-sources/AccountSource';
+import { AccountSourceType } from '_src/background/account-sources/accountSource';
 import {
     Button,
     ButtonHtmlType,

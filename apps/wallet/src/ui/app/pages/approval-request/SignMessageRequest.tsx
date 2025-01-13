@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { type SignPersonalMessageApprovalRequest } from '_payloads/transactions/ApprovalRequest';
+import { type SignPersonalMessageApprovalRequest } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { toUtf8OrB64 } from '_src/shared/utils';
 import { useMemo } from 'react';
 import { UserApproveContainer } from '_components';

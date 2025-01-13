@@ -1,6 +1,6 @@
 [
     {
-        "questionText": "In the context of IOTA Full nodes, what is the significance of the 2f+1 validators during transaction processing?",
+        "questionText": "In the context of IOTA full nodes, what is the significance of the 2f+1 validators during transaction processing?",
         "answerOptions": [
             { "answerText": "They ensure that transactions are signed before being sent to the network.", "isCorrect": false },
             { "answerText": "They help in achieving consensus and finality for a transaction.", "isCorrect": true },
@@ -9,7 +9,7 @@
         ]
     },
     {
-        "questionText": "When configuring the Full node, which YAML parameter is critical for specifying the path to the database used by the node?",
+        "questionText": "When configuring the full node, which YAML parameter is critical for specifying the path to the database used by the node?",
         "answerOptions": [
             { "answerText": "db-path", "isCorrect": true },
             { "answerText": "data-storage", "isCorrect": false },
@@ -18,7 +18,7 @@
         ]
     },
     {
-        "questionText": "In the pruning configuration for an IOTA Full node, why would you set `num-epochs-to-retain` to 0?",
+        "questionText": "In the pruning configuration for an IOTA full node, why would you set `num-epochs-to-retain` to 0?",
         "answerOptions": [
             { "answerText": "To retain all object versions indefinitely.", "isCorrect": false },
             { "answerText": "To enable aggressive pruning of old object versions as soon as possible.", "isCorrect": true },

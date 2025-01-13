@@ -10,7 +10,7 @@ import { useIotaLedgerClient } from '_src/ui/app/components';
 import {
     isLedgerAccountSerializedUI,
     type LedgerAccountSerializedUI,
-} from '_src/background/accounts/LedgerAccount';
+} from '_src/background/accounts/ledgerAccount';
 import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
 
 interface ReceiveTokensDialogProps {

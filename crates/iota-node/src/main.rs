@@ -81,7 +81,7 @@ fn main() {
 
     drop(metrics_rt);
 
-    info!("Iota Node version: {VERSION}");
+    info!("IOTA Node version: {VERSION}");
     info!(
         "Supported protocol versions: {:?}",
         config.supported_protocol_versions

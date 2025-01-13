@@ -206,7 +206,7 @@ fn make_credential_creation_option(origin: &Url) -> CredentialCreationOptions {
 
 #[tokio::test]
 async fn test_passkey_serde() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
@@ -231,7 +231,7 @@ async fn test_passkey_serde() {
 
 #[tokio::test]
 async fn test_passkey_authenticator() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
 
@@ -256,7 +256,7 @@ async fn test_passkey_authenticator() {
 
 #[tokio::test]
 async fn test_passkey_fails_invalid_json() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let client_data_json_missing_type = r#"{"challenge":"9-fH7nX8Nb1JvUynz77mv1kXOkGkg1msZb2qhvZssGI","origin":"http://localhost:5173","crossOrigin":false}"#;
@@ -310,7 +310,7 @@ async fn test_passkey_fails_invalid_json() {
 
 #[tokio::test]
 async fn test_passkey_fails_invalid_challenge() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let fake_client_data_json = r#"{"type":"webauthn.get","challenge":"wrong_base64_encoding","origin":"http://localhost:5173","crossOrigin":false}"#;
@@ -328,7 +328,7 @@ async fn test_passkey_fails_invalid_challenge() {
 
 #[tokio::test]
 async fn test_passkey_fails_wrong_client_data_type() {
-    let origin = Url::parse("https://www.iota.io").unwrap();
+    let origin = Url::parse("https://www.iota.org").unwrap();
     let request = make_credential_creation_option(&origin);
     let response = create_credential_and_sign_test_tx(&origin, request).await;
     let fake_client_data_json = r#"{"type":"webauthn.create","challenge":"9-fH7nX8Nb1JvUynz77mv1kXOkGkg1msZb2qhvZssGI","origin":"http://localhost:5173","crossOrigin":false}"#;

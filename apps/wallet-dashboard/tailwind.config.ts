@@ -3,7 +3,7 @@
 
 import type { Config } from 'tailwindcss';
 // Note: exception for the tailwind preset import
-import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive.preset';
+import uiKitResponsivePreset from '../../apps/ui-kit/src/lib/tailwind/responsive.presets';
 
 export default {
     presets: [uiKitResponsivePreset],

@@ -12,8 +12,8 @@ import {
 import {
     AccountSourceType,
     type AccountSourceSerializedUI,
-} from '_src/background/account-sources/AccountSource';
-import { AccountType } from '_src/background/accounts/Account';
+} from '_src/background/account-sources/accountSource';
+import { AccountType } from '_src/background/accounts/account';
 import { type SourceStrategyToFind } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { getKey } from '_src/ui/app/helpers/accounts';

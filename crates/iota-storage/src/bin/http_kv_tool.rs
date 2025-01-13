@@ -24,8 +24,8 @@ use iota_types::{
 #[derive(Parser)]
 #[command(rename_all = "kebab-case")]
 struct Options {
-    // default value of 'https://transactions.iota.io/'
-    #[arg(short, long, default_value = "https://transactions.iota.io/mainnet")]
+    // default value of 'https://transactions.iota.cafe/'
+    #[arg(short, long, default_value = "https://transactions.iota.cafe/mainnet")]
     base_url: String,
 
     #[arg(short, long)]
