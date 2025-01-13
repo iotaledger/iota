@@ -3,18 +3,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLinkHelper, UserApproveContainer } from '_components';
-import { useActiveAddress, useAppDispatch, useTransactionData, useTransactionDryRun } from '_hooks';
+import {
+    useActiveAddress,
+    useAppDispatch,
+    useTransactionData,
+    useTransactionDryRun,
+    useAccountByAddress,
+    useRecognizedPackages,
+    useSigner,
+} from '_hooks';
 import { type TransactionApprovalRequest } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { respondToTransactionRequest } from '_redux/slices/transaction-requests';
 import { ampli } from '_src/shared/analytics/ampli';
-import { useAccountByAddress } from '_src/ui/app/hooks/useAccountByAddress';
-import { useRecognizedPackages } from '_src/ui/app/hooks/useRecognizedPackages';
-import { useSigner } from '_src/ui/app/hooks/useSigner';
 import { PageMainLayoutTitle } from '_src/ui/app/shared/page-main-layout/PageMainLayoutTitle';
 import { useTransactionSummary, TransactionSummary, GasFees } from '@iota/core';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMemo, useState } from 'react';
-
 import { ConfirmationModal } from '../../../shared/ConfirmationModal';
 import { TransactionDetails } from './transaction-details';
 

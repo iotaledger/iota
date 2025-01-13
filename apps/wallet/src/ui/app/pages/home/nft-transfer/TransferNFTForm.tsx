@@ -4,9 +4,7 @@
 
 import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '_src/ui/app/helpers/errorMessages';
-import { useActiveAddress } from '_src/ui/app/hooks';
-import { useActiveAccount } from '_src/ui/app/hooks/useActiveAccount';
-import { useSigner } from '_src/ui/app/hooks/useSigner';
+import { useActiveAccount, useSigner, useActiveAddress } from '_hooks';
 import {
     createNftSendValidationSchema,
     AddressInput,
