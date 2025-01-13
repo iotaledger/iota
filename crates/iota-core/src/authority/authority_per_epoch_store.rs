@@ -572,10 +572,9 @@ pub struct AuthorityEpochTables {
     /// Transactions that are being deferred until some future time
     deferred_transactions: DBMap<DeferralKey, Vec<VerifiedSequencedConsensusTransaction>>,
 
-    #[rustfmt::skip]
     #[allow(clippy::empty_line_after_outer_attr)]
     // Tables for recording state for RandomnessManager.
-    
+
     /// Records messages processed from other nodes. Updated when receiving a
     /// new dkg::Message via consensus.
     pub(crate) dkg_processed_messages: DBMap<PartyId, VersionedProcessedMessage>,
