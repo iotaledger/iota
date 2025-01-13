@@ -2749,20 +2749,20 @@ pub async fn estimate_gas_budget(
     sponsor: Option<IotaAddress>,
 ) -> Result<u64, anyhow::Error> {
     let client = context.get_client().await?;
-    let Ok(IotaClientCommandResult::DryRun(dry_run)) =
-        execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await
-    else {
+    let dry_run =
+        execute_dry_run(context, signer, kind, None, gas_price, gas_payment, sponsor).await;
+    if let Ok(IotaClientCommandResult::DryRun(dry_run)) = dry_run {
+        let rgp = client.read_api().get_reference_gas_price().await?;
+        return Ok(estimate_gas_budget_from_gas_cost(
+            dry_run.effects.gas_cost_summary(),
+            rgp,
+        ));
+    } else {
         bail!(
-            "Could not automatically determine the gas budget. Please supply one using the --gas-budget flag."
+            "Could not determine the gas budget. Error: {}",
+            dry_run.unwrap_err()
         )
-    };
-
-    let rgp = client.read_api().get_reference_gas_price().await?;
-
-    Ok(estimate_gas_budget_from_gas_cost(
-        dry_run.effects.gas_cost_summary(),
-        rgp,
-    ))
+    }
 }
 
 pub fn estimate_gas_budget_from_gas_cost(
