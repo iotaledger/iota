@@ -1,4 +1,4 @@
-# Iota Node Deterministic Build
+# IOTA Node Deterministic Build
 
 ## General Requirements
 

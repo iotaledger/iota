@@ -1,6 +1,6 @@
-# Configure a Linux system as a Iota Node using Ansible
+# Configure a Linux system as a IOTA Node using Ansible
 
-This is a self contained Ansible role for configuring a Linux system as a Iota Node.
+This is a self-contained Ansible role for configuring a Linux system as an IOTA Node.
 
 Tested with `ansible [core 2.13.4]` and:
 
@@ -17,7 +17,7 @@ Tested with `ansible [core 2.13.4]` and:
 
 4. Update [validator.yaml](../config/validator.yaml) and copy it to this directory.
 
-5. Copy the genesis.blob to this directory (should be available after the Genesis ceremony).
+5. Copy the `genesis.blob` to this directory (see [Genesis](https://docs.iota.org/operator/genesis)).
 
 6. Update the `keypair_path` var in the [Ansible Inventory](./inventory.yaml)
 
