@@ -1,8 +1,8 @@
 {
   "openrpc": "1.2.6",
   "info": {
-    "title": "Iota JSON-RPC",
-    "description": "Iota JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://fullnode.NETWORK.iota.io:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
+    "title": "IOTA JSON-RPC",
+    "description": "IOTA JSON-RPC API for interaction with Iota Full node. Make RPC calls using https://api.NETWORK.iota.cafe:443, where NETWORK is the network you want to use (testnet, devnet, mainnet). By default, local networks use port 9000.",
     "contact": {
       "name": "IOTA Foundation",
       "url": "https://iota.org",

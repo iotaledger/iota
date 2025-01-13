@@ -1,4 +1,4 @@
-# Rosetta API for Iota
+# Rosetta API for IOTA
 
 [Rosetta](https://www.rosetta-api.org/docs/welcome.html) is an open-source specification and set of tools for blockchain
 integration. Rosetta’s goal is to make blockchain integration simpler, faster, and more reliable than using a native
@@ -6,7 +6,7 @@ integration.
 
 ## Overview
 
-Iota-Rosetta is an implementation of the Rosetta API for the Iota network, the Iota-Rosetta server uses the Iota fullnode to
+Iota-Rosetta is an implementation of the Rosetta API for the Iota network, the Iota-Rosetta server uses the IOTA fullnode to
 read and write transactions to the Iota network.
 
 ## Local network quick start
@@ -15,12 +15,12 @@ read and write transactions to the Iota network.
 
 #### 0. Checkout and build Iota
 
-Checkout the [Iota source code](https://github.com/iotaledger/iota) and compile using `cargo build --release`, the binaries will be located in `target/release` directory.
+Checkout the [IOTA source code](https://github.com/iotaledger/iota) and compile using `cargo build --release`, the binaries will be located in `target/release` directory.
 
 #### 1. Genesis
 
 `./iota genesis -f`
-The Iota genesis process will create configs and coins for testing, the config files are stored in `~/.iota/iota_config` by
+The IOTA genesis process will create configs and coins for testing, the config files are stored in `~/.iota/iota_config` by
 default.
 
 #### 2. Start local network

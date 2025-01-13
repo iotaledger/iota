@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Route, Routes } from 'react-router-dom';
-
-import { useUnlockedGuard } from '../../hooks/useUnlockedGuard';
+import { useUnlockedGuard } from '_hooks';
 import { DelegationDetail } from '../delegation-detail';
 import { StakePage } from '../stake';
 import { Validators } from '../validators';

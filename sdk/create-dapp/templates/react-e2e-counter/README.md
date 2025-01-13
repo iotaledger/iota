@@ -33,7 +33,7 @@ If you haven't set up an address in the iota client yet, you can use the
 following command to get a new address:
 
 ```bash
-iota client new-address secp256k1
+iota client new-address --key-scheme secp256k1
 ```
 
 This well generate a new address and recover phrase for you. You can mark a

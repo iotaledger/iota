@@ -5,8 +5,7 @@
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import { createContext, useCallback, useContext, useState, type ReactNode, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import { useBackgroundClient } from '../../hooks/useBackgroundClient';
-import { useUnlockMutation } from '../../hooks/useUnlockMutation';
+import { useUnlockMutation, useBackgroundClient } from '_hooks';
 import { UnlockAccountModal } from './UnlockAccountModal';
 
 type OnSuccessCallback = () => void | Promise<void>;

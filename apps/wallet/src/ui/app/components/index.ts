@@ -32,3 +32,4 @@ export * from './receipt-card/TxnAmount';
 export * from './transactions-card';
 export * from './user-approve-container';
 export * from './filters-tags';
+export * from './MovedAssetNotification';
