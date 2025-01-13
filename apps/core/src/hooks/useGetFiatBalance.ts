@@ -1,0 +1,23 @@
+// Copyright (c) 2024 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { useCurrentAccount } from '@iota/dapp-kit';
+import { useBalanceInUSD } from './useTokenPrice';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useBalance } from './useBalance';
+
+export function useGetFiatBalance(): string | null {
+    const account = useCurrentAccount();
+    const address = account?.address;
+    if (!address) return null;
+    const { data: coinBalance } = useBalance(address);
+
+    const balance = useBalanceInUSD(IOTA_TYPE_ARG, coinBalance?.totalBalance ?? 0);
+
+    if (!balance) return null;
+
+    return balance.toLocaleString('en', {
+        style: 'currency',
+        currency: 'USD',
+    });
+}

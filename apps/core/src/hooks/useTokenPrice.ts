@@ -8,6 +8,7 @@ import BigNumber from 'bignumber.js';
 import { useAppsBackend } from './useAppsBackend';
 import { useCoinMetadata } from './useFormatCoin';
 import { FiatTokenName } from '../enums';
+import { COIN_TYPE_TO_FIAT_TOKEN_NAME } from '../constants/coinTypeToFiatTokenName.constants';
 
 type TokenPriceResponse = { price: string | null };
 
@@ -23,9 +24,11 @@ export function useTokenPrice(tokenName: FiatTokenName) {
     });
 }
 
-export function useBalanceInUSD(coinType: FiatTokenName, balance: bigint | string | number) {
+export function useBalanceInUSD(coinType: string, balance: bigint | string | number) {
     const { data: coinMetadata } = useCoinMetadata(coinType);
-    const { data: tokenPrice } = useTokenPrice(coinType);
+    const tokenName = COIN_TYPE_TO_FIAT_TOKEN_NAME[coinType];
+    if (!tokenName) return null;
+    const { data: tokenPrice } = useTokenPrice(tokenName);
     if (!tokenPrice || !coinMetadata || !tokenPrice.price) return null;
     return new BigNumber(balance.toString())
         .shiftedBy(-1 * coinMetadata.decimals)

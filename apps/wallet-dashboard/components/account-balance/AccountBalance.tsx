@@ -3,7 +3,7 @@
 
 import { useCurrentAccount, useIotaClientContext } from '@iota/dapp-kit';
 import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { useBalance, useFormatCoin, useTotalFiatBalance } from '@iota/core';
+import { useBalance, useFormatCoin, useGetFiatBalance } from '@iota/core';
 import { Address, Button, ButtonSize, ButtonType, Panel } from '@iota/apps-ui-kit';
 import { getNetwork } from '@iota/iota-sdk/client';
 import { ReceiveFundsDialog, SendTokenDialog } from '../dialogs';
@@ -14,7 +14,7 @@ export function AccountBalance() {
     const account = useCurrentAccount();
     const address = account?.address;
     const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
-    const fiatBalance = useTotalFiatBalance();
+    const fiatBalance = useGetFiatBalance();
     const { network } = useIotaClientContext();
     const { explorer } = getNetwork(network);
     const { data: coinBalance, isPending } = useBalance(address!);
