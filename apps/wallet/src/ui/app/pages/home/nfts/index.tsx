@@ -11,7 +11,7 @@ import {
     SegmentedButton,
     SegmentedButtonType,
 } from '@iota/apps-ui-kit';
-import { useActiveAddress } from '_app/hooks/useActiveAddress';
+import { useActiveAddress } from '_hooks';
 import { Loading, NoData, PageTemplate } from '_components';
 import { HiddenAssets } from './HiddenAssets';
 import { NonVisualAssets } from './NonVisualAssets';
