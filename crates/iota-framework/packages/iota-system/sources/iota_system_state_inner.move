@@ -888,21 +888,21 @@ module iota_system::iota_system_state_inner {
         let minted_tokens_amount = validator_subsidy;
         if (burnt_tokens_amount < minted_tokens_amount) {
             let actual_amount_to_mint = minted_tokens_amount - burnt_tokens_amount;
+            let balance_to_mint = iota_treasury_cap.mint_balance(actual_amount_to_mint, ctx);
             // total validator reward 
             // = computation_charge + (minted_balance)
             // = computation_charge + (validator_subsidy - computation_charge_burned)
             // = validator_subsidy + (computation_charge - computation_charge_burned)
             // = validator_subsidy + (tips)
-            let balance_to_mint = iota_treasury_cap.mint_balance(actual_amount_to_mint, ctx);
             computation_charges.join(balance_to_mint);
         } else if (burnt_tokens_amount > minted_tokens_amount) {
             let actual_amount_to_burn = burnt_tokens_amount - minted_tokens_amount;
-            let balance_to_burn = computation_charges.split(actual_amount_to_burn);
             // total validator reward
             // = computation_charge - (amount_to_burn)
             // = computation_charge - (computation_charge_burned - validator_subsidy)
             // = validator_subsidy + (computation_charge - computation_charge_burned)
-            // = validator_subsidy + (tips)   
+            // = validator_subsidy + (tips) 
+            let balance_to_burn = computation_charges.split(actual_amount_to_burn);  
              iota_treasury_cap.burn_balance(balance_to_burn, ctx);
         };
         (computation_charges, minted_tokens_amount, burnt_tokens_amount)

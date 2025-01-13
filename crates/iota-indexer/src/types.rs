@@ -129,25 +129,14 @@ impl IndexedEpochInfo {
         first_checkpoint_id: u64,
         event: Option<&SystemEpochInfoEvent>,
     ) -> IndexedEpochInfo {
-        let total_stake: u64;
-        let storage_fund_balance: u64;
         // NOTE: total_stake and storage_fund_balance are about new epoch,
         // although the event is generated at the end of the previous epoch,
         // the event is optional b/c no such event for the first epoch.
-        match event {
-            Some(SystemEpochInfoEvent::V1(e)) => {
-                total_stake = e.total_stake;
-                storage_fund_balance = e.storage_fund_balance;
-            }
-            Some(SystemEpochInfoEvent::V2(e)) => {
-                total_stake = e.total_stake;
-                storage_fund_balance = e.storage_fund_balance;
-            }
-            None => {
-                total_stake = 0;
-                storage_fund_balance = 0;
-            }
-        }
+        let (total_stake, storage_fund_balance) = match event {
+            Some(SystemEpochInfoEvent::V1(e)) => (e.total_stake, e.storage_fund_balance),
+            Some(SystemEpochInfoEvent::V2(e)) => (e.total_stake, e.storage_fund_balance),
+            None => (0, 0),
+        };
         Self {
             epoch: new_system_state_summary.epoch,
             first_checkpoint_id,
@@ -170,33 +159,26 @@ impl IndexedEpochInfo {
         event: &SystemEpochInfoEvent,
         network_total_tx_num_at_last_epoch_end: u64,
     ) -> IndexedEpochInfo {
-        let storage_charge: Option<u64>;
-        let storage_rebate: Option<u64>;
-        let total_gas_fees: Option<u64>;
-        let total_stake_rewards_distributed: Option<u64>;
-        let burnt_tokens_amount: Option<u64>;
-        let minted_tokens_amount: Option<u64>;
-        let tips_amount: Option<u64>;
-        match event {
-            SystemEpochInfoEvent::V1(event) => {
-                storage_charge = Some(event.storage_charge);
-                storage_rebate = Some(event.storage_rebate);
-                total_gas_fees = Some(event.total_gas_fees);
-                total_stake_rewards_distributed = Some(event.total_stake_rewards_distributed);
-                burnt_tokens_amount = Some(event.burnt_tokens_amount);
-                minted_tokens_amount = Some(event.minted_tokens_amount);
-                tips_amount = Some(0);
-            }
-            SystemEpochInfoEvent::V2(event) => {
-                storage_charge = Some(event.storage_charge);
-                storage_rebate = Some(event.storage_rebate);
-                total_gas_fees = Some(event.total_gas_fees);
-                total_stake_rewards_distributed = Some(event.total_stake_rewards_distributed);
-                burnt_tokens_amount = Some(event.burnt_tokens_amount);
-                minted_tokens_amount = Some(event.minted_tokens_amount);
-                tips_amount = Some(event.tips_amount);
-            }
-        }
+        let (storage_charge, storage_rebate, total_gas_fees, total_stake_rewards_distributed, burnt_tokens_amount, minted_tokens_amount, tips_amount) = match event {
+            SystemEpochInfoEvent::V1(event) => (
+                Some(event.storage_charge),
+                Some(event.storage_rebate),
+                Some(event.total_gas_fees),
+                Some(event.total_stake_rewards_distributed),
+                Some(event.burnt_tokens_amount),
+                Some(event.minted_tokens_amount),
+                Some(0),
+            ),
+            SystemEpochInfoEvent::V2(event) => (
+                Some(event.storage_charge),
+                Some(event.storage_rebate),
+                Some(event.total_gas_fees),
+                Some(event.total_stake_rewards_distributed),
+                Some(event.burnt_tokens_amount),
+                Some(event.minted_tokens_amount),
+                Some(event.tips_amount),
+            ),
+        };
         Self {
             epoch: last_checkpoint_summary.epoch,
             epoch_total_transactions: Some(
