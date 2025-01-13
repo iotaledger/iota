@@ -5,7 +5,7 @@ The `iota-metric-checker` crate is used for querying prometheus metrics and vali
 ### Example Usage
 
 ```
-RUST_LOG=debug cargo run --package iota-metric-checker --bin iota-metric-checker  -- --api-key xxxxxxxx --api-user xxxx_metrics --config checks.yaml --url https://xxxx.iota.io/prometheus
+RUST_LOG=debug cargo run --package iota-metric-checker --bin iota-metric-checker  -- --api-key xxxxxxxx --api-user xxxx_metrics --config checks.yaml --url https://xxxx.iota.cafe/prometheus
 ```
 
 ### Example Config

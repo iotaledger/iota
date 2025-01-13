@@ -105,7 +105,7 @@ https://stackoverflow.com/questions/52676244/node-version-not-updating-after-nvm
 To run E2E tests against Devnet
 
 ```
-VITE_FAUCET_URL='https://faucet.devnet.iota.org:443/gas' VITE_FULLNODE_URL='https://fullnode.devnet.iota.org' pnpm --filter @iota/iota-sdk exec vitest e2e
+VITE_FAUCET_URL='https://faucet.devnet.iota.cafe:443/gas' VITE_FULLNODE_URL='https://api.devnet.iota.cafe' pnpm --filter @iota/iota-sdk exec vitest e2e
 ```
 
 ## Connecting to IOTA Network
@@ -114,7 +114,7 @@ The `IotaClient` class provides a connection to the JSON-RPC Server and should b
 read-only operations. The default URLs to connect with the RPC server are:
 
 - local: http://127.0.0.1:9000
-- Devnet: https://fullnode.devnet.iota.org
+- Devnet: https://api.devnet.iota.cafe
 
 ```typescript
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
